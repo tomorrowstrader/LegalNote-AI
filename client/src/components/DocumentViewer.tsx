@@ -1,0 +1,120 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { FileText, Download, FileType } from "lucide-react";
+
+interface DocumentSection {
+  title: string;
+  content: string;
+}
+
+interface DocumentViewerProps {
+  attendanceNote: string;
+  keyIssues: string[];
+  nextSteps: string[];
+  legalOpinion: string;
+  transcript?: string;
+}
+
+export default function DocumentViewer({
+  attendanceNote,
+  keyIssues,
+  nextSteps,
+  legalOpinion,
+  transcript,
+}: DocumentViewerProps) {
+  const handleExport = (format: 'word' | 'pdf') => {
+    console.log(`Exporting as ${format}`);
+  };
+
+  return (
+    <div className="space-y-6" data-testid="container-document-viewer">
+      <div className="sticky top-16 z-40 bg-background py-4 border-b">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-semibold">Generated Documentation</h2>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => handleExport('word')}
+              className="gap-2"
+              data-testid="button-export-word"
+            >
+              <FileType className="w-4 h-4" />
+              Export Word
+            </Button>
+            <Button
+              onClick={() => handleExport('pdf')}
+              className="gap-2 bg-accent hover:bg-accent"
+              data-testid="button-export-pdf"
+            >
+              <FileText className="w-4 h-4" />
+              Export PDF
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Attendance Note</CardTitle>
+        </CardHeader>
+        <CardContent className="prose prose-sm max-w-none">
+          <p className="text-foreground whitespace-pre-wrap">{attendanceNote}</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Key Issues</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-2">
+            {keyIssues.map((issue, index) => (
+              <li key={index} className="flex gap-2">
+                <span className="text-primary font-medium">{index + 1}.</span>
+                <span className="text-foreground">{issue}</span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Next Steps / Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-2">
+            {nextSteps.map((step, index) => (
+              <li key={index} className="flex gap-2">
+                <span className="text-accent font-medium">•</span>
+                <span className="text-foreground">{step}</span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Draft Legal Opinion</CardTitle>
+        </CardHeader>
+        <CardContent className="prose prose-sm max-w-none">
+          <p className="text-foreground whitespace-pre-wrap">{legalOpinion}</p>
+        </CardContent>
+      </Card>
+
+      {transcript && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Full Transcript</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap font-mono">
+              {transcript}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
