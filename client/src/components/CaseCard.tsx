@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, Calendar, User, CheckCircle2, Clock, MoreVertical, Mail, Download, UserPlus, Eye, Headphones, MessageSquarePlus, AlertCircle, Archive, Share2 } from "lucide-react";
+import { FileText, Calendar, User, CheckCircle2, Clock, MoreVertical, Mail, Download, UserPlus, Eye, Headphones, MessageSquarePlus, AlertCircle, Archive, Share2, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -96,10 +96,9 @@ export default function CaseCard({
           </div>
           
           <div className="flex items-center gap-2 flex-shrink-0">
-            <Badge variant={config.variant} className="gap-1">
-              <StatusIcon className="w-3 h-3" />
-              {config.label}
-            </Badge>
+            {(status === "pending" || status === "processing") && (
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" data-testid={`spinner-${status}-${id}`} />
+            )}
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
