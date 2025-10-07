@@ -24,39 +24,37 @@ export default function TopNavigation() {
   return (
     <nav className="sticky top-0 z-50 bg-gradient-to-r from-primary via-black to-primary border-b border-primary-border shadow-lg">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-8">
-            <Link href="/" data-testid="link-home">
-              <div className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-md px-2 py-1 -ml-2">
-                <Scale className="w-6 h-6 text-accent" />
-                <span className="text-lg font-semibold text-primary-foreground">
-                  LegalNote AI
-                </span>
-              </div>
-            </Link>
-
-            <div className="hidden md:flex items-center gap-1">
-              {navLinks.map((link) => {
-                const isActive = location === link.path;
-                return (
-                  <Link key={link.path} href={link.path} data-testid={`link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}>
-                    <button
-                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                        isActive
-                          ? "text-primary-foreground border-b-2 border-accent"
-                          : "text-primary-foreground/80 hover-elevate active-elevate-2"
-                      }`}
-                    >
-                      {link.label}
-                    </button>
-                  </Link>
-                );
-              })}
+        <div className="flex items-center h-16 gap-2">
+          <Link href="/" data-testid="link-home">
+            <div className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-md px-2 py-1 -ml-2 flex-shrink-0">
+              <Scale className="w-6 h-6 text-accent" />
+              <span className="text-lg font-semibold text-primary-foreground whitespace-nowrap">
+                LegalNote AI
+              </span>
             </div>
+          </Link>
+
+          <div className="hidden md:flex items-center gap-1 flex-1 min-w-0 ml-6">
+            {navLinks.map((link) => {
+              const isActive = location === link.path;
+              return (
+                <Link key={link.path} href={link.path} data-testid={`link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                  <button
+                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+                      isActive
+                        ? "text-primary-foreground border-b-2 border-accent"
+                        : "text-primary-foreground/80 hover-elevate active-elevate-2"
+                    }`}
+                  >
+                    {link.label}
+                  </button>
+                </Link>
+              );
+            })}
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="hidden lg:block">
+          <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+            <div className="hidden xl:block">
               <GlobalSearch />
             </div>
             
