@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import GlobalSearch from "@/components/GlobalSearch";
+import QuickRecordButton from "@/components/QuickRecordButton";
 
 const navLinks = [
   { path: "/", label: "Dashboard" },
@@ -58,6 +59,8 @@ export default function TopNavigation() {
             <div className="hidden lg:block">
               <GlobalSearch />
             </div>
+            
+            <QuickRecordButton />
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

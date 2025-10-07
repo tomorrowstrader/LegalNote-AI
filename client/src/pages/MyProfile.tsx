@@ -4,7 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { ArrowLeft, Activity } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function MyProfile() {
@@ -30,8 +32,14 @@ export default function MyProfile() {
           </p>
         </div>
 
-        <div className="space-y-6">
-          <Card>
+        <Tabs defaultValue="profile" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="profile" data-testid="tab-profile-info">Profile</TabsTrigger>
+            <TabsTrigger value="usage" data-testid="tab-usage">Usage</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="profile" className="space-y-6">
+            <Card>
             <CardHeader>
               <CardTitle>Personal Information</CardTitle>
               <CardDescription>Update your display name and contact details</CardDescription>
@@ -95,7 +103,64 @@ export default function MyProfile() {
               </div>
             </CardContent>
           </Card>
-        </div>
+          </TabsContent>
+
+          <TabsContent value="usage" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Activity className="w-5 h-5" />
+                  <CardTitle>Monthly Usage</CardTitle>
+                </div>
+                <CardDescription>Track your transcription usage this month</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Full Meeting Transcriptions</Label>
+                    <span className="text-sm font-medium">28 / 50 recordings</span>
+                  </div>
+                  <Progress value={56} className="h-2" data-testid="progress-meetings" />
+                  <p className="text-xs text-muted-foreground">
+                    You've used 56% of your monthly meeting transcription allocation
+                  </p>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Quick Voice Notes</Label>
+                    <span className="text-sm font-medium">143 / 200 notes</span>
+                  </div>
+                  <Progress value={71.5} className="h-2" data-testid="progress-notes" />
+                  <p className="text-xs text-muted-foreground">
+                    You've used 71.5% of your monthly quick notes allocation
+                  </p>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Total Audio Minutes</Label>
+                    <span className="text-sm font-medium">1,247 / 2,500 minutes</span>
+                  </div>
+                  <Progress value={49.88} className="h-2" data-testid="progress-minutes" />
+                  <p className="text-xs text-muted-foreground">
+                    ✅ Well within limits - 1,253 minutes remaining this month
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <p className="text-sm text-muted-foreground">
+                    Your usage resets on the 1st of each month. Limits: 50 full meetings, 200 quick notes, 2,500 total audio minutes.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

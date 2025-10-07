@@ -1,4 +1,5 @@
-import { FileText, Calendar, User, CheckCircle2, Clock, MoreVertical, Mail, Download, UserPlus, Eye, Headphones } from "lucide-react";
+import { useState } from "react";
+import { FileText, Calendar, User, CheckCircle2, Clock, MoreVertical, Mail, Download, UserPlus, Eye, Headphones, MessageSquarePlus, AlertCircle, Archive, Share2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import AddQuickNoteModal from "@/components/AddQuickNoteModal";
+import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
+import ShareLinkModal from "@/components/ShareLinkModal";
 
 interface CaseCardProps {
   id: string;
@@ -31,6 +35,10 @@ export default function CaseCard({
   priority = "normal",
   audioExpiresIn
 }: CaseCardProps) {
+  const [showAddNoteModal, setShowAddNoteModal] = useState(false);
+  const [showPriorityModal, setShowPriorityModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+
   const statusConfig = {
     completed: { icon: CheckCircle2, label: "Completed", variant: "default" as const },
     processing: { icon: Clock, label: "Processing", variant: "secondary" as const },
@@ -55,7 +63,15 @@ export default function CaseCard({
 
   const handleAction = (action: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log(`${action} action for case ${id}`);
+    if (action === 'add-note') {
+      setShowAddNoteModal(true);
+    } else if (action === 'set-priority') {
+      setShowPriorityModal(true);
+    } else if (action === 'share') {
+      setShowShareModal(true);
+    } else {
+      console.log(`${action} action for case ${id}`);
+    }
   };
 
   return (
@@ -92,6 +108,15 @@ export default function CaseCard({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={(e) => handleAction('set-priority', e)} data-testid={`action-set-priority-${id}`}>
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  Set Priority/Deadline
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => handleAction('add-note', e)} data-testid={`action-add-note-${id}`}>
+                  <MessageSquarePlus className="w-4 h-4 mr-2" />
+                  Add Quick Note
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={(e) => handleAction('email', e)} data-testid={`action-email-${id}`}>
                   <Mail className="w-4 h-4 mr-2" />
                   Email to Client
@@ -108,6 +133,14 @@ export default function CaseCard({
                 <DropdownMenuItem onClick={(e) => handleAction('assign', e)} data-testid={`action-assign-${id}`}>
                   <UserPlus className="w-4 h-4 mr-2" />
                   Assign to Team Member
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => handleAction('share', e)} data-testid={`action-share-${id}`}>
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Share Link
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => handleAction('archive', e)} data-testid={`action-archive-${id}`}>
+                  <Archive className="w-4 h-4 mr-2" />
+                  Archive Case
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -133,6 +166,27 @@ export default function CaseCard({
           )}
         </div>
       </CardContent>
+
+      <AddQuickNoteModal
+        open={showAddNoteModal}
+        onOpenChange={setShowAddNoteModal}
+        caseId={id}
+      />
+
+      <SetPriorityDeadlineModal
+        open={showPriorityModal}
+        onOpenChange={setShowPriorityModal}
+        caseId={id}
+        caseTitle={title}
+      />
+
+      <ShareLinkModal
+        open={showShareModal}
+        onOpenChange={setShowShareModal}
+        caseId={id}
+        caseTitle={title}
+        userRole="Partner"
+      />
     </Card>
   );
 }

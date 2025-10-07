@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, Building2, Bell } from "lucide-react";
+import { Shield, Users, Building2, Bell, Activity, Download } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 
 export default function Settings() {
   const isAdmin = true;
@@ -41,6 +42,7 @@ export default function Settings() {
           <TabsList>
             <TabsTrigger value="firm" data-testid="tab-firm">Firm</TabsTrigger>
             <TabsTrigger value="team" data-testid="tab-team">Team</TabsTrigger>
+            <TabsTrigger value="usage" data-testid="tab-usage">Team Usage</TabsTrigger>
             <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
           </TabsList>
 
@@ -101,6 +103,81 @@ export default function Settings() {
                       </Badge>
                     </div>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="usage" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-5 h-5" />
+                    <CardTitle>Team Usage Report</CardTitle>
+                  </div>
+                  <Button variant="outline" className="gap-2" data-testid="button-export-usage">
+                    <Download className="w-4 h-4" />
+                    Export Report
+                  </Button>
+                </div>
+                <CardDescription>Monitor transcription usage across your team</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {[
+                    { name: "John Smith", email: "j.smith@lawfirm.co.uk", meetings: 45, notes: 187, minutes: 3200, status: "excessive" },
+                    { name: "Sarah Johnson", email: "s.johnson@lawfirm.co.uk", meetings: 28, notes: 143, minutes: 1247, status: "normal" },
+                    { name: "Michael Brown", email: "m.brown@lawfirm.co.uk", meetings: 32, notes: 156, minutes: 1450, status: "normal" },
+                    { name: "Emma Davis", email: "e.davis@lawfirm.co.uk", meetings: 18, notes: 89, minutes: 820, status: "normal" },
+                  ].map((member, index) => (
+                    <div key={index} className="space-y-3 p-4 border rounded-md" data-testid={`usage-member-${index}`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{member.name}</p>
+                          <p className="text-sm text-muted-foreground">{member.email}</p>
+                        </div>
+                        {member.status === "excessive" && (
+                          <Badge className="bg-amber-500">Excessive Usage</Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Meetings</p>
+                          <p className="font-medium">{member.meetings} / 50</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Quick Notes</p>
+                          <p className="font-medium">{member.notes} / 200</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Minutes</p>
+                          <p className="font-medium">{member.minutes} / 2,500</p>
+                        </div>
+                      </div>
+                      <Progress 
+                        value={(member.minutes / 2500) * 100} 
+                        className={`h-2 ${member.status === "excessive" ? "bg-amber-200" : ""}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 p-4 border-t">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Meetings</p>
+                      <p className="text-2xl font-semibold">123</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Quick Notes</p>
+                      <p className="text-2xl font-semibold">575</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Minutes</p>
+                      <p className="text-2xl font-semibold">6,717</p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

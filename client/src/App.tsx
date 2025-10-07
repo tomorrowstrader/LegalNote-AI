@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import TopNavigation from "@/components/TopNavigation";
 import ThemeToggle from "@/components/ThemeToggle";
-import FloatingQuickRecord from "@/components/FloatingQuickRecord";
 import Dashboard from "@/pages/Dashboard";
 import NewNote from "@/pages/NewNote";
 import CaseDetail from "@/pages/CaseDetail";
@@ -38,7 +37,6 @@ function App() {
             <ThemeToggle />
           </div>
           <Router />
-          <FloatingQuickRecord />
         </div>
         <Toaster />
       </TooltipProvider>

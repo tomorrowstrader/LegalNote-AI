@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Search, FolderOpen } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import CaseCard from "@/components/CaseCard";
 import EmptyState from "@/components/EmptyState";
 import { useLocation } from "wouter";
@@ -8,8 +10,9 @@ import { useLocation } from "wouter";
 export default function SavedCases() {
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState("active");
 
-  const mockCases = [
+  const mockActiveCases = [
     {
       id: "1",
       title: "Estate Planning Consultation",
@@ -58,7 +61,34 @@ export default function SavedCases() {
     },
   ];
 
-  const filteredCases = mockCases.filter(
+  const mockArchivedCases = [
+    {
+      id: "a1",
+      title: "Commercial Lease Agreement Review",
+      clientName: "Retail Properties PLC",
+      meetingDate: "15 December 2024",
+      status: "completed" as const,
+      createdBy: "Sarah Johnson",
+      priority: "normal" as const,
+    },
+    {
+      id: "a2",
+      title: "Employment Tribunal Case",
+      clientName: "Global Tech Solutions",
+      meetingDate: "3 December 2024",
+      status: "completed" as const,
+      createdBy: "Michael Brown",
+      priority: "normal" as const,
+    },
+  ];
+
+  const filteredActiveCases = mockActiveCases.filter(
+    (c) =>
+      c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.clientName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredArchivedCases = mockArchivedCases.filter(
     (c) =>
       c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.clientName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -74,39 +104,83 @@ export default function SavedCases() {
           </p>
         </div>
 
-        <div className="mb-6">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search cases by title or client name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-              data-testid="input-search-cases"
-            />
-          </div>
-        </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <TabsList>
+              <TabsTrigger value="active" data-testid="tab-active-cases">
+                Active Cases
+                <Badge variant="secondary" className="ml-2">
+                  {mockActiveCases.length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="archived" data-testid="tab-archived-cases">
+                Archived
+                <Badge variant="secondary" className="ml-2">
+                  {mockArchivedCases.length}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
 
-        {filteredCases.length > 0 ? (
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {filteredCases.map((caseItem) => (
-              <CaseCard key={caseItem.id} {...caseItem} />
-            ))}
+            <div className="relative w-full sm:w-auto sm:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search cases by title or client name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+                data-testid="input-search-cases"
+              />
+            </div>
           </div>
-        ) : (
-          <EmptyState
-            icon={FolderOpen}
-            title="No cases found"
-            description={
-              searchQuery
-                ? "No cases match your search criteria"
-                : "Start by creating your first attendance note"
-            }
-            actionLabel={searchQuery ? undefined : "Create New Note"}
-            onAction={searchQuery ? undefined : () => setLocation('/new-note')}
-          />
-        )}
+
+          <TabsContent value="active" className="mt-6">
+            {filteredActiveCases.length > 0 ? (
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                {filteredActiveCases.map((caseItem) => (
+                  <CaseCard key={caseItem.id} {...caseItem} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={FolderOpen}
+                title="No active cases found"
+                description={
+                  searchQuery
+                    ? "No active cases match your search criteria"
+                    : "Start by creating your first attendance note"
+                }
+                actionLabel={searchQuery ? undefined : "Create New Note"}
+                onAction={searchQuery ? undefined : () => setLocation('/new-note')}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="archived" className="mt-6">
+            {filteredArchivedCases.length > 0 ? (
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                {filteredArchivedCases.map((caseItem) => (
+                  <div key={caseItem.id} className="relative">
+                    <CaseCard {...caseItem} />
+                    <Badge className="absolute top-2 left-2 bg-muted text-muted-foreground" data-testid={`badge-archived-${caseItem.id}`}>
+                      Archived
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={FolderOpen}
+                title="No archived cases"
+                description={
+                  searchQuery
+                    ? "No archived cases match your search criteria"
+                    : "Archived cases will appear here"
+                }
+              />
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

@@ -32,7 +32,7 @@ export default function GlobalSearch() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           type="search"
-          placeholder="Search cases, clients, transcripts..."
+          placeholder="Search cases by title, client, solicitor, date, or content..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10 bg-primary/20 border-primary-border text-primary-foreground placeholder:text-primary-foreground/60"
