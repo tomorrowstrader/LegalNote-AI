@@ -87,7 +87,7 @@ export default function CaseCard({
             <div className="flex items-start gap-2 mb-1">
               <h3 className="text-lg font-semibold text-foreground">{title}</h3>
               {priority !== "normal" && (
-                <Badge className={`${priorityConfig[priority].color} text-xs flex-shrink-0`}>
+                <Badge className={`${priorityConfig[priority].color} text-xs px-2 py-0.5 flex-shrink-0`}>
                   {priorityConfig[priority].label}
                 </Badge>
               )}
