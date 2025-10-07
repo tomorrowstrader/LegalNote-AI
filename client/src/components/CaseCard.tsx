@@ -92,14 +92,16 @@ export default function CaseCard({
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">{clientName}</p>
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-sm text-muted-foreground">{clientName}</p>
+              <Badge variant={config.variant} className="gap-1">
+                <StatusIcon className="w-3 h-3" />
+                {config.label}
+              </Badge>
+            </div>
           </div>
           
           <div className="flex items-center gap-2 flex-shrink-0">
-            {(status === "pending" || status === "processing") && (
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" data-testid={`spinner-${status}-${id}`} />
-            )}
-            
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                 <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" data-testid={`button-actions-${id}`}>
