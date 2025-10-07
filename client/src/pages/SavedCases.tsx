@@ -17,6 +17,7 @@ export default function SavedCases() {
       meetingDate: "14 January 2025",
       status: "completed" as const,
       createdBy: "Sarah Johnson",
+      priority: "normal" as const,
     },
     {
       id: "2",
@@ -25,6 +26,8 @@ export default function SavedCases() {
       meetingDate: "12 January 2025",
       status: "processing" as const,
       createdBy: "Michael Brown",
+      priority: "normal" as const,
+      audioExpiresIn: 8,
     },
     {
       id: "3",
@@ -33,6 +36,7 @@ export default function SavedCases() {
       meetingDate: "10 January 2025",
       status: "completed" as const,
       createdBy: "Emma Davis",
+      priority: "normal" as const,
     },
     {
       id: "4",
@@ -41,6 +45,7 @@ export default function SavedCases() {
       meetingDate: "8 January 2025",
       status: "completed" as const,
       createdBy: "Sarah Johnson",
+      priority: "normal" as const,
     },
     {
       id: "5",
@@ -49,6 +54,7 @@ export default function SavedCases() {
       meetingDate: "5 January 2025",
       status: "completed" as const,
       createdBy: "Michael Brown",
+      priority: "normal" as const,
     },
   ];
 

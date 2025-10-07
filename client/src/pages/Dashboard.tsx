@@ -8,6 +8,29 @@ import { Button } from "@/components/ui/button";
 export default function Dashboard() {
   const [, setLocation] = useLocation();
 
+  const priorityCases = [
+    {
+      id: "p1",
+      title: "Urgent Litigation Response",
+      clientName: "Smith Enterprises Ltd",
+      meetingDate: "15 January 2025",
+      status: "pending" as const,
+      createdBy: "Sarah Johnson",
+      priority: "urgent" as const,
+      audioExpiresIn: 4,
+    },
+    {
+      id: "p2",
+      title: "Property Settlement Deadline",
+      clientName: "Mrs. Rebecca Thompson",
+      meetingDate: "14 January 2025",
+      status: "processing" as const,
+      createdBy: "Michael Brown",
+      priority: "deadline-soon" as const,
+      audioExpiresIn: 18,
+    },
+  ];
+
   const mockCases = [
     {
       id: "1",
@@ -16,6 +39,7 @@ export default function Dashboard() {
       meetingDate: "14 January 2025",
       status: "completed" as const,
       createdBy: "Sarah Johnson",
+      priority: "normal" as const,
     },
     {
       id: "2",
@@ -24,6 +48,8 @@ export default function Dashboard() {
       meetingDate: "12 January 2025",
       status: "processing" as const,
       createdBy: "Michael Brown",
+      priority: "normal" as const,
+      audioExpiresIn: 12,
     },
     {
       id: "3",
@@ -32,6 +58,7 @@ export default function Dashboard() {
       meetingDate: "10 January 2025",
       status: "completed" as const,
       createdBy: "Emma Davis",
+      priority: "normal" as const,
     },
   ];
 
@@ -74,6 +101,17 @@ export default function Dashboard() {
             description="88% success rate"
           />
         </div>
+
+        {priorityCases.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Priority Cases</h2>
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {priorityCases.map((caseItem) => (
+                <CaseCard key={caseItem.id} {...caseItem} />
+              ))}
+            </div>
+          </div>
+        )}
 
         <div>
           <h2 className="text-xl font-semibold mb-4">Recent Cases</h2>

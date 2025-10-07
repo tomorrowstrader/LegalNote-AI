@@ -5,11 +5,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import TopNavigation from "@/components/TopNavigation";
 import ThemeToggle from "@/components/ThemeToggle";
+import FloatingQuickRecord from "@/components/FloatingQuickRecord";
 import Dashboard from "@/pages/Dashboard";
 import NewNote from "@/pages/NewNote";
 import CaseDetail from "@/pages/CaseDetail";
 import SavedCases from "@/pages/SavedCases";
 import Settings from "@/pages/Settings";
+import MyProfile from "@/pages/MyProfile";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -20,6 +22,7 @@ function Router() {
       <Route path="/case/:id" component={CaseDetail} />
       <Route path="/cases" component={SavedCases} />
       <Route path="/settings" component={Settings} />
+      <Route path="/profile" component={MyProfile} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -35,6 +38,7 @@ function App() {
             <ThemeToggle />
           </div>
           <Router />
+          <FloatingQuickRecord />
         </div>
         <Toaster />
       </TooltipProvider>

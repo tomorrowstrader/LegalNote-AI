@@ -9,77 +9,40 @@ import { Shield, Users, Building2, Bell } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 export default function Settings() {
+  const isAdmin = true;
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="max-w-3xl mx-auto px-6 lg:px-8 py-8 text-center">
+          <h1 className="text-2xl font-semibold mb-4">Access Restricted</h1>
+          <p className="text-muted-foreground mb-6">
+            You need administrator privileges to access firm settings.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Looking for your personal settings? Visit <a href="/profile" className="text-accent underline">My Profile</a>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-foreground">Settings</h1>
+          <h1 className="text-3xl font-semibold text-foreground">Firm Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage your account, firm, and team settings
+            Manage firm, team, and security settings (Admin only)
           </p>
         </div>
 
-        <Tabs defaultValue="account" className="space-y-6">
+        <Tabs defaultValue="firm" className="space-y-6">
           <TabsList>
-            <TabsTrigger value="account" data-testid="tab-account">Account</TabsTrigger>
             <TabsTrigger value="firm" data-testid="tab-firm">Firm</TabsTrigger>
             <TabsTrigger value="team" data-testid="tab-team">Team</TabsTrigger>
             <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="account" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Personal Information</CardTitle>
-                <CardDescription>Update your personal details</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="first-name">First Name</Label>
-                    <Input id="first-name" defaultValue="John" data-testid="input-first-name" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="last-name">Last Name</Label>
-                    <Input id="last-name" defaultValue="Smith" data-testid="input-last-name" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue="j.smith@lawfirm.co.uk" data-testid="input-email" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Input id="role" defaultValue="Senior Solicitor" disabled data-testid="input-role" />
-                </div>
-                <Button className="bg-accent hover:bg-accent" data-testid="button-save-account">Save Changes</Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Notifications</CardTitle>
-                <CardDescription>Configure your notification preferences</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Email Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Receive email updates on case processing</p>
-                  </div>
-                  <Switch defaultChecked data-testid="switch-email-notifications" />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Processing Alerts</Label>
-                    <p className="text-sm text-muted-foreground">Get notified when documents are ready</p>
-                  </div>
-                  <Switch defaultChecked data-testid="switch-processing-alerts" />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="firm" className="space-y-6">
             <Card>

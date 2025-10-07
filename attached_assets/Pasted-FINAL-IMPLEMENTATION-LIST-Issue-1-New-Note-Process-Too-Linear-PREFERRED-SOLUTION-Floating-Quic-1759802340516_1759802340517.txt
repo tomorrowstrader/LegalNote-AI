@@ -1,0 +1,71 @@
+FINAL IMPLEMENTATION LIST
+Issue 1: "New Note" Process Too Linear
+PREFERRED SOLUTION:
+
+Floating "Quick Record" button (bottom-right corner, always visible)
+Click it → Instant recording starts with minimal friction
+After stopping → Modal pops up asking for Case Title, Client Name, Matter Reference
+Transcription processes while they fill in metadata
+WHY: Real meetings don't wait. Record first, admin later.
+Issue 2: Dashboard Lacks Urgency Indicators
+PREFERRED SOLUTION:
+
+Traffic light priority badges on each case card:
+🔴 Red badge: "Awaiting Review" or "Action Required"
+🟡 Amber badge: "Deadline Approaching" (within 48 hours)
+🟢 Green badge: "Completed" (no action needed)
+Add "Priority Cases" section at top of dashboard (above Recent Cases)
+WHY: Visual hierarchy - I scan red first, ignore green. Simple.
+Issue 3: Search is Buried
+PREFERRED SOLUTION:
+
+Global search bar in top navigation (center position, between logo and user menu)
+Search across: Case titles, client names, transcripts, legal opinions
+Include filters dropdown (by date range, status, created by)
+WHY: Search is our most-used action. Must be omnipresent.
+Issue 4: Document Viewer is Overwhelming
+PREFERRED SOLUTION:
+
+Tabbed interface with 3 tabs:
+"Summary" tab (Attendance Note + Key Issues + Next Steps - the essentials)
+"Legal Opinion" tab (full legal analysis)
+"Transcript" tab (full audio transcript)
+Default opens on "Summary" tab (80% of use cases)
+WHY: Clean separation. Most times I just need the summary. Deep dives are intentional.
+Issue 5: Missing Quick Actions from Dashboard
+PREFERRED SOLUTION:
+
+Add three-dot menu (⋮) on each case card with:
+"Email to Client"
+"Mark as Reviewed"
+"Download PDF"
+"Assign to Team Member"
+WHY: Keeps cards clean but actions are one click away. Industry standard pattern.
+Issue 6: Settings Page is Overkill
+PREFERRED SOLUTION:
+
+Split into two experiences:
+Regular users: "My Profile" (just password change, notifications, display name)
+Admins only: Full "Settings" with Firm/Team/Security tabs
+Check user role → Show appropriate version
+WHY: 95% of users need 5% of settings. Don't clutter their experience.
+Issue 7: No Audio Deletion Timer
+PREFERRED SOLUTION:
+
+Countdown badge on cases with active audio:
+"🎧 Audio expires in 18h" (visible on case card and case detail page)
+Badge turns amber when <6 hours remain
+Badge turns red when <2 hours remain
+Include "Re-listen" button next to timer (while audio exists)
+WHY: GDPR transparency + gives solicitors warning before data loss.
+IMPLEMENTATION SUMMARY - FINAL SPEC
+Here's your actionable build list:
+
+✅ Add floating Quick Record button (bottom-right, always visible)
+✅ Add priority badges to case cards (Red/Amber/Green) + Priority Cases section on dashboard
+✅ Add global search bar to top navigation with filters
+✅ Convert Document Viewer to 3-tab layout (Summary | Legal Opinion | Transcript)
+✅ Add three-dot action menu to case cards (Email, Review, Download, Assign)
+✅ Split Settings: Simple "My Profile" for users, full "Settings" for admins only
+✅ Add audio expiry countdown badges with color-coded urgency
+That's it. Seven specific changes. No ambiguity. Each addresses a real workflow pain point without over-engineering.

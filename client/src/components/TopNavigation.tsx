@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import GlobalSearch from "@/components/GlobalSearch";
 
 const navLinks = [
   { path: "/", label: "Dashboard" },
@@ -53,7 +54,11 @@ export default function TopNavigation() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <div className="hidden lg:block">
+              <GlobalSearch />
+            </div>
+            
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="text-primary-foreground" data-testid="button-user-menu">
@@ -66,8 +71,12 @@ export default function TopNavigation() {
                   <p className="text-xs text-muted-foreground">j.smith@lawfirm.co.uk</p>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem data-testid="menu-item-profile">Profile</DropdownMenuItem>
-                <DropdownMenuItem data-testid="menu-item-firm-settings">Firm Settings</DropdownMenuItem>
+                <DropdownMenuItem asChild data-testid="menu-item-profile">
+                  <Link href="/profile">My Profile</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild data-testid="menu-item-firm-settings">
+                  <Link href="/settings">Firm Settings</Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem data-testid="menu-item-logout">Log Out</DropdownMenuItem>
               </DropdownMenuContent>
