@@ -24,6 +24,7 @@ export default function ThemeToggle() {
       variant="ghost"
       size="icon"
       onClick={toggleTheme}
+      className="text-primary-foreground"
       data-testid="button-theme-toggle"
     >
       {theme === "light" ? (

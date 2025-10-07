@@ -75,19 +75,19 @@ export default function CaseCard({
   };
 
   return (
-    <Card className="hover-elevate active-elevate-2 cursor-pointer relative" data-testid={`card-case-${id}`}>
+    <Card className="hover-elevate active-elevate-2 cursor-pointer relative overflow-visible" data-testid={`card-case-${id}`}>
       {priority !== "normal" && (
-        <div className={`absolute -top-2 -right-2 w-3 h-3 rounded-full ${priorityConfig[priority].color} ring-2 ring-background`} 
+        <div className={`absolute -top-2 -right-2 w-3 h-3 rounded-full ${priorityConfig[priority].color} ring-2 ring-background z-10`} 
              data-testid={`badge-priority-${priority}`} />
       )}
       
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="flex items-start gap-2 mb-1">
               <h3 className="text-lg font-semibold text-foreground">{title}</h3>
               {priority !== "normal" && (
-                <Badge className={`${priorityConfig[priority].color} text-xs`}>
+                <Badge className={`${priorityConfig[priority].color} text-xs flex-shrink-0`}>
                   {priorityConfig[priority].label}
                 </Badge>
               )}
@@ -95,7 +95,7 @@ export default function CaseCard({
             <p className="text-sm text-muted-foreground">{clientName}</p>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Badge variant={config.variant} className="gap-1">
               <StatusIcon className="w-3 h-3" />
               {config.label}
@@ -103,7 +103,7 @@ export default function CaseCard({
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-actions-${id}`}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" data-testid={`button-actions-${id}`}>
                   <MoreVertical className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
