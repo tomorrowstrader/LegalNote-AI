@@ -75,12 +75,7 @@ export default function CaseCard({
   };
 
   return (
-    <Card className="hover-elevate active-elevate-2 cursor-pointer relative overflow-visible" data-testid={`card-case-${id}`}>
-      {priority !== "normal" && (
-        <div className={`absolute -top-2 -right-2 w-3 h-3 rounded-full ${priorityConfig[priority].color} ring-2 ring-background z-10`} 
-             data-testid={`badge-priority-${priority}`} />
-      )}
-      
+    <Card className="hover-elevate active-elevate-2 cursor-pointer" data-testid={`card-case-${id}`}>
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1 min-w-0">
