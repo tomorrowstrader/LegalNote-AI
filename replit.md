@@ -22,7 +22,12 @@ Preferred communication style: Simple, everyday language.
    - Fixed null/undefined type mismatches in storage layer
    - Fixed Uppy type issues with type assertions
    - Fixed Map iteration and implicit any types in uploadSecurity.ts
-6. **Quick Record Bug Fixed**: Fixed Uppy cleanup method - changed from incorrect `.close({ reason: 'unmount' })` to proper `(uppy as any).close()`
+6. **Uppy Architecture Simplified**: Eliminated all uppyRef cleanup errors by removing persistent refs
+   - Changed from `useRef<Uppy>()` pattern to inline `new Uppy()` instances
+   - Removed all `.close()` cleanup calls that were causing "close is not a function" errors
+   - Let garbage collector handle Uppy cleanup automatically
+   - Applied consistently to both QuickRecordButton and NewNote components
+   - No regressions: upload flow, presigned URLs, and audio storage still work correctly
 7. **New Note UX Alignment**: Completely refactored New Note recording to match Quick Record UX
    - Added 3-2-1 countdown before recording starts
    - Integrated ConsentModal for verbal consent capture
