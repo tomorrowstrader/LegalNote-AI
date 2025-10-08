@@ -107,9 +107,16 @@ Preferred communication style: Simple, everyday language.
 - TypeScript strict mode with path aliases (`@/`, `@shared/`, `@assets/`)
 - ESBuild for production builds
 
+**Audio Recording & Storage** (✓ Implemented):
+- MediaRecorder API for browser-based audio capture
+- Replit Object Storage integration with presigned URL uploads (Uppy + AWS S3)
+- 24-hour audio expiration enforcement (server-computed expiresAt, enforced in GET routes and streaming)
+- Graceful fallback to text notes when microphone unavailable
+- AudioPlayer component with playback controls, timeline scrubber, and expiration warnings
+- Object ACL system for private audio file access control
+
 **Planned Integrations**:
-- Audio recording/transcription service (WebRTC or similar)
-- AI service for generating attendance notes and legal opinions from transcripts
+- AI transcription service (OpenAI Whisper API) for audio-to-text conversion
+- AI service for generating attendance notes and legal opinions from transcripts (GPT-4)
 - Email service for client communication
 - PDF generation for document export
-- File storage for audio recordings with TTL (audio expiration feature visible in UI)
