@@ -1,17 +1,18 @@
 # LegalNote AI - Deployment Configuration
 
-## Health Check Endpoints
+## Health Check Endpoint
 
-The application provides health check endpoints for the deployment platform:
+The application provides a dedicated health check endpoint for the deployment platform:
 
-- **Primary**: `GET /health` - Returns `{ status: 'ok', service: 'LegalNote AI', timestamp: '...' }`
-- **Fallback**: `GET /` - Returns `{ status: 'ok', service: 'LegalNote AI' }`
+- **Endpoint**: `GET /health` - Returns `{ status: 'ok', service: 'LegalNote AI', timestamp: '...' }`
 
-Both endpoints:
-- Respond quickly (under 5 seconds)
-- Return HTTP 200 status
-- Work without authentication
-- Accept requests without origin headers (for deployment platform health checks)
+This endpoint:
+- Responds quickly (under 5 seconds)
+- Returns HTTP 200 status
+- Works without authentication
+- Accepts requests without origin headers (for deployment platform health checks)
+
+Note: The root path `/` serves the frontend application, not a health check.
 
 ## CORS Configuration
 

@@ -16,14 +16,10 @@ import {
 import { auditLogger, AuditEventType } from "./auditLog";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Health check endpoints for deployment platform
+  // Health check endpoint for deployment platform
   // Must be before auth middleware and CORS is configured to allow requests without origin
   app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', service: 'LegalNote AI', timestamp: new Date().toISOString() });
-  });
-  
-  app.get('/', (req, res) => {
-    res.status(200).json({ status: 'ok', service: 'LegalNote AI' });
   });
 
   // Setup Replit Auth
