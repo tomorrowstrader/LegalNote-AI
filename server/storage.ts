@@ -1,27 +1,30 @@
-import { type User, type InsertUser, type Case, type InsertCase } from "@shared/schema";
+import { type User, type InsertUser, type Case, type InsertCase, type AudioRecording, type InsertAudioRecording } from "@shared/schema";
 import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   
-  // Case management
   createCase(caseData: InsertCase): Promise<Case>;
   getCases(userId: string): Promise<Case[]>;
   getCase(id: string): Promise<Case | undefined>;
+  
+  createAudioRecording(audioData: InsertAudioRecording): Promise<AudioRecording>;
+  getAudioRecording(id: string): Promise<AudioRecording | undefined>;
+  getAudioRecordingByCase(caseId: string): Promise<AudioRecording | undefined>;
+  updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private cases: Map<string, Case>;
+  private audioRecordings: Map<string, AudioRecording>;
 
   constructor() {
     this.users = new Map();
     this.cases = new Map();
+    this.audioRecordings = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -64,6 +67,39 @@ export class MemStorage implements IStorage {
 
   async getCase(id: string): Promise<Case | undefined> {
     return this.cases.get(id);
+  }
+
+  async createAudioRecording(insertAudioRecording: InsertAudioRecording): Promise<AudioRecording> {
+    const id = randomUUID();
+    const audioRecording: AudioRecording = {
+      ...insertAudioRecording,
+      id,
+      recordedAt: new Date(),
+      filePath: insertAudioRecording.filePath || null,
+      duration: insertAudioRecording.duration || null,
+      deletedAt: insertAudioRecording.deletedAt || null,
+    };
+    this.audioRecordings.set(id, audioRecording);
+    return audioRecording;
+  }
+
+  async getAudioRecording(id: string): Promise<AudioRecording | undefined> {
+    return this.audioRecordings.get(id);
+  }
+
+  async getAudioRecordingByCase(caseId: string): Promise<AudioRecording | undefined> {
+    return Array.from(this.audioRecordings.values()).find(
+      (recording) => recording.caseId === caseId
+    );
+  }
+
+  async updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined> {
+    const existing = this.audioRecordings.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { ...existing, ...updates };
+    this.audioRecordings.set(id, updated);
+    return updated;
   }
 }
 
