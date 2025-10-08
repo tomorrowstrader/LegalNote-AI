@@ -5,6 +5,7 @@ import { insertCaseSchema, insertAudioRecordingSchema } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { MAX_AUDIO_SIZE_BYTES, validateUploadedFile } from "./uploadSecurity";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup Replit Auth
@@ -70,7 +71,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/audio/upload-url", isAuthenticated, async (req, res) => {
     try {
       const objectStorageService = new ObjectStorageService();
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      // Security: Enforce 100MB size limit on presigned URL
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL(MAX_AUDIO_SIZE_BYTES);
       res.json({ uploadURL });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -131,6 +133,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const objectStorageService = new ObjectStorageService();
+      
+      // First, normalize the path and get the file
+      const normalizedPath = objectStorageService.normalizeObjectEntityPath(req.body.audioURL);
+      const objectFile = await objectStorageService.getObjectEntityFile(normalizedPath);
+      
+      // Security: Validate uploaded file (size, MIME type, magic numbers)
+      const validation = await validateUploadedFile(objectFile);
+      if (!validation.valid) {
+        // Delete invalid file
+        await objectFile.delete();
+        return res.status(400).json({ message: validation.error || "Invalid file upload" });
+      }
+      
+      // Set ACL policy after validation
       const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
         req.body.audioURL,
         {
@@ -146,6 +162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(updated);
     } catch (error: any) {
+      console.error("Error updating audio recording:", error);
       res.status(500).json({ message: error.message });
     }
   });

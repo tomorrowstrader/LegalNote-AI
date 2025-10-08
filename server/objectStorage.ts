@@ -119,7 +119,7 @@ export class ObjectStorageService {
     }
   }
 
-  async getObjectEntityUploadURL(): Promise<string> {
+  async getObjectEntityUploadURL(maxSizeBytes?: number): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
       throw new Error(
@@ -138,6 +138,7 @@ export class ObjectStorageService {
       objectName,
       method: "PUT",
       ttlSec: 900,
+      maxSizeBytes,
     });
   }
 
@@ -248,18 +249,28 @@ async function signObjectURL({
   objectName,
   method,
   ttlSec,
+  maxSizeBytes,
 }: {
   bucketName: string;
   objectName: string;
   method: "GET" | "PUT" | "DELETE" | "HEAD";
   ttlSec: number;
+  maxSizeBytes?: number;
 }): Promise<string> {
-  const request = {
+  const request: any = {
     bucket_name: bucketName,
     object_name: objectName,
     method,
     expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
   };
+  
+  // Add content-length constraint if specified
+  if (maxSizeBytes !== undefined) {
+    request.conditions = [
+      ["content-length-range", 0, maxSizeBytes]
+    ];
+  }
+  
   const response = await fetch(
     `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
     {
