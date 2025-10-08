@@ -22,8 +22,6 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import Uppy from "@uppy/core";
-import AwsS3 from "@uppy/aws-s3";
 
 interface CaseResponse {
   id: string;
@@ -220,87 +218,29 @@ export default function QuickRecordButton() {
       });
       
       if (audioBlobRef.current) {
-        const fileName = `recording-${Date.now()}.webm`;
-        let uploadURL = '';
-        let uploadSucceeded = false;
+        console.log('Converting audio blob to base64...');
         
-        // Create Uppy instance inline - no refs, no cleanup needed
-        const uppy = new Uppy({
-          restrictions: {
-            maxNumberOfFiles: 1,
-            allowedFileTypes: ['audio/*'],
-          },
+        // Convert Blob to base64
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => {
+            const base64String = (reader.result as string).split(',')[1]; // Remove data:audio/webm;base64, prefix
+            resolve(base64String);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(audioBlobRef.current!);
         });
         
-        uppy.use(AwsS3, {
-          shouldUseMultipart: false,
-          getUploadParameters: async (file) => {
-            console.log('Getting presigned URL for upload...');
-            const response = await fetch('/api/audio/upload-url', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-            });
-            
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error('Failed to get presigned URL:', response.status, errorText);
-              throw new Error(`Failed to get presigned URL: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            console.log('Presigned URL obtained, uploading to:', data.uploadURL.split('?')[0]);
-            // Store the upload URL (without query params for accessing the file)
-            uploadURL = data.uploadURL.split('?')[0];
-            
-            return {
-              method: 'PUT' as const,
-              url: data.uploadURL,
-              headers: {
-                'Content-Type': file.type || 'audio/webm',
-              },
-            };
-          },
+        const audioBlob = await base64Promise;
+        console.log('Audio blob converted, uploading to backend...');
+        
+        // Upload via backend proxy
+        await apiRequest("POST", `/api/audio/${audioResult.id}/upload`, {
+          audioBlob,
+          duration: recordingDuration,
         });
         
-        uppy.addFile({
-          name: fileName,
-          type: 'audio/webm',
-          data: audioBlobRef.current,
-        });
-        
-        try {
-          console.log('Starting Uppy upload...');
-          const result = await uppy.upload();
-          
-          console.log('Uppy upload result:', result);
-          
-          // Check if upload was successful
-          if (result && result.successful && result.successful.length > 0) {
-            uploadSucceeded = true;
-            console.log('Upload succeeded!');
-          } else if (result && result.failed && result.failed.length > 0) {
-            console.error('Upload failed:', result.failed);
-            throw new Error('File upload failed');
-          } else {
-            throw new Error('Upload returned no result');
-          }
-        } catch (uploadError: any) {
-          console.error('Uppy upload error:', uploadError);
-          throw new Error(`Audio upload failed: ${uploadError.message || 'Unknown error'}`);
-        }
-        
-        // Only update database if upload succeeded
-        if (uploadSucceeded && uploadURL) {
-          console.log('Updating audio record with filePath:', uploadURL);
-          await apiRequest("PUT", `/api/audio/${audioResult.id}`, {
-            audioURL: uploadURL,
-            duration: recordingDuration,
-          });
-          console.log('Audio record updated successfully');
-        } else {
-          throw new Error('Upload verification failed - no file URL available');
-        }
+        console.log('Audio upload completed successfully');
       }
       
       queryClient.invalidateQueries({ 

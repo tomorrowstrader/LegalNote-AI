@@ -152,6 +152,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function for parsing object storage paths
+  const parseObjectPath = (path: string): { bucketName: string; objectName: string } => {
+    if (!path.startsWith("/")) {
+      path = `/${path}`;
+    }
+    const pathParts = path.split("/");
+    if (pathParts.length < 3) {
+      throw new Error("Invalid path: must contain at least a bucket name");
+    }
+    const bucketName = pathParts[1];
+    const objectName = pathParts.slice(2).join("/");
+    return { bucketName, objectName };
+  };
+
+  // New backend upload proxy endpoint
+  app.post("/api/audio/:id/upload", isAuthenticated, audioUploadLimiter, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const audioId = req.params.id;
+      
+      // Validate request body
+      if (!req.body.audioBlob || !req.body.duration) {
+        return res.status(400).json({ message: "audioBlob and duration are required" });
+      }
+
+      // Get audio record and verify ownership
+      const audioRecording = await storage.getAudioRecording(audioId);
+      if (!audioRecording) {
+        return res.status(404).json({ message: "Audio recording not found" });
+      }
+
+      const caseData = await storage.getCase(audioRecording.caseId);
+      if (!caseData || caseData.createdBy !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      // Convert base64 to Buffer
+      const audioBuffer = Buffer.from(req.body.audioBlob, 'base64');
+      
+      // Validate file size (100MB max)
+      if (audioBuffer.length > MAX_AUDIO_SIZE_BYTES) {
+        return res.status(400).json({ message: "File too large (max 100MB)" });
+      }
+
+      // Upload directly to GCS using server-side method
+      const objectStorageService = new ObjectStorageService();
+      const privateObjectDir = objectStorageService.getPrivateObjectDir();
+      
+      // Generate unique object name and full path
+      const { randomUUID } = await import('crypto');
+      const objectId = randomUUID();
+      const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+      
+      const { bucketName, objectName } = parseObjectPath(fullPath);
+      
+      console.log(`Uploading audio to bucket: ${bucketName}, object: ${objectName}`);
+      
+      // Import GCS client and upload
+      const { objectStorageClient } = await import('./objectStorage');
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(objectName);
+      
+      // Upload buffer to GCS
+      await file.save(audioBuffer, {
+        metadata: {
+          contentType: 'audio/webm',
+        },
+      });
+      
+      console.log(`Audio uploaded successfully to ${fullPath}`);
+      
+      // Construct the storage URL and normalize
+      const storageURL = `https://storage.googleapis.com/${bucketName}/${objectName}`;
+      const normalizedPath = objectStorageService.normalizeObjectEntityPath(storageURL);
+      
+      console.log(`Normalized path: ${normalizedPath}, setting ACL...`);
+      
+      // Set ACL policy
+      const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
+        storageURL,
+        {
+          owner: userId,
+          visibility: "private",
+        }
+      );
+      
+      console.log(`ACL set, final objectPath: ${objectPath}`);
+
+      // Update audio record with file path and duration
+      const updated = await storage.updateAudioRecording(audioId, {
+        filePath: objectPath,
+        duration: req.body.duration,
+      });
+
+      auditLogger.logFromRequest(AuditEventType.AUDIO_UPLOADED, req, {
+        resourceId: audioId,
+        resourceType: "audio",
+        action: "upload",
+        severity: "medium",
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error('Audio upload error:', error);
+      next(error);
+    }
+  });
+
   app.put("/api/audio/:id", isAuthenticated, audioUploadLimiter, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
