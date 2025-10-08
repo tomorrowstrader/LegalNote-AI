@@ -39,7 +39,7 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: true,
-      sameSite: 'strict', // CSRF protection
+      sameSite: 'lax', // Allows OAuth redirects while still protecting against CSRF
       maxAge: sessionTtl,
     },
   });
