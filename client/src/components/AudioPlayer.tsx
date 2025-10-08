@@ -47,17 +47,28 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     const audio = audioRef.current;
     if (!audio) return;
 
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(false);
+
     const updateTime = () => setCurrentTime(audio.currentTime);
-    const updateDuration = () => setDuration(audio.duration);
+    const updateDuration = () => {
+      if (isFinite(audio.duration) && audio.duration > 0) {
+        setDuration(audio.duration);
+        console.log('Audio duration loaded:', audio.duration);
+      }
+    };
     const handleEnded = () => setIsPlaying(false);
 
     audio.addEventListener("timeupdate", updateTime);
     audio.addEventListener("loadedmetadata", updateDuration);
+    audio.addEventListener("durationchange", updateDuration);
     audio.addEventListener("ended", handleEnded);
 
     return () => {
       audio.removeEventListener("timeupdate", updateTime);
       audio.removeEventListener("loadedmetadata", updateDuration);
+      audio.removeEventListener("durationchange", updateDuration);
       audio.removeEventListener("ended", handleEnded);
     };
   }, [audioUrl]);
@@ -142,7 +153,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
       
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
       
-      <div className="bg-card border rounded-lg p-4 space-y-3" data-testid="audio-player">
+      <div className="bg-card border-2 rounded-lg p-4 space-y-3" data-testid="audio-player">
         <div className="flex items-center gap-4">
           <Button
             size="icon"
@@ -161,11 +172,12 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
             <input
               type="range"
               min={0}
-              max={duration || 100}
+              max={duration > 0 ? duration : 1}
               step={0.1}
               value={currentTime}
               onChange={handleTimelineChange}
-              className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
+              disabled={duration === 0}
+              className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
               data-testid="slider-timeline"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
