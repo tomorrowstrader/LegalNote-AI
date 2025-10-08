@@ -77,15 +77,77 @@ Preferred communication style: Simple, everyday language.
 
 ### Authentication & Authorization
 
-**Authentication Mechanism**: Session-based authentication
-- Cookie-based credential flow
-- User creation and retrieval methods defined in storage interface
+**Authentication Mechanism**: Replit Auth (OIDC-based)
+- Session-based authentication with 4-hour timeout
+- Secure cookie configuration (httpOnly, secure, sameSite: strict)
+- User isolation invariant: all storage operations enforce createdBy checks
 - Prepared for multi-role system (Partner, Senior Associate, Solicitor, Paralegal)
 
 **Authorization**: 
+- Storage layer enforces user isolation across all CRUD operations
+- Route-level authorization checks for case and audio access
+- ACL-based object storage access control (owner + visibility)
 - Role-based access control for settings (admin vs regular users)
 - UI-level permission checks for feature access
-- Share link system with configurable access levels and expiration
+
+### Security Architecture (Production-Ready)
+
+**1. Upload Security**
+- Server-side file validation: MIME type, magic number verification
+- 100MB file size limit enforcement
+- Audio format validation (audio/webm, audio/ogg, audio/mp4, audio/wav, audio/mpeg)
+- Invalid files deleted immediately with audit logging
+
+**2. Access Control**
+- User isolation invariant in storage layer (all operations scoped to userId)
+- ACL ownership verification for object storage uploads
+- Authorization checks before any resource access
+- UUID-based resources prevent object enumeration attacks
+
+**3. Rate Limiting**
+- Per-user rate limits (prevents single user abuse)
+- Per-IP rate limits (prevents distributed attacks)
+- IPv6-safe implementation (uses first 64 bits for subnet tracking)
+- Endpoint-specific limits:
+  - General API: 100 requests/15min
+  - Case creation: 50 requests/hour
+  - Presigned URLs: 100 requests/15min
+  - Audio uploads: 20 requests/15min
+  - Auth endpoints: 100 requests/15min
+
+**4. Input Sanitization**
+- Zod validation with strict length limits on all inputs
+- Path traversal prevention (../. patterns blocked)
+- XSS protection via input escaping
+- SQL injection prevention via Drizzle ORM parameterized queries
+- Regex validation for UUIDs, paths, and sensitive fields
+
+**5. Network Security**
+- Environment-aware Content Security Policy (strict in production)
+- CORS with configurable allowed origins (ALLOWED_ORIGINS env var)
+- HSTS with 1-year max-age
+- Security headers via Helmet: X-Frame-Options, X-Content-Type-Options
+- Production CSP: default-src 'self', strict resource loading
+
+**6. Error Sanitization**
+- Production error responses hide internal details
+- Generic "Internal server error" messages with tracking error IDs
+- Development mode preserves full error details
+- Server-side error logging for debugging
+- No stack trace leakage to clients
+
+**7. Audit Logging**
+- Comprehensive security event tracking with severity levels
+- Events logged: case creation, access violations, upload security, audio uploads
+- Metadata captured: userId, IP address, resource ID/type, action, timestamp
+- Structured JSON logging for SIEM integration
+- Tamper-evident audit trail
+
+**8. Environment Validation**
+- Required environment variables validated at startup
+- Session secret strength validation in production
+- Graceful startup failures with clear error messages
+- Documented optional variables for production deployment
 
 ### External Dependencies
 
