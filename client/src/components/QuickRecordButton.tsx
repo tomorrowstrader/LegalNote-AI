@@ -183,7 +183,7 @@ export default function QuickRecordButton() {
         mediaRecorderRef.current.stop();
       }
       if (uppyRef.current) {
-        (uppyRef.current as any).close({ reason: 'unmount' });
+        (uppyRef.current as any).close();
       }
     };
   }, []);
@@ -226,7 +226,7 @@ export default function QuickRecordButton() {
       if (audioBlobRef.current) {
         if (uppyRef.current) {
           try {
-            (uppyRef.current as any).close({ reason: 'unmount' });
+            (uppyRef.current as any).close();
           } catch (e) {
             console.error('Error closing previous Uppy instance:', e);
           }
@@ -280,7 +280,7 @@ export default function QuickRecordButton() {
           });
         }
         
-        (uppyRef.current as any).close({ reason: 'unmount' });
+        (uppyRef.current as any).close();
         uppyRef.current = null;
       }
       
