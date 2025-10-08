@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import DocumentViewer from "@/components/DocumentViewer";
+import { AudioPlayer } from "@/components/AudioPlayer";
 import { useLocation, useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -26,6 +27,15 @@ interface CaseWithDocuments {
   transcript?: string;
 }
 
+interface AudioRecording {
+  id: string;
+  caseId: string;
+  filePath: string | null;
+  duration: number | null;
+  expiresAt: string;
+  deletedAt: string | null;
+}
+
 export default function CaseDetail() {
   const [, setLocation] = useLocation();
   const params = useParams();
@@ -34,6 +44,11 @@ export default function CaseDetail() {
   const { data: caseData, isLoading, error } = useQuery<CaseWithDocuments>({
     queryKey: [`/api/cases/${caseId}`],
     enabled: !!caseId,
+  });
+  
+  const { data: audioData, isLoading: audioLoading } = useQuery<AudioRecording>({
+    queryKey: [`/api/audio/by-case/${caseId}`],
+    enabled: !!caseId && caseData?.sourceType === 'audio',
   });
 
   if (isLoading) {
@@ -120,6 +135,15 @@ export default function CaseDetail() {
             )}
           </div>
         </div>
+
+        {caseData.sourceType === 'audio' && audioData && audioData.filePath && (
+          <div className="mb-8">
+            <AudioPlayer
+              audioUrl={audioData.filePath}
+              expiresAt={new Date(audioData.expiresAt)}
+            />
+          </div>
+        )}
 
         <DocumentViewer
           attendanceNote={caseData.attendanceNote || ""}

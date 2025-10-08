@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Mic, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,8 @@ import TextNotesModal from "@/components/TextNotesModal";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import Uppy from "@uppy/core";
+import AwsS3 from "@uppy/aws-s3";
 
 export default function QuickRecordButton() {
   const { toast } = useToast();
@@ -34,6 +36,11 @@ export default function QuickRecordButton() {
   const [caseTitle, setCaseTitle] = useState("");
   const [clientName, setClientName] = useState("");
   const [matterRef, setMatterRef] = useState("");
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioBlobRef = useRef<Blob | null>(null);
+  const uppyRef = useRef<Uppy | null>(null);
 
   const createCaseMutation = useMutation({
     mutationFn: async (caseData: any) => {
@@ -68,10 +75,7 @@ export default function QuickRecordButton() {
 
     if (countdown === 0) {
       setCountdown(null);
-      // Show consent modal and start recording immediately
-      setShowConsentModal(true);
-      setIsRecording(true);
-      setRecordingDuration(0);
+      startActualRecording();
       return;
     }
 
@@ -81,6 +85,39 @@ export default function QuickRecordButton() {
 
     return () => clearTimeout(timer);
   }, [countdown]);
+  
+  const startActualRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        audioBlobRef.current = audioBlob;
+        stream.getTracks().forEach(track => track.stop());
+      };
+      
+      mediaRecorder.start();
+      setShowConsentModal(true);
+      setIsRecording(true);
+      setRecordingDuration(0);
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      toast({
+        title: "Recording failed",
+        description: "Could not access microphone. Please check permissions.",
+        variant: "destructive",
+      });
+    }
+  };
 
   useEffect(() => {
     if (!isRecording) return;
@@ -109,41 +146,145 @@ export default function QuickRecordButton() {
 
   const handleConsentDeclined = () => {
     console.log('Client consent declined - stopping recording');
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
     setConsentGiven(false);
     setShowConsentModal(false);
     setIsRecording(false);
     setRecordingDuration(0);
-    // Show text notes fallback modal
+    audioBlobRef.current = null;
     setShowTextNotesModal(true);
   };
+  
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      if (uppyRef.current) {
+        uppyRef.current.close({ reason: 'unmount' });
+      }
+    };
+  }, []);
 
   const stopRecording = () => {
     console.log('Quick recording stopped');
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
     setIsRecording(false);
     setShowMetadataModal(true);
   };
 
-  const saveCase = () => {
+  const saveCase = async () => {
     console.log('Saving case:', { caseTitle, clientName, matterRef });
     
-    // TODO: Replace with actual user ID from auth session
     const tempUserId = "temp-user-123";
     
-    createCaseMutation.mutate({
-      title: caseTitle,
-      clientName: clientName,
-      matterReference: matterRef || undefined,
-      createdBy: tempUserId,
-      sourceType: "audio",
-      status: "pending",
-      priority: "normal",
-    });
-    
-    setShowMetadataModal(false);
-    setRecordingDuration(0);
-    setCaseTitle("");
-    setClientName("");
-    setMatterRef("");
+    try {
+      const caseResult: any = await apiRequest("POST", "/api/cases", {
+        title: caseTitle,
+        clientName: clientName,
+        matterReference: matterRef || undefined,
+        createdBy: tempUserId,
+        sourceType: "audio",
+        status: "pending",
+        priority: "normal",
+      });
+      
+      const audioResult: any = await apiRequest("POST", "/api/audio", {
+        caseId: caseResult.id,
+      });
+      
+      if (audioBlobRef.current) {
+        if (uppyRef.current) {
+          try {
+            uppyRef.current.close({ reason: 'unmount' });
+          } catch (e) {
+            console.error('Error closing previous Uppy instance:', e);
+          }
+        }
+        
+        uppyRef.current = new Uppy({
+          restrictions: {
+            maxNumberOfFiles: 1,
+            allowedFileTypes: ['audio/*'],
+          },
+        });
+        
+        uppyRef.current.use(AwsS3, {
+          shouldUseMultipart: false,
+          getUploadParameters: async () => {
+            const response = await fetch('/api/object-storage/presigned-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                fileName: `recording-${Date.now()}.webm`,
+                contentType: 'audio/webm',
+              }),
+            });
+            
+            if (!response.ok) {
+              throw new Error('Failed to get presigned URL');
+            }
+            
+            const data = await response.json();
+            return {
+              method: 'PUT' as const,
+              url: data.url,
+            };
+          },
+        });
+        
+        uppyRef.current.addFile({
+          name: `recording-${Date.now()}.webm`,
+          type: 'audio/webm',
+          data: audioBlobRef.current,
+        });
+        
+        const result = await uppyRef.current.upload();
+        
+        if (result && result.successful && result.successful[0]) {
+          const audioURL = result.successful[0].uploadURL;
+          await apiRequest("PUT", `/api/audio/${audioResult.id}`, {
+            audioURL,
+            duration: recordingDuration,
+          });
+        }
+        
+        uppyRef.current.close({ reason: 'unmount' });
+        uppyRef.current = null;
+      }
+      
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0] as string;
+          return key?.startsWith("/api/cases");
+        }
+      });
+      
+      toast({
+        title: "Case created successfully",
+        description: "Your case has been saved and is ready for processing.",
+        duration: 6000,
+      });
+      
+      setShowMetadataModal(false);
+      setRecordingDuration(0);
+      setCaseTitle("");
+      setClientName("");
+      setMatterRef("");
+      audioBlobRef.current = null;
+    } catch (error: any) {
+      toast({
+        title: "Error creating case",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+        duration: 8000,
+      });
+    }
   };
 
   const saveTextNotes = (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
