@@ -10,7 +10,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-### October 8, 2025 - Critical Bug Fixes & Code Quality Improvements
+### October 8, 2025 - Recording Flows & Bug Fixes
 1. **OAuth Login Fixed**: Changed session cookie from `sameSite: 'strict'` to `sameSite: 'lax'` to allow OAuth redirects while maintaining CSRF protection
 2. **API Response Parsing Fixed**: Updated `apiRequest()` function to return parsed JSON data instead of Response objects, fixing case creation and audio recording flows
 3. **CORS Configuration Fixed**: Simplified CORS for development to allow all origins (safe for local development), maintaining strict rules for production
@@ -22,6 +22,14 @@ Preferred communication style: Simple, everyday language.
    - Fixed null/undefined type mismatches in storage layer
    - Fixed Uppy type issues with type assertions
    - Fixed Map iteration and implicit any types in uploadSecurity.ts
+6. **Quick Record Bug Fixed**: Fixed Uppy cleanup method - changed from incorrect `.close({ reason: 'unmount' })` to proper `(uppy as any).close()`
+7. **New Note UX Alignment**: Completely refactored New Note recording to match Quick Record UX
+   - Added 3-2-1 countdown before recording starts
+   - Integrated ConsentModal for verbal consent capture
+   - Solicitor reads disclaimer, client gives verbal consent on audio
+   - Same MediaRecorder + Uppy upload workflow as Quick Record
+   - Text notes fallback when consent declined or microphone unavailable
+   - Proper case creation and navigation to case detail page
 
 ## System Architecture
 
