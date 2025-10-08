@@ -16,12 +16,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ToastAction } from "@/components/ui/toast";
 import ConsentModal from "@/components/ConsentModal";
 import TextNotesModal from "@/components/TextNotesModal";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "wouter";
 
 interface CaseResponse {
   id: string;
@@ -43,6 +45,7 @@ interface AudioResponse {
 export default function QuickRecordButton() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -62,7 +65,7 @@ export default function QuickRecordButton() {
     mutationFn: async (caseData: any) => {
       return await apiRequest<CaseResponse>("POST", "/api/cases", caseData);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       // Invalidate all queries that start with /api/cases (including those with query params)
       queryClient.invalidateQueries({ 
         predicate: (query) => {
@@ -74,6 +77,15 @@ export default function QuickRecordButton() {
         title: "Case created successfully",
         description: "Your case has been saved and is ready for processing.",
         duration: 6000, // 6 seconds for success messages
+        action: (
+          <ToastAction 
+            altText="View case" 
+            onClick={() => setLocation(`/case/${data.id}`)}
+            data-testid="button-toast-view-case"
+          >
+            View Case
+          </ToastAction>
+        ),
       });
     },
     onError: (error: any) => {
@@ -251,6 +263,15 @@ export default function QuickRecordButton() {
         title: "Case created successfully",
         description: "Your case has been saved and is ready for processing.",
         duration: 6000,
+        action: (
+          <ToastAction 
+            altText="View case" 
+            onClick={() => setLocation(`/case/${caseResult.id}`)}
+            data-testid="button-toast-view-case"
+          >
+            View Case
+          </ToastAction>
+        ),
       });
       
       setShowMetadataModal(false);

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { ToastAction } from "@/components/ui/toast";
 import ConsentModal from "@/components/ConsentModal";
 import TextNotesModal from "@/components/TextNotesModal";
 import { ArrowLeft, Mic, Square } from "lucide-react";
@@ -223,6 +224,15 @@ export default function NewNote() {
         title: "Case created successfully",
         description: "Your case has been saved and is ready for processing.",
         duration: 6000,
+        action: (
+          <ToastAction 
+            altText="View case" 
+            onClick={() => setLocation(`/case/${caseResult.id}`)}
+            data-testid="button-toast-view-case"
+          >
+            View Case
+          </ToastAction>
+        ),
       });
       
       // Navigate to the case detail page
@@ -270,6 +280,15 @@ export default function NewNote() {
           title: "Case created successfully",
           description: "Your text-based case has been saved.",
           duration: 6000,
+          action: (
+            <ToastAction 
+              altText="View case" 
+              onClick={() => setLocation(`/case/${caseResult.id}`)}
+              data-testid="button-toast-view-case"
+            >
+              View Case
+            </ToastAction>
+          ),
         });
         
         setShowTextNotesModal(false);

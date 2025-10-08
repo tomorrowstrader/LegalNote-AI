@@ -13,13 +13,14 @@ interface AudioPlayerProps {
 
 export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const isDraggingRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [seekValue, setSeekValue] = useState(0);
 
   useEffect(() => {
     setIsExpired(false);
@@ -48,11 +49,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     const audio = audioRef.current;
     if (!audio) return;
 
-    const updateTime = () => {
-      if (!isDraggingRef.current) {
-        setCurrentTime(audio.currentTime);
-      }
-    };
+    const updateTime = () => setCurrentTime(audio.currentTime);
     const updateDuration = () => setDuration(audio.duration);
     const handleEnded = () => setIsPlaying(false);
 
@@ -78,9 +75,17 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     setIsPlaying(!isPlaying);
   };
 
-  const handleSeekChange = (value: number[]) => {
-    isDraggingRef.current = true;
-    setCurrentTime(value[0]);
+  const handlePointerDown = () => {
+    setIsSeeking(true);
+    setSeekValue(currentTime);
+  };
+
+  const handleValueChange = (value: number[]) => {
+    // If we're not seeking yet, this must be a keyboard interaction
+    if (!isSeeking) {
+      setIsSeeking(true);
+    }
+    setSeekValue(value[0]);
   };
 
   const handleSeekCommit = (value: number[]) => {
@@ -89,7 +94,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     if (!isFinite(newTime)) return;
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
-    isDraggingRef.current = false;
+    setIsSeeking(false);
   };
 
   const handleVolumeChange = (value: number[]) => {
@@ -170,10 +175,11 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
 
           <div className="flex-1 space-y-1">
             <Slider
-              value={[currentTime]}
+              value={[isSeeking ? seekValue : currentTime]}
               max={duration || 100}
               step={0.1}
-              onValueChange={handleSeekChange}
+              onPointerDown={handlePointerDown}
+              onValueChange={handleValueChange}
               onValueCommit={handleSeekCommit}
               className="cursor-pointer"
               data-testid="slider-timeline"
