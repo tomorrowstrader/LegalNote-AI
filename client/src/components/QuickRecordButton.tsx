@@ -119,6 +119,20 @@ export default function QuickRecordButton() {
 
   const saveCase = () => {
     console.log('Saving case:', { caseTitle, clientName, matterRef });
+    
+    // TODO: Replace with actual user ID from auth session
+    const tempUserId = "temp-user-123";
+    
+    createCaseMutation.mutate({
+      title: caseTitle,
+      clientName: clientName,
+      matterReference: matterRef || undefined,
+      createdBy: tempUserId,
+      sourceType: "audio",
+      status: "pending",
+      priority: "normal",
+    });
+    
     setShowMetadataModal(false);
     setRecordingDuration(0);
     setCaseTitle("");
