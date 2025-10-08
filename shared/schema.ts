@@ -80,7 +80,7 @@ export const documents = pgTable("documents", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   isActive: boolean("is_active").notNull().default(true), // Current version flag
-  parentVersionId: varchar("parent_version_id").references(() => documents.id), // Self-referential FK to previous version
+  parentVersionId: varchar("parent_version_id"), // Self-referential FK to previous version - set manually to avoid circular reference
 });
 
 export const clientVersionTracking = pgTable("client_version_tracking", {
@@ -101,10 +101,18 @@ export const userPreferences = pgTable("user_preferences", {
   consentWorkflowPreferences: jsonb("consent_workflow_preferences").default({}), // Future workflow settings
 });
 
-// Insert schemas  
+// Input validation helpers
+const sanitizeString = (str: string) => str.trim();
+
+// Insert schemas with enhanced validation and length limits
 export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
   updatedAt: true,
+}).extend({
+  email: z.string().email().max(255).transform(sanitizeString).optional(),
+  firstName: z.string().max(100).transform(sanitizeString).optional(),
+  lastName: z.string().max(100).transform(sanitizeString).optional(),
+  profileImageUrl: z.string().url().max(500).optional(),
 });
 
 export const upsertUserSchema = createInsertSchema(users).pick({
@@ -113,40 +121,96 @@ export const upsertUserSchema = createInsertSchema(users).pick({
   firstName: true,
   lastName: true,
   profileImageUrl: true,
+}).extend({
+  id: z.string().uuid(),
+  email: z.string().email().max(255).transform(sanitizeString).optional(),
+  firstName: z.string().max(100).transform(sanitizeString).optional(),
+  lastName: z.string().max(100).transform(sanitizeString).optional(),
+  profileImageUrl: z.string().url().max(500).optional(),
 });
 
 export const insertCaseSchema = createInsertSchema(cases).omit({
   id: true,
   createdAt: true,
   createdBy: true, // Security: Server assigns this from authenticated session
+}).extend({
+  title: z.string().min(1).max(500).transform(sanitizeString),
+  clientName: z.string().min(1).max(200).transform(sanitizeString),
+  matterReference: z.string().max(100).transform(sanitizeString).optional(),
+  status: z.enum(["pending", "processing", "completed"]).default("pending"),
+  priority: z.enum(["urgent", "deadline-soon", "normal"]).default("normal"),
+  sourceType: z.enum(["audio", "text"]),
+  textNotes: z.string().max(100000).optional(), // 100KB limit for text notes
 });
 
 export const insertAudioRecordingSchema = createInsertSchema(audioRecordings).omit({
   id: true,
   recordedAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  filePath: z.string().max(500)
+    .regex(/^[a-zA-Z0-9][a-zA-Z0-9\-_\.\/]*[a-zA-Z0-9]$/) // Must start/end with alphanumeric
+    .refine((path) => !path.includes('..'), { message: 'Path traversal detected: .. not allowed' })
+    .refine((path) => !path.startsWith('/'), { message: 'Absolute paths not allowed' })
+    .refine((path) => !path.includes('//'), { message: 'Consecutive slashes not allowed' })
+    .refine((path) => !path.includes('\\'), { message: 'Backslashes not allowed' })
+    .optional(),
+  duration: z.number().int().min(0).max(14400).optional(), // Max 4 hours
 });
 
 export const insertConsentLogSchema = createInsertSchema(consentLogs).omit({
   id: true,
   consentTimestamp: true,
+}).extend({
+  caseId: z.string().uuid(),
+  audioRecordingId: z.string().uuid().optional(),
+  solicitorId: z.string().uuid(),
+  consentGiven: z.boolean(),
+  disclaimerScriptVersion: z.string().max(50),
+  consentModality: z.enum(["verbal_recorded", "verbal_attested", "electronic"]),
+  ipAddress: z.string().ip().optional(),
+  deletionReason: z.enum(["consent_declined", "client_request", "retention_expired"]).optional(),
 });
 
 export const insertTranscriptSchema = createInsertSchema(transcripts).omit({
   id: true,
   createdAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  content: z.string().max(1000000), // 1MB max for transcript
 });
 
 export const insertDocumentSchema = createInsertSchema(documents).omit({
   id: true,
   createdAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  transcriptSnapshotId: z.string().uuid().optional(),
+  type: z.enum(["attendance_note", "legal_opinion"]),
+  content: z.string().max(1000000), // 1MB max for documents
+  version: z.number().int().min(1).default(1),
+  versionType: z.enum(["ai_generated", "manually_edited", "ai_regenerated"]),
+  createdBy: z.string().uuid(),
+  isActive: z.boolean().default(true),
+  parentVersionId: z.string().uuid().optional(),
 });
 
 export const insertClientVersionTrackingSchema = createInsertSchema(clientVersionTracking).omit({
   id: true,
+}).extend({
+  documentId: z.string().uuid(),
+  sentToClient: z.boolean().default(false),
+  sentBy: z.string().uuid().optional(),
+  sentMethod: z.enum(["email", "download", "portal"]).optional(),
+  amendmentReason: z.string().max(1000).transform(sanitizeString).optional(),
+  versionChangeWarned: z.boolean().default(false),
 });
 
 export const insertUserPreferencesSchema = createInsertSchema(userPreferences).omit({
   id: true,
+}).extend({
+  userId: z.string().uuid(),
+  dismissedReviewBanner: z.boolean().default(false),
 });
 
 // Types
