@@ -17,17 +17,43 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import ConsentModal from "@/components/ConsentModal";
+import TextNotesModal from "@/components/TextNotesModal";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function QuickRecordButton() {
+  const { toast } = useToast();
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const [showMetadataModal, setShowMetadataModal] = useState(false);
+  const [showTextNotesModal, setShowTextNotesModal] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [caseTitle, setCaseTitle] = useState("");
   const [clientName, setClientName] = useState("");
   const [matterRef, setMatterRef] = useState("");
+
+  const createCaseMutation = useMutation({
+    mutationFn: async (caseData: any) => {
+      return await apiRequest("POST", "/api/cases", caseData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      toast({
+        title: "Case created successfully",
+        description: "Your case has been saved and is ready for processing.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error creating case",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    },
+  });
 
   useEffect(() => {
     if (countdown === null) return;
@@ -79,8 +105,8 @@ export default function QuickRecordButton() {
     setShowConsentModal(false);
     setIsRecording(false);
     setRecordingDuration(0);
-    // TODO: Show text notes fallback
-    alert('Recording stopped. Text notes fallback will be implemented next.');
+    // Show text notes fallback modal
+    setShowTextNotesModal(true);
   };
 
   const stopRecording = () => {
@@ -96,6 +122,26 @@ export default function QuickRecordButton() {
     setCaseTitle("");
     setClientName("");
     setMatterRef("");
+  };
+
+  const saveTextNotes = (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
+    console.log('Saving text-based case:', data);
+    
+    // TODO: Replace with actual user ID from auth session
+    const tempUserId = "temp-user-123";
+    
+    createCaseMutation.mutate({
+      title: data.caseTitle,
+      clientName: data.clientName,
+      matterReference: data.matterRef || undefined,
+      createdBy: tempUserId,
+      sourceType: "text",
+      textNotes: data.notes,
+      status: "pending",
+      priority: "normal",
+    });
+    
+    setShowTextNotesModal(false);
   };
 
   const formatDuration = (seconds: number) => {
@@ -239,6 +285,12 @@ export default function QuickRecordButton() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <TextNotesModal
+        open={showTextNotesModal}
+        onClose={() => setShowTextNotesModal(false)}
+        onSave={saveTextNotes}
+      />
     </>
   );
 }
