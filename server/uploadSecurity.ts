@@ -148,8 +148,8 @@ export async function verifyMagicNumbers(
     }
     
     // For each offset, at least ONE signature must match
-    for (const [offset, possibleSignatures] of signaturesByOffset) {
-      const hasMatch = possibleSignatures.some(expectedBytes => {
+    for (const [offset, possibleSignatures] of Array.from(signaturesByOffset.entries())) {
+      const hasMatch = possibleSignatures.some((expectedBytes: Buffer) => {
         if (fileHeader.length < offset + expectedBytes.length) return false;
         const actualBytes = fileHeader.slice(offset, offset + expectedBytes.length);
         return actualBytes.equals(expectedBytes);

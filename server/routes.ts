@@ -138,9 +138,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const audioRecording = await storage.createAudioRecording({
         caseId: validatedData.caseId,
         expiresAt,
-        filePath: null,
-        duration: null,
-        deletedAt: null,
+        filePath: undefined,
+        duration: undefined,
       });
       res.json(audioRecording);
     } catch (error: any) {

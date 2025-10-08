@@ -1,6 +1,11 @@
 import { type User, type InsertUser, type UpsertUser, type Case, type InsertCase, type AudioRecording, type InsertAudioRecording } from "@shared/schema";
 import { randomUUID } from "crypto";
 
+// Server-side audio recording creation type (includes server-calculated expiresAt)
+export type ServerAudioRecordingInsert = InsertAudioRecording & {
+  expiresAt: Date;
+};
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -9,7 +14,7 @@ export interface IStorage {
   getCases(userId: string): Promise<Case[]>;
   getCase(id: string): Promise<Case | undefined>;
   
-  createAudioRecording(audioData: InsertAudioRecording): Promise<AudioRecording>;
+  createAudioRecording(audioData: ServerAudioRecordingInsert): Promise<AudioRecording>;
   getAudioRecording(id: string): Promise<AudioRecording | undefined>;
   getAudioRecordingByCase(caseId: string): Promise<AudioRecording | undefined>;
   updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined>;
@@ -33,7 +38,11 @@ export class MemStorage implements IStorage {
   async upsertUser(userData: UpsertUser): Promise<User> {
     const existing = this.users.get(userData.id);
     const user: User = {
-      ...userData,
+      id: userData.id,
+      email: userData.email ?? null,
+      firstName: userData.firstName ?? null,
+      lastName: userData.lastName ?? null,
+      profileImageUrl: userData.profileImageUrl ?? null,
       createdAt: existing?.createdAt || new Date(),
       updatedAt: new Date(),
     };
@@ -67,15 +76,16 @@ export class MemStorage implements IStorage {
     return this.cases.get(id);
   }
 
-  async createAudioRecording(insertAudioRecording: InsertAudioRecording): Promise<AudioRecording> {
+  async createAudioRecording(insertAudioRecording: ServerAudioRecordingInsert): Promise<AudioRecording> {
     const id = randomUUID();
     const audioRecording: AudioRecording = {
-      ...insertAudioRecording,
       id,
+      caseId: insertAudioRecording.caseId,
       recordedAt: new Date(),
-      filePath: insertAudioRecording.filePath || null,
-      duration: insertAudioRecording.duration || null,
-      deletedAt: insertAudioRecording.deletedAt || null,
+      expiresAt: insertAudioRecording.expiresAt,
+      filePath: insertAudioRecording.filePath ?? null,
+      duration: insertAudioRecording.duration ?? null,
+      deletedAt: null,
     };
     this.audioRecordings.set(id, audioRecording);
     return audioRecording;

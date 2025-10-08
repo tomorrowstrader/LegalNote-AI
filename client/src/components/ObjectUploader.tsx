@@ -50,7 +50,7 @@ export function ObjectUploader({
 
   useEffect(() => {
     return () => {
-      uppy.close();
+      (uppy as any).close();
     };
   }, [uppy]);
 

@@ -25,6 +25,23 @@ import { useAuth } from "@/hooks/useAuth";
 import Uppy from "@uppy/core";
 import AwsS3 from "@uppy/aws-s3";
 
+interface CaseResponse {
+  id: string;
+  title: string;
+  clientName: string;
+  matterReference?: string;
+  status: string;
+  priority: string;
+  sourceType: string;
+}
+
+interface AudioResponse {
+  id: string;
+  caseId: string;
+  filePath: string | null;
+  expiresAt: string;
+}
+
 export default function QuickRecordButton() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -44,9 +61,9 @@ export default function QuickRecordButton() {
   const audioBlobRef = useRef<Blob | null>(null);
   const uppyRef = useRef<Uppy | null>(null);
 
-  const createCaseMutation = useMutation({
+  const createCaseMutation = useMutation<CaseResponse, Error, any>({
     mutationFn: async (caseData: any) => {
-      return await apiRequest("POST", "/api/cases", caseData);
+      return await apiRequest<CaseResponse>("POST", "/api/cases", caseData);
     },
     onSuccess: () => {
       // Invalidate all queries that start with /api/cases (including those with query params)
@@ -166,7 +183,7 @@ export default function QuickRecordButton() {
         mediaRecorderRef.current.stop();
       }
       if (uppyRef.current) {
-        uppyRef.current.close({ reason: 'unmount' });
+        (uppyRef.current as any).close({ reason: 'unmount' });
       }
     };
   }, []);
@@ -193,7 +210,7 @@ export default function QuickRecordButton() {
     }
     
     try {
-      const caseResult: any = await apiRequest("POST", "/api/cases", {
+      const caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
         title: caseTitle,
         clientName: clientName,
         matterReference: matterRef || undefined,
@@ -202,14 +219,14 @@ export default function QuickRecordButton() {
         priority: "normal",
       });
       
-      const audioResult: any = await apiRequest("POST", "/api/audio", {
+      const audioResult = await apiRequest<AudioResponse>("POST", "/api/audio", {
         caseId: caseResult.id,
       });
       
       if (audioBlobRef.current) {
         if (uppyRef.current) {
           try {
-            uppyRef.current.close({ reason: 'unmount' });
+            (uppyRef.current as any).close({ reason: 'unmount' });
           } catch (e) {
             console.error('Error closing previous Uppy instance:', e);
           }
@@ -263,7 +280,7 @@ export default function QuickRecordButton() {
           });
         }
         
-        uppyRef.current.close({ reason: 'unmount' });
+        (uppyRef.current as any).close({ reason: 'unmount' });
         uppyRef.current = null;
       }
       
