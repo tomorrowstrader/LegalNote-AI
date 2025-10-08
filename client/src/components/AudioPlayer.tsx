@@ -19,6 +19,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
 
   useEffect(() => {
     setIsExpired(false);
@@ -47,7 +48,11 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     const audio = audioRef.current;
     if (!audio) return;
 
-    const updateTime = () => setCurrentTime(audio.currentTime);
+    const updateTime = () => {
+      if (!isSeeking) {
+        setCurrentTime(audio.currentTime);
+      }
+    };
     const updateDuration = () => setDuration(audio.duration);
     const handleEnded = () => setIsPlaying(false);
 
@@ -60,7 +65,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
       audio.removeEventListener("loadedmetadata", updateDuration);
       audio.removeEventListener("ended", handleEnded);
     };
-  }, [audioUrl]);
+  }, [audioUrl, isSeeking]);
 
   const togglePlayPause = () => {
     if (!audioRef.current || isExpired) return;
@@ -73,13 +78,6 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     setIsPlaying(!isPlaying);
   };
 
-  const handleSeek = (value: number[]) => {
-    if (!audioRef.current || isExpired) return;
-    const newTime = value[0];
-    if (!isFinite(newTime)) return;
-    audioRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
-  };
 
   const handleVolumeChange = (value: number[]) => {
     if (!audioRef.current) return;
