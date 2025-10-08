@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertCaseSchema, insertAudioRecordingSchema } from "@shared/schema";
@@ -152,6 +152,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Configure multer for multipart file uploads (memory storage)
+  const multer = await import('multer');
+  const upload = multer.default({
+    storage: multer.default.memoryStorage(),
+    limits: {
+      fileSize: MAX_AUDIO_SIZE_BYTES, // 100MB max
+    },
+    fileFilter: (req, file, cb) => {
+      // Accept audio files only
+      const allowedMimeTypes = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/wav', 'audio/mpeg'];
+      if (allowedMimeTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only audio files are allowed.'));
+      }
+    },
+  });
+
   // Helper function for parsing object storage paths
   const parseObjectPath = (path: string): { bucketName: string; objectName: string } => {
     if (!path.startsWith("/")) {
@@ -166,99 +184,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return { bucketName, objectName };
   };
 
-  // New backend upload proxy endpoint
-  app.post("/api/audio/:id/upload", isAuthenticated, audioUploadLimiter, async (req: any, res, next) => {
-    try {
-      const userId = req.user.claims.sub;
-      const audioId = req.params.id;
-      
-      // Validate request body
-      if (!req.body.audioBlob || !req.body.duration) {
-        return res.status(400).json({ message: "audioBlob and duration are required" });
+  // Multer error handling middleware
+  const handleMulterError = (err: any, req: any, res: Response, next: NextFunction) => {
+    if (err instanceof multer.default.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ message: 'File too large (max 100MB)' });
       }
-
-      // Get audio record and verify ownership
-      const audioRecording = await storage.getAudioRecording(audioId);
-      if (!audioRecording) {
-        return res.status(404).json({ message: "Audio recording not found" });
-      }
-
-      const caseData = await storage.getCase(audioRecording.caseId);
-      if (!caseData || caseData.createdBy !== userId) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-
-      // Convert base64 to Buffer
-      const audioBuffer = Buffer.from(req.body.audioBlob, 'base64');
-      
-      // Validate file size (100MB max)
-      if (audioBuffer.length > MAX_AUDIO_SIZE_BYTES) {
-        return res.status(400).json({ message: "File too large (max 100MB)" });
-      }
-
-      // Upload directly to GCS using server-side method
-      const objectStorageService = new ObjectStorageService();
-      const privateObjectDir = objectStorageService.getPrivateObjectDir();
-      
-      // Generate unique object name and full path
-      const { randomUUID } = await import('crypto');
-      const objectId = randomUUID();
-      const fullPath = `${privateObjectDir}/uploads/${objectId}`;
-      
-      const { bucketName, objectName } = parseObjectPath(fullPath);
-      
-      console.log(`Uploading audio to bucket: ${bucketName}, object: ${objectName}`);
-      
-      // Import GCS client and upload
-      const { objectStorageClient } = await import('./objectStorage');
-      const bucket = objectStorageClient.bucket(bucketName);
-      const file = bucket.file(objectName);
-      
-      // Upload buffer to GCS
-      await file.save(audioBuffer, {
-        metadata: {
-          contentType: 'audio/webm',
-        },
-      });
-      
-      console.log(`Audio uploaded successfully to ${fullPath}`);
-      
-      // Construct the storage URL and normalize
-      const storageURL = `https://storage.googleapis.com/${bucketName}/${objectName}`;
-      const normalizedPath = objectStorageService.normalizeObjectEntityPath(storageURL);
-      
-      console.log(`Normalized path: ${normalizedPath}, setting ACL...`);
-      
-      // Set ACL policy
-      const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
-        storageURL,
-        {
-          owner: userId,
-          visibility: "private",
-        }
-      );
-      
-      console.log(`ACL set, final objectPath: ${objectPath}`);
-
-      // Update audio record with file path and duration
-      const updated = await storage.updateAudioRecording(audioId, {
-        filePath: objectPath,
-        duration: req.body.duration,
-      });
-
-      auditLogger.logFromRequest(AuditEventType.AUDIO_UPLOADED, req, {
-        resourceId: audioId,
-        resourceType: "audio",
-        action: "upload",
-        severity: "medium",
-      });
-
-      res.json(updated);
-    } catch (error: any) {
-      console.error('Audio upload error:', error);
-      next(error);
+      return res.status(400).json({ message: err.message });
     }
-  });
+    
+    // Handle fileFilter rejections
+    if (err.message && err.message.includes('Invalid file type')) {
+      return res.status(400).json({ message: err.message });
+    }
+    
+    next(err);
+  };
+
+  // Multipart upload endpoint using industry-standard approach
+  app.post("/api/audio/:id/upload", 
+    isAuthenticated, 
+    audioUploadLimiter,
+    upload.single('audioFile'),
+    handleMulterError,
+    async (req: any, res: Response, next: NextFunction) => {
+      try {
+        const userId = req.user.claims.sub;
+        const audioId = req.params.id;
+        
+        // Validate multipart upload
+        if (!req.file) {
+          return res.status(400).json({ message: "Audio file is required" });
+        }
+
+        if (!req.body.duration) {
+          return res.status(400).json({ message: "Duration is required" });
+        }
+
+        // Get audio record and verify ownership
+        const audioRecording = await storage.getAudioRecording(audioId);
+        if (!audioRecording) {
+          return res.status(404).json({ message: "Audio recording not found" });
+        }
+
+        const caseData = await storage.getCase(audioRecording.caseId);
+        if (!caseData || caseData.createdBy !== userId) {
+          return res.status(403).json({ message: "Not authorized" });
+        }
+
+        // File is already in memory as Buffer (req.file.buffer)
+        const audioBuffer = req.file.buffer;
+        
+        console.log(`Received audio file: ${req.file.originalname}, size: ${audioBuffer.length} bytes, type: ${req.file.mimetype}`);
+
+        // Upload directly to GCS using server-side method
+        const objectStorageService = new ObjectStorageService();
+        const privateObjectDir = objectStorageService.getPrivateObjectDir();
+        
+        // Generate unique object name and full path
+        const { randomUUID } = await import('crypto');
+        const objectId = randomUUID();
+        const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+        
+        const { bucketName, objectName } = parseObjectPath(fullPath);
+        
+        console.log(`Uploading audio to bucket: ${bucketName}, object: ${objectName}`);
+        
+        // Import GCS client and upload
+        const { objectStorageClient } = await import('./objectStorage');
+        const bucket = objectStorageClient.bucket(bucketName);
+        const file = bucket.file(objectName);
+        
+        // Upload buffer to GCS with proper content type
+        await file.save(audioBuffer, {
+          metadata: {
+            contentType: req.file.mimetype,
+          },
+        });
+        
+        console.log(`Audio uploaded successfully to ${fullPath}`);
+        
+        // Construct the storage URL and normalize
+        const storageURL = `https://storage.googleapis.com/${bucketName}/${objectName}`;
+        const normalizedPath = objectStorageService.normalizeObjectEntityPath(storageURL);
+        
+        console.log(`Normalized path: ${normalizedPath}, setting ACL...`);
+        
+        // Set ACL policy
+        const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
+          storageURL,
+          {
+            owner: userId,
+            visibility: "private",
+          }
+        );
+        
+        console.log(`ACL set, final objectPath: ${objectPath}`);
+
+        // Update audio record with file path and duration
+        const updated = await storage.updateAudioRecording(audioId, {
+          filePath: objectPath,
+          duration: parseFloat(req.body.duration),
+        });
+
+        auditLogger.logFromRequest(AuditEventType.AUDIO_UPLOADED, req, {
+          resourceId: audioId,
+          resourceType: "audio",
+          action: "upload",
+          severity: "medium",
+        });
+
+        res.json(updated);
+      } catch (error: any) {
+        console.error('Audio upload error:', error);
+        next(error);
+      }
+    }
+  );
 
   app.put("/api/audio/:id", isAuthenticated, audioUploadLimiter, async (req: any, res, next) => {
     try {

@@ -15,6 +15,16 @@ LegalNote AI is a professional legal documentation platform designed for solicit
 
 ## Recent Changes
 
+### October 8, 2025 - Multipart Upload Implementation
+9. **Audio Upload Architecture Refactored**: Replaced base64 JSON approach with industry-standard multipart/form-data
+   - Installed multer package for proper multipart parsing
+   - Backend uses multer.memoryStorage() to buffer files in memory before GCS upload
+   - Frontend creates FormData with audio blob and duration field
+   - 33% bandwidth savings: no base64 encoding overhead
+   - Proper file type validation (audio MIME types only)
+   - Dedicated Multer error handling middleware for validation failures
+   - Supports up to 100MB audio files efficiently
+
 ### October 8, 2025 - Recording Flows & Bug Fixes
 1. **OAuth Login Fixed**: Changed session cookie from `sameSite: 'strict'` to `sameSite: 'lax'` to allow OAuth redirects while maintaining CSRF protection
 2. **API Response Parsing Fixed**: Updated `apiRequest()` function to return parsed JSON data instead of Response objects, fixing case creation and audio recording flows

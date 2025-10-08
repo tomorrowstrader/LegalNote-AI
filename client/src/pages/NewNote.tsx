@@ -190,27 +190,24 @@ export default function NewNote() {
       });
       
       if (audioBlobRef.current) {
-        console.log('Converting audio blob to base64...');
+        console.log('Uploading audio file via multipart...');
         
-        // Convert Blob to base64
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => {
-            const base64String = (reader.result as string).split(',')[1]; // Remove data:audio/webm;base64, prefix
-            resolve(base64String);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(audioBlobRef.current!);
+        // Create FormData for multipart upload (industry standard)
+        const formData = new FormData();
+        formData.append('audioFile', audioBlobRef.current, 'recording.webm');
+        formData.append('duration', recordingDuration.toString());
+        
+        // Upload using native fetch (FormData automatically sets multipart/form-data)
+        const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
         });
         
-        const audioBlob = await base64Promise;
-        console.log('Audio blob converted, uploading to backend...');
-        
-        // Upload via backend proxy
-        await apiRequest("POST", `/api/audio/${audioResult.id}/upload`, {
-          audioBlob,
-          duration: recordingDuration,
-        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Upload failed');
+        }
         
         console.log('Audio upload completed successfully');
       }
