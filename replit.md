@@ -6,7 +6,12 @@ LegalNote AI is a professional legal documentation platform designed for solicit
 
 ## User Preferences
 
-Preferred communication style: Simple, everyday language.
+**Communication Style:** Simple, everyday language.
+
+**Architectural Preferences:**
+- When architectural constraints force backend proxy solutions (e.g., CORS blocking direct uploads), **always choose proper industry-standard implementations over quick hacks**, even if it takes longer to implement
+- Prioritize correct architecture from the start rather than temporary workarounds that become technical debt
+- Use multipart/form-data for file uploads (industry standard) rather than base64 encoding in JSON (bandwidth inefficient, memory intensive)
 
 ## Recent Changes
 
