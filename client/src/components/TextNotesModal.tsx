@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Dialog,
   DialogContent,
@@ -10,8 +12,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { FileText } from "lucide-react";
+import { insertCaseSchema } from "@shared/schema";
+
+// Extend the base schema for the form's specific needs
+const textNotesFormSchema = z.object({
+  title: z.string().min(1, "Case title is required"),
+  clientName: z.string().min(1, "Client name is required"),
+  matterReference: z.string().optional(),
+  textNotes: z.string().min(1, "Meeting notes are required"),
+});
+
+type TextNotesFormData = z.infer<typeof textNotesFormSchema>;
 
 interface TextNotesModalProps {
   open: boolean;
@@ -20,25 +33,29 @@ interface TextNotesModalProps {
 }
 
 export default function TextNotesModal({ open, onClose, onSave }: TextNotesModalProps) {
-  const [caseTitle, setCaseTitle] = useState("");
-  const [clientName, setClientName] = useState("");
-  const [matterRef, setMatterRef] = useState("");
-  const [notes, setNotes] = useState("");
+  const form = useForm<TextNotesFormData>({
+    resolver: zodResolver(textNotesFormSchema),
+    defaultValues: {
+      title: "",
+      clientName: "",
+      matterReference: "",
+      textNotes: "",
+    },
+  });
 
-  const handleSave = () => {
-    onSave({ caseTitle, clientName, matterRef, notes });
-    // Reset form
-    setCaseTitle("");
-    setClientName("");
-    setMatterRef("");
-    setNotes("");
+  const handleSave = (data: TextNotesFormData) => {
+    // Map form data to expected format
+    onSave({
+      caseTitle: data.title,
+      clientName: data.clientName,
+      matterRef: data.matterReference || "",
+      notes: data.textNotes,
+    });
+    form.reset();
   };
 
   const handleClose = () => {
-    setCaseTitle("");
-    setClientName("");
-    setMatterRef("");
-    setNotes("");
+    form.reset();
     onClose();
   };
 
@@ -56,80 +73,111 @@ export default function TextNotesModal({ open, onClose, onSave }: TextNotesModal
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="text-case-title">
-                Case Title <span className="text-accent">*</span>
-              </Label>
-              <Input
-                id="text-case-title"
-                placeholder="e.g., Estate Planning Consultation"
-                value={caseTitle}
-                onChange={(e) => setCaseTitle(e.target.value)}
-                data-testid="input-text-case-title"
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Case Title <span className="text-accent">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., Estate Planning Consultation"
+                        {...field}
+                        data-testid="input-text-case-title"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="clientName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Client Name <span className="text-accent">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., Mrs. Catherine Williams"
+                        {...field}
+                        data-testid="input-text-client-name"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="text-client-name">
-                Client Name <span className="text-accent">*</span>
-              </Label>
-              <Input
-                id="text-client-name"
-                placeholder="e.g., Mrs. Catherine Williams"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                data-testid="input-text-client-name"
-              />
-            </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="text-matter-ref">Matter Reference</Label>
-            <Input
-              id="text-matter-ref"
-              placeholder="e.g., MAT-2025-001"
-              value={matterRef}
-              onChange={(e) => setMatterRef(e.target.value)}
-              data-testid="input-text-matter-ref"
+            <FormField
+              control={form.control}
+              name="matterReference"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Matter Reference</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="e.g., MAT-2025-001"
+                      {...field}
+                      data-testid="input-text-matter-ref"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="text-notes">
-              Meeting Notes <span className="text-accent">*</span>
-            </Label>
-            <Textarea
-              id="text-notes"
-              placeholder="Type your meeting notes here... Include key discussion points, client instructions, legal issues raised, and any action items."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="min-h-[200px] resize-none"
-              data-testid="textarea-meeting-notes"
+            <FormField
+              control={form.control}
+              name="textNotes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Meeting Notes <span className="text-accent">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Type your meeting notes here... Include key discussion points, client instructions, legal issues raised, and any action items."
+                      className="min-h-[200px] resize-none"
+                      {...field}
+                      data-testid="textarea-meeting-notes"
+                    />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    Tip: Be thorough - these notes will be used to generate your attendance note and legal opinion.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            <p className="text-xs text-muted-foreground">
-              Tip: Be thorough - these notes will be used to generate your attendance note and legal opinion.
-            </p>
-          </div>
-        </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            variant="outline"
-            onClick={handleClose}
-            data-testid="button-cancel-text-notes"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!caseTitle || !clientName || !notes}
-            className="bg-accent hover:bg-accent"
-            data-testid="button-save-text-notes"
-          >
-            Save & Generate Documents
-          </Button>
-        </DialogFooter>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                data-testid="button-cancel-text-notes"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={form.formState.isSubmitting}
+                className="bg-accent hover:bg-accent"
+                data-testid="button-save-text-notes"
+              >
+                Save & Generate Documents
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
