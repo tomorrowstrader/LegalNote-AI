@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { configureSecurityHeaders } from "./securityHeaders";
+import "./envValidation"; // Validate environment on startup
 
 const app = express();
 
@@ -44,12 +45,37 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    const isDevelopment = process.env.NODE_ENV === "development";
+    
+    // Sanitize error message in production
+    let message = err.message || "Internal Server Error";
+    
+    // In production, don't leak internal error details
+    if (!isDevelopment && status === 500) {
+      message = "Internal Server Error";
+      // Log full error details securely (not to client)
+      console.error('[ERROR]', {
+        timestamp: new Date().toISOString(),
+        method: req.method,
+        path: req.path,
+        error: err.message,
+        stack: err.stack,
+        userId: (req as any).user?.claims?.sub,
+      });
+    }
 
-    res.status(status).json({ message });
-    throw err;
+    res.status(status).json({ 
+      message,
+      // Only include error ID in production for tracking
+      ...(isDevelopment ? {} : { errorId: Date.now().toString(36) })
+    });
+    
+    // Don't throw in production to prevent process crash
+    if (isDevelopment) {
+      throw err;
+    }
   });
 
   // importantly only setup vite in development and after

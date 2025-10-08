@@ -96,8 +96,12 @@ export function configureSecurityHeaders(app: Express) {
     baseUri: ["'self'"],
     formAction: ["'self'"],
     frameAncestors: ["'none'"], // Prevent clickjacking
-    upgradeInsecureRequests: !isDevelopment ? [] : undefined, // Only in production
   };
+
+  // Add upgrade-insecure-requests only in production
+  if (!isDevelopment) {
+    cspDirectives.upgradeInsecureRequests = [];
+  }
 
   // Helmet security headers
   app.use(

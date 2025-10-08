@@ -13,6 +13,7 @@ import {
   audioUploadLimiter,
   authLimiter,
 } from "./rateLimiting";
+import { auditLogger, AuditEventType } from "./auditLog";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup Replit Auth
@@ -22,42 +23,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/', generalApiLimiter);
 
   // Auth user route
-  app.get('/api/auth/user', isAuthenticated, authLimiter, async (req: any, res) => {
+  app.get('/api/auth/user', isAuthenticated, authLimiter, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
+      next(error);
     }
   });
 
   // Protected Case routes
-  app.post("/api/cases", isAuthenticated, caseCreationLimiter, async (req: any, res) => {
+  app.post("/api/cases", isAuthenticated, caseCreationLimiter, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const validatedData = insertCaseSchema.parse(req.body);
       
       // Security: Storage layer enforces user isolation
       const newCase = await storage.createCase(validatedData, userId);
+      auditLogger.logFromRequest(AuditEventType.CASE_CREATED, req, {
+        resourceId: newCase.id,
+        resourceType: "case",
+        action: "create",
+        severity: "low",
+      });
       res.json(newCase);
     } catch (error: any) {
-      res.status(400).json({ message: error.message });
+      // Zod validation errors: return 400 with message
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.message });
+      }
+      // All other errors: use sanitized error handler
+      next(error);
     }
   });
 
-  app.get("/api/cases", isAuthenticated, async (req: any, res) => {
+  app.get("/api/cases", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const cases = await storage.getCases(userId);
       res.json(cases);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      next(error);
     }
   });
 
-  app.get("/api/cases/:id", isAuthenticated, async (req: any, res) => {
+  app.get("/api/cases/:id", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const caseData = await storage.getCase(req.params.id);
@@ -68,28 +79,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Authorization check: user can only access their own cases
       if (caseData.createdBy !== userId) {
+        auditLogger.logFromRequest(AuditEventType.ACCESS_CONTROL_VIOLATION, req, {
+          resourceId: req.params.id,
+          resourceType: "case",
+          action: "access",
+          severity: "high",
+        });
         return res.status(403).json({ message: "Not authorized to access this case" });
       }
       
       res.json(caseData);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      next(error);
     }
   });
 
   // Protected Audio routes
-  app.post("/api/audio/upload-url", isAuthenticated, presignedUrlLimiter, async (req, res) => {
+  app.post("/api/audio/upload-url", isAuthenticated, presignedUrlLimiter, async (req, res, next) => {
     try {
       const objectStorageService = new ObjectStorageService();
       // Security: Enforce 100MB size limit on presigned URL
       const uploadURL = await objectStorageService.getObjectEntityUploadURL(MAX_AUDIO_SIZE_BYTES);
       res.json({ uploadURL });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      next(error);
     }
   });
 
-  app.post("/api/audio", isAuthenticated, audioUploadLimiter, async (req: any, res) => {
+  app.post("/api/audio", isAuthenticated, audioUploadLimiter, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const validatedData = insertAudioRecordingSchema.parse(req.body);
@@ -101,6 +118,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Authorization check: user can only create audio for their own cases
       if (caseData.createdBy !== userId) {
+        auditLogger.logFromRequest(AuditEventType.ACCESS_CONTROL_VIOLATION, req, {
+          resourceId: validatedData.caseId,
+          resourceType: "case",
+          action: "create_audio",
+          severity: "high",
+        });
         return res.status(403).json({ message: "Not authorized to create audio for this case" });
       }
       
@@ -115,11 +138,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       res.json(audioRecording);
     } catch (error: any) {
-      res.status(400).json({ message: error.message });
+      // Zod validation errors: return 400 with message
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.message });
+      }
+      // All other errors: use sanitized error handler
+      next(error);
     }
   });
 
-  app.put("/api/audio/:id", isAuthenticated, audioUploadLimiter, async (req: any, res) => {
+  app.put("/api/audio/:id", isAuthenticated, audioUploadLimiter, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       
@@ -154,6 +182,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (existingAcl && existingAcl.owner !== userId) {
         // Object already has an ACL and is owned by someone else
+        auditLogger.logFromRequest(AuditEventType.ACCESS_CONTROL_VIOLATION, req, {
+          resourceId: req.params.id,
+          resourceType: "audio",
+          action: "upload_hijack_attempt",
+          severity: "critical",
+          additionalInfo: { normalizedPath },
+        });
         return res.status(403).json({ 
           message: "Not authorized to use this audio file" 
         });
@@ -164,6 +199,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!validation.valid) {
         // Delete invalid file
         await objectFile.delete();
+        auditLogger.logFromRequest(AuditEventType.UPLOAD_SECURITY_VIOLATION, req, {
+          resourceId: req.params.id,
+          resourceType: "audio",
+          action: "upload_validation_failed",
+          severity: "high",
+          additionalInfo: { error: validation.error },
+        });
         return res.status(400).json({ message: validation.error || "Invalid file upload" });
       }
       
@@ -181,14 +223,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         duration: req.body.duration || null,
       });
 
+      auditLogger.logFromRequest(AuditEventType.AUDIO_UPLOADED, req, {
+        resourceId: req.params.id,
+        resourceType: "audio",
+        action: "upload",
+        severity: "medium",
+      });
+
       res.json(updated);
     } catch (error: any) {
-      console.error("Error updating audio recording:", error);
-      res.status(500).json({ message: error.message });
+      next(error);
     }
   });
 
-  app.get("/api/audio/by-case/:caseId", isAuthenticated, async (req: any, res) => {
+  app.get("/api/audio/by-case/:caseId", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       
@@ -213,12 +261,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(audioRecording);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      next(error);
     }
   });
 
   // Protected Object storage route
-  app.get("/objects/:objectPath(*)", isAuthenticated, async (req: any, res) => {
+  app.get("/objects/:objectPath(*)", isAuthenticated, async (req: any, res, next) => {
     const objectStorageService = new ObjectStorageService();
     try {
       const userId = req.user.claims.sub;
@@ -254,11 +302,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
-      console.error("Error accessing object:", error);
       if (error instanceof ObjectNotFoundError) {
         return res.sendStatus(404);
       }
-      return res.sendStatus(500);
+      next(error);
     }
   });
 
