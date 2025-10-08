@@ -78,6 +78,9 @@ export default function TopNavigation() {
                 <DropdownMenuItem asChild data-testid="menu-item-firm-settings">
                   <Link href="/settings">Firm Settings</Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild data-testid="menu-item-audit-logs">
+                  <Link href="/audit-logs">Audit Logs</Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem data-testid="menu-item-logout">Log Out</DropdownMenuItem>
               </DropdownMenuContent>

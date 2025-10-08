@@ -70,7 +70,7 @@ LegalNote AI is a professional legal documentation platform designed for solicit
 - Component-based architecture with reusable UI elements (buttons, cards, dialogs, forms)
 
 **Routing**: Wouter for lightweight client-side routing
-- Main routes: Dashboard, New Note, Case Detail, Saved Cases, Settings, My Profile
+- Main routes: Dashboard, New Note, Case Detail, Saved Cases, Settings, My Profile, Audit Logs
 
 **State Management**: TanStack Query (React Query) for server state and async operations
 - Query client configured with custom fetch wrapper for API requests
@@ -88,6 +88,14 @@ LegalNote AI is a professional legal documentation platform designed for solicit
 - **Tabbed Document Viewer**: Three-tab interface separating Summary, Legal Opinion, and Transcript views
 - **Role-Based UI**: Settings page splits between regular user "My Profile" and admin-only "Firm Settings"
 - **Quick Actions**: Context menus on case cards for common operations (email, mark reviewed, download PDF, assign team member)
+- **Audit Trail Compliance** (✓ Implemented):
+  - Case-level audit history displayed on case detail pages
+  - Admin audit log viewer with filtering by case, event type, date range, and results limit
+  - CSV export functionality for compliance reporting
+  - Automatic logging of case views, document access, and system events
+  - Captures IP addresses, user agents, timestamps, and metadata for full traceability
+  - Self-auditing design: even viewing audit logs creates audit entries
+  - **Security Note**: Audit log viewer currently accessible to all authenticated users; requires role-based access control implementation before production deployment
 
 ### Backend Architecture
 
@@ -121,6 +129,7 @@ LegalNote AI is a professional legal documentation platform designed for solicit
 - **Documents**: Version-controlled attendance notes and legal opinions (AI generated, manually edited, AI regenerated)
 - **Client Version Tracking**: Tracks which document versions were sent to clients and when
 - **User Preferences**: Per-user settings including review banner dismissal
+- **Audit Trail**: Comprehensive compliance logging of all document access and modifications (eventType, userId, timestamps, IP addresses, metadata in jsonb format)
 - Zod schema validation using `drizzle-zod` for type safety
 
 **Session Management**: Designed for PostgreSQL session store (connect-pg-simple)

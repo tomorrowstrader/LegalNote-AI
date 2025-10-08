@@ -12,6 +12,7 @@ import CaseDetail from "@/pages/CaseDetail";
 import SavedCases from "@/pages/SavedCases";
 import Settings from "@/pages/Settings";
 import MyProfile from "@/pages/MyProfile";
+import AuditLogs from "@/pages/AuditLogs";
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
 
@@ -30,6 +31,7 @@ function Router() {
           <Route path="/cases" component={SavedCases} />
           <Route path="/settings" component={Settings} />
           <Route path="/profile" component={MyProfile} />
+          <Route path="/audit-logs" component={AuditLogs} />
         </>
       )}
       <Route component={NotFound} />
