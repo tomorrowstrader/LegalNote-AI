@@ -46,10 +46,9 @@ export default function Dashboard() {
       title: "Contract Review Meeting",
       clientName: "ABC Corporation Ltd",
       meetingDate: "12 January 2025",
-      status: "processing" as const,
+      status: "completed" as const,
       createdBy: "Michael Brown",
       priority: "normal" as const,
-      audioExpiresIn: 12,
     },
     {
       id: "3",

@@ -94,10 +94,12 @@ export default function CaseCard({
             </div>
             <div className="flex items-center gap-2 mb-1">
               <p className="text-sm text-muted-foreground">{clientName}</p>
-              <Badge variant={config.variant} className="gap-1">
-                <StatusIcon className="w-3 h-3" />
-                {config.label}
-              </Badge>
+              {(status === "pending" || status === "processing") && (
+                <Badge variant={config.variant} className="gap-1">
+                  <StatusIcon className="w-3 h-3" />
+                  {config.label}
+                </Badge>
+              )}
             </div>
           </div>
           
