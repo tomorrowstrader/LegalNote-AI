@@ -6,13 +6,23 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { MAX_AUDIO_SIZE_BYTES, validateUploadedFile } from "./uploadSecurity";
+import {
+  generalApiLimiter,
+  caseCreationLimiter,
+  presignedUrlLimiter,
+  audioUploadLimiter,
+  authLimiter,
+} from "./rateLimiting";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup Replit Auth
   await setupAuth(app);
 
+  // Apply general rate limiting to all API routes
+  app.use('/api/', generalApiLimiter);
+
   // Auth user route
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', isAuthenticated, authLimiter, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -24,7 +34,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Protected Case routes
-  app.post("/api/cases", isAuthenticated, async (req: any, res) => {
+  app.post("/api/cases", isAuthenticated, caseCreationLimiter, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const validatedData = insertCaseSchema.parse(req.body);
@@ -68,7 +78,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Protected Audio routes
-  app.post("/api/audio/upload-url", isAuthenticated, async (req, res) => {
+  app.post("/api/audio/upload-url", isAuthenticated, presignedUrlLimiter, async (req, res) => {
     try {
       const objectStorageService = new ObjectStorageService();
       // Security: Enforce 100MB size limit on presigned URL
@@ -79,7 +89,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/audio", isAuthenticated, async (req: any, res) => {
+  app.post("/api/audio", isAuthenticated, audioUploadLimiter, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const validatedData = insertAudioRecordingSchema.parse(req.body);
@@ -109,7 +119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/audio/:id", isAuthenticated, async (req: any, res) => {
+  app.put("/api/audio/:id", isAuthenticated, audioUploadLimiter, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       
