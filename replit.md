@@ -35,6 +35,13 @@ Preferred communication style: Simple, everyday language.
    - Same MediaRecorder + Uppy upload workflow as Quick Record
    - Text notes fallback when consent declined or microphone unavailable
    - Proper case creation and navigation to case detail page
+8. **Upload Error Handling Enhanced**: Added comprehensive error handling to prevent ObjectNotFoundError
+   - Validate Uppy upload result before database update (check `result.successful.length > 0`)
+   - Only call PUT /api/audio/:id if file upload to GCS actually succeeds
+   - Added detailed console logging at each upload step for debugging
+   - Descriptive error messages surface in toast notifications
+   - Fixed TypeScript nullability issues with upload result validation
+   - Applied to both QuickRecordButton and NewNote upload flows
 
 ## System Architecture
 
