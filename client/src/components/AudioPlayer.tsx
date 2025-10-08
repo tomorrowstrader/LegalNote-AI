@@ -19,8 +19,6 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
-  const [isSeeking, setIsSeeking] = useState(false);
-  const [seekValue, setSeekValue] = useState(0);
 
   useEffect(() => {
     setIsExpired(false);
@@ -75,26 +73,12 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     setIsPlaying(!isPlaying);
   };
 
-  const handlePointerDown = () => {
-    setIsSeeking(true);
-    setSeekValue(currentTime);
-  };
-
-  const handleValueChange = (value: number[]) => {
-    // If we're not seeking yet, this must be a keyboard interaction
-    if (!isSeeking) {
-      setIsSeeking(true);
-    }
-    setSeekValue(value[0]);
-  };
-
-  const handleSeekCommit = (value: number[]) => {
+  const handleTimelineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!audioRef.current || isExpired) return;
-    const newTime = value[0];
+    const newTime = parseFloat(e.target.value);
     if (!isFinite(newTime)) return;
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
-    setIsSeeking(false);
   };
 
   const handleVolumeChange = (value: number[]) => {
@@ -174,14 +158,14 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
           </Button>
 
           <div className="flex-1 space-y-1">
-            <Slider
-              value={[isSeeking ? seekValue : currentTime]}
+            <input
+              type="range"
+              min={0}
               max={duration || 100}
               step={0.1}
-              onPointerDown={handlePointerDown}
-              onValueChange={handleValueChange}
-              onValueCommit={handleSeekCommit}
-              className="cursor-pointer"
+              value={currentTime}
+              onChange={handleTimelineChange}
+              className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
               data-testid="slider-timeline"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
