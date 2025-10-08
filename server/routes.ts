@@ -14,6 +14,7 @@ import {
   authLimiter,
 } from "./rateLimiting";
 import { auditLogger, AuditEventType } from "./auditLog";
+import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment platform
@@ -93,6 +94,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(403).json({ message: "Not authorized to access this case" });
       }
+      
+      // Log case view for audit trail
+      await logAuditEvent(userId, "case_viewed", {
+        caseId: req.params.id,
+        metadata: { clientName: caseData.clientName, title: caseData.title },
+        req,
+      });
       
       res.json(caseData);
     } catch (error: any) {
@@ -460,6 +468,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error instanceof ObjectNotFoundError) {
         return res.sendStatus(404);
       }
+      next(error);
+    }
+  });
+
+  // Audit trail API endpoints
+  app.get("/api/audit/logs", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId, documentId, eventType, startDate, endDate, limit } = req.query;
+
+      const filters: any = {};
+      if (caseId) filters.caseId = caseId as string;
+      if (documentId) filters.documentId = documentId as string;
+      if (eventType) filters.eventType = eventType as string;
+      if (startDate) filters.startDate = new Date(startDate as string);
+      if (endDate) filters.endDate = new Date(endDate as string);
+      if (limit) filters.limit = parseInt(limit as string, 10);
+
+      const logs = await storage.getAuditLogs(filters);
+
+      await logAuditEvent(userId, "case_viewed", {
+        metadata: { action: "audit_logs_queried", filters },
+        req,
+      });
+
+      res.json(logs);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/audit/case/:caseId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId } = req.params;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+
+      const logs = await storage.getAuditLogsByCase(caseId, limit);
+
+      await logAuditEvent(userId, "case_viewed", {
+        caseId,
+        metadata: { action: "case_audit_history_viewed" },
+        req,
+      });
+
+      res.json(logs);
+    } catch (error) {
       next(error);
     }
   });

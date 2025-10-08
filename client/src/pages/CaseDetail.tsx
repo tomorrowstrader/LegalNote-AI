@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import DocumentViewer from "@/components/DocumentViewer";
 import { AudioPlayer } from "@/components/AudioPlayer";
+import { AuditTrail } from "@/components/AuditTrail";
 import { useLocation, useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -153,6 +154,10 @@ export default function CaseDetail() {
           transcript={caseData.transcript}
           textNotes={caseData.textNotes}
         />
+
+        <div className="mt-8">
+          <AuditTrail caseId={caseId!} limit={50} />
+        </div>
       </div>
     </div>
   );
