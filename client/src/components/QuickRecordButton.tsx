@@ -16,10 +16,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import ConsentModal from "@/components/ConsentModal";
 
 export default function QuickRecordButton() {
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const [showMetadataModal, setShowMetadataModal] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [caseTitle, setCaseTitle] = useState("");
@@ -31,7 +34,10 @@ export default function QuickRecordButton() {
 
     if (countdown === 0) {
       setCountdown(null);
-      startActualRecording();
+      // Show consent modal and start recording immediately
+      setShowConsentModal(true);
+      setIsRecording(true);
+      setRecordingDuration(0);
       return;
     }
 
@@ -53,17 +59,28 @@ export default function QuickRecordButton() {
   }, [isRecording]);
 
   const initiateRecording = () => {
-    setCountdown(5);
+    setCountdown(3); // 3-second countdown
   };
 
   const cancelCountdown = () => {
     setCountdown(null);
   };
 
-  const startActualRecording = () => {
-    console.log('Quick recording started');
-    setIsRecording(true);
+  const handleConsentGiven = () => {
+    console.log('Client consent given - recording continues');
+    setConsentGiven(true);
+    setShowConsentModal(false);
+    // Recording continues
+  };
+
+  const handleConsentDeclined = () => {
+    console.log('Client consent declined - stopping recording');
+    setConsentGiven(false);
+    setShowConsentModal(false);
+    setIsRecording(false);
     setRecordingDuration(0);
+    // TODO: Show text notes fallback
+    alert('Recording stopped. Text notes fallback will be implemented next.');
   };
 
   const stopRecording = () => {
@@ -110,24 +127,32 @@ export default function QuickRecordButton() {
 
   if (isRecording) {
     return (
-      <div className="flex items-center gap-3 bg-card/50 rounded-lg px-3 py-1">
-        <Badge className="bg-destructive animate-pulse" data-testid="badge-quick-recording">
-          Recording
-        </Badge>
-        <p className="text-sm font-mono font-semibold text-primary-foreground" data-testid="text-quick-duration">
-          {formatDuration(recordingDuration)}
-        </p>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={stopRecording}
-          className="gap-1 text-primary-foreground h-7"
-          data-testid="button-stop-quick-record"
-        >
-          <Square className="w-3 h-3" />
-          Stop
-        </Button>
-      </div>
+      <>
+        <div className="flex items-center gap-3 bg-card/50 rounded-lg px-3 py-1">
+          <Badge className="bg-destructive animate-pulse" data-testid="badge-quick-recording">
+            Recording
+          </Badge>
+          <p className="text-sm font-mono font-semibold text-primary-foreground" data-testid="text-quick-duration">
+            {formatDuration(recordingDuration)}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={stopRecording}
+            className="gap-1 text-primary-foreground h-7"
+            data-testid="button-stop-quick-record"
+          >
+            <Square className="w-3 h-3" />
+            Stop
+          </Button>
+        </div>
+        
+        <ConsentModal
+          open={showConsentModal}
+          onConsentGiven={handleConsentGiven}
+          onConsentDeclined={handleConsentDeclined}
+        />
+      </>
     );
   }
 
