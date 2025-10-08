@@ -78,6 +78,19 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     setIsPlaying(!isPlaying);
   };
 
+  const handleSeekChange = (value: number[]) => {
+    setIsSeeking(true);
+    setCurrentTime(value[0]);
+  };
+
+  const handleSeekCommit = (value: number[]) => {
+    if (!audioRef.current || isExpired) return;
+    const newTime = value[0];
+    if (!isFinite(newTime)) return;
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+    setIsSeeking(false);
+  };
 
   const handleVolumeChange = (value: number[]) => {
     if (!audioRef.current) return;
@@ -160,7 +173,8 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
               value={[currentTime]}
               max={duration || 100}
               step={0.1}
-              onValueChange={handleSeek}
+              onValueChange={handleSeekChange}
+              onValueCommit={handleSeekCommit}
               className="cursor-pointer"
               data-testid="slider-timeline"
             />
