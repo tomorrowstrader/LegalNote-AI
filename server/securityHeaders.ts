@@ -16,8 +16,9 @@ export function configureSecurityHeaders(app: Express) {
   // CORS configuration
   const corsOptions = {
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      // Allow requests with no origin (mobile apps, curl, Postman) only in development
-      if (!origin && isDevelopment) {
+      // Allow requests with no origin (health checks, server-to-server, mobile apps, curl)
+      // Health check requests from deployment platforms don't send origin headers
+      if (!origin) {
         return callback(null, true);
       }
 
