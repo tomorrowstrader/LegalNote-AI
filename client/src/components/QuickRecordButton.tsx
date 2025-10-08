@@ -40,7 +40,13 @@ export default function QuickRecordButton() {
       return await apiRequest("POST", "/api/cases", caseData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      // Invalidate all queries that start with /api/cases (including those with query params)
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0] as string;
+          return key?.startsWith("/api/cases");
+        }
+      });
       toast({
         title: "Case created successfully",
         description: "Your case has been saved and is ready for processing.",
