@@ -9,6 +9,7 @@ interface DocumentViewerProps {
   nextSteps: string[];
   legalOpinion: string;
   transcript?: string;
+  textNotes?: string;
 }
 
 export default function DocumentViewer({
@@ -17,6 +18,7 @@ export default function DocumentViewer({
   nextSteps,
   legalOpinion,
   transcript,
+  textNotes,
 }: DocumentViewerProps) {
   const handleExport = (format: 'word' | 'pdf') => {
     console.log(`Exporting as ${format}`);
@@ -62,7 +64,20 @@ export default function DocumentViewer({
               <CardTitle>Attendance Note</CardTitle>
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
-              <p className="text-foreground whitespace-pre-wrap">{attendanceNote}</p>
+              {attendanceNote ? (
+                <p className="text-foreground whitespace-pre-wrap">{attendanceNote}</p>
+              ) : textNotes ? (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-4 italic">
+                    Meeting notes (AI-generated documents will appear here once processed)
+                  </p>
+                  <p className="text-foreground whitespace-pre-wrap">{textNotes}</p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  No attendance note available yet. Documents will be generated automatically.
+                </p>
+              )}
             </CardContent>
           </Card>
 

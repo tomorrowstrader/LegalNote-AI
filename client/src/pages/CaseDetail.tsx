@@ -127,6 +127,7 @@ export default function CaseDetail() {
           nextSteps={caseData.nextSteps || []}
           legalOpinion={caseData.legalOpinion || ""}
           transcript={caseData.transcript}
+          textNotes={caseData.textNotes}
         />
       </div>
     </div>

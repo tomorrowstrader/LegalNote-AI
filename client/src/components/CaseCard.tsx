@@ -13,6 +13,7 @@ import {
 import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
+import { useLocation } from "wouter";
 
 interface CaseCardProps {
   id: string;
@@ -35,6 +36,7 @@ export default function CaseCard({
   priority = "normal",
   audioExpiresIn
 }: CaseCardProps) {
+  const [, setLocation] = useLocation();
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -75,7 +77,11 @@ export default function CaseCard({
   };
 
   return (
-    <Card className="hover-elevate active-elevate-2 cursor-pointer" data-testid={`card-case-${id}`}>
+    <Card 
+      className="hover-elevate active-elevate-2 cursor-pointer" 
+      data-testid={`card-case-${id}`}
+      onClick={() => setLocation(`/case/${id}`)}
+    >
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1 min-w-0">
@@ -106,6 +112,11 @@ export default function CaseCard({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setLocation(`/case/${id}`); }} data-testid={`action-view-${id}`}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  View Details
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={(e) => handleAction('set-priority', e)} data-testid={`action-set-priority-${id}`}>
                   <AlertCircle className="w-4 h-4 mr-2" />
                   Set Priority/Deadline
