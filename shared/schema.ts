@@ -101,6 +101,21 @@ export const userPreferences = pgTable("user_preferences", {
   consentWorkflowPreferences: jsonb("consent_workflow_preferences").default({}), // Future workflow settings
 });
 
+export const auditTrail = pgTable("audit_trail", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventType: text("event_type").notNull(), // case_viewed, case_created, case_updated, document_viewed, document_created, document_updated, document_deleted, document_downloaded, document_sent, transcript_viewed, transcript_redacted, audio_accessed, audio_deleted
+  userId: varchar("user_id").notNull().references(() => users.id),
+  caseId: varchar("case_id").references(() => cases.id),
+  documentId: varchar("document_id").references(() => documents.id),
+  transcriptId: varchar("transcript_id").references(() => transcripts.id),
+  audioRecordingId: varchar("audio_recording_id").references(() => audioRecordings.id),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  metadata: jsonb("metadata").default({}), // Additional context like { documentType, oldValue, newValue, action, etc }
+  severity: text("severity").notNull().default("info"), // info, warning, critical
+});
+
 // Input validation helpers
 const sanitizeString = (str: string) => str.trim();
 
@@ -215,6 +230,27 @@ export const insertUserPreferencesSchema = createInsertSchema(userPreferences).o
   dismissedReviewBanner: z.boolean().default(false),
 });
 
+export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({
+  id: true,
+  timestamp: true,
+}).extend({
+  eventType: z.enum([
+    "case_viewed", "case_created", "case_updated", 
+    "document_viewed", "document_created", "document_updated", "document_deleted", "document_downloaded", "document_sent",
+    "transcript_viewed", "transcript_redacted",
+    "audio_accessed", "audio_deleted"
+  ]),
+  userId: z.string().uuid(),
+  caseId: z.string().uuid().optional(),
+  documentId: z.string().uuid().optional(),
+  transcriptId: z.string().uuid().optional(),
+  audioRecordingId: z.string().uuid().optional(),
+  ipAddress: z.string().ip().optional(),
+  userAgent: z.string().max(500).optional(),
+  metadata: z.record(z.any()).optional(),
+  severity: z.enum(["info", "warning", "critical"]).default("info"),
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
@@ -240,3 +276,6 @@ export type ClientVersionTracking = typeof clientVersionTracking.$inferSelect;
 
 export type InsertUserPreferences = z.infer<typeof insertUserPreferencesSchema>;
 export type UserPreferences = typeof userPreferences.$inferSelect;
+
+export type InsertAuditTrail = z.infer<typeof insertAuditTrailSchema>;
+export type AuditTrail = typeof auditTrail.$inferSelect;
