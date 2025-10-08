@@ -16,22 +16,22 @@ export function configureSecurityHeaders(app: Express) {
   // CORS configuration
   const corsOptions = {
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      // Development: Allow all origins (safe for local development)
+      if (isDevelopment) {
+        return callback(null, true);
+      }
+
       // Allow requests with no origin (health checks, server-to-server, mobile apps, curl)
       // Health check requests from deployment platforms don't send origin headers
       if (!origin) {
         return callback(null, true);
       }
 
-      // Build allowed origins list
+      // Build allowed origins list for production
       const allowedOrigins = [
         /\.replit\.dev$/,
         /\.replit\.app$/,
       ];
-
-      // Add localhost only in development
-      if (isDevelopment) {
-        allowedOrigins.push(/^https?:\/\/localhost(:\d+)?$/);
-      }
 
       // Add production domains
       productionDomains.forEach(domain => {

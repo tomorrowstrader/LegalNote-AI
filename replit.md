@@ -8,6 +8,14 @@ LegalNote AI is a professional legal documentation platform designed for solicit
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+### October 8, 2025 - Critical Bug Fixes
+1. **OAuth Login Fixed**: Changed session cookie from `sameSite: 'strict'` to `sameSite: 'lax'` to allow OAuth redirects while maintaining CSRF protection
+2. **API Response Parsing Fixed**: Updated `apiRequest()` function to return parsed JSON data instead of Response objects, fixing case creation and audio recording flows
+3. **CORS Configuration Fixed**: Simplified CORS for development to allow all origins (safe for local development), maintaining strict rules for production
+4. **Audio Recording Schema Fixed**: Added `expiresAt` and `deletedAt` to omit list in `insertAudioRecordingSchema` since server calculates these values
+
 ## System Architecture
 
 ### Frontend Architecture
