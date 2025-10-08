@@ -51,14 +51,18 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     const audio = audioRef.current;
     if (!audio) return;
 
+    console.log('AudioPlayer effect running, audioUrl:', audioUrl);
     setCurrentTime(0);
     setDuration(0);
     setIsPlaying(false);
 
     const updateDuration = () => {
+      console.log('updateDuration called, audio.duration:', audio.duration);
       if (isFinite(audio.duration) && audio.duration > 0) {
         setDuration(audio.duration);
-        console.log('Audio duration loaded:', audio.duration);
+        console.log('Audio duration set to:', audio.duration);
+      } else {
+        console.log('Duration not ready yet:', audio.duration);
       }
     };
     
@@ -90,11 +94,32 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
       }
     };
 
+    const handleError = (e: Event) => {
+      console.error('Audio error event:', e);
+      console.error('Audio error details:', audio.error);
+    };
+
     audio.addEventListener("loadedmetadata", updateDuration);
     audio.addEventListener("durationchange", updateDuration);
+    audio.addEventListener("canplay", updateDuration);
     audio.addEventListener("ended", handleEnded);
     audio.addEventListener("play", handlePlay);
     audio.addEventListener("pause", handlePause);
+    audio.addEventListener("error", handleError);
+    
+    // Force load to ensure metadata loads
+    console.log('Calling audio.load() to force metadata loading');
+    audio.load();
+    
+    // Check if duration is already loaded (after a small delay)
+    const checkDuration = () => {
+      console.log('Checking duration, readyState:', audio.readyState, 'duration:', audio.duration);
+      if (audio.readyState >= 1) {
+        updateDuration();
+      }
+    };
+    
+    setTimeout(checkDuration, 100);
 
     return () => {
       if (animationFrameRef.current) {
@@ -102,21 +127,28 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
       }
       audio.removeEventListener("loadedmetadata", updateDuration);
       audio.removeEventListener("durationchange", updateDuration);
+      audio.removeEventListener("canplay", updateDuration);
       audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("play", handlePlay);
       audio.removeEventListener("pause", handlePause);
+      audio.removeEventListener("error", handleError);
     };
   }, [audioUrl]);
 
-  const togglePlayPause = () => {
-    if (!audioRef.current || isExpired || duration === 0) return;
+  const togglePlayPause = async () => {
+    if (!audioRef.current || isExpired) return;
 
     if (isPlaying) {
       audioRef.current.pause();
+      setIsPlaying(false);
     } else {
-      audioRef.current.play();
+      try {
+        await audioRef.current.play();
+        setIsPlaying(true);
+      } catch (error) {
+        console.error('Play failed:', error);
+      }
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleTimelineMouseDown = () => {
@@ -215,7 +247,6 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
             size="icon"
             variant="outline"
             onClick={togglePlayPause}
-            disabled={duration === 0}
             data-testid="button-play-pause"
           >
             {isPlaying ? (
@@ -230,7 +261,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
               ref={timelineRef}
               type="range"
               min={0}
-              max={duration > 0 ? duration : 1}
+              max={duration > 0 ? duration : 100}
               step={0.01}
               value={currentTime}
               onMouseDown={handleTimelineMouseDown}
@@ -238,8 +269,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
               onChange={handleTimelineChange}
               onMouseUp={handleTimelineMouseUp}
               onTouchEnd={handleTimelineTouchEnd}
-              disabled={duration === 0}
-              className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
+              className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
               data-testid="slider-timeline"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
