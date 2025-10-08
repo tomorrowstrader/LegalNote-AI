@@ -112,10 +112,11 @@ export default function QuickRecordButton() {
     } catch (error) {
       console.error('Failed to start recording:', error);
       toast({
-        title: "Recording failed",
-        description: "Could not access microphone. Please check permissions.",
-        variant: "destructive",
+        title: "Recording not available",
+        description: "Microphone access failed. Using text notes instead.",
+        duration: 6000,
       });
+      setShowTextNotesModal(true);
     }
   };
 
