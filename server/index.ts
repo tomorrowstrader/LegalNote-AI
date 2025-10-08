@@ -1,8 +1,13 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { configureSecurityHeaders } from "./securityHeaders";
 
 const app = express();
+
+// Security headers and CORS (must be first)
+configureSecurityHeaders(app);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

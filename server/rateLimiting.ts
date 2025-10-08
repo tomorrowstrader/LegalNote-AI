@@ -2,7 +2,7 @@ import rateLimit from "express-rate-limit";
 
 /**
  * Rate limiting configuration for LegalNote AI
- * Protects against abuse and DoS attacks
+ * Protects against abuse and DoS attacks with proper IPv6 support
  */
 
 // General API rate limit: 100 requests per 15 minutes per IP
@@ -12,8 +12,8 @@ export const generalApiLimiter = rateLimit({
   message: "Too many requests from this IP, please try again later",
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  // Skip successful requests only count failures
   skipSuccessfulRequests: false,
+  // Use default IP-based keyGenerator (handles IPv6 correctly)
 });
 
 // Case creation rate limit: 50 cases per hour per user
@@ -23,10 +23,11 @@ export const caseCreationLimiter = rateLimit({
   message: "Case creation limit exceeded. Maximum 50 cases per hour allowed",
   standardHeaders: true,
   legacyHeaders: false,
-  // Use user ID as key instead of IP
+  // Use user ID as key (authenticated users only, so no IP fallback needed)
   keyGenerator: (req: any) => {
-    return req.user?.claims?.sub || req.ip;
+    return req.user?.claims?.sub || "unauthenticated";
   },
+  skip: (req: any) => !req.user, // Skip rate limiting for unauthenticated (auth handles this)
 });
 
 // Presigned URL rate limit: 100 URLs per hour per user
@@ -38,8 +39,9 @@ export const presignedUrlLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: any) => {
-    return req.user?.claims?.sub || req.ip;
+    return req.user?.claims?.sub || "unauthenticated";
   },
+  skip: (req: any) => !req.user,
 });
 
 // Audio upload/update rate limit: 60 uploads per hour per user
@@ -50,8 +52,9 @@ export const audioUploadLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: any) => {
-    return req.user?.claims?.sub || req.ip;
+    return req.user?.claims?.sub || "unauthenticated";
   },
+  skip: (req: any) => !req.user,
 });
 
 // Auth endpoint rate limit: Stricter to prevent brute force
@@ -62,6 +65,7 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Don't count successful auth
+  // Use default IP-based keyGenerator (handles IPv6 correctly)
 });
 
 // Strict rate limit for expensive operations
@@ -72,6 +76,7 @@ export const strictLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: any) => {
-    return req.user?.claims?.sub || req.ip;
+    return req.user?.claims?.sub || "unauthenticated";
   },
+  skip: (req: any) => !req.user,
 });
