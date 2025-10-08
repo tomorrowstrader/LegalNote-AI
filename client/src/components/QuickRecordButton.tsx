@@ -239,15 +239,18 @@ export default function QuickRecordButton() {
           },
         });
         
+        const fileName = `recording-${Date.now()}.webm`;
+        let uploadURL = '';
+        
         uppyRef.current.use(AwsS3, {
           shouldUseMultipart: false,
-          getUploadParameters: async () => {
+          getUploadParameters: async (file) => {
             const response = await fetch('/api/object-storage/presigned-url', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
               body: JSON.stringify({
-                fileName: `recording-${Date.now()}.webm`,
+                fileName: fileName,
                 contentType: 'audio/webm',
               }),
             });
@@ -257,25 +260,31 @@ export default function QuickRecordButton() {
             }
             
             const data = await response.json();
+            // Store the upload URL (without query params for accessing the file)
+            uploadURL = data.url.split('?')[0];
+            
             return {
               method: 'PUT' as const,
               url: data.url,
+              headers: {
+                'Content-Type': file.type || 'audio/webm',
+              },
             };
           },
         });
         
         uppyRef.current.addFile({
-          name: `recording-${Date.now()}.webm`,
+          name: fileName,
           type: 'audio/webm',
           data: audioBlobRef.current,
         });
         
-        const result = await uppyRef.current.upload();
+        await uppyRef.current.upload();
         
-        if (result && result.successful && result.successful[0]) {
-          const audioURL = result.successful[0].uploadURL;
+        // Use the stored upload URL instead of relying on Uppy's response parsing
+        if (uploadURL) {
           await apiRequest("PUT", `/api/audio/${audioResult.id}`, {
-            audioURL,
+            audioURL: uploadURL,
             duration: recordingDuration,
           });
         }
