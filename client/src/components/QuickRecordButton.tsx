@@ -21,11 +21,13 @@ import TextNotesModal from "@/components/TextNotesModal";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import Uppy from "@uppy/core";
 import AwsS3 from "@uppy/aws-s3";
 
 export default function QuickRecordButton() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -181,14 +183,20 @@ export default function QuickRecordButton() {
   const saveCase = async () => {
     console.log('Saving case:', { caseTitle, clientName, matterRef });
     
-    const tempUserId = "temp-user-123";
+    if (!user?.id) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to create a case",
+        variant: "destructive",
+      });
+      return;
+    }
     
     try {
       const caseResult: any = await apiRequest("POST", "/api/cases", {
         title: caseTitle,
         clientName: clientName,
         matterReference: matterRef || undefined,
-        createdBy: tempUserId,
         sourceType: "audio",
         status: "pending",
         priority: "normal",
@@ -291,14 +299,19 @@ export default function QuickRecordButton() {
   const saveTextNotes = (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
     console.log('Saving text-based case:', data);
     
-    // TODO: Replace with actual user ID from auth session
-    const tempUserId = "temp-user-123";
+    if (!user?.id) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to create a case",
+        variant: "destructive",
+      });
+      return;
+    }
     
     createCaseMutation.mutate({
       title: data.caseTitle,
       clientName: data.clientName,
       matterReference: data.matterRef || undefined,
-      createdBy: tempUserId,
       sourceType: "text",
       textNotes: data.notes,
       status: "pending",

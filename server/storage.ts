@@ -1,12 +1,11 @@
-import { type User, type InsertUser, type Case, type InsertCase, type AudioRecording, type InsertAudioRecording } from "@shared/schema";
+import { type User, type InsertUser, type UpsertUser, type Case, type InsertCase, type AudioRecording, type InsertAudioRecording } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  upsertUser(user: UpsertUser): Promise<User>;
   
-  createCase(caseData: InsertCase): Promise<Case>;
+  createCase(caseData: InsertCase, userId: string): Promise<Case>;
   getCases(userId: string): Promise<Case[]>;
   getCase(id: string): Promise<Case | undefined>;
   
@@ -31,24 +30,23 @@ export class MemStorage implements IStorage {
     return this.users.get(id);
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const existing = this.users.get(userData.id);
+    const user: User = {
+      ...userData,
+      createdAt: existing?.createdAt || new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.set(userData.id, user);
     return user;
   }
 
-  async createCase(insertCase: InsertCase): Promise<Case> {
+  async createCase(insertCase: InsertCase, userId: string): Promise<Case> {
     const id = randomUUID();
     const newCase: Case = {
       ...insertCase,
       id,
+      createdBy: userId, // Security: Enforce user isolation at storage layer
       createdAt: new Date(),
       status: insertCase.status || "pending",
       priority: insertCase.priority || "normal",

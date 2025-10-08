@@ -4,27 +4,41 @@ import { storage } from "./storage";
 import { insertCaseSchema, insertAudioRecordingSchema } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
-
-const TEMP_USER_ID = "temp-user-123";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Case routes
-  app.post("/api/cases", async (req, res) => {
+  // Setup Replit Auth
+  await setupAuth(app);
+
+  // Auth user route
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Protected Case routes
+  app.post("/api/cases", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
       const validatedData = insertCaseSchema.parse(req.body);
-      const newCase = await storage.createCase(validatedData);
+      
+      // Security: Storage layer enforces user isolation
+      const newCase = await storage.createCase(validatedData, userId);
       res.json(newCase);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
   });
 
-  app.get("/api/cases", async (req, res) => {
+  app.get("/api/cases", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.query.userId as string;
-      if (!userId) {
-        return res.status(400).json({ message: "userId is required" });
-      }
+      const userId = req.user.claims.sub;
       const cases = await storage.getCases(userId);
       res.json(cases);
     } catch (error: any) {
@@ -32,19 +46,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/cases/:id", async (req, res) => {
+  app.get("/api/cases/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const caseData = await storage.getCase(req.params.id);
+      
       if (!caseData) {
         return res.status(404).json({ message: "Case not found" });
       }
+      
+      // Authorization check: user can only access their own cases
+      if (caseData.createdBy !== userId) {
+        return res.status(403).json({ message: "Not authorized to access this case" });
+      }
+      
       res.json(caseData);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/audio/upload-url", async (req, res) => {
+  // Protected Audio routes
+  app.post("/api/audio/upload-url", isAuthenticated, async (req, res) => {
     try {
       const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
@@ -54,8 +77,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/audio", async (req, res) => {
+  app.post("/api/audio", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const validatedData = insertAudioRecordingSchema.parse(req.body);
       
       const caseData = await storage.getCase(validatedData.caseId);
@@ -63,7 +87,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Case not found" });
       }
       
-      if (caseData.createdBy !== TEMP_USER_ID) {
+      // Authorization check: user can only create audio for their own cases
+      if (caseData.createdBy !== userId) {
         return res.status(403).json({ message: "Not authorized to create audio for this case" });
       }
       
@@ -82,8 +107,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/audio/:id", async (req, res) => {
+  app.put("/api/audio/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      
       if (!req.body.audioURL) {
         return res.status(400).json({ message: "audioURL is required" });
       }
@@ -98,7 +125,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Associated case not found" });
       }
       
-      if (caseData.createdBy !== TEMP_USER_ID) {
+      // Authorization check: user can only update audio for their own cases
+      if (caseData.createdBy !== userId) {
         return res.status(403).json({ message: "Not authorized to update this audio" });
       }
       
@@ -122,14 +150,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/audio/by-case/:caseId", async (req, res) => {
+  app.get("/api/audio/by-case/:caseId", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      
       const caseData = await storage.getCase(req.params.caseId);
       if (!caseData) {
         return res.status(404).json({ message: "Case not found" });
       }
       
-      if (caseData.createdBy !== TEMP_USER_ID) {
+      // Authorization check: user can only access audio for their own cases
+      if (caseData.createdBy !== userId) {
         return res.status(403).json({ message: "Not authorized to access this audio" });
       }
       
@@ -148,15 +179,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/objects/:objectPath(*)", async (req, res) => {
+  // Protected Object storage route
+  app.get("/objects/:objectPath(*)", isAuthenticated, async (req: any, res) => {
     const objectStorageService = new ObjectStorageService();
     try {
+      const userId = req.user.claims.sub;
       const objectPath = `/objects/${req.params.objectPath}`;
       const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
       
       const canAccess = await objectStorageService.canAccessObjectEntity({
         objectFile,
-        userId: TEMP_USER_ID,
+        userId: userId,
         requestedPermission: ObjectPermission.READ,
       });
       
@@ -164,7 +197,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.sendStatus(403);
       }
       
-      const audioRecordings = await storage.getCases(TEMP_USER_ID).then(async cases => {
+      // Find audio recording with this path to check expiration
+      const audioRecordings = await storage.getCases(userId).then(async cases => {
         const recordings = [];
         for (const c of cases) {
           const rec = await storage.getAudioRecordingByCase(c.id);

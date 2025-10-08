@@ -11,12 +11,9 @@ import { format } from "date-fns";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
-  
-  // TODO: Replace with actual user ID from auth session
-  const tempUserId = "temp-user-123";
 
   const { data: cases, isLoading } = useQuery<Case[]>({
-    queryKey: [`/api/cases?userId=${tempUserId}`],
+    queryKey: ["/api/cases"],
   });
 
   // Separate priority cases from regular cases
