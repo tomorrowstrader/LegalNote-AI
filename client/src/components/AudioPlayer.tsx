@@ -76,6 +76,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
   const handleSeek = (value: number[]) => {
     if (!audioRef.current || isExpired) return;
     const newTime = value[0];
+    if (!isFinite(newTime)) return;
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
   };
@@ -141,12 +142,16 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
       
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
       
-      <div className="bg-card border rounded-lg p-4 space-y-3" data-testid="audio-player">
+      <div 
+        className="bg-black dark:bg-zinc-800 rounded-lg p-4 space-y-3 shadow-lg" 
+        data-testid="audio-player"
+      >
         <div className="flex items-center gap-4">
           <Button
             size="icon"
             variant="outline"
             onClick={togglePlayPause}
+            className="bg-white dark:bg-white text-black border-white"
             data-testid="button-play-pause"
           >
             {isPlaying ? (
@@ -162,10 +167,10 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
               max={duration || 100}
               step={0.1}
               onValueChange={handleSeek}
-              className="cursor-pointer"
+              className="cursor-pointer [&_[role=slider]]:bg-white dark:[&_[role=slider]]:bg-white [&_[role=slider]]:border-white"
               data-testid="slider-timeline"
             />
-            <div className="flex justify-between text-xs text-muted-foreground">
+            <div className="flex justify-between text-xs text-zinc-400 dark:text-zinc-300">
               <span data-testid="text-current-time">{formatTime(currentTime)}</span>
               <span data-testid="text-duration">{formatTime(duration)}</span>
             </div>
@@ -176,6 +181,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
               size="icon"
               variant="ghost"
               onClick={toggleMute}
+              className="text-white dark:text-white hover:bg-white/10 dark:hover:bg-white/10"
               data-testid="button-mute"
             >
               {isMuted || volume === 0 ? (
@@ -189,7 +195,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
               max={1}
               step={0.01}
               onValueChange={handleVolumeChange}
-              className="w-16"
+              className="w-16 [&_[role=slider]]:bg-white dark:[&_[role=slider]]:bg-white [&_[role=slider]]:border-white"
               data-testid="slider-volume"
             />
           </div>
