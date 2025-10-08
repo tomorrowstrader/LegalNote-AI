@@ -222,6 +222,7 @@ export default function QuickRecordButton() {
       if (audioBlobRef.current) {
         const fileName = `recording-${Date.now()}.webm`;
         let uploadURL = '';
+        let uploadSucceeded = false;
         
         // Create Uppy instance inline - no refs, no cleanup needed
         const uppy = new Uppy({
@@ -234,6 +235,7 @@ export default function QuickRecordButton() {
         uppy.use(AwsS3, {
           shouldUseMultipart: false,
           getUploadParameters: async (file) => {
+            console.log('Getting presigned URL for upload...');
             const response = await fetch('/api/audio/upload-url', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -241,10 +243,13 @@ export default function QuickRecordButton() {
             });
             
             if (!response.ok) {
-              throw new Error('Failed to get presigned URL');
+              const errorText = await response.text();
+              console.error('Failed to get presigned URL:', response.status, errorText);
+              throw new Error(`Failed to get presigned URL: ${response.status}`);
             }
             
             const data = await response.json();
+            console.log('Presigned URL obtained, uploading to:', data.uploadURL.split('?')[0]);
             // Store the upload URL (without query params for accessing the file)
             uploadURL = data.uploadURL.split('?')[0];
             
@@ -264,17 +269,38 @@ export default function QuickRecordButton() {
           data: audioBlobRef.current,
         });
         
-        await uppy.upload();
+        try {
+          console.log('Starting Uppy upload...');
+          const result = await uppy.upload();
+          
+          console.log('Uppy upload result:', result);
+          
+          // Check if upload was successful
+          if (result && result.successful && result.successful.length > 0) {
+            uploadSucceeded = true;
+            console.log('Upload succeeded!');
+          } else if (result && result.failed && result.failed.length > 0) {
+            console.error('Upload failed:', result.failed);
+            throw new Error('File upload failed');
+          } else {
+            throw new Error('Upload returned no result');
+          }
+        } catch (uploadError: any) {
+          console.error('Uppy upload error:', uploadError);
+          throw new Error(`Audio upload failed: ${uploadError.message || 'Unknown error'}`);
+        }
         
-        // Use the stored upload URL
-        if (uploadURL) {
+        // Only update database if upload succeeded
+        if (uploadSucceeded && uploadURL) {
+          console.log('Updating audio record with filePath:', uploadURL);
           await apiRequest("PUT", `/api/audio/${audioResult.id}`, {
             audioURL: uploadURL,
             duration: recordingDuration,
           });
+          console.log('Audio record updated successfully');
+        } else {
+          throw new Error('Upload verification failed - no file URL available');
         }
-        
-        // No cleanup needed - let garbage collector handle it
       }
       
       queryClient.invalidateQueries({ 
