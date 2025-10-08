@@ -27,9 +27,14 @@ Preferred communication style: Simple, everyday language.
 - Session-based authentication with cookie credentials
 
 **Key Features**:
-- **Quick Record**: Floating action button for instant audio recording with post-recording metadata capture (case title, client name, matter reference)
-- **Priority System**: Traffic light badges (red/amber/green) for case urgency indicators
-- **Global Search**: Omnipresent search bar in top navigation for searching cases, clients, transcripts, and legal opinions
+- **Quick Record with Consent Flow**: 3-second countdown, solicitor reads disclaimer, client verbal consent captured on audio, full audit trail
+  - Fallback: Plain text note-taking when consent declined (same document generation workflow)
+- **Priority System**: Text badges only (red "Action Required", amber "Deadline Approaching") for case urgency indicators
+- **Global Search**: Omnipresent search bar for searching cases, clients, and transcripts (placeholder: "Search cases, clients, or content...")
+- **Document Version Control**: Tracks AI generated → manually edited → AI regenerated versions with archive system
+- **Transcript Redaction**: Post-generation redaction tool for privilege/privacy issues, regenerates documents without redacted content
+- **Client Version Tracking**: Logs which document versions sent to clients, allows amendments, warns on version changes
+- **Review Checklist Banner**: Dismissible compliance reminder on first document view (checks for privilege, third-party data, sensitive info)
 - **Tabbed Document Viewer**: Three-tab interface separating Summary, Legal Opinion, and Transcript views
 - **Role-Based UI**: Settings page splits between regular user "My Profile" and admin-only "Firm Settings"
 - **Quick Actions**: Context menus on case cards for common operations (email, mark reviewed, download PDF, assign team member)
@@ -59,7 +64,13 @@ Preferred communication style: Simple, everyday language.
 - Migration management through Drizzle Kit
 
 **Current Schema**:
-- Users table with UUID primary keys, username/password authentication
+- **Users**: UUID primary keys, username/password authentication
+- **Cases**: Core case management with audio/text source tracking, priority levels, 24hr audio expiration
+- **Consent Logs**: GDPR-compliant consent tracking with timestamps, IP addresses, and deletion audit trail
+- **Transcripts**: Permanent transcript storage with redaction support (JSON array of redacted segments)
+- **Documents**: Version-controlled attendance notes and legal opinions (AI generated, manually edited, AI regenerated)
+- **Client Version Tracking**: Tracks which document versions were sent to clients and when
+- **User Preferences**: Per-user settings including review banner dismissal
 - Zod schema validation using `drizzle-zod` for type safety
 
 **Session Management**: Designed for PostgreSQL session store (connect-pg-simple)
