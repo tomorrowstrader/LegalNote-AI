@@ -206,14 +206,10 @@ export default function NewNote() {
         uppy.use(AwsS3, {
           shouldUseMultipart: false,
           getUploadParameters: async (file) => {
-            const response = await fetch('/api/object-storage/presigned-url', {
+            const response = await fetch('/api/audio/upload-url', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
-              body: JSON.stringify({
-                fileName: fileName,
-                contentType: 'audio/webm',
-              }),
             });
             
             if (!response.ok) {
@@ -222,11 +218,11 @@ export default function NewNote() {
             
             const data = await response.json();
             // Store the upload URL (without query params for accessing the file)
-            uploadURL = data.url.split('?')[0];
+            uploadURL = data.uploadURL.split('?')[0];
             
             return {
               method: 'PUT' as const,
-              url: data.url,
+              url: data.uploadURL,
               headers: {
                 'Content-Type': file.type || 'audio/webm',
               },
