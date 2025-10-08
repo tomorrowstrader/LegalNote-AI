@@ -51,7 +51,6 @@ export default function NewNote() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioBlobRef = useRef<Blob | null>(null);
-  const uppyRef = useRef<Uppy | null>(null);
 
   useEffect(() => {
     if (countdown === null) return;
@@ -117,9 +116,6 @@ export default function NewNote() {
     return () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
-      }
-      if (uppyRef.current) {
-        (uppyRef.current as any).close();
       }
     };
   }, []);
@@ -196,25 +192,18 @@ export default function NewNote() {
       });
       
       if (audioBlobRef.current) {
-        if (uppyRef.current) {
-          try {
-            (uppyRef.current as any).close();
-          } catch (e) {
-            console.error('Error closing previous Uppy instance:', e);
-          }
-        }
+        const fileName = `recording-${Date.now()}.webm`;
+        let uploadURL = '';
         
-        uppyRef.current = new Uppy({
+        // Create Uppy instance inline - no refs, no cleanup needed
+        const uppy = new Uppy({
           restrictions: {
             maxNumberOfFiles: 1,
             allowedFileTypes: ['audio/*'],
           },
         });
         
-        const fileName = `recording-${Date.now()}.webm`;
-        let uploadURL = '';
-        
-        uppyRef.current.use(AwsS3, {
+        uppy.use(AwsS3, {
           shouldUseMultipart: false,
           getUploadParameters: async (file) => {
             const response = await fetch('/api/object-storage/presigned-url', {
@@ -245,15 +234,15 @@ export default function NewNote() {
           },
         });
         
-        uppyRef.current.addFile({
+        uppy.addFile({
           name: fileName,
           type: 'audio/webm',
           data: audioBlobRef.current,
         });
         
-        await uppyRef.current.upload();
+        await uppy.upload();
         
-        // Use the stored upload URL instead of relying on Uppy's response parsing
+        // Use the stored upload URL
         if (uploadURL) {
           await apiRequest("PUT", `/api/audio/${audioResult.id}`, {
             audioURL: uploadURL,
@@ -261,8 +250,7 @@ export default function NewNote() {
           });
         }
         
-        (uppyRef.current as any).close();
-        uppyRef.current = null;
+        // No cleanup needed - let garbage collector handle it
       }
       
       queryClient.invalidateQueries({ 
