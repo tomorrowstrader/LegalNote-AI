@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type UpsertUser, type Case, type InsertCase, type AudioRecording, type InsertAudioRecording } from "@shared/schema";
+import { type User, type InsertUser, type UpsertUser, type Case, type InsertCase, type AudioRecording, type InsertAudioRecording, type AuditTrail, type InsertAuditTrail } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 // Server-side audio recording creation type (includes server-calculated expiresAt)
@@ -18,17 +18,31 @@ export interface IStorage {
   getAudioRecording(id: string): Promise<AudioRecording | undefined>;
   getAudioRecordingByCase(caseId: string): Promise<AudioRecording | undefined>;
   updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined>;
+  
+  createAuditLog(auditData: InsertAuditTrail): Promise<AuditTrail>;
+  getAuditLogs(filters?: {
+    userId?: string;
+    caseId?: string;
+    documentId?: string;
+    eventType?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+  }): Promise<AuditTrail[]>;
+  getAuditLogsByCase(caseId: string, limit?: number): Promise<AuditTrail[]>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private cases: Map<string, Case>;
   private audioRecordings: Map<string, AudioRecording>;
+  private auditLogs: Map<string, AuditTrail>;
 
   constructor() {
     this.users = new Map();
     this.cases = new Map();
     this.audioRecordings = new Map();
+    this.auditLogs = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -108,6 +122,69 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...updates };
     this.audioRecordings.set(id, updated);
     return updated;
+  }
+
+  async createAuditLog(insertAuditLog: InsertAuditTrail): Promise<AuditTrail> {
+    const id = randomUUID();
+    const auditLog: AuditTrail = {
+      id,
+      eventType: insertAuditLog.eventType,
+      userId: insertAuditLog.userId,
+      caseId: insertAuditLog.caseId ?? null,
+      documentId: insertAuditLog.documentId ?? null,
+      transcriptId: insertAuditLog.transcriptId ?? null,
+      audioRecordingId: insertAuditLog.audioRecordingId ?? null,
+      timestamp: new Date(),
+      ipAddress: insertAuditLog.ipAddress ?? null,
+      userAgent: insertAuditLog.userAgent ?? null,
+      metadata: insertAuditLog.metadata ?? {},
+      severity: insertAuditLog.severity ?? "info",
+    };
+    this.auditLogs.set(id, auditLog);
+    return auditLog;
+  }
+
+  async getAuditLogs(filters?: {
+    userId?: string;
+    caseId?: string;
+    documentId?: string;
+    eventType?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+  }): Promise<AuditTrail[]> {
+    let logs = Array.from(this.auditLogs.values());
+
+    if (filters?.userId) {
+      logs = logs.filter(log => log.userId === filters.userId);
+    }
+    if (filters?.caseId) {
+      logs = logs.filter(log => log.caseId === filters.caseId);
+    }
+    if (filters?.documentId) {
+      logs = logs.filter(log => log.documentId === filters.documentId);
+    }
+    if (filters?.eventType) {
+      logs = logs.filter(log => log.eventType === filters.eventType);
+    }
+    if (filters?.startDate) {
+      logs = logs.filter(log => log.timestamp >= filters.startDate!);
+    }
+    if (filters?.endDate) {
+      logs = logs.filter(log => log.timestamp <= filters.endDate!);
+    }
+
+    logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+    if (filters?.limit) {
+      logs = logs.slice(0, filters.limit);
+    }
+
+    return logs;
+  }
+
+  async getAuditLogsByCase(caseId: string, limit?: number): Promise<AuditTrail[]> {
+    return this.getAuditLogs({ caseId, limit });
   }
 }
 
