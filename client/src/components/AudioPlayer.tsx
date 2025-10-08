@@ -13,13 +13,13 @@ interface AudioPlayerProps {
 
 export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const isDraggingRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
-  const [isSeeking, setIsSeeking] = useState(false);
 
   useEffect(() => {
     setIsExpired(false);
@@ -49,7 +49,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     if (!audio) return;
 
     const updateTime = () => {
-      if (!isSeeking) {
+      if (!isDraggingRef.current) {
         setCurrentTime(audio.currentTime);
       }
     };
@@ -65,7 +65,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
       audio.removeEventListener("loadedmetadata", updateDuration);
       audio.removeEventListener("ended", handleEnded);
     };
-  }, [audioUrl, isSeeking]);
+  }, [audioUrl]);
 
   const togglePlayPause = () => {
     if (!audioRef.current || isExpired) return;
@@ -79,7 +79,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
   };
 
   const handleSeekChange = (value: number[]) => {
-    setIsSeeking(true);
+    isDraggingRef.current = true;
     setCurrentTime(value[0]);
   };
 
@@ -89,7 +89,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     if (!isFinite(newTime)) return;
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
-    setIsSeeking(false);
+    isDraggingRef.current = false;
   };
 
   const handleVolumeChange = (value: number[]) => {
