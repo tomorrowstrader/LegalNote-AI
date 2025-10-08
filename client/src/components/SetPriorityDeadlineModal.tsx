@@ -98,6 +98,7 @@ END:VCALENDAR`;
       description: deadline 
         ? `Calendar invite sent to your email. Deadline: ${format(deadline, 'PPP')}`
         : "Priority updated successfully",
+      duration: 6000, // 6 seconds for success messages
     });
 
     // Reset and close

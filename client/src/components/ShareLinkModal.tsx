@@ -62,6 +62,7 @@ export default function ShareLinkModal({
       toast({
         title: "Link Shared Successfully",
         description: `Secure link sent to ${recipientEmail}`,
+        duration: 6000, // 6 seconds for success messages
       });
       setCountdown(null);
       handleClose();
@@ -110,6 +111,7 @@ export default function ShareLinkModal({
         title: "Missing Information",
         description: "Please fill in all required fields",
         variant: "destructive",
+        duration: 8000, // 8 seconds for error messages
       });
       return;
     }
@@ -119,6 +121,7 @@ export default function ShareLinkModal({
         title: "Consent Required",
         description: "You must confirm client consent for external sharing",
         variant: "destructive",
+        duration: 8000, // 8 seconds for error messages
       });
       return;
     }
@@ -135,6 +138,7 @@ export default function ShareLinkModal({
       toast({
         title: "Share Cancelled",
         description: "Link was not sent",
+        duration: 5000, // 5 seconds for info messages
       });
     } else {
       handleClose();
