@@ -138,6 +138,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const normalizedPath = objectStorageService.normalizeObjectEntityPath(req.body.audioURL);
       const objectFile = await objectStorageService.getObjectEntityFile(normalizedPath);
       
+      // Security: Verify this object is not already owned by another user
+      const { getObjectAclPolicy } = await import("./objectAcl");
+      const existingAcl = await getObjectAclPolicy(objectFile);
+      
+      if (existingAcl && existingAcl.owner !== userId) {
+        // Object already has an ACL and is owned by someone else
+        return res.status(403).json({ 
+          message: "Not authorized to use this audio file" 
+        });
+      }
+      
       // Security: Validate uploaded file (size, MIME type, magic numbers)
       const validation = await validateUploadedFile(objectFile);
       if (!validation.valid) {
