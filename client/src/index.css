@@ -217,7 +217,7 @@
   /* Glossy gradient cards with drop shadow in dark mode */
   .dark .shadcn-card {
     background: linear-gradient(180deg, 
-      hsl(0 0% 8%) 0%, 
+      hsl(0 0% 12%) 0%, 
       hsl(0 0% 0%) 100%
     );
     box-shadow: 
