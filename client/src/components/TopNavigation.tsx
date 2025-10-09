@@ -54,9 +54,7 @@ export default function TopNavigation() {
           </div>
 
           <div className="flex items-center gap-2 ml-auto flex-shrink-0">
-            <div className="hidden xl:block">
-              <GlobalSearch />
-            </div>
+            <GlobalSearch />
             
             <QuickRecordButton />
             
