@@ -10,7 +10,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10 flex flex-col">
       {/* Fixed Header */}
-      <div className="px-4 pt-6 pb-4 sm:py-12 lg:py-16 flex-shrink-0">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-br from-primary/10 via-background to-accent/10 px-4 pt-6 pb-4 sm:py-12 lg:py-16 border-b">
         <div className="text-center">
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-2 sm:mb-3 lg:mb-4" data-testid="text-app-title">
             LegalNote AI
@@ -29,8 +29,8 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Scrollable Cards Section */}
-      <div className="flex-1 overflow-y-auto px-4 pb-24 sm:pb-12">
+      {/* Scrollable Cards Section with top padding to account for fixed header */}
+      <div className="flex-1 overflow-y-auto px-4 pb-24 sm:pb-12 pt-32 sm:pt-48 lg:pt-64">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-4 lg:gap-6 max-w-6xl mx-auto">
           <Card>
             <CardHeader className="p-3 sm:p-4 lg:p-6">
@@ -83,7 +83,7 @@ export default function Landing() {
       </div>
 
       {/* Mobile bottom button - in thumb zone for easy access */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background to-background/95 border-t sm:hidden flex-shrink-0">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background to-background/95 border-t sm:hidden flex-shrink-0 z-50">
         <Button 
           onClick={handleLogin} 
           size="lg" 
