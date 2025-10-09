@@ -8,7 +8,7 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10 flex items-center">
+    <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10">
       <div className="container mx-auto px-4 py-6 sm:py-12 lg:py-16">
         <div className="text-center mb-6 sm:mb-10 lg:mb-16">
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-2 sm:mb-3 lg:mb-4" data-testid="text-app-title">
@@ -27,7 +27,7 @@ export default function Landing() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 max-w-6xl mx-auto">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 max-w-6xl mx-auto">
           <Card>
             <CardHeader className="p-3 sm:p-4 lg:p-6">
               <Scale className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 text-accent mb-1 sm:mb-2" />
