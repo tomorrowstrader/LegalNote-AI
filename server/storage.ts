@@ -18,6 +18,7 @@ export interface IStorage {
   getAudioRecording(id: string): Promise<AudioRecording | undefined>;
   getAudioRecordingByCase(caseId: string): Promise<AudioRecording | undefined>;
   updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined>;
+  getExpiredAudioRecordings(): Promise<AudioRecording[]>;
   
   createAuditLog(auditData: InsertAuditTrail): Promise<AuditTrail>;
   getAuditLogs(filters?: {
@@ -122,6 +123,13 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...updates };
     this.audioRecordings.set(id, updated);
     return updated;
+  }
+
+  async getExpiredAudioRecordings(): Promise<AudioRecording[]> {
+    const now = new Date();
+    return Array.from(this.audioRecordings.values()).filter(
+      (recording) => recording.expiresAt < now && !recording.deletedAt
+    );
   }
 
   async createAuditLog(insertAuditLog: InsertAuditTrail): Promise<AuditTrail> {

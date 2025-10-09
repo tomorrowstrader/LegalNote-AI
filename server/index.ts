@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { configureSecurityHeaders } from "./securityHeaders";
+import { cleanupExpiredAudio } from "./audioCleanup";
 import "./envValidation"; // Validate environment on startup
 
 const app = express();
@@ -44,6 +45,9 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+  
+  // GDPR Compliance: Clean up expired audio on server startup
+  await cleanupExpiredAudio();
 
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

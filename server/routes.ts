@@ -418,7 +418,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Audio recording not found" });
       }
       
-      if (new Date() > audioRecording.expiresAt) {
+      if (new Date() > audioRecording.expiresAt && !audioRecording.deletedAt) {
+        // GDPR Compliance: Delete expired audio and log audit event
+        if (audioRecording.filePath) {
+          try {
+            const objectStorageService = new ObjectStorageService();
+            await objectStorageService.deleteObjectEntity(audioRecording.filePath);
+            await storage.updateAudioRecording(audioRecording.id, { deletedAt: new Date() });
+            
+            await logAuditEvent(userId, "audio_deleted", {
+              caseId: audioRecording.caseId,
+              audioRecordingId: audioRecording.id,
+              metadata: {
+                reason: "24hr_retention_policy_expiration",
+                filePath: audioRecording.filePath,
+                expiresAt: audioRecording.expiresAt.toISOString(),
+                deletedAt: new Date().toISOString(),
+              },
+              severity: "warning",
+              req,
+            });
+          } catch (deleteError) {
+            console.error("Failed to delete expired audio:", deleteError);
+          }
+        }
+        
         return res.status(410).json({ message: "Audio recording has expired (24hr retention policy)" });
       }
       
@@ -459,7 +483,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const audioRecording = audioRecordings[0];
-      if (audioRecording && new Date() > audioRecording.expiresAt) {
+      if (audioRecording && new Date() > audioRecording.expiresAt && !audioRecording.deletedAt) {
+        // GDPR Compliance: Delete expired audio and log audit event
+        try {
+          await objectStorageService.deleteObjectEntity(objectPath);
+          await storage.updateAudioRecording(audioRecording.id, { deletedAt: new Date() });
+          
+          await logAuditEvent(userId, "audio_deleted", {
+            caseId: audioRecording.caseId,
+            audioRecordingId: audioRecording.id,
+            metadata: {
+              reason: "24hr_retention_policy_expiration",
+              filePath: objectPath,
+              expiresAt: audioRecording.expiresAt.toISOString(),
+              deletedAt: new Date().toISOString(),
+            },
+            severity: "warning",
+            req,
+          });
+        } catch (deleteError) {
+          console.error("Failed to delete expired audio:", deleteError);
+        }
+        
         return res.status(410).json({ message: "Audio recording has expired (24hr retention policy)" });
       }
       
