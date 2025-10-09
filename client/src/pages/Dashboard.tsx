@@ -54,10 +54,10 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-between gap-3 mb-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+          <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6 lg:mb-8">
             <div className="flex-1 min-w-0">
-              <h1 className="text-3xl font-semibold text-foreground">Dashboard</h1>
+              <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Dashboard</h1>
               <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                 <span className="whitespace-nowrap">Manage your case documentation</span>
                 <br />
@@ -70,19 +70,20 @@ export default function Dashboard() {
               data-testid="button-new-note"
             >
               <FileText className="w-4 h-4" />
-              New Note
+              <span className="hidden sm:inline">New Note</span>
+              <span className="sm:hidden">New</span>
             </Button>
           </div>
 
-          <div className="grid gap-6 grid-cols-1 md:grid-cols-3 mb-8">
+          <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 md:grid-cols-3 mb-4 sm:mb-6 lg:mb-8">
             {[1, 2, 3].map(i => (
-              <Skeleton key={i} className="h-32" />
+              <Skeleton key={i} className="h-24 sm:h-32" />
             ))}
           </div>
 
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map(i => (
-              <Skeleton key={i} className="h-48" />
+              <Skeleton key={i} className="h-40 sm:h-48" />
             ))}
           </div>
         </div>
@@ -92,10 +93,10 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-between gap-3 mb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+        <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6 lg:mb-8">
           <div className="flex-1 min-w-0">
-            <h1 className="text-3xl font-semibold text-foreground">Dashboard</h1>
+            <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Dashboard</h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">
               <span className="whitespace-nowrap">Manage your case documentation</span>
               <br />
@@ -108,11 +109,12 @@ export default function Dashboard() {
             data-testid="button-new-note"
           >
             <FileText className="w-4 h-4" />
-            New Note
+            <span className="hidden sm:inline">New Note</span>
+            <span className="sm:hidden">New</span>
           </Button>
         </div>
 
-        <div className="grid gap-6 grid-cols-1 md:grid-cols-3 mb-8">
+        <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 md:grid-cols-3 mb-4 sm:mb-6 lg:mb-8">
           <StatsCard
             title="Total Cases"
             value={totalCases}
@@ -133,9 +135,9 @@ export default function Dashboard() {
         </div>
 
         {priorityCases.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Priority Cases</h2>
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          <div className="mb-4 sm:mb-6 lg:mb-8">
+            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">Priority Cases</h2>
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {priorityCases.map((caseItem) => (
                 <CaseCard key={caseItem.id} {...transformCase(caseItem)} />
               ))}
@@ -144,9 +146,9 @@ export default function Dashboard() {
         )}
 
         <div>
-          <h2 className="text-xl font-semibold mb-4">Recent Cases</h2>
+          <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">Recent Cases</h2>
           {recentCases.length > 0 ? (
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {recentCases.map((caseItem) => (
                 <CaseCard key={caseItem.id} {...transformCase(caseItem)} />
               ))}
