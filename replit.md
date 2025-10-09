@@ -15,7 +15,7 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 
 ### Frontend Architecture
 - **Framework**: React with TypeScript using Vite.
-- **UI Component Library**: Shadcn UI with Radix UI primitives, custom theme (navy, gold accents, Inter font), Material Design influence.
+- **UI Component Library**: Shadcn UI with Radix UI primitives, black gradient theme (0-8% lightness range), Inter font.
 - **Routing**: Wouter for client-side routing (Dashboard, New Note, Case Detail, Saved Cases, Settings, My Profile, Audit Logs).
 - **State Management**: TanStack Query for server state and async operations.
 - **Key Features**: Quick Record with Consent Flow (3-sec countdown, verbal consent capture, audit trail), Priority System (badges), Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Review Checklist Banner, Tabbed Document Viewer (Summary, Legal Opinion, Transcript), Role-Based UI (My Profile vs. Firm Settings), Quick Actions, and comprehensive Audit Trail Compliance with CSV export.
@@ -51,5 +51,5 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **Date Handling**: date-fns.
 - **Icons**: Lucide React.
 - **Development Tools**: Replit-specific plugins, TypeScript strict mode, ESBuild.
-- **Audio Recording & Storage**: MediaRecorder API, Replit Object Storage with presigned URL uploads (Uppy + AWS S3), 24-hour audio expiration.
+- **Audio Recording & Storage**: MediaRecorder API, Replit Object Storage with presigned URL uploads (Uppy + AWS S3), 24-hour audio expiration with GDPR-compliant lazy deletion (on access) and startup cleanup.
 - **Planned Integrations**: AI transcription service (OpenAI Whisper API), AI for document generation (GPT-4), Email service, PDF generation.
