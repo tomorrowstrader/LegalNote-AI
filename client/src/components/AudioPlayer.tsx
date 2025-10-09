@@ -16,6 +16,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
   const timelineRef = useRef<HTMLInputElement>(null);
   const isSeekingRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
+  const currentTimeDisplayRef = useRef<HTMLSpanElement>(null);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -73,7 +74,17 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
 
     const updateTimeSmooth = () => {
       if (!isSeekingRef.current && audio && !audio.paused) {
-        setCurrentTime(audio.currentTime);
+        // Update DOM directly via refs to avoid React re-renders on every frame
+        if (timelineRef.current) {
+          timelineRef.current.value = String(audio.currentTime);
+        }
+        if (currentTimeDisplayRef.current) {
+          currentTimeDisplayRef.current.textContent = formatTime(audio.currentTime);
+        }
+        // Only update React state occasionally for other UI needs
+        if (Math.abs(audio.currentTime - currentTime) > 0.5) {
+          setCurrentTime(audio.currentTime);
+        }
       }
       if (audio && !audio.paused) {
         animationFrameRef.current = requestAnimationFrame(updateTimeSmooth);
@@ -273,7 +284,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
               data-testid="slider-timeline"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span data-testid="text-current-time">{formatTime(currentTime)}</span>
+              <span ref={currentTimeDisplayRef} data-testid="text-current-time">{formatTime(currentTime)}</span>
               <span data-testid="text-duration">{formatTime(duration)}</span>
             </div>
           </div>
