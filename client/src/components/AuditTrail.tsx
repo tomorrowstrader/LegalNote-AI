@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Shield, Eye, FileText, Download, Send, Clock, User } from "lucide-react";
+import { Shield, Eye, FileText, Download, Send, Clock, User, Search } from "lucide-react";
 import type { AuditTrail as AuditTrailType } from "@shared/schema";
 
 interface AuditTrailProps {
@@ -15,6 +15,14 @@ const EVENT_ICONS: Record<string, any> = {
   case_viewed: Eye,
   case_created: FileText,
   case_updated: FileText,
+  recording_started: FileText,
+  consent_given: Shield,
+  consent_declined: Shield,
+  audio_uploaded: Download,
+  audio_playback_started: Eye,
+  audio_playback_paused: Eye,
+  audio_seeked: Search,
+  audio_deleted: Shield,
   document_viewed: Eye,
   document_created: FileText,
   document_updated: FileText,
@@ -23,14 +31,21 @@ const EVENT_ICONS: Record<string, any> = {
   document_sent: Send,
   transcript_viewed: Eye,
   transcript_redacted: Shield,
-  audio_accessed: Eye,
-  audio_deleted: Shield,
+  audit_exported_csv: Download,
 };
 
 const EVENT_LABELS: Record<string, string> = {
   case_viewed: "Case Viewed",
   case_created: "Case Created",
   case_updated: "Case Updated",
+  recording_started: "Recording Started",
+  consent_given: "Consent Given",
+  consent_declined: "Consent Declined",
+  audio_uploaded: "Audio Uploaded",
+  audio_playback_started: "Audio Playback Started",
+  audio_playback_paused: "Audio Playback Paused",
+  audio_seeked: "Audio Seeked",
+  audio_deleted: "Audio Deleted",
   document_viewed: "Document Viewed",
   document_created: "Document Created",
   document_updated: "Document Updated",
@@ -39,8 +54,7 @@ const EVENT_LABELS: Record<string, string> = {
   document_sent: "Document Sent",
   transcript_viewed: "Transcript Viewed",
   transcript_redacted: "Transcript Redacted",
-  audio_accessed: "Audio Accessed",
-  audio_deleted: "Audio Deleted",
+  audit_exported_csv: "Audit Exported (CSV)",
 };
 
 const SEVERITY_COLORS: Record<string, string> = {

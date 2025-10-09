@@ -473,6 +473,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Audit trail API endpoints
+  app.post("/api/audit/log", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { eventType, caseId, documentId, transcriptId, audioRecordingId, metadata, severity } = req.body;
+
+      if (!eventType) {
+        return res.status(400).json({ message: "eventType is required" });
+      }
+
+      await logAuditEvent(userId, eventType, {
+        caseId,
+        documentId,
+        transcriptId,
+        audioRecordingId,
+        metadata,
+        severity,
+        req,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/audit/logs", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;

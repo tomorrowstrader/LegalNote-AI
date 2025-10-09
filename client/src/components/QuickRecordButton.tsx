@@ -24,6 +24,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
+import { logAuditEvent } from "@/lib/auditLogger";
 
 interface CaseResponse {
   id: string;
@@ -137,6 +138,13 @@ export default function QuickRecordButton() {
       setShowConsentModal(true);
       setIsRecording(true);
       setRecordingDuration(0);
+
+      // Log recording started event
+      await logAuditEvent({
+        eventType: "recording_started",
+        metadata: { source: "quick_record_button" },
+        severity: "info",
+      });
     } catch (error) {
       console.error('Failed to start recording:', error);
       toast({
@@ -166,14 +174,23 @@ export default function QuickRecordButton() {
     setCountdown(null);
   };
 
-  const handleConsentGiven = () => {
+  const handleConsentGiven = async () => {
     console.log('Client consent given - recording continues');
     setConsentGiven(true);
     setShowConsentModal(false);
-    // Recording continues
+    
+    // Log consent given event
+    await logAuditEvent({
+      eventType: "consent_given",
+      metadata: { 
+        source: "quick_record_button",
+        consentModality: "verbal_recorded",
+      },
+      severity: "warning",
+    });
   };
 
-  const handleConsentDeclined = () => {
+  const handleConsentDeclined = async () => {
     console.log('Client consent declined - stopping recording');
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
@@ -184,6 +201,16 @@ export default function QuickRecordButton() {
     setRecordingDuration(0);
     audioBlobRef.current = null;
     setShowTextNotesModal(true);
+
+    // Log consent declined event
+    await logAuditEvent({
+      eventType: "consent_declined",
+      metadata: { 
+        source: "quick_record_button",
+        fallback: "text_notes",
+      },
+      severity: "warning",
+    });
   };
   
   useEffect(() => {

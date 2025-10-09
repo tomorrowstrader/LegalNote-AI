@@ -142,6 +142,8 @@ export default function CaseDetail() {
             <AudioPlayer
               audioUrl={audioData.filePath}
               expiresAt={new Date(audioData.expiresAt)}
+              caseId={caseData.id}
+              audioRecordingId={audioData.id}
             />
           </div>
         )}

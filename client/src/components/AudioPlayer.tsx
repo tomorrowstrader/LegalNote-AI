@@ -4,14 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatDistanceToNow } from "date-fns";
+import { logAuditEvent } from "@/lib/auditLogger";
 
 interface AudioPlayerProps {
   audioUrl: string | null;
   expiresAt: Date | null;
   onExpired?: () => void;
+  caseId?: string;
+  audioRecordingId?: string;
 }
 
-export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps) {
+export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecordingId }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const timelineRef = useRef<HTMLInputElement>(null);
   const isSeekingRef = useRef(false);
@@ -152,10 +155,34 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
+      
+      // Log audio playback paused
+      await logAuditEvent({
+        eventType: "audio_playback_paused",
+        caseId,
+        audioRecordingId,
+        metadata: { 
+          pausedAt: audioRef.current.currentTime,
+          duration: audioRef.current.duration,
+        },
+        severity: "info",
+      });
     } else {
       try {
         await audioRef.current.play();
         setIsPlaying(true);
+        
+        // Log audio playback started
+        await logAuditEvent({
+          eventType: "audio_playback_started",
+          caseId,
+          audioRecordingId,
+          metadata: { 
+            startedAt: audioRef.current.currentTime,
+            duration: audioRef.current.duration,
+          },
+          severity: "info",
+        });
       } catch (error) {
         console.error('Play failed:', error);
       }
@@ -173,22 +200,50 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired }: AudioPlayerProps
     setCurrentTime(newTime);
   };
 
-  const handleTimelineMouseUp = (e: React.MouseEvent<HTMLInputElement>) => {
+  const handleTimelineMouseUp = async (e: React.MouseEvent<HTMLInputElement>) => {
     if (!audioRef.current || isExpired) return;
     const newTime = parseFloat((e.target as HTMLInputElement).value);
     if (!isFinite(newTime)) return;
+    const previousTime = audioRef.current.currentTime;
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
     isSeekingRef.current = false;
+
+    // Log audio seek event
+    await logAuditEvent({
+      eventType: "audio_seeked",
+      caseId,
+      audioRecordingId,
+      metadata: { 
+        from: previousTime,
+        to: newTime,
+        duration: audioRef.current.duration,
+      },
+      severity: "info",
+    });
   };
 
-  const handleTimelineTouchEnd = (e: React.TouchEvent<HTMLInputElement>) => {
+  const handleTimelineTouchEnd = async (e: React.TouchEvent<HTMLInputElement>) => {
     if (!audioRef.current || isExpired) return;
     const newTime = parseFloat((e.target as HTMLInputElement).value);
     if (!isFinite(newTime)) return;
+    const previousTime = audioRef.current.currentTime;
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
     isSeekingRef.current = false;
+
+    // Log audio seek event
+    await logAuditEvent({
+      eventType: "audio_seeked",
+      caseId,
+      audioRecordingId,
+      metadata: { 
+        from: previousTime,
+        to: newTime,
+        duration: audioRef.current.duration,
+      },
+      severity: "info",
+    });
   };
 
   const handleVolumeChange = (value: number[]) => {

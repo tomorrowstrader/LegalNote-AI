@@ -103,7 +103,14 @@ export const userPreferences = pgTable("user_preferences", {
 
 export const auditTrail = pgTable("audit_trail", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  eventType: text("event_type").notNull(), // case_viewed, case_created, case_updated, document_viewed, document_created, document_updated, document_deleted, document_downloaded, document_sent, transcript_viewed, transcript_redacted, audio_accessed, audio_deleted
+  eventType: text("event_type").notNull(), // Comprehensive event types:
+  // Recording lifecycle: recording_started, consent_given, consent_declined, audio_uploaded
+  // Audio playback: audio_playback_started, audio_playback_paused, audio_seeked, audio_deleted
+  // AI operations: transcript_generated, document_generated, document_regenerated
+  // Document modifications: document_edited, transcript_redacted
+  // Exports: document_exported_pdf, document_exported_word, audit_exported_csv
+  // Case actions: case_created, case_viewed, case_updated, case_priority_changed, case_assigned, case_email_sent
+  // System events: user_login, user_logout, session_expired
   userId: varchar("user_id").notNull().references(() => users.id),
   caseId: varchar("case_id").references(() => cases.id),
   documentId: varchar("document_id").references(() => documents.id),
@@ -112,7 +119,7 @@ export const auditTrail = pgTable("audit_trail", {
   timestamp: timestamp("timestamp").notNull().defaultNow(),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
-  metadata: jsonb("metadata").default({}), // Additional context like { documentType, oldValue, newValue, action, etc }
+  metadata: jsonb("metadata").default({}), // Additional context like { documentType, oldValue, newValue, action, recordingDuration, playbackPosition, etc }
   severity: text("severity").notNull().default("info"), // info, warning, critical
 });
 

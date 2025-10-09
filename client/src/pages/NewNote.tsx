@@ -14,6 +14,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { logAuditEvent } from "@/lib/auditLogger";
 
 interface CaseResponse {
   id: string;
@@ -90,6 +91,13 @@ export default function NewNote() {
       setShowConsentModal(true);
       setIsRecording(true);
       setRecordingDuration(0);
+
+      // Log recording started event
+      await logAuditEvent({
+        eventType: "recording_started",
+        metadata: { source: "new_note_page" },
+        severity: "info",
+      });
     } catch (error) {
       console.error('Failed to start recording:', error);
       toast({
@@ -135,14 +143,23 @@ export default function NewNote() {
     setCountdown(null);
   };
 
-  const handleConsentGiven = () => {
+  const handleConsentGiven = async () => {
     console.log('Client consent given - recording continues');
     setConsentGiven(true);
     setShowConsentModal(false);
-    // Recording continues
+    
+    // Log consent given event
+    await logAuditEvent({
+      eventType: "consent_given",
+      metadata: { 
+        source: "new_note_page",
+        consentModality: "verbal_recorded",
+      },
+      severity: "warning",
+    });
   };
 
-  const handleConsentDeclined = () => {
+  const handleConsentDeclined = async () => {
     console.log('Client consent declined - stopping recording');
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
@@ -153,6 +170,16 @@ export default function NewNote() {
     setRecordingDuration(0);
     audioBlobRef.current = null;
     setShowTextNotesModal(true);
+
+    // Log consent declined event
+    await logAuditEvent({
+      eventType: "consent_declined",
+      metadata: { 
+        source: "new_note_page",
+        fallback: "text_notes",
+      },
+      severity: "warning",
+    });
   };
 
   const stopRecording = () => {
