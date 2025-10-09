@@ -55,16 +55,18 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-between mb-8">
-            <div>
+          <div className="flex items-center justify-between gap-3 mb-8">
+            <div className="flex-1 min-w-0">
               <h1 className="text-3xl font-semibold text-foreground">Dashboard</h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Manage your case documentation and attendance notes
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                <span className="whitespace-nowrap">Manage your case documentation</span>
+                <br />
+                <span>and attendance notes</span>
               </p>
             </div>
             <Button
               onClick={() => setLocation('/new-note')}
-              className="bg-accent hover:bg-accent gap-2"
+              className="bg-accent hover:bg-accent gap-2 flex-shrink-0"
               data-testid="button-new-note"
             >
               <FileText className="w-4 h-4" />
@@ -91,16 +93,18 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
+        <div className="flex items-center justify-between gap-3 mb-8">
+          <div className="flex-1 min-w-0">
             <h1 className="text-3xl font-semibold text-foreground">Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage your case documentation and attendance notes
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+              <span className="whitespace-nowrap">Manage your case documentation</span>
+              <br />
+              <span>and attendance notes</span>
             </p>
           </div>
           <Button
             onClick={() => setLocation('/new-note')}
-            className="bg-accent hover:bg-accent gap-2"
+            className="bg-accent hover:bg-accent gap-2 flex-shrink-0"
             data-testid="button-new-note"
           >
             <FileText className="w-4 h-4" />
