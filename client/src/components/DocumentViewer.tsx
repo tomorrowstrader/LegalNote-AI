@@ -28,25 +28,31 @@ export default function DocumentViewer({
     <div className="space-y-6" data-testid="container-document-viewer">
       <div className="sticky top-16 z-40 bg-background py-4 border-b">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h2 className="text-xl sm:text-2xl font-semibold">Generated Documentation</h2>
-          <div className="flex gap-2 flex-shrink-0">
-            <Button
-              variant="outline"
-              onClick={() => handleExport('word')}
-              className="gap-2 flex-1 sm:flex-initial"
-              data-testid="button-export-word"
-            >
-              <FileType className="w-4 h-4" />
-              <span className="hidden xs:inline">Export </span>Word
-            </Button>
-            <Button
-              onClick={() => handleExport('pdf')}
-              className="gap-2 bg-accent hover:bg-accent flex-1 sm:flex-initial"
-              data-testid="button-export-pdf"
-            >
-              <FileText className="w-4 h-4" />
-              <span className="hidden xs:inline">Export </span>PDF
-            </Button>
+          <div>
+            <h2 className="text-xl sm:text-2xl font-semibold">Generated Documentation</h2>
+            <p className="text-xs text-muted-foreground mt-1 sm:hidden">Export documents below</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted-foreground hidden sm:block">Export documents:</p>
+            <div className="flex gap-2 flex-shrink-0">
+              <Button
+                variant="outline"
+                onClick={() => handleExport('word')}
+                className="gap-2 flex-1 sm:flex-initial"
+                data-testid="button-export-word"
+              >
+                <FileType className="w-4 h-4" />
+                Export as Word
+              </Button>
+              <Button
+                onClick={() => handleExport('pdf')}
+                className="gap-2 bg-accent hover:bg-accent flex-1 sm:flex-initial"
+                data-testid="button-export-pdf"
+              >
+                <FileText className="w-4 h-4" />
+                Export as PDF
+              </Button>
+            </div>
           </div>
         </div>
       </div>
