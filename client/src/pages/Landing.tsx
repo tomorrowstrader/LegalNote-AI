@@ -10,7 +10,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10 flex flex-col">
       {/* Fixed Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-br from-primary/10 via-background to-accent/10 px-4 pt-6 pb-4 sm:py-12 lg:py-16 border-b">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-background px-4 pt-6 pb-4 sm:py-12 lg:py-16 border-b">
         <div className="text-center">
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-2 sm:mb-3 lg:mb-4" data-testid="text-app-title">
             LegalNote AI
