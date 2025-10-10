@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import TopNavigation from "@/components/TopNavigation";
-import ThemeToggle from "@/components/ThemeToggle";
 import Dashboard from "@/pages/Dashboard";
 import NewNote from "@/pages/NewNote";
 import CaseDetail from "@/pages/CaseDetail";
@@ -45,9 +44,6 @@ function AuthenticatedApp() {
   return (
     <div className="min-h-screen bg-background">
       {!isLoading && isAuthenticated && <TopNavigation />}
-      <div className="fixed top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
       <Router />
     </div>
   );

@@ -350,20 +350,21 @@ export default function QuickRecordButton() {
 
   if (countdown !== null) {
     return (
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-2 bg-destructive/20 rounded-full px-3 py-1 animate-pulse">
-          <span className="text-sm font-semibold text-destructive" data-testid="text-countdown">
-            Recording in {countdown}...
+      <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 bg-destructive/20 rounded-full px-2 sm:px-3 py-1 animate-pulse">
+          <span className="text-xs sm:text-sm font-semibold text-destructive whitespace-nowrap" data-testid="text-countdown">
+            <span className="hidden sm:inline">Recording in </span>{countdown}...
           </span>
         </div>
         <Button
           variant="ghost"
           size="sm"
           onClick={cancelCountdown}
-          className="text-primary-foreground"
+          className="text-primary-foreground h-7 px-2"
           data-testid="button-cancel-countdown"
         >
-          Cancel
+          <span className="hidden sm:inline">Cancel</span>
+          <span className="sm:hidden">✕</span>
         </Button>
       </div>
     );
@@ -372,22 +373,23 @@ export default function QuickRecordButton() {
   if (isRecording) {
     return (
       <>
-        <div className="flex items-center gap-3 bg-card/50 rounded-lg px-3 py-1">
-          <Badge className="bg-destructive animate-pulse" data-testid="badge-quick-recording">
+        <div className="flex items-center gap-1 sm:gap-3 bg-card/50 rounded-lg px-2 sm:px-3 py-1">
+          <Badge className="bg-destructive animate-pulse hidden sm:flex" data-testid="badge-quick-recording">
             Recording
           </Badge>
-          <p className="text-sm font-mono font-semibold text-primary-foreground" data-testid="text-quick-duration">
+          <div className="w-2 h-2 bg-destructive rounded-full animate-pulse sm:hidden" />
+          <p className="text-xs sm:text-sm font-mono font-semibold text-primary-foreground" data-testid="text-quick-duration">
             {formatDuration(recordingDuration)}
           </p>
           <Button
             variant="ghost"
             size="sm"
             onClick={stopRecording}
-            className="gap-1 text-primary-foreground h-7"
+            className="gap-1 text-primary-foreground h-7 px-2"
             data-testid="button-stop-quick-record"
           >
             <Square className="w-3 h-3" />
-            Stop
+            <span className="hidden sm:inline">Stop</span>
           </Button>
         </div>
         

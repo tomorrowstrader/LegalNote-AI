@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import GlobalSearch from "@/components/GlobalSearch";
 import QuickRecordButton from "@/components/QuickRecordButton";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const navLinks = [
   { path: "/", label: "Dashboard" },
@@ -57,6 +58,8 @@ export default function TopNavigation() {
             <GlobalSearch />
             
             <QuickRecordButton />
+            
+            <ThemeToggle />
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
