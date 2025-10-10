@@ -39,6 +39,14 @@ interface AudioRecording {
   deletedAt: string | null;
 }
 
+interface ConsentLog {
+  id: string;
+  caseId: string;
+  consentGiven: boolean;
+  consentTimestamp: string;
+  consentModality: string;
+}
+
 export default function CaseDetail() {
   const [, setLocation] = useLocation();
   const params = useParams();
@@ -54,6 +62,14 @@ export default function CaseDetail() {
     queryKey: [`/api/audio/by-case/${caseId}`],
     enabled: !!caseId && caseData?.sourceType === 'audio',
   });
+
+  const { data: consentLogs = [], isLoading: consentLoading } = useQuery<ConsentLog[]>({
+    queryKey: [`/api/consent/by-case/${caseId}`],
+    enabled: !!caseId && caseData?.sourceType === 'audio',
+  });
+
+  // Check if there's a valid consent log (consentGiven === true)
+  const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
   
   const processAIMutation = useMutation({
     mutationFn: async () => {
@@ -140,10 +156,17 @@ export default function CaseDetail() {
               </h1>
               <p className="text-lg text-muted-foreground">{caseData.clientName}</p>
             </div>
-            <Badge className="bg-accent" data-testid="badge-gdpr-compliant">
-              <Shield className="w-3 h-3 mr-1" />
-              GDPR Compliant
-            </Badge>
+            {caseData.sourceType === 'audio' && hasValidConsent ? (
+              <Badge className="bg-accent" data-testid="badge-gdpr-compliant">
+                <Shield className="w-3 h-3 mr-1" />
+                GDPR Compliant
+              </Badge>
+            ) : caseData.sourceType === 'audio' ? (
+              <Badge variant="destructive" data-testid="badge-consent-missing">
+                <Shield className="w-3 h-3 mr-1" />
+                Consent Required
+              </Badge>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap gap-4 text-sm">
@@ -163,6 +186,24 @@ export default function CaseDetail() {
             )}
           </div>
         </div>
+
+        {caseData.sourceType === 'audio' && !hasValidConsent && (
+          <div className="mb-8 p-6 bg-destructive/10 border-2 border-destructive rounded-lg">
+            <div className="flex items-start gap-4">
+              <Shield className="w-6 h-6 text-destructive flex-shrink-0 mt-1" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-foreground mb-2">GDPR Compliance Required</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  No valid client consent has been recorded for this case. UK solicitors must obtain and document client 
+                  consent before processing audio recordings under GDPR and professional conduct rules.
+                </p>
+                <p className="text-sm font-medium text-foreground">
+                  Please contact your client to obtain consent, or delete this case if consent cannot be obtained.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {caseData.sourceType === 'audio' && audioData && audioData.filePath && (
           <div className="mb-8">
@@ -191,14 +232,18 @@ export default function CaseDetail() {
           <div className="mb-8 p-6 bg-card rounded-lg border border-border">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <h3 className="font-semibold text-foreground mb-1">Ready for AI Processing</h3>
+                <h3 className="font-semibold text-foreground mb-1">
+                  {hasValidConsent ? 'Ready for AI Processing' : 'Consent Required Before Processing'}
+                </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Your audio recording is ready. Click below to transcribe and generate legal documents.
+                  {hasValidConsent 
+                    ? 'Your audio recording is ready. Click below to transcribe and generate legal documents.'
+                    : 'Valid client consent must be recorded before AI processing can begin. This is required for GDPR compliance.'}
                 </p>
               </div>
               <Button
                 onClick={() => processAIMutation.mutate()}
-                disabled={processAIMutation.isPending}
+                disabled={processAIMutation.isPending || !hasValidConsent}
                 className="gap-2 bg-accent hover:bg-accent"
                 data-testid="button-process-ai"
               >

@@ -243,6 +243,8 @@ export default function QuickRecordButton() {
     }
     
     let caseResult: CaseResponse | null = null;
+    let consentLogFailed = false;
+    let uploadFailed = false;
     
     try {
       // Step 1: Create case
@@ -262,24 +264,30 @@ export default function QuickRecordButton() {
       
       // Step 3: Upload audio file
       if (audioBlobRef.current) {
-        console.log('Uploading audio file via multipart...');
-        
-        const formData = new FormData();
-        formData.append('audioFile', audioBlobRef.current, 'recording.webm');
-        formData.append('duration', recordingDuration.toString());
-        
-        const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
-          method: 'POST',
-          credentials: 'include',
-          body: formData,
-        });
-        
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Upload failed');
+        try {
+          console.log('Uploading audio file via multipart...');
+          
+          const formData = new FormData();
+          formData.append('audioFile', audioBlobRef.current, 'recording.webm');
+          formData.append('duration', recordingDuration.toString());
+          
+          const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
+            method: 'POST',
+            credentials: 'include',
+            body: formData,
+          });
+          
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Upload failed');
+          }
+          
+          console.log('Audio upload completed successfully');
+        } catch (uploadError: any) {
+          console.error('Audio upload failed:', uploadError);
+          uploadFailed = true;
+          throw uploadError; // Re-throw to prevent further processing
         }
-        
-        console.log('Audio upload completed successfully');
       }
       
       // Step 4: Save consent log to backend (GDPR compliance)
@@ -296,52 +304,41 @@ export default function QuickRecordButton() {
           console.log('Consent log saved successfully');
         } catch (consentError: any) {
           console.error('Consent log failed:', consentError);
-          toast({
-            title: "Consent log warning",
-            description: "Case created but consent log failed to save. You can view the case below.",
-            variant: "destructive",
-            duration: 8000,
-            action: (
-              <ToastAction 
-                altText="View case" 
-                onClick={() => setLocation(`/case/${caseResult!.id}`)}
-                data-testid="button-toast-view-case-error"
-              >
-                View Case
-              </ToastAction>
-            ),
-          });
+          consentLogFailed = true;
+          // Don't throw - allow processing to continue but mark as failed
         }
       }
       
       // Step 5: Trigger AI processing (transcription + document generation)
-      console.log('Triggering AI processing...');
-      toast({
-        title: "Processing started",
-        description: "AI is transcribing your recording and generating documents...",
-        duration: 5000,
-      });
-      
-      // Trigger processing asynchronously (don't wait for completion)
-      apiRequest("POST", `/api/cases/${caseResult.id}/process`, {})
-        .then(() => {
-          console.log('AI processing completed successfully');
-          queryClient.invalidateQueries({ 
-            predicate: (query) => {
-              const key = query.queryKey[0] as string;
-              return key?.startsWith("/api/cases");
-            }
+      // Critical: Only trigger if consent was successfully logged (GDPR requirement)
+      if (consentLogFailed) {
+        console.log('Skipping AI processing: consent log failed (GDPR requirement)');
+        // AI processing will not be triggered - user must retry from case detail page
+      } else {
+        console.log('Triggering AI processing...');
+        
+        // Trigger processing asynchronously (don't wait for completion)
+        apiRequest("POST", `/api/cases/${caseResult.id}/process`, {})
+          .then(() => {
+            console.log('AI processing completed successfully');
+            queryClient.invalidateQueries({ 
+              predicate: (query) => {
+                const key = query.queryKey[0] as string;
+                return key?.startsWith("/api/cases");
+              }
+            });
+          })
+          .catch((error: any) => {
+            console.error('AI processing failed:', error);
+            const errorMessage = error?.message || error?.toString() || "Unknown error occurred";
+            toast({
+              title: "AI Processing Issue",
+              description: `Documents may not have been generated: ${errorMessage}. You can retry from the case detail page.`,
+              variant: "destructive",
+              duration: 10000,
+            });
           });
-        })
-        .catch((error: any) => {
-          console.error('AI processing failed:', error);
-          toast({
-            title: "AI Processing Issue",
-            description: error.message || "Documents may not have been generated. You can retry from the case detail page.",
-            variant: "destructive",
-            duration: 10000,
-          });
-        });
+      }
       
       queryClient.invalidateQueries({ 
         predicate: (query) => {
@@ -350,38 +347,66 @@ export default function QuickRecordButton() {
         }
       });
       
+      // Show single, clear status toast based on outcome
       if (caseResult) {
         const caseId = caseResult.id;
-        toast({
-          title: "Case created successfully",
-          description: "Your case has been saved. AI processing is underway.",
-          duration: 6000,
-          action: (
-            <ToastAction 
-              altText="View case" 
-              onClick={() => setLocation(`/case/${caseId}`)}
-              data-testid="button-toast-view-case"
-            >
-              View Case
-            </ToastAction>
-          ),
-        });
+        
+        if (consentLogFailed) {
+          // Critical failure: consent logging is required for GDPR compliance
+          toast({
+            title: "Action required",
+            description: "Case created but consent log failed. GDPR compliance requires you to save consent.",
+            variant: "destructive",
+            duration: 15000,
+            action: (
+              <ToastAction 
+                altText="View case" 
+                onClick={() => setLocation(`/case/${caseId}`)}
+                data-testid="button-toast-view-case-consent-failed"
+              >
+                View Case
+              </ToastAction>
+            ),
+          });
+          // Don't close modal - keep it open so user can see the issue
+          return;
+        } else {
+          // Success
+          toast({
+            title: "Case created successfully",
+            description: "Your case has been saved. AI processing is underway.",
+            duration: 6000,
+            action: (
+              <ToastAction 
+                altText="View case" 
+                onClick={() => setLocation(`/case/${caseId}`)}
+                data-testid="button-toast-view-case"
+              >
+                View Case
+              </ToastAction>
+            ),
+          });
+        }
       }
       
-      setShowMetadataModal(false);
-      setRecordingDuration(0);
-      setCaseTitle("");
-      setClientName("");
-      setMatterRef("");
-      audioBlobRef.current = null;
-      setConsentGiven(null);
+      // Only close modal and clear state if everything succeeded
+      if (!consentLogFailed) {
+        setShowMetadataModal(false);
+        setRecordingDuration(0);
+        setCaseTitle("");
+        setClientName("");
+        setMatterRef("");
+        audioBlobRef.current = null;
+        setConsentGiven(null);
+      }
     } catch (error: any) {
       // If case was created but later steps failed, inform user about partial success
-      if (caseResult) {
+      if (caseResult && !uploadFailed) {
         const caseId = caseResult.id;
+        const errorMessage = error?.message || error?.toString() || "a step failed";
         toast({
           title: "Partial success",
-          description: `Case created but ${error.message || 'a step failed'}. You can still view your case.`,
+          description: `Case created but ${errorMessage}. You can still view your case.`,
           variant: "destructive",
           duration: 10000,
           action: (
@@ -394,10 +419,32 @@ export default function QuickRecordButton() {
             </ToastAction>
           ),
         });
+      } else if (caseResult && uploadFailed) {
+        // Upload failed - keep modal open so user can retry
+        const caseId = caseResult.id;
+        const errorMessage = error?.message || error?.toString() || "Upload failed";
+        toast({
+          title: "Upload failed",
+          description: `${errorMessage}. Case was created. You can re-upload or view the case.`,
+          variant: "destructive",
+          duration: 15000,
+          action: (
+            <ToastAction 
+              altText="View case" 
+              onClick={() => setLocation(`/case/${caseId}`)}
+              data-testid="button-toast-view-case-upload-failed"
+            >
+              View Case
+            </ToastAction>
+          ),
+        });
+        // Keep modal open and retain recording
+        return;
       } else {
+        const errorMessage = error?.message || error?.toString() || "Something went wrong";
         toast({
           title: "Error creating case",
-          description: error.message || "Something went wrong",
+          description: errorMessage,
           variant: "destructive",
           duration: 8000,
         });

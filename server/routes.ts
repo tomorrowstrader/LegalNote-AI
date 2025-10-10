@@ -489,6 +489,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/consent/by-case/:caseId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.caseId;
+      
+      // Verify user owns the case
+      const caseData = await storage.getCase(caseId);
+      if (!caseData || caseData.createdBy !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const consentLogs = await storage.getConsentLogsByCase(caseId);
+      res.json(consentLogs);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // AI Processing routes
   app.post("/api/cases/:id/transcribe", isAuthenticated, async (req: any, res, next) => {
     try {
@@ -631,6 +649,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const caseData = await storage.getCase(caseId);
       if (!caseData || caseData.createdBy !== userId) {
         return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      // GDPR Compliance: Verify valid consent exists before processing
+      const consentLogs = await storage.getConsentLogsByCase(caseId);
+      const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
+      
+      if (!hasValidConsent) {
+        auditLogger.logFromRequest(AuditEventType.ACCESS_CONTROL_VIOLATION, req, {
+          resourceId: caseId,
+          resourceType: "case",
+          action: "process_without_consent",
+          severity: "high",
+        });
+        return res.status(403).json({ 
+          message: "GDPR compliance error: Valid client consent must be recorded before processing audio recordings" 
+        });
       }
       
       // Update case status to processing
