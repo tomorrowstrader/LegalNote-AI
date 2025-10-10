@@ -1,4 +1,12 @@
-import { type User, type InsertUser, type UpsertUser, type Case, type InsertCase, type AudioRecording, type InsertAudioRecording, type AuditTrail, type InsertAuditTrail } from "@shared/schema";
+import { 
+  type User, type InsertUser, type UpsertUser, 
+  type Case, type InsertCase, 
+  type AudioRecording, type InsertAudioRecording, 
+  type ConsentLog, type InsertConsentLog,
+  type Transcript, type InsertTranscript,
+  type Document, type InsertDocument,
+  type AuditTrail, type InsertAuditTrail 
+} from "@shared/schema";
 import { randomUUID } from "crypto";
 
 // Server-side audio recording creation type (includes server-calculated expiresAt)
@@ -13,12 +21,27 @@ export interface IStorage {
   createCase(caseData: InsertCase, userId: string): Promise<Case>;
   getCases(userId: string): Promise<Case[]>;
   getCase(id: string): Promise<Case | undefined>;
+  updateCase(id: string, updates: Partial<Case>): Promise<Case | undefined>;
   
   createAudioRecording(audioData: ServerAudioRecordingInsert): Promise<AudioRecording>;
   getAudioRecording(id: string): Promise<AudioRecording | undefined>;
   getAudioRecordingByCase(caseId: string): Promise<AudioRecording | undefined>;
   updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined>;
   getExpiredAudioRecordings(): Promise<AudioRecording[]>;
+  
+  createConsentLog(consentData: InsertConsentLog): Promise<ConsentLog>;
+  getConsentLogsByCase(caseId: string): Promise<ConsentLog[]>;
+  
+  createTranscript(transcriptData: InsertTranscript): Promise<Transcript>;
+  getTranscript(id: string): Promise<Transcript | undefined>;
+  getTranscriptByCase(caseId: string): Promise<Transcript | undefined>;
+  updateTranscript(id: string, updates: Partial<Transcript>): Promise<Transcript | undefined>;
+  
+  createDocument(documentData: InsertDocument): Promise<Document>;
+  getDocument(id: string): Promise<Document | undefined>;
+  getDocumentsByCase(caseId: string): Promise<Document[]>;
+  getActiveDocumentsByCase(caseId: string): Promise<Document[]>;
+  updateDocument(id: string, updates: Partial<Document>): Promise<Document | undefined>;
   
   createAuditLog(auditData: InsertAuditTrail): Promise<AuditTrail>;
   getAuditLogs(filters?: {
@@ -37,12 +60,18 @@ export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private cases: Map<string, Case>;
   private audioRecordings: Map<string, AudioRecording>;
+  private consentLogs: Map<string, ConsentLog>;
+  private transcripts: Map<string, Transcript>;
+  private documents: Map<string, Document>;
   private auditLogs: Map<string, AuditTrail>;
 
   constructor() {
     this.users = new Map();
     this.cases = new Map();
     this.audioRecordings = new Map();
+    this.consentLogs = new Map();
+    this.transcripts = new Map();
+    this.documents = new Map();
     this.auditLogs = new Map();
   }
 
@@ -89,6 +118,15 @@ export class MemStorage implements IStorage {
 
   async getCase(id: string): Promise<Case | undefined> {
     return this.cases.get(id);
+  }
+
+  async updateCase(id: string, updates: Partial<Case>): Promise<Case | undefined> {
+    const existing = this.cases.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { ...existing, ...updates };
+    this.cases.set(id, updated);
+    return updated;
   }
 
   async createAudioRecording(insertAudioRecording: ServerAudioRecordingInsert): Promise<AudioRecording> {
@@ -193,6 +231,107 @@ export class MemStorage implements IStorage {
 
   async getAuditLogsByCase(caseId: string, limit?: number): Promise<AuditTrail[]> {
     return this.getAuditLogs({ caseId, limit });
+  }
+
+  async createConsentLog(insertConsentLog: InsertConsentLog): Promise<ConsentLog> {
+    const id = randomUUID();
+    const consentLog: ConsentLog = {
+      id,
+      caseId: insertConsentLog.caseId,
+      audioRecordingId: insertConsentLog.audioRecordingId ?? null,
+      solicitorId: insertConsentLog.solicitorId,
+      consentGiven: insertConsentLog.consentGiven,
+      consentTimestamp: new Date(),
+      disclaimerScriptVersion: insertConsentLog.disclaimerScriptVersion,
+      consentModality: insertConsentLog.consentModality,
+      ipAddress: insertConsentLog.ipAddress ?? null,
+      deletionTimestamp: insertConsentLog.deletionTimestamp ?? null,
+      deletionReason: insertConsentLog.deletionReason ?? null,
+    };
+    this.consentLogs.set(id, consentLog);
+    return consentLog;
+  }
+
+  async getConsentLogsByCase(caseId: string): Promise<ConsentLog[]> {
+    return Array.from(this.consentLogs.values())
+      .filter((log) => log.caseId === caseId)
+      .sort((a, b) => b.consentTimestamp.getTime() - a.consentTimestamp.getTime());
+  }
+
+  async createTranscript(insertTranscript: InsertTranscript): Promise<Transcript> {
+    const id = randomUUID();
+    const transcript: Transcript = {
+      id,
+      caseId: insertTranscript.caseId,
+      content: insertTranscript.content,
+      createdAt: new Date(),
+      redactions: insertTranscript.redactions ?? [],
+    };
+    this.transcripts.set(id, transcript);
+    return transcript;
+  }
+
+  async getTranscript(id: string): Promise<Transcript | undefined> {
+    return this.transcripts.get(id);
+  }
+
+  async getTranscriptByCase(caseId: string): Promise<Transcript | undefined> {
+    return Array.from(this.transcripts.values()).find(
+      (transcript) => transcript.caseId === caseId
+    );
+  }
+
+  async updateTranscript(id: string, updates: Partial<Transcript>): Promise<Transcript | undefined> {
+    const existing = this.transcripts.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { ...existing, ...updates };
+    this.transcripts.set(id, updated);
+    return updated;
+  }
+
+  async createDocument(insertDocument: InsertDocument): Promise<Document> {
+    const id = randomUUID();
+    const document: Document = {
+      id,
+      caseId: insertDocument.caseId,
+      transcriptSnapshotId: insertDocument.transcriptSnapshotId ?? null,
+      type: insertDocument.type,
+      content: insertDocument.content,
+      version: insertDocument.version,
+      versionType: insertDocument.versionType,
+      createdAt: new Date(),
+      createdBy: insertDocument.createdBy,
+      isActive: insertDocument.isActive,
+      parentVersionId: insertDocument.parentVersionId ?? null,
+    };
+    this.documents.set(id, document);
+    return document;
+  }
+
+  async getDocument(id: string): Promise<Document | undefined> {
+    return this.documents.get(id);
+  }
+
+  async getDocumentsByCase(caseId: string): Promise<Document[]> {
+    return Array.from(this.documents.values())
+      .filter((doc) => doc.caseId === caseId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getActiveDocumentsByCase(caseId: string): Promise<Document[]> {
+    return Array.from(this.documents.values())
+      .filter((doc) => doc.caseId === caseId && doc.isActive)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async updateDocument(id: string, updates: Partial<Document>): Promise<Document | undefined> {
+    const existing = this.documents.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { ...existing, ...updates };
+    this.documents.set(id, updated);
+    return updated;
   }
 }
 
