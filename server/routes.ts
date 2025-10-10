@@ -1,7 +1,7 @@
 import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCaseSchema, insertAudioRecordingSchema } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -15,6 +15,7 @@ import {
 } from "./rateLimiting";
 import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
+import { openaiService } from "./openaiService";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment platform
@@ -447,6 +448,319 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.json(audioRecording);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Consent logging routes
+  app.post("/api/consent", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedData = insertConsentLogSchema.parse({
+        ...req.body,
+        solicitorId: userId, // Ensure solicitorId matches authenticated user
+      });
+      
+      // Verify user owns the case
+      const caseData = await storage.getCase(validatedData.caseId);
+      if (!caseData || caseData.createdBy !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const consentLog = await storage.createConsentLog(validatedData);
+      
+      auditLogger.logFromRequest(
+        validatedData.consentGiven ? AuditEventType.CONSENT_GIVEN : AuditEventType.CONSENT_DECLINED,
+        req,
+        {
+          resourceId: consentLog.id,
+          resourceType: "consent",
+          severity: "medium",
+        }
+      );
+      
+      res.json(consentLog);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.message });
+      }
+      next(error);
+    }
+  });
+
+  // AI Processing routes
+  app.post("/api/cases/:id/transcribe", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      // Verify ownership
+      const caseData = await storage.getCase(caseId);
+      if (!caseData || caseData.createdBy !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      // Get audio recording
+      const audioRecording = await storage.getAudioRecordingByCase(caseId);
+      if (!audioRecording || !audioRecording.filePath) {
+        return res.status(404).json({ message: "No audio recording found for this case" });
+      }
+      
+      // Check if transcript already exists
+      const existingTranscript = await storage.getTranscriptByCase(caseId);
+      if (existingTranscript) {
+        return res.json({ transcript: existingTranscript, message: "Transcript already exists" });
+      }
+      
+      // Download audio file from storage
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(audioRecording.filePath);
+      const audioBuffer = await objectFile.download().then(([buffer]) => buffer);
+      
+      // Transcribe using OpenAI Whisper
+      console.log(`Starting transcription for case ${caseId}`);
+      const result = await openaiService.transcribeAudio(audioBuffer);
+      
+      // Save transcript
+      const transcript = await storage.createTranscript({
+        caseId,
+        content: result.text,
+      });
+      
+      // Update case status
+      await storage.updateCase(caseId, { status: "processing" });
+      
+      auditLogger.logFromRequest(AuditEventType.TRANSCRIPT_GENERATED, req, {
+        resourceId: transcript.id,
+        resourceType: "transcript",
+        action: "generate",
+        severity: "low",
+      });
+      
+      res.json({ transcript, message: "Transcription completed" });
+    } catch (error: any) {
+      console.error('Transcription error:', error);
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/generate-documents", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      // Verify ownership
+      const caseData = await storage.getCase(caseId);
+      if (!caseData || caseData.createdBy !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      // Get transcript
+      const transcript = await storage.getTranscriptByCase(caseId);
+      if (!transcript) {
+        return res.status(404).json({ message: "No transcript found. Please transcribe the audio first." });
+      }
+      
+      // Check if documents already exist
+      const existingDocs = await storage.getActiveDocumentsByCase(caseId);
+      if (existingDocs.length > 0) {
+        return res.json({ documents: existingDocs, message: "Documents already exist" });
+      }
+      
+      // Generate documents using GPT-4
+      console.log(`Generating documents for case ${caseId}`);
+      const result = await openaiService.generateDocuments(transcript.content, {
+        title: caseData.title,
+        clientName: caseData.clientName,
+        matterReference: caseData.matterReference || undefined,
+      });
+      
+      // Save attendance note
+      const attendanceNote = await storage.createDocument({
+        caseId,
+        transcriptSnapshotId: transcript.id,
+        type: "attendance_note",
+        content: result.attendanceNote,
+        version: 1,
+        versionType: "ai_generated",
+        createdBy: userId,
+        isActive: true,
+      });
+      
+      // Save legal opinion
+      const legalOpinion = await storage.createDocument({
+        caseId,
+        transcriptSnapshotId: transcript.id,
+        type: "legal_opinion",
+        content: result.legalOpinion,
+        version: 1,
+        versionType: "ai_generated",
+        createdBy: userId,
+        isActive: true,
+      });
+      
+      // Update case status
+      await storage.updateCase(caseId, { status: "completed" });
+      
+      auditLogger.logFromRequest(AuditEventType.DOCUMENT_GENERATED, req, {
+        resourceId: attendanceNote.id,
+        resourceType: "document",
+        action: "generate",
+        severity: "low",
+      });
+      
+      res.json({ 
+        attendanceNote, 
+        legalOpinion,
+        message: "Documents generated successfully" 
+      });
+    } catch (error: any) {
+      console.error('Document generation error:', error);
+      next(error);
+    }
+  });
+
+  // All-in-one processing: transcribe + generate documents
+  app.post("/api/cases/:id/process", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      // Verify ownership
+      const caseData = await storage.getCase(caseId);
+      if (!caseData || caseData.createdBy !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      // Update case status to processing
+      await storage.updateCase(caseId, { status: "processing" });
+      
+      // Step 1: Transcribe (if not already done)
+      let transcript = await storage.getTranscriptByCase(caseId);
+      if (!transcript) {
+        const audioRecording = await storage.getAudioRecordingByCase(caseId);
+        if (!audioRecording || !audioRecording.filePath) {
+          return res.status(404).json({ message: "No audio recording found for this case" });
+        }
+        
+        const objectStorageService = new ObjectStorageService();
+        const objectFile = await objectStorageService.getObjectEntityFile(audioRecording.filePath);
+        const audioBuffer = await objectFile.download().then(([buffer]) => buffer);
+        
+        console.log(`Transcribing audio for case ${caseId}`);
+        const transcriptionResult = await openaiService.transcribeAudio(audioBuffer);
+        
+        transcript = await storage.createTranscript({
+          caseId,
+          content: transcriptionResult.text,
+        });
+        
+        auditLogger.logFromRequest(AuditEventType.TRANSCRIPT_GENERATED, req, {
+          resourceId: transcript.id,
+          resourceType: "transcript",
+          action: "generate",
+          severity: "low",
+        });
+      }
+      
+      // Step 2: Generate documents (if not already done)
+      let documents = await storage.getActiveDocumentsByCase(caseId);
+      if (documents.length === 0) {
+        console.log(`Generating documents for case ${caseId}`);
+        const docResult = await openaiService.generateDocuments(transcript.content, {
+          title: caseData.title,
+          clientName: caseData.clientName,
+          matterReference: caseData.matterReference || undefined,
+        });
+        
+        const attendanceNote = await storage.createDocument({
+          caseId,
+          transcriptSnapshotId: transcript.id,
+          type: "attendance_note",
+          content: docResult.attendanceNote,
+          version: 1,
+          versionType: "ai_generated",
+          createdBy: userId,
+          isActive: true,
+        });
+        
+        const legalOpinion = await storage.createDocument({
+          caseId,
+          transcriptSnapshotId: transcript.id,
+          type: "legal_opinion",
+          content: docResult.legalOpinion,
+          version: 1,
+          versionType: "ai_generated",
+          createdBy: userId,
+          isActive: true,
+        });
+        
+        documents = [attendanceNote, legalOpinion];
+        
+        auditLogger.logFromRequest(AuditEventType.DOCUMENT_GENERATED, req, {
+          resourceId: attendanceNote.id,
+          resourceType: "document",
+          action: "generate",
+          severity: "low",
+        });
+      }
+      
+      // Update case status to completed
+      await storage.updateCase(caseId, { status: "completed" });
+      
+      res.json({ 
+        transcript,
+        documents,
+        message: "Case processed successfully" 
+      });
+    } catch (error: any) {
+      console.error('Case processing error:', error);
+      // Update case status to indicate failure
+      try {
+        await storage.updateCase(req.params.id, { status: "pending" });
+      } catch (e) {}
+      next(error);
+    }
+  });
+
+  // Get transcript for a case
+  app.get("/api/cases/:id/transcript", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      // Verify ownership
+      const caseData = await storage.getCase(caseId);
+      if (!caseData || caseData.createdBy !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const transcript = await storage.getTranscriptByCase(caseId);
+      if (!transcript) {
+        return res.status(404).json({ message: "No transcript found" });
+      }
+      
+      res.json(transcript);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Get documents for a case
+  app.get("/api/cases/:id/documents", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      // Verify ownership
+      const caseData = await storage.getCase(caseId);
+      if (!caseData || caseData.createdBy !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const documents = await storage.getActiveDocumentsByCase(caseId);
+      res.json(documents);
     } catch (error: any) {
       next(error);
     }
