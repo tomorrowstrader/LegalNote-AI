@@ -1,9 +1,5 @@
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import type { Readable } from "stream";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 export interface TranscriptionResult {
   text: string;
@@ -16,13 +12,31 @@ export interface DocumentGenerationResult {
 }
 
 export class OpenAIService {
+  private _client: OpenAI | null = null;
+
+  private getClient(): OpenAI {
+    if (!this._client) {
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY is not configured. Please add your OpenAI API key to enable AI features.');
+      }
+      this._client = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+    }
+    return this._client;
+  }
   async transcribeAudio(audioBuffer: Buffer, filename: string = "audio.webm"): Promise<TranscriptionResult> {
     try {
       console.log(`Starting transcription for ${filename}, size: ${audioBuffer.length} bytes`);
       
-      const file = new File([audioBuffer], filename, { type: "audio/webm" });
+      const client = this.getClient();
       
-      const transcription = await openai.audio.transcriptions.create({
+      // Use OpenAI's toFile helper to create a proper File-like object for Node.js
+      const file = await toFile(audioBuffer, filename, {
+        type: "audio/webm",
+      });
+      
+      const transcription = await client.audio.transcriptions.create({
         file: file,
         model: "whisper-1",
         language: "en",
@@ -97,7 +111,9 @@ Please draft a professional attendance note following UK legal standards. The no
 
 Format the note professionally with proper headings and structure. Be concise but comprehensive.`;
 
-    const response = await openai.chat.completions.create({
+    const client = this.getClient();
+    
+    const response = await client.chat.completions.create({
       model: "gpt-4",
       messages: [
         {
@@ -145,7 +161,9 @@ Please draft a professional legal opinion following UK legal standards. The opin
 
 Format the opinion professionally with proper legal structure. Be thorough but acknowledge this is a preliminary assessment based on initial consultation.`;
 
-    const response = await openai.chat.completions.create({
+    const client = this.getClient();
+    
+    const response = await client.chat.completions.create({
       model: "gpt-4",
       messages: [
         {
