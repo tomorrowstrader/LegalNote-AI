@@ -293,17 +293,19 @@ export default function QuickRecordButton() {
       // Step 4: Save consent log to backend (GDPR compliance)
       if (consentGiven !== null) {
         try {
-          console.log('Saving consent log to backend...');
-          await apiRequest("POST", "/api/consent", {
+          const consentPayload = {
             caseId: caseResult.id,
             audioRecordingId: audioResult.id,
             consentGiven: consentGiven,
-            consentModality: "verbal_recorded",
+            consentModality: "verbal_recorded" as const,
             disclaimerScriptVersion: "v1.0",
-          });
+          };
+          console.log('Saving consent log to backend...', consentPayload);
+          await apiRequest("POST", "/api/consent", consentPayload);
           console.log('Consent log saved successfully');
         } catch (consentError: any) {
           console.error('Consent log failed:', consentError);
+          console.error('Consent error details:', consentError?.message || consentError);
           consentLogFailed = true;
           // Don't throw - allow processing to continue but mark as failed
         }
