@@ -296,10 +296,10 @@ export default function QuickRecordButton() {
           console.log('Saving consent log to backend...');
           await apiRequest("POST", "/api/consent", {
             caseId: caseResult.id,
+            audioRecordingId: audioResult.id,
             consentGiven: consentGiven,
             consentModality: "verbal_recorded",
-            recordingTimestamp: new Date().toISOString(),
-            clientName: clientName,
+            disclaimerScriptVersion: "v1.0",
           });
           console.log('Consent log saved successfully');
         } catch (consentError: any) {
