@@ -188,7 +188,7 @@ export const insertConsentLogSchema = createInsertSchema(consentLogs).omit({
 }).extend({
   caseId: z.string().uuid(),
   audioRecordingId: z.string().uuid().optional(),
-  solicitorId: z.string().uuid(),
+  solicitorId: z.string().min(1), // Replit Auth IDs are not UUIDs, just require non-empty string
   consentGiven: z.boolean(),
   disclaimerScriptVersion: z.string().max(50),
   consentModality: z.enum(["verbal_recorded", "verbal_attested", "electronic"]),
