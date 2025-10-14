@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Mic, Square } from "lucide-react";
+import { Mic, Square, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,6 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -49,6 +59,7 @@ export default function QuickRecordButton() {
   const [, setLocation] = useLocation();
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
+  const [showStopConfirmation, setShowStopConfirmation] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const [showMetadataModal, setShowMetadataModal] = useState(false);
@@ -221,13 +232,22 @@ export default function QuickRecordButton() {
     };
   }, []);
 
-  const stopRecording = () => {
+  const handleStopClick = () => {
+    setShowStopConfirmation(true);
+  };
+
+  const confirmStopRecording = () => {
     console.log('Quick recording stopped');
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
     setIsRecording(false);
+    setShowStopConfirmation(false);
     setShowMetadataModal(true);
+  };
+
+  const cancelStopRecording = () => {
+    setShowStopConfirmation(false);
   };
 
   const saveCase = async () => {
@@ -521,7 +541,7 @@ export default function QuickRecordButton() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={stopRecording}
+            onClick={handleStopClick}
             className="gap-1 text-primary-foreground h-7 px-2"
             data-testid="button-stop-quick-record"
           >
@@ -628,6 +648,28 @@ export default function QuickRecordButton() {
         onClose={() => setShowTextNotesModal(false)}
         onSave={saveTextNotes}
       />
+
+      <AlertDialog open={showStopConfirmation} onOpenChange={setShowStopConfirmation}>
+        <AlertDialogContent data-testid="dialog-stop-confirmation-quick">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Stop Recording?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to stop the recording? This will end the audio capture and you'll be prompted to add case details.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelStopRecording} data-testid="button-cancel-stop-quick">
+              Continue Recording
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmStopRecording} data-testid="button-confirm-stop-quick">
+              Stop Recording
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

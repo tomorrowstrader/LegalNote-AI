@@ -6,9 +6,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ToastAction } from "@/components/ui/toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import ConsentModal from "@/components/ConsentModal";
 import TextNotesModal from "@/components/TextNotesModal";
-import { ArrowLeft, Mic, Square } from "lucide-react";
+import { ArrowLeft, Mic, Square, AlertTriangle } from "lucide-react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -43,6 +53,7 @@ export default function NewNote() {
   const [matterRef, setMatterRef] = useState("");
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
+  const [showStopConfirmation, setShowStopConfirmation] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const [showTextNotesModal, setShowTextNotesModal] = useState(false);
@@ -182,13 +193,22 @@ export default function NewNote() {
     });
   };
 
-  const stopRecording = () => {
+  const handleStopClick = () => {
+    setShowStopConfirmation(true);
+  };
+
+  const confirmStopRecording = () => {
     console.log('Recording stopped');
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
     setIsRecording(false);
+    setShowStopConfirmation(false);
     saveCase();
+  };
+
+  const cancelStopRecording = () => {
+    setShowStopConfirmation(false);
   };
 
   const saveCase = async () => {
@@ -486,7 +506,7 @@ export default function NewNote() {
                     {formatDuration(recordingDuration)}
                   </Badge>
                   <Button
-                    onClick={stopRecording}
+                    onClick={handleStopClick}
                     variant="destructive"
                     className="gap-2"
                     data-testid="button-stop-recording"
@@ -524,6 +544,28 @@ export default function NewNote() {
         onClose={() => setShowTextNotesModal(false)}
         onSave={saveTextNotes}
       />
+
+      <AlertDialog open={showStopConfirmation} onOpenChange={setShowStopConfirmation}>
+        <AlertDialogContent data-testid="dialog-stop-confirmation">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Stop Recording?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to stop the recording? This action will finalize the audio capture and save the case.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelStopRecording} data-testid="button-cancel-stop">
+              Continue Recording
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmStopRecording} data-testid="button-confirm-stop">
+              Stop Recording
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
