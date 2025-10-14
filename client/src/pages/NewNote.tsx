@@ -203,8 +203,12 @@ export default function NewNote() {
       return;
     }
     
+    let caseResult: CaseResponse | null = null;
+    let consentLogFailed = false;
+    
     try {
-      const caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
+      // Step 1: Create case
+      caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
         title: caseTitle,
         clientName: clientName,
         matterReference: matterRef || undefined,
@@ -213,10 +217,12 @@ export default function NewNote() {
         priority: "normal",
       });
       
+      // Step 2: Create audio record placeholder
       const audioResult = await apiRequest<AudioResponse>("POST", "/api/audio", {
         caseId: caseResult.id,
       });
       
+      // Step 3: Upload audio file
       if (audioBlobRef.current) {
         console.log('Uploading audio file via multipart...');
         
@@ -240,6 +246,37 @@ export default function NewNote() {
         console.log('Audio upload completed successfully');
       }
       
+      // Step 4: Save consent log to backend (GDPR compliance)
+      if (consentGiven !== null) {
+        try {
+          const consentPayload = {
+            caseId: caseResult.id,
+            audioRecordingId: audioResult.id,
+            consentGiven: consentGiven,
+            consentModality: "verbal_recorded" as const,
+            disclaimerScriptVersion: "v1.0",
+          };
+          console.log('Saving consent log to backend...', consentPayload);
+          await apiRequest("POST", "/api/consent", consentPayload);
+          console.log('Consent log saved successfully');
+        } catch (consentError: any) {
+          console.error('Consent log failed:', consentError);
+          console.error('Consent error details:', consentError?.message || consentError);
+          consentLogFailed = true;
+          
+          // Show critical error - don't navigate away
+          toast({
+            title: "GDPR Compliance Error",
+            description: "Failed to save consent record. This case cannot be processed without proper consent logging.",
+            variant: "destructive",
+            duration: 10000,
+          });
+          
+          // Don't navigate - let user retry or contact support
+          return;
+        }
+      }
+      
       queryClient.invalidateQueries({ 
         predicate: (query) => {
           const key = query.queryKey[0] as string;
@@ -247,23 +284,30 @@ export default function NewNote() {
         }
       });
       
+      // Capture caseId for toast action and navigation
+      const savedCaseId = caseResult?.id;
+      
       toast({
         title: "Case created successfully",
-        description: "Your case has been saved and is ready for processing.",
+        description: consentLogFailed 
+          ? "Case saved but consent logging had issues. Please check before processing." 
+          : "Your case has been saved and is ready for processing.",
         duration: 6000,
-        action: (
+        action: savedCaseId ? (
           <ToastAction 
             altText="View case" 
-            onClick={() => setLocation(`/case/${caseResult.id}`)}
+            onClick={() => setLocation(`/case/${savedCaseId}`)}
             data-testid="button-toast-view-case"
           >
             View Case
           </ToastAction>
-        ),
+        ) : undefined,
       });
       
       // Navigate to the case detail page
-      setLocation(`/case/${caseResult.id}`);
+      if (savedCaseId) {
+        setLocation(`/case/${savedCaseId}`);
+      }
     } catch (error: any) {
       toast({
         title: "Error creating case",
