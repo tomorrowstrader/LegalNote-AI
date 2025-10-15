@@ -20,7 +20,7 @@ interface CaseCardProps {
   title: string;
   clientName: string;
   meetingDate: string;
-  status: "completed" | "processing" | "pending";
+  status: "completed" | "processing" | "pending" | "review_required" | "failed";
   createdBy: string;
   priority?: "urgent" | "deadline-soon" | "normal";
   audioExpiresIn?: number;
@@ -43,8 +43,10 @@ export default function CaseCard({
 
   const statusConfig = {
     completed: { icon: CheckCircle2, label: "Completed", variant: "default" as const },
-    processing: { icon: Clock, label: "Processing", variant: "secondary" as const },
+    processing: { icon: Loader2, label: "Processing", variant: "secondary" as const },
     pending: { icon: Clock, label: "Pending", variant: "outline" as const },
+    review_required: { icon: Eye, label: "Review Required", variant: "secondary" as const },
+    failed: { icon: AlertCircle, label: "Failed", variant: "destructive" as const },
   };
 
   const priorityConfig = {

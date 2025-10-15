@@ -5,9 +5,18 @@ import {
   type ConsentLog, type InsertConsentLog,
   type Transcript, type InsertTranscript,
   type Document, type InsertDocument,
-  type AuditTrail, type InsertAuditTrail 
+  type AuditTrail, type InsertAuditTrail,
+  users,
+  cases,
+  audioRecordings,
+  consentLogs,
+  transcripts,
+  documents,
+  auditTrail
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, and, gte, lte, desc, isNull, sql, count } from "drizzle-orm";
 
 // Server-side audio recording creation type (includes server-calculated expiresAt)
 export type ServerAudioRecordingInsert = InsertAudioRecording & {
@@ -49,28 +58,28 @@ export interface IStorage {
   
   createCase(caseData: InsertCase, userId: string): Promise<Case>;
   getCases(userId: string): Promise<Case[]>;
-  getCase(id: string): Promise<Case | undefined>;
-  updateCase(id: string, updates: Partial<Case>): Promise<Case | undefined>;
+  getCase(id: string, userId: string): Promise<Case | undefined>;
+  updateCase(id: string, updates: Partial<Case>, userId: string): Promise<Case | undefined>;
   
   createAudioRecording(audioData: ServerAudioRecordingInsert): Promise<AudioRecording>;
   getAudioRecording(id: string): Promise<AudioRecording | undefined>;
-  getAudioRecordingByCase(caseId: string): Promise<AudioRecording | undefined>;
+  getAudioRecordingByCase(caseId: string, userId: string): Promise<AudioRecording | undefined>;
   updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined>;
   getExpiredAudioRecordings(): Promise<AudioRecording[]>;
   
-  createConsentLog(consentData: InsertConsentLog): Promise<ConsentLog>;
-  getConsentLogsByCase(caseId: string): Promise<ConsentLog[]>;
+  createConsentLog(consentData: InsertConsentLog, userId: string): Promise<ConsentLog>;
+  getConsentLogsByCase(caseId: string, userId: string): Promise<ConsentLog[]>;
   
   createTranscript(transcriptData: InsertTranscript): Promise<Transcript>;
   getTranscript(id: string): Promise<Transcript | undefined>;
-  getTranscriptByCase(caseId: string): Promise<Transcript | undefined>;
-  updateTranscript(id: string, updates: Partial<Transcript>): Promise<Transcript | undefined>;
+  getTranscriptByCase(caseId: string, userId: string): Promise<Transcript | undefined>;
+  updateTranscript(id: string, updates: Partial<Transcript>, userId: string): Promise<Transcript | undefined>;
   
   createDocument(documentData: InsertDocument): Promise<Document>;
   getDocument(id: string): Promise<Document | undefined>;
-  getDocumentsByCase(caseId: string): Promise<Document[]>;
-  getActiveDocumentsByCase(caseId: string): Promise<Document[]>;
-  updateDocument(id: string, updates: Partial<Document>): Promise<Document | undefined>;
+  getDocumentsByCase(caseId: string, userId: string): Promise<Document[]>;
+  getActiveDocumentsByCase(caseId: string, userId: string): Promise<Document[]>;
+  updateDocument(id: string, updates: Partial<Document>, userId: string): Promise<Document | undefined>;
   
   createAuditLog(auditData: InsertAuditTrail): Promise<AuditTrail>;
   getAuditLogs(filters?: {
@@ -152,13 +161,15 @@ export class MemStorage implements IStorage {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  async getCase(id: string): Promise<Case | undefined> {
-    return this.cases.get(id);
+  async getCase(id: string, userId: string): Promise<Case | undefined> {
+    const caseRecord = this.cases.get(id);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    return caseRecord;
   }
 
-  async updateCase(id: string, updates: Partial<Case>): Promise<Case | undefined> {
+  async updateCase(id: string, updates: Partial<Case>, userId: string): Promise<Case | undefined> {
     const existing = this.cases.get(id);
-    if (!existing) return undefined;
+    if (!existing || existing.createdBy !== userId) return undefined;
     
     const updated = { ...existing, ...updates };
     this.cases.set(id, updated);
@@ -184,7 +195,10 @@ export class MemStorage implements IStorage {
     return this.audioRecordings.get(id);
   }
 
-  async getAudioRecordingByCase(caseId: string): Promise<AudioRecording | undefined> {
+  async getAudioRecordingByCase(caseId: string, userId: string): Promise<AudioRecording | undefined> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    
     return Array.from(this.audioRecordings.values()).find(
       (recording) => recording.caseId === caseId
     );
@@ -269,7 +283,10 @@ export class MemStorage implements IStorage {
     return this.getAuditLogs({ caseId, limit });
   }
 
-  async createConsentLog(insertConsentLog: InsertConsentLog): Promise<ConsentLog> {
+  async createConsentLog(insertConsentLog: InsertConsentLog, userId: string): Promise<ConsentLog> {
+    const caseRecord = this.cases.get(insertConsentLog.caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) throw new Error('Case not found or unauthorized');
+    
     const id = randomUUID();
     const consentLog: ConsentLog = {
       id,
@@ -288,7 +305,10 @@ export class MemStorage implements IStorage {
     return consentLog;
   }
 
-  async getConsentLogsByCase(caseId: string): Promise<ConsentLog[]> {
+  async getConsentLogsByCase(caseId: string, userId: string): Promise<ConsentLog[]> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    
     return Array.from(this.consentLogs.values())
       .filter((log) => log.caseId === caseId)
       .sort((a, b) => b.consentTimestamp.getTime() - a.consentTimestamp.getTime());
@@ -311,15 +331,21 @@ export class MemStorage implements IStorage {
     return this.transcripts.get(id);
   }
 
-  async getTranscriptByCase(caseId: string): Promise<Transcript | undefined> {
+  async getTranscriptByCase(caseId: string, userId: string): Promise<Transcript | undefined> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    
     return Array.from(this.transcripts.values()).find(
       (transcript) => transcript.caseId === caseId
     );
   }
 
-  async updateTranscript(id: string, updates: Partial<Transcript>): Promise<Transcript | undefined> {
+  async updateTranscript(id: string, updates: Partial<Transcript>, userId: string): Promise<Transcript | undefined> {
     const existing = this.transcripts.get(id);
     if (!existing) return undefined;
+    
+    const caseRecord = this.cases.get(existing.caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
     
     const updated = { ...existing, ...updates };
     this.transcripts.set(id, updated);
@@ -349,21 +375,30 @@ export class MemStorage implements IStorage {
     return this.documents.get(id);
   }
 
-  async getDocumentsByCase(caseId: string): Promise<Document[]> {
+  async getDocumentsByCase(caseId: string, userId: string): Promise<Document[]> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    
     return Array.from(this.documents.values())
       .filter((doc) => doc.caseId === caseId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  async getActiveDocumentsByCase(caseId: string): Promise<Document[]> {
+  async getActiveDocumentsByCase(caseId: string, userId: string): Promise<Document[]> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    
     return Array.from(this.documents.values())
       .filter((doc) => doc.caseId === caseId && doc.isActive)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  async updateDocument(id: string, updates: Partial<Document>): Promise<Document | undefined> {
+  async updateDocument(id: string, updates: Partial<Document>, userId: string): Promise<Document | undefined> {
     const existing = this.documents.get(id);
     if (!existing) return undefined;
+    
+    const caseRecord = this.cases.get(existing.caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
     
     const updated = { ...existing, ...updates };
     this.documents.set(id, updated);
@@ -485,6 +520,453 @@ export class MemStorage implements IStorage {
         joinedDate: user.createdAt || new Date(),
       };
     }).sort((a, b) => b.totalCases - a.totalCases);
+  }
+}
+
+export class DbStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0];
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const result = await db
+      .insert(users)
+      .values({
+        id: userData.id,
+        email: userData.email ?? null,
+        firstName: userData.firstName ?? null,
+        lastName: userData.lastName ?? null,
+        profileImageUrl: userData.profileImageUrl ?? null,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          email: userData.email ?? null,
+          firstName: userData.firstName ?? null,
+          lastName: userData.lastName ?? null,
+          profileImageUrl: userData.profileImageUrl ?? null,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return result[0];
+  }
+
+  async createCase(insertCase: InsertCase, userId: string): Promise<Case> {
+    const result = await db
+      .insert(cases)
+      .values({
+        title: insertCase.title,
+        clientName: insertCase.clientName,
+        matterReference: insertCase.matterReference ?? null,
+        createdBy: userId,
+        status: insertCase.status || "pending",
+        priority: insertCase.priority || "normal",
+        sourceType: insertCase.sourceType,
+        textNotes: insertCase.textNotes ?? null,
+        aiProcessingMetadata: {},
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getCases(userId: string): Promise<Case[]> {
+    return await db
+      .select()
+      .from(cases)
+      .where(eq(cases.createdBy, userId))
+      .orderBy(desc(cases.createdAt));
+  }
+
+  async getCase(id: string, userId: string): Promise<Case | undefined> {
+    const result = await db.select().from(cases).where(and(eq(cases.id, id), eq(cases.createdBy, userId)));
+    return result[0];
+  }
+
+  async updateCase(id: string, updates: Partial<Case>, userId: string): Promise<Case | undefined> {
+    const result = await db
+      .update(cases)
+      .set(updates)
+      .where(and(eq(cases.id, id), eq(cases.createdBy, userId)))
+      .returning();
+    return result[0];
+  }
+
+  async createAudioRecording(insertAudioRecording: ServerAudioRecordingInsert): Promise<AudioRecording> {
+    const result = await db
+      .insert(audioRecordings)
+      .values({
+        caseId: insertAudioRecording.caseId,
+        filePath: insertAudioRecording.filePath ?? null,
+        duration: insertAudioRecording.duration ?? null,
+        expiresAt: insertAudioRecording.expiresAt,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getAudioRecording(id: string): Promise<AudioRecording | undefined> {
+    const result = await db.select().from(audioRecordings).where(eq(audioRecordings.id, id));
+    return result[0];
+  }
+
+  async getAudioRecordingByCase(caseId: string, userId: string): Promise<AudioRecording | undefined> {
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return undefined;
+    
+    const result = await db.select().from(audioRecordings).where(eq(audioRecordings.caseId, caseId));
+    return result[0];
+  }
+
+  async updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined> {
+    const result = await db
+      .update(audioRecordings)
+      .set(updates)
+      .where(eq(audioRecordings.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getExpiredAudioRecordings(): Promise<AudioRecording[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(audioRecordings)
+      .where(and(
+        lte(audioRecordings.expiresAt, now),
+        isNull(audioRecordings.deletedAt)
+      ));
+  }
+
+  async createConsentLog(consentData: InsertConsentLog, userId: string): Promise<ConsentLog> {
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, consentData.caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) throw new Error('Case not found or unauthorized');
+    
+    const result = await db
+      .insert(consentLogs)
+      .values({
+        caseId: consentData.caseId,
+        audioRecordingId: consentData.audioRecordingId ?? null,
+        solicitorId: consentData.solicitorId,
+        consentGiven: consentData.consentGiven,
+        disclaimerScriptVersion: consentData.disclaimerScriptVersion,
+        consentModality: consentData.consentModality,
+        ipAddress: consentData.ipAddress ?? null,
+        deletionTimestamp: consentData.deletionTimestamp ?? null,
+        deletionReason: consentData.deletionReason ?? null,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getConsentLogsByCase(caseId: string, userId: string): Promise<ConsentLog[]> {
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return [];
+    
+    return await db
+      .select()
+      .from(consentLogs)
+      .where(eq(consentLogs.caseId, caseId))
+      .orderBy(desc(consentLogs.consentTimestamp));
+  }
+
+  async createTranscript(transcriptData: InsertTranscript): Promise<Transcript> {
+    const result = await db
+      .insert(transcripts)
+      .values({
+        caseId: transcriptData.caseId,
+        content: transcriptData.content,
+        redactions: transcriptData.redactions ?? [],
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getTranscript(id: string): Promise<Transcript | undefined> {
+    const result = await db.select().from(transcripts).where(eq(transcripts.id, id));
+    return result[0];
+  }
+
+  async getTranscriptByCase(caseId: string, userId: string): Promise<Transcript | undefined> {
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return undefined;
+    
+    const result = await db.select().from(transcripts).where(eq(transcripts.caseId, caseId));
+    return result[0];
+  }
+
+  async updateTranscript(id: string, updates: Partial<Transcript>, userId: string): Promise<Transcript | undefined> {
+    const transcript = await db.select().from(transcripts).where(eq(transcripts.id, id));
+    if (!transcript[0]) return undefined;
+    
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, transcript[0].caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return undefined;
+    
+    const result = await db
+      .update(transcripts)
+      .set(updates)
+      .where(eq(transcripts.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async createDocument(documentData: InsertDocument): Promise<Document> {
+    const result = await db
+      .insert(documents)
+      .values({
+        caseId: documentData.caseId,
+        transcriptSnapshotId: documentData.transcriptSnapshotId ?? null,
+        type: documentData.type,
+        content: documentData.content,
+        version: documentData.version,
+        versionType: documentData.versionType,
+        createdBy: documentData.createdBy,
+        isActive: documentData.isActive,
+        parentVersionId: documentData.parentVersionId ?? null,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getDocument(id: string): Promise<Document | undefined> {
+    const result = await db.select().from(documents).where(eq(documents.id, id));
+    return result[0];
+  }
+
+  async getDocumentsByCase(caseId: string, userId: string): Promise<Document[]> {
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return [];
+    
+    return await db
+      .select()
+      .from(documents)
+      .where(eq(documents.caseId, caseId))
+      .orderBy(desc(documents.createdAt));
+  }
+
+  async getActiveDocumentsByCase(caseId: string, userId: string): Promise<Document[]> {
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return [];
+    
+    return await db
+      .select()
+      .from(documents)
+      .where(and(
+        eq(documents.caseId, caseId),
+        eq(documents.isActive, true)
+      ))
+      .orderBy(desc(documents.createdAt));
+  }
+
+  async updateDocument(id: string, updates: Partial<Document>, userId: string): Promise<Document | undefined> {
+    const document = await db.select().from(documents).where(eq(documents.id, id));
+    if (!document[0]) return undefined;
+    
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, document[0].caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return undefined;
+    
+    const result = await db
+      .update(documents)
+      .set(updates)
+      .where(eq(documents.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async createAuditLog(auditData: InsertAuditTrail): Promise<AuditTrail> {
+    const result = await db
+      .insert(auditTrail)
+      .values({
+        eventType: auditData.eventType,
+        userId: auditData.userId,
+        caseId: auditData.caseId ?? null,
+        documentId: auditData.documentId ?? null,
+        transcriptId: auditData.transcriptId ?? null,
+        audioRecordingId: auditData.audioRecordingId ?? null,
+        ipAddress: auditData.ipAddress ?? null,
+        userAgent: auditData.userAgent ?? null,
+        metadata: auditData.metadata ?? {},
+        severity: auditData.severity ?? "info",
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getAuditLogs(filters?: {
+    userId?: string;
+    caseId?: string;
+    documentId?: string;
+    eventType?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+  }): Promise<AuditTrail[]> {
+    const conditions = [];
+
+    if (filters?.userId) {
+      conditions.push(eq(auditTrail.userId, filters.userId));
+    }
+    if (filters?.caseId) {
+      conditions.push(eq(auditTrail.caseId, filters.caseId));
+    }
+    if (filters?.documentId) {
+      conditions.push(eq(auditTrail.documentId, filters.documentId));
+    }
+    if (filters?.eventType) {
+      conditions.push(eq(auditTrail.eventType, filters.eventType));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(auditTrail.timestamp, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(auditTrail.timestamp, filters.endDate));
+    }
+
+    let query = db.select().from(auditTrail);
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    query = query.orderBy(desc(auditTrail.timestamp)) as any;
+
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as any;
+    }
+
+    return await query;
+  }
+
+  async getAuditLogsByCase(caseId: string, limit?: number): Promise<AuditTrail[]> {
+    return this.getAuditLogs({ caseId, limit });
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .orderBy(desc(users.createdAt));
+  }
+
+  async getAllCases(): Promise<Case[]> {
+    return await db
+      .select()
+      .from(cases)
+      .orderBy(desc(cases.createdAt));
+  }
+
+  async getAdminStatistics(): Promise<AdminStatistics> {
+    const allCases = await db.select().from(cases);
+    const allTranscripts = await db.select().from(transcripts);
+    const allDocuments = await db.select().from(documents);
+    const totalUsersResult = await db.select({ count: count() }).from(users);
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    let totalTranscriptionCosts = 0;
+    let totalDocumentCosts = 0;
+    let successfulProcessing = 0;
+    let failedProcessing = 0;
+    let totalProcessingTimeMinutes = 0;
+    let processedCasesWithTime = 0;
+
+    allCases.forEach(c => {
+      const metadata = c.aiProcessingMetadata as any || {};
+      
+      if (metadata.transcriptionCost) {
+        totalTranscriptionCosts += metadata.transcriptionCost;
+      }
+      if (metadata.documentGenerationCost) {
+        totalDocumentCosts += metadata.documentGenerationCost;
+      }
+
+      if (c.status === 'completed' || c.status === 'review_required') {
+        successfulProcessing++;
+      } else if (metadata.error || metadata.retryCount > 0) {
+        failedProcessing++;
+      }
+
+      if (metadata.processingStartTime && metadata.processingEndTime) {
+        const startTime = new Date(metadata.processingStartTime).getTime();
+        const endTime = new Date(metadata.processingEndTime).getTime();
+        totalProcessingTimeMinutes += (endTime - startTime) / (1000 * 60);
+        processedCasesWithTime++;
+      }
+    });
+
+    const casesLast30Days = allCases.filter(c => c.createdAt >= thirtyDaysAgo).length;
+    const casesLast7Days = allCases.filter(c => c.createdAt >= sevenDaysAgo).length;
+
+    return {
+      totalCases: allCases.length,
+      totalUsers: totalUsersResult[0].count,
+      totalTranscriptions: allTranscripts.length,
+      totalDocumentsGenerated: allDocuments.length,
+      totalCostsUSD: totalTranscriptionCosts + totalDocumentCosts,
+      transcriptionCostsUSD: totalTranscriptionCosts,
+      documentGenerationCostsUSD: totalDocumentCosts,
+      successfulProcessing,
+      failedProcessing,
+      successRate: allCases.length > 0 ? (successfulProcessing / allCases.length) * 100 : 0,
+      averageProcessingTimeMinutes: processedCasesWithTime > 0 ? totalProcessingTimeMinutes / processedCasesWithTime : 0,
+      casesLast30Days,
+      casesLast7Days,
+    };
+  }
+
+  async getUserStatistics(): Promise<UserStatistics[]> {
+    const allUsers = await db.select().from(users);
+    const allCases = await db.select().from(cases);
+    
+    const userStats: UserStatistics[] = [];
+
+    for (const user of allUsers) {
+      const userCases = allCases.filter(c => c.createdBy === user.id);
+      const successfulCases = userCases.filter(c => c.status === 'completed' || c.status === 'review_required');
+      const failedCases = userCases.filter(c => {
+        const metadata = c.aiProcessingMetadata as any || {};
+        return metadata.error || metadata.retryCount > 0;
+      });
+
+      let totalCosts = 0;
+      userCases.forEach(c => {
+        const metadata = c.aiProcessingMetadata as any || {};
+        if (metadata.transcriptionCost) {
+          totalCosts += metadata.transcriptionCost;
+        }
+        if (metadata.documentGenerationCost) {
+          totalCosts += metadata.documentGenerationCost;
+        }
+      });
+
+      const userAuditLogs = await db
+        .select()
+        .from(auditTrail)
+        .where(eq(auditTrail.userId, user.id))
+        .orderBy(desc(auditTrail.timestamp))
+        .limit(1);
+
+      const lastActivity = userAuditLogs.length > 0 ? userAuditLogs[0].timestamp : null;
+
+      userStats.push({
+        userId: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        totalCases: userCases.length,
+        successfulCases: successfulCases.length,
+        failedCases: failedCases.length,
+        totalCostsUSD: totalCosts,
+        lastActivity,
+        joinedDate: user.createdAt || new Date(),
+      });
+    }
+
+    return userStats.sort((a, b) => b.totalCases - a.totalCases);
   }
 }
 

@@ -50,13 +50,13 @@ export class AIProcessingPipeline {
 
     try {
       // Get case details
-      const caseData = await this.storage.getCase(caseId);
+      const caseData = await this.storage.getCase(caseId, userId);
       if (!caseData) {
         throw new Error('Case not found');
       }
 
       // Get audio recording
-      const audio = await this.storage.getAudioRecordingByCase(caseId);
+      const audio = await this.storage.getAudioRecordingByCase(caseId, userId);
       if (!audio) {
         throw new Error('No audio recording found for case');
       }
@@ -263,7 +263,7 @@ export class AIProcessingPipeline {
       });
 
       // Update case status to review_required
-      await this.storage.updateCase(caseId, { status: 'review_required' });
+      await this.storage.updateCase(caseId, { status: 'review_required' }, userId);
 
       // GDPR Compliance: Delete audio immediately after successful processing
       // This implements "whichever comes first" - 7 days OR successful processing
@@ -347,7 +347,7 @@ export class AIProcessingPipeline {
     userId: string,
     metadata: Partial<ProcessingMetadata>
   ): Promise<void> {
-    const caseData = await this.storage.getCase(caseId);
+    const caseData = await this.storage.getCase(caseId, userId);
     if (!caseData) return;
 
     const currentMetadata = (caseData.aiProcessingMetadata as ProcessingMetadata) || {};
@@ -355,6 +355,6 @@ export class AIProcessingPipeline {
 
     await this.storage.updateCase(caseId, {
       aiProcessingMetadata: updatedMetadata,
-    });
+    }, userId);
   }
 }

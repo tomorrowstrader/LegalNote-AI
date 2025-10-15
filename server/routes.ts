@@ -105,21 +105,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/cases/:id", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const caseData = await storage.getCase(req.params.id);
+      const caseData = await storage.getCase(req.params.id, userId);
       
       if (!caseData) {
         return res.status(404).json({ message: "Case not found" });
-      }
-      
-      // Authorization check: user can only access their own cases
-      if (caseData.createdBy !== userId) {
-        auditLogger.logFromRequest(AuditEventType.ACCESS_CONTROL_VIOLATION, req, {
-          resourceId: req.params.id,
-          resourceType: "case",
-          action: "access",
-          severity: "high",
-        });
-        return res.status(403).json({ message: "Not authorized to access this case" });
       }
       
       // Log case view for audit trail
@@ -140,20 +129,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const caseId = req.params.id;
       
-      const caseData = await storage.getCase(caseId);
+      const caseData = await storage.getCase(caseId, userId);
       if (!caseData) {
         return res.status(404).json({ message: "Case not found" });
-      }
-      
-      // Authorization check: user can only check status of their own cases
-      if (caseData.createdBy !== userId) {
-        auditLogger.logFromRequest(AuditEventType.ACCESS_CONTROL_VIOLATION, req, {
-          resourceId: caseId,
-          resourceType: "case",
-          action: "check_processing_status",
-          severity: "high",
-        });
-        return res.status(403).json({ message: "Not authorized to access this case" });
       }
       
       const metadata = (caseData.aiProcessingMetadata as any) || {};
@@ -192,20 +170,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const validatedData = insertAudioRecordingSchema.parse(req.body);
       
-      const caseData = await storage.getCase(validatedData.caseId);
+      const caseData = await storage.getCase(validatedData.caseId, userId);
       if (!caseData) {
         return res.status(404).json({ message: "Case not found" });
-      }
-      
-      // Authorization check: user can only create audio for their own cases
-      if (caseData.createdBy !== userId) {
-        auditLogger.logFromRequest(AuditEventType.ACCESS_CONTROL_VIOLATION, req, {
-          resourceId: validatedData.caseId,
-          resourceType: "case",
-          action: "create_audio",
-          severity: "high",
-        });
-        return res.status(403).json({ message: "Not authorized to create audio for this case" });
       }
       
       // GDPR Compliance: 7-day retention OR until successful processing (whichever comes first)
@@ -305,8 +272,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: "Audio recording not found" });
         }
 
-        const caseData = await storage.getCase(audioRecording.caseId);
-        if (!caseData || caseData.createdBy !== userId) {
+        const caseData = await storage.getCase(audioRecording.caseId, userId);
+        if (!caseData) {
           return res.status(403).json({ message: "Not authorized" });
         }
 
@@ -393,13 +360,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Audio recording not found" });
       }
 
-      const caseData = await storage.getCase(audioRecording.caseId);
+      const caseData = await storage.getCase(audioRecording.caseId, userId);
       if (!caseData) {
-        return res.status(404).json({ message: "Associated case not found" });
-      }
-      
-      // Authorization check: user can only update audio for their own cases
-      if (caseData.createdBy !== userId) {
         return res.status(403).json({ message: "Not authorized to update this audio" });
       }
       
@@ -473,17 +435,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       
-      const caseData = await storage.getCase(req.params.caseId);
+      const caseData = await storage.getCase(req.params.caseId, userId);
       if (!caseData) {
         return res.status(404).json({ message: "Case not found" });
       }
       
-      // Authorization check: user can only access audio for their own cases
-      if (caseData.createdBy !== userId) {
-        return res.status(403).json({ message: "Not authorized to access this audio" });
-      }
-      
-      const audioRecording = await storage.getAudioRecordingByCase(req.params.caseId);
+      const audioRecording = await storage.getAudioRecordingByCase(req.params.caseId, userId);
       if (!audioRecording) {
         return res.status(404).json({ message: "Audio recording not found" });
       }
@@ -531,13 +488,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         solicitorId: userId, // Ensure solicitorId matches authenticated user
       });
       
-      // Verify user owns the case
-      const caseData = await storage.getCase(validatedData.caseId);
-      if (!caseData || caseData.createdBy !== userId) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      
-      const consentLog = await storage.createConsentLog(validatedData);
+      // Verify user owns the case and create consent log
+      const consentLog = await storage.createConsentLog(validatedData, userId);
       
       auditLogger.logFromRequest(
         validatedData.consentGiven ? AuditEventType.CONSENT_GIVEN : AuditEventType.CONSENT_DECLINED,
@@ -563,13 +515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const caseId = req.params.caseId;
       
-      // Verify user owns the case
-      const caseData = await storage.getCase(caseId);
-      if (!caseData || caseData.createdBy !== userId) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      
-      const consentLogs = await storage.getConsentLogsByCase(caseId);
+      const consentLogs = await storage.getConsentLogsByCase(caseId, userId);
       res.json(consentLogs);
     } catch (error: any) {
       next(error);
@@ -583,19 +529,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const caseId = req.params.id;
       
       // Verify ownership
-      const caseData = await storage.getCase(caseId);
-      if (!caseData || caseData.createdBy !== userId) {
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
         return res.status(403).json({ message: "Not authorized" });
       }
       
       // Get audio recording
-      const audioRecording = await storage.getAudioRecordingByCase(caseId);
+      const audioRecording = await storage.getAudioRecordingByCase(caseId, userId);
       if (!audioRecording || !audioRecording.filePath) {
         return res.status(404).json({ message: "No audio recording found for this case" });
       }
       
       // Check if transcript already exists
-      const existingTranscript = await storage.getTranscriptByCase(caseId);
+      const existingTranscript = await storage.getTranscriptByCase(caseId, userId);
       if (existingTranscript) {
         return res.json({ transcript: existingTranscript, message: "Transcript already exists" });
       }
@@ -616,7 +562,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Update case status
-      await storage.updateCase(caseId, { status: "processing" });
+      await storage.updateCase(caseId, { status: "processing" }, userId);
       
       auditLogger.logFromRequest(AuditEventType.TRANSCRIPT_GENERATED, req, {
         resourceId: transcript.id,
@@ -638,19 +584,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const caseId = req.params.id;
       
       // Verify ownership
-      const caseData = await storage.getCase(caseId);
-      if (!caseData || caseData.createdBy !== userId) {
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
         return res.status(403).json({ message: "Not authorized" });
       }
       
       // Get transcript
-      const transcript = await storage.getTranscriptByCase(caseId);
+      const transcript = await storage.getTranscriptByCase(caseId, userId);
       if (!transcript) {
         return res.status(404).json({ message: "No transcript found. Please transcribe the audio first." });
       }
       
       // Check if documents already exist
-      const existingDocs = await storage.getActiveDocumentsByCase(caseId);
+      const existingDocs = await storage.getActiveDocumentsByCase(caseId, userId);
       if (existingDocs.length > 0) {
         return res.json({ documents: existingDocs, message: "Documents already exist" });
       }
@@ -688,7 +634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Update case status
-      await storage.updateCase(caseId, { status: "completed" });
+      await storage.updateCase(caseId, { status: "completed" }, userId);
       
       auditLogger.logFromRequest(AuditEventType.DOCUMENT_GENERATED, req, {
         resourceId: attendanceNote.id,
@@ -715,13 +661,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const caseId = req.params.id;
       
       // Verify ownership
-      const caseData = await storage.getCase(caseId);
-      if (!caseData || caseData.createdBy !== userId) {
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
         return res.status(403).json({ message: "Not authorized" });
       }
       
       // GDPR Compliance: Verify valid consent exists before processing
-      const consentLogs = await storage.getConsentLogsByCase(caseId);
+      const consentLogs = await storage.getConsentLogsByCase(caseId, userId);
       const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
       
       if (!hasValidConsent) {
@@ -737,7 +683,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if audio recording exists and has file path
-      const audioRecording = await storage.getAudioRecordingByCase(caseId);
+      const audioRecording = await storage.getAudioRecordingByCase(caseId, userId);
       if (!audioRecording || !audioRecording.filePath) {
         return res.status(404).json({ message: "No audio recording found for this case" });
       }
@@ -756,7 +702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           progress: 0,
           currentStep: 'Queued for processing...',
         }
-      });
+      }, userId);
       
       // Queue AI processing job
       const { jobQueue } = await import('./services/jobQueue');
@@ -779,13 +725,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Case processing error:', error);
       // Update case status and metadata to indicate failure
       try {
-        await storage.updateCase(req.params.id, { 
-          status: "pending",
-          aiProcessingMetadata: {
-            status: 'failed',
-            error: error.message,
-          }
-        });
+        const userId = (req as any).user?.claims?.sub;
+        if (userId) {
+          await storage.updateCase(req.params.id, { 
+            status: "pending",
+            aiProcessingMetadata: {
+              status: 'failed',
+              error: error.message,
+            }
+          }, userId);
+        }
       } catch (e) {}
       next(error);
     }
@@ -798,8 +747,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const caseId = req.params.id;
       
       // Verify ownership
-      const caseData = await storage.getCase(caseId);
-      if (!caseData || caseData.createdBy !== userId) {
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
         return res.status(403).json({ message: "Not authorized" });
       }
       
@@ -810,7 +759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // GDPR Compliance: Verify valid consent exists
-      const consentLogs = await storage.getConsentLogsByCase(caseId);
+      const consentLogs = await storage.getConsentLogsByCase(caseId, userId);
       const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
       
       if (!hasValidConsent) {
@@ -820,7 +769,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if audio recording exists
-      const audioRecording = await storage.getAudioRecordingByCase(caseId);
+      const audioRecording = await storage.getAudioRecordingByCase(caseId, userId);
       if (!audioRecording || !audioRecording.filePath) {
         return res.status(404).json({ message: "No audio recording found" });
       }
@@ -834,7 +783,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           currentStep: 'Retrying processing...',
           error: undefined, // Clear previous error
         }
-      });
+      }, userId);
       
       // Queue AI processing job
       const { jobQueue } = await import('./services/jobQueue');
@@ -866,12 +815,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const caseId = req.params.id;
       
       // Verify ownership
-      const caseData = await storage.getCase(caseId);
-      if (!caseData || caseData.createdBy !== userId) {
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
         return res.status(403).json({ message: "Not authorized" });
       }
       
-      const transcript = await storage.getTranscriptByCase(caseId);
+      const transcript = await storage.getTranscriptByCase(caseId, userId);
       if (!transcript) {
         return res.status(404).json({ message: "No transcript found" });
       }
@@ -889,12 +838,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const caseId = req.params.id;
       
       // Verify ownership
-      const caseData = await storage.getCase(caseId);
-      if (!caseData || caseData.createdBy !== userId) {
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
         return res.status(403).json({ message: "Not authorized" });
       }
       
-      const documents = await storage.getActiveDocumentsByCase(caseId);
+      const documents = await storage.getActiveDocumentsByCase(caseId, userId);
       res.json(documents);
     } catch (error: any) {
       next(error);
@@ -923,7 +872,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const audioRecordings = await storage.getCases(userId).then(async cases => {
         const recordings = [];
         for (const c of cases) {
-          const rec = await storage.getAudioRecordingByCase(c.id);
+          const rec = await storage.getAudioRecordingByCase(c.id, userId);
           if (rec && rec.filePath === objectPath) {
             recordings.push(rec);
           }
