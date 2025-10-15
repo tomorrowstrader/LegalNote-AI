@@ -8,9 +8,15 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, Activity } from "lucide-react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function MyProfile() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
+  
+  const displayName = user?.firstName && user?.lastName 
+    ? `${user.firstName} ${user.lastName}` 
+    : user?.email?.split('@')[0] || '';
 
   return (
     <div className="min-h-screen bg-background">
@@ -47,11 +53,11 @@ export default function MyProfile() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="display-name">Display Name</Label>
-                <Input id="display-name" defaultValue="John Smith" data-testid="input-display-name" />
+                <Input id="display-name" defaultValue={displayName} data-testid="input-display-name" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" defaultValue="j.smith@lawfirm.co.uk" disabled data-testid="input-email" />
+                <Input id="email" type="email" defaultValue={user?.email || ''} disabled data-testid="input-email" />
                 <p className="text-xs text-muted-foreground">Contact your administrator to change your email</p>
               </div>
               <Button className="bg-accent hover:bg-accent" data-testid="button-save-profile">Save Changes</Button>

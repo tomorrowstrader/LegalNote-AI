@@ -14,6 +14,7 @@ export default function Dashboard() {
 
   const { data: cases, isLoading } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
+    refetchInterval: 5000, // Poll every 5 seconds to show processing status updates
   });
 
   // Separate priority cases from regular cases
