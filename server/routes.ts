@@ -109,6 +109,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/cases/:id/processing-status", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      const caseData = await storage.getCase(caseId);
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      
+      // Authorization check: user can only check status of their own cases
+      if (caseData.createdBy !== userId) {
+        auditLogger.logFromRequest(AuditEventType.ACCESS_CONTROL_VIOLATION, req, {
+          resourceId: caseId,
+          resourceType: "case",
+          action: "check_processing_status",
+          severity: "high",
+        });
+        return res.status(403).json({ message: "Not authorized to access this case" });
+      }
+      
+      const metadata = (caseData.aiProcessingMetadata as any) || {};
+      
+      res.json({
+        status: caseData.status,
+        processingMetadata: {
+          status: metadata.status || 'not_started',
+          progress: metadata.progress || 0,
+          currentStep: metadata.currentStep || '',
+          totalCost: metadata.totalCost || 0,
+          totalTokens: metadata.totalTokens || 0,
+          error: metadata.error,
+          completedAt: metadata.completedAt,
+        }
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Protected Audio routes
   app.post("/api/audio/upload-url", isAuthenticated, presignedUrlLimiter, async (req, res, next) => {
     try {
@@ -639,7 +679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // All-in-one processing: transcribe + generate documents
+  // All-in-one processing: transcribe + generate documents using background jobs
   app.post("/api/cases/:id/process", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
@@ -667,92 +707,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Update case status to processing
-      await storage.updateCase(caseId, { status: "processing" });
+      // Check if audio recording exists and has file path
+      const audioRecording = await storage.getAudioRecordingByCase(caseId);
+      if (!audioRecording || !audioRecording.filePath) {
+        return res.status(404).json({ message: "No audio recording found for this case" });
+      }
       
-      // Step 1: Transcribe (if not already done)
-      let transcript = await storage.getTranscriptByCase(caseId);
-      if (!transcript) {
-        const audioRecording = await storage.getAudioRecordingByCase(caseId);
-        if (!audioRecording || !audioRecording.filePath) {
-          return res.status(404).json({ message: "No audio recording found for this case" });
+      // Prevent duplicate processing - check both case status and metadata
+      const metadata = (caseData.aiProcessingMetadata as any) || {};
+      if (caseData.status === 'processing' || metadata.status === 'processing') {
+        return res.status(400).json({ message: "Case is already being processed" });
+      }
+      
+      // Initialize processing metadata and update status
+      await storage.updateCase(caseId, { 
+        status: "processing",
+        aiProcessingMetadata: {
+          status: 'processing',
+          progress: 0,
+          currentStep: 'Queued for processing...',
         }
-        
-        const objectStorageService = new ObjectStorageService();
-        const objectFile = await objectStorageService.getObjectEntityFile(audioRecording.filePath);
-        const audioBuffer = await objectFile.download().then(([buffer]) => buffer);
-        
-        console.log(`Transcribing audio for case ${caseId}`);
-        const transcriptionResult = await openaiService.transcribeAudio(audioBuffer);
-        
-        transcript = await storage.createTranscript({
-          caseId,
-          content: transcriptionResult.text,
-        });
-        
-        auditLogger.logFromRequest(AuditEventType.TRANSCRIPT_GENERATED, req, {
-          resourceId: transcript.id,
-          resourceType: "transcript",
-          action: "generate",
-          severity: "low",
-        });
-      }
+      });
       
-      // Step 2: Generate documents (if not already done)
-      let documents = await storage.getActiveDocumentsByCase(caseId);
-      if (documents.length === 0) {
-        console.log(`Generating documents for case ${caseId}`);
-        const docResult = await openaiService.generateDocuments(transcript.content, {
-          title: caseData.title,
-          clientName: caseData.clientName,
-          matterReference: caseData.matterReference || undefined,
-        });
-        
-        const attendanceNote = await storage.createDocument({
-          caseId,
-          transcriptSnapshotId: transcript.id,
-          type: "attendance_note",
-          content: docResult.attendanceNote,
-          version: 1,
-          versionType: "ai_generated",
-          createdBy: userId,
-          isActive: true,
-        });
-        
-        const legalOpinion = await storage.createDocument({
-          caseId,
-          transcriptSnapshotId: transcript.id,
-          type: "legal_opinion",
-          content: docResult.legalOpinion,
-          version: 1,
-          versionType: "ai_generated",
-          createdBy: userId,
-          isActive: true,
-        });
-        
-        documents = [attendanceNote, legalOpinion];
-        
-        auditLogger.logFromRequest(AuditEventType.DOCUMENT_GENERATED, req, {
-          resourceId: attendanceNote.id,
-          resourceType: "document",
-          action: "generate",
-          severity: "low",
-        });
-      }
+      // Queue AI processing job
+      const { jobQueue } = await import('./services/jobQueue');
+      const jobId = await jobQueue.addJob('ai-processing', { caseId, userId });
       
-      // Update case status to completed
-      await storage.updateCase(caseId, { status: "completed" });
+      auditLogger.logFromRequest(AuditEventType.AI_PROCESSING_STARTED, req, {
+        resourceId: caseId,
+        resourceType: "case",
+        action: "queue_processing",
+        severity: "medium",
+        additionalInfo: { jobId },
+      });
       
       res.json({ 
-        transcript,
-        documents,
-        message: "Case processed successfully" 
+        message: "AI processing started", 
+        jobId,
+        status: 'processing'
       });
     } catch (error: any) {
       console.error('Case processing error:', error);
-      // Update case status to indicate failure
+      // Update case status and metadata to indicate failure
       try {
-        await storage.updateCase(req.params.id, { status: "pending" });
+        await storage.updateCase(req.params.id, { 
+          status: "pending",
+          aiProcessingMetadata: {
+            status: 'failed',
+            error: error.message,
+          }
+        });
       } catch (e) {}
       next(error);
     }
