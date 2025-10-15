@@ -1,7 +1,9 @@
-import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import DocumentViewer from "@/components/DocumentViewer";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { AuditTrail } from "@/components/AuditTrail";
@@ -10,6 +12,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useEffect } from "react";
 
 interface CaseWithDocuments {
   id: string;
@@ -47,6 +50,19 @@ interface ConsentLog {
   consentModality: string;
 }
 
+interface ProcessingStatus {
+  status: string;
+  processingMetadata: {
+    status: string;
+    progress: number;
+    currentStep: string;
+    totalCost: number;
+    totalTokens: number;
+    error?: string;
+    completedAt?: string;
+  };
+}
+
 export default function CaseDetail() {
   const [, setLocation] = useLocation();
   const params = useParams();
@@ -67,6 +83,21 @@ export default function CaseDetail() {
     queryKey: [`/api/consent/by-case/${caseId}`],
     enabled: !!caseId && caseData?.sourceType === 'audio',
   });
+
+  // Poll processing status when case is being processed
+  const { data: processingStatus } = useQuery<ProcessingStatus>({
+    queryKey: [`/api/cases/${caseId}/processing-status`],
+    enabled: !!caseId && caseData?.status === 'processing',
+    refetchInterval: 2000, // Poll every 2 seconds
+  });
+
+  // Refresh case data when processing completes (any terminal status)
+  useEffect(() => {
+    const terminalStatuses = ['review_required', 'completed', 'pending', 'failed'];
+    if (processingStatus?.status && terminalStatuses.includes(processingStatus.status) && caseData?.status === 'processing') {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+    }
+  }, [processingStatus?.status, caseData?.status, caseId]);
 
   // Check if there's a valid consent log (consentGiven === true)
   const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
@@ -217,14 +248,52 @@ export default function CaseDetail() {
         )}
 
         {caseData.status === 'processing' && (
-          <div className="mb-8 p-6 bg-card rounded-lg border border-border flex items-center gap-4">
-            <Loader2 className="w-6 h-6 animate-spin text-accent" />
-            <div className="flex-1">
-              <h3 className="font-semibold text-foreground mb-1">AI Processing in Progress</h3>
-              <p className="text-sm text-muted-foreground">
-                Transcribing audio and generating legal documents. This may take a few minutes...
-              </p>
+          <div className="mb-8 p-6 bg-card rounded-lg border-2 border-accent shadow-lg" data-testid="processing-status-card">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="p-2 bg-accent/20 rounded-lg">
+                <Bot className="w-6 h-6 text-accent" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="font-semibold text-foreground">AI Processing in Progress</h3>
+                  {(!processingStatus || processingStatus.processingMetadata?.status === 'processing') && (
+                    <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mb-3" data-testid="text-current-step">
+                  {processingStatus?.processingMetadata?.currentStep || 'Preparing...'}
+                </p>
+                
+                {processingStatus?.processingMetadata && (
+                  <>
+                    <Progress 
+                      value={processingStatus.processingMetadata.progress || 0} 
+                      className="h-2 mb-3"
+                      data-testid="progress-bar"
+                    />
+                    
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground" data-testid="text-progress-percentage">
+                        {processingStatus.processingMetadata.progress || 0}% complete
+                      </span>
+                      {processingStatus.processingMetadata.totalCost > 0 && (
+                        <span className="text-muted-foreground" data-testid="text-processing-cost">
+                          Cost: ${processingStatus.processingMetadata.totalCost.toFixed(4)}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
+            
+            {processingStatus?.processingMetadata?.error && (
+              <Alert variant="destructive" className="mt-4" data-testid="alert-processing-error">
+                <AlertDescription>
+                  {processingStatus.processingMetadata.error}
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
         )}
 
