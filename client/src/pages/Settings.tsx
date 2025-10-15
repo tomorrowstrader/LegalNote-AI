@@ -157,22 +157,23 @@ export default function Settings() {
                   {loadingTeam ? (
                     <div className="text-center py-4 text-muted-foreground">Loading usage data...</div>
                   ) : teamMembers && teamMembers.length > 0 ? (
-                    teamMembers.map((member, index) => {
+                    teamMembers.map((member) => {
                       const displayName = member.firstName && member.lastName 
                         ? `${member.firstName} ${member.lastName}` 
                         : member.email?.split('@')[0] || 'User';
                       const successRate = member.totalCases > 0 
                         ? Math.round((member.successfulCases / member.totalCases) * 100) 
                         : 0;
+                      const totalCosts = member.totalCosts || 0;
                       
                       return (
-                        <div key={member.id} className="space-y-3 p-4 border rounded-md" data-testid={`usage-member-${index}`}>
+                        <div key={member.id} className="space-y-3 p-4 border rounded-md" data-testid={`usage-member-${member.id}`}>
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium">{displayName}</p>
                               <p className="text-sm text-muted-foreground">{member.email}</p>
                             </div>
-                            {member.totalCosts > 1.0 && (
+                            {totalCosts > 1.0 && (
                               <Badge className="bg-amber-500">High Usage</Badge>
                             )}
                           </div>
@@ -187,7 +188,7 @@ export default function Settings() {
                             </div>
                             <div>
                               <p className="text-muted-foreground">API Costs</p>
-                              <p className="font-medium">£{member.totalCosts.toFixed(2)}</p>
+                              <p className="font-medium">£{totalCosts.toFixed(2)}</p>
                             </div>
                           </div>
                           <Progress 
