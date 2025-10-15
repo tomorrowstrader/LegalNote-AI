@@ -22,6 +22,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ShareLinkModalProps {
   open: boolean;
@@ -49,6 +50,7 @@ export default function ShareLinkModal({
   const [isSending, setIsSending] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const canShareExternal = userRole === "Partner" || userRole === "Senior Associate";
 
@@ -77,14 +79,18 @@ export default function ShareLinkModal({
   }, [countdown]);
 
   const logAuditTrail = () => {
+    const userName = user?.firstName && user?.lastName 
+      ? `${user.firstName} ${user.lastName}` 
+      : user?.email?.split('@')[0] || 'Unknown User';
+    
     const auditLog = {
       timestamp: new Date().toISOString(),
       action: "share_link",
       caseId,
       caseTitle,
       sharedBy: {
-        name: "John Smith", // Would come from auth context
-        email: "j.smith@lawfirm.co.uk",
+        name: userName,
+        email: user?.email || '',
         role: userRole,
       },
       recipient: {
