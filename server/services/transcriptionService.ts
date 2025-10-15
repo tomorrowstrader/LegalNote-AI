@@ -96,20 +96,25 @@ export class TranscriptionService {
 
   /**
    * Convert buffer to File-like object for OpenAI API
+   * OpenAI SDK expects a Blob-like object with specific properties
    */
   private bufferToFile(buffer: Buffer, filename: string, contentType: string): any {
-    // Create a File-like object that OpenAI SDK accepts
-    return {
-      name: filename,
-      type: contentType,
-      size: buffer.length,
-      arrayBuffer: async () => buffer.buffer.slice(
-        buffer.byteOffset,
-        buffer.byteOffset + buffer.byteLength
-      ),
-      slice: (start?: number, end?: number) => buffer.slice(start, end),
-      stream: () => Readable.from(buffer),
-      text: async () => buffer.toString(),
-    };
+    // Convert Buffer to ArrayBuffer for proper serialization
+    const arrayBuffer = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength
+    );
+    
+    // Create a proper Blob-like object that OpenAI SDK accepts
+    const blob = new Blob([buffer], { type: contentType });
+    
+    // Add name property for filename (required by OpenAI)
+    Object.defineProperty(blob, 'name', {
+      value: filename,
+      writable: false,
+      enumerable: true,
+    });
+    
+    return blob;
   }
 }
