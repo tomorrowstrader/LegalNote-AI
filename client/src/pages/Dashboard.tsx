@@ -8,9 +8,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Case } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
 
   const { data: cases, isLoading } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
@@ -41,16 +43,21 @@ export default function Dashboard() {
     : 0;
 
   // Transform Case data to CaseCard props format
-  const transformCase = (caseItem: Case) => ({
-    id: caseItem.id,
-    title: caseItem.title,
-    clientName: caseItem.clientName,
-    meetingDate: format(new Date(caseItem.createdAt), "d MMMM yyyy"),
-    status: caseItem.status as "pending" | "processing" | "completed",
-    createdBy: "Solicitor", // TODO: Get from user relationship
-    priority: caseItem.priority as "urgent" | "deadline-soon" | "normal",
-    // TODO: Calculate audio expiry from audioRecordings table
-  });
+  const transformCase = (caseItem: Case) => {
+    const creatorName = user?.firstName && user?.lastName 
+      ? `${user.firstName} ${user.lastName}` 
+      : user?.email?.split('@')[0] || 'You';
+    
+    return {
+      id: caseItem.id,
+      title: caseItem.title,
+      clientName: caseItem.clientName,
+      meetingDate: format(new Date(caseItem.createdAt), "d MMMM yyyy"),
+      status: caseItem.status as "pending" | "processing" | "completed",
+      createdBy: creatorName,
+      priority: caseItem.priority as "urgent" | "deadline-soon" | "normal",
+    };
+  };
 
   if (isLoading) {
     return (
