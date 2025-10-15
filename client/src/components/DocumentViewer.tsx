@@ -100,8 +100,8 @@ export default function DocumentViewer({
             Summary
           </TabsTrigger>
           <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
-            <span className="hidden sm:inline">Attendance</span>
-            <span className="sm:hidden">Attend</span>
+            <span className="hidden sm:inline">Attendance Note</span>
+            <span className="sm:hidden">Att. Note</span>
           </TabsTrigger>
           <TabsTrigger value="opinion" data-testid="tab-opinion" disabled={!legalOpinion} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
             <span className="hidden sm:inline">Legal Opinion</span>
