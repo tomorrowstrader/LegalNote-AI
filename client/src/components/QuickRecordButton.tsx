@@ -43,6 +43,30 @@ interface AudioResponse {
   expiresAt: string;
 }
 
+// Detect supported audio MIME type for cross-browser compatibility
+const getSupportedMimeType = (): { mimeType: string; extension: string } => {
+  // Guard: Check if MediaRecorder exists in this browser
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+    return { mimeType: 'audio/webm', extension: '.webm' };
+  }
+  
+  const types = [
+    { mimeType: 'audio/webm', extension: '.webm' },
+    { mimeType: 'audio/mp4', extension: '.mp4' },
+    { mimeType: 'audio/ogg', extension: '.ogg' },
+    { mimeType: 'audio/wav', extension: '.wav' }
+  ];
+  
+  for (const type of types) {
+    if (MediaRecorder.isTypeSupported(type.mimeType)) {
+      return type;
+    }
+  }
+  
+  // Fallback to webm (most widely supported)
+  return { mimeType: 'audio/webm', extension: '.webm' };
+};
+
 export default function QuickRecordButton() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -62,6 +86,7 @@ export default function QuickRecordButton() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioBlobRef = useRef<Blob | null>(null);
+  const audioFormatRef = useRef(getSupportedMimeType());
 
   const createCaseMutation = useMutation<CaseResponse, Error, any>({
     mutationFn: async (caseData: any) => {
@@ -119,7 +144,8 @@ export default function QuickRecordButton() {
   const startActualRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const { mimeType } = audioFormatRef.current;
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
       
@@ -130,7 +156,7 @@ export default function QuickRecordButton() {
       };
       
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         audioBlobRef.current = audioBlob;
         stream.getTracks().forEach(track => track.stop());
       };
@@ -283,7 +309,8 @@ export default function QuickRecordButton() {
       if (audioBlobRef.current) {
         try {
           const formData = new FormData();
-          formData.append('audioFile', audioBlobRef.current, 'recording.webm');
+          const { extension } = audioFormatRef.current;
+          formData.append('audioFile', audioBlobRef.current, `recording${extension}`);
           formData.append('duration', recordingDuration.toString());
           
           const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
@@ -524,15 +551,15 @@ export default function QuickRecordButton() {
             variant="ghost"
             size="sm"
             onClick={handleStopClick}
-            className={`gap-1 h-7 px-2 ${
+            className={`gap-1 min-h-[44px] px-3 ${
               stopConfirmationPending 
                 ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30 animate-pulse' 
                 : 'text-primary-foreground'
             }`}
             data-testid="button-stop-quick-record"
           >
-            <Square className="w-3 h-3" />
-            <span className="hidden sm:inline">
+            <Square className="w-4 h-4" />
+            <span className="text-xs sm:text-sm whitespace-nowrap">
               {stopConfirmationPending ? 'Confirm Stop?' : 'Stop'}
             </span>
           </Button>
