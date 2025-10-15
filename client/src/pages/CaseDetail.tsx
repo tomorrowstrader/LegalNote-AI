@@ -266,7 +266,7 @@ export default function CaseDetail() {
           </div>
         </div>
 
-        {caseData.sourceType === 'audio' && !hasValidConsent && (
+        {caseData.sourceType === 'audio' && !consentLoading && !hasValidConsent && (
           <div className="mb-8 p-6 bg-destructive/10 border-2 border-destructive rounded-lg">
             <div className="flex items-start gap-4">
               <Shield className="w-6 h-6 text-destructive flex-shrink-0 mt-1" />
