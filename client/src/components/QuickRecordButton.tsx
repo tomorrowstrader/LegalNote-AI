@@ -233,11 +233,12 @@ export default function QuickRecordButton() {
   }, []);
 
   const handleStopClick = () => {
+    console.log('Stop button clicked - opening confirmation dialog');
     setShowStopConfirmation(true);
   };
 
   const confirmStopRecording = () => {
-    console.log('Quick recording stopped');
+    console.log('Confirm stop recording - user confirmed');
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -247,6 +248,7 @@ export default function QuickRecordButton() {
   };
 
   const cancelStopRecording = () => {
+    console.log('Cancel stop recording - user wants to continue recording');
     setShowStopConfirmation(false);
   };
 
