@@ -84,6 +84,23 @@ export default function CaseDetail() {
     enabled: !!caseId && caseData?.sourceType === 'audio',
   });
 
+  const { data: transcript } = useQuery<{ id: string; caseId: string; content: string; createdAt: string }>({
+    queryKey: [`/api/cases/${caseId}/transcript`],
+    enabled: !!caseId && (caseData?.status === 'review_required' || caseData?.status === 'completed'),
+  });
+
+  const { data: documents = [] } = useQuery<Array<{
+    id: string;
+    caseId: string;
+    type: 'attendance_note' | 'summary' | 'legal_opinion';
+    content: string;
+    version: number;
+    createdAt: string;
+  }>>({
+    queryKey: [`/api/cases/${caseId}/documents`],
+    enabled: !!caseId && (caseData?.status === 'review_required' || caseData?.status === 'completed'),
+  });
+
   // Poll processing status when case is being processed
   const { data: processingStatus } = useQuery<ProcessingStatus>({
     queryKey: [`/api/cases/${caseId}/processing-status`],
@@ -333,12 +350,10 @@ export default function CaseDetail() {
         )}
 
         <DocumentViewer
-          attendanceNote={caseData.attendanceNote || ""}
-          keyIssues={caseData.keyIssues || []}
-          nextSteps={caseData.nextSteps || []}
-          legalOpinion={caseData.legalOpinion || ""}
-          transcript={caseData.transcript}
+          documents={documents}
+          transcript={transcript?.content}
           textNotes={caseData.textNotes}
+          status={caseData.status}
         />
 
         <div className="mt-8">
