@@ -41,7 +41,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/auth/user', isAuthenticated, authLimiter, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      let user = await storage.getUser(userId);
+      
+      // If user not found in storage, upsert from claims (handles edge cases)
+      if (!user) {
+        user = await storage.upsertUser({
+          id: req.user.claims.sub,
+          email: req.user.claims.email,
+          firstName: req.user.claims.first_name,
+          lastName: req.user.claims.last_name,
+          profileImageUrl: req.user.claims.profile_image_url,
+        });
+      }
       
       // Add admin flag to user object (MVP: configurable via env)
       const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
