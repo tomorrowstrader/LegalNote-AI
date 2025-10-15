@@ -167,22 +167,13 @@ export default function QuickRecordButton() {
     return () => clearInterval(interval);
   }, [isRecording]);
 
-  useEffect(() => {
-    console.log('stopConfirmationPending changed to:', stopConfirmationPending);
-  }, [stopConfirmationPending]);
-
-  useEffect(() => {
-    console.log('showConsentModal changed to:', showConsentModal);
-  }, [showConsentModal]);
-
-  // Auto-reset stop confirmation after 3 seconds
+  // Auto-reset stop confirmation after 5 seconds
   useEffect(() => {
     if (!stopConfirmationPending) return;
 
     const resetTimer = setTimeout(() => {
-      console.log('Stop confirmation auto-reset after 3 seconds');
       setStopConfirmationPending(false);
-    }, 3000);
+    }, 5000);
 
     return () => clearTimeout(resetTimer);
   }, [stopConfirmationPending]);
@@ -196,7 +187,6 @@ export default function QuickRecordButton() {
   };
 
   const handleConsentGiven = async () => {
-    console.log('Client consent given - recording continues');
     setConsentGiven(true);
     
     // Close ConsentModal BEFORE any audit logging
@@ -214,7 +204,6 @@ export default function QuickRecordButton() {
   };
 
   const handleConsentDeclined = async () => {
-    console.log('Client consent declined - stopping recording');
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -247,11 +236,9 @@ export default function QuickRecordButton() {
   const handleStopClick = () => {
     if (!stopConfirmationPending) {
       // First click - show confirmation state
-      console.log('Stop button clicked - showing confirmation state');
       setStopConfirmationPending(true);
     } else {
       // Second click - actually stop recording
-      console.log('Stop confirmed - stopping recording');
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
       }
@@ -262,7 +249,6 @@ export default function QuickRecordButton() {
   };
 
   const saveCase = async () => {
-    console.log('Saving case:', { caseTitle, clientName, matterRef });
     
     if (!user?.id) {
       toast({
@@ -296,8 +282,6 @@ export default function QuickRecordButton() {
       // Step 3: Upload audio file
       if (audioBlobRef.current) {
         try {
-          console.log('Uploading audio file via multipart...');
-          
           const formData = new FormData();
           formData.append('audioFile', audioBlobRef.current, 'recording.webm');
           formData.append('duration', recordingDuration.toString());
@@ -312,8 +296,6 @@ export default function QuickRecordButton() {
             const error = await response.json();
             throw new Error(error.message || 'Upload failed');
           }
-          
-          console.log('Audio upload completed successfully');
         } catch (uploadError: any) {
           console.error('Audio upload failed:', uploadError);
           uploadFailed = true;
@@ -331,12 +313,9 @@ export default function QuickRecordButton() {
             consentModality: "verbal_recorded" as const,
             disclaimerScriptVersion: "v1.0",
           };
-          console.log('Saving consent log to backend...', consentPayload);
           await apiRequest("POST", "/api/consent", consentPayload);
-          console.log('Consent log saved successfully');
         } catch (consentError: any) {
           console.error('Consent log failed:', consentError);
-          console.error('Consent error details:', consentError?.message || consentError);
           consentLogFailed = true;
           // Don't throw - allow processing to continue but mark as failed
         }
@@ -344,16 +323,10 @@ export default function QuickRecordButton() {
       
       // Step 5: Trigger AI processing (transcription + document generation)
       // Critical: Only trigger if consent was successfully logged (GDPR requirement)
-      if (consentLogFailed) {
-        console.log('Skipping AI processing: consent log failed (GDPR requirement)');
-        // AI processing will not be triggered - user must retry from case detail page
-      } else {
-        console.log('Triggering AI processing...');
-        
+      if (!consentLogFailed) {
         // Trigger processing asynchronously (don't wait for completion)
         apiRequest("POST", `/api/cases/${caseResult.id}/process`, {})
           .then(() => {
-            console.log('AI processing completed successfully');
             queryClient.invalidateQueries({ 
               predicate: (query) => {
                 const key = query.queryKey[0] as string;
@@ -486,8 +459,6 @@ export default function QuickRecordButton() {
   };
 
   const saveTextNotes = (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
-    console.log('Saving text-based case:', data);
-    
     if (!user?.id) {
       toast({
         title: "Authentication required",
@@ -520,7 +491,7 @@ export default function QuickRecordButton() {
     return (
       <div className="flex items-center gap-1 sm:gap-2">
         <div className="flex items-center gap-1 sm:gap-2 bg-destructive/20 rounded-full px-2 sm:px-3 py-1 animate-pulse">
-          <span className="text-xs sm:text-sm font-semibold text-destructive whitespace-nowrap" data-testid="text-countdown">
+          <span className="text-xs sm:text-sm font-semibold text-red-400 dark:text-red-300 whitespace-nowrap" data-testid="text-countdown">
             <span className="hidden sm:inline">Recording in </span>{countdown}...
           </span>
         </div>
