@@ -1027,7 +1027,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin usage statistics endpoint
+  // Admin middleware
+  const isAdmin = (req: any, res: Response, next: NextFunction) => {
+    const userId = req.user?.claims?.sub;
+    const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+    
+    if (userId !== ADMIN_USER_ID) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    next();
+  };
+
+  // Admin statistics endpoints
+  app.get("/api/admin/statistics", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const stats = await storage.getAdminStatistics();
+      res.json(stats);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/admin/users", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const userStats = await storage.getUserStatistics();
+      res.json(userStats);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin usage statistics endpoint (deprecated - use /api/admin/statistics instead)
   app.get("/api/admin/usage-stats", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
@@ -1102,7 +1132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: caseData.id,
             title: caseData.title,
             cost,
-            createdAt: caseData.createdAt,
+            createdAt: caseData.createdAt.toISOString(),
             userId: caseData.createdBy,
           });
         }

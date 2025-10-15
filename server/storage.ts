@@ -14,6 +14,35 @@ export type ServerAudioRecordingInsert = InsertAudioRecording & {
   expiresAt: Date;
 };
 
+export interface AdminStatistics {
+  totalCases: number;
+  totalUsers: number;
+  totalTranscriptions: number;
+  totalDocumentsGenerated: number;
+  totalCostsUSD: number;
+  transcriptionCostsUSD: number;
+  documentGenerationCostsUSD: number;
+  successfulProcessing: number;
+  failedProcessing: number;
+  successRate: number;
+  averageProcessingTimeMinutes: number;
+  casesLast30Days: number;
+  casesLast7Days: number;
+}
+
+export interface UserStatistics {
+  userId: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  totalCases: number;
+  successfulCases: number;
+  failedCases: number;
+  totalCostsUSD: number;
+  lastActivity: Date | null;
+  joinedDate: Date;
+}
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -54,6 +83,12 @@ export interface IStorage {
     limit?: number;
   }): Promise<AuditTrail[]>;
   getAuditLogsByCase(caseId: string, limit?: number): Promise<AuditTrail[]>;
+  
+  // Admin methods
+  getAllUsers(): Promise<User[]>;
+  getAllCases(): Promise<Case[]>;
+  getAdminStatistics(): Promise<AdminStatistics>;
+  getUserStatistics(): Promise<UserStatistics[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -333,6 +368,123 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...updates };
     this.documents.set(id, updated);
     return updated;
+  }
+
+  // Admin methods
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values())
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+  }
+
+  async getAllCases(): Promise<Case[]> {
+    return Array.from(this.cases.values())
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getAdminStatistics(): Promise<AdminStatistics> {
+    const allCases = Array.from(this.cases.values());
+    const allTranscripts = Array.from(this.transcripts.values());
+    const allDocuments = Array.from(this.documents.values());
+    const allUsers = Array.from(this.users.values());
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Calculate costs from aiProcessingMetadata
+    let totalTranscriptionCosts = 0;
+    let totalDocumentCosts = 0;
+    let successfulProcessing = 0;
+    let failedProcessing = 0;
+    let totalProcessingTimeMinutes = 0;
+    let processedCasesWithTime = 0;
+
+    allCases.forEach(c => {
+      const metadata = c.aiProcessingMetadata as any || {};
+      
+      if (metadata.transcriptionCost) {
+        totalTranscriptionCosts += metadata.transcriptionCost;
+      }
+      if (metadata.documentGenerationCost) {
+        totalDocumentCosts += metadata.documentGenerationCost;
+      }
+
+      if (c.status === 'completed' || c.status === 'review_required') {
+        successfulProcessing++;
+      } else if (metadata.error || metadata.retryCount > 0) {
+        failedProcessing++;
+      }
+
+      // Calculate average processing time
+      if (metadata.processingStartTime && metadata.processingEndTime) {
+        const startTime = new Date(metadata.processingStartTime).getTime();
+        const endTime = new Date(metadata.processingEndTime).getTime();
+        totalProcessingTimeMinutes += (endTime - startTime) / (1000 * 60);
+        processedCasesWithTime++;
+      }
+    });
+
+    return {
+      totalCases: allCases.length,
+      totalUsers: allUsers.length,
+      totalTranscriptions: allTranscripts.length,
+      totalDocumentsGenerated: allDocuments.length,
+      totalCostsUSD: totalTranscriptionCosts + totalDocumentCosts,
+      transcriptionCostsUSD: totalTranscriptionCosts,
+      documentGenerationCostsUSD: totalDocumentCosts,
+      successfulProcessing,
+      failedProcessing,
+      successRate: allCases.length > 0 ? (successfulProcessing / allCases.length) * 100 : 0,
+      averageProcessingTimeMinutes: processedCasesWithTime > 0 ? totalProcessingTimeMinutes / processedCasesWithTime : 0,
+      casesLast30Days: allCases.filter(c => c.createdAt >= thirtyDaysAgo).length,
+      casesLast7Days: allCases.filter(c => c.createdAt >= sevenDaysAgo).length,
+    };
+  }
+
+  async getUserStatistics(): Promise<UserStatistics[]> {
+    const allCases = Array.from(this.cases.values());
+    const allUsers = Array.from(this.users.values());
+    const allAuditLogs = Array.from(this.auditLogs.values());
+
+    return allUsers.map(user => {
+      const userCases = allCases.filter(c => c.createdBy === user.id);
+      const successfulCases = userCases.filter(c => c.status === 'completed' || c.status === 'review_required');
+      const failedCases = userCases.filter(c => {
+        const metadata = c.aiProcessingMetadata as any || {};
+        return metadata.error || metadata.retryCount > 0;
+      });
+
+      // Calculate total costs for this user
+      let totalCosts = 0;
+      userCases.forEach(c => {
+        const metadata = c.aiProcessingMetadata as any || {};
+        if (metadata.transcriptionCost) {
+          totalCosts += metadata.transcriptionCost;
+        }
+        if (metadata.documentGenerationCost) {
+          totalCosts += metadata.documentGenerationCost;
+        }
+      });
+
+      // Find last activity from audit logs
+      const userAuditLogs = allAuditLogs
+        .filter(log => log.userId === user.id)
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      const lastActivity = userAuditLogs.length > 0 ? userAuditLogs[0].timestamp : null;
+
+      return {
+        userId: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        totalCases: userCases.length,
+        successfulCases: successfulCases.length,
+        failedCases: failedCases.length,
+        totalCostsUSD: totalCosts,
+        lastActivity,
+        joinedDate: user.createdAt || new Date(),
+      };
+    }).sort((a, b) => b.totalCases - a.totalCases);
   }
 }
 

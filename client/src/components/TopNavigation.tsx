@@ -90,8 +90,8 @@ export default function TopNavigation() {
                 {isAdmin && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild data-testid="menu-item-admin-usage">
-                      <Link href="/admin/usage">Admin: Usage Stats</Link>
+                    <DropdownMenuItem asChild data-testid="menu-item-admin-dashboard">
+                      <Link href="/admin">Admin Dashboard</Link>
                     </DropdownMenuItem>
                   </>
                 )}
