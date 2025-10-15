@@ -11,6 +11,7 @@ import {
 import GlobalSearch from "@/components/GlobalSearch";
 import QuickRecordButton from "@/components/QuickRecordButton";
 import ThemeToggle from "@/components/ThemeToggle";
+import { useAuth } from "@/hooks/useAuth";
 
 const navLinks = [
   { path: "/", label: "Dashboard" },
@@ -21,6 +22,10 @@ const navLinks = [
 
 export default function TopNavigation() {
   const [location] = useLocation();
+  const { user } = useAuth();
+  
+  // Admin check via isAdmin flag from backend (configurable via ADMIN_USER_ID env var)
+  const isAdmin = (user as any)?.isAdmin === true;
 
   return (
     <nav className="sticky top-0 z-50 bg-gradient-to-r from-primary via-black to-primary border-b border-primary-border shadow-lg">
@@ -82,6 +87,14 @@ export default function TopNavigation() {
                 <DropdownMenuItem asChild data-testid="menu-item-audit-logs">
                   <Link href="/audit-logs">Audit Logs</Link>
                 </DropdownMenuItem>
+                {isAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild data-testid="menu-item-admin-usage">
+                      <Link href="/admin/usage">Admin: Usage Stats</Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem data-testid="menu-item-logout">Log Out</DropdownMenuItem>
               </DropdownMenuContent>

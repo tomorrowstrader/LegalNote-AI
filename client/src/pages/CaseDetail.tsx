@@ -150,6 +150,30 @@ export default function CaseDetail() {
     },
   });
 
+  const retryProcessingMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/cases/${caseId}/retry-processing`, {});
+    },
+    onSuccess: () => {
+      toast({
+        title: "Retry started",
+        description: "AI processing has been queued again",
+        duration: 5000,
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/cases/${caseId}`] 
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Retry failed",
+        description: error.message || "Failed to retry processing. Please try again.",
+        variant: "destructive",
+        duration: 8000,
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -340,6 +364,46 @@ export default function CaseDetail() {
                 </AlertDescription>
               </Alert>
             )}
+          </div>
+        )}
+
+        {caseData.status === 'failed' && (
+          <div className="mb-8 p-6 bg-destructive/10 rounded-lg border-2 border-destructive" data-testid="failed-status-card">
+            <div className="flex items-start gap-4">
+              <div className="flex-1">
+                <h3 className="font-semibold text-foreground mb-2">AI Processing Failed</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {(caseData.aiProcessingMetadata as any)?.error || 'An error occurred during processing. Please try again.'}
+                </p>
+                {(caseData.aiProcessingMetadata as any)?.error?.includes('quota') && (
+                  <Alert className="mb-4 bg-amber-500/10 border-amber-500/20" data-testid="alert-quota-error">
+                    <AlertDescription className="text-sm">
+                      <strong>API Credits Needed:</strong> The OpenAI API key has insufficient credits. 
+                      Please add credits to your OpenAI account and retry.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+              <Button
+                onClick={() => retryProcessingMutation.mutate()}
+                disabled={retryProcessingMutation.isPending}
+                variant="destructive"
+                className="gap-2"
+                data-testid="button-retry-processing"
+              >
+                {retryProcessingMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Retrying...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Retry Processing
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         )}
 

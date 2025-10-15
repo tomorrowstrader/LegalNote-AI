@@ -42,7 +42,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      res.json(user);
+      
+      // Add admin flag to user object (MVP: configurable via env)
+      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+      const userWithAdminFlag = {
+        ...user,
+        isAdmin: userId === ADMIN_USER_ID,
+      };
+      
+      res.json(userWithAdminFlag);
     } catch (error) {
       next(error);
     }
@@ -769,6 +777,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Retry failed AI processing
+  app.post("/api/cases/:id/retry-processing", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      // Verify ownership
+      const caseData = await storage.getCase(caseId);
+      if (!caseData || caseData.createdBy !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      // Check if case actually failed
+      const metadata = (caseData.aiProcessingMetadata as any) || {};
+      if (caseData.status !== 'failed' && metadata.status !== 'failed') {
+        return res.status(400).json({ message: "Only failed cases can be retried" });
+      }
+      
+      // GDPR Compliance: Verify valid consent exists
+      const consentLogs = await storage.getConsentLogsByCase(caseId);
+      const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
+      
+      if (!hasValidConsent) {
+        return res.status(403).json({ 
+          message: "GDPR compliance error: Valid client consent required" 
+        });
+      }
+      
+      // Check if audio recording exists
+      const audioRecording = await storage.getAudioRecordingByCase(caseId);
+      if (!audioRecording || !audioRecording.filePath) {
+        return res.status(404).json({ message: "No audio recording found" });
+      }
+      
+      // Reset processing metadata and update status
+      await storage.updateCase(caseId, { 
+        status: "processing",
+        aiProcessingMetadata: {
+          status: 'processing',
+          progress: 0,
+          currentStep: 'Retrying processing...',
+          error: undefined, // Clear previous error
+        }
+      });
+      
+      // Queue AI processing job
+      const { jobQueue } = await import('./services/jobQueue');
+      const jobId = await jobQueue.addJob('ai-processing', { caseId, userId });
+      
+      auditLogger.logFromRequest(AuditEventType.AI_PROCESSING_STARTED, req, {
+        resourceId: caseId,
+        resourceType: "case",
+        action: "retry_processing",
+        severity: "medium",
+        additionalInfo: { jobId, retry: true },
+      });
+      
+      res.json({ 
+        message: "AI processing retry started", 
+        jobId,
+        status: 'processing'
+      });
+    } catch (error: any) {
+      console.error('Retry processing error:', error);
+      next(error);
+    }
+  });
+
   // Get transcript for a case
   app.get("/api/cases/:id/transcript", isAuthenticated, async (req: any, res, next) => {
     try {
@@ -943,6 +1019,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       res.json(logs);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin usage statistics endpoint
+  app.get("/api/admin/usage-stats", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // MVP: Admin user ID from environment or hardcoded
+      // For production, move this to environment variable or database-driven role system
+      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+      
+      if (userId !== ADMIN_USER_ID) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      // MVP: Get cases for the admin user to track their own API usage
+      // For production with multiple users: implement storage.getAllCases() to aggregate across all users
+      const allCases = await storage.getCases(userId);
+      
+      // Calculate date ranges
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      // Initialize stats
+      let totalCostToday = 0;
+      let totalCostWeek = 0;
+      let totalCostMonth = 0;
+      let totalCostAllTime = 0;
+      const costPerUser: Record<string, number> = {};
+      const recentExpensiveCases: Array<{ id: string; title: string; cost: number; createdAt: string; userId: string }> = [];
+      const dailyCosts: Array<{ date: string; cost: number }> = [];
+      
+      // Calculate daily costs for last 7 days
+      const dailyCostMap: Record<string, number> = {};
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(todayStart.getTime() - i * 24 * 60 * 60 * 1000);
+        const dateStr = date.toISOString().split('T')[0];
+        dailyCostMap[dateStr] = 0;
+      }
+      
+      // Process each case
+      for (const caseData of allCases) {
+        const metadata = (caseData.aiProcessingMetadata as any) || {};
+        const cost = metadata.totalCost || 0;
+        
+        if (cost > 0) {
+          const caseDate = new Date(caseData.createdAt);
+          const dateStr = caseDate.toISOString().split('T')[0];
+          
+          // Total costs
+          totalCostAllTime += cost;
+          
+          if (caseDate >= todayStart) {
+            totalCostToday += cost;
+          }
+          if (caseDate >= weekStart) {
+            totalCostWeek += cost;
+            
+            // Daily costs
+            if (dailyCostMap.hasOwnProperty(dateStr)) {
+              dailyCostMap[dateStr] += cost;
+            }
+          }
+          if (caseDate >= monthStart) {
+            totalCostMonth += cost;
+          }
+          
+          // Cost per user
+          costPerUser[caseData.createdBy] = (costPerUser[caseData.createdBy] || 0) + cost;
+          
+          // Recent expensive cases
+          recentExpensiveCases.push({
+            id: caseData.id,
+            title: caseData.title,
+            cost,
+            createdAt: caseData.createdAt,
+            userId: caseData.createdBy,
+          });
+        }
+      }
+      
+      // Sort and limit expensive cases
+      recentExpensiveCases.sort((a, b) => b.cost - a.cost);
+      const topExpensiveCases = recentExpensiveCases.slice(0, 10);
+      
+      // Convert daily costs to array
+      for (const [date, cost] of Object.entries(dailyCostMap)) {
+        dailyCosts.push({ date, cost });
+      }
+      dailyCosts.sort((a, b) => a.date.localeCompare(b.date));
+      
+      // Sort cost per user
+      const topUsers = Object.entries(costPerUser)
+        .map(([userId, cost]) => ({ userId, cost }))
+        .sort((a, b) => b.cost - a.cost)
+        .slice(0, 10);
+      
+      res.json({
+        totalCostToday,
+        totalCostWeek,
+        totalCostMonth,
+        totalCostAllTime,
+        topUsers,
+        topExpensiveCases,
+        dailyCosts,
+        totalCasesProcessed: allCases.filter((c: any) => (c.aiProcessingMetadata as any)?.totalCost > 0).length,
+      });
     } catch (error) {
       next(error);
     }
