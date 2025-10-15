@@ -44,6 +44,15 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **Audit Logging**: Comprehensive security event tracking (severity, metadata), structured JSON for SIEM integration.
 - **Environment Validation**: Required environment variables validated at startup.
 
+### Reliability & Data Protection
+- **Audio Retention Policy**: 7 days OR until successful processing (whichever comes first) - compliant with UK GDPR "as long as necessary" principle
+- **Automatic Retry**: 5 attempts with exponential backoff (1s, 2s, 4s, 8s, 16s) for API failures
+- **Manual Retry**: User-initiated retry button for failed cases
+- **Early Deletion**: Audio automatically deleted after successful transcription/document generation
+- **Expiration Cleanup**: Server startup cleanup removes expired audio recordings
+- **Consent Documentation**: Updated consent flow informs clients of 7-day retention period
+- **Audit Trail**: All deletions logged with reason (successful_processing_completion or 7day_retention_policy)
+
 ## External Dependencies
 
 - **UI & Styling**: Tailwind CSS, custom CSS variables, Google Fonts (Inter, JetBrains Mono).
@@ -51,5 +60,5 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **Date Handling**: date-fns.
 - **Icons**: Lucide React.
 - **Development Tools**: Replit-specific plugins, TypeScript strict mode, ESBuild.
-- **Audio Recording & Storage**: MediaRecorder API, Replit Object Storage with presigned URL uploads (Uppy + AWS S3), 24-hour audio expiration with GDPR-compliant lazy deletion (on access) and startup cleanup.
+- **Audio Recording & Storage**: MediaRecorder API, Replit Object Storage with presigned URL uploads (Uppy + AWS S3), GDPR-compliant retention policy (7 days OR until successful processing, whichever comes first) with automatic cleanup on completion and startup expiration cleanup.
 - **Planned Integrations**: AI transcription service (OpenAI Whisper API), AI for document generation (GPT-4), Email service, PDF generation.

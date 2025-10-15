@@ -33,7 +33,7 @@ export async function cleanupExpiredAudio(): Promise<void> {
             caseId: recording.caseId,
             audioRecordingId: recording.id,
             metadata: {
-              reason: "startup_cleanup_24hr_retention_policy",
+              reason: "startup_cleanup_7day_retention_policy",
               filePath: recording.filePath,
               expiresAt: recording.expiresAt.toISOString(),
               deletedAt: new Date().toISOString(),

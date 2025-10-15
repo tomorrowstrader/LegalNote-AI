@@ -197,7 +197,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Not authorized to create audio for this case" });
       }
       
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      // GDPR Compliance: 7-day retention OR until successful processing (whichever comes first)
+      // UK GDPR allows retention "as long as necessary" for processing purpose
+      // 7 days ensures reliable AI processing even with API failures/retries
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       
       const audioRecording = await storage.createAudioRecording({
         caseId: validatedData.caseId,

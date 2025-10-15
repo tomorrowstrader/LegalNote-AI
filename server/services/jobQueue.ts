@@ -33,7 +33,7 @@ class JobQueue extends EventEmitter {
       data,
       status: 'pending',
       attempts: 0,
-      maxAttempts: options?.maxAttempts || 3,
+      maxAttempts: options?.maxAttempts || 5, // Increased to 5 for legal practice reliability
       createdAt: new Date(),
     };
 

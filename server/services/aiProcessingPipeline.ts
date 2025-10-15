@@ -265,6 +265,38 @@ export class AIProcessingPipeline {
       // Update case status to review_required
       await this.storage.updateCase(caseId, { status: 'review_required' });
 
+      // GDPR Compliance: Delete audio immediately after successful processing
+      // This implements "whichever comes first" - 7 days OR successful processing
+      try {
+        const { ObjectStorageService } = await import('../objectStorage');
+        const objectStorageService = new ObjectStorageService();
+        
+        if (audio.filePath && !audio.deletedAt) {
+          await objectStorageService.deleteObjectEntity(audio.filePath);
+          await this.storage.updateAudioRecording(audio.id, { deletedAt: new Date() });
+          
+          // Log audit event using auditLogger (no req object needed for system events)
+          auditLogger.log({
+            eventType: AuditEventType.AUDIO_DELETED,
+            userId,
+            resourceId: audio.id,
+            resourceType: 'audio_recording',
+            details: {
+              caseId,
+              reason: "successful_processing_completion",
+              filePath: audio.filePath,
+              deletedAt: new Date().toISOString(),
+            },
+            severity: 'low',
+          });
+          
+          console.log(`[GDPR] Deleted audio after successful processing: ${audio.id} (case: ${caseId})`);
+        }
+      } catch (deleteError) {
+        // Don't fail the processing if deletion fails - it will be cleaned up by expiration
+        console.error(`[GDPR] Failed to delete audio after processing (will be cleaned up on expiration):`, deleteError);
+      }
+
       console.log(`AI processing completed for case ${caseId}. Total cost: $${totalCost.toFixed(4)}`);
 
       return {
