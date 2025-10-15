@@ -420,6 +420,10 @@ export default function CaseDetail() {
           transcript={transcript?.content}
           textNotes={caseData.textNotes}
           status={caseData.status}
+          caseTitle={caseData.title}
+          clientName={caseData.clientName}
+          matterReference={caseData.matterReference}
+          createdAt={caseData.createdAt}
         />
 
         <div className="mt-8">

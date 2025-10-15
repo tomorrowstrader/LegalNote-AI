@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { FileText, FileType, FileSearch } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { exportToPDF, exportToWord } from "@/lib/documentExport";
+import { useToast } from "@/hooks/use-toast";
 
 interface Document {
   id: string;
@@ -18,6 +20,10 @@ interface DocumentViewerProps {
   transcript?: string;
   textNotes?: string;
   status: string;
+  caseTitle: string;
+  clientName: string;
+  matterReference?: string;
+  createdAt: string;
 }
 
 export default function DocumentViewer({
@@ -25,9 +31,54 @@ export default function DocumentViewer({
   transcript,
   textNotes,
   status,
+  caseTitle,
+  clientName,
+  matterReference,
+  createdAt,
 }: DocumentViewerProps) {
-  const handleExport = (format: 'word' | 'pdf') => {
-    console.log(`Exporting as ${format}`);
+  const { toast } = useToast();
+
+  const handleExport = async (format: 'word' | 'pdf') => {
+    try {
+      const attendanceNote = documents.find(d => d.type === 'attendance_note');
+      const summary = documents.find(d => d.type === 'summary');
+      const legalOpinion = documents.find(d => d.type === 'legal_opinion');
+
+      const content = {
+        summary: summary?.content || textNotes,
+        attendanceNote: attendanceNote?.content,
+        legalOpinion: legalOpinion?.content,
+        transcript,
+        caseTitle,
+        clientName,
+        matterReference,
+        createdAt,
+      };
+
+      if (format === 'pdf') {
+        await exportToPDF(content);
+        toast({
+          title: "PDF Export Complete",
+          description: "Your legal documents have been exported as PDF",
+          duration: 3000,
+        });
+      } else {
+        await exportToWord(content);
+        toast({
+          title: "Word Export Complete",
+          description: "Your legal documents have been exported as Word document",
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export documents. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    }
   };
 
   const attendanceNote = documents.find(d => d.type === 'attendance_note');
