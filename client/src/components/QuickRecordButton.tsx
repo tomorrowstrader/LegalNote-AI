@@ -17,6 +17,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogPortal,
+  AlertDialogOverlay,
 } from "@/components/ui/alert-dialog";
 import {
   Tooltip,
@@ -665,7 +667,7 @@ export default function QuickRecordButton() {
         console.log('AlertDialog onOpenChange:', open, 'showStopConfirmation:', showStopConfirmation);
         setShowStopConfirmation(open);
       }}>
-        <AlertDialogContent data-testid="dialog-stop-confirmation-quick" className="z-[60]">
+        <AlertDialogContent data-testid="dialog-stop-confirmation-quick">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-500" />
