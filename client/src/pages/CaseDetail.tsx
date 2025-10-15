@@ -233,6 +233,28 @@ export default function CaseDetail() {
               </div>
             )}
           </div>
+
+          {(caseData.status === 'review_required' || caseData.status === 'completed') && (caseData.aiProcessingMetadata as any)?.totalCost && (
+            <div className="mt-4 p-4 bg-accent/10 rounded-lg border border-accent/20" data-testid="card-ai-cost">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Sparkles className="w-5 h-5 text-accent" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">AI Processing Cost</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(caseData.aiProcessingMetadata as any)?.totalTokens?.toLocaleString()} tokens used
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-semibold text-accent" data-testid="text-total-cost">
+                    ${((caseData.aiProcessingMetadata as any)?.totalCost || 0).toFixed(4)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Total cost</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {caseData.sourceType === 'audio' && !hasValidConsent && (
