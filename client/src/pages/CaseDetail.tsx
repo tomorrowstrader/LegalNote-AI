@@ -31,6 +31,13 @@ interface CaseWithDocuments {
   nextSteps?: string[];
   legalOpinion?: string;
   transcript?: string;
+  aiProcessingMetadata?: {
+    currentStep?: string;
+    progress?: number;
+    totalCost?: number;
+    totalTokens?: number;
+    error?: string;
+  };
 }
 
 interface AudioRecording {
