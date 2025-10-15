@@ -9,6 +9,8 @@ import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, Activity } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import type { Case } from "@shared/schema";
 
 export default function MyProfile() {
   const [, setLocation] = useLocation();
@@ -17,6 +19,17 @@ export default function MyProfile() {
   const displayName = user?.firstName && user?.lastName 
     ? `${user.firstName} ${user.lastName}` 
     : user?.email?.split('@')[0] || '';
+
+  const { data: cases, isLoading: loadingCases } = useQuery<Case[]>({
+    queryKey: ["/api/cases"],
+  });
+
+  // Calculate user statistics
+  const totalCases = cases?.length || 0;
+  const successfulCases = cases?.filter(c => c.status === 'completed').length || 0;
+  const failedCases = cases?.filter(c => c.status === 'failed').length || 0;
+  const processingCases = cases?.filter(c => c.status === 'processing').length || 0;
+  const successRate = totalCases > 0 ? Math.round((successfulCases / totalCases) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -116,53 +129,56 @@ export default function MyProfile() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Activity className="w-5 h-5" />
-                  <CardTitle>Monthly Usage</CardTitle>
+                  <CardTitle>My Usage Statistics</CardTitle>
                 </div>
-                <CardDescription>Track your transcription usage this month</CardDescription>
+                <CardDescription>Track your case activity and success rate</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label>Full Meeting Transcriptions</Label>
-                    <span className="text-sm font-medium">28 / 50 recordings</span>
-                  </div>
-                  <Progress value={56} className="h-2" data-testid="progress-meetings" />
-                  <p className="text-xs text-muted-foreground">
-                    You've used 56% of your monthly meeting transcription allocation
-                  </p>
-                </div>
+                {loadingCases ? (
+                  <div className="text-center py-4 text-muted-foreground">Loading usage data...</div>
+                ) : (
+                  <>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label>Total Cases Created</Label>
+                        <span className="text-sm font-medium">{totalCases} cases</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 mt-2">
+                        <div className="text-center p-3 border rounded-md">
+                          <p className="text-2xl font-semibold text-green-500">{successfulCases}</p>
+                          <p className="text-xs text-muted-foreground">Successful</p>
+                        </div>
+                        <div className="text-center p-3 border rounded-md">
+                          <p className="text-2xl font-semibold text-amber-500">{processingCases}</p>
+                          <p className="text-xs text-muted-foreground">Processing</p>
+                        </div>
+                        <div className="text-center p-3 border rounded-md">
+                          <p className="text-2xl font-semibold text-red-500">{failedCases}</p>
+                          <p className="text-xs text-muted-foreground">Failed</p>
+                        </div>
+                      </div>
+                    </div>
 
-                <Separator />
+                    <Separator />
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label>Quick Voice Notes</Label>
-                    <span className="text-sm font-medium">143 / 200 notes</span>
-                  </div>
-                  <Progress value={71.5} className="h-2" data-testid="progress-notes" />
-                  <p className="text-xs text-muted-foreground">
-                    You've used 71.5% of your monthly quick notes allocation
-                  </p>
-                </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label>Success Rate</Label>
+                        <span className="text-sm font-medium">{successRate}%</span>
+                      </div>
+                      <Progress value={successRate} className="h-2" data-testid="progress-success-rate" />
+                      <p className="text-xs text-muted-foreground">
+                        {successRate >= 90 ? '✅ Excellent success rate' : successRate >= 70 ? '✓ Good success rate' : 'Some cases need attention'}
+                      </p>
+                    </div>
 
-                <Separator />
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label>Total Audio Minutes</Label>
-                    <span className="text-sm font-medium">1,247 / 2,500 minutes</span>
-                  </div>
-                  <Progress value={49.88} className="h-2" data-testid="progress-minutes" />
-                  <p className="text-xs text-muted-foreground">
-                    ✅ Well within limits - 1,253 minutes remaining this month
-                  </p>
-                </div>
-
-                <div className="pt-4 border-t">
-                  <p className="text-sm text-muted-foreground">
-                    Your usage resets on the 1st of each month. Limits: 50 full meetings, 200 quick notes, 2,500 total audio minutes.
-                  </p>
-                </div>
+                    <div className="pt-4 border-t">
+                      <p className="text-sm text-muted-foreground">
+                        All API costs are covered by your firm administrator. Focus on creating quality case notes.
+                      </p>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
