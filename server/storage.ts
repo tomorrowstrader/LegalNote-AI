@@ -105,6 +105,7 @@ export class MemStorage implements IStorage {
       priority: insertCase.priority || "normal",
       matterReference: insertCase.matterReference || null,
       textNotes: insertCase.textNotes || null,
+      aiProcessingMetadata: {},
     };
     this.cases.set(id, newCase);
     return newCase;

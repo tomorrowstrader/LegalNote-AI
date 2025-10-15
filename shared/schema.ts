@@ -31,10 +31,11 @@ export const cases = pgTable("cases", {
   matterReference: text("matter_reference"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  status: text("status").notNull().default("pending"), // pending, processing, completed
+  status: text("status").notNull().default("pending"), // pending, processing, review_required, completed
   priority: text("priority").notNull().default("normal"), // urgent, deadline-soon, normal
   sourceType: text("source_type").notNull(), // audio, text
   textNotes: text("text_notes"), // For text-based notes when consent declined
+  aiProcessingMetadata: jsonb("ai_processing_metadata").default({}), // Tracks tokens, costs, processing status, errors
 });
 
 export const audioRecordings = pgTable("audio_recordings", {
@@ -73,7 +74,7 @@ export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
   transcriptSnapshotId: varchar("transcript_snapshot_id").references(() => transcripts.id), // Links to redaction state at generation time
-  type: text("type").notNull(), // attendance_note, legal_opinion
+  type: text("type").notNull(), // attendance_note, summary, legal_opinion
   content: text("content").notNull(),
   version: integer("version").notNull().default(1),
   versionType: text("version_type").notNull(), // ai_generated, manually_edited, ai_regenerated
@@ -155,11 +156,12 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   id: true,
   createdAt: true,
   createdBy: true, // Security: Server assigns this from authenticated session
+  aiProcessingMetadata: true, // Server manages this
 }).extend({
   title: z.string().min(1).max(500).transform(sanitizeString),
   clientName: z.string().min(1).max(200).transform(sanitizeString),
   matterReference: z.string().max(100).transform(sanitizeString).optional(),
-  status: z.enum(["pending", "processing", "completed"]).default("pending"),
+  status: z.enum(["pending", "processing", "review_required", "completed"]).default("pending"),
   priority: z.enum(["urgent", "deadline-soon", "normal"]).default("normal"),
   sourceType: z.enum(["audio", "text"]),
   textNotes: z.string().max(100000).optional(), // 100KB limit for text notes
@@ -210,7 +212,7 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
 }).extend({
   caseId: z.string().uuid(),
   transcriptSnapshotId: z.string().uuid().optional(),
-  type: z.enum(["attendance_note", "legal_opinion"]),
+  type: z.enum(["attendance_note", "summary", "legal_opinion"]),
   content: z.string().max(1000000), // 1MB max for documents
   version: z.number().int().min(1).default(1),
   versionType: z.enum(["ai_generated", "manually_edited", "ai_regenerated"]),
@@ -245,7 +247,8 @@ export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({
     "case_viewed", "case_created", "case_updated", 
     "document_viewed", "document_created", "document_updated", "document_deleted", "document_downloaded", "document_sent",
     "transcript_viewed", "transcript_redacted",
-    "audio_accessed", "audio_deleted"
+    "audio_accessed", "audio_deleted",
+    "ai_processing_started", "ai_transcription_completed", "ai_document_generated", "ai_processing_failed"
   ]),
   userId: z.string().uuid(),
   caseId: z.string().uuid().optional(),
