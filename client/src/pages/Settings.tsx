@@ -8,9 +8,30 @@ import { Badge } from "@/components/ui/badge";
 import { Shield, Users, Building2, Bell, Activity, Download } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
+
+interface UserStatistics {
+  id: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  totalCases: number;
+  successfulCases: number;
+  failedCases: number;
+  totalCosts: number;
+  lastActivity: string | null;
+  joinedDate: string;
+}
 
 export default function Settings() {
-  const isAdmin = true;
+  const { user } = useAuth();
+  const isAdmin = (user as any)?.isAdmin === true;
+  
+  const { data: teamMembers, isLoading: loadingTeam } = useQuery<UserStatistics[]>({
+    queryKey: ["/api/admin/users"],
+    enabled: isAdmin,
+  });
 
   if (!isAdmin) {
     return (
@@ -87,22 +108,30 @@ export default function Settings() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {[
-                    { name: "John Smith", email: "j.smith@lawfirm.co.uk", role: "Admin" },
-                    { name: "Sarah Johnson", email: "s.johnson@lawfirm.co.uk", role: "Solicitor" },
-                    { name: "Michael Brown", email: "m.brown@lawfirm.co.uk", role: "Solicitor" },
-                    { name: "Emma Davis", email: "e.davis@lawfirm.co.uk", role: "Paralegal" },
-                  ].map((member, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 border rounded-md" data-testid={`team-member-${index}`}>
-                      <div>
-                        <p className="font-medium">{member.name}</p>
-                        <p className="text-sm text-muted-foreground">{member.email}</p>
-                      </div>
-                      <Badge variant={member.role === "Admin" ? "default" : "secondary"}>
-                        {member.role}
-                      </Badge>
-                    </div>
-                  ))}
+                  {loadingTeam ? (
+                    <div className="text-center py-4 text-muted-foreground">Loading team members...</div>
+                  ) : teamMembers && teamMembers.length > 0 ? (
+                    teamMembers.map((member, index) => {
+                      const displayName = member.firstName && member.lastName 
+                        ? `${member.firstName} ${member.lastName}` 
+                        : member.email?.split('@')[0] || 'User';
+                      const isCurrentAdmin = member.id === user?.id;
+                      
+                      return (
+                        <div key={member.id} className="flex items-center justify-between p-4 border rounded-md" data-testid={`team-member-${index}`}>
+                          <div>
+                            <p className="font-medium">{displayName}</p>
+                            <p className="text-sm text-muted-foreground">{member.email || 'No email'}</p>
+                          </div>
+                          <Badge variant={isCurrentAdmin ? "default" : "secondary"}>
+                            {isCurrentAdmin ? "Admin" : "Solicitor"}
+                          </Badge>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground">No team members found</div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -121,61 +150,75 @@ export default function Settings() {
                     Export Report
                   </Button>
                 </div>
-                <CardDescription>Monitor transcription usage across your team</CardDescription>
+                <CardDescription>Monitor API usage and costs across your team</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {[
-                    { name: "John Smith", email: "j.smith@lawfirm.co.uk", meetings: 45, notes: 187, minutes: 3200, status: "excessive" },
-                    { name: "Sarah Johnson", email: "s.johnson@lawfirm.co.uk", meetings: 28, notes: 143, minutes: 1247, status: "normal" },
-                    { name: "Michael Brown", email: "m.brown@lawfirm.co.uk", meetings: 32, notes: 156, minutes: 1450, status: "normal" },
-                    { name: "Emma Davis", email: "e.davis@lawfirm.co.uk", meetings: 18, notes: 89, minutes: 820, status: "normal" },
-                  ].map((member, index) => (
-                    <div key={index} className="space-y-3 p-4 border rounded-md" data-testid={`usage-member-${index}`}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{member.name}</p>
-                          <p className="text-sm text-muted-foreground">{member.email}</p>
+                  {loadingTeam ? (
+                    <div className="text-center py-4 text-muted-foreground">Loading usage data...</div>
+                  ) : teamMembers && teamMembers.length > 0 ? (
+                    teamMembers.map((member, index) => {
+                      const displayName = member.firstName && member.lastName 
+                        ? `${member.firstName} ${member.lastName}` 
+                        : member.email?.split('@')[0] || 'User';
+                      const successRate = member.totalCases > 0 
+                        ? Math.round((member.successfulCases / member.totalCases) * 100) 
+                        : 0;
+                      
+                      return (
+                        <div key={member.id} className="space-y-3 p-4 border rounded-md" data-testid={`usage-member-${index}`}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{displayName}</p>
+                              <p className="text-sm text-muted-foreground">{member.email}</p>
+                            </div>
+                            {member.totalCosts > 1.0 && (
+                              <Badge className="bg-amber-500">High Usage</Badge>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <p className="text-muted-foreground">Total Cases</p>
+                              <p className="font-medium">{member.totalCases}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Success Rate</p>
+                              <p className="font-medium">{successRate}%</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">API Costs</p>
+                              <p className="font-medium">£{member.totalCosts.toFixed(2)}</p>
+                            </div>
+                          </div>
+                          <Progress 
+                            value={successRate} 
+                            className="h-2"
+                          />
                         </div>
-                        {member.status === "excessive" && (
-                          <Badge className="bg-amber-500">Excessive Usage</Badge>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Meetings</p>
-                          <p className="font-medium">{member.meetings} / 50</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Quick Notes</p>
-                          <p className="font-medium">{member.notes} / 200</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Minutes</p>
-                          <p className="font-medium">{member.minutes} / 2,500</p>
-                        </div>
-                      </div>
-                      <Progress 
-                        value={(member.minutes / 2500) * 100} 
-                        className={`h-2 ${member.status === "excessive" ? "bg-amber-200" : ""}`}
-                      />
-                    </div>
-                  ))}
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground">No usage data available</div>
+                  )}
                 </div>
 
                 <div className="mt-6 p-4 border-t">
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">Total Meetings</p>
-                      <p className="text-2xl font-semibold">123</p>
+                      <p className="text-sm text-muted-foreground">Total Cases</p>
+                      <p className="text-2xl font-semibold">
+                        {teamMembers?.reduce((sum, m) => sum + m.totalCases, 0) || 0}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Total Quick Notes</p>
-                      <p className="text-2xl font-semibold">575</p>
+                      <p className="text-sm text-muted-foreground">Total Costs</p>
+                      <p className="text-2xl font-semibold">
+                        £{(teamMembers?.reduce((sum, m) => sum + m.totalCosts, 0) || 0).toFixed(2)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Total Minutes</p>
-                      <p className="text-2xl font-semibold">6,717</p>
+                      <p className="text-sm text-muted-foreground">Active Users</p>
+                      <p className="text-2xl font-semibold">{teamMembers?.length || 0}</p>
                     </div>
                   </div>
                 </div>
