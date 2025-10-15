@@ -34,11 +34,11 @@ interface UserStatistics {
 }
 
 export default function AdminDashboard() {
-  const { data: stats, isLoading: statsLoading } = useQuery<AdminStatistics>({
+  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<AdminStatistics>({
     queryKey: ["/api/admin/statistics"],
   });
 
-  const { data: userStats, isLoading: usersLoading } = useQuery<UserStatistics[]>({
+  const { data: userStats, isLoading: usersLoading, error: usersError } = useQuery<UserStatistics[]>({
     queryKey: ["/api/admin/users"],
   });
 
@@ -67,6 +67,24 @@ export default function AdminDashboard() {
             ))}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (statsError || usersError) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Access Denied</CardTitle>
+            <CardDescription>Admin access required to view this page</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {statsError || usersError ? "Failed to load admin statistics. Please ensure you have admin privileges." : "You do not have permission to access the admin dashboard."}
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -103,10 +121,10 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold" data-testid="text-success-rate">
-              {stats?.successRate.toFixed(1)}%
+              {typeof stats?.successRate === 'number' && Number.isFinite(stats.successRate) ? stats.successRate.toFixed(1) : "0.0"}%
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {stats?.successfulProcessing} successful / {stats?.failedProcessing} failed
+              {stats?.successfulProcessing || 0} successful / {stats?.failedProcessing || 0} failed
             </p>
           </CardContent>
         </Card>
@@ -136,7 +154,7 @@ export default function AdminDashboard() {
               {stats?.totalCases || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {stats?.casesLast7Days} this week / {stats?.casesLast30Days} this month
+              {stats?.casesLast7Days || 0} this week / {stats?.casesLast30Days || 0} this month
             </p>
           </CardContent>
         </Card>
@@ -156,21 +174,21 @@ export default function AdminDashboard() {
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Average Processing Time</span>
               <span className="font-semibold" data-testid="text-avg-processing-time">
-                {stats?.averageProcessingTimeMinutes.toFixed(1)} min
+                {typeof stats?.averageProcessingTimeMinutes === 'number' && Number.isFinite(stats.averageProcessingTimeMinutes) ? stats.averageProcessingTimeMinutes.toFixed(1) : "0.0"} min
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Total Transcriptions</span>
-              <span className="font-semibold">{stats?.totalTranscriptions}</span>
+              <span className="font-semibold">{stats?.totalTranscriptions || 0}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Total Documents Generated</span>
-              <span className="font-semibold">{stats?.totalDocumentsGenerated}</span>
+              <span className="font-semibold">{stats?.totalDocumentsGenerated || 0}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Avg. Docs per Case</span>
               <span className="font-semibold">
-                {stats?.totalCases ? (stats.totalDocumentsGenerated / stats.totalCases).toFixed(1) : 0}
+                {stats?.totalCases && stats.totalCases > 0 ? (stats.totalDocumentsGenerated / stats.totalCases).toFixed(1) : "0.0"}
               </span>
             </div>
           </CardContent>
@@ -187,22 +205,22 @@ export default function AdminDashboard() {
           <CardContent className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Last 7 Days</span>
-              <Badge variant="secondary">{stats?.casesLast7Days} cases</Badge>
+              <Badge variant="secondary">{stats?.casesLast7Days || 0} cases</Badge>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Last 30 Days</span>
-              <Badge variant="secondary">{stats?.casesLast30Days} cases</Badge>
+              <Badge variant="secondary">{stats?.casesLast30Days || 0} cases</Badge>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Daily Average (7d)</span>
               <Badge variant="secondary">
-                {stats?.casesLast7Days ? (stats.casesLast7Days / 7).toFixed(1) : 0} cases/day
+                {stats?.casesLast7Days ? (stats.casesLast7Days / 7).toFixed(1) : "0.0"} cases/day
               </Badge>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Weekly Average (30d)</span>
               <Badge variant="secondary">
-                {stats?.casesLast30Days ? ((stats.casesLast30Days / 30) * 7).toFixed(1) : 0} cases/week
+                {stats?.casesLast30Days ? ((stats.casesLast30Days / 30) * 7).toFixed(1) : "0.0"} cases/week
               </Badge>
             </div>
           </CardContent>
