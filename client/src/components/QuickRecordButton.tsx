@@ -177,6 +177,14 @@ export default function QuickRecordButton() {
     return () => clearInterval(interval);
   }, [isRecording]);
 
+  useEffect(() => {
+    console.log('showStopConfirmation changed to:', showStopConfirmation);
+  }, [showStopConfirmation]);
+
+  useEffect(() => {
+    console.log('showConsentModal changed to:', showConsentModal);
+  }, [showConsentModal]);
+
   const initiateRecording = () => {
     setCountdown(3); // 3-second countdown
   };
@@ -188,6 +196,8 @@ export default function QuickRecordButton() {
   const handleConsentGiven = async () => {
     console.log('Client consent given - recording continues');
     setConsentGiven(true);
+    
+    // Close ConsentModal BEFORE any audit logging
     setShowConsentModal(false);
     
     // Log consent given event (client-side audit)
@@ -651,8 +661,11 @@ export default function QuickRecordButton() {
         onSave={saveTextNotes}
       />
 
-      <AlertDialog open={showStopConfirmation} onOpenChange={setShowStopConfirmation}>
-        <AlertDialogContent data-testid="dialog-stop-confirmation-quick">
+      <AlertDialog open={showStopConfirmation} onOpenChange={(open) => {
+        console.log('AlertDialog onOpenChange:', open, 'showStopConfirmation:', showStopConfirmation);
+        setShowStopConfirmation(open);
+      }}>
+        <AlertDialogContent data-testid="dialog-stop-confirmation-quick" className="z-[60]">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-500" />
