@@ -80,3 +80,16 @@ export const strictLimiter = rateLimit({
   },
   skip: (req: any) => !req.user,
 });
+
+// Polling endpoint rate limit: Very lenient for status checks
+export const pollingLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 120, // Allow 120 requests per minute (2 per second)
+  message: "Polling rate limit exceeded. Please reduce request frequency",
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: any) => {
+    return req.user?.claims?.sub || "unauthenticated";
+  },
+  skip: (req: any) => !req.user,
+});

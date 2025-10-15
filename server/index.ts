@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { configureSecurityHeaders } from "./securityHeaders";
 import { cleanupExpiredAudio } from "./audioCleanup";
+import { initializeWorkers } from "./workers";
 import "./envValidation"; // Validate environment on startup
 
 const app = express();
@@ -48,6 +49,9 @@ app.use((req, res, next) => {
   
   // GDPR Compliance: Clean up expired audio on server startup
   await cleanupExpiredAudio();
+
+  // Initialize background job workers
+  initializeWorkers();
 
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

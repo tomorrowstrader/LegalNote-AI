@@ -12,6 +12,7 @@ import {
   presignedUrlLimiter,
   audioUploadLimiter,
   authLimiter,
+  pollingLimiter,
 } from "./rateLimiting";
 import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
@@ -27,8 +28,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup Replit Auth
   await setupAuth(app);
 
-  // Apply general rate limiting to all API routes
-  app.use('/api/', generalApiLimiter);
+  // Apply general rate limiting to all API routes (except polling endpoints)
+  app.use('/api/', (req, res, next) => {
+    // Skip general rate limiter for polling endpoints - they have their own lenient limits
+    if (req.path.includes('/processing-status')) {
+      return next();
+    }
+    generalApiLimiter(req, res, next);
+  });
 
   // Auth user route
   app.get('/api/auth/user', isAuthenticated, authLimiter, async (req: any, res, next) => {
@@ -109,7 +116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/cases/:id/processing-status", isAuthenticated, async (req: any, res, next) => {
+  app.get("/api/cases/:id/processing-status", isAuthenticated, pollingLimiter, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const caseId = req.params.id;

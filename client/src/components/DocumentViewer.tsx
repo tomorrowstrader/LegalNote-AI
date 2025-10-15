@@ -91,18 +91,21 @@ export default function DocumentViewer({
       </div>
 
       <Tabs defaultValue={(summary || textNotes) ? "summary" : transcript ? "transcript" : "attendance"} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcript}>
-            Transcript
+        <TabsList className="grid w-full grid-cols-4 h-auto">
+          <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcript} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+            <span className="hidden sm:inline">Transcript</span>
+            <span className="sm:hidden">Script</span>
           </TabsTrigger>
-          <TabsTrigger value="summary" data-testid="tab-summary" disabled={!summary && !textNotes}>
+          <TabsTrigger value="summary" data-testid="tab-summary" disabled={!summary && !textNotes} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
             Summary
           </TabsTrigger>
-          <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote}>
-            Attendance Note
+          <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+            <span className="hidden sm:inline">Attendance</span>
+            <span className="sm:hidden">Attend</span>
           </TabsTrigger>
-          <TabsTrigger value="opinion" data-testid="tab-opinion" disabled={!legalOpinion}>
-            Legal Opinion
+          <TabsTrigger value="opinion" data-testid="tab-opinion" disabled={!legalOpinion} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+            <span className="hidden sm:inline">Legal Opinion</span>
+            <span className="sm:hidden">Opinion</span>
           </TabsTrigger>
         </TabsList>
 
