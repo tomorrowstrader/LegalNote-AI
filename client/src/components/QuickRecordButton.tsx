@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Mic, Square, AlertTriangle } from "lucide-react";
+import { Mic, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,18 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogPortal,
-  AlertDialogOverlay,
-} from "@/components/ui/alert-dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -61,7 +49,7 @@ export default function QuickRecordButton() {
   const [, setLocation] = useLocation();
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
-  const [showStopConfirmation, setShowStopConfirmation] = useState(false);
+  const [stopConfirmationPending, setStopConfirmationPending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const [showMetadataModal, setShowMetadataModal] = useState(false);
@@ -180,12 +168,24 @@ export default function QuickRecordButton() {
   }, [isRecording]);
 
   useEffect(() => {
-    console.log('showStopConfirmation changed to:', showStopConfirmation);
-  }, [showStopConfirmation]);
+    console.log('stopConfirmationPending changed to:', stopConfirmationPending);
+  }, [stopConfirmationPending]);
 
   useEffect(() => {
     console.log('showConsentModal changed to:', showConsentModal);
   }, [showConsentModal]);
+
+  // Auto-reset stop confirmation after 3 seconds
+  useEffect(() => {
+    if (!stopConfirmationPending) return;
+
+    const resetTimer = setTimeout(() => {
+      console.log('Stop confirmation auto-reset after 3 seconds');
+      setStopConfirmationPending(false);
+    }, 3000);
+
+    return () => clearTimeout(resetTimer);
+  }, [stopConfirmationPending]);
 
   const initiateRecording = () => {
     setCountdown(3); // 3-second countdown
@@ -245,23 +245,20 @@ export default function QuickRecordButton() {
   }, []);
 
   const handleStopClick = () => {
-    console.log('Stop button clicked - opening confirmation dialog');
-    setShowStopConfirmation(true);
-  };
-
-  const confirmStopRecording = () => {
-    console.log('Confirm stop recording - user confirmed');
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+    if (!stopConfirmationPending) {
+      // First click - show confirmation state
+      console.log('Stop button clicked - showing confirmation state');
+      setStopConfirmationPending(true);
+    } else {
+      // Second click - actually stop recording
+      console.log('Stop confirmed - stopping recording');
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      setIsRecording(false);
+      setStopConfirmationPending(false);
+      setShowMetadataModal(true);
     }
-    setIsRecording(false);
-    setShowStopConfirmation(false);
-    setShowMetadataModal(true);
-  };
-
-  const cancelStopRecording = () => {
-    console.log('Cancel stop recording - user wants to continue recording');
-    setShowStopConfirmation(false);
   };
 
   const saveCase = async () => {
@@ -556,11 +553,17 @@ export default function QuickRecordButton() {
             variant="ghost"
             size="sm"
             onClick={handleStopClick}
-            className="gap-1 text-primary-foreground h-7 px-2"
+            className={`gap-1 h-7 px-2 ${
+              stopConfirmationPending 
+                ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30 animate-pulse' 
+                : 'text-primary-foreground'
+            }`}
             data-testid="button-stop-quick-record"
           >
             <Square className="w-3 h-3" />
-            <span className="hidden sm:inline">Stop</span>
+            <span className="hidden sm:inline">
+              {stopConfirmationPending ? 'Confirm Stop?' : 'Stop'}
+            </span>
           </Button>
         </div>
         
@@ -662,31 +665,6 @@ export default function QuickRecordButton() {
         onClose={() => setShowTextNotesModal(false)}
         onSave={saveTextNotes}
       />
-
-      <AlertDialog open={showStopConfirmation} onOpenChange={(open) => {
-        console.log('AlertDialog onOpenChange:', open, 'showStopConfirmation:', showStopConfirmation);
-        setShowStopConfirmation(open);
-      }}>
-        <AlertDialogContent data-testid="dialog-stop-confirmation-quick">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
-              Stop Recording?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to stop the recording? This will end the audio capture and you'll be prompted to add case details.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelStopRecording} data-testid="button-cancel-stop-quick">
-              Continue Recording
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmStopRecording} data-testid="button-confirm-stop-quick">
-              Stop Recording
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
