@@ -21,6 +21,8 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
   - Implemented API endpoints for user preferences (GET/PUT /api/user-preferences) with proper validation and user isolation
   - Fixed onboarding tour trigger logic with useEffect to properly start tour when preferences load for first-time users
   - Tour automatically marks as complete after user finishes walkthrough or skips it
+  - Added "Restart Tour" button in user profile dropdown menu for users to replay the onboarding walkthrough on demand
+  - Restart tour feature properly resets Joyride state and skips completion mutation for manual restarts
 
 ## User Preferences
 **Communication Style:** Simple, everyday language.
