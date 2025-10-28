@@ -49,8 +49,9 @@ export default function GlobalSearch() {
       params.set('status', statusFilter);
     }
     
-    setLocation(`/cases?${params.toString()}`);
+    setLocation(`/saved-cases?${params.toString()}`);
     setMobileOpen(false);
+    setSearchQuery("");
   };
 
   const SearchFilters = () => (

@@ -102,6 +102,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Search cases
+  app.get("/api/search", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const query = req.query.q as string;
+      
+      if (!query || query.trim().length === 0) {
+        return res.json([]);
+      }
+      
+      const cases = await storage.searchCases(query.trim(), userId);
+      res.json(cases);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.get("/api/cases/:id", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;

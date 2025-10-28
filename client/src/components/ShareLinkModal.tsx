@@ -168,7 +168,7 @@ export default function ShareLinkModal({
   if (!canShareExternal && isExternal) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent data-testid="dialog-share-restricted">
+        <DialogContent data-testid="dialog-share-restricted" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-destructive" />
@@ -194,7 +194,7 @@ export default function ShareLinkModal({
   if (isSending && countdown !== null) {
     return (
       <Dialog open={open} onOpenChange={() => {}}>
-        <DialogContent data-testid="dialog-share-countdown">
+        <DialogContent data-testid="dialog-share-countdown" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>Sending Secure Link...</DialogTitle>
             <DialogDescription>
@@ -227,7 +227,7 @@ export default function ShareLinkModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl" data-testid="dialog-share-link">
+      <DialogContent className="max-w-2xl" data-testid="dialog-share-link" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>Share Secure Link</DialogTitle>
           <DialogDescription>

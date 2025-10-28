@@ -21,20 +21,13 @@ export default function SavedCases() {
     }
   }, [location]);
 
+  // Use search API when there's a query, otherwise get all cases
   const { data: cases, isLoading } = useQuery<Case[]>({
-    queryKey: ["/api/cases"],
+    queryKey: searchQuery ? [`/api/search?q=${encodeURIComponent(searchQuery)}`] : ["/api/cases"],
   });
 
-  // Filter cases based on search query
-  const filteredCases = (cases || []).filter(
-    (c) =>
-      c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.matterReference?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   // TODO: Re-implement archiving feature post-MVP
-  const activeCases = filteredCases;
+  const activeCases = cases || [];
 
   return (
     <div className="min-h-screen bg-background">

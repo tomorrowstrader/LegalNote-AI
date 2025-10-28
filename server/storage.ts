@@ -110,6 +110,9 @@ export interface IStorage {
   // User Preferences methods
   getUserPreferences(userId: string): Promise<UserPreferences | undefined>;
   updateUserPreferences(userId: string, updates: Partial<UserPreferences>): Promise<UserPreferences>;
+  
+  // Search methods
+  searchCases(query: string, userId: string): Promise<Case[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -552,6 +555,19 @@ export class MemStorage implements IStorage {
   async updateUserPreferences(userId: string, updates: Partial<UserPreferences>): Promise<UserPreferences> {
     // MemStorage: In-memory implementation - not used in production
     throw new Error('User preferences operations require database storage');
+  }
+  
+  async searchCases(query: string, userId: string): Promise<Case[]> {
+    // MemStorage: Simple in-memory search implementation
+    const userCases = Array.from(this.cases.values()).filter(c => c.createdBy === userId);
+    const lowerQuery = query.toLowerCase();
+    
+    return userCases.filter(c => 
+      c.title.toLowerCase().includes(lowerQuery) ||
+      c.clientName.toLowerCase().includes(lowerQuery) ||
+      c.matterReference?.toLowerCase().includes(lowerQuery) ||
+      c.textNotes?.toLowerCase().includes(lowerQuery)
+    );
   }
 }
 
@@ -1061,6 +1077,62 @@ export class DbStorage implements IStorage {
         .returning();
       return inserted[0];
     }
+  }
+  
+  async searchCases(query: string, userId: string): Promise<Case[]> {
+    const lowerQuery = `%${query.toLowerCase()}%`;
+    
+    // Get all cases for the user
+    const userCases = await db
+      .select()
+      .from(cases)
+      .where(eq(cases.createdBy, userId))
+      .orderBy(desc(cases.createdAt));
+    
+    // Find cases with matching transcripts or documents
+    const casesWithTranscripts = await db
+      .select({ caseId: transcripts.caseId })
+      .from(transcripts)
+      .innerJoin(cases, eq(transcripts.caseId, cases.id))
+      .where(
+        and(
+          eq(cases.createdBy, userId),
+          sql`LOWER(${transcripts.content}) LIKE ${lowerQuery}`
+        )
+      );
+    
+    const casesWithDocuments = await db
+      .select({ caseId: documents.caseId })
+      .from(documents)
+      .innerJoin(cases, eq(documents.caseId, cases.id))
+      .where(
+        and(
+          eq(cases.createdBy, userId),
+          sql`LOWER(${documents.content}) LIKE ${lowerQuery}`
+        )
+      );
+    
+    // Create a set of case IDs that have matching content
+    const matchingCaseIds = new Set([
+      ...casesWithTranscripts.map(c => c.caseId),
+      ...casesWithDocuments.map(c => c.caseId)
+    ]);
+    
+    // Filter cases based on query
+    const filteredCases = userCases.filter(c => {
+      // Direct field matches
+      const titleMatch = c.title.toLowerCase().includes(query.toLowerCase());
+      const clientMatch = c.clientName.toLowerCase().includes(query.toLowerCase());
+      const matterMatch = c.matterReference?.toLowerCase().includes(query.toLowerCase());
+      const notesMatch = c.textNotes?.toLowerCase().includes(query.toLowerCase());
+      
+      // Content matches from transcripts/documents
+      const contentMatch = matchingCaseIds.has(c.id);
+      
+      return titleMatch || clientMatch || matterMatch || notesMatch || contentMatch;
+    });
+    
+    return filteredCases;
   }
 }
 
