@@ -179,7 +179,7 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
       arrowColor: "hsl(var(--popover))",
       backgroundColor: "hsl(var(--popover))",
       beaconSize: 36,
-      overlayColor: "hsl(var(--background) / 0.5)",
+      overlayColor: "rgba(0, 0, 0, 0.6)",
       primaryColor: "hsl(var(--accent))",
       textColor: "hsl(var(--popover-foreground))",
       width: 400,
@@ -189,9 +189,11 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
       borderRadius: 12,
       padding: 24,
       boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3)",
+      opacity: 1,
     },
     tooltipContainer: {
       textAlign: "left",
+      opacity: 1,
     },
     tooltipTitle: {
       fontSize: "1.25rem",
@@ -264,13 +266,13 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
     },
     spotlight: {
       borderRadius: 8,
-      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+      transition: "all 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
     },
     overlay: {
-      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+      transition: "opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
     },
     beacon: {
-      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+      transition: "all 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
     },
   };
 

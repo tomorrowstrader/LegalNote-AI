@@ -348,4 +348,21 @@
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
   }
+
+  /* Onboarding tour tooltip fade-in animation */
+  @keyframes joyrideTooltipFadeIn {
+    0% {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Apply fade-in animation to Joyride tooltips */
+  div[class*="react-joyride__tooltip"] {
+    animation: joyrideTooltipFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.1s both;
+  }
 }
