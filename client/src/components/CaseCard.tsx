@@ -17,6 +17,7 @@ import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { exportToPDF } from "@/lib/documentExport";
 
 interface CaseCardProps {
   id: string;
@@ -108,6 +109,49 @@ export default function CaseCard({
     },
   });
 
+  const downloadPDFMutation = useMutation({
+    mutationFn: async () => {
+      // Fetch all case data in parallel
+      const [caseData, documents, transcript, firmProfile] = await Promise.all([
+        fetch(`/api/cases/${id}`, { credentials: 'include' }).then(r => r.json()),
+        fetch(`/api/cases/${id}/documents`, { credentials: 'include' }).then(r => r.json()),
+        fetch(`/api/cases/${id}/transcript`, { credentials: 'include' }).then(r => r.json()).catch(() => null),
+        fetch(`/api/firm-profile`, { credentials: 'include' }).then(r => r.json()).catch(() => null),
+      ]);
+
+      // Find active documents by type
+      const activeDocuments = documents.filter((doc: any) => doc.isActive);
+      const attendanceNote = activeDocuments.find((doc: any) => doc.type === 'attendance_note');
+      const legalOpinion = activeDocuments.find((doc: any) => doc.type === 'legal_opinion');
+
+      // Generate comprehensive PDF
+      await exportToPDF({
+        caseTitle: caseData.title,
+        clientName: caseData.clientName,
+        matterReference: caseData.matterReference,
+        createdAt: caseData.createdAt,
+        attendanceNote: attendanceNote?.content,
+        legalOpinion: legalOpinion?.content,
+        transcript: transcript?.content,
+        documentType: 'full_case',
+        firmProfile: firmProfile,
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "PDF downloaded",
+        description: "Comprehensive case PDF has been generated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const statusConfig = {
     completed: { icon: CheckCircle2, label: "Completed", variant: "default" as const },
     processing: { icon: Loader2, label: "Processing", variant: "secondary" as const },
@@ -157,11 +201,7 @@ export default function CaseCard({
         description: "Email to client will be available soon",
       });
     } else if (action === 'download') {
-      // TODO: Generate and download comprehensive PDF
-      toast({
-        title: "Coming soon",
-        description: "PDF download will be available soon",
-      });
+      downloadPDFMutation.mutate();
     }
   };
 
