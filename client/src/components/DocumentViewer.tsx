@@ -53,6 +53,7 @@ export default function DocumentViewer({
         clientName,
         matterReference,
         createdAt,
+        documentType: 'full_case' as const,
       };
 
       if (format === 'pdf') {

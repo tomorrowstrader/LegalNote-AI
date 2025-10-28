@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, NumberFormat } from 'docx';
 import { saveAs } from 'file-saver';
 
 interface DocumentContent {
@@ -11,6 +11,77 @@ interface DocumentContent {
   clientName: string;
   matterReference?: string;
   createdAt: string;
+  documentType?: 'attendance_note' | 'summary' | 'legal_opinion' | 'transcript' | 'full_case';
+}
+
+// Helper to strip markdown for plain text (PDF)
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1')  // Remove **bold**
+    .replace(/__(.*?)__/g, '$1')      // Remove __bold__
+    .replace(/\*(?!\*)(.*?)\*/g, '$1') // Remove *italic* (but not **)
+    .replace(/(?<!_)_(?!_)(.*?)_(?!_)/g, '$1') // Remove _italic_ (but not __)
+    .replace(/^#{1,6}\s+/gm, '')      // Remove # headings
+    .replace(/^\s*[-*+]\s+/gm, '• ')  // Convert markdown bullets to bullets
+    .replace(/^\s*\d+\.\s+/gm, (match) => match); // Keep numbered lists as-is
+}
+
+// Parse markdown line into TextRuns for Word export
+function parseMarkdownLine(line: string): TextRun[] {
+  const runs: TextRun[] = [];
+  let currentText = '';
+  let i = 0;
+  
+  while (i < line.length) {
+    // Check for **bold** or __bold__
+    if ((line[i] === '*' && line[i + 1] === '*') || (line[i] === '_' && line[i + 1] === '_')) {
+      if (currentText) {
+        runs.push(new TextRun(currentText));
+        currentText = '';
+      }
+      const delimiter = line[i];
+      i += 2;
+      let boldText = '';
+      while (i < line.length && !(line[i] === delimiter && line[i + 1] === delimiter)) {
+        boldText += line[i];
+        i++;
+      }
+      if (boldText) {
+        runs.push(new TextRun({ text: boldText, bold: true }));
+      }
+      i += 2; // Skip closing ** or __
+      continue;
+    }
+    
+    // Check for *italic* or _italic_
+    if (line[i] === '*' || line[i] === '_') {
+      if (currentText) {
+        runs.push(new TextRun(currentText));
+        currentText = '';
+      }
+      const delimiter = line[i];
+      i++;
+      let italicText = '';
+      while (i < line.length && line[i] !== delimiter) {
+        italicText += line[i];
+        i++;
+      }
+      if (italicText) {
+        runs.push(new TextRun({ text: italicText, italics: true }));
+      }
+      i++; // Skip closing * or _
+      continue;
+    }
+    
+    currentText += line[i];
+    i++;
+  }
+  
+  if (currentText) {
+    runs.push(new TextRun(currentText));
+  }
+  
+  return runs.length > 0 ? runs : [new TextRun(line)];
 }
 
 export async function exportToPDF(content: DocumentContent) {
@@ -65,7 +136,7 @@ export async function exportToPDF(content: DocumentContent) {
   if (content.summary) {
     addText('CASE SUMMARY', 16, true);
     yPosition += 5;
-    addText(content.summary);
+    addText(stripMarkdown(content.summary));
     yPosition += 10;
   }
 
@@ -77,7 +148,7 @@ export async function exportToPDF(content: DocumentContent) {
     }
     addText('ATTENDANCE NOTE', 16, true);
     yPosition += 5;
-    addText(content.attendanceNote);
+    addText(stripMarkdown(content.attendanceNote));
     yPosition += 10;
   }
 
@@ -89,7 +160,7 @@ export async function exportToPDF(content: DocumentContent) {
     }
     addText('LEGAL OPINION', 16, true);
     yPosition += 5;
-    addText(content.legalOpinion);
+    addText(stripMarkdown(content.legalOpinion));
     yPosition += 10;
   }
 
@@ -101,11 +172,23 @@ export async function exportToPDF(content: DocumentContent) {
     }
     addText('FULL TRANSCRIPT', 16, true);
     yPosition += 5;
-    addText(content.transcript);
+    addText(stripMarkdown(content.transcript));
   }
 
-  // Generate filename
-  const filename = `${content.caseTitle.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.pdf`;
+  // Generate descriptive filename
+  const sanitize = (str: string) => {
+    const cleaned = str.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+    return cleaned || 'Document'; // Fallback for empty strings
+  };
+  const formatDate = () => new Date(content.createdAt).toISOString().split('T')[0]; // YYYY-MM-DD
+  
+  const documentTypeLabel = content.documentType === 'attendance_note' ? 'Attendance_Note' :
+                           content.documentType === 'summary' ? 'Summary' :
+                           content.documentType === 'legal_opinion' ? 'Legal_Opinion' :
+                           content.documentType === 'transcript' ? 'Transcript' :
+                           'Full_Case_Documentation';
+  
+  const filename = `${sanitize(content.clientName)}_${sanitize(content.caseTitle)}_${documentTypeLabel}_${formatDate()}.pdf`;
   
   // Save the PDF
   doc.save(filename);
@@ -164,7 +247,7 @@ export async function exportToWord(content: DocumentContent) {
     })
   );
 
-  // Helper to preserve formatting and paragraph breaks
+  // Helper to preserve formatting and paragraph breaks with markdown parsing
   const formatTextSection = (text: string): Paragraph[] => {
     const lines = text.split('\n');
     const paragraphs: Paragraph[] = [];
@@ -178,20 +261,71 @@ export async function exportToWord(content: DocumentContent) {
         continue;
       }
       
-      // Check if line is a heading (starts with ** or is all caps with : at end)
+      // Check for numbered list (1. 2. etc)
+      const numberedMatch = trimmedLine.match(/^(\d+)\.\s+(.+)$/);
+      if (numberedMatch) {
+        const textContent = numberedMatch[2];
+        paragraphs.push(
+          new Paragraph({
+            children: parseMarkdownLine(textContent),
+            spacing: { after: 100 },
+            numbering: {
+              reference: 'default-numbering',
+              level: 0
+            }
+          })
+        );
+        continue;
+      }
+      
+      // Check for bullet points
+      const bulletMatch = trimmedLine.match(/^[-•*]\s+(.+)$/);
+      if (bulletMatch) {
+        const textContent = bulletMatch[1];
+        paragraphs.push(
+          new Paragraph({
+            children: parseMarkdownLine(textContent),
+            spacing: { after: 100 },
+            bullet: {
+              level: 0
+            }
+          })
+        );
+        continue;
+      }
+      
+      // Check for markdown headings (# ## ###)
+      const headingMatch = trimmedLine.match(/^(#{1,3})\s+(.+)$/);
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const textContent = headingMatch[2];
+        paragraphs.push(
+          new Paragraph({
+            children: parseMarkdownLine(textContent),
+            heading: level === 1 ? HeadingLevel.HEADING_2 : 
+                    level === 2 ? HeadingLevel.HEADING_3 : HeadingLevel.HEADING_4,
+            spacing: { before: 200, after: 100 },
+          })
+        );
+        continue;
+      }
+      
+      // Check if line is a heading (all bold or all caps with : at end)
       const isHeading = trimmedLine.match(/^\*\*.*\*\*$/) || (trimmedLine === trimmedLine.toUpperCase() && trimmedLine.endsWith(':'));
       
       if (isHeading) {
+        const textContent = trimmedLine.replace(/\*\*/g, '');
         paragraphs.push(
           new Paragraph({
-            children: [new TextRun({ text: trimmedLine.replace(/\*\*/g, ''), bold: true })],
+            children: [new TextRun({ text: textContent, bold: true })],
             spacing: { before: 200, after: 100 },
           })
         );
       } else {
+        // Regular paragraph with inline markdown
         paragraphs.push(
           new Paragraph({
-            text: trimmedLine,
+            children: parseMarkdownLine(trimmedLine),
             spacing: { after: 100 },
           })
         );
@@ -268,8 +402,20 @@ export async function exportToWord(content: DocumentContent) {
     }],
   });
 
-  // Generate filename
-  const filename = `${content.caseTitle.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.docx`;
+  // Generate descriptive filename
+  const sanitize = (str: string) => {
+    const cleaned = str.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+    return cleaned || 'Document'; // Fallback for empty strings
+  };
+  const formatDate = () => new Date(content.createdAt).toISOString().split('T')[0]; // YYYY-MM-DD
+  
+  const documentTypeLabel = content.documentType === 'attendance_note' ? 'Attendance_Note' :
+                           content.documentType === 'summary' ? 'Summary' :
+                           content.documentType === 'legal_opinion' ? 'Legal_Opinion' :
+                           content.documentType === 'transcript' ? 'Transcript' :
+                           'Full_Case_Documentation';
+  
+  const filename = `${sanitize(content.clientName)}_${sanitize(content.caseTitle)}_${documentTypeLabel}_${formatDate()}.docx`;
 
   // Generate and save the Word document
   const blob = await Packer.toBlob(doc);

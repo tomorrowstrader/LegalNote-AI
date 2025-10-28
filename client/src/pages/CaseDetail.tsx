@@ -284,6 +284,32 @@ export default function CaseDetail() {
           </div>
         )}
 
+        {/* Audio deletion status indicator */}
+        {caseData.sourceType === 'audio' && hasValidConsent && audioData && !audioData.filePath && (
+          <Alert className="mb-8 bg-card border-muted" data-testid="alert-audio-deleted">
+            <Shield className="w-4 h-4" />
+            <AlertDescription>
+              <span className="font-medium">Audio deleted - GDPR compliance</span>
+              <p className="text-sm text-muted-foreground mt-1">
+                Recording was automatically deleted after {audioData.deletedAt ? 'successful processing' : '7-day retention period'}. 
+                Generated documents and transcript remain available.
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {caseData.sourceType === 'audio' && !hasValidConsent && !consentLoading && !audioLoading && (
+          <Alert className="mb-8 bg-card border-muted" data-testid="alert-no-recording-consent">
+            <FileText className="w-4 h-4" />
+            <AlertDescription>
+              <span className="font-medium">Text notes only - Recording consent declined</span>
+              <p className="text-sm text-muted-foreground mt-1">
+                Client declined audio recording consent. This case uses text-based notes instead.
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {caseData.sourceType === 'audio' && audioData && audioData.filePath && (
           <div className="mb-8">
             <AudioPlayer
