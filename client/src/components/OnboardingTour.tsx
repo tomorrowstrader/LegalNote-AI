@@ -33,8 +33,13 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
   // Restart tour when restartTrigger changes
   useEffect(() => {
     if (restartTrigger > 0 && !isLoading && !authLoading) {
-      setRun(true);
-      setHasStarted(true);
+      setRun(false); // Reset first to ensure clean restart
+      setHasStarted(false);
+      // Small delay to ensure Joyride resets properly
+      setTimeout(() => {
+        setRun(true);
+        setHasStarted(true);
+      }, 100);
     }
   }, [restartTrigger, isLoading, authLoading]);
 
@@ -110,17 +115,20 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
 
     if (finishedStatuses.includes(status)) {
       setRun(false);
-      completeMutation.mutate();
+      // Only mark as complete if this is the first-time tour, not a manual restart
+      if (!preferences?.completedOnboarding) {
+        completeMutation.mutate();
+      }
     }
   };
 
-  // Don't render if still loading (but allow manual restart even if completed)
+  // Don't render if still loading
   if (isLoading || !preferences) {
     return null;
   }
 
-  // Only show for first-time users or manual restarts
-  if (!run && preferences.completedOnboarding && restartTrigger === 0) {
+  // Don't render if not running and it's not a first-time user and no manual restart requested
+  if (!run) {
     return null;
   }
 
