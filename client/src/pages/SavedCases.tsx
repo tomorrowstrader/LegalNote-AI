@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Search, FolderOpen } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import CaseCard from "@/components/CaseCard";
 import EmptyState from "@/components/EmptyState";
@@ -12,7 +11,6 @@ import type { Case } from "@shared/schema";
 export default function SavedCases() {
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("active");
 
   const { data: cases, isLoading } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
@@ -25,9 +23,8 @@ export default function SavedCases() {
       c.clientName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // For MVP, all cases are "active" - archiving feature to be added later
+  // TODO: Re-implement archiving feature post-MVP
   const activeCases = filteredCases;
-  const archivedCases: Case[] = []; // No archived cases for MVP
 
   return (
     <div className="min-h-screen bg-background">
@@ -39,22 +36,14 @@ export default function SavedCases() {
           </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <div className="space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <TabsList>
-              <TabsTrigger value="active" data-testid="tab-active-cases">
-                Active Cases
-                <Badge variant="secondary" className="ml-2">
-                  {activeCases.length}
-                </Badge>
-              </TabsTrigger>
-              <TabsTrigger value="archived" data-testid="tab-archived-cases">
-                Archived
-                <Badge variant="secondary" className="ml-2">
-                  {archivedCases.length}
-                </Badge>
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-medium text-foreground">Active Cases</h2>
+              <Badge variant="secondary">
+                {activeCases.length}
+              </Badge>
+            </div>
 
             <div className="relative w-full sm:w-auto sm:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -69,51 +58,41 @@ export default function SavedCases() {
             </div>
           </div>
 
-          <TabsContent value="active" className="mt-6">
-            {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading cases...</div>
-            ) : activeCases.length > 0 ? (
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                {activeCases.map((caseItem) => (
-                  <CaseCard 
-                    key={caseItem.id} 
-                    id={caseItem.id}
-                    title={caseItem.title}
-                    clientName={caseItem.clientName}
-                    meetingDate={new Date(caseItem.createdAt).toLocaleDateString('en-GB', { 
-                      day: 'numeric', 
-                      month: 'long', 
-                      year: 'numeric' 
-                    })}
-                    status={caseItem.status as "pending" | "processing" | "review_required" | "completed" | "failed"}
-                    createdBy={caseItem.createdBy}
-                    priority={caseItem.priority as "urgent" | "deadline-soon" | "normal"}
-                  />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                icon={FolderOpen}
-                title="No cases found"
-                description={
-                  searchQuery
-                    ? "No cases match your search criteria"
-                    : "Start by creating your first attendance note"
-                }
-                actionLabel={searchQuery ? undefined : "Create New Note"}
-                onAction={searchQuery ? undefined : () => setLocation('/new-note')}
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="archived" className="mt-6">
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading cases...</div>
+          ) : activeCases.length > 0 ? (
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {activeCases.map((caseItem) => (
+                <CaseCard 
+                  key={caseItem.id} 
+                  id={caseItem.id}
+                  title={caseItem.title}
+                  clientName={caseItem.clientName}
+                  meetingDate={new Date(caseItem.createdAt).toLocaleDateString('en-GB', { 
+                    day: 'numeric', 
+                    month: 'long', 
+                    year: 'numeric' 
+                  })}
+                  status={caseItem.status as "pending" | "processing" | "review_required" | "completed" | "failed"}
+                  createdBy={caseItem.createdBy}
+                  priority={caseItem.priority as "urgent" | "deadline-soon" | "normal"}
+                />
+              ))}
+            </div>
+          ) : (
             <EmptyState
               icon={FolderOpen}
-              title="Archiving coming soon"
-              description="Case archiving feature will be available in a future update"
+              title="No cases found"
+              description={
+                searchQuery
+                  ? "No cases match your search criteria"
+                  : "Start by creating your first attendance note"
+              }
+              actionLabel={searchQuery ? undefined : "Create New Note"}
+              onAction={searchQuery ? undefined : () => setLocation('/new-note')}
             />
-          </TabsContent>
-        </Tabs>
+          )}
+        </div>
       </div>
     </div>
   );
