@@ -5,6 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import type { FirmProfileSelect } from "@shared/schema";
 
 interface Document {
   id: string;
@@ -38,6 +40,11 @@ export default function DocumentViewer({
 }: DocumentViewerProps) {
   const { toast } = useToast();
 
+  // Fetch firm profile for exports
+  const { data: firmProfile } = useQuery<FirmProfileSelect>({
+    queryKey: ['/api/firm-profile'],
+  });
+
   const handleExport = async (format: 'word' | 'pdf') => {
     try {
       const attendanceNote = documents.find(d => d.type === 'attendance_note');
@@ -54,6 +61,7 @@ export default function DocumentViewer({
         matterReference,
         createdAt,
         documentType: 'full_case' as const,
+        firmProfile: firmProfile || undefined,
       };
 
       if (format === 'pdf') {

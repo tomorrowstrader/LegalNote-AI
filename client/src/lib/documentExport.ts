@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, NumberFormat } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, NumberFormat, BorderStyle } from 'docx';
 import { saveAs } from 'file-saver';
+import type { FirmProfileSelect } from '@shared/schema';
 
 interface DocumentContent {
   summary?: string;
@@ -12,6 +13,7 @@ interface DocumentContent {
   matterReference?: string;
   createdAt: string;
   documentType?: 'attendance_note' | 'summary' | 'legal_opinion' | 'transcript' | 'full_case';
+  firmProfile?: FirmProfileSelect;
 }
 
 // Helper to strip markdown for plain text (PDF)
@@ -112,6 +114,23 @@ export async function exportToPDF(content: DocumentContent) {
     yPosition += 5; // Add spacing after paragraph
   };
 
+  // Firm Letterhead
+  if (content.firmProfile?.firmName) {
+    addText(content.firmProfile.firmName, 14, true);
+    if (content.firmProfile.addressLine1) addText(content.firmProfile.addressLine1, 9);
+    if (content.firmProfile.addressLine2) addText(content.firmProfile.addressLine2, 9);
+    if (content.firmProfile.city || content.firmProfile.postcode) {
+      addText(`${content.firmProfile.city || ''} ${content.firmProfile.postcode || ''}`.trim(), 9);
+    }
+    if (content.firmProfile.phone) addText(`Tel: ${content.firmProfile.phone}`, 9);
+    if (content.firmProfile.email) addText(`Email: ${content.firmProfile.email}`, 9);
+    if (content.firmProfile.sraNumber) addText(`SRA No: ${content.firmProfile.sraNumber}`, 9);
+    yPosition += 5;
+    doc.setDrawColor(0, 0, 0);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+  }
+
   // Header
   addText('Legal Case Documentation', 18, true);
   yPosition += 5;
@@ -196,6 +215,39 @@ export async function exportToPDF(content: DocumentContent) {
 
 export async function exportToWord(content: DocumentContent) {
   const children: Paragraph[] = [];
+
+  // Firm Letterhead
+  if (content.firmProfile?.firmName) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: content.firmProfile.firmName, bold: true, size: 28 })],
+        alignment: AlignmentType.LEFT,
+        spacing: { after: 100 },
+      })
+    );
+    if (content.firmProfile.addressLine1) {
+      children.push(new Paragraph({ text: content.firmProfile.addressLine1, spacing: { after: 80 } }));
+    }
+    if (content.firmProfile.addressLine2) {
+      children.push(new Paragraph({ text: content.firmProfile.addressLine2, spacing: { after: 80 } }));
+    }
+    if (content.firmProfile.city || content.firmProfile.postcode) {
+      children.push(new Paragraph({ 
+        text: `${content.firmProfile.city || ''} ${content.firmProfile.postcode || ''}`.trim(), 
+        spacing: { after: 80 } 
+      }));
+    }
+    if (content.firmProfile.phone) {
+      children.push(new Paragraph({ text: `Tel: ${content.firmProfile.phone}`, spacing: { after: 80 } }));
+    }
+    if (content.firmProfile.email) {
+      children.push(new Paragraph({ text: `Email: ${content.firmProfile.email}`, spacing: { after: 80 } }));
+    }
+    if (content.firmProfile.sraNumber) {
+      children.push(new Paragraph({ text: `SRA No: ${content.firmProfile.sraNumber}`, spacing: { after: 200 } }));
+    }
+    children.push(new Paragraph({ text: '', border: { bottom: { color: "000000", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { after: 400 } }));
+  }
 
   // Header section
   children.push(

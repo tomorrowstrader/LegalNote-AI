@@ -1,7 +1,17 @@
 # LegalNote AI - Replit Configuration
 
 ## Overview
-LegalNote AI is a professional legal documentation platform for solicitors and law firms. It enables legal professionals to record client meetings, automatically generate attendance notes, legal opinions, and searchable transcripts, while ensuring GDPR compliance, client consent management, and professional document workflows. The project aims to provide an efficient and compliant solution for legal document creation and management.
+LegalNote AI is a professional legal documentation platform for solicitors and law firms. It enables legal professionals to record client meetings, automatically generate attendance notes, legal opinions, and searchable transcripts, while ensuring GDPR compliance, client consent management, and professional document workflows with firm branding on all exports. The project aims to provide an efficient and compliant solution for legal document creation and management.
+
+## Recent Changes (October 28, 2025)
+- **MVP Polish Phase Completed**:
+  - Enhanced markdown formatting in document exports (PDF strips markdown cleanly, Word preserves **bold**, *italic*, headings, bullets)
+  - Added audio deletion status indicator to distinguish GDPR-deleted audio from consent-declined cases
+  - Updated GPT-4o attendance note prompts to professional Adam Bernard format with numbered sections and UK law compliance
+  - Implemented firm profile infrastructure with database schema, storage methods, and API routes (GET/PUT with admin check)
+  - Added firm branding to all document exports (PDF and Word) with professional letterhead displaying firm name, address, phone, email, and SRA number
+  - Fixed critical issues: GPT prompt bracketed placeholders and updatedBy UUID validation (now accepts Replit Auth numeric IDs)
+  - Improved export filenames to use pattern: ClientName_MatterType_DocumentType_Date.pdf
 
 ## User Preferences
 **Communication Style:** Simple, everyday language.
@@ -18,7 +28,7 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **UI Component Library**: Shadcn UI with Radix UI primitives, black gradient theme (0-8% lightness range), Inter font.
 - **Routing**: Wouter for client-side routing (Dashboard, New Note, Case Detail, Saved Cases, Settings, My Profile, Audit Logs).
 - **State Management**: TanStack Query for server state and async operations.
-- **Key Features**: Quick Record with Consent Flow (3-sec countdown, verbal consent capture, audit trail), Priority System (badges), Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Review Checklist Banner, Tabbed Document Viewer (Summary, Legal Opinion, Transcript), Role-Based UI (My Profile vs. Firm Settings), Quick Actions, and comprehensive Audit Trail Compliance with CSV export.
+- **Key Features**: Quick Record with Consent Flow (3-sec countdown, verbal consent capture, audit trail), Priority System (badges), Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Review Checklist Banner, Tabbed Document Viewer (Summary, Legal Opinion, Transcript), Role-Based UI (My Profile vs. Firm Settings), Quick Actions, Firm Branding on Exports (professional letterhead with firm details on all PDF/Word exports), and comprehensive Audit Trail Compliance with CSV export.
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js (TypeScript-based).
@@ -27,7 +37,7 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 
 ### Data Storage Solutions
 - **Database**: PostgreSQL via Drizzle ORM, connected through Neon serverless.
-- **Schema**: Users, Cases, Consent Logs, Transcripts (with redaction), Documents (version-controlled), Client Version Tracking, User Preferences, and Audit Trail (comprehensive logging with eventType, userId, IP, metadata). Zod schema validation using `drizzle-zod`.
+- **Schema**: Users, Cases, Consent Logs, Transcripts (with redaction), Documents (version-controlled), Client Version Tracking, User Preferences, Firm Profile (name, logo, address, contact details, SRA number for professional letterhead), and Audit Trail (comprehensive logging with eventType, userId, IP, metadata). Zod schema validation using `drizzle-zod`.
 - **Session Management**: Designed for PostgreSQL session store.
 
 ### Authentication & Authorization
