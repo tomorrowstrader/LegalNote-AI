@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
+import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/select";
 
 export default function GlobalSearch() {
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -31,7 +33,23 @@ export default function GlobalSearch() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Searching:', { searchQuery, dateFilter, statusFilter });
+    
+    if (!searchQuery.trim()) {
+      return;
+    }
+    
+    const params = new URLSearchParams();
+    params.set('q', searchQuery.trim());
+    
+    if (dateFilter && dateFilter !== 'all') {
+      params.set('date', dateFilter);
+    }
+    
+    if (statusFilter && statusFilter !== 'all') {
+      params.set('status', statusFilter);
+    }
+    
+    setLocation(`/cases?${params.toString()}`);
     setMobileOpen(false);
   };
 

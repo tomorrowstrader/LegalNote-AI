@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Search, FolderOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -9,8 +9,17 @@ import { useQuery } from "@tanstack/react-query";
 import type { Case } from "@shared/schema";
 
 export default function SavedCases() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Read search query from URL on load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlQuery = params.get('q');
+    if (urlQuery) {
+      setSearchQuery(urlQuery);
+    }
+  }, [location]);
 
   const { data: cases, isLoading } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
@@ -20,7 +29,8 @@ export default function SavedCases() {
   const filteredCases = (cases || []).filter(
     (c) =>
       c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.clientName.toLowerCase().includes(searchQuery.toLowerCase())
+      c.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.matterReference?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // TODO: Re-implement archiving feature post-MVP
