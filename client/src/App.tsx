@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import TopNavigation from "@/components/TopNavigation";
+import FirmSetupPrompt from "@/components/FirmSetupPrompt";
+import OnboardingTour from "@/components/OnboardingTour";
 import Dashboard from "@/pages/Dashboard";
 import NewNote from "@/pages/NewNote";
 import CaseDetail from "@/pages/CaseDetail";
@@ -46,6 +48,8 @@ function AuthenticatedApp() {
   return (
     <div className="min-h-screen bg-background">
       {!isLoading && isAuthenticated && <TopNavigation />}
+      {!isLoading && isAuthenticated && <FirmSetupPrompt />}
+      {!isLoading && isAuthenticated && <OnboardingTour />}
       <Router />
     </div>
   );

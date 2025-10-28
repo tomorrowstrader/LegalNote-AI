@@ -99,6 +99,7 @@ export const userPreferences = pgTable("user_preferences", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
   dismissedReviewBanner: boolean("dismissed_review_banner").notNull().default(false),
+  completedOnboarding: boolean("completed_onboarding").notNull().default(false),
   consentWorkflowPreferences: jsonb("consent_workflow_preferences").default({}), // Future workflow settings
 });
 

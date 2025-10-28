@@ -112,7 +112,7 @@ export default function GlobalSearch() {
             variant="ghost"
             size="icon"
             className="xl:hidden text-primary-foreground"
-            data-testid="button-mobile-search"
+            data-testid="button-search"
           >
             <Search className="w-5 h-5" />
           </Button>

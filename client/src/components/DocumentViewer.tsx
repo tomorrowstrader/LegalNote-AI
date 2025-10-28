@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import type { FirmProfileSelect } from "@shared/schema";
+import type { FirmProfile } from "@shared/schema";
 
 interface Document {
   id: string;
@@ -41,7 +41,7 @@ export default function DocumentViewer({
   const { toast } = useToast();
 
   // Fetch firm profile for exports
-  const { data: firmProfile } = useQuery<FirmProfileSelect>({
+  const { data: firmProfile } = useQuery<FirmProfile>({
     queryKey: ['/api/firm-profile'],
   });
 

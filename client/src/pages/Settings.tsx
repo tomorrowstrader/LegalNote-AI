@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -5,11 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, Building2, Bell, Activity, Download } from "lucide-react";
+import { Shield, Users, Building2, Bell, Activity, Download, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { insertFirmProfileSchema } from "@shared/schema";
+import type { FirmProfile, InsertFirmProfile } from "@shared/schema";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface UserStatistics {
   id: string;
@@ -22,6 +30,242 @@ interface UserStatistics {
   totalCosts: number;
   lastActivity: string | null;
   joinedDate: string;
+}
+
+function FirmProfileForm() {
+  const { toast } = useToast();
+  const { user } = useAuth();
+
+  const { data: firmProfile, isLoading } = useQuery<FirmProfile>({
+    queryKey: ['/api/firm-profile'],
+  });
+
+  const form = useForm<InsertFirmProfile>({
+    resolver: zodResolver(insertFirmProfileSchema),
+    defaultValues: {
+      firmName: "",
+      addressLine1: "",
+      addressLine2: "",
+      city: "",
+      postcode: "",
+      country: "United Kingdom",
+      phone: "",
+      email: "",
+      sraNumber: "",
+      logoUrl: "",
+    },
+  });
+
+  // Update form when data loads
+  useEffect(() => {
+    if (firmProfile) {
+      form.reset({
+        firmName: firmProfile.firmName || "",
+        addressLine1: firmProfile.addressLine1 || "",
+        addressLine2: firmProfile.addressLine2 || "",
+        city: firmProfile.city || "",
+        postcode: firmProfile.postcode || "",
+        country: firmProfile.country || "United Kingdom",
+        phone: firmProfile.phone || "",
+        email: firmProfile.email || "",
+        sraNumber: firmProfile.sraNumber || "",
+        logoUrl: firmProfile.logoUrl || "",
+      });
+    }
+  }, [firmProfile, form]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: InsertFirmProfile) => {
+      const response = await fetch('/api/firm-profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          ...data,
+          updatedBy: user?.id,
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update firm profile');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/firm-profile'] });
+      toast({
+        title: "Firm Profile Updated",
+        description: "Your firm details have been saved successfully.",
+        duration: 3000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update firm profile. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    },
+  });
+
+  const onSubmit = (data: InsertFirmProfile) => {
+    updateMutation.mutate(data);
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Loading firm profile...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Building2 className="w-5 h-5" />
+          <CardTitle>Firm Details</CardTitle>
+        </div>
+        <CardDescription>
+          Manage your law firm information. These details will appear on all exported documents.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="firmName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Firm Name *</FormLabel>
+                  <FormControl>
+                    <Input {...field} data-testid="input-firm-name" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="addressLine1"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address Line 1</FormLabel>
+                  <FormControl>
+                    <Input {...field} data-testid="input-address-line1" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="addressLine2"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address Line 2</FormLabel>
+                  <FormControl>
+                    <Input {...field} data-testid="input-address-line2" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="city"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>City</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-city" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="postcode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Postcode</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-postcode" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone Number</FormLabel>
+                  <FormControl>
+                    <Input {...field} data-testid="input-phone" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Firm Email</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="email" data-testid="input-email" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="sraNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>SRA Number</FormLabel>
+                  <FormControl>
+                    <Input {...field} data-testid="input-sra-number" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button 
+              type="submit" 
+              className="bg-accent hover:bg-accent" 
+              disabled={updateMutation.isPending}
+              data-testid="button-save-firm"
+            >
+              {updateMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Save Changes
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function Settings() {
@@ -68,30 +312,7 @@ export default function Settings() {
           </TabsList>
 
           <TabsContent value="firm" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-5 h-5" />
-                  <CardTitle>Firm Details</CardTitle>
-                </div>
-                <CardDescription>Manage your law firm information</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firm-name">Firm Name</Label>
-                  <Input id="firm-name" defaultValue="Smith & Partners LLP" data-testid="input-firm-name" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="firm-address">Address</Label>
-                  <Input id="firm-address" defaultValue="123 Legal Street, London, EC1A 1BB" data-testid="input-firm-address" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sra-number">SRA Number</Label>
-                  <Input id="sra-number" defaultValue="123456" data-testid="input-sra-number" />
-                </div>
-                <Button className="bg-accent hover:bg-accent" data-testid="button-save-firm">Save Changes</Button>
-              </CardContent>
-            </Card>
+            <FirmProfileForm />
           </TabsContent>
 
           <TabsContent value="team" className="space-y-6">

@@ -7,6 +7,7 @@ import {
   type Document, type InsertDocument,
   type AuditTrail, type InsertAuditTrail,
   type FirmProfile, type InsertFirmProfile,
+  type UserPreferences,
   users,
   cases,
   audioRecordings,
@@ -14,7 +15,8 @@ import {
   transcripts,
   documents,
   auditTrail,
-  firmProfile
+  firmProfile,
+  userPreferences
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -104,6 +106,10 @@ export interface IStorage {
   // Firm Profile methods
   getFirmProfile(): Promise<FirmProfile | undefined>;
   upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile>;
+  
+  // User Preferences methods
+  getUserPreferences(userId: string): Promise<UserPreferences | undefined>;
+  updateUserPreferences(userId: string, updates: Partial<UserPreferences>): Promise<UserPreferences>;
 }
 
 export class MemStorage implements IStorage {
@@ -536,6 +542,16 @@ export class MemStorage implements IStorage {
   async upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile> {
     // MemStorage: In-memory implementation - not used in production
     throw new Error('Firm profile operations require database storage');
+  }
+  
+  async getUserPreferences(userId: string): Promise<UserPreferences | undefined> {
+    // MemStorage: In-memory implementation - not used in production
+    return undefined;
+  }
+  
+  async updateUserPreferences(userId: string, updates: Partial<UserPreferences>): Promise<UserPreferences> {
+    // MemStorage: In-memory implementation - not used in production
+    throw new Error('User preferences operations require database storage');
   }
 }
 
@@ -1012,6 +1028,35 @@ export class DbStorage implements IStorage {
         .values({
           ...profileData,
           updatedAt: new Date(),
+        })
+        .returning();
+      return inserted[0];
+    }
+  }
+  
+  async getUserPreferences(userId: string): Promise<UserPreferences | undefined> {
+    const result = await db.select().from(userPreferences).where(eq(userPreferences.userId, userId)).limit(1);
+    return result[0];
+  }
+  
+  async updateUserPreferences(userId: string, updates: Partial<UserPreferences>): Promise<UserPreferences> {
+    const existing = await this.getUserPreferences(userId);
+    
+    if (existing) {
+      const updated = await db
+        .update(userPreferences)
+        .set(updates)
+        .where(eq(userPreferences.userId, userId))
+        .returning();
+      return updated[0];
+    } else {
+      const inserted = await db
+        .insert(userPreferences)
+        .values({
+          userId,
+          dismissedReviewBanner: false,
+          completedOnboarding: false,
+          ...updates,
         })
         .returning();
       return inserted[0];

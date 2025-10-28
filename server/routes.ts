@@ -1054,6 +1054,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get user preferences
+  app.get("/api/user-preferences", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const preferences = await storage.getUserPreferences(userId);
+      res.json(preferences || { userId, dismissedReviewBanner: false, completedOnboarding: false });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update user preferences
+  app.put("/api/user-preferences", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const updatedPreferences = await storage.updateUserPreferences(userId, req.body);
+      res.json(updatedPreferences);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Admin usage statistics endpoint (deprecated - use /api/admin/statistics instead)
   app.get("/api/admin/usage-stats", isAuthenticated, async (req: any, res, next) => {
     try {

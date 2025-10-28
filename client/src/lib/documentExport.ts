@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, NumberFormat, BorderStyle } from 'docx';
 import { saveAs } from 'file-saver';
-import type { FirmProfileSelect } from '@shared/schema';
+import type { FirmProfile } from '@shared/schema';
 
 interface DocumentContent {
   summary?: string;
@@ -13,7 +13,7 @@ interface DocumentContent {
   matterReference?: string;
   createdAt: string;
   documentType?: 'attendance_note' | 'summary' | 'legal_opinion' | 'transcript' | 'full_case';
-  firmProfile?: FirmProfileSelect;
+  firmProfile?: FirmProfile;
 }
 
 // Helper to strip markdown for plain text (PDF)
