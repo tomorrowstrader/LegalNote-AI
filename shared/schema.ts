@@ -97,7 +97,7 @@ export const clientVersionTracking = pgTable("client_version_tracking", {
 
 export const userPreferences = pgTable("user_preferences", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").notNull().unique().references(() => users.id),
   dismissedReviewBanner: boolean("dismissed_review_banner").notNull().default(false),
   completedOnboarding: boolean("completed_onboarding").notNull().default(false),
   consentWorkflowPreferences: jsonb("consent_workflow_preferences").default({}), // Future workflow settings
@@ -253,8 +253,9 @@ export const insertClientVersionTrackingSchema = createInsertSchema(clientVersio
 export const insertUserPreferencesSchema = createInsertSchema(userPreferences).omit({
   id: true,
 }).extend({
-  userId: z.string().uuid(),
+  userId: z.string().min(1), // Replit Auth IDs are not UUIDs
   dismissedReviewBanner: z.boolean().default(false),
+  completedOnboarding: z.boolean().default(false),
 });
 
 export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({

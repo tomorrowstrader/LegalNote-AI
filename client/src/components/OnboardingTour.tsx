@@ -8,12 +8,23 @@ import type { UserPreferences } from "@shared/schema";
 export default function OnboardingTour() {
   const { user, isLoading: authLoading } = useAuth();
   const [run, setRun] = useState(false);
+  const [hasStarted, setHasStarted] = useState(false);
 
   // Fetch user preferences to check onboarding completion
   const { data: preferences, isLoading } = useQuery<UserPreferences>({
     queryKey: ["/api/user-preferences"],
     enabled: !authLoading && !!user,
   });
+
+  // Start the tour when preferences load and onboarding is not complete
+  useEffect(() => {
+    if (!isLoading && !authLoading && preferences && !hasStarted) {
+      if (!preferences.completedOnboarding) {
+        setRun(true);
+        setHasStarted(true);
+      }
+    }
+  }, [isLoading, authLoading, preferences, hasStarted]);
 
   // Mutation to mark onboarding as complete
   const completeMutation = useMutation({
