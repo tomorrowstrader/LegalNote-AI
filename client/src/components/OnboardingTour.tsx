@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import Joyride, { CallBackProps, STATUS, Step } from "react-joyride";
+import Joyride, { CallBackProps, STATUS, Step, Styles } from "react-joyride";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import type { UserPreferences } from "@shared/schema";
 
 interface OnboardingTourProps {
@@ -33,9 +33,8 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
   // Restart tour when restartTrigger changes
   useEffect(() => {
     if (restartTrigger > 0 && !isLoading && !authLoading) {
-      setRun(false); // Reset first to ensure clean restart
+      setRun(false);
       setHasStarted(false);
-      // Small delay to ensure Joyride resets properly
       setTimeout(() => {
         setRun(true);
         setHasStarted(true);
@@ -64,9 +63,11 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
     {
       target: "body",
       content: (
-        <div>
-          <h2 className="text-lg font-semibold mb-2">Welcome to LegalNote AI!</h2>
-          <p>Let me show you around so you can get started quickly. This will only take a moment.</p>
+        <div className="space-y-3">
+          <h2 className="text-2xl font-bold tracking-tight">Welcome to LegalNote AI</h2>
+          <p className="text-base leading-relaxed text-muted-foreground">
+            Let me show you the key features to help you get started. This quick tour will only take a minute.
+          </p>
         </div>
       ),
       placement: "center",
@@ -74,38 +75,81 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
     },
     {
       target: '[data-testid="button-quick-record"]',
-      content: "Use Quick Record to instantly start recording a client meeting with consent capture. Perfect for urgent matters.",
+      content: (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Quick Record</h3>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Instantly start recording a client meeting with built-in consent capture. Perfect for urgent matters and spontaneous consultations.
+          </p>
+        </div>
+      ),
       placement: "bottom",
+      disableBeacon: true,
     },
     {
       target: '[data-testid="link-new-note"]',
-      content: "Create a new case here. You can record audio or enter text notes manually.",
+      content: (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Create New Case</h3>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Start a new case with audio recording or manual text entry. All cases are automatically organized and searchable.
+          </p>
+        </div>
+      ),
       placement: "bottom",
+      disableBeacon: true,
     },
     {
-      target: '[data-testid="button-search"]',
-      content: "Search across all your cases, clients, and documents to find what you need quickly.",
+      target: '[data-testid="input-global-search"]',
+      content: (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Global Search</h3>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Search across all your cases, clients, and documents instantly. Filter by date range and status for precise results.
+          </p>
+        </div>
+      ),
       placement: "bottom",
+      disableBeacon: true,
     },
     {
       target: '[data-testid="link-saved-cases"]',
-      content: "View all your saved cases here. Filter by priority, status, or search for specific clients.",
+      content: (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Saved Cases</h3>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            View and manage all your cases in one place. Filter by priority, status, or use search to find specific clients quickly.
+          </p>
+        </div>
+      ),
       placement: "bottom",
+      disableBeacon: true,
     },
     {
       target: '[data-testid="link-firm-settings"]',
-      content: "Manage firm settings here, including team members and firm details that appear on exported documents.",
+      content: (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Firm Settings</h3>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Configure your firm details, team members, and branding that appears on all exported documents.
+          </p>
+        </div>
+      ),
       placement: "bottom",
+      disableBeacon: true,
     },
     {
       target: "body",
       content: (
-        <div>
-          <h2 className="text-lg font-semibold mb-2">You're all set!</h2>
-          <p>Start by creating your first case or using Quick Record. If you need help, all features have tooltips and guidance.</p>
+        <div className="space-y-3">
+          <h2 className="text-2xl font-bold tracking-tight">You're All Set!</h2>
+          <p className="text-base leading-relaxed text-muted-foreground">
+            Start by creating your first case or using Quick Record. Each feature has built-in guidance to help you along the way.
+          </p>
         </div>
       ),
       placement: "center",
+      disableBeacon: true,
     },
   ];
 
@@ -115,22 +159,120 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
 
     if (finishedStatuses.includes(status)) {
       setRun(false);
-      // Only mark as complete if this is the first-time tour, not a manual restart
       if (!preferences?.completedOnboarding) {
         completeMutation.mutate();
       }
     }
   };
 
-  // Don't render if still loading
   if (isLoading || !preferences) {
     return null;
   }
 
-  // Don't render if not running and it's not a first-time user and no manual restart requested
   if (!run) {
     return null;
   }
+
+  // Premium styling with dark/light mode support
+  const styles: Partial<Styles> = {
+    options: {
+      arrowColor: "hsl(var(--popover))",
+      backgroundColor: "hsl(var(--popover))",
+      beaconSize: 36,
+      overlayColor: "hsl(var(--background) / 0.5)",
+      primaryColor: "hsl(var(--accent))",
+      textColor: "hsl(var(--popover-foreground))",
+      width: 400,
+      zIndex: 10000,
+    },
+    tooltip: {
+      borderRadius: 12,
+      padding: 24,
+      boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3)",
+    },
+    tooltipContainer: {
+      textAlign: "left",
+    },
+    tooltipTitle: {
+      fontSize: "1.25rem",
+      fontWeight: 600,
+      margin: 0,
+      color: "hsl(var(--popover-foreground))",
+    },
+    tooltipContent: {
+      fontSize: "0.875rem",
+      padding: "12px 0 0 0",
+      lineHeight: 1.6,
+      color: "hsl(var(--muted-foreground))",
+    },
+    tooltipFooter: {
+      marginTop: 20,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    buttonNext: {
+      backgroundColor: "hsl(var(--accent))",
+      color: "hsl(var(--accent-foreground))",
+      fontSize: "0.875rem",
+      fontWeight: 500,
+      padding: "10px 20px",
+      borderRadius: 8,
+      border: "none",
+      cursor: "pointer",
+      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+    },
+    buttonBack: {
+      color: "hsl(var(--muted-foreground))",
+      fontSize: "0.875rem",
+      fontWeight: 500,
+      padding: "10px 20px",
+      borderRadius: 8,
+      marginRight: 12,
+      border: "1px solid hsl(var(--border))",
+      backgroundColor: "transparent",
+      cursor: "pointer",
+      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+    },
+    buttonSkip: {
+      color: "hsl(var(--muted-foreground))",
+      fontSize: "0.875rem",
+      fontWeight: 500,
+      padding: "10px 16px",
+      backgroundColor: "transparent",
+      border: "none",
+      cursor: "pointer",
+      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+    },
+    buttonClose: {
+      color: "hsl(var(--muted-foreground))",
+      fontSize: "1.5rem",
+      padding: 8,
+      position: "absolute",
+      right: 12,
+      top: 12,
+      width: 32,
+      height: 32,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      border: "none",
+      backgroundColor: "transparent",
+      cursor: "pointer",
+      borderRadius: 6,
+      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+    },
+    spotlight: {
+      borderRadius: 8,
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    },
+    overlay: {
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    },
+    beacon: {
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    },
+  };
 
   return (
     <Joyride
@@ -140,29 +282,27 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
       showProgress
       showSkipButton
       callback={handleJoyrideCallback}
-      styles={{
-        options: {
-          primaryColor: "hsl(var(--accent))",
-          zIndex: 10000,
-        },
-        tooltip: {
-          borderRadius: 8,
-        },
-        buttonNext: {
-          backgroundColor: "hsl(var(--accent))",
-          color: "hsl(var(--accent-foreground))",
-        },
-        buttonBack: {
-          color: "hsl(var(--muted-foreground))",
+      styles={styles}
+      floaterProps={{
+        disableAnimation: false,
+        styles: {
+          floater: {
+            filter: "drop-shadow(0 10px 15px rgb(0 0 0 / 0.2))",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          },
         },
       }}
       locale={{
         back: "Back",
         close: "Close",
-        last: "Finish",
+        last: "Finish Tour",
         next: "Next",
         skip: "Skip Tour",
       }}
+      disableScrolling={false}
+      disableScrollParentFix
+      spotlightClicks
+      spotlightPadding={8}
     />
   );
 }
