@@ -61,9 +61,12 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   
   createCase(caseData: InsertCase, userId: string): Promise<Case>;
-  getCases(userId: string): Promise<Case[]>;
+  getCases(userId: string, includeArchived?: boolean): Promise<Case[]>;
   getCase(id: string, userId: string): Promise<Case | undefined>;
   updateCase(id: string, updates: Partial<Case>, userId: string): Promise<Case | undefined>;
+  markCaseAsReviewed(id: string, reviewed: boolean, userId: string): Promise<Case | undefined>;
+  archiveCase(id: string, archived: boolean, userId: string): Promise<Case | undefined>;
+  assignCaseToUser(id: string, assignedToUserId: string | null, userId: string): Promise<Case | undefined>;
   
   createAudioRecording(audioData: ServerAudioRecordingInsert): Promise<AudioRecording>;
   getAudioRecording(id: string): Promise<AudioRecording | undefined>;
@@ -159,20 +162,23 @@ export class MemStorage implements IStorage {
       ...insertCase,
       id,
       createdBy: userId, // Security: Enforce user isolation at storage layer
+      assignedToUserId: insertCase.assignedToUserId || null,
       createdAt: new Date(),
       status: insertCase.status || "pending",
       priority: insertCase.priority || "normal",
       matterReference: insertCase.matterReference || null,
       textNotes: insertCase.textNotes || null,
+      reviewed: insertCase.reviewed || false,
+      archived: insertCase.archived || false,
       aiProcessingMetadata: {},
     };
     this.cases.set(id, newCase);
     return newCase;
   }
 
-  async getCases(userId: string): Promise<Case[]> {
+  async getCases(userId: string, includeArchived: boolean = false): Promise<Case[]> {
     return Array.from(this.cases.values())
-      .filter(c => c.createdBy === userId)
+      .filter(c => c.createdBy === userId && (includeArchived || !c.archived))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
@@ -189,6 +195,18 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...updates };
     this.cases.set(id, updated);
     return updated;
+  }
+
+  async markCaseAsReviewed(id: string, reviewed: boolean, userId: string): Promise<Case | undefined> {
+    return this.updateCase(id, { reviewed }, userId);
+  }
+
+  async archiveCase(id: string, archived: boolean, userId: string): Promise<Case | undefined> {
+    return this.updateCase(id, { archived }, userId);
+  }
+
+  async assignCaseToUser(id: string, assignedToUserId: string | null, userId: string): Promise<Case | undefined> {
+    return this.updateCase(id, { assignedToUserId }, userId);
   }
 
   async createAudioRecording(insertAudioRecording: ServerAudioRecordingInsert): Promise<AudioRecording> {
@@ -610,21 +628,28 @@ export class DbStorage implements IStorage {
         clientName: insertCase.clientName,
         matterReference: insertCase.matterReference ?? null,
         createdBy: userId,
+        assignedToUserId: insertCase.assignedToUserId ?? null,
         status: insertCase.status || "pending",
         priority: insertCase.priority || "normal",
         sourceType: insertCase.sourceType,
         textNotes: insertCase.textNotes ?? null,
+        reviewed: insertCase.reviewed ?? false,
+        archived: insertCase.archived ?? false,
         aiProcessingMetadata: {},
       })
       .returning();
     return result[0];
   }
 
-  async getCases(userId: string): Promise<Case[]> {
+  async getCases(userId: string, includeArchived: boolean = false): Promise<Case[]> {
+    const conditions = includeArchived 
+      ? [eq(cases.createdBy, userId)]
+      : [eq(cases.createdBy, userId), eq(cases.archived, false)];
+      
     return await db
       .select()
       .from(cases)
-      .where(eq(cases.createdBy, userId))
+      .where(and(...conditions))
       .orderBy(desc(cases.createdAt));
   }
 
@@ -640,6 +665,18 @@ export class DbStorage implements IStorage {
       .where(and(eq(cases.id, id), eq(cases.createdBy, userId)))
       .returning();
     return result[0];
+  }
+
+  async markCaseAsReviewed(id: string, reviewed: boolean, userId: string): Promise<Case | undefined> {
+    return this.updateCase(id, { reviewed }, userId);
+  }
+
+  async archiveCase(id: string, archived: boolean, userId: string): Promise<Case | undefined> {
+    return this.updateCase(id, { archived }, userId);
+  }
+
+  async assignCaseToUser(id: string, assignedToUserId: string | null, userId: string): Promise<Case | undefined> {
+    return this.updateCase(id, { assignedToUserId }, userId);
   }
 
   async createAudioRecording(insertAudioRecording: ServerAudioRecordingInsert): Promise<AudioRecording> {

@@ -170,6 +170,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Case action routes
+  app.post("/api/cases/:id/review", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { reviewed } = req.body;
+      
+      if (typeof reviewed !== 'boolean') {
+        return res.status(400).json({ message: "reviewed field must be a boolean" });
+      }
+      
+      const updatedCase = await storage.markCaseAsReviewed(req.params.id, reviewed, userId);
+      
+      if (!updatedCase) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      
+      await logAuditEvent(userId, "case_updated", {
+        caseId: req.params.id,
+        metadata: { action: "mark_reviewed", reviewed },
+        req,
+      });
+      
+      res.json(updatedCase);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/archive", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { archived } = req.body;
+      
+      if (typeof archived !== 'boolean') {
+        return res.status(400).json({ message: "archived field must be a boolean" });
+      }
+      
+      const updatedCase = await storage.archiveCase(req.params.id, archived, userId);
+      
+      if (!updatedCase) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      
+      await logAuditEvent(userId, "case_updated", {
+        caseId: req.params.id,
+        metadata: { action: "archive", archived },
+        req,
+      });
+      
+      res.json(updatedCase);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/assign", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { assignedToUserId } = req.body;
+      
+      if (assignedToUserId !== null && typeof assignedToUserId !== 'string') {
+        return res.status(400).json({ message: "assignedToUserId must be a string or null" });
+      }
+      
+      const updatedCase = await storage.assignCaseToUser(req.params.id, assignedToUserId, userId);
+      
+      if (!updatedCase) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      
+      await logAuditEvent(userId, "case_updated", {
+        caseId: req.params.id,
+        metadata: { action: "assign", assignedToUserId },
+        req,
+      });
+      
+      res.json(updatedCase);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Protected Audio routes
   app.post("/api/audio/upload-url", isAuthenticated, presignedUrlLimiter, async (req, res, next) => {
     try {

@@ -30,11 +30,14 @@ export const cases = pgTable("cases", {
   clientName: text("client_name").notNull(),
   matterReference: text("matter_reference"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
+  assignedToUserId: varchar("assigned_to_user_id").references(() => users.id), // Team member assignment
   createdAt: timestamp("created_at").notNull().defaultNow(),
   status: text("status").notNull().default("pending"), // pending, processing, review_required, completed
   priority: text("priority").notNull().default("normal"), // urgent, deadline-soon, normal
   sourceType: text("source_type").notNull(), // audio, text
   textNotes: text("text_notes"), // For text-based notes when consent declined
+  reviewed: boolean("reviewed").notNull().default(false), // Marks case as reviewed by solicitor
+  archived: boolean("archived").notNull().default(false), // Soft delete / archive functionality
   aiProcessingMetadata: jsonb("ai_processing_metadata").default({}), // Tracks tokens, costs, processing status, errors
 });
 

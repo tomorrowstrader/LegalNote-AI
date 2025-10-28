@@ -14,6 +14,9 @@ import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
 import { useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface CaseCardProps {
   id: string;
@@ -40,6 +43,70 @@ export default function CaseCard({
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const { toast } = useToast();
+
+  const markReviewedMutation = useMutation({
+    mutationFn: async (reviewed: boolean) => {
+      return await apiRequest('POST', `/api/cases/${id}/review`, { reviewed });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', id] });
+      toast({
+        title: "Case updated",
+        description: "Case marked as reviewed successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to mark case as reviewed",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: async (archived: boolean) => {
+      return await apiRequest('POST', `/api/cases/${id}/archive`, { archived });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', id] });
+      toast({
+        title: "Case archived",
+        description: "Case has been archived successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to archive case",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: async (assignedToUserId: string | null) => {
+      return await apiRequest('POST', `/api/cases/${id}/assign`, { assignedToUserId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', id] });
+      toast({
+        title: "Case assigned",
+        description: "Case has been assigned successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to assign case",
+        variant: "destructive",
+      });
+    },
+  });
 
   const statusConfig = {
     completed: { icon: CheckCircle2, label: "Completed", variant: "default" as const },
@@ -73,8 +140,28 @@ export default function CaseCard({
       setShowPriorityModal(true);
     } else if (action === 'share') {
       setShowShareModal(true);
-    } else {
-      console.log(`${action} action for case ${id}`);
+    } else if (action === 'review') {
+      markReviewedMutation.mutate(true);
+    } else if (action === 'archive') {
+      archiveMutation.mutate(true);
+    } else if (action === 'assign') {
+      // TODO: Show assign dialog with user selection
+      toast({
+        title: "Coming soon",
+        description: "Team member assignment will be available soon",
+      });
+    } else if (action === 'email') {
+      // TODO: Show email dialog
+      toast({
+        title: "Coming soon",
+        description: "Email to client will be available soon",
+      });
+    } else if (action === 'download') {
+      // TODO: Generate and download comprehensive PDF
+      toast({
+        title: "Coming soon",
+        description: "PDF download will be available soon",
+      });
     }
   };
 
