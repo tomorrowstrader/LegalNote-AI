@@ -6,13 +6,15 @@ import {
   type Transcript, type InsertTranscript,
   type Document, type InsertDocument,
   type AuditTrail, type InsertAuditTrail,
+  type FirmProfile, type InsertFirmProfile,
   users,
   cases,
   audioRecordings,
   consentLogs,
   transcripts,
   documents,
-  auditTrail
+  auditTrail,
+  firmProfile
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -98,6 +100,10 @@ export interface IStorage {
   getAllCases(): Promise<Case[]>;
   getAdminStatistics(): Promise<AdminStatistics>;
   getUserStatistics(): Promise<UserStatistics[]>;
+  
+  // Firm Profile methods
+  getFirmProfile(): Promise<FirmProfile | undefined>;
+  upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile>;
 }
 
 export class MemStorage implements IStorage {
@@ -520,6 +526,16 @@ export class MemStorage implements IStorage {
         joinedDate: user.createdAt || new Date(),
       };
     }).sort((a, b) => b.totalCases - a.totalCases);
+  }
+  
+  async getFirmProfile(): Promise<FirmProfile | undefined> {
+    // MemStorage: In-memory implementation returns undefined (not used in production)
+    return undefined;
+  }
+  
+  async upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile> {
+    // MemStorage: In-memory implementation - not used in production
+    throw new Error('Firm profile operations require database storage');
   }
 }
 
@@ -967,6 +983,39 @@ export class DbStorage implements IStorage {
     }
 
     return userStats.sort((a, b) => b.totalCases - a.totalCases);
+  }
+  
+  async getFirmProfile(): Promise<FirmProfile | undefined> {
+    const result = await db.select().from(firmProfile).limit(1);
+    return result[0];
+  }
+  
+  async upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile> {
+    // First, check if a profile exists
+    const existing = await this.getFirmProfile();
+    
+    if (existing) {
+      // Update existing profile
+      const updated = await db
+        .update(firmProfile)
+        .set({
+          ...profileData,
+          updatedAt: new Date(),
+        })
+        .where(eq(firmProfile.id, existing.id))
+        .returning();
+      return updated[0];
+    } else {
+      // Insert new profile
+      const inserted = await db
+        .insert(firmProfile)
+        .values({
+          ...profileData,
+          updatedAt: new Date(),
+        })
+        .returning();
+      return inserted[0];
+    }
   }
 }
 

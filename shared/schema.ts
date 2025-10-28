@@ -124,6 +124,23 @@ export const auditTrail = pgTable("audit_trail", {
   severity: text("severity").notNull().default("info"), // info, warning, critical
 });
 
+export const firmProfile = pgTable("firm_profile", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firmName: text("firm_name").notNull(),
+  logoUrl: text("logo_url"), // URL to logo in object storage
+  addressLine1: text("address_line_1"),
+  addressLine2: text("address_line_2"),
+  city: text("city"),
+  postcode: text("postcode"),
+  country: text("country").default("United Kingdom"),
+  phone: text("phone"),
+  email: text("email"),
+  website: text("website"),
+  sraNumber: text("sra_number"), // SRA firm registration number
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+});
+
 // Input validation helpers
 const sanitizeString = (str: string) => str.trim();
 
@@ -261,6 +278,24 @@ export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({
   severity: z.enum(["info", "warning", "critical"]).default("info"),
 });
 
+export const insertFirmProfileSchema = createInsertSchema(firmProfile).omit({
+  id: true,
+  updatedAt: true,
+}).extend({
+  firmName: z.string().min(1).max(200).transform(sanitizeString),
+  logoUrl: z.string().url().max(500).optional(),
+  addressLine1: z.string().max(200).transform(sanitizeString).optional(),
+  addressLine2: z.string().max(200).transform(sanitizeString).optional(),
+  city: z.string().max(100).transform(sanitizeString).optional(),
+  postcode: z.string().max(20).transform(sanitizeString).optional(),
+  country: z.string().max(100).transform(sanitizeString).default("United Kingdom"),
+  phone: z.string().max(50).transform(sanitizeString).optional(),
+  email: z.string().email().max(255).transform(sanitizeString).optional(),
+  website: z.string().url().max(500).optional(),
+  sraNumber: z.string().max(50).transform(sanitizeString).optional(),
+  updatedBy: z.string().min(1).optional(), // Replit Auth IDs are not UUIDs
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
@@ -289,3 +324,6 @@ export type UserPreferences = typeof userPreferences.$inferSelect;
 
 export type InsertAuditTrail = z.infer<typeof insertAuditTrailSchema>;
 export type AuditTrail = typeof auditTrail.$inferSelect;
+
+export type InsertFirmProfile = z.infer<typeof insertFirmProfileSchema>;
+export type FirmProfile = typeof firmProfile.$inferSelect;

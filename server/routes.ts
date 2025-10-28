@@ -1,7 +1,7 @@
 import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -1013,6 +1013,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userStats = await storage.getUserStatistics();
       res.json(userStats);
     } catch (error) {
+      next(error);
+    }
+  });
+
+  // Firm profile routes (accessible to all authenticated users - public branding info)
+  app.get("/api/firm-profile", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const profile = await storage.getFirmProfile();
+      res.json(profile || null);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update firm profile (admin only)
+  app.put("/api/firm-profile", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedData = insertFirmProfileSchema.parse({
+        ...req.body,
+        updatedBy: userId,
+      });
+      
+      const updatedProfile = await storage.upsertFirmProfile(validatedData);
+      
+      auditLogger.logFromRequest(AuditEventType.FIRM_PROFILE_UPDATED, req, {
+        resourceId: updatedProfile.id,
+        resourceType: "firm_profile",
+        action: "update",
+        severity: "medium",
+      });
+      
+      res.json(updatedProfile);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.message });
+      }
       next(error);
     }
   });

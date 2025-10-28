@@ -30,46 +30,80 @@ CRITICAL INSTRUCTIONS:
 - Do NOT invent, assume, or fabricate any details not present in the transcript
 - If information is unclear or missing, explicitly state "Not specified in meeting" rather than guessing
 - Use UK legal terminology and practice conventions throughout
+- Format the document professionally with proper markdown (use **bold** for headings and section titles, bullet points with • or -, numbered lists where appropriate)
 
-Structure your attendance note as follows:
+Your attendance note MUST follow this professional UK legal practice format:
 
-**ATTENDANCE NOTE**
+**Attendance Note**
 
-**Matter:** ${metadata.matterReference || 'Not specified'}
+**Date:** ${metadata.recordingDate}  **Time:** [Extract time from transcript, or state "Not recorded"]  **File No:** ${metadata.matterReference || 'TBD'}
+
+**Matter:** ${metadata.title}
+
+**Attendance upon:** ${metadata.clientName} [If the transcript identifies client's role (e.g., tenant, claimant), add it after a dash: "- tenant"]
+
+**Notes:**
+
 **Client:** ${metadata.clientName}
-**Date:** ${metadata.recordingDate}
-**Attendees:** [Extract from transcript - if unclear, state "Not clearly identified"]
+**Date of Consultation:** ${metadata.recordingDate}
+**Time:** [Extract meeting start and end times from transcript (e.g., "2:12 PM – 3:10 PM"), or state "Not recorded"]
+**Location:** [Extract meeting location from transcript, or state "Not recorded"]
 
-**Purpose of Meeting:**
-[Brief statement of the meeting's objective - based solely on transcript content]
+[Then create numbered sections for each major topic discussed. Each section should have:]
 
-**Discussion Points:**
-1. [Key topic 1 - as discussed in meeting]
-   - [Relevant details from transcript only]
-2. [Key topic 2 - as discussed in meeting]
-   - [Relevant details from transcript only]
+**1. [First Major Topic - Use Clear Professional Heading]**
 
-**Decisions Made:**
-- [Decision 1 - only if explicitly stated in transcript]
-- [Decision 2 - only if explicitly stated in transcript]
+[Opening paragraph describing the issue or matter discussed - based strictly on transcript]
 
-**Action Items:**
-- [Action 1 - Responsible party - Deadline (only if specified in meeting)]
-- [Action 2 - Responsible party - Deadline (only if specified in meeting)]
+[Client's position/situation - what they told you]
 
-**Next Steps:**
-[Outline follow-up actions and timeline - based only on what was discussed]
+[Your advice or discussion points - use bullet points with • for sub-items when listing multiple related points]
 
-**Additional Notes:**
-[Any other relevant information from the transcript]
+• [Point 1]
+• [Point 2]  
+• [Point 3]
 
-**IMPORTANT:** This attendance note must be reviewed and verified by the supervising solicitor before being added to the client file. All legal advice and action items should be confirmed against current UK law and SRA guidance.
+**2. [Second Major Topic]**
 
-Write in professional UK legal language, be concise but complete, maintain chronological order where possible, and adhere strictly to the facts presented in the transcript.`;
+[Continue same structure for each topic]
 
-    const userPrompt = `Generate an attendance note for the following meeting transcript:
+**3. [Additional Topics as Needed]**
+
+[Last numbered section should typically be "Next Steps" or "Recommended Course of Action"]
+
+**[Final numbered section]. Next Steps**
+
+[Outline the recommended course of action with numbered sub-steps or bullet points:]
+
+1. [First action step]
+   o [Sub-detail if relevant]
+   o [Sub-detail if relevant]
+2. [Second action step]
+3. [Third action step]
+
+[Add any important disclaimers or follow-up requirements]
+
+**Time engaged:** [Extract total duration from transcript - if not available, state "Not recorded"]
+
+FORMATTING GUIDELINES:
+- Use **bold** for all section headings and major topic titles
+- Use numbered lists (1. 2. 3.) for main topics and sequential action steps
+- Use bullet points (•) for related items within a topic
+- Use sub-bullets (o) for nested details under action items
+- Write in formal but clear UK legal language
+- Use professional terminology: "I advised", "You confirmed", "We discussed"
+- Include specific amounts, dates, and deadlines where mentioned
+- If the client has vulnerabilities or special circumstances, note them where relevant to the legal position
+
+IMPORTANT: This attendance note must be reviewed and verified by the supervising solicitor before being added to the client file. All legal advice and action items should be confirmed against current UK law and SRA guidance.
+
+Adhere strictly to the facts presented in the transcript. Where information is missing, explicitly state "Not specified" or "Not recorded" rather than inventing details.`;
+
+    const userPrompt = `Generate a professional attendance note for the following meeting transcript:
 
 **Case Title:** ${metadata.title}
+**Client Name:** ${metadata.clientName}
+**Matter Reference:** ${metadata.matterReference || 'TBD'}
 
 **Transcript:**
 ${transcript}`;
