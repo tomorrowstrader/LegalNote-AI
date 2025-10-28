@@ -98,19 +98,7 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
       ),
       placement: "bottom",
       disableBeacon: true,
-    },
-    {
-      target: '[data-testid="input-global-search"]',
-      content: (
-        <div className="space-y-2">
-          <h3 className="text-lg font-semibold">Global Search</h3>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Search across all your cases, clients, and documents instantly. Filter by date range and status for precise results.
-          </p>
-        </div>
-      ),
-      placement: "bottom",
-      disableBeacon: true,
+      spotlightClicks: true,
     },
     {
       target: '[data-testid="link-saved-cases"]',
@@ -124,18 +112,19 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
       ),
       placement: "bottom",
       disableBeacon: true,
+      spotlightClicks: true,
     },
     {
-      target: '[data-testid="link-firm-settings"]',
+      target: '[data-testid="button-user-menu"]',
       content: (
         <div className="space-y-2">
-          <h3 className="text-lg font-semibold">Firm Settings</h3>
+          <h3 className="text-lg font-semibold">User Menu & Settings</h3>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Configure your firm details, team members, and branding that appears on all exported documents.
+            Access your profile, firm settings, audit logs, and more from this menu. You can also restart this tour anytime from here.
           </p>
         </div>
       ),
-      placement: "bottom",
+      placement: "bottom-end",
       disableBeacon: true,
     },
     {
@@ -144,7 +133,7 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
         <div className="space-y-3">
           <h2 className="text-2xl font-bold tracking-tight">You're All Set!</h2>
           <p className="text-base leading-relaxed text-muted-foreground">
-            Start by creating your first case or using Quick Record. Each feature has built-in guidance to help you along the way.
+            Start by creating your first case or using Quick Record. Use the search feature and navigation menu to explore all features. Each feature has built-in guidance to help you along the way.
           </p>
         </div>
       ),
