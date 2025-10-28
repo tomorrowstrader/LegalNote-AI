@@ -285,14 +285,15 @@ export default function CaseDetail() {
         )}
 
         {/* Audio deletion status indicator */}
-        {caseData.sourceType === 'audio' && hasValidConsent && audioData && !audioData.filePath && (
+        {caseData.sourceType === 'audio' && hasValidConsent && audioData?.deletedAt && (
           <Alert className="mb-8 bg-card border-muted" data-testid="alert-audio-deleted">
             <Shield className="w-4 h-4" />
             <AlertDescription>
-              <span className="font-medium">Audio deleted - GDPR compliance</span>
+              <span className="font-medium">Audio Recording Deleted - GDPR Compliance</span>
               <p className="text-sm text-muted-foreground mt-1">
-                Recording was automatically deleted after {audioData.deletedAt ? 'successful processing' : '7-day retention period'}. 
-                Generated documents and transcript remain available.
+                The audio recording has been automatically deleted in accordance with our GDPR data retention policy. 
+                This deletion occurred either after successful processing completion or after the 7-day retention period. 
+                All generated documents and transcripts remain securely available.
               </p>
             </AlertDescription>
           </Alert>
@@ -310,7 +311,7 @@ export default function CaseDetail() {
           </Alert>
         )}
 
-        {caseData.sourceType === 'audio' && audioData && audioData.filePath && (
+        {caseData.sourceType === 'audio' && audioData && audioData.filePath && !audioData.deletedAt && (
           <div className="mb-8">
             <AudioPlayer
               audioUrl={audioData.filePath}
