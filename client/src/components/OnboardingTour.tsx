@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Joyride, { CallBackProps, STATUS, Step } from "react-joyride";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UserPreferences } from "@shared/schema";
 
-export default function OnboardingTour() {
+interface OnboardingTourProps {
+  restartTrigger?: number;
+}
+
+export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourProps) {
   const { user, isLoading: authLoading } = useAuth();
   const [run, setRun] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
@@ -26,6 +30,14 @@ export default function OnboardingTour() {
     }
   }, [isLoading, authLoading, preferences, hasStarted]);
 
+  // Restart tour when restartTrigger changes
+  useEffect(() => {
+    if (restartTrigger > 0 && !isLoading && !authLoading) {
+      setRun(true);
+      setHasStarted(true);
+    }
+  }, [restartTrigger, isLoading, authLoading]);
+
   // Mutation to mark onboarding as complete
   const completeMutation = useMutation({
     mutationFn: async () => {
@@ -41,14 +53,6 @@ export default function OnboardingTour() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user-preferences"] });
     },
-  });
-
-  // Start tour when user logs in for first time (preferences loaded and not completed)
-  useState(() => {
-    if (!isLoading && preferences && !preferences.completedOnboarding && !run) {
-      // Small delay to ensure all elements are rendered
-      setTimeout(() => setRun(true), 500);
-    }
   });
 
   const steps: Step[] = [
@@ -110,8 +114,13 @@ export default function OnboardingTour() {
     }
   };
 
-  // Don't render if still loading or already completed
-  if (isLoading || !preferences || preferences.completedOnboarding) {
+  // Don't render if still loading (but allow manual restart even if completed)
+  if (isLoading || !preferences) {
+    return null;
+  }
+
+  // Only show for first-time users or manual restarts
+  if (!run && preferences.completedOnboarding && restartTrigger === 0) {
     return null;
   }
 

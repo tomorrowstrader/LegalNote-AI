@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -44,12 +45,17 @@ function Router() {
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [restartTourTrigger, setRestartTourTrigger] = useState(0);
+
+  const handleRestartTour = () => {
+    setRestartTourTrigger(prev => prev + 1);
+  };
 
   return (
     <div className="min-h-screen bg-background">
-      {!isLoading && isAuthenticated && <TopNavigation />}
+      {!isLoading && isAuthenticated && <TopNavigation onRestartTour={handleRestartTour} />}
       {!isLoading && isAuthenticated && <FirmSetupPrompt />}
-      {!isLoading && isAuthenticated && <OnboardingTour />}
+      {!isLoading && isAuthenticated && <OnboardingTour restartTrigger={restartTourTrigger} />}
       <Router />
     </div>
   );

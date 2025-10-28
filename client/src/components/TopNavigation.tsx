@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Scale, Menu, User } from "lucide-react";
+import { Scale, Menu, User, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,6 +13,10 @@ import QuickRecordButton from "@/components/QuickRecordButton";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
 
+interface TopNavigationProps {
+  onRestartTour: () => void;
+}
+
 const navLinks = [
   { path: "/", label: "Dashboard" },
   { path: "/new-note", label: "New Note" },
@@ -20,7 +24,7 @@ const navLinks = [
   { path: "/settings", label: "Settings" },
 ];
 
-export default function TopNavigation() {
+export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   const [location] = useLocation();
   const { user } = useAuth();
   
@@ -99,6 +103,11 @@ export default function TopNavigation() {
                     </DropdownMenuItem>
                   </>
                 )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onRestartTour} data-testid="menu-item-restart-tour">
+                  <HelpCircle className="w-4 h-4 mr-2" />
+                  Restart Tour
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem data-testid="menu-item-logout">Log Out</DropdownMenuItem>
               </DropdownMenuContent>
