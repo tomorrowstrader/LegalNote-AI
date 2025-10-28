@@ -13,6 +13,15 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
   - Fixed critical issues: GPT prompt bracketed placeholders and updatedBy UUID validation (now accepts Replit Auth numeric IDs)
   - Improved export filenames to use pattern: ClientName_MatterType_DocumentType_Date.pdf
 
+- **User Onboarding & Admin Setup (October 28, 2025)**:
+  - Implemented admin setup prompt modal that appears when firm profile is incomplete (prompts admins to complete firm details on first login)
+  - Added interactive onboarding tour using react-joyride library with steps highlighting Quick Record, New Case, Search, Saved Cases, and Firm Settings
+  - Created user preferences tracking system with database schema (completedOnboarding, dismissedReviewBanner flags)
+  - Added unique constraint on userPreferences.userId to prevent duplicate records
+  - Implemented API endpoints for user preferences (GET/PUT /api/user-preferences) with proper validation and user isolation
+  - Fixed onboarding tour trigger logic with useEffect to properly start tour when preferences load for first-time users
+  - Tour automatically marks as complete after user finishes walkthrough or skips it
+
 ## User Preferences
 **Communication Style:** Simple, everyday language.
 
@@ -28,7 +37,7 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **UI Component Library**: Shadcn UI with Radix UI primitives, black gradient theme (0-8% lightness range), Inter font.
 - **Routing**: Wouter for client-side routing (Dashboard, New Note, Case Detail, Saved Cases, Settings, My Profile, Audit Logs).
 - **State Management**: TanStack Query for server state and async operations.
-- **Key Features**: Quick Record with Consent Flow (3-sec countdown, verbal consent capture, audit trail), Priority System (badges), Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Review Checklist Banner, Tabbed Document Viewer (Summary, Legal Opinion, Transcript), Role-Based UI (My Profile vs. Firm Settings), Quick Actions, Firm Branding on Exports (professional letterhead with firm details on all PDF/Word exports), and comprehensive Audit Trail Compliance with CSV export.
+- **Key Features**: Quick Record with Consent Flow (3-sec countdown, verbal consent capture, audit trail), Priority System (badges), Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Review Checklist Banner, Tabbed Document Viewer (Summary, Legal Opinion, Transcript), Role-Based UI (My Profile vs. Firm Settings), Quick Actions, Firm Branding on Exports (professional letterhead with firm details on all PDF/Word exports), Interactive Onboarding Tour (first-time user walkthrough), Admin Setup Prompts (ensures firm profile completion), and comprehensive Audit Trail Compliance with CSV export.
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js (TypeScript-based).
