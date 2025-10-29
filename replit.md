@@ -4,6 +4,19 @@
 LegalNote AI is a professional legal documentation platform for solicitors and law firms. It enables legal professionals to record client meetings, automatically generate attendance notes, legal opinions, and searchable transcripts, while ensuring GDPR compliance, client consent management, and professional document workflows with firm branding on all exports. The project aims to provide an efficient and compliant solution for legal document creation and management.
 
 ## Recent Changes (October 29, 2025)
+- **Calendar Integration for Deadline Management**:
+  - Integrated Google Calendar and Outlook connectors via Replit integrations with OAuth 2.0 authentication
+  - Database schema additions: calendarEvents table (tracks synced events), calendarConnections table (stores OAuth tokens), deadline and syncToCalendar fields on cases table
+  - Created comprehensive calendar service utility (server/calendar.ts) with bidirectional sync capabilities for both Google Calendar and Microsoft Outlook
+  - Implemented API routes: GET /api/calendar/status, POST /api/cases/:id/sync-calendar, DELETE /api/cases/:id/unsync-calendar
+  - Updated SetPriorityDeadlineModal to save deadlines to database with date picker using react-day-picker
+  - Added SyncCalendarModal component for calendar provider selection and sync management
+  - Integrated calendar sync action into CaseCard quick actions menu
+  - Installed required packages: googleapis and @microsoft/microsoft-graph-client for calendar API integration
+  - Calendar events include: case title, client name, matter reference, and deadline date/time
+  - Full audit trail with calendar_synced and calendar_sync_failed event types
+  - Proper React Query cache invalidation for real-time UI updates
+
 - **Case Management Features Completed**:
   - Implemented Mark as Reviewed feature with backend API, frontend mutation, and database schema (reviewed boolean field)
   - Implemented Archive Case feature with automatic filtering from main case list (archived boolean field)
@@ -55,7 +68,7 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **UI Component Library**: Shadcn UI with Radix UI primitives, black gradient theme (0-8% lightness range), Inter font.
 - **Routing**: Wouter for client-side routing (Dashboard, New Note, Case Detail, Saved Cases, Settings, My Profile, Audit Logs).
 - **State Management**: TanStack Query for server state and async operations.
-- **Key Features**: Quick Record with Consent Flow (3-sec countdown, verbal consent capture, audit trail), Priority System (badges), Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Review Checklist Banner, Tabbed Document Viewer (Summary, Legal Opinion, Transcript), Role-Based UI (My Profile vs. Firm Settings), Quick Actions (Mark as Reviewed, Archive Case, Assign to Team Member, Download PDF, Email to Client, Share Link, Set Priority/Deadline, Add Quick Note), Firm Branding on Exports (professional letterhead with firm details on all PDF/Word exports), Interactive Onboarding Tour (first-time user walkthrough), Admin Setup Prompts (ensures firm profile completion), Email Integration (Resend API for sending case documents to clients with professional branding), and comprehensive Audit Trail Compliance with CSV export.
+- **Key Features**: Quick Record with Consent Flow (3-sec countdown, verbal consent capture, audit trail), Priority System (badges), Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Review Checklist Banner, Tabbed Document Viewer (Summary, Legal Opinion, Transcript), Role-Based UI (My Profile vs. Firm Settings), Quick Actions (Mark as Reviewed, Archive Case, Assign to Team Member, Download PDF, Email to Client, Share Link, Set Priority/Deadline, Sync to Calendar, Add Quick Note), Firm Branding on Exports (professional letterhead with firm details on all PDF/Word exports), Interactive Onboarding Tour (first-time user walkthrough), Admin Setup Prompts (ensures firm profile completion), Email Integration (Resend API for sending case documents to clients with professional branding), Calendar Integration (Google Calendar and Outlook sync for deadline management), and comprehensive Audit Trail Compliance with CSV export.
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js (TypeScript-based).
@@ -64,7 +77,7 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 
 ### Data Storage Solutions
 - **Database**: PostgreSQL via Drizzle ORM, connected through Neon serverless.
-- **Schema**: Users, Cases, Consent Logs, Transcripts (with redaction), Documents (version-controlled), Client Version Tracking, User Preferences, Firm Profile (name, logo, address, contact details, SRA number for professional letterhead), and Audit Trail (comprehensive logging with eventType, userId, IP, metadata). Zod schema validation using `drizzle-zod`.
+- **Schema**: Users, Cases (with deadline and syncToCalendar fields), Consent Logs, Transcripts (with redaction), Documents (version-controlled), Client Version Tracking, User Preferences, Firm Profile (name, logo, address, contact details, SRA number for professional letterhead), Calendar Events (tracks synced calendar events with provider, providerEventId, eventType), Calendar Connections (OAuth tokens for Google/Outlook), and Audit Trail (comprehensive logging with eventType, userId, IP, metadata). Zod schema validation using `drizzle-zod`.
 - **Session Management**: Designed for PostgreSQL session store.
 
 ### Authentication & Authorization
@@ -100,4 +113,5 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **Audio Recording & Storage**: MediaRecorder API, Replit Object Storage with presigned URL uploads (Uppy + AWS S3), GDPR-compliant retention policy (7 days OR until successful processing, whichever comes first) with automatic cleanup on completion and startup expiration cleanup.
 - **AI Services**: OpenAI Whisper API (transcription), GPT-4o (document generation with Adam Bernard professional format).
 - **Email Service**: Resend API for professional transactional emails with firm branding (RESEND_API_KEY environment variable).
+- **Calendar Integration**: Google Calendar API (googleapis package) and Microsoft Graph API (@microsoft/microsoft-graph-client package) for bidirectional calendar sync with OAuth 2.0 authentication via Replit connectors.
 - **Document Export**: jsPDF (PDF generation), docx (Word document generation with markdown formatting support).

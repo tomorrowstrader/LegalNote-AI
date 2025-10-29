@@ -14,6 +14,7 @@ import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
 import EmailToClientModal from "@/components/EmailToClientModal";
+import SyncCalendarModal from "@/components/SyncCalendarModal";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -29,6 +30,7 @@ interface CaseCardProps {
   createdBy: string;
   priority?: "urgent" | "deadline-soon" | "normal";
   audioExpiresIn?: number;
+  deadline?: string | null;
 }
 
 export default function CaseCard({ 
@@ -39,14 +41,16 @@ export default function CaseCard({
   status, 
   createdBy,
   priority = "normal",
-  audioExpiresIn
+  audioExpiresIn,
+  deadline = null
 }: CaseCardProps) {
   const [, setLocation] = useLocation();
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
-  const { toast } = useToast();
+  const [showSyncCalendarModal, setShowSyncCalendarModal] = useState(false);
+  const { toast} = useToast();
 
   const markReviewedMutation = useMutation({
     mutationFn: async (reviewed: boolean) => {
@@ -224,6 +228,8 @@ export default function CaseCard({
       setShowEmailModal(true);
     } else if (action === 'download') {
       downloadPDFMutation.mutate();
+    } else if (action === 'sync-calendar') {
+      setShowSyncCalendarModal(true);
     }
   };
 
@@ -271,6 +277,10 @@ export default function CaseCard({
                 <DropdownMenuItem onClick={(e) => handleAction('set-priority', e)} data-testid={`action-set-priority-${id}`}>
                   <AlertCircle className="w-4 h-4 mr-2" />
                   Set Priority/Deadline
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => handleAction('sync-calendar', e)} data-testid={`action-sync-calendar-${id}`}>
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Sync to Calendar
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={(e) => handleAction('add-note', e)} data-testid={`action-add-note-${id}`}>
                   <MessageSquarePlus className="w-4 h-4 mr-2" />
@@ -338,6 +348,8 @@ export default function CaseCard({
         onOpenChange={setShowPriorityModal}
         caseId={id}
         caseTitle={title}
+        currentPriority={priority}
+        currentDeadline={deadline}
       />
 
       <ShareLinkModal
@@ -355,6 +367,14 @@ export default function CaseCard({
         isPending={sendEmailMutation.isPending}
         caseTitle={title}
         clientName={clientName}
+      />
+      
+      <SyncCalendarModal
+        open={showSyncCalendarModal}
+        onOpenChange={setShowSyncCalendarModal}
+        caseId={id}
+        caseTitle={title}
+        deadline={deadline}
       />
     </Card>
   );

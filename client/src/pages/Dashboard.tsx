@@ -54,6 +54,7 @@ export default function Dashboard() {
       clientName: caseItem.clientName,
       meetingDate: format(new Date(caseItem.createdAt), "d MMMM yyyy"),
       status: caseItem.status as "pending" | "processing" | "completed",
+      deadline: caseItem.deadline ? new Date(caseItem.deadline).toISOString() : null,
       createdBy: creatorName,
       priority: caseItem.priority as "urgent" | "deadline-soon" | "normal",
     };

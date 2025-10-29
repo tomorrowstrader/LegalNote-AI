@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar as CalendarIcon, AlertCircle, CheckCircle2 } from "lucide-react";
 import {
   Dialog,
@@ -26,24 +26,41 @@ import {
 import { format } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface SetPriorityDeadlineModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   caseId: string;
   caseTitle: string;
+  currentPriority?: string;
+  currentDeadline?: string | null;
 }
 
 export default function SetPriorityDeadlineModal({ 
   open, 
   onOpenChange, 
   caseId,
-  caseTitle 
+  caseTitle,
+  currentPriority = "normal",
+  currentDeadline = null
 }: SetPriorityDeadlineModalProps) {
-  const [priority, setPriority] = useState<string>("");
-  const [deadline, setDeadline] = useState<Date>();
+  const [priority, setPriority] = useState<string>(currentPriority);
+  const [deadline, setDeadline] = useState<Date | undefined>(
+    currentDeadline ? new Date(currentDeadline) : undefined
+  );
   const [notes, setNotes] = useState("");
   const { toast } = useToast();
+  
+  // Initialize form values when modal opens
+  useEffect(() => {
+    if (open) {
+      setPriority(currentPriority);
+      setDeadline(currentDeadline ? new Date(currentDeadline) : undefined);
+      setNotes("");
+    }
+  }, [open, currentPriority, currentDeadline]);
 
   const priorityOptions = [
     { value: "urgent", label: "Urgent - Action Required", color: "text-destructive" },
@@ -51,61 +68,57 @@ export default function SetPriorityDeadlineModal({
     { value: "normal", label: "Normal Priority", color: "text-green-600" },
   ];
 
-  const generateCalendarInvite = () => {
-    if (!deadline) return;
-
-    // Generate .ics file content
-    const icsContent = `BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//LegalNote AI//Case Deadline//EN
-BEGIN:VEVENT
-UID:${caseId}-deadline@legalnote.ai
-DTSTAMP:${format(new Date(), "yyyyMMdd'T'HHmmss'Z'")}
-DTSTART:${format(deadline, "yyyyMMdd")}
-SUMMARY:Deadline: ${caseTitle}
-DESCRIPTION:Case deadline set with priority: ${priority}\\n\\nNotes: ${notes}
-STATUS:CONFIRMED
-END:VEVENT
-END:VCALENDAR`;
-
-    // Create blob and download link
-    const blob = new Blob([icsContent], { type: 'text/calendar' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${caseTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-deadline.ics`;
-    link.click();
-    URL.revokeObjectURL(url);
-
-    // In production, this would also send via email
-    console.log('Calendar invite generated and email sent');
-  };
+  const updateCaseMutation = useMutation({
+    mutationFn: async (data: { priority: string; deadline: string | null; textNotes?: string }) => {
+      const res = await fetch(`/api/cases/${caseId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error || 'Failed to update case');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId] });
+      
+      toast({
+        title: "Priority & Deadline Updated",
+        description: deadline 
+          ? `Deadline set to ${format(deadline, 'PPP')}. You can now sync this to your calendar.`
+          : "Priority updated successfully",
+        duration: 6000,
+      });
+      
+      onOpenChange(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update priority and deadline",
+        variant: "destructive",
+      });
+    }
+  });
 
   const handleSave = () => {
-    console.log('Setting priority and deadline:', { 
-      caseId, 
-      priority, 
-      deadline, 
-      notes 
-    });
-
-    if (deadline) {
-      generateCalendarInvite();
+    if (!priority) {
+      toast({
+        title: "Priority Required",
+        description: "Please select a priority level",
+        variant: "destructive",
+      });
+      return;
     }
-
-    toast({
-      title: "Priority & Deadline Set",
-      description: deadline 
-        ? `Calendar invite sent to your email. Deadline: ${format(deadline, 'PPP')}`
-        : "Priority updated successfully",
-      duration: 6000, // 6 seconds for success messages
+    
+    updateCaseMutation.mutate({
+      priority,
+      deadline: deadline ? deadline.toISOString() : null,
+      textNotes: notes || undefined,
     });
-
-    // Reset and close
-    setPriority("");
-    setDeadline(undefined);
-    setNotes("");
-    onOpenChange(false);
   };
 
   const handleCancel = () => {
@@ -167,7 +180,7 @@ END:VCALENDAR`;
             </Popover>
             {deadline && (
               <p className="text-xs text-muted-foreground">
-                📧 A calendar invite (.ics file) will be sent to your email
+                💡 After saving, you can sync this deadline to Google Calendar or Outlook from the case actions menu
               </p>
             )}
           </div>
@@ -196,12 +209,12 @@ END:VCALENDAR`;
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!priority}
+            disabled={!priority || updateCaseMutation.isPending}
             className="bg-accent hover:bg-accent"
             data-testid="button-save-priority"
           >
             <CheckCircle2 className="w-4 h-4 mr-2" />
-            Save Changes
+            {updateCaseMutation.isPending ? "Saving..." : "Save Changes"}
           </Button>
         </DialogFooter>
       </DialogContent>

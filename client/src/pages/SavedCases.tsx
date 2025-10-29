@@ -79,6 +79,7 @@ export default function SavedCases() {
                   status={caseItem.status as "pending" | "processing" | "review_required" | "completed" | "failed"}
                   createdBy={caseItem.createdBy}
                   priority={caseItem.priority as "urgent" | "deadline-soon" | "normal"}
+                  deadline={caseItem.deadline ? new Date(caseItem.deadline).toISOString() : null}
                 />
               ))}
             </div>
