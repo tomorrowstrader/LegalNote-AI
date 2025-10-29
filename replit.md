@@ -3,8 +3,23 @@
 ## Overview
 LegalNote AI is a professional legal documentation platform for solicitors and law firms. It enables legal professionals to record client meetings, automatically generate attendance notes, legal opinions, and searchable transcripts, while ensuring GDPR compliance, client consent management, and professional document workflows with firm branding on all exports. The project aims to provide an efficient and compliant solution for legal document creation and management.
 
-## Recent Changes (October 28, 2025)
-- **MVP Polish Phase Completed**:
+## Recent Changes (October 29, 2025)
+- **Case Management Features Completed**:
+  - Implemented Mark as Reviewed feature with backend API, frontend mutation, and database schema (reviewed boolean field)
+  - Implemented Archive Case feature with automatic filtering from main case list (archived boolean field)
+  - Added Assign to Team Member backend infrastructure with assignedToUserId field and API route (UI picker pending)
+  - Implemented comprehensive Download PDF feature that exports all case documents (attendance notes, legal opinions, transcripts) with firm branding
+  - **Email to Client Integration**: Complete email functionality using Resend API
+    - Installed Resend npm package and configured with RESEND_API_KEY secret
+    - Created professional HTML email template with firm branding and secure case document links
+    - EmailToClientModal component with recipient input and custom message textarea
+    - POST /api/cases/:id/email route with Zod validation, user isolation checks, and audit logging
+    - Email includes: case details, customizable message, secure document access link, firm letterhead, and legal confidentiality notice
+    - Full audit trail with case_email_sent event type logging recipient and message metadata
+  - All features properly invalidate React Query cache and show success/error toast notifications
+  - Added comprehensive Zod validation for email requests (email format and 5000 char message limit)
+
+- **MVP Polish Phase Completed (October 28, 2025)**:
   - Enhanced markdown formatting in document exports (PDF strips markdown cleanly, Word preserves **bold**, *italic*, headings, bullets)
   - Added audio deletion status indicator to distinguish GDPR-deleted audio from consent-declined cases
   - Updated GPT-4o attendance note prompts to professional Adam Bernard format with numbered sections and UK law compliance
@@ -40,7 +55,7 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **UI Component Library**: Shadcn UI with Radix UI primitives, black gradient theme (0-8% lightness range), Inter font.
 - **Routing**: Wouter for client-side routing (Dashboard, New Note, Case Detail, Saved Cases, Settings, My Profile, Audit Logs).
 - **State Management**: TanStack Query for server state and async operations.
-- **Key Features**: Quick Record with Consent Flow (3-sec countdown, verbal consent capture, audit trail), Priority System (badges), Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Review Checklist Banner, Tabbed Document Viewer (Summary, Legal Opinion, Transcript), Role-Based UI (My Profile vs. Firm Settings), Quick Actions, Firm Branding on Exports (professional letterhead with firm details on all PDF/Word exports), Interactive Onboarding Tour (first-time user walkthrough), Admin Setup Prompts (ensures firm profile completion), and comprehensive Audit Trail Compliance with CSV export.
+- **Key Features**: Quick Record with Consent Flow (3-sec countdown, verbal consent capture, audit trail), Priority System (badges), Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Review Checklist Banner, Tabbed Document Viewer (Summary, Legal Opinion, Transcript), Role-Based UI (My Profile vs. Firm Settings), Quick Actions (Mark as Reviewed, Archive Case, Assign to Team Member, Download PDF, Email to Client, Share Link, Set Priority/Deadline, Add Quick Note), Firm Branding on Exports (professional letterhead with firm details on all PDF/Word exports), Interactive Onboarding Tour (first-time user walkthrough), Admin Setup Prompts (ensures firm profile completion), Email Integration (Resend API for sending case documents to clients with professional branding), and comprehensive Audit Trail Compliance with CSV export.
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js (TypeScript-based).
@@ -83,4 +98,6 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **Icons**: Lucide React.
 - **Development Tools**: Replit-specific plugins, TypeScript strict mode, ESBuild.
 - **Audio Recording & Storage**: MediaRecorder API, Replit Object Storage with presigned URL uploads (Uppy + AWS S3), GDPR-compliant retention policy (7 days OR until successful processing, whichever comes first) with automatic cleanup on completion and startup expiration cleanup.
-- **Planned Integrations**: AI transcription service (OpenAI Whisper API), AI for document generation (GPT-4), Email service, PDF generation.
+- **AI Services**: OpenAI Whisper API (transcription), GPT-4o (document generation with Adam Bernard professional format).
+- **Email Service**: Resend API for professional transactional emails with firm branding (RESEND_API_KEY environment variable).
+- **Document Export**: jsPDF (PDF generation), docx (Word document generation with markdown formatting support).

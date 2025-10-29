@@ -2,6 +2,7 @@ import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema } from "@shared/schema";
+import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -256,18 +257,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/cases/:id/email", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const { recipientEmail, customMessage } = req.body;
       
-      // Validate recipient email
-      if (!recipientEmail || typeof recipientEmail !== 'string') {
-        return res.status(400).json({ message: "recipientEmail is required" });
+      // Validate request body with Zod
+      const emailRequestSchema = z.object({
+        recipientEmail: z.string().email("Invalid email address"),
+        customMessage: z.string().max(5000, "Message too long").optional(),
+      });
+      
+      const validationResult = emailRequestSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Validation error",
+          errors: validationResult.error.format()
+        });
       }
       
-      // Basic email validation
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(recipientEmail)) {
-        return res.status(400).json({ message: "Invalid email address" });
-      }
+      const { recipientEmail, customMessage } = validationResult.data;
       
       // Get case data (verify user has access)
       const caseData = await storage.getCase(req.params.id, userId);
