@@ -20,6 +20,15 @@ import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { openaiService } from "./openaiService";
 import { sendCaseEmail } from "./email";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders } from "./calendar";
+import {
+  createGoogleOAuthClient,
+  createMicrosoftOAuthClient,
+  getGoogleAuthUrl,
+  getMicrosoftAuthUrl,
+  exchangeGoogleCode,
+  exchangeMicrosoftCode,
+  generateOAuthState,
+} from "./oauth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment platform
@@ -1366,7 +1375,200 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Calendar integration routes
+  // OAuth state management (CSRF protection)
+  // In-memory store for OAuth state tokens (expires after 10 minutes)
+  const oauthStateStore = new Map<string, { userId: string; provider: string; createdAt: number }>();
+  
+  // Cleanup expired OAuth states every 5 minutes
+  setInterval(() => {
+    const now = Date.now();
+    for (const [state, data] of Array.from(oauthStateStore.entries())) {
+      if (now - data.createdAt > 10 * 60 * 1000) { // 10 minutes
+        oauthStateStore.delete(state);
+      }
+    }
+  }, 5 * 60 * 1000);
+
+  // OAuth Calendar Integration Routes
+  
+  // Initiate OAuth flow for calendar provider
+  app.get("/api/calendar/auth/:provider", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const provider = req.params.provider;
+      
+      if (provider !== 'google' && provider !== 'outlook') {
+        return res.status(400).json({ message: "Invalid provider. Must be 'google' or 'outlook'" });
+      }
+
+      // Generate and store OAuth state for CSRF protection
+      const state = generateOAuthState();
+      oauthStateStore.set(state, {
+        userId,
+        provider,
+        createdAt: Date.now(),
+      });
+
+      // Get base URL from request
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host;
+      const baseUrl = `${protocol}://${host}`;
+
+      try {
+        let authUrl: string;
+        
+        if (provider === 'google') {
+          const client = createGoogleOAuthClient(baseUrl);
+          authUrl = getGoogleAuthUrl(client, state);
+        } else {
+          const client = createMicrosoftOAuthClient(baseUrl);
+          authUrl = await getMicrosoftAuthUrl(client, `${baseUrl}/api/calendar/callback/outlook`, state);
+        }
+
+        // Return auth URL for frontend to redirect
+        res.json({ authUrl });
+      } catch (error: any) {
+        // OAuth credentials not configured
+        if (error.message.includes('not configured')) {
+          return res.status(503).json({
+            message: `${provider === 'google' ? 'Google' : 'Microsoft'} OAuth is not configured. Please contact your administrator.`,
+            details: error.message,
+          });
+        }
+        throw error;
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // OAuth callback handler
+  app.get("/api/calendar/callback/:provider", async (req: any, res, next) => {
+    try {
+      const provider = req.params.provider;
+      const { code, state, error: oauthError } = req.query;
+
+      // Check for OAuth errors
+      if (oauthError) {
+        return res.redirect(`/settings?calendar_error=${encodeURIComponent(oauthError)}`);
+      }
+
+      if (!code || !state) {
+        return res.redirect(`/settings?calendar_error=missing_code_or_state`);
+      }
+
+      // Verify state (CSRF protection)
+      const stateData = oauthStateStore.get(state as string);
+      if (!stateData) {
+        return res.redirect(`/settings?calendar_error=invalid_state`);
+      }
+
+      // Remove used state
+      oauthStateStore.delete(state as string);
+
+      // Verify provider matches
+      if (stateData.provider !== provider) {
+        return res.redirect(`/settings?calendar_error=provider_mismatch`);
+      }
+
+      // Get base URL
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host;
+      const baseUrl = `${protocol}://${host}`;
+
+      try {
+        let tokenData;
+
+        if (provider === 'google') {
+          const client = createGoogleOAuthClient(baseUrl);
+          tokenData = await exchangeGoogleCode(client, code as string);
+        } else {
+          const client = createMicrosoftOAuthClient(baseUrl);
+          tokenData = await exchangeMicrosoftCode(client, code as string, `${baseUrl}/api/calendar/callback/outlook`);
+        }
+
+        // Save calendar integration to storage
+        await storage.saveCalendarIntegration({
+          userId: stateData.userId,
+          provider: provider as 'google' | 'outlook',
+          accessToken: tokenData.accessToken,
+          refreshToken: tokenData.refreshToken || undefined,
+          expiresAt: tokenData.expiresAt || undefined,
+          email: tokenData.email || undefined,
+        });
+
+        // Log audit event
+        await storage.createAuditLog({
+          eventType: 'calendar_synced' as any, // Type will be updated in schema
+          userId: stateData.userId,
+          metadata: {
+            action: 'calendar_connected',
+            provider,
+          },
+          severity: 'info',
+        });
+
+        // Redirect to settings with success message
+        res.redirect(`/settings?calendar_connected=${provider}`);
+      } catch (error: any) {
+        console.error(`OAuth token exchange failed for ${provider}:`, error);
+        res.redirect(`/settings?calendar_error=token_exchange_failed`);
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get user's calendar connections
+  app.get("/api/calendar/connections", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const connections = await storage.getUserCalendarIntegrations(userId);
+      
+      // Return safe data (don't expose tokens)
+      const safeConnections = connections.map(conn => ({
+        provider: conn.provider,
+        email: conn.email,
+        connectedAt: conn.connectedAt,
+        isExpired: conn.expiresAt ? new Date(conn.expiresAt) < new Date() : false,
+      }));
+      
+      res.json(safeConnections);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Disconnect calendar
+  app.delete("/api/calendar/disconnect/:provider", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const provider = req.params.provider;
+
+      if (provider !== 'google' && provider !== 'outlook') {
+        return res.status(400).json({ message: "Invalid provider" });
+      }
+
+      await storage.deleteCalendarIntegration(userId, provider as 'google' | 'outlook');
+
+      // Log audit event
+      await storage.createAuditLog({
+        eventType: 'calendar_synced' as any,
+        userId,
+        metadata: {
+          action: 'calendar_disconnected',
+          provider,
+        },
+        severity: 'info',
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Legacy calendar status route (will be deprecated)
   app.get("/api/calendar/status", isAuthenticated, async (req: any, res, next) => {
     try {
       const providers = await getConnectedProviders();
