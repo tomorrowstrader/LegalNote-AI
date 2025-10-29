@@ -9,6 +9,7 @@ import {
   type FirmProfile, type InsertFirmProfile,
   type UserPreferences,
   type CalendarEvent, type InsertCalendarEvent,
+  type CalendarIntegration, type InsertCalendarIntegration,
   users,
   cases,
   audioRecordings,
@@ -18,7 +19,8 @@ import {
   auditTrail,
   firmProfile,
   userPreferences,
-  calendarEvents
+  calendarEvents,
+  calendarIntegrations
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -126,6 +128,12 @@ export interface IStorage {
   updateCalendarEvent(id: string, updates: Partial<CalendarEvent>): Promise<CalendarEvent | undefined>;
   deleteCalendarEvent(id: string): Promise<void>;
   deleteCalendarEventsByCase(caseId: string, userId: string): Promise<void>;
+  
+  // Calendar Integration methods (per-user OAuth)
+  getCalendarIntegration(userId: string, provider: 'google' | 'outlook'): Promise<CalendarIntegration | undefined>;
+  saveCalendarIntegration(integrationData: InsertCalendarIntegration): Promise<CalendarIntegration>;
+  deleteCalendarIntegration(userId: string, provider: 'google' | 'outlook'): Promise<void>;
+  getUserCalendarIntegrations(userId: string): Promise<CalendarIntegration[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -136,6 +144,7 @@ export class MemStorage implements IStorage {
   private transcripts: Map<string, Transcript>;
   private documents: Map<string, Document>;
   private auditLogs: Map<string, AuditTrail>;
+  private calendarIntegrations: Map<string, CalendarIntegration>;
 
   constructor() {
     this.users = new Map();
@@ -145,6 +154,7 @@ export class MemStorage implements IStorage {
     this.transcripts = new Map();
     this.documents = new Map();
     this.auditLogs = new Map();
+    this.calendarIntegrations = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -622,6 +632,42 @@ export class MemStorage implements IStorage {
   
   async deleteCalendarEventsByCase(caseId: string, userId: string): Promise<void> {
     // No-op for MemStorage
+  }
+  
+  async getCalendarIntegration(userId: string, provider: 'google' | 'outlook'): Promise<CalendarIntegration | undefined> {
+    const key = `${userId}-${provider}`;
+    return this.calendarIntegrations.get(key);
+  }
+  
+  async saveCalendarIntegration(integrationData: InsertCalendarIntegration): Promise<CalendarIntegration> {
+    const key = `${integrationData.userId}-${integrationData.provider}`;
+    const existing = this.calendarIntegrations.get(key);
+    
+    const integration: CalendarIntegration = {
+      id: existing?.id || randomUUID(),
+      userId: integrationData.userId,
+      provider: integrationData.provider,
+      accessToken: integrationData.accessToken,
+      refreshToken: integrationData.refreshToken ?? null,
+      expiresAt: integrationData.expiresAt ?? null,
+      calendarId: integrationData.calendarId ?? null,
+      email: integrationData.email ?? null,
+      connectedAt: existing?.connectedAt || new Date(),
+      lastSyncAt: integrationData.lastSyncAt ?? null,
+    };
+    
+    this.calendarIntegrations.set(key, integration);
+    return integration;
+  }
+  
+  async deleteCalendarIntegration(userId: string, provider: 'google' | 'outlook'): Promise<void> {
+    const key = `${userId}-${provider}`;
+    this.calendarIntegrations.delete(key);
+  }
+  
+  async getUserCalendarIntegrations(userId: string): Promise<CalendarIntegration[]> {
+    return Array.from(this.calendarIntegrations.values())
+      .filter(integration => integration.userId === userId);
   }
 }
 
@@ -1263,6 +1309,64 @@ export class DbStorage implements IStorage {
         eq(calendarEvents.userId, userId)
       )
     );
+  }
+  
+  async getCalendarIntegration(userId: string, provider: 'google' | 'outlook'): Promise<CalendarIntegration | undefined> {
+    const result = await db
+      .select()
+      .from(calendarIntegrations)
+      .where(
+        and(
+          eq(calendarIntegrations.userId, userId),
+          eq(calendarIntegrations.provider, provider)
+        )
+      )
+      .limit(1);
+    return result[0];
+  }
+  
+  async saveCalendarIntegration(integrationData: InsertCalendarIntegration): Promise<CalendarIntegration> {
+    const result = await db
+      .insert(calendarIntegrations)
+      .values({
+        userId: integrationData.userId,
+        provider: integrationData.provider,
+        accessToken: integrationData.accessToken,
+        refreshToken: integrationData.refreshToken ?? null,
+        expiresAt: integrationData.expiresAt ?? null,
+        calendarId: integrationData.calendarId ?? null,
+        email: integrationData.email ?? null,
+        lastSyncAt: integrationData.lastSyncAt ?? null,
+      })
+      .onConflictDoUpdate({
+        target: [calendarIntegrations.userId, calendarIntegrations.provider],
+        set: {
+          accessToken: integrationData.accessToken,
+          refreshToken: integrationData.refreshToken ?? null,
+          expiresAt: integrationData.expiresAt ?? null,
+          calendarId: integrationData.calendarId ?? null,
+          email: integrationData.email ?? null,
+          lastSyncAt: integrationData.lastSyncAt ?? null,
+        },
+      })
+      .returning();
+    return result[0];
+  }
+  
+  async deleteCalendarIntegration(userId: string, provider: 'google' | 'outlook'): Promise<void> {
+    await db.delete(calendarIntegrations).where(
+      and(
+        eq(calendarIntegrations.userId, userId),
+        eq(calendarIntegrations.provider, provider)
+      )
+    );
+  }
+  
+  async getUserCalendarIntegrations(userId: string): Promise<CalendarIntegration[]> {
+    return await db
+      .select()
+      .from(calendarIntegrations)
+      .where(eq(calendarIntegrations.userId, userId));
   }
 }
 

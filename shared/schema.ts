@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -149,7 +149,7 @@ export const firmProfile = pgTable("firm_profile", {
 
 export const calendarIntegrations = pgTable("calendar_integrations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().unique().references(() => users.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
   provider: text("provider").notNull(), // google, outlook
   accessToken: text("access_token").notNull(), // Encrypted OAuth access token
   refreshToken: text("refresh_token"), // Encrypted OAuth refresh token
@@ -158,7 +158,10 @@ export const calendarIntegrations = pgTable("calendar_integrations", {
   email: text("email"), // Calendar account email
   connectedAt: timestamp("connected_at").notNull().defaultNow(),
   lastSyncAt: timestamp("last_sync_at"),
-});
+}, (table) => ({
+  // Compound unique constraint: each user can have one Google and one Outlook connection
+  userProviderUnique: unique().on(table.userId, table.provider),
+}));
 
 export const calendarEvents = pgTable("calendar_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
