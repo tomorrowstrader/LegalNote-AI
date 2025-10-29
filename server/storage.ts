@@ -8,6 +8,7 @@ import {
   type AuditTrail, type InsertAuditTrail,
   type FirmProfile, type InsertFirmProfile,
   type UserPreferences,
+  type CalendarEvent, type InsertCalendarEvent,
   users,
   cases,
   audioRecordings,
@@ -16,7 +17,8 @@ import {
   documents,
   auditTrail,
   firmProfile,
-  userPreferences
+  userPreferences,
+  calendarEvents
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -116,6 +118,14 @@ export interface IStorage {
   
   // Search methods
   searchCases(query: string, userId: string): Promise<Case[]>;
+  
+  // Calendar Event methods
+  createCalendarEvent(eventData: InsertCalendarEvent): Promise<CalendarEvent>;
+  getCalendarEventsByCase(caseId: string, userId: string): Promise<CalendarEvent[]>;
+  getCalendarEventByProvider(caseId: string, userId: string, provider: 'google' | 'outlook'): Promise<CalendarEvent | undefined>;
+  updateCalendarEvent(id: string, updates: Partial<CalendarEvent>): Promise<CalendarEvent | undefined>;
+  deleteCalendarEvent(id: string): Promise<void>;
+  deleteCalendarEventsByCase(caseId: string, userId: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -171,6 +181,8 @@ export class MemStorage implements IStorage {
       reviewed: insertCase.reviewed || false,
       archived: insertCase.archived || false,
       aiProcessingMetadata: {},
+      deadline: null,
+      syncToCalendar: false,
     };
     this.cases.set(id, newCase);
     return newCase;
@@ -586,6 +598,30 @@ export class MemStorage implements IStorage {
       c.matterReference?.toLowerCase().includes(lowerQuery) ||
       c.textNotes?.toLowerCase().includes(lowerQuery)
     );
+  }
+  
+  async createCalendarEvent(eventData: InsertCalendarEvent): Promise<CalendarEvent> {
+    throw new Error("MemStorage does not support calendar events. Use DbStorage.");
+  }
+  
+  async getCalendarEventsByCase(caseId: string, userId: string): Promise<CalendarEvent[]> {
+    return [];
+  }
+  
+  async getCalendarEventByProvider(caseId: string, userId: string, provider: 'google' | 'outlook'): Promise<CalendarEvent | undefined> {
+    return undefined;
+  }
+  
+  async updateCalendarEvent(id: string, updates: Partial<CalendarEvent>): Promise<CalendarEvent | undefined> {
+    throw new Error("MemStorage does not support calendar events. Use DbStorage.");
+  }
+  
+  async deleteCalendarEvent(id: string): Promise<void> {
+    // No-op for MemStorage
+  }
+  
+  async deleteCalendarEventsByCase(caseId: string, userId: string): Promise<void> {
+    // No-op for MemStorage
   }
 }
 
@@ -1170,6 +1206,63 @@ export class DbStorage implements IStorage {
     });
     
     return filteredCases;
+  }
+  
+  async createCalendarEvent(eventData: InsertCalendarEvent): Promise<CalendarEvent> {
+    const inserted = await db
+      .insert(calendarEvents)
+      .values(eventData)
+      .returning();
+    return inserted[0];
+  }
+  
+  async getCalendarEventsByCase(caseId: string, userId: string): Promise<CalendarEvent[]> {
+    return await db
+      .select()
+      .from(calendarEvents)
+      .where(
+        and(
+          eq(calendarEvents.caseId, caseId),
+          eq(calendarEvents.userId, userId)
+        )
+      );
+  }
+  
+  async getCalendarEventByProvider(caseId: string, userId: string, provider: 'google' | 'outlook'): Promise<CalendarEvent | undefined> {
+    const result = await db
+      .select()
+      .from(calendarEvents)
+      .where(
+        and(
+          eq(calendarEvents.caseId, caseId),
+          eq(calendarEvents.userId, userId),
+          eq(calendarEvents.provider, provider)
+        )
+      )
+      .limit(1);
+    return result[0];
+  }
+  
+  async updateCalendarEvent(id: string, updates: Partial<CalendarEvent>): Promise<CalendarEvent | undefined> {
+    const updated = await db
+      .update(calendarEvents)
+      .set(updates)
+      .where(eq(calendarEvents.id, id))
+      .returning();
+    return updated[0];
+  }
+  
+  async deleteCalendarEvent(id: string): Promise<void> {
+    await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
+  }
+  
+  async deleteCalendarEventsByCase(caseId: string, userId: string): Promise<void> {
+    await db.delete(calendarEvents).where(
+      and(
+        eq(calendarEvents.caseId, caseId),
+        eq(calendarEvents.userId, userId)
+      )
+    );
   }
 }
 

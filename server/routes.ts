@@ -19,6 +19,7 @@ import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { openaiService } from "./openaiService";
 import { sendCaseEmail } from "./email";
+import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders } from "./calendar";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment platform
@@ -1361,6 +1362,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalCasesProcessed: allCases.filter((c: any) => (c.aiProcessingMetadata as any)?.totalCost > 0).length,
       });
     } catch (error) {
+      next(error);
+    }
+  });
+
+  // Calendar integration routes
+  app.get("/api/calendar/status", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const providers = await getConnectedProviders();
+      res.json(providers);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/sync-calendar", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { provider } = req.body;
+
+      if (!provider || (provider !== 'google' && provider !== 'outlook')) {
+        return res.status(400).json({ message: "Invalid provider. Must be 'google' or 'outlook'" });
+      }
+
+      // Get case and verify access
+      const caseData = await storage.getCase(req.params.id, userId);
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      // Check if case has a deadline
+      if (!caseData.deadline) {
+        return res.status(400).json({ message: "Case must have a deadline to sync to calendar" });
+      }
+
+      // Check if event already exists for this provider
+      const existingEvent = await storage.getCalendarEventByProvider(req.params.id, userId, provider);
+
+      let result;
+      if (existingEvent) {
+        // Update existing event
+        result = await updateCalendarEvent(provider, existingEvent.providerEventId, {
+          caseId: req.params.id,
+          title: caseData.title,
+          clientName: caseData.clientName,
+          matterReference: caseData.matterReference || undefined,
+          deadline: new Date(caseData.deadline),
+        });
+
+        if (result.success) {
+          await storage.updateCalendarEvent(existingEvent.id, {
+            lastUpdatedAt: new Date(),
+          });
+        }
+      } else {
+        // Create new event
+        result = await createCalendarEvent(provider, {
+          caseId: req.params.id,
+          title: caseData.title,
+          clientName: caseData.clientName,
+          matterReference: caseData.matterReference || undefined,
+          deadline: new Date(caseData.deadline),
+        });
+
+        if (result.success && result.eventId) {
+          await storage.createCalendarEvent({
+            caseId: req.params.id,
+            userId: userId,
+            provider: provider,
+            providerEventId: result.eventId,
+            eventType: 'deadline',
+          });
+        }
+      }
+
+      if (result.success) {
+        // Update case to mark calendar sync enabled
+        await storage.updateCase(req.params.id, { syncToCalendar: true }, userId);
+
+        await logAuditEvent(userId, "calendar_synced", {
+          caseId: req.params.id,
+          metadata: { provider, action: existingEvent ? 'update' : 'create' },
+          req,
+        });
+
+        res.json({ success: true, provider: result.provider });
+      } else {
+        await logAuditEvent(userId, "calendar_sync_failed", {
+          caseId: req.params.id,
+          metadata: { provider, error: result.error },
+          req,
+        });
+
+        res.status(500).json({ 
+          success: false, 
+          message: "Failed to sync to calendar",
+          error: result.error 
+        });
+      }
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/cases/:id/unsync-calendar", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { provider } = req.body;
+
+      if (provider && provider !== 'google' && provider !== 'outlook') {
+        return res.status(400).json({ message: "Invalid provider. Must be 'google' or 'outlook'" });
+      }
+
+      // Get case and verify access
+      const caseData = await storage.getCase(req.params.id, userId);
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      // Get calendar events for this case
+      const events = await storage.getCalendarEventsByCase(req.params.id, userId);
+      
+      // Filter by provider if specified
+      const eventsToDelete = provider 
+        ? events.filter(e => e.provider === provider)
+        : events;
+
+      // Delete events from calendars and database
+      for (const event of eventsToDelete) {
+        await deleteCalendarEvent(event.provider as 'google' | 'outlook', event.providerEventId);
+        await storage.deleteCalendarEvent(event.id);
+      }
+
+      // Update case to mark calendar sync disabled if all events deleted
+      const remainingEvents = await storage.getCalendarEventsByCase(req.params.id, userId);
+      if (remainingEvents.length === 0) {
+        await storage.updateCase(req.params.id, { syncToCalendar: false }, userId);
+      }
+
+      res.json({ success: true, deletedCount: eventsToDelete.length });
+    } catch (error: any) {
       next(error);
     }
   });
