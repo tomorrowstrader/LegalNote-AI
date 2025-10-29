@@ -31,12 +31,6 @@ interface SyncCalendarModalProps {
   deadline: string | null;
 }
 
-interface CalendarProvider {
-  provider: 'google' | 'outlook';
-  connected: boolean;
-  setupUrl?: string;
-}
-
 export default function SyncCalendarModal({ 
   open, 
   onOpenChange, 
@@ -47,11 +41,11 @@ export default function SyncCalendarModal({
   const [selectedProvider, setSelectedProvider] = useState<'google' | 'outlook' | ''>('');
   const { toast } = useToast();
 
-  const { data: providers, isLoading: providersLoading } = useQuery<{
-    google: CalendarProvider;
-    outlook: CalendarProvider;
+  const { data: connections, isLoading: providersLoading } = useQuery<{
+    google: { connected: boolean; email?: string };
+    outlook: { connected: boolean; email?: string };
   }>({
-    queryKey: ['/api/calendar/status'],
+    queryKey: ['/api/oauth/connections'],
     enabled: open,
   });
 
@@ -188,19 +182,21 @@ export default function SyncCalendarModal({
                 <SelectValue placeholder="Select calendar provider" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="google" disabled={providersLoading || !providers?.google.connected}>
-                  Google Calendar {providers?.google.connected ? '✓' : '(Not connected)'}
+                <SelectItem value="google" disabled={providersLoading || !connections?.google.connected}>
+                  Google Calendar {connections?.google.connected ? '✓' : '(Not connected)'}
                 </SelectItem>
-                <SelectItem value="outlook" disabled={providersLoading || !providers?.outlook.connected}>
-                  Outlook {providers?.outlook.connected ? '✓' : '(Not connected)'}
+                <SelectItem value="outlook" disabled={providersLoading || !connections?.outlook.connected}>
+                  Outlook {connections?.outlook.connected ? '✓' : '(Not connected)'}
                 </SelectItem>
               </SelectContent>
             </Select>
             
-            {providers && !providers.google.connected && !providers.outlook.connected && (
-              <p className="text-xs text-muted-foreground">
-                ⚠️ No calendar providers connected. Please connect a calendar in Settings first.
-              </p>
+            {connections && !connections.google.connected && !connections.outlook.connected && (
+              <Alert>
+                <AlertDescription>
+                  No calendar connected. Please connect Google Calendar or Outlook in <a href="/settings" className="underline">Settings → Integrations</a> first.
+                </AlertDescription>
+              </Alert>
             )}
           </div>
         </div>

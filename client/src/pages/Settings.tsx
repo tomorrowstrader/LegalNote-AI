@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, Building2, Bell, Activity, Download, Loader2 } from "lucide-react";
+import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -268,6 +268,182 @@ function FirmProfileForm() {
   );
 }
 
+function CalendarConnections() {
+  const { toast } = useToast();
+  
+  const { data: connections, isLoading } = useQuery<{
+    google: { connected: boolean; email?: string; connectedAt?: string };
+    outlook: { connected: boolean; email?: string; connectedAt?: string };
+  }>({
+    queryKey: ['/api/oauth/connections'],
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: async (provider: 'google' | 'outlook') => {
+      const res = await fetch(`/api/oauth/disconnect/${provider}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to disconnect calendar');
+      }
+      return res.json();
+    },
+    onSuccess: (_, provider) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/oauth/connections'] });
+      toast({
+        title: "Calendar Disconnected",
+        description: `${provider === 'google' ? 'Google Calendar' : 'Outlook'} has been disconnected`,
+        duration: 4000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Disconnect Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleConnect = (provider: 'google' | 'outlook') => {
+    window.location.href = `/api/oauth/connect/${provider}`;
+  };
+
+  const handleDisconnect = (provider: 'google' | 'outlook') => {
+    disconnectMutation.mutate(provider);
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Loading calendar connections...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Calendar className="w-5 h-5" />
+          <CardTitle>Calendar Integrations</CardTitle>
+        </div>
+        <CardDescription>
+          Connect your calendar to automatically sync case deadlines
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 border rounded-md">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-medium">Google Calendar</p>
+                {connections?.google.connected && connections.google.email ? (
+                  <p className="text-sm text-muted-foreground">{connections.google.email}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Not connected</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {connections?.google.connected ? (
+                <>
+                  <Badge variant="outline" className="gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Connected
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDisconnect('google')}
+                    disabled={disconnectMutation.isPending}
+                    data-testid="button-disconnect-google"
+                  >
+                    {disconnectMutation.isPending ? "Disconnecting..." : "Disconnect"}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => handleConnect('google')}
+                  data-testid="button-connect-google"
+                >
+                  Connect
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 border rounded-md">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-medium">Microsoft Outlook</p>
+                {connections?.outlook.connected && connections.outlook.email ? (
+                  <p className="text-sm text-muted-foreground">{connections.outlook.email}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Not connected</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {connections?.outlook.connected ? (
+                <>
+                  <Badge variant="outline" className="gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Connected
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDisconnect('outlook')}
+                    disabled={disconnectMutation.isPending}
+                    data-testid="button-disconnect-outlook"
+                  >
+                    {disconnectMutation.isPending ? "Disconnecting..." : "Disconnect"}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => handleConnect('outlook')}
+                  data-testid="button-connect-outlook"
+                >
+                  Connect
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium">How it works</p>
+          <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+            <li>Connect your personal calendar account (Google or Outlook)</li>
+            <li>Set deadlines on cases using "Set Priority & Deadline"</li>
+            <li>Sync deadlines to your calendar using "Sync to Calendar"</li>
+            <li>Calendar events update automatically when you change case deadlines</li>
+          </ul>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Settings() {
   const { user } = useAuth();
   const isAdmin = (user as any)?.isAdmin === true;
@@ -308,6 +484,7 @@ export default function Settings() {
             <TabsTrigger value="firm" data-testid="tab-firm">Firm</TabsTrigger>
             <TabsTrigger value="team" data-testid="tab-team">Team</TabsTrigger>
             <TabsTrigger value="usage" data-testid="tab-usage">Team Usage</TabsTrigger>
+            <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
             <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
           </TabsList>
 
@@ -446,6 +623,10 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="integrations" className="space-y-6">
+            <CalendarConnections />
           </TabsContent>
 
           <TabsContent value="security" className="space-y-6">

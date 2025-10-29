@@ -33,6 +33,10 @@ const EVENT_ICONS: Record<string, any> = {
   transcript_viewed: Eye,
   transcript_redacted: Shield,
   audit_exported_csv: Download,
+  calendar_connected: Shield,
+  calendar_disconnected: Shield,
+  calendar_synced: Send,
+  calendar_sync_failed: Shield,
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -56,6 +60,10 @@ const EVENT_LABELS: Record<string, string> = {
   transcript_viewed: "Transcript Viewed",
   transcript_redacted: "Transcript Redacted",
   audit_exported_csv: "Audit Exported (CSV)",
+  calendar_connected: "Calendar Connected",
+  calendar_disconnected: "Calendar Disconnected",
+  calendar_synced: "Calendar Synced",
+  calendar_sync_failed: "Calendar Sync Failed",
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -63,6 +71,34 @@ const SEVERITY_COLORS: Record<string, string> = {
   warning: "bg-amber-500/10 text-amber-500 border-amber-500/20",
   critical: "bg-red-500/10 text-red-500 border-red-500/20",
 };
+
+// Helper function to format metadata in a readable way
+function formatMetadata(eventType: string, metadata: Record<string, any> | null): string | null {
+  if (!metadata || Object.keys(metadata).length === 0) return null;
+
+  const parts: string[] = [];
+
+  // Calendar events
+  if (eventType === 'calendar_connected' && metadata.provider) {
+    parts.push(`Provider: ${metadata.provider === 'google' ? 'Google Calendar' : 'Microsoft Outlook'}`);
+    if (metadata.email) parts.push(`Email: ${metadata.email}`);
+  } else if (eventType === 'calendar_disconnected' && metadata.provider) {
+    parts.push(`Provider: ${metadata.provider === 'google' ? 'Google Calendar' : 'Microsoft Outlook'}`);
+  } else if (eventType === 'calendar_synced' && metadata.provider) {
+    parts.push(`Synced to: ${metadata.provider === 'google' ? 'Google Calendar' : 'Microsoft Outlook'}`);
+  } else if (eventType === 'case_email_sent') {
+    if (metadata.recipient) parts.push(`To: ${metadata.recipient}`);
+    if (metadata.messageLength) parts.push(`Message: ${metadata.messageLength} characters`);
+  } else if (eventType === 'document_sent') {
+    if (metadata.recipient) parts.push(`To: ${metadata.recipient}`);
+  } else if (eventType === 'audio_deleted') {
+    if (metadata.reason) parts.push(`Reason: ${metadata.reason.replace(/_/g, ' ')}`);
+  } else if (metadata.documentType) {
+    parts.push(`Type: ${metadata.documentType.replace(/_/g, ' ')}`);
+  }
+
+  return parts.length > 0 ? parts.join(' • ') : null;
+}
 
 // NOTE: This page should be restricted to admin users only once role-based access control is implemented
 // Currently accessible to all authenticated users - implement role check before production deployment
@@ -292,11 +328,11 @@ export default function AuditLogs() {
                           </div>
                           {(() => {
                             const metadata = log.metadata as Record<string, any> | null;
-                            if (metadata && Object.keys(metadata).length > 0) {
+                            const formattedMetadata = formatMetadata(log.eventType, metadata);
+                            if (formattedMetadata) {
                               return (
                                 <div className="mt-2 text-xs text-muted-foreground">
-                                  <span className="font-medium">Details:</span>{" "}
-                                  <code className="text-xs">{JSON.stringify(metadata)}</code>
+                                  {formattedMetadata}
                                 </div>
                               );
                             }

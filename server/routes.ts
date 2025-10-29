@@ -1499,11 +1499,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Log audit event
         await storage.createAuditLog({
-          eventType: 'calendar_synced' as any, // Type will be updated in schema
+          eventType: 'calendar_connected',
           userId: stateData.userId,
           metadata: {
-            action: 'calendar_connected',
             provider,
+            email: tokenData.email || 'N/A',
           },
           severity: 'info',
         });
@@ -1519,7 +1519,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get user's calendar connections
+  // Get user's calendar connections (list format)
   app.get("/api/calendar/connections", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
@@ -1539,6 +1539,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get user's OAuth connections (object format for Settings UI)
+  app.get("/api/oauth/connections", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const providers = await getConnectedProviders(userId, storage);
+      res.json(providers);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Disconnect calendar
   app.delete("/api/calendar/disconnect/:provider", isAuthenticated, async (req: any, res, next) => {
     try {
@@ -1553,10 +1564,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log audit event
       await storage.createAuditLog({
-        eventType: 'calendar_synced' as any,
+        eventType: 'calendar_disconnected',
         userId,
         metadata: {
-          action: 'calendar_disconnected',
           provider,
         },
         severity: 'info',
@@ -1568,10 +1578,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Legacy calendar status route (will be deprecated)
+  // Legacy calendar status route (will be deprecated - use /api/oauth/connections instead)
   app.get("/api/calendar/status", isAuthenticated, async (req: any, res, next) => {
     try {
-      const providers = await getConnectedProviders();
+      const userId = req.user.claims.sub;
+      const providers = await getConnectedProviders(userId, storage);
       res.json(providers);
     } catch (error: any) {
       next(error);
@@ -1604,13 +1615,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let result;
       if (existingEvent) {
         // Update existing event
-        result = await updateCalendarEvent(provider, existingEvent.providerEventId, {
+        result = await updateCalendarEvent(userId, provider, existingEvent.providerEventId, {
           caseId: req.params.id,
           title: caseData.title,
           clientName: caseData.clientName,
           matterReference: caseData.matterReference || undefined,
           deadline: new Date(caseData.deadline),
-        });
+        }, storage);
 
         if (result.success) {
           await storage.updateCalendarEvent(existingEvent.id, {
@@ -1619,13 +1630,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         // Create new event
-        result = await createCalendarEvent(provider, {
+        result = await createCalendarEvent(userId, provider, {
           caseId: req.params.id,
           title: caseData.title,
           clientName: caseData.clientName,
           matterReference: caseData.matterReference || undefined,
           deadline: new Date(caseData.deadline),
-        });
+        }, storage);
 
         if (result.success && result.eventId) {
           await storage.createCalendarEvent({
@@ -1692,7 +1703,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Delete events from calendars and database
       for (const event of eventsToDelete) {
-        await deleteCalendarEvent(event.provider as 'google' | 'outlook', event.providerEventId);
+        await deleteCalendarEvent(userId, event.provider as 'google' | 'outlook', event.providerEventId, storage);
         await storage.deleteCalendarEvent(event.id);
       }
 

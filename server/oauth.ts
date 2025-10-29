@@ -104,29 +104,66 @@ export async function exchangeGoogleCode(client: OAuth2Client, code: string) {
 
 /**
  * Exchange Microsoft OAuth code for tokens
- * Note: MSAL doesn't directly expose refresh tokens - they're managed internally
- * We store the access token and expiry, relying on MSAL's cache for refresh
+ * Note: We use direct token endpoint call to get refresh token instead of MSAL
+ * because MSAL's token cache is not persistent across requests
  */
 export async function exchangeMicrosoftCode(client: ConfidentialClientApplication, code: string, redirectUri: string) {
-  const tokenRequest: AuthorizationCodeRequest = {
-    code,
-    scopes: MICROSOFT_SCOPES,
-    redirectUri,
-  };
-
-  const response = await client.acquireTokenByCode(tokenRequest);
+  // Use direct token endpoint to get refresh token
+  const clientId = process.env.MICROSOFT_CLIENT_ID;
+  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
+  const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
   
-  if (!response || !response.accessToken) {
+  if (!clientId || !clientSecret) {
+    throw new Error('Microsoft OAuth credentials not configured');
+  }
+
+  const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+  
+  const params = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    code,
+    redirect_uri: redirectUri,
+    grant_type: 'authorization_code',
+    scope: MICROSOFT_SCOPES.join(' '),
+  });
+
+  const response = await fetch(tokenEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Microsoft token exchange failed: ${errorData.error_description || errorData.error}`);
+  }
+
+  const data = await response.json();
+  
+  if (!data.access_token) {
     throw new Error('No access token received from Microsoft');
   }
 
-  // MSAL manages refresh tokens internally, we store what's available
   return {
-    accessToken: response.accessToken,
-    refreshToken: null, // MSAL handles refresh internally
-    expiresAt: response.expiresOn ? new Date(response.expiresOn) : null,
-    email: response.account?.username || null,
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token || null, // Persist refresh token for later use
+    expiresAt: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : null,
+    email: data.id_token ? extractEmailFromJWT(data.id_token) : null,
   };
+}
+
+/**
+ * Helper to extract email from JWT id_token (simple base64 decode)
+ */
+function extractEmailFromJWT(idToken: string): string | null {
+  try {
+    const payload = idToken.split('.')[1];
+    const decoded = JSON.parse(Buffer.from(payload, 'base64').toString());
+    return decoded.preferred_username || decoded.email || decoded.upn || null;
+  } catch (error) {
+    return null;
+  }
 }
 
 /**
@@ -150,15 +187,49 @@ export async function refreshGoogleToken(refreshToken: string, baseUrl: string) 
 }
 
 /**
- * Refresh Microsoft OAuth access token
- * Note: For MSAL, we should use silent token acquisition with the account
- * This is a simplified version - in production, you'd want to implement proper MSAL caching
+ * Refresh Microsoft OAuth access token using refresh token
  */
 export async function refreshMicrosoftToken(refreshToken: string, baseUrl: string) {
-  // MSAL refresh token handling requires account context
-  // For now, throw error indicating token refresh needs re-authentication
-  // In a production system, you'd implement proper MSAL token cache
-  throw new Error('Microsoft token refresh requires re-authentication. Please reconnect your Outlook calendar.');
+  const clientId = process.env.MICROSOFT_CLIENT_ID;
+  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
+  const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
+  
+  if (!clientId || !clientSecret) {
+    throw new Error('Microsoft OAuth credentials not configured');
+  }
+
+  const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+  
+  const params = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    scope: MICROSOFT_SCOPES.join(' '),
+  });
+
+  const response = await fetch(tokenEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Microsoft token refresh failed: ${errorData.error_description || errorData.error}`);
+  }
+
+  const data = await response.json();
+  
+  if (!data.access_token) {
+    throw new Error('No access token received from Microsoft');
+  }
+
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token || refreshToken, // Use new refresh token if provided, otherwise keep old one
+    expiresAt: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : null,
+  };
 }
 
 /**

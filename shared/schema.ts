@@ -296,6 +296,7 @@ export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({
 }).extend({
   eventType: z.enum([
     "case_viewed", "case_created", "case_updated", "case_email_sent", "calendar_synced", "calendar_sync_failed",
+    "calendar_connected", "calendar_disconnected",
     "document_viewed", "document_created", "document_updated", "document_deleted", "document_downloaded", "document_sent",
     "transcript_viewed", "transcript_redacted",
     "audio_accessed", "audio_deleted",

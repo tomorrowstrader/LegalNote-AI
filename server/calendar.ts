@@ -1,100 +1,7 @@
 import { google } from 'googleapis';
 import { Client } from '@microsoft/microsoft-graph-client';
-
-// Google Calendar client factory
-let googleConnectionSettings: any;
-
-async function getGoogleAccessToken() {
-  if (googleConnectionSettings && googleConnectionSettings.settings.expires_at && new Date(googleConnectionSettings.settings.expires_at).getTime() > Date.now()) {
-    return googleConnectionSettings.settings.access_token;
-  }
-  
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
-
-  if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
-  }
-
-  googleConnectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-calendar',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
-    }
-  ).then(res => res.json()).then(data => data.items?.[0]);
-
-  const accessToken = googleConnectionSettings?.settings?.access_token || googleConnectionSettings.settings?.oauth?.credentials?.access_token;
-
-  if (!googleConnectionSettings || !accessToken) {
-    throw new Error('Google Calendar not connected');
-  }
-  return accessToken;
-}
-
-async function getGoogleCalendarClient() {
-  const accessToken = await getGoogleAccessToken();
-
-  const oauth2Client = new google.auth.OAuth2();
-  oauth2Client.setCredentials({
-    access_token: accessToken
-  });
-
-  return google.calendar({ version: 'v3', auth: oauth2Client });
-}
-
-// Outlook client factory
-let outlookConnectionSettings: any;
-
-async function getOutlookAccessToken() {
-  if (outlookConnectionSettings && outlookConnectionSettings.settings.expires_at && new Date(outlookConnectionSettings.settings.expires_at).getTime() > Date.now()) {
-    return outlookConnectionSettings.settings.access_token;
-  }
-  
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
-
-  if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
-  }
-
-  outlookConnectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=outlook',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
-    }
-  ).then(res => res.json()).then(data => data.items?.[0]);
-
-  const accessToken = outlookConnectionSettings?.settings?.access_token || outlookConnectionSettings.settings?.oauth?.credentials?.access_token;
-
-  if (!outlookConnectionSettings || !accessToken) {
-    throw new Error('Outlook not connected');
-  }
-  return accessToken;
-}
-
-async function getOutlookClient() {
-  const accessToken = await getOutlookAccessToken();
-
-  return Client.initWithMiddleware({
-    authProvider: {
-      getAccessToken: async () => accessToken
-    }
-  });
-}
+import type { IStorage } from './storage';
+import type { CalendarIntegration } from '@shared/schema';
 
 // Calendar integration types
 export interface CalendarEventData {
@@ -126,27 +33,161 @@ function formatEventDescription(data: CalendarEventData): string {
   return description;
 }
 
-// Google Calendar operations
-async function createGoogleCalendarEvent(data: CalendarEventData): Promise<CalendarSyncResult> {
-  try {
-    const calendar = await getGoogleCalendarClient();
+// Token refresh for Google
+async function refreshGoogleToken(
+  refreshToken: string,
+  storage: IStorage,
+  integration: CalendarIntegration
+): Promise<string> {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Google OAuth credentials not configured');
+  }
+
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
+
+  const { credentials } = await oauth2Client.refreshAccessToken();
+  const newAccessToken = credentials.access_token;
+  const newExpiresAt = credentials.expiry_date ? new Date(credentials.expiry_date) : null;
+
+  if (!newAccessToken) {
+    throw new Error('Failed to refresh Google access token');
+  }
+
+  // Update token in database
+  await storage.saveCalendarIntegration({
+    userId: integration.userId,
+    provider: integration.provider as 'google' | 'outlook',
+    accessToken: newAccessToken,
+    refreshToken: integration.refreshToken || undefined,
+    expiresAt: newExpiresAt,
+    calendarId: integration.calendarId || undefined,
+    email: integration.email || undefined,
+  });
+
+  return newAccessToken;
+}
+
+// Token refresh for Microsoft
+async function refreshMicrosoftToken(
+  refreshToken: string,
+  storage: IStorage,
+  integration: CalendarIntegration
+): Promise<string> {
+  const clientId = process.env.MICROSOFT_CLIENT_ID;
+  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
+  const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Microsoft OAuth credentials not configured');
+  }
+
+  const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    scope: 'Calendars.ReadWrite offline_access',
+  });
+
+  const response = await fetch(tokenEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to refresh Microsoft access token');
+  }
+
+  const data = await response.json();
+  const newAccessToken = data.access_token;
+  const newRefreshToken = data.refresh_token;
+  const expiresIn = data.expires_in; // seconds
+  const newExpiresAt = new Date(Date.now() + expiresIn * 1000);
+
+  // Update token in database
+  await storage.saveCalendarIntegration({
+    userId: integration.userId,
+    provider: integration.provider as 'google' | 'outlook',
+    accessToken: newAccessToken,
+    refreshToken: newRefreshToken || refreshToken,
+    expiresAt: newExpiresAt,
+    calendarId: integration.calendarId || undefined,
+    email: integration.email || undefined,
+  });
+
+  return newAccessToken;
+}
+
+// Get valid access token (with automatic refresh)
+async function getValidAccessToken(
+  userId: string,
+  provider: 'google' | 'outlook',
+  storage: IStorage
+): Promise<{ token: string; integration: CalendarIntegration }> {
+  const integration = await storage.getCalendarIntegration(userId, provider);
+
+  if (!integration) {
+    throw new Error(`${provider === 'google' ? 'Google Calendar' : 'Outlook'} not connected for this user`);
+  }
+
+  // Check if token is expired or about to expire (5 min buffer)
+  const now = new Date();
+  const expiresAt = integration.expiresAt ? new Date(integration.expiresAt) : null;
+  const needsRefresh = !expiresAt || expiresAt.getTime() - now.getTime() < 5 * 60 * 1000;
+
+  if (needsRefresh && integration.refreshToken) {
+    const newToken = provider === 'google'
+      ? await refreshGoogleToken(integration.refreshToken, storage, integration)
+      : await refreshMicrosoftToken(integration.refreshToken, storage, integration);
     
+    // Fetch updated integration with new token
+    const updated = await storage.getCalendarIntegration(userId, provider);
+    if (!updated) {
+      throw new Error('Failed to retrieve updated integration');
+    }
+    return { token: newToken, integration: updated };
+  }
+
+  return { token: integration.accessToken, integration };
+}
+
+// Google Calendar operations
+async function createGoogleCalendarEvent(
+  userId: string,
+  data: CalendarEventData,
+  storage: IStorage
+): Promise<CalendarSyncResult> {
+  try {
+    const { token } = await getValidAccessToken(userId, 'google', storage);
+
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials({ access_token: token });
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
     const event = {
       summary: `Deadline: ${data.title}`,
       description: formatEventDescription(data),
       start: {
         dateTime: data.deadline.toISOString(),
-        timeZone: 'Europe/London', // UK timezone
+        timeZone: 'Europe/London',
       },
       end: {
-        dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(), // 1 hour duration
+        dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(),
         timeZone: 'Europe/London',
       },
       reminders: {
         useDefault: false,
         overrides: [
-          { method: 'email', minutes: 24 * 60 }, // 1 day before
-          { method: 'popup', minutes: 60 }, // 1 hour before
+          { method: 'email', minutes: 24 * 60 },
+          { method: 'popup', minutes: 60 },
         ],
       },
     };
@@ -170,10 +211,20 @@ async function createGoogleCalendarEvent(data: CalendarEventData): Promise<Calen
   }
 }
 
-async function updateGoogleCalendarEvent(eventId: string, data: CalendarEventData): Promise<CalendarSyncResult> {
+async function updateGoogleCalendarEvent(
+  userId: string,
+  eventId: string,
+  data: CalendarEventData,
+  storage: IStorage
+): Promise<CalendarSyncResult> {
   try {
-    const calendar = await getGoogleCalendarClient();
-    
+    const { token } = await getValidAccessToken(userId, 'google', storage);
+
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials({ access_token: token });
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
     const event = {
       summary: `Deadline: ${data.title}`,
       description: formatEventDescription(data),
@@ -214,10 +265,19 @@ async function updateGoogleCalendarEvent(eventId: string, data: CalendarEventDat
   }
 }
 
-async function deleteGoogleCalendarEvent(eventId: string): Promise<CalendarSyncResult> {
+async function deleteGoogleCalendarEvent(
+  userId: string,
+  eventId: string,
+  storage: IStorage
+): Promise<CalendarSyncResult> {
   try {
-    const calendar = await getGoogleCalendarClient();
-    
+    const { token } = await getValidAccessToken(userId, 'google', storage);
+
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials({ access_token: token });
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
     await calendar.events.delete({
       calendarId: 'primary',
       eventId: eventId,
@@ -237,10 +297,20 @@ async function deleteGoogleCalendarEvent(eventId: string): Promise<CalendarSyncR
 }
 
 // Outlook Calendar operations
-async function createOutlookCalendarEvent(data: CalendarEventData): Promise<CalendarSyncResult> {
+async function createOutlookCalendarEvent(
+  userId: string,
+  data: CalendarEventData,
+  storage: IStorage
+): Promise<CalendarSyncResult> {
   try {
-    const client = await getOutlookClient();
-    
+    const { token } = await getValidAccessToken(userId, 'outlook', storage);
+
+    const client = Client.initWithMiddleware({
+      authProvider: {
+        getAccessToken: async () => token,
+      },
+    });
+
     const event = {
       subject: `Deadline: ${data.title}`,
       body: {
@@ -249,14 +319,14 @@ async function createOutlookCalendarEvent(data: CalendarEventData): Promise<Cale
       },
       start: {
         dateTime: data.deadline.toISOString(),
-        timeZone: 'GMT Standard Time', // UK timezone for Outlook
+        timeZone: 'GMT Standard Time',
       },
       end: {
         dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(),
         timeZone: 'GMT Standard Time',
       },
       isReminderOn: true,
-      reminderMinutesBeforeStart: 60, // 1 hour before
+      reminderMinutesBeforeStart: 60,
     };
 
     const response = await client.api('/me/events').post(event);
@@ -275,10 +345,21 @@ async function createOutlookCalendarEvent(data: CalendarEventData): Promise<Cale
   }
 }
 
-async function updateOutlookCalendarEvent(eventId: string, data: CalendarEventData): Promise<CalendarSyncResult> {
+async function updateOutlookCalendarEvent(
+  userId: string,
+  eventId: string,
+  data: CalendarEventData,
+  storage: IStorage
+): Promise<CalendarSyncResult> {
   try {
-    const client = await getOutlookClient();
-    
+    const { token } = await getValidAccessToken(userId, 'outlook', storage);
+
+    const client = Client.initWithMiddleware({
+      authProvider: {
+        getAccessToken: async () => token,
+      },
+    });
+
     const event = {
       subject: `Deadline: ${data.title}`,
       body: {
@@ -313,10 +394,20 @@ async function updateOutlookCalendarEvent(eventId: string, data: CalendarEventDa
   }
 }
 
-async function deleteOutlookCalendarEvent(eventId: string): Promise<CalendarSyncResult> {
+async function deleteOutlookCalendarEvent(
+  userId: string,
+  eventId: string,
+  storage: IStorage
+): Promise<CalendarSyncResult> {
   try {
-    const client = await getOutlookClient();
-    
+    const { token } = await getValidAccessToken(userId, 'outlook', storage);
+
+    const client = Client.initWithMiddleware({
+      authProvider: {
+        getAccessToken: async () => token,
+      },
+    });
+
     await client.api(`/me/events/${eventId}`).delete();
 
     return {
@@ -334,57 +425,66 @@ async function deleteOutlookCalendarEvent(eventId: string): Promise<CalendarSync
 
 // Public API
 export async function createCalendarEvent(
+  userId: string,
   provider: 'google' | 'outlook',
-  data: CalendarEventData
+  data: CalendarEventData,
+  storage: IStorage
 ): Promise<CalendarSyncResult> {
   if (provider === 'google') {
-    return createGoogleCalendarEvent(data);
+    return createGoogleCalendarEvent(userId, data, storage);
   } else {
-    return createOutlookCalendarEvent(data);
+    return createOutlookCalendarEvent(userId, data, storage);
   }
 }
 
 export async function updateCalendarEvent(
+  userId: string,
   provider: 'google' | 'outlook',
   eventId: string,
-  data: CalendarEventData
+  data: CalendarEventData,
+  storage: IStorage
 ): Promise<CalendarSyncResult> {
   if (provider === 'google') {
-    return updateGoogleCalendarEvent(eventId, data);
+    return updateGoogleCalendarEvent(userId, eventId, data, storage);
   } else {
-    return updateOutlookCalendarEvent(eventId, data);
+    return updateOutlookCalendarEvent(userId, eventId, data, storage);
   }
 }
 
 export async function deleteCalendarEvent(
+  userId: string,
   provider: 'google' | 'outlook',
-  eventId: string
+  eventId: string,
+  storage: IStorage
 ): Promise<CalendarSyncResult> {
   if (provider === 'google') {
-    return deleteGoogleCalendarEvent(eventId);
+    return deleteGoogleCalendarEvent(userId, eventId, storage);
   } else {
-    return deleteOutlookCalendarEvent(eventId);
+    return deleteOutlookCalendarEvent(userId, eventId, storage);
   }
 }
 
-// Check if calendar providers are connected
-export async function getConnectedProviders(): Promise<{ google: boolean; outlook: boolean }> {
-  let google = false;
-  let outlook = false;
+// Check which calendar providers are connected for a user
+export async function getConnectedProviders(
+  userId: string,
+  storage: IStorage
+): Promise<{ 
+  google: { connected: boolean; email?: string; connectedAt?: string }; 
+  outlook: { connected: boolean; email?: string; connectedAt?: string };
+}> {
+  const googleIntegration = await storage.getCalendarIntegration(userId, 'google');
+  const outlookIntegration = await storage.getCalendarIntegration(userId, 'outlook');
 
-  try {
-    await getGoogleAccessToken();
-    google = true;
-  } catch (error) {
-    // Google Calendar not connected
-  }
-
-  try {
-    await getOutlookAccessToken();
-    outlook = true;
-  } catch (error) {
-    // Outlook not connected
-  }
-
-  return { google, outlook };
+  return {
+    google: {
+      connected: !!googleIntegration,
+      email: googleIntegration?.email || undefined,
+      connectedAt: googleIntegration?.connectedAt?.toISOString(),
+    },
+    outlook: {
+      connected: !!outlookIntegration,
+      email: outlookIntegration?.email || undefined,
+      connectedAt: outlookIntegration?.connectedAt?.toISOString(),
+    },
+  };
 }
