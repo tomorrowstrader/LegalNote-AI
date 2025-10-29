@@ -13,6 +13,7 @@ import {
 import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
+import EmailToClientModal from "@/components/EmailToClientModal";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -44,6 +45,7 @@ export default function CaseCard({
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const { toast } = useToast();
 
   const markReviewedMutation = useMutation({
@@ -152,6 +154,30 @@ export default function CaseCard({
     },
   });
 
+  const sendEmailMutation = useMutation({
+    mutationFn: async ({ email, message }: { email: string; message: string }) => {
+      return await apiRequest('POST', `/api/cases/${id}/email`, {
+        recipientEmail: email,
+        customMessage: message || undefined,
+      });
+    },
+    onSuccess: () => {
+      setShowEmailModal(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', id] });
+      toast({
+        title: "Email sent",
+        description: "Case documents have been emailed to the client successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send email. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const statusConfig = {
     completed: { icon: CheckCircle2, label: "Completed", variant: "default" as const },
     processing: { icon: Loader2, label: "Processing", variant: "secondary" as const },
@@ -195,11 +221,7 @@ export default function CaseCard({
         description: "Team member assignment will be available soon",
       });
     } else if (action === 'email') {
-      // TODO: Show email dialog
-      toast({
-        title: "Coming soon",
-        description: "Email to client will be available soon",
-      });
+      setShowEmailModal(true);
     } else if (action === 'download') {
       downloadPDFMutation.mutate();
     }
@@ -324,6 +346,15 @@ export default function CaseCard({
         caseId={id}
         caseTitle={title}
         userRole="Partner"
+      />
+
+      <EmailToClientModal
+        open={showEmailModal}
+        onOpenChange={setShowEmailModal}
+        onSend={(email, message) => sendEmailMutation.mutate({ email, message })}
+        isPending={sendEmailMutation.isPending}
+        caseTitle={title}
+        clientName={clientName}
       />
     </Card>
   );

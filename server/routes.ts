@@ -17,6 +17,7 @@ import {
 import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { openaiService } from "./openaiService";
+import { sendCaseEmail } from "./email";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment platform
@@ -247,6 +248,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       res.json(updatedCase);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/email", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { recipientEmail, customMessage } = req.body;
+      
+      // Validate recipient email
+      if (!recipientEmail || typeof recipientEmail !== 'string') {
+        return res.status(400).json({ message: "recipientEmail is required" });
+      }
+      
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(recipientEmail)) {
+        return res.status(400).json({ message: "Invalid email address" });
+      }
+      
+      // Get case data (verify user has access)
+      const caseData = await storage.getCase(req.params.id, userId);
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      
+      // Get firm profile for email branding
+      const firmProfile = await storage.getFirmProfile();
+      
+      // Send email
+      const result = await sendCaseEmail({
+        to: recipientEmail,
+        caseTitle: caseData.title,
+        clientName: caseData.clientName,
+        matterReference: caseData.matterReference || undefined,
+        caseId: req.params.id,
+        customMessage: customMessage || undefined,
+        firmProfile: firmProfile ? {
+          firmName: firmProfile.firmName,
+          phone: firmProfile.phone || undefined,
+          email: firmProfile.email || undefined,
+          addressLine1: firmProfile.addressLine1 || undefined,
+          addressLine2: firmProfile.addressLine2 || undefined,
+          city: firmProfile.city || undefined,
+          postcode: firmProfile.postcode || undefined,
+        } : undefined,
+      });
+      
+      if (!result.success) {
+        return res.status(500).json({ 
+          message: "Failed to send email",
+          error: result.error 
+        });
+      }
+      
+      // Log audit event
+      await logAuditEvent(userId, "case_email_sent", {
+        caseId: req.params.id,
+        metadata: { 
+          recipientEmail, 
+          messageId: result.messageId,
+          hasCustomMessage: !!customMessage 
+        },
+        req,
+      });
+      
+      res.json({ 
+        success: true, 
+        message: "Email sent successfully",
+        messageId: result.messageId 
+      });
     } catch (error: any) {
       next(error);
     }
