@@ -4,18 +4,21 @@
 LegalNote AI is a professional legal documentation platform for solicitors and law firms. It enables legal professionals to record client meetings, automatically generate attendance notes, legal opinions, and searchable transcripts, while ensuring GDPR compliance, client consent management, and professional document workflows with firm branding on all exports. The project aims to provide an efficient and compliant solution for legal document creation and management.
 
 ## Recent Changes (October 29, 2025)
-- **Calendar Integration for Deadline Management**:
-  - Integrated Google Calendar and Outlook connectors via Replit integrations with OAuth 2.0 authentication
-  - Database schema additions: calendarEvents table (tracks synced events), calendarConnections table (stores OAuth tokens), deadline and syncToCalendar fields on cases table
-  - Created comprehensive calendar service utility (server/calendar.ts) with bidirectional sync capabilities for both Google Calendar and Microsoft Outlook
-  - Implemented API routes: GET /api/calendar/status, POST /api/cases/:id/sync-calendar, DELETE /api/cases/:id/unsync-calendar
-  - Updated SetPriorityDeadlineModal to save deadlines to database with date picker using react-day-picker
-  - Added SyncCalendarModal component for calendar provider selection and sync management
-  - Integrated calendar sync action into CaseCard quick actions menu
-  - Installed required packages: googleapis and @microsoft/microsoft-graph-client for calendar API integration
-  - Calendar events include: case title, client name, matter reference, and deadline date/time
-  - Full audit trail with calendar_synced and calendar_sync_failed event types
-  - Proper React Query cache invalidation for real-time UI updates
+- **Per-User OAuth Calendar Integration (Security Fix)**:
+  - **CRITICAL SECURITY FIX**: Migrated from workspace-level to per-user OAuth tokens to eliminate cross-user data exposure vulnerability
+  - Added comprehensive Settings UI with Calendar Connections tab for managing Google Calendar and Outlook accounts
+  - Implemented complete OAuth 2.0 flow with proper token persistence, automatic refresh, and secure per-user storage
+  - Fixed Microsoft OAuth to properly persist and refresh tokens using direct token endpoint (not MSAL in-memory cache)
+  - Added audit logging for calendar_connected and calendar_disconnected events with clean metadata formatting
+  - Updated SyncCalendarModal to check for active calendar connections and guide users to Settings if needed
+  - Cleaned up audit trail display: removed asterisks/placeholders, formatted event types and metadata clearly
+  - OAuth credentials configured via environment secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET
+  - Both Google and Microsoft OAuth flows now properly persist refresh tokens and automatically refresh access tokens when expired
+  - Database schema: calendarConnections table stores per-user OAuth tokens with userId, provider, accessToken, refreshToken, expiresAt, email, connectedAt
+  - API routes: GET /api/oauth/connections, GET /api/oauth/authorize/:provider, GET /api/calendar/callback/:provider, DELETE /api/calendar/disconnect/:provider
+  - Calendar service (server/calendar.ts) refactored to use per-user tokens from calendarConnections table instead of workspace connector tokens
+  - Proper user isolation: all calendar operations enforce userId matching and ACL verification
+  - Full audit trail with calendar_connected, calendar_disconnected, calendar_synced, and calendar_sync_failed event types
 
 - **Case Management Features Completed**:
   - Implemented Mark as Reviewed feature with backend API, frontend mutation, and database schema (reviewed boolean field)
