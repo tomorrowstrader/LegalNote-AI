@@ -39,6 +39,8 @@ export const cases = pgTable("cases", {
   reviewed: boolean("reviewed").notNull().default(false), // Marks case as reviewed by solicitor
   archived: boolean("archived").notNull().default(false), // Soft delete / archive functionality
   aiProcessingMetadata: jsonb("ai_processing_metadata").default({}), // Tracks tokens, costs, processing status, errors
+  deadline: timestamp("deadline"), // Case deadline for calendar sync
+  syncToCalendar: boolean("sync_to_calendar").notNull().default(false), // Whether to sync deadline to calendar
 });
 
 export const audioRecordings = pgTable("audio_recordings", {
@@ -114,7 +116,7 @@ export const auditTrail = pgTable("audit_trail", {
   // AI operations: transcript_generated, document_generated, document_regenerated
   // Document modifications: document_edited, transcript_redacted
   // Exports: document_exported_pdf, document_exported_word, audit_exported_csv
-  // Case actions: case_created, case_viewed, case_updated, case_priority_changed, case_assigned, case_email_sent
+  // Case actions: case_created, case_viewed, case_updated, case_priority_changed, case_assigned, case_email_sent, calendar_synced, calendar_sync_failed
   // System events: user_login, user_logout, session_expired
   userId: varchar("user_id").notNull().references(() => users.id),
   caseId: varchar("case_id").references(() => cases.id),
@@ -143,6 +145,30 @@ export const firmProfile = pgTable("firm_profile", {
   sraNumber: text("sra_number"), // SRA firm registration number
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
+});
+
+export const calendarIntegrations = pgTable("calendar_integrations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id),
+  provider: text("provider").notNull(), // google, outlook
+  accessToken: text("access_token").notNull(), // Encrypted OAuth access token
+  refreshToken: text("refresh_token"), // Encrypted OAuth refresh token
+  expiresAt: timestamp("expires_at"), // Token expiration time
+  calendarId: text("calendar_id"), // Primary calendar ID for the provider
+  email: text("email"), // Calendar account email
+  connectedAt: timestamp("connected_at").notNull().defaultNow(),
+  lastSyncAt: timestamp("last_sync_at"),
+});
+
+export const calendarEvents = pgTable("calendar_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  provider: text("provider").notNull(), // google, outlook
+  providerEventId: text("provider_event_id").notNull(), // External calendar event ID
+  eventType: text("event_type").notNull().default("deadline"), // deadline, hearing, meeting
+  syncedAt: timestamp("synced_at").notNull().defaultNow(),
+  lastUpdatedAt: timestamp("last_updated_at"),
 });
 
 // Input validation helpers
@@ -266,7 +292,7 @@ export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({
   timestamp: true,
 }).extend({
   eventType: z.enum([
-    "case_viewed", "case_created", "case_updated", "case_email_sent",
+    "case_viewed", "case_created", "case_updated", "case_email_sent", "calendar_synced", "calendar_sync_failed",
     "document_viewed", "document_created", "document_updated", "document_deleted", "document_downloaded", "document_sent",
     "transcript_viewed", "transcript_redacted",
     "audio_accessed", "audio_deleted",
@@ -301,6 +327,29 @@ export const insertFirmProfileSchema = createInsertSchema(firmProfile).omit({
   updatedBy: z.string().min(1).optional(), // Replit Auth IDs are not UUIDs
 });
 
+export const insertCalendarIntegrationSchema = createInsertSchema(calendarIntegrations).omit({
+  id: true,
+  connectedAt: true,
+}).extend({
+  userId: z.string().min(1), // Replit Auth IDs are not UUIDs
+  provider: z.enum(["google", "outlook"]),
+  accessToken: z.string().min(1),
+  refreshToken: z.string().optional(),
+  calendarId: z.string().max(500).optional(),
+  email: z.string().email().max(255).optional(),
+});
+
+export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({
+  id: true,
+  syncedAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  userId: z.string().min(1), // Replit Auth IDs are not UUIDs
+  provider: z.enum(["google", "outlook"]),
+  providerEventId: z.string().min(1).max(500),
+  eventType: z.enum(["deadline", "hearing", "meeting"]).default("deadline"),
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
@@ -332,3 +381,9 @@ export type AuditTrail = typeof auditTrail.$inferSelect;
 
 export type InsertFirmProfile = z.infer<typeof insertFirmProfileSchema>;
 export type FirmProfile = typeof firmProfile.$inferSelect;
+
+export type InsertCalendarIntegration = z.infer<typeof insertCalendarIntegrationSchema>;
+export type CalendarIntegration = typeof calendarIntegrations.$inferSelect;
+
+export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
+export type CalendarEvent = typeof calendarEvents.$inferSelect;
