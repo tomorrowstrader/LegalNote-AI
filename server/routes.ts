@@ -340,6 +340,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/cases/:id/share-link", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body with Zod
+      const shareLinkRequestSchema = z.object({
+        recipientEmail: z.string().email("Invalid email address"),
+        recipientName: z.string().min(1, "Recipient name is required"),
+        isExternal: z.boolean(),
+        organization: z.string().optional(),
+        expiration: z.enum(["24hours", "7days", "30days", "custom"]),
+        accessLevel: z.enum(["view", "download"]),
+        password: z.string().optional(),
+        clientConsent: z.boolean(),
+      });
+      
+      const validationResult = shareLinkRequestSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Validation error",
+          errors: validationResult.error.format()
+        });
+      }
+      
+      const { recipientEmail, recipientName, isExternal, organization, expiration, accessLevel, password, clientConsent } = validationResult.data;
+      
+      // Get case data (verify user has access)
+      const caseData = await storage.getCase(req.params.id, userId);
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      
+      // For external sharing, verify server-side consent from database
+      if (isExternal) {
+        // Check if client consent exists in the database
+        const consentLogs = await storage.getConsentLogsByCase(req.params.id, userId);
+        const hasValidConsent = consentLogs.some((log: any) => log.consentGiven === true);
+        
+        if (!hasValidConsent) {
+          await logAuditEvent(userId, "case_updated", {
+            caseId: req.params.id,
+            metadata: { 
+              action: "external_share_blocked_no_consent",
+              recipientEmail,
+            },
+            severity: "warning",
+            req,
+          });
+          return res.status(403).json({ 
+            message: "Cannot share externally: No client consent on record for this case" 
+          });
+        }
+        
+        // Also require frontend confirmation of consent
+        if (!clientConsent) {
+          return res.status(400).json({ 
+            message: "Client consent confirmation is required for external sharing" 
+          });
+        }
+      }
+      
+      // Get firm profile for email branding
+      const firmProfile = await storage.getFirmProfile();
+      
+      // Generate secure access link
+      const baseUrl = process.env.REPLIT_DOMAINS?.split(',')[0] || 'https://yourdomain.replit.app';
+      const secureLink = `${baseUrl}/case/${req.params.id}`;
+      
+      // Send email with secure link
+      const result = await sendCaseEmail({
+        to: recipientEmail,
+        caseTitle: caseData.title,
+        clientName: caseData.clientName,
+        matterReference: caseData.matterReference || undefined,
+        caseId: req.params.id,
+        customMessage: `You have been granted ${accessLevel} access to this case. This link will expire in ${expiration.replace(/(\d+)(\w+)/, '$1 $2')}.${password ? ' A password is required to access the documents.' : ''}`,
+        firmProfile: firmProfile ? {
+          firmName: firmProfile.firmName,
+          phone: firmProfile.phone || undefined,
+          email: firmProfile.email || undefined,
+          addressLine1: firmProfile.addressLine1 || undefined,
+          addressLine2: firmProfile.addressLine2 || undefined,
+          city: firmProfile.city || undefined,
+          postcode: firmProfile.postcode || undefined,
+        } : undefined,
+      });
+      
+      if (!result.success) {
+        return res.status(500).json({ 
+          message: "Failed to send secure link",
+          error: result.error 
+        });
+      }
+      
+      // Log audit event with detailed metadata
+      await logAuditEvent(userId, "case_link_shared", {
+        caseId: req.params.id,
+        metadata: { 
+          recipientEmail,
+          recipientName,
+          isExternal,
+          organization,
+          expiration,
+          accessLevel,
+          passwordProtected: !!password,
+          clientConsent,
+          messageId: result.messageId,
+        },
+        req,
+      });
+      
+      res.json({ 
+        success: true, 
+        message: "Secure link sent successfully",
+        messageId: result.messageId 
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Protected Audio routes
   app.post("/api/audio/upload-url", isAuthenticated, presignedUrlLimiter, async (req, res, next) => {
     try {

@@ -58,16 +58,8 @@ export default function ShareLinkModal({
     if (countdown === null) return;
 
     if (countdown === 0) {
-      // Actually send the email
-      console.log('Sending share link email...');
-      logAuditTrail();
-      toast({
-        title: "Link Shared Successfully",
-        description: `Secure link sent to ${recipientEmail}`,
-        duration: 6000, // 6 seconds for success messages
-      });
-      setCountdown(null);
-      handleClose();
+      // Actually send the share link via API
+      sendShareLinkEmail();
       return;
     }
 
@@ -78,38 +70,46 @@ export default function ShareLinkModal({
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  const logAuditTrail = () => {
-    const userName = user?.firstName && user?.lastName 
-      ? `${user.firstName} ${user.lastName}` 
-      : user?.email?.split('@')[0] || 'Unknown User';
-    
-    const auditLog = {
-      timestamp: new Date().toISOString(),
-      action: "share_link",
-      caseId,
-      caseTitle,
-      sharedBy: {
-        name: userName,
-        email: user?.email || '',
-        role: userRole,
-      },
-      recipient: {
-        email: recipientEmail,
-        name: recipientName,
-        isExternal,
-        organization,
-      },
-      linkSettings: {
-        expiration,
-        accessLevel,
-        passwordProtected: !!password,
-      },
-      clientConsent: clientConsent,
-    };
+  const sendShareLinkEmail = async () => {
+    try {
+      const response = await fetch(`/api/cases/${caseId}/share-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          recipientEmail,
+          recipientName,
+          isExternal,
+          organization,
+          expiration,
+          accessLevel,
+          password,
+          clientConsent,
+        }),
+      });
 
-    console.log('AUDIT LOG:', auditLog);
-    // In production: POST to /api/audit-logs
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      toast({
+        title: "Link Shared Successfully",
+        description: `Secure link sent to ${recipientEmail}`,
+        duration: 6000,
+      });
+      setCountdown(null);
+      handleClose();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send secure link",
+        variant: "destructive",
+      });
+      setCountdown(null);
+      setIsSending(false);
+    }
   };
+
 
   const handleShare = () => {
     if (!recipientEmail || !recipientName) {
@@ -308,6 +308,7 @@ export default function ShareLinkModal({
                   checked={clientConsent}
                   onCheckedChange={(checked) => setClientConsent(checked as boolean)}
                   data-testid="checkbox-consent"
+                  className="border-2 border-foreground/40 data-[state=checked]:border-primary"
                 />
                 <Label htmlFor="consent" className="font-normal text-sm leading-relaxed">
                   I confirm that client consent has been obtained to share this information externally. This consent and sharing action will be recorded in the audit log.

@@ -130,7 +130,7 @@ export default function SetPriorityDeadlineModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="dialog-set-priority-deadline">
+      <DialogContent data-testid="dialog-set-priority-deadline" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>Set Priority & Deadline</DialogTitle>
           <DialogDescription>
