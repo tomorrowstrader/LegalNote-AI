@@ -293,7 +293,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get firm profile for email branding
       const firmProfile = await storage.getFirmProfile();
       
-      // Send email
+      // Send email (email service will generate the proper case URL)
       const result = await sendCaseEmail({
         to: recipientEmail,
         caseTitle: caseData.title,
