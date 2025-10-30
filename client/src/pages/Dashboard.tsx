@@ -57,6 +57,7 @@ export default function Dashboard() {
       deadline: caseItem.deadline ? new Date(caseItem.deadline).toISOString() : null,
       createdBy: creatorName,
       priority: caseItem.priority as "urgent" | "deadline-soon" | "normal",
+      reviewed: caseItem.reviewed,
     };
   };
 

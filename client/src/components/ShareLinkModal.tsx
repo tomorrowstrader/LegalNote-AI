@@ -132,9 +132,9 @@ export default function ShareLinkModal({
       return;
     }
 
-    // Start 30-second countdown
+    // Start 3-second countdown
     setIsSending(true);
-    setCountdown(30);
+    setCountdown(3);
   };
 
   const handleCancel = () => {

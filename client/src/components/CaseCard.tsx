@@ -31,6 +31,7 @@ interface CaseCardProps {
   priority?: "urgent" | "deadline-soon" | "normal";
   audioExpiresIn?: number;
   deadline?: string | null;
+  reviewed?: boolean;
 }
 
 export default function CaseCard({ 
@@ -42,7 +43,8 @@ export default function CaseCard({
   createdBy,
   priority = "normal",
   audioExpiresIn,
-  deadline = null
+  deadline = null,
+  reviewed = false
 }: CaseCardProps) {
   const [, setLocation] = useLocation();
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
@@ -249,6 +251,12 @@ export default function CaseCard({
                   {priorityConfig[priority].label}
                 </Badge>
               )}
+              {reviewed && (
+                <Badge variant="outline" className="gap-1 text-xs px-2 py-0.5 flex-shrink-0 border-green-600 text-green-600 dark:border-green-400 dark:text-green-400" data-testid={`badge-reviewed-${id}`}>
+                  <CheckCircle2 className="w-3 h-3" />
+                  Reviewed
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-2 mb-1">
               <p className="text-sm text-muted-foreground">{clientName}</p>
@@ -300,10 +308,6 @@ export default function CaseCard({
                   Download PDF
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={(e) => handleAction('assign', e)} data-testid={`action-assign-${id}`}>
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Assign to Team Member
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={(e) => handleAction('share', e)} data-testid={`action-share-${id}`}>
                   <Share2 className="w-4 h-4 mr-2" />
                   Share Link

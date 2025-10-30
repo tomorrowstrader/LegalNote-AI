@@ -79,7 +79,7 @@ export default function EmailToClientModal({
               data-testid="textarea-custom-message"
             />
             <p className="text-xs text-muted-foreground">
-              If left blank, a default professional message will be sent.
+              Email will include a professional introduction with your firm's letterhead and contact details.
             </p>
           </div>
 

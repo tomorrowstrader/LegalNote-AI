@@ -80,6 +80,7 @@ export default function SavedCases() {
                   createdBy={caseItem.createdBy}
                   priority={caseItem.priority as "urgent" | "deadline-soon" | "normal"}
                   deadline={caseItem.deadline ? new Date(caseItem.deadline).toISOString() : null}
+                  reviewed={caseItem.reviewed}
                 />
               ))}
             </div>
