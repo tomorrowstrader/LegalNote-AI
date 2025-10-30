@@ -133,7 +133,7 @@ export default function SyncCalendarModal({
   if (!deadline) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent data-testid="dialog-sync-calendar">
+        <DialogContent data-testid="dialog-sync-calendar" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>Sync to Calendar</DialogTitle>
             <DialogDescription>
@@ -159,7 +159,7 @@ export default function SyncCalendarModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="dialog-sync-calendar">
+      <DialogContent data-testid="dialog-sync-calendar" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>Sync to Calendar</DialogTitle>
           <DialogDescription>

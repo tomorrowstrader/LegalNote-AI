@@ -96,7 +96,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
   if (showTranscriptionReview) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent data-testid="dialog-transcription-review">
+        <DialogContent data-testid="dialog-transcription-review" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>Review Transcription</DialogTitle>
             <DialogDescription>
@@ -149,7 +149,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="dialog-add-quick-note">
+      <DialogContent data-testid="dialog-add-quick-note" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>Add Quick Note</DialogTitle>
           <DialogDescription>
