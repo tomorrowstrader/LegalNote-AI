@@ -17,6 +17,7 @@ import MyProfile from "@/pages/MyProfile";
 import AuditLogs from "@/pages/AuditLogs";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Landing from "@/pages/Landing";
+import ShareLinkView from "@/pages/ShareLinkView";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -24,6 +25,9 @@ function Router() {
 
   return (
     <Switch>
+      {/* Public routes (accessible without authentication) */}
+      <Route path="/share/:linkId" component={ShareLinkView} />
+      
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (

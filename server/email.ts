@@ -11,7 +11,7 @@ interface SendCaseEmailParams {
   caseTitle: string;
   clientName: string;
   matterReference?: string;
-  caseId: string;
+  shareLinkId: string;
   customMessage?: string;
   firmProfile?: {
     firmName: string;
@@ -25,7 +25,7 @@ interface SendCaseEmailParams {
 }
 
 /**
- * Sends a professional email to a client with case document access
+ * Sends a professional email to a client with secure share link for document access
  */
 export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const {
@@ -33,16 +33,16 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
     caseTitle,
     clientName,
     matterReference,
-    caseId,
+    shareLinkId,
     customMessage,
     firmProfile
   } = params;
 
-  // Construct the case view URL (assumes your app is accessible via REPLIT_DOMAINS)
+  // Construct the secure share link URL (publicly accessible, no authentication required)
   const baseUrl = process.env.REPLIT_DOMAINS 
     ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
     : 'http://localhost:5000';
-  const caseUrl = `${baseUrl}/case/${caseId}`;
+  const shareUrl = `${baseUrl}/share/${shareLinkId}`;
 
   // Build email HTML content
   const emailHtml = `
@@ -139,11 +139,11 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
 
         <p>You can view your case documents by clicking the button below:</p>
 
-        <a href="${caseUrl}" class="cta-button">View Case Documents</a>
+        <a href="${shareUrl}" class="cta-button">View Case Documents</a>
 
         <p style="font-size: 12px; color: #666;">
           If the button above doesn't work, copy and paste this link into your browser:<br>
-          <a href="${caseUrl}">${caseUrl}</a>
+          <a href="${shareUrl}">${shareUrl}</a>
         </p>
 
         <p>If you have any questions or require further assistance, please don't hesitate to contact us.</p>

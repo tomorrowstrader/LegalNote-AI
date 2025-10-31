@@ -49,6 +49,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     generalApiLimiter(req, res, next);
   });
 
+  // PUBLIC ROUTES (no authentication required)
+  
+  // Get share link data (public access for clients)
+  app.get('/api/share/:linkId', generalApiLimiter, async (req, res, next) => {
+    try {
+      const { linkId } = req.params;
+      
+      // Get share link from database
+      const shareLink = await storage.getShareLink(linkId);
+      
+      if (!shareLink) {
+        return res.status(404).json({ message: "Share link not found" });
+      }
+      
+      // Check if link has expired
+      if (new Date() > new Date(shareLink.expiresAt)) {
+        return res.status(410).json({ message: "Share link has expired" });
+      }
+      
+      // Check if SMS verification is required and not yet verified
+      if (shareLink.smsProtection && !shareLink.smsVerified) {
+        return res.json({
+          requiresSmsVerification: true,
+          recipientName: shareLink.recipientName,
+          phoneNumber: shareLink.smsPhoneNumber,
+        });
+      }
+      
+      // Get case data
+      const caseData = await storage.getCase(shareLink.caseId, shareLink.createdBy);
+      
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      
+      // Get documents
+      const documents = await storage.getActiveDocumentsByCase(shareLink.caseId, shareLink.createdBy);
+      
+      // Get transcript
+      const transcript = await storage.getTranscriptByCase(shareLink.caseId, shareLink.createdBy);
+      
+      // Increment access count
+      await storage.incrementShareLinkAccess(linkId);
+      
+      // Log access
+      await storage.createAuditLog({
+        eventType: "share_link_accessed",
+        userId: shareLink.createdBy,
+        caseId: shareLink.caseId,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        metadata: {
+          shareLinkId: linkId,
+          recipientEmail: shareLink.recipientEmail,
+          accessCount: shareLink.accessCount + 1,
+        },
+        severity: "info",
+      });
+      
+      // Return case data with documents
+      res.json({
+        requiresSmsVerification: false,
+        caseData: {
+          title: caseData.title,
+          clientName: caseData.clientName,
+          matterReference: caseData.matterReference,
+          createdAt: caseData.createdAt,
+        },
+        documents: documents.map(doc => ({
+          id: doc.id,
+          type: doc.type,
+          content: doc.content,
+          version: doc.version,
+          createdAt: doc.createdAt,
+        })),
+        transcript: transcript ? {
+          id: transcript.id,
+          content: transcript.content,
+          createdAt: transcript.createdAt,
+        } : null,
+        shareLink: {
+          recipientName: shareLink.recipientName,
+          expiresAt: shareLink.expiresAt,
+          accessLevel: shareLink.accessLevel,
+        },
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Auth user route
   app.get('/api/auth/user', isAuthenticated, authLimiter, async (req: any, res, next) => {
     try {
@@ -290,16 +381,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Case not found" });
       }
       
+      // Create a secure share link for the client (7 days expiration, view-only)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+      
+      const shareLink = await storage.createShareLink({
+        caseId: req.params.id,
+        createdBy: userId,
+        recipientEmail,
+        recipientName: caseData.clientName,
+        isExternal: true,
+        accessLevel: "view",
+        expiresAt,
+        clientConsent: true, // Email implies consent
+        smsProtection: false, // Can be enhanced later
+      });
+      
       // Get firm profile for email branding
       const firmProfile = await storage.getFirmProfile();
       
-      // Send email (email service will generate the proper case URL)
+      // Send email with share link
       const result = await sendCaseEmail({
         to: recipientEmail,
         caseTitle: caseData.title,
         clientName: caseData.clientName,
         matterReference: caseData.matterReference || undefined,
-        caseId: req.params.id,
+        shareLinkId: shareLink.id,
         customMessage: customMessage || undefined,
         firmProfile: firmProfile ? {
           firmName: firmProfile.firmName,
@@ -319,13 +426,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Log audit event
+      // Log audit events
       await logAuditEvent(userId, "case_email_sent", {
         caseId: req.params.id,
         metadata: { 
           recipientEmail, 
           messageId: result.messageId,
-          hasCustomMessage: !!customMessage 
+          hasCustomMessage: !!customMessage,
+          shareLinkId: shareLink.id,
+        },
+        req,
+      });
+      
+      await logAuditEvent(userId, "share_link_created", {
+        caseId: req.params.id,
+        metadata: { 
+          shareLinkId: shareLink.id,
+          recipientEmail,
+          expiresAt: shareLink.expiresAt,
         },
         req,
       });
@@ -333,7 +451,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ 
         success: true, 
         message: "Email sent successfully",
-        messageId: result.messageId 
+        messageId: result.messageId,
+        shareLinkId: shareLink.id,
       });
     } catch (error: any) {
       next(error);
@@ -401,20 +520,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Calculate expiration date based on selected duration
+      const expiresAt = new Date();
+      switch (expiration) {
+        case "24hours":
+          expiresAt.setHours(expiresAt.getHours() + 24);
+          break;
+        case "7days":
+          expiresAt.setDate(expiresAt.getDate() + 7);
+          break;
+        case "30days":
+          expiresAt.setDate(expiresAt.getDate() + 30);
+          break;
+        default:
+          expiresAt.setDate(expiresAt.getDate() + 7); // Default to 7 days
+      }
+      
+      // Create share link in database
+      const shareLink = await storage.createShareLink({
+        caseId: req.params.id,
+        createdBy: userId,
+        recipientEmail,
+        recipientName,
+        isExternal,
+        organization: organization || undefined,
+        accessLevel,
+        expiresAt,
+        password: password || undefined,
+        clientConsent,
+        smsProtection: false, // Can be enhanced later
+      });
+      
       // Get firm profile for email branding
       const firmProfile = await storage.getFirmProfile();
       
-      // Generate secure access link
-      const baseUrl = process.env.REPLIT_DOMAINS?.split(',')[0] || 'https://yourdomain.replit.app';
-      const secureLink = `${baseUrl}/case/${req.params.id}`;
-      
-      // Send email with secure link
+      // Send email with share link
       const result = await sendCaseEmail({
         to: recipientEmail,
         caseTitle: caseData.title,
         clientName: caseData.clientName,
         matterReference: caseData.matterReference || undefined,
-        caseId: req.params.id,
+        shareLinkId: shareLink.id,
         customMessage: `You have been granted ${accessLevel} access to this case. This link will expire in ${expiration.replace(/(\d+)(\w+)/, '$1 $2')}.${password ? ' A password is required to access the documents.' : ''}`,
         firmProfile: firmProfile ? {
           firmName: firmProfile.firmName,
@@ -434,7 +580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Log audit event with detailed metadata
+      // Log audit events
       await logAuditEvent(userId, "case_link_shared", {
         caseId: req.params.id,
         metadata: { 
@@ -447,6 +593,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           passwordProtected: !!password,
           clientConsent,
           messageId: result.messageId,
+          shareLinkId: shareLink.id,
+        },
+        req,
+      });
+      
+      await logAuditEvent(userId, "share_link_created", {
+        caseId: req.params.id,
+        metadata: { 
+          shareLinkId: shareLink.id,
+          recipientEmail,
+          expiresAt: shareLink.expiresAt,
         },
         req,
       });
@@ -454,7 +611,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ 
         success: true, 
         message: "Secure link sent successfully",
-        messageId: result.messageId 
+        messageId: result.messageId,
+        shareLinkId: shareLink.id,
       });
     } catch (error: any) {
       next(error);

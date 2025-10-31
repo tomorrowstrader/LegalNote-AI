@@ -174,6 +174,29 @@ export const calendarEvents = pgTable("calendar_events", {
   lastUpdatedAt: timestamp("last_updated_at"),
 });
 
+export const shareLinks = pgTable("share_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  recipientEmail: text("recipient_email").notNull(),
+  recipientName: text("recipient_name").notNull(),
+  isExternal: boolean("is_external").notNull().default(true), // External vs internal sharing
+  organization: text("organization"), // External recipient's organization
+  accessLevel: text("access_level").notNull().default("view"), // view, download
+  expiresAt: timestamp("expires_at").notNull(),
+  password: text("password"), // Optional password protection
+  clientConsent: boolean("client_consent").notNull().default(false),
+  accessCount: integer("access_count").notNull().default(0),
+  lastAccessedAt: timestamp("last_accessed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  smsProtection: boolean("sms_protection").notNull().default(false), // Whether SMS verification is required
+  smsPhoneNumber: text("sms_phone_number"), // Phone number for SMS verification
+  smsVerificationCode: text("sms_verification_code"), // The code sent via SMS
+  smsCodeExpiresAt: timestamp("sms_code_expires_at"), // When the SMS code expires
+  smsVerified: boolean("sms_verified").notNull().default(false), // Whether SMS verification was completed
+  smsVerifiedAt: timestamp("sms_verified_at"), // When SMS verification was completed
+});
+
 // Input validation helpers
 const sanitizeString = (str: string) => str.trim();
 
@@ -300,7 +323,8 @@ export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({
     "document_viewed", "document_created", "document_updated", "document_deleted", "document_downloaded", "document_sent",
     "transcript_viewed", "transcript_redacted",
     "audio_accessed", "audio_deleted",
-    "ai_processing_started", "ai_transcription_completed", "ai_document_generated", "ai_processing_failed"
+    "ai_processing_started", "ai_transcription_completed", "ai_document_generated", "ai_processing_failed",
+    "share_link_created", "share_link_accessed", "share_link_sms_sent", "share_link_sms_verified", "share_link_sms_failed"
   ]),
   userId: z.string().uuid(),
   caseId: z.string().uuid().optional(),
@@ -354,6 +378,29 @@ export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit
   eventType: z.enum(["deadline", "hearing", "meeting"]).default("deadline"),
 });
 
+export const insertShareLinkSchema = createInsertSchema(shareLinks).omit({
+  id: true,
+  createdAt: true,
+  accessCount: true,
+  lastAccessedAt: true,
+  smsVerified: true,
+  smsVerifiedAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  createdBy: z.string().min(1), // Replit Auth IDs are not UUIDs
+  recipientEmail: z.string().email().max(255).transform(sanitizeString),
+  recipientName: z.string().min(1).max(200).transform(sanitizeString),
+  isExternal: z.boolean().default(true),
+  organization: z.string().max(200).transform(sanitizeString).optional(),
+  accessLevel: z.enum(["view", "download"]).default("view"),
+  password: z.string().max(200).optional(),
+  clientConsent: z.boolean().default(false),
+  smsProtection: z.boolean().default(false),
+  smsPhoneNumber: z.string().max(50).transform(sanitizeString).optional(),
+  smsVerificationCode: z.string().max(10).optional(),
+  smsCodeExpiresAt: z.date().optional(),
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
@@ -391,3 +438,6 @@ export type CalendarIntegration = typeof calendarIntegrations.$inferSelect;
 
 export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
+
+export type InsertShareLink = z.infer<typeof insertShareLinkSchema>;
+export type ShareLink = typeof shareLinks.$inferSelect;

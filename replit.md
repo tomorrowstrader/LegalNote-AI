@@ -3,6 +3,18 @@
 ## Overview
 LegalNote AI is a professional legal documentation platform for solicitors and law firms. It enables legal professionals to record client meetings, automatically generate attendance notes, legal opinions, and searchable transcripts, while ensuring GDPR compliance, client consent management, and professional document workflows with firm branding on all exports. The project aims to provide an efficient and compliant solution for legal document creation and management.
 
+## Recent Changes (October 31, 2025)
+- **Secure Share Link System for Client Document Access**:
+  - **Database Schema**: Added shareLinks table with UUID primary key, support for expiration dates, access tracking, and SMS protection fields (foundation for future feature)
+  - **Public API Route**: Created GET /api/share/:linkId endpoint accessible without authentication that validates link expiration, checks SMS requirements, and returns case documents
+  - **Public Frontend View**: ShareLinkView.tsx component displays shared documents professionally with tabbed interface, expiration warnings, and confidentiality notices
+  - **Email Integration**: Updated POST /api/cases/:id/email to create 7-day share links and send emails with /share/:linkId URLs instead of authenticated /case/:id
+  - **ShareLinkModal Integration**: Updated POST /api/cases/:id/share-link to create proper database share links with configurable expiration (24h/7d/30d)
+  - **Storage Layer**: Implemented createShareLink, getShareLink, getShareLinksByCase, updateShareLink, incrementShareLinkAccess methods in DbStorage
+  - **Audit Logging**: Added share_link_created and share_link_accessed event types with comprehensive metadata tracking
+  - **Security**: Public share links use unguessable UUIDs, expire automatically, track access count, and prepare for optional SMS verification
+  - **Client Experience**: Clients receive professional emails with secure links to view their documents without requiring login or account creation
+
 ## Recent Changes (October 29, 2025)
 - **Per-User OAuth Calendar Integration (Security Fix)**:
   - **CRITICAL SECURITY FIX**: Migrated from workspace-level to per-user OAuth tokens to eliminate cross-user data exposure vulnerability

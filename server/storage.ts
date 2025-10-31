@@ -10,6 +10,7 @@ import {
   type UserPreferences,
   type CalendarEvent, type InsertCalendarEvent,
   type CalendarIntegration, type InsertCalendarIntegration,
+  type ShareLink, type InsertShareLink,
   users,
   cases,
   audioRecordings,
@@ -20,7 +21,8 @@ import {
   firmProfile,
   userPreferences,
   calendarEvents,
-  calendarIntegrations
+  calendarIntegrations,
+  shareLinks
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -134,6 +136,13 @@ export interface IStorage {
   saveCalendarIntegration(integrationData: InsertCalendarIntegration): Promise<CalendarIntegration>;
   deleteCalendarIntegration(userId: string, provider: 'google' | 'outlook'): Promise<void>;
   getUserCalendarIntegrations(userId: string): Promise<CalendarIntegration[]>;
+  
+  // Share Link methods
+  createShareLink(shareLinkData: InsertShareLink): Promise<ShareLink>;
+  getShareLink(id: string): Promise<ShareLink | undefined>;
+  getShareLinksByCase(caseId: string, userId: string): Promise<ShareLink[]>;
+  updateShareLink(id: string, updates: Partial<ShareLink>): Promise<ShareLink | undefined>;
+  incrementShareLinkAccess(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -668,6 +677,26 @@ export class MemStorage implements IStorage {
   async getUserCalendarIntegrations(userId: string): Promise<CalendarIntegration[]> {
     return Array.from(this.calendarIntegrations.values())
       .filter(integration => integration.userId === userId);
+  }
+  
+  async createShareLink(_shareLinkData: InsertShareLink): Promise<ShareLink> {
+    throw new Error("MemStorage does not support share links - use DbStorage");
+  }
+  
+  async getShareLink(_id: string): Promise<ShareLink | undefined> {
+    throw new Error("MemStorage does not support share links - use DbStorage");
+  }
+  
+  async getShareLinksByCase(_caseId: string, _userId: string): Promise<ShareLink[]> {
+    throw new Error("MemStorage does not support share links - use DbStorage");
+  }
+  
+  async updateShareLink(_id: string, _updates: Partial<ShareLink>): Promise<ShareLink | undefined> {
+    throw new Error("MemStorage does not support share links - use DbStorage");
+  }
+  
+  async incrementShareLinkAccess(_id: string): Promise<void> {
+    throw new Error("MemStorage does not support share links - use DbStorage");
   }
 }
 
@@ -1367,6 +1396,58 @@ export class DbStorage implements IStorage {
       .select()
       .from(calendarIntegrations)
       .where(eq(calendarIntegrations.userId, userId));
+  }
+  
+  async createShareLink(shareLinkData: InsertShareLink): Promise<ShareLink> {
+    const result = await db
+      .insert(shareLinks)
+      .values({
+        ...shareLinkData,
+        expiresAt: shareLinkData.expiresAt,
+      })
+      .returning();
+    return result[0];
+  }
+  
+  async getShareLink(id: string): Promise<ShareLink | undefined> {
+    const result = await db
+      .select()
+      .from(shareLinks)
+      .where(eq(shareLinks.id, id));
+    return result[0];
+  }
+  
+  async getShareLinksByCase(caseId: string, userId: string): Promise<ShareLink[]> {
+    const result = await db
+      .select()
+      .from(shareLinks)
+      .where(
+        and(
+          eq(shareLinks.caseId, caseId),
+          eq(shareLinks.createdBy, userId)
+        )
+      )
+      .orderBy(desc(shareLinks.createdAt));
+    return result;
+  }
+  
+  async updateShareLink(id: string, updates: Partial<ShareLink>): Promise<ShareLink | undefined> {
+    const result = await db
+      .update(shareLinks)
+      .set(updates)
+      .where(eq(shareLinks.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async incrementShareLinkAccess(id: string): Promise<void> {
+    await db
+      .update(shareLinks)
+      .set({
+        accessCount: sql`${shareLinks.accessCount} + 1`,
+        lastAccessedAt: new Date(),
+      })
+      .where(eq(shareLinks.id, id));
   }
 }
 
