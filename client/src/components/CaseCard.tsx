@@ -55,21 +55,21 @@ export default function CaseCard({
   const { toast} = useToast();
 
   const markReviewedMutation = useMutation({
-    mutationFn: async (reviewed: boolean) => {
-      return await apiRequest('POST', `/api/cases/${id}/review`, { reviewed });
+    mutationFn: async (newReviewedState: boolean) => {
+      return await apiRequest('POST', `/api/cases/${id}/review`, { reviewed: newReviewedState });
     },
-    onSuccess: () => {
+    onSuccess: (_, newReviewedState) => {
       queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
       queryClient.invalidateQueries({ queryKey: ['/api/cases', id] });
       toast({
         title: "Case updated",
-        description: "Case marked as reviewed successfully",
+        description: newReviewedState ? "Case marked as reviewed successfully" : "Case unmarked as reviewed successfully",
       });
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to mark case as reviewed",
+        description: "Failed to update review status",
         variant: "destructive",
       });
     },
@@ -217,7 +217,7 @@ export default function CaseCard({
     } else if (action === 'share') {
       setShowShareModal(true);
     } else if (action === 'review') {
-      markReviewedMutation.mutate(true);
+      markReviewedMutation.mutate(!reviewed);
     } else if (action === 'archive') {
       archiveMutation.mutate(true);
     } else if (action === 'assign') {
@@ -301,7 +301,7 @@ export default function CaseCard({
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={(e) => handleAction('review', e)} data-testid={`action-review-${id}`}>
                   <Eye className="w-4 h-4 mr-2" />
-                  Mark as Reviewed
+                  {reviewed ? "Unmark as Reviewed" : "Mark as Reviewed"}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={(e) => handleAction('download', e)} data-testid={`action-download-${id}`}>
                   <Download className="w-4 h-4 mr-2" />
