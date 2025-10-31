@@ -20,6 +20,7 @@ import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { openaiService } from "./openaiService";
 import { sendCaseEmail } from "./email";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders } from "./calendar";
+import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber } from "./sms";
 import {
   createGoogleOAuthClient,
   createMicrosoftOAuthClient,
@@ -136,6 +137,171 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
     } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Send SMS verification code (public access)
+  app.post('/api/share/:linkId/send-sms', generalApiLimiter, async (req, res, next) => {
+    try {
+      const { linkId } = req.params;
+      const { phoneNumber } = req.body;
+
+      // Validate phone number is provided
+      if (!phoneNumber || typeof phoneNumber !== 'string') {
+        return res.status(400).json({ message: "Phone number is required" });
+      }
+
+      // Get share link
+      const shareLink = await storage.getShareLink(linkId);
+      
+      if (!shareLink) {
+        return res.status(404).json({ message: "Share link not found" });
+      }
+
+      // Check if link has expired
+      if (new Date() > new Date(shareLink.expiresAt)) {
+        return res.status(410).json({ message: "Share link has expired" });
+      }
+
+      // Check if SMS protection is enabled
+      if (!shareLink.smsProtection) {
+        return res.status(400).json({ message: "SMS verification is not required for this link" });
+      }
+
+      // Format and validate phone number
+      const formattedPhone = formatUKPhoneNumber(phoneNumber);
+
+      // Check if phone number matches (if one was provided during link creation)
+      if (shareLink.smsPhoneNumber && shareLink.smsPhoneNumber !== formattedPhone) {
+        return res.status(403).json({ message: "Phone number does not match the expected recipient" });
+      }
+
+      // Generate verification code
+      const verificationCode = generateVerificationCode();
+      
+      // Calculate expiry (15 minutes from now)
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+
+      // Get firm profile for branded SMS
+      const firmProfile = await storage.getFirmProfile();
+      const firmName = firmProfile?.name || "LegalNote AI";
+
+      // Send SMS
+      const result = await sendVerificationCode(formattedPhone, verificationCode, firmName);
+
+      if (!result.success) {
+        return res.status(500).json({ message: result.error || "Failed to send SMS" });
+      }
+
+      // Store code in database
+      await storage.updateShareLinkSmsCode(linkId, verificationCode, expiresAt);
+
+      // Log SMS sent event
+      await storage.createAuditLog({
+        eventType: "sms_code_sent",
+        userId: shareLink.createdBy,
+        caseId: shareLink.caseId,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        metadata: {
+          shareLinkId: linkId,
+          phoneNumber: formattedPhone.replace(/\d(?=\d{4})/g, '*'), // Mask phone number in logs
+          expiresAt: expiresAt.toISOString(),
+        },
+        severity: "info",
+      });
+
+      res.json({ 
+        success: true, 
+        message: "Verification code sent successfully",
+        expiresIn: 15, // minutes
+      });
+    } catch (error: any) {
+      console.error('Error sending SMS:', error);
+      next(error);
+    }
+  });
+
+  // Verify SMS code (public access)
+  app.post('/api/share/:linkId/verify-sms', generalApiLimiter, async (req, res, next) => {
+    try {
+      const { linkId } = req.params;
+      const { code } = req.body;
+
+      // Validate code is provided
+      if (!code || typeof code !== 'string') {
+        return res.status(400).json({ message: "Verification code is required" });
+      }
+
+      // Get share link
+      const shareLink = await storage.getShareLink(linkId);
+      
+      if (!shareLink) {
+        return res.status(404).json({ message: "Share link not found" });
+      }
+
+      // Check if link has expired
+      if (new Date() > new Date(shareLink.expiresAt)) {
+        return res.status(410).json({ message: "Share link has expired" });
+      }
+
+      // Check if SMS protection is enabled
+      if (!shareLink.smsProtection) {
+        return res.status(400).json({ message: "SMS verification is not required for this link" });
+      }
+
+      // Verify the code
+      const verification = await storage.verifyShareLinkSmsCode(linkId, code);
+
+      if (!verification.verified) {
+        // Log failed verification
+        await storage.createAuditLog({
+          eventType: "sms_verification_failed",
+          userId: shareLink.createdBy,
+          caseId: shareLink.caseId,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          metadata: {
+            shareLinkId: linkId,
+            reason: verification.expired ? 'code_expired' : 'invalid_code',
+          },
+          severity: "warning",
+        });
+
+        if (verification.expired) {
+          return res.status(400).json({ 
+            message: "Verification code has expired. Please request a new code.",
+            expired: true,
+          });
+        } else {
+          return res.status(400).json({ 
+            message: "Invalid verification code. Please try again.",
+            invalid: true,
+          });
+        }
+      }
+
+      // Log successful verification
+      await storage.createAuditLog({
+        eventType: "sms_code_verified",
+        userId: shareLink.createdBy,
+        caseId: shareLink.caseId,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        metadata: {
+          shareLinkId: linkId,
+        },
+        severity: "info",
+      });
+
+      res.json({ 
+        success: true, 
+        message: "Phone number verified successfully" 
+      });
+    } catch (error: any) {
+      console.error('Error verifying SMS:', error);
       next(error);
     }
   });
