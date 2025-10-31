@@ -639,6 +639,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         accessLevel: z.enum(["view", "download"]),
         password: z.string().optional(),
         clientConsent: z.boolean(),
+        smsProtection: z.boolean().default(false),
+        smsPhoneNumber: z.string().optional(),
       });
       
       const validationResult = shareLinkRequestSchema.safeParse(req.body);
@@ -649,7 +651,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const { recipientEmail, recipientName, isExternal, organization, expiration, accessLevel, password, clientConsent } = validationResult.data;
+      const { recipientEmail, recipientName, isExternal, organization, expiration, accessLevel, password, clientConsent, smsProtection, smsPhoneNumber } = validationResult.data;
+      
+      // Validate SMS phone number if SMS protection is enabled
+      let formattedPhoneNumber: string | undefined;
+      if (smsProtection) {
+        if (!smsPhoneNumber) {
+          return res.status(400).json({ 
+            message: "Phone number is required when SMS protection is enabled" 
+          });
+        }
+        formattedPhoneNumber = formatUKPhoneNumber(smsPhoneNumber);
+      }
       
       // Get case data (verify user has access)
       const caseData = await storage.getCase(req.params.id, userId);
@@ -714,7 +727,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expiresAt,
         password: password || undefined,
         clientConsent,
-        smsProtection: false, // Can be enhanced later
+        smsProtection: smsProtection || false,
+        smsPhoneNumber: formattedPhoneNumber,
       });
       
       // Get firm profile for email branding
@@ -757,6 +771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expiration,
           accessLevel,
           passwordProtected: !!password,
+          smsProtected: smsProtection,
           clientConsent,
           messageId: result.messageId,
           shareLinkId: shareLink.id,

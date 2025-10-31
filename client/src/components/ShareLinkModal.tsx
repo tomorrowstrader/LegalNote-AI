@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Share2, CheckCircle2, X, Shield, AlertTriangle } from "lucide-react";
+import { Share2, CheckCircle2, X, Shield, AlertTriangle, Smartphone } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +47,8 @@ export default function ShareLinkModal({
   const [accessLevel, setAccessLevel] = useState("view");
   const [password, setPassword] = useState("");
   const [clientConsent, setClientConsent] = useState(false);
+  const [smsProtection, setSmsProtection] = useState(false);
+  const [smsPhoneNumber, setSmsPhoneNumber] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const { toast } = useToast();
@@ -85,6 +87,8 @@ export default function ShareLinkModal({
           accessLevel,
           password,
           clientConsent,
+          smsProtection,
+          smsPhoneNumber: smsProtection ? smsPhoneNumber : undefined,
         }),
       });
 
@@ -132,6 +136,16 @@ export default function ShareLinkModal({
       return;
     }
 
+    if (smsProtection && !smsPhoneNumber) {
+      toast({
+        title: "Phone Number Required",
+        description: "Please provide a phone number for SMS verification",
+        variant: "destructive",
+        duration: 8000,
+      });
+      return;
+    }
+
     // Start 3-second countdown
     setIsSending(true);
     setCountdown(3);
@@ -160,6 +174,8 @@ export default function ShareLinkModal({
     setAccessLevel("view");
     setPassword("");
     setClientConsent(false);
+    setSmsProtection(false);
+    setSmsPhoneNumber("");
     setIsSending(false);
     setCountdown(null);
     onOpenChange(false);
@@ -360,6 +376,48 @@ export default function ShareLinkModal({
               />
             </div>
           )}
+
+          <div className="border-t pt-4">
+            <div className="flex items-center space-x-2 mb-3">
+              <Checkbox
+                id="sms-protection"
+                checked={smsProtection}
+                onCheckedChange={(checked) => setSmsProtection(checked as boolean)}
+                data-testid="checkbox-sms-protection"
+              />
+              <Label htmlFor="sms-protection" className="font-normal flex items-center gap-2">
+                <Smartphone className="w-4 h-4" />
+                Require SMS verification (extra security)
+              </Label>
+            </div>
+
+            {smsProtection && (
+              <div className="space-y-3 pl-6">
+                <div className="space-y-2">
+                  <Label htmlFor="sms-phone">
+                    Recipient Mobile Number <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="sms-phone"
+                    type="tel"
+                    placeholder="+447xxx... or 07xxx..."
+                    value={smsPhoneNumber}
+                    onChange={(e) => setSmsPhoneNumber(e.target.value)}
+                    data-testid="input-sms-phone"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    UK mobile number in international (+447xxx...) or national (07xxx...) format
+                  </p>
+                </div>
+                <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
+                  <Smartphone className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-sm text-blue-800 dark:text-blue-200">
+                    Recipient will receive a 6-digit verification code via SMS before accessing the documents.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
+          </div>
         </div>
 
         <DialogFooter className="gap-2">
@@ -369,7 +427,7 @@ export default function ShareLinkModal({
           <Button 
             onClick={handleShare} 
             className="bg-accent hover:bg-accent"
-            disabled={!recipientEmail || !recipientName || (isExternal && !clientConsent)}
+            disabled={!recipientEmail || !recipientName || (isExternal && !clientConsent) || (smsProtection && !smsPhoneNumber)}
             data-testid="button-send-link"
           >
             <Share2 className="w-4 h-4 mr-2" />
