@@ -143,6 +143,8 @@ export interface IStorage {
   getShareLinksByCase(caseId: string, userId: string): Promise<ShareLink[]>;
   updateShareLink(id: string, updates: Partial<ShareLink>): Promise<ShareLink | undefined>;
   incrementShareLinkAccess(id: string): Promise<void>;
+  updateShareLinkSmsCode(id: string, code: string, expiresAt: Date): Promise<ShareLink | undefined>;
+  verifyShareLinkSmsCode(id: string, code: string): Promise<{ verified: boolean; expired?: boolean; invalid?: boolean }>;
 }
 
 export class MemStorage implements IStorage {
@@ -696,6 +698,14 @@ export class MemStorage implements IStorage {
   }
   
   async incrementShareLinkAccess(_id: string): Promise<void> {
+    throw new Error("MemStorage does not support share links - use DbStorage");
+  }
+
+  async updateShareLinkSmsCode(_id: string, _code: string, _expiresAt: Date): Promise<ShareLink | undefined> {
+    throw new Error("MemStorage does not support share links - use DbStorage");
+  }
+
+  async verifyShareLinkSmsCode(_id: string, _code: string): Promise<{ verified: boolean; expired?: boolean; invalid?: boolean }> {
     throw new Error("MemStorage does not support share links - use DbStorage");
   }
 }
@@ -1448,6 +1458,49 @@ export class DbStorage implements IStorage {
         lastAccessedAt: new Date(),
       })
       .where(eq(shareLinks.id, id));
+  }
+
+  async updateShareLinkSmsCode(id: string, code: string, expiresAt: Date): Promise<ShareLink | undefined> {
+    const result = await db
+      .update(shareLinks)
+      .set({
+        smsVerificationCode: code,
+        smsCodeExpiresAt: expiresAt,
+        smsVerified: false, // Reset verification status when sending new code
+        smsVerifiedAt: null,
+      })
+      .where(eq(shareLinks.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async verifyShareLinkSmsCode(id: string, code: string): Promise<{ verified: boolean; expired?: boolean; invalid?: boolean }> {
+    const shareLink = await this.getShareLink(id);
+    
+    if (!shareLink) {
+      return { verified: false, invalid: true };
+    }
+
+    // Check if code matches
+    if (shareLink.smsVerificationCode !== code) {
+      return { verified: false, invalid: true };
+    }
+
+    // Check if code has expired
+    if (shareLink.smsCodeExpiresAt && shareLink.smsCodeExpiresAt < new Date()) {
+      return { verified: false, expired: true };
+    }
+
+    // Mark as verified
+    await db
+      .update(shareLinks)
+      .set({
+        smsVerified: true,
+        smsVerifiedAt: new Date(),
+      })
+      .where(eq(shareLinks.id, id));
+
+    return { verified: true };
   }
 }
 
