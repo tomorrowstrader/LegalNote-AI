@@ -169,6 +169,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "SMS verification is not required for this link" });
       }
 
+      // Rate limiting: Check SMS send count (max 3 sends per link)
+      if (shareLink.smsCodeSentCount >= 3) {
+        return res.status(429).json({ message: "Maximum SMS send attempts exceeded for this link" });
+      }
+
       // Format and validate phone number
       const formattedPhone = formatUKPhoneNumber(phoneNumber);
 
@@ -250,6 +255,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if SMS protection is enabled
       if (!shareLink.smsProtection) {
         return res.status(400).json({ message: "SMS verification is not required for this link" });
+      }
+
+      // Rate limiting: Check verification attempts (max 5 attempts per link)
+      if (shareLink.smsVerificationAttempts >= 5) {
+        return res.status(429).json({ message: "Maximum verification attempts exceeded for this link" });
       }
 
       // Verify the code

@@ -1468,6 +1468,7 @@ export class DbStorage implements IStorage {
         smsCodeExpiresAt: expiresAt,
         smsVerified: false, // Reset verification status when sending new code
         smsVerifiedAt: null,
+        smsCodeSentCount: sql`${shareLinks.smsCodeSentCount} + 1`, // Increment send counter for rate limiting
       })
       .where(eq(shareLinks.id, id))
       .returning();
@@ -1480,6 +1481,14 @@ export class DbStorage implements IStorage {
     if (!shareLink) {
       return { verified: false, invalid: true };
     }
+
+    // Increment verification attempts counter (for rate limiting)
+    await db
+      .update(shareLinks)
+      .set({
+        smsVerificationAttempts: sql`${shareLinks.smsVerificationAttempts} + 1`,
+      })
+      .where(eq(shareLinks.id, id));
 
     // Check if code matches
     if (shareLink.smsVerificationCode !== code) {

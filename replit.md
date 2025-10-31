@@ -1,72 +1,7 @@
 # LegalNote AI - Replit Configuration
 
 ## Overview
-LegalNote AI is a professional legal documentation platform for solicitors and law firms. It enables legal professionals to record client meetings, automatically generate attendance notes, legal opinions, and searchable transcripts, while ensuring GDPR compliance, client consent management, and professional document workflows with firm branding on all exports. The project aims to provide an efficient and compliant solution for legal document creation and management.
-
-## Recent Changes (October 31, 2025)
-- **Secure Share Link System for Client Document Access**:
-  - **Database Schema**: Added shareLinks table with UUID primary key, support for expiration dates, access tracking, and SMS protection fields (foundation for future feature)
-  - **Public API Route**: Created GET /api/share/:linkId endpoint accessible without authentication that validates link expiration, checks SMS requirements, and returns case documents
-  - **Public Frontend View**: ShareLinkView.tsx component displays shared documents professionally with tabbed interface, expiration warnings, and confidentiality notices
-  - **Email Integration**: Updated POST /api/cases/:id/email to create 7-day share links and send emails with /share/:linkId URLs instead of authenticated /case/:id
-  - **ShareLinkModal Integration**: Updated POST /api/cases/:id/share-link to create proper database share links with configurable expiration (24h/7d/30d)
-  - **Storage Layer**: Implemented createShareLink, getShareLink, getShareLinksByCase, updateShareLink, incrementShareLinkAccess methods in DbStorage
-  - **Audit Logging**: Added share_link_created and share_link_accessed event types with comprehensive metadata tracking
-  - **Security**: Public share links use unguessable UUIDs, expire automatically, track access count, and prepare for optional SMS verification
-  - **Client Experience**: Clients receive professional emails with secure links to view their documents without requiring login or account creation
-
-## Recent Changes (October 29, 2025)
-- **Per-User OAuth Calendar Integration (Security Fix)**:
-  - **CRITICAL SECURITY FIX**: Migrated from workspace-level to per-user OAuth tokens to eliminate cross-user data exposure vulnerability
-  - Added comprehensive Settings UI with Calendar Connections tab for managing Google Calendar and Outlook accounts
-  - Implemented complete OAuth 2.0 flow with proper token persistence, automatic refresh, and secure per-user storage
-  - Fixed Microsoft OAuth to properly persist and refresh tokens using direct token endpoint (not MSAL in-memory cache)
-  - Added audit logging for calendar_connected and calendar_disconnected events with clean metadata formatting
-  - Updated SyncCalendarModal to check for active calendar connections and guide users to Settings if needed
-  - Cleaned up audit trail display: removed asterisks/placeholders, formatted event types and metadata clearly
-  - OAuth credentials configured via environment secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET
-  - Both Google and Microsoft OAuth flows now properly persist refresh tokens and automatically refresh access tokens when expired
-  - Database schema: calendarConnections table stores per-user OAuth tokens with userId, provider, accessToken, refreshToken, expiresAt, email, connectedAt
-  - API routes: GET /api/oauth/connections, GET /api/oauth/authorize/:provider, GET /api/calendar/callback/:provider, DELETE /api/calendar/disconnect/:provider
-  - Calendar service (server/calendar.ts) refactored to use per-user tokens from calendarConnections table instead of workspace connector tokens
-  - Proper user isolation: all calendar operations enforce userId matching and ACL verification
-  - Full audit trail with calendar_connected, calendar_disconnected, calendar_synced, and calendar_sync_failed event types
-
-- **Case Management Features Completed**:
-  - Implemented Mark as Reviewed feature with backend API, frontend mutation, and database schema (reviewed boolean field)
-  - Implemented Archive Case feature with automatic filtering from main case list (archived boolean field)
-  - Added Assign to Team Member backend infrastructure with assignedToUserId field and API route (UI picker pending)
-  - Implemented comprehensive Download PDF feature that exports all case documents (attendance notes, legal opinions, transcripts) with firm branding
-  - **Email to Client Integration**: Complete email functionality using Resend API
-    - Installed Resend npm package and configured with RESEND_API_KEY secret
-    - Created professional HTML email template with firm branding and secure case document links
-    - EmailToClientModal component with recipient input and custom message textarea
-    - POST /api/cases/:id/email route with Zod validation, user isolation checks, and audit logging
-    - Email includes: case details, customizable message, secure document access link, firm letterhead, and legal confidentiality notice
-    - Full audit trail with case_email_sent event type logging recipient and message metadata
-  - All features properly invalidate React Query cache and show success/error toast notifications
-  - Added comprehensive Zod validation for email requests (email format and 5000 char message limit)
-
-- **MVP Polish Phase Completed (October 28, 2025)**:
-  - Enhanced markdown formatting in document exports (PDF strips markdown cleanly, Word preserves **bold**, *italic*, headings, bullets)
-  - Added audio deletion status indicator to distinguish GDPR-deleted audio from consent-declined cases
-  - Updated GPT-4o attendance note prompts to professional Adam Bernard format with numbered sections and UK law compliance
-  - Implemented firm profile infrastructure with database schema, storage methods, and API routes (GET/PUT with admin check)
-  - Added firm branding to all document exports (PDF and Word) with professional letterhead displaying firm name, address, phone, email, and SRA number
-  - Fixed critical issues: GPT prompt bracketed placeholders and updatedBy UUID validation (now accepts Replit Auth numeric IDs)
-  - Improved export filenames to use pattern: ClientName_MatterType_DocumentType_Date.pdf
-
-- **User Onboarding & Admin Setup (October 28, 2025)**:
-  - Implemented admin setup prompt modal that appears when firm profile is incomplete (prompts admins to complete firm details on first login)
-  - Added interactive onboarding tour using react-joyride library with steps highlighting Quick Record, New Case, Search, Saved Cases, and Firm Settings
-  - Created user preferences tracking system with database schema (completedOnboarding, dismissedReviewBanner flags)
-  - Added unique constraint on userPreferences.userId to prevent duplicate records
-  - Implemented API endpoints for user preferences (GET/PUT /api/user-preferences) with proper validation and user isolation
-  - Fixed onboarding tour trigger logic with useEffect to properly start tour when preferences load for first-time users
-  - Tour automatically marks as complete after user finishes walkthrough or skips it
-  - Added "Restart Tour" button in user profile dropdown menu for users to replay the onboarding walkthrough on demand
-  - Restart tour feature properly resets Joyride state and skips completion mutation for manual restarts
-  - **Premium Tour Design**: Enhanced with professional styling including custom color scheme using HSL design tokens for seamless light/dark mode support, improved typography with clear headings and readable body text, smooth animations with cubic-bezier easing, elegant progress indicator, custom button styling matching design system, subtle shadows and proper spacing for polished appearance suitable for legal professionals
+LegalNote AI is a professional legal documentation platform for solicitors and law firms. It enables legal professionals to record client meetings, automatically generate attendance notes, legal opinions, and searchable transcripts, while ensuring GDPR compliance, client consent management, and professional document workflows with firm branding on all exports. The project aims to provide an efficient and compliant solution for legal document creation and management, offering a secure and streamlined way to manage legal documentation and client interactions.
 
 ## User Preferences
 **Communication Style:** Simple, everyday language.
@@ -80,10 +15,10 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 
 ### Frontend Architecture
 - **Framework**: React with TypeScript using Vite.
-- **UI Component Library**: Shadcn UI with Radix UI primitives, black gradient theme (0-8% lightness range), Inter font.
-- **Routing**: Wouter for client-side routing (Dashboard, New Note, Case Detail, Saved Cases, Settings, My Profile, Audit Logs).
+- **UI Component Library**: Shadcn UI with Radix UI primitives, black gradient theme, Inter font.
+- **Routing**: Wouter for client-side routing.
 - **State Management**: TanStack Query for server state and async operations.
-- **Key Features**: Quick Record with Consent Flow (3-sec countdown, verbal consent capture, audit trail), Priority System (badges), Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Review Checklist Banner, Tabbed Document Viewer (Summary, Legal Opinion, Transcript), Role-Based UI (My Profile vs. Firm Settings), Quick Actions (Mark as Reviewed, Archive Case, Assign to Team Member, Download PDF, Email to Client, Share Link, Set Priority/Deadline, Sync to Calendar, Add Quick Note), Firm Branding on Exports (professional letterhead with firm details on all PDF/Word exports), Interactive Onboarding Tour (first-time user walkthrough), Admin Setup Prompts (ensures firm profile completion), Email Integration (Resend API for sending case documents to clients with professional branding), Calendar Integration (Google Calendar and Outlook sync for deadline management), and comprehensive Audit Trail Compliance with CSV export.
+- **Key Features**: Quick Record with Consent Flow, Priority System, Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Review Checklist Banner, Tabbed Document Viewer, Role-Based UI, Quick Actions (Mark as Reviewed, Archive Case, Assign to Team Member, Download PDF, Email to Client, Share Link with Optional SMS 2FA, Set Priority/Deadline, Sync to Calendar, Add Quick Note), Firm Branding on Exports, Interactive Onboarding Tour, Admin Setup Prompts, Email Integration, SMS Two-Factor Authentication for secure share link access, Calendar Integration, and comprehensive Audit Trail Compliance with CSV export.
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js (TypeScript-based).
@@ -92,31 +27,22 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 
 ### Data Storage Solutions
 - **Database**: PostgreSQL via Drizzle ORM, connected through Neon serverless.
-- **Schema**: Users, Cases (with deadline and syncToCalendar fields), Consent Logs, Transcripts (with redaction), Documents (version-controlled), Client Version Tracking, User Preferences, Firm Profile (name, logo, address, contact details, SRA number for professional letterhead), Calendar Events (tracks synced calendar events with provider, providerEventId, eventType), Calendar Connections (OAuth tokens for Google/Outlook), and Audit Trail (comprehensive logging with eventType, userId, IP, metadata). Zod schema validation using `drizzle-zod`.
+- **Schema**: Users, Cases (with deadline and syncToCalendar), Consent Logs, Transcripts (with redaction), Documents (version-controlled), Client Version Tracking, User Preferences, Firm Profile, Calendar Events, Calendar Connections (OAuth tokens), Share Links (UUID, expiration, SMS protection fields), and Audit Trail (comprehensive logging). Zod schema validation using `drizzle-zod`.
 - **Session Management**: Designed for PostgreSQL session store.
 
 ### Authentication & Authorization
-- **Authentication**: Replit Auth (OIDC-based), session-based with 4-hour timeout, secure cookies, user isolation, and prepared for multi-role system.
+- **Authentication**: Replit Auth (OIDC-based), session-based with 4-hour timeout, secure cookies, user isolation, and prepared for multi-role system. Per-user OAuth for calendar integrations.
 - **Authorization**: Storage layer enforces user isolation, route-level and object-level access control, ACLs for object storage, and UI-level permission checks.
 
-### Security Architecture (Production-Ready)
+### Security Architecture
 - **Upload Security**: Server-side file validation (MIME, magic number, size limit), audio format validation.
 - **Access Control**: User isolation, ACL ownership verification, UUID-based resources.
-- **Rate Limiting**: Per-user and per-IP rate limits with endpoint-specific configurations.
+- **Rate Limiting**: Per-user and per-IP rate limits.
 - **Input Sanitization**: Zod validation, path traversal prevention, XSS protection, SQL injection prevention (Drizzle ORM), regex validation.
 - **Network Security**: Environment-aware Content Security Policy, CORS, HSTS, security headers (Helmet).
 - **Error Sanitization**: Production errors hide internal details, generic messages, server-side logging.
 - **Audit Logging**: Comprehensive security event tracking (severity, metadata), structured JSON for SIEM integration.
-- **Environment Validation**: Required environment variables validated at startup.
-
-### Reliability & Data Protection
-- **Audio Retention Policy**: 7 days OR until successful processing (whichever comes first) - compliant with UK GDPR "as long as necessary" principle
-- **Automatic Retry**: 5 attempts with exponential backoff (1s, 2s, 4s, 8s, 16s) for API failures
-- **Manual Retry**: User-initiated retry button for failed cases
-- **Early Deletion**: Audio automatically deleted after successful transcription/document generation
-- **Expiration Cleanup**: Server startup cleanup removes expired audio recordings
-- **Consent Documentation**: Updated consent flow informs clients of 7-day retention period
-- **Audit Trail**: All deletions logged with reason (successful_processing_completion or 7day_retention_policy)
+- **Reliability & Data Protection**: 7-day audio retention policy, automatic/manual retry for API failures, early audio deletion, expiration cleanup, consent documentation.
 
 ## External Dependencies
 
@@ -124,9 +50,9 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **Form Management**: React Hook Form with Hookform Resolvers, Zod for validation.
 - **Date Handling**: date-fns.
 - **Icons**: Lucide React.
-- **Development Tools**: Replit-specific plugins, TypeScript strict mode, ESBuild.
-- **Audio Recording & Storage**: MediaRecorder API, Replit Object Storage with presigned URL uploads (Uppy + AWS S3), GDPR-compliant retention policy (7 days OR until successful processing, whichever comes first) with automatic cleanup on completion and startup expiration cleanup.
-- **AI Services**: OpenAI Whisper API (transcription), GPT-4o (document generation with Adam Bernard professional format).
-- **Email Service**: Resend API for professional transactional emails with firm branding (RESEND_API_KEY environment variable).
-- **Calendar Integration**: Google Calendar API (googleapis package) and Microsoft Graph API (@microsoft/microsoft-graph-client package) for bidirectional calendar sync with OAuth 2.0 authentication via Replit connectors.
-- **Document Export**: jsPDF (PDF generation), docx (Word document generation with markdown formatting support).
+- **Audio Recording & Storage**: MediaRecorder API, Replit Object Storage with presigned URL uploads (Uppy + AWS S3), GDPR-compliant retention policy.
+- **AI Services**: OpenAI Whisper API (transcription), GPT-4o (document generation).
+- **Email Service**: Resend API for professional transactional emails.
+- **SMS Service**: Twilio API for platform-level SMS two-factor authentication.
+- **Calendar Integration**: Google Calendar API (googleapis package) and Microsoft Graph API (@microsoft/microsoft-graph-client package) for bidirectional calendar sync with OAuth 2.0 authentication.
+- **Document Export**: jsPDF (PDF generation), docx (Word document generation).

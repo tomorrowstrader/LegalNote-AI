@@ -195,6 +195,8 @@ export const shareLinks = pgTable("share_links", {
   smsCodeExpiresAt: timestamp("sms_code_expires_at"), // When the SMS code expires
   smsVerified: boolean("sms_verified").notNull().default(false), // Whether SMS verification was completed
   smsVerifiedAt: timestamp("sms_verified_at"), // When SMS verification was completed
+  smsCodeSentCount: integer("sms_code_sent_count").notNull().default(0), // Rate limit: max 3 SMS sends per link
+  smsVerificationAttempts: integer("sms_verification_attempts").notNull().default(0), // Rate limit: max 5 verification attempts per link
 });
 
 // Input validation helpers
