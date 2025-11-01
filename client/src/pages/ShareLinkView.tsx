@@ -18,6 +18,7 @@ import type { FirmProfile } from "@shared/schema";
 
 interface ShareLinkData {
   requiresSmsVerification: boolean;
+  requiresPassword: boolean;
   recipientName?: string;
   phoneNumber?: string;
   caseData?: {
@@ -52,6 +53,7 @@ export default function ShareLinkView() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [smsStep, setSmsStep] = useState<"phone" | "code">("phone");
+  const [password, setPassword] = useState("");
   const { toast } = useToast();
 
   const { data, isLoading, error, refetch } = useQuery<ShareLinkData>({
@@ -141,6 +143,43 @@ export default function ShareLinkView() {
     sendSmsMutation.mutate(phoneNumber);
   };
 
+  const verifyPasswordMutation = useMutation({
+    mutationFn: async (pwd: string) => {
+      const response = await apiRequest('POST', `/api/share/${linkId}/verify-password`, { password: pwd });
+      return response;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Password Verified",
+        description: "Loading your documents...",
+        duration: 3000,
+      });
+      // Refetch to get documents after password verification
+      refetch();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Incorrect Password",
+        description: error.message || "Please try again",
+        variant: "destructive",
+        duration: 8000,
+      });
+    },
+  });
+
+  const handleVerifyPassword = () => {
+    if (!password.trim()) {
+      toast({
+        title: "Password Required",
+        description: "Please enter the password",
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
+    }
+    verifyPasswordMutation.mutate(password);
+  };
+
   const handleDownloadPDF = async (documentType: 'attendance_note' | 'legal_opinion') => {
     if (!data?.caseData || !data?.documents) return;
 
@@ -212,6 +251,67 @@ export default function ShareLinkView() {
                 : errorMessage}
             </CardDescription>
           </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  if (data?.requiresPassword) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-primary" />
+              <CardTitle>Password Required</CardTitle>
+            </div>
+            <CardDescription>
+              This link is password protected. Please enter the password to access the documents.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
+              <Lock className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-sm text-blue-800 dark:text-blue-200">
+                Shared with: <strong>{data.recipientName}</strong>
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Enter password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleVerifyPassword()}
+                data-testid="input-password"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the password provided by your solicitor
+              </p>
+            </div>
+
+            <Button 
+              onClick={handleVerifyPassword}
+              className="w-full"
+              disabled={verifyPasswordMutation.isPending}
+              data-testid="button-verify-password"
+            >
+              {verifyPasswordMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Verifying...
+                </>
+              ) : (
+                <>
+                  <Lock className="w-4 h-4 mr-2" />
+                  Verify Password
+                </>
+              )}
+            </Button>
+          </CardContent>
         </Card>
       </div>
     );

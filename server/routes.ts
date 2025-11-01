@@ -30,6 +30,7 @@ import {
   exchangeMicrosoftCode,
   generateOAuthState,
 } from "./oauth";
+import bcrypt from "bcrypt";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment platform
@@ -78,6 +79,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Check if password protection is enabled and not yet verified
+      if (shareLink.password) {
+        // Check session for password verification
+        const sessionKey = `share_password_verified_${linkId}`;
+        if (!req.session || !req.session[sessionKey]) {
+          return res.json({
+            requiresPassword: true,
+            recipientName: shareLink.recipientName,
+          });
+        }
+      }
+      
       // Get case data
       const caseData = await storage.getCase(shareLink.caseId, shareLink.createdBy);
       
@@ -115,6 +128,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Return case data with documents
       res.json({
         requiresSmsVerification: false,
+        requiresPassword: false,
         caseData: {
           title: caseData.title,
           clientName: caseData.clientName,
@@ -316,6 +330,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error verifying SMS:', error);
+      next(error);
+    }
+  });
+
+  // Verify password for share link (public access)
+  app.post('/api/share/:linkId/verify-password', generalApiLimiter, async (req, res, next) => {
+    try {
+      const { linkId } = req.params;
+      const { password } = req.body;
+
+      // Validate password is provided
+      if (!password || typeof password !== 'string') {
+        return res.status(400).json({ message: "Password is required" });
+      }
+
+      // Get share link
+      const shareLink = await storage.getShareLink(linkId);
+      
+      if (!shareLink) {
+        return res.status(404).json({ message: "Share link not found" });
+      }
+
+      // Check if link has expired
+      if (new Date() > new Date(shareLink.expiresAt)) {
+        return res.status(410).json({ message: "Share link has expired" });
+      }
+
+      // Check if password protection is enabled
+      if (!shareLink.password) {
+        return res.status(400).json({ message: "Password protection is not enabled for this link" });
+      }
+
+      // Verify password - handle both legacy plaintext and bcrypt hashed passwords
+      let isPasswordValid = false;
+      const isLegacyPlaintext = !shareLink.password.startsWith('$2'); // bcrypt hashes start with $2
+      
+      if (isLegacyPlaintext) {
+        // Legacy plaintext password - do direct comparison
+        isPasswordValid = password === shareLink.password;
+        
+        // Migrate to hashed password on successful login
+        if (isPasswordValid) {
+          const saltRounds = 10;
+          const hashedPassword = await bcrypt.hash(password, saltRounds);
+          await storage.updateShareLink(linkId, { password: hashedPassword });
+          console.log(`[SECURITY] Migrated legacy plaintext password to bcrypt hash for share link ${linkId}`);
+        }
+      } else {
+        // Modern bcrypt hashed password
+        isPasswordValid = await bcrypt.compare(password, shareLink.password);
+      }
+      
+      if (!isPasswordValid) {
+        // Log failed password attempt
+        await storage.createAuditLog({
+          eventType: "share_password_failed",
+          userId: shareLink.createdBy,
+          caseId: shareLink.caseId,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          metadata: {
+            shareLinkId: linkId,
+          },
+          severity: "warning",
+        });
+
+        return res.status(401).json({ message: "Incorrect password" });
+      }
+
+      // Store password verification in session
+      const sessionKey = `share_password_verified_${linkId}`;
+      if (!req.session) {
+        return res.status(500).json({ message: "Session not available" });
+      }
+      req.session[sessionKey] = true;
+
+      // Log successful password verification
+      await storage.createAuditLog({
+        eventType: "share_password_verified",
+        userId: shareLink.createdBy,
+        caseId: shareLink.caseId,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        metadata: {
+          shareLinkId: linkId,
+        },
+        severity: "info",
+      });
+
+      res.json({ 
+        success: true, 
+        message: "Password verified successfully" 
+      });
+    } catch (error: any) {
+      console.error('Error verifying password:', error);
       next(error);
     }
   });
@@ -765,6 +874,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expiresAt.setDate(expiresAt.getDate() + 7); // Default to 7 days
       }
       
+      // Hash password if provided
+      let hashedPassword: string | undefined;
+      if (password) {
+        const saltRounds = 10;
+        hashedPassword = await bcrypt.hash(password, saltRounds);
+      }
+      
       // Create share link in database
       const shareLink = await storage.createShareLink({
         caseId: req.params.id,
@@ -775,7 +891,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         organization: organization || undefined,
         accessLevel,
         expiresAt,
-        password: password || undefined,
+        password: hashedPassword,
         clientConsent,
         smsProtection: smsProtection || false,
         smsPhoneNumber: formattedPhoneNumber,
@@ -791,7 +907,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await sendCaseEmail({
         to: recipientEmail,
         caseTitle: caseData.title,
-        clientName: caseData.clientName,
+        clientName: recipientName,
         matterReference: caseData.matterReference || undefined,
         shareLinkId: shareLink.id,
         customMessage: fullMessage,
@@ -1223,6 +1339,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Processing routes
+  
+  // Transcribe audio for quick notes (no case association)
+  app.post("/api/transcribe", isAuthenticated, upload.single('audio'), async (req: any, res, next) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No audio file provided" });
+      }
+
+      // Validate file type
+      const allowedMimeTypes = ['audio/webm', 'audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/mp4', 'audio/x-m4a'];
+      if (!allowedMimeTypes.includes(req.file.mimetype)) {
+        return res.status(400).json({ message: "Invalid audio format" });
+      }
+
+      // Transcribe using OpenAI Whisper
+      console.log('Starting quick note transcription');
+      const result = await openaiService.transcribeAudio(req.file.buffer);
+      
+      console.log('Quick note transcription completed');
+      res.json({ text: result.text });
+    } catch (error: any) {
+      console.error('Quick note transcription error:', error);
+      next(error);
+    }
+  });
+  
   app.post("/api/cases/:id/transcribe", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
