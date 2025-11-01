@@ -243,7 +243,7 @@ export default function ShareLinkModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl" data-testid="dialog-share-link" onClick={(e) => e.stopPropagation()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col" data-testid="dialog-share-link" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>Share Secure Link</DialogTitle>
           <DialogDescription>
@@ -251,7 +251,7 @@ export default function ShareLinkModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="recipient-email">
@@ -420,7 +420,7 @@ export default function ShareLinkModal({
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 border-t pt-4 sticky bottom-0 bg-card">
           <Button variant="outline" onClick={handleClose} data-testid="button-cancel-share">
             Cancel
           </Button>
