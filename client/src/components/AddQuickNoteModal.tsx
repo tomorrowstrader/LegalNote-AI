@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Mic, Square, FileText, AlertTriangle } from "lucide-react";
 import {
   Dialog,
@@ -23,14 +23,40 @@ interface AddQuickNoteModalProps {
   caseId: string;
 }
 
+// Detect supported audio MIME type for cross-browser compatibility
+const getSupportedMimeType = (): { mimeType: string; extension: string } => {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+    return { mimeType: 'audio/webm', extension: '.webm' };
+  }
+  
+  const types = [
+    { mimeType: 'audio/webm', extension: '.webm' },
+    { mimeType: 'audio/mp4', extension: '.mp4' },
+    { mimeType: 'audio/ogg', extension: '.ogg' },
+    { mimeType: 'audio/wav', extension: '.wav' }
+  ];
+  
+  for (const type of types) {
+    if (MediaRecorder.isTypeSupported(type.mimeType)) {
+      return type;
+    }
+  }
+  
+  return { mimeType: 'audio/webm', extension: '.webm' };
+};
+
 export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQuickNoteModalProps) {
   const [noteText, setNoteText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [showTranscriptionReview, setShowTranscriptionReview] = useState(false);
   const [transcribedText, setTranscribedText] = useState("");
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const { toast } = useToast();
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioFormatRef = useRef(getSupportedMimeType());
 
   const updateNoteMutation = useMutation({
     mutationFn: async (textNotes: string) => {
@@ -58,7 +84,6 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
       // Reset and close
       setNoteText("");
       setTranscribedText("");
-      setAudioBlob(null);
       setRecordingDuration(0);
       onOpenChange(false);
     },
@@ -87,22 +112,84 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const startRecording = () => {
-    console.log('Voice note recording started');
-    setIsRecording(true);
-    setRecordingDuration(0);
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const { mimeType } = audioFormatRef.current;
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = async () => {
+        const { mimeType } = audioFormatRef.current;
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach(track => track.stop());
+        
+        // Start transcription
+        await transcribeAudio(audioBlob);
+      };
+      
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingDuration(0);
+      console.log('Voice note recording started');
+    } catch (error: any) {
+      toast({
+        title: "Recording Error",
+        description: error.message || "Failed to access microphone",
+        variant: "destructive",
+        duration: 8000,
+      });
+    }
   };
 
   const stopRecording = () => {
-    console.log('Voice note recording stopped');
-    setIsRecording(false);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      console.log('Voice note recording stopped');
+    }
+  };
+
+  const transcribeAudio = async (audioBlob: Blob) => {
+    setIsTranscribing(true);
     
-    // Simulate transcription (in real app, this would call OpenAI Whisper API)
-    setTimeout(() => {
-      const mockTranscription = "Follow up on clause 3.2 regarding property settlement terms. Client mentioned potential sale of secondary asset.";
-      setTranscribedText(mockTranscription);
+    try {
+      const formData = new FormData();
+      const { extension } = audioFormatRef.current;
+      formData.append('audio', audioBlob, `quicknote${extension}`);
+      
+      const res = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!res.ok) {
+        throw new Error('Transcription failed');
+      }
+      
+      const data = await res.json();
+      setTranscribedText(data.text || '');
       setShowTranscriptionReview(true);
-    }, 1000);
+    } catch (error: any) {
+      toast({
+        title: "Transcription Failed",
+        description: error.message || "Failed to transcribe audio. Please try again.",
+        variant: "destructive",
+        duration: 8000,
+      });
+    } finally {
+      setIsTranscribing(false);
+    }
   };
 
   const confirmTranscription = () => {
@@ -131,13 +218,44 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
   };
 
   const handleCancel = () => {
+    // Stop recording if in progress
+    if (isRecording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+    }
+    
     setNoteText("");
     setTranscribedText("");
-    setAudioBlob(null);
     setRecordingDuration(0);
     setShowTranscriptionReview(false);
+    setIsRecording(false);
+    setIsTranscribing(false);
     onOpenChange(false);
   };
+
+  // Show transcribing state
+  if (isTranscribing) {
+    return (
+      <Dialog open={open} onOpenChange={() => {}}>
+        <DialogContent data-testid="dialog-transcribing" onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Transcribing Audio...</DialogTitle>
+            <DialogDescription>
+              Please wait while we transcribe your voice note
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-8 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+            <p className="text-muted-foreground">
+              Processing your recording with OpenAI Whisper...
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   if (showTranscriptionReview) {
     return (
@@ -167,9 +285,6 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
               className="resize-none"
               data-testid="textarea-transcription"
             />
-            <p className="text-xs text-muted-foreground">
-              Original audio will be saved for your records
-            </p>
           </div>
 
           <DialogFooter className="gap-2">
