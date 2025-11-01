@@ -58,10 +58,7 @@ export default function ShareLinkView() {
 
   const sendSmsMutation = useMutation({
     mutationFn: async (phone: string) => {
-      const response = await apiRequest(`/api/share/${linkId}/send-sms`, {
-        method: 'POST',
-        body: JSON.stringify({ phoneNumber: phone }),
-      });
+      const response = await apiRequest('POST', `/api/share/${linkId}/send-sms`, { phoneNumber: phone });
       return response;
     },
     onSuccess: () => {
@@ -84,10 +81,7 @@ export default function ShareLinkView() {
 
   const verifySmsMutation = useMutation({
     mutationFn: async (code: string) => {
-      const response = await apiRequest(`/api/share/${linkId}/verify-sms`, {
-        method: 'POST',
-        body: JSON.stringify({ code }),
-      });
+      const response = await apiRequest('POST', `/api/share/${linkId}/verify-sms`, { code });
       return response;
     },
     onSuccess: () => {
