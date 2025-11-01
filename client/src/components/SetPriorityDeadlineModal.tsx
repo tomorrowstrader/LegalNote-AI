@@ -8,6 +8,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -28,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useLocation } from "wouter";
 
 interface SetPriorityDeadlineModalProps {
   open: boolean;
@@ -51,7 +62,9 @@ export default function SetPriorityDeadlineModal({
     currentDeadline ? new Date(currentDeadline) : undefined
   );
   const [notes, setNotes] = useState("");
+  const [showCalendarSyncDialog, setShowCalendarSyncDialog] = useState(false);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   
   // Initialize form values when modal opens
   useEffect(() => {
@@ -88,12 +101,16 @@ export default function SetPriorityDeadlineModal({
       toast({
         title: "Priority & Deadline Updated",
         description: deadline 
-          ? `Deadline set to ${format(deadline, 'PPP')}. You can now sync this to your calendar.`
+          ? `Deadline set to ${format(deadline, 'PPP')}`
           : "Priority updated successfully",
-        duration: 6000,
+        duration: 3000,
       });
       
       onOpenChange(false);
+      
+      if (deadline) {
+        setShowCalendarSyncDialog(true);
+      }
     },
     onError: (error: any) => {
       toast({
@@ -178,11 +195,6 @@ export default function SetPriorityDeadlineModal({
                 />
               </PopoverContent>
             </Popover>
-            {deadline && (
-              <p className="text-xs text-muted-foreground">
-                💡 After saving, you can sync this deadline to Google Calendar or Outlook from the case actions menu
-              </p>
-            )}
           </div>
 
           <div className="space-y-2">
@@ -218,6 +230,30 @@ export default function SetPriorityDeadlineModal({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={showCalendarSyncDialog} onOpenChange={setShowCalendarSyncDialog}>
+        <AlertDialogContent data-testid="dialog-calendar-sync">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sync to Calendar?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Would you like to sync this deadline to your Google Calendar or Outlook calendar? 
+              You can also sync it later from Settings → Calendar Connections.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-sync-later">Maybe Later</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                setShowCalendarSyncDialog(false);
+                setLocation('/settings');
+              }}
+              data-testid="button-sync-now"
+            >
+              Sync to Calendar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
