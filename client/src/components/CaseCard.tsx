@@ -13,8 +13,6 @@ import {
 import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
-import EmailToClientModal from "@/components/EmailToClientModal";
-import SyncCalendarModal from "@/components/SyncCalendarModal";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -50,8 +48,6 @@ export default function CaseCard({
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [showEmailModal, setShowEmailModal] = useState(false);
-  const [showSyncCalendarModal, setShowSyncCalendarModal] = useState(false);
   const { toast} = useToast();
 
   const markReviewedMutation = useMutation({
@@ -160,29 +156,6 @@ export default function CaseCard({
     },
   });
 
-  const sendEmailMutation = useMutation({
-    mutationFn: async ({ email, message }: { email: string; message: string }) => {
-      return await apiRequest('POST', `/api/cases/${id}/email`, {
-        recipientEmail: email,
-        customMessage: message || undefined,
-      });
-    },
-    onSuccess: () => {
-      setShowEmailModal(false);
-      queryClient.invalidateQueries({ queryKey: ['/api/cases', id] });
-      toast({
-        title: "Email sent",
-        description: "Case documents have been emailed to the client successfully",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to send email. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
 
   const statusConfig = {
     completed: { icon: CheckCircle2, label: "Completed", variant: "default" as const },
@@ -226,12 +199,8 @@ export default function CaseCard({
         title: "Coming soon",
         description: "Team member assignment will be available soon",
       });
-    } else if (action === 'email') {
-      setShowEmailModal(true);
     } else if (action === 'download') {
       downloadPDFMutation.mutate();
-    } else if (action === 'sync-calendar') {
-      setShowSyncCalendarModal(true);
     }
   };
 
@@ -286,18 +255,14 @@ export default function CaseCard({
                   <AlertCircle className="w-4 h-4 mr-2" />
                   Set Priority/Deadline
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={(e) => handleAction('sync-calendar', e)} data-testid={`action-sync-calendar-${id}`}>
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Sync to Calendar
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={(e) => handleAction('add-note', e)} data-testid={`action-add-note-${id}`}>
                   <MessageSquarePlus className="w-4 h-4 mr-2" />
                   Add Quick Note
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={(e) => handleAction('email', e)} data-testid={`action-email-${id}`}>
-                  <Mail className="w-4 h-4 mr-2" />
-                  Email to Client
+                <DropdownMenuItem onClick={(e) => handleAction('share', e)} data-testid={`action-share-${id}`}>
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Share Documents
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={(e) => handleAction('review', e)} data-testid={`action-review-${id}`}>
                   <Eye className="w-4 h-4 mr-2" />
@@ -308,10 +273,6 @@ export default function CaseCard({
                   Download PDF
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={(e) => handleAction('share', e)} data-testid={`action-share-${id}`}>
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Share Link
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={(e) => handleAction('archive', e)} data-testid={`action-archive-${id}`}>
                   <Archive className="w-4 h-4 mr-2" />
                   Archive Case
@@ -362,23 +323,6 @@ export default function CaseCard({
         caseId={id}
         caseTitle={title}
         userRole="Partner"
-      />
-
-      <EmailToClientModal
-        open={showEmailModal}
-        onOpenChange={setShowEmailModal}
-        onSend={(email, message) => sendEmailMutation.mutate({ email, message })}
-        isPending={sendEmailMutation.isPending}
-        caseTitle={title}
-        clientName={clientName}
-      />
-      
-      <SyncCalendarModal
-        open={showSyncCalendarModal}
-        onOpenChange={setShowSyncCalendarModal}
-        caseId={id}
-        caseTitle={title}
-        deadline={deadline}
       />
     </Card>
   );
