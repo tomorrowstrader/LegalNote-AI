@@ -91,6 +91,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get transcript
       const transcript = await storage.getTranscriptByCase(shareLink.caseId, shareLink.createdBy);
       
+      // Get firm profile for PDF export branding
+      const firmProfile = await storage.getFirmProfile();
+      
       // Increment access count
       await storage.incrementShareLinkAccess(linkId);
       
@@ -135,6 +138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expiresAt: shareLink.expiresAt,
           accessLevel: shareLink.accessLevel,
         },
+        firmProfile: firmProfile || undefined,
       });
     } catch (error: any) {
       next(error);

@@ -9,10 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lock, FileText, AlertCircle, CheckCircle2, Clock, Smartphone, Loader2 } from "lucide-react";
+import { Lock, FileText, AlertCircle, CheckCircle2, Clock, Smartphone, Loader2, Download } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { exportToPDF } from "@/lib/documentExport";
+import type { FirmProfile } from "@shared/schema";
 
 interface ShareLinkData {
   requiresSmsVerification: boolean;
@@ -41,6 +43,7 @@ interface ShareLinkData {
     expiresAt: Date;
     accessLevel: string;
   };
+  firmProfile?: FirmProfile;
 }
 
 export default function ShareLinkView() {
@@ -70,11 +73,15 @@ export default function ShareLinkView() {
       setSmsStep("code");
     },
     onError: (error: any) => {
+      const isPhoneMismatch = error.message?.includes("does not match") || error.message?.includes("expected recipient");
+      
       toast({
-        title: "Failed to Send Code",
-        description: error.message || "Please try again",
+        title: isPhoneMismatch ? "Incorrect Phone Number" : "Failed to Send Code",
+        description: isPhoneMismatch 
+          ? `Please use the mobile number that ${data?.recipientName || "the solicitor"} specified when sharing these documents with you. If you're unsure, please contact them directly.`
+          : error.message || "Please try again",
         variant: "destructive",
-        duration: 8000,
+        duration: isPhoneMismatch ? 10000 : 8000,
       });
     },
   });
@@ -132,6 +139,39 @@ export default function ShareLinkView() {
   const handleResendCode = () => {
     setVerificationCode("");
     sendSmsMutation.mutate(phoneNumber);
+  };
+
+  const handleDownloadPDF = async (documentType: 'attendance_note' | 'legal_opinion') => {
+    if (!data?.caseData || !data?.documents) return;
+
+    const document = data.documents.find(doc => doc.type === documentType);
+    if (!document) return;
+
+    try {
+      await exportToPDF({
+        caseTitle: data.caseData.title,
+        clientName: data.caseData.clientName,
+        matterReference: data.caseData.matterReference || undefined,
+        createdAt: document.createdAt.toString(),
+        documentType,
+        attendanceNote: documentType === 'attendance_note' ? document.content : undefined,
+        legalOpinion: documentType === 'legal_opinion' ? document.content : undefined,
+        firmProfile: data.firmProfile,
+      });
+
+      toast({
+        title: "PDF Downloaded",
+        description: "Your document has been downloaded successfully",
+        duration: 3000,
+      });
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: "Failed to download PDF. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    }
   };
 
   if (isLoading) {
@@ -405,8 +445,8 @@ export default function ShareLinkView() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue={attendanceNote ? "attendance" : legalOpinion ? "opinion" : "documents"}>
-              <TabsList className="grid w-full grid-cols-3 gap-1">
+            <Tabs defaultValue={attendanceNote ? "attendance" : "opinion"}>
+              <TabsList className="grid w-full grid-cols-2 gap-1">
                 <TabsTrigger 
                   value="attendance" 
                   disabled={!attendanceNote}
@@ -421,16 +461,21 @@ export default function ShareLinkView() {
                 >
                   Legal Opinion
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="documents" 
-                  data-testid="tab-documents"
-                >
-                  Documents
-                </TabsTrigger>
               </TabsList>
 
               {attendanceNote && (
                 <TabsContent value="attendance" className="mt-4">
+                  <div className="flex justify-end mb-4">
+                    <Button 
+                      onClick={() => handleDownloadPDF('attendance_note')}
+                      variant="outline"
+                      size="sm"
+                      data-testid="button-download-attendance-note"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download PDF
+                    </Button>
+                  </div>
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <div className="whitespace-pre-wrap" data-testid="content-attendance-note">
                       {attendanceNote.content}
@@ -441,6 +486,17 @@ export default function ShareLinkView() {
 
               {legalOpinion && (
                 <TabsContent value="opinion" className="mt-4">
+                  <div className="flex justify-end mb-4">
+                    <Button 
+                      onClick={() => handleDownloadPDF('legal_opinion')}
+                      variant="outline"
+                      size="sm"
+                      data-testid="button-download-legal-opinion"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download PDF
+                    </Button>
+                  </div>
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <div className="whitespace-pre-wrap" data-testid="content-legal-opinion">
                       {legalOpinion.content}
@@ -448,35 +504,6 @@ export default function ShareLinkView() {
                   </div>
                 </TabsContent>
               )}
-
-              <TabsContent value="documents" className="mt-4">
-                <div className="space-y-3">
-                  {documents && documents.length > 0 ? (
-                    documents.map((doc) => (
-                      <Card key={doc.id} className="hover-elevate">
-                        <CardHeader className="pb-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                              <CardTitle className="text-base">{getDocumentTitle(doc.type)}</CardTitle>
-                            </div>
-                            {doc.createdAt && (
-                              <span className="text-xs text-muted-foreground">
-                                {formatDistanceToNow(new Date(doc.createdAt), { addSuffix: true })}
-                              </span>
-                            )}
-                          </div>
-                        </CardHeader>
-                      </Card>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>No documents available</p>
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>

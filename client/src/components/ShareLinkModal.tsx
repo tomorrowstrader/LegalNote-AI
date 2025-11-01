@@ -441,7 +441,7 @@ export default function ShareLinkModal({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 border-t pt-4 mt-auto bg-card">
+        <DialogFooter className="flex items-center justify-end gap-2 border-t pt-4 mt-auto bg-card">
           <Button variant="outline" onClick={handleClose} data-testid="button-cancel-share">
             Cancel
           </Button>
