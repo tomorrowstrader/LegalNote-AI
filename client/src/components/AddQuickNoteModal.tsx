@@ -13,6 +13,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 
 interface AddQuickNoteModalProps {
   open: boolean;
@@ -27,6 +30,46 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
   const [showTranscriptionReview, setShowTranscriptionReview] = useState(false);
   const [transcribedText, setTranscribedText] = useState("");
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const { toast } = useToast();
+
+  const updateNoteMutation = useMutation({
+    mutationFn: async (textNotes: string) => {
+      const res = await fetch(`/api/cases/${caseId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ textNotes }),
+      });
+      if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error || 'Failed to save note');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId] });
+      
+      toast({
+        title: "Quick Note Saved",
+        description: "Your note has been added to the case successfully",
+        duration: 3000,
+      });
+      
+      // Reset and close
+      setNoteText("");
+      setTranscribedText("");
+      setAudioBlob(null);
+      setRecordingDuration(0);
+      onOpenChange(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save quick note",
+        variant: "destructive",
+      });
+    }
+  });
 
   useEffect(() => {
     if (!isRecording) return;
@@ -75,13 +118,16 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
   };
 
   const handleSave = () => {
-    console.log('Saving quick note for case:', caseId, { noteText, audioBlob });
-    // Reset and close
-    setNoteText("");
-    setTranscribedText("");
-    setAudioBlob(null);
-    setRecordingDuration(0);
-    onOpenChange(false);
+    if (!noteText.trim()) {
+      toast({
+        title: "Note Required",
+        description: "Please enter a note before saving",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    updateNoteMutation.mutate(noteText);
   };
 
   const handleCancel = () => {

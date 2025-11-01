@@ -262,7 +262,7 @@ export default function CaseCard({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={(e) => handleAction('share', e)} data-testid={`action-share-${id}`}>
                   <Share2 className="w-4 h-4 mr-2" />
-                  Share Documents
+                  Secure Share
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={(e) => handleAction('review', e)} data-testid={`action-review-${id}`}>
                   <Eye className="w-4 h-4 mr-2" />
