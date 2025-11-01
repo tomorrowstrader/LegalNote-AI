@@ -254,7 +254,7 @@ export default function ShareLinkView() {
                     onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     onKeyDown={(e) => e.key === 'Enter' && handleVerifyCode()}
                     maxLength={6}
-                    className="text-center text-2xl tracking-widest"
+                    className="text-center text-2xl tracking-widest font-sans"
                     data-testid="input-verification-code"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -405,8 +405,8 @@ export default function ShareLinkView() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue={attendanceNote ? "attendance" : legalOpinion ? "opinion" : "transcript"}>
-              <TabsList className="grid w-full grid-cols-3">
+            <Tabs defaultValue={attendanceNote ? "attendance" : legalOpinion ? "opinion" : "documents"}>
+              <TabsList className="grid w-full grid-cols-3 gap-1">
                 <TabsTrigger 
                   value="attendance" 
                   disabled={!attendanceNote}
@@ -422,11 +422,10 @@ export default function ShareLinkView() {
                   Legal Opinion
                 </TabsTrigger>
                 <TabsTrigger 
-                  value="transcript" 
-                  disabled={!transcript}
-                  data-testid="tab-transcript"
+                  value="documents" 
+                  data-testid="tab-documents"
                 >
-                  Transcript
+                  Documents
                 </TabsTrigger>
               </TabsList>
 
@@ -450,15 +449,34 @@ export default function ShareLinkView() {
                 </TabsContent>
               )}
 
-              {transcript && (
-                <TabsContent value="transcript" className="mt-4">
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <div className="whitespace-pre-wrap text-muted-foreground" data-testid="content-transcript">
-                      {transcript.content}
+              <TabsContent value="documents" className="mt-4">
+                <div className="space-y-3">
+                  {documents && documents.length > 0 ? (
+                    documents.map((doc) => (
+                      <Card key={doc.id} className="hover-elevate">
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              <CardTitle className="text-base">{getDocumentTitle(doc.type)}</CardTitle>
+                            </div>
+                            {doc.createdAt && (
+                              <span className="text-xs text-muted-foreground">
+                                {formatDistanceToNow(new Date(doc.createdAt), { addSuffix: true })}
+                              </span>
+                            )}
+                          </div>
+                        </CardHeader>
+                      </Card>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>No documents available</p>
                     </div>
-                  </div>
-                </TabsContent>
-              )}
+                  )}
+                </div>
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>

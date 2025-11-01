@@ -49,6 +49,7 @@ export default function ShareLinkModal({
   const [clientConsent, setClientConsent] = useState(false);
   const [smsProtection, setSmsProtection] = useState(false);
   const [smsPhoneNumber, setSmsPhoneNumber] = useState("");
+  const [customMessage, setCustomMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const { toast } = useToast();
@@ -89,6 +90,7 @@ export default function ShareLinkModal({
           clientConsent,
           smsProtection,
           smsPhoneNumber: smsProtection ? smsPhoneNumber : undefined,
+          customMessage: customMessage.trim() || undefined,
         }),
       });
 
@@ -176,6 +178,7 @@ export default function ShareLinkModal({
     setClientConsent(false);
     setSmsProtection(false);
     setSmsPhoneNumber("");
+    setCustomMessage("");
     setIsSending(false);
     setCountdown(null);
     onOpenChange(false);
@@ -278,6 +281,24 @@ export default function ShareLinkModal({
                 data-testid="input-recipient-name"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="custom-message">
+              Personal Message (Optional)
+            </Label>
+            <Textarea
+              id="custom-message"
+              placeholder="Add a personal message that will be included in the email to the recipient..."
+              value={customMessage}
+              onChange={(e) => setCustomMessage(e.target.value)}
+              rows={3}
+              className="resize-none"
+              data-testid="input-custom-message"
+            />
+            <p className="text-xs text-muted-foreground">
+              This message will appear in the email notification sent to the recipient
+            </p>
           </div>
 
           <div className="flex items-center space-x-2">

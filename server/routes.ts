@@ -651,6 +651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         clientConsent: z.boolean(),
         smsProtection: z.boolean().default(false),
         smsPhoneNumber: z.string().optional(),
+        customMessage: z.string().optional(),
       });
       
       const validationResult = shareLinkRequestSchema.safeParse(req.body);
@@ -661,7 +662,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const { recipientEmail, recipientName, isExternal, organization, expiration, accessLevel, password, clientConsent, smsProtection, smsPhoneNumber } = validationResult.data;
+      const { recipientEmail, recipientName, isExternal, organization, expiration, accessLevel, password, clientConsent, smsProtection, smsPhoneNumber, customMessage } = validationResult.data;
       
       // Validate SMS phone number if SMS protection is enabled
       let formattedPhoneNumber: string | undefined;
@@ -745,13 +746,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const firmProfile = await storage.getFirmProfile();
       
       // Send email with share link
+      const systemMessage = `You have been granted ${accessLevel} access to this case. This link will expire in ${expiration.replace(/(\d+)(\w+)/, '$1 $2')}.${password ? ' A password is required to access the documents.' : ''}${smsProtection ? ' SMS verification is required to access the documents.' : ''}`;
+      const fullMessage = customMessage ? `${customMessage}\n\n${systemMessage}` : systemMessage;
+      
       const result = await sendCaseEmail({
         to: recipientEmail,
         caseTitle: caseData.title,
         clientName: caseData.clientName,
         matterReference: caseData.matterReference || undefined,
         shareLinkId: shareLink.id,
-        customMessage: `You have been granted ${accessLevel} access to this case. This link will expire in ${expiration.replace(/(\d+)(\w+)/, '$1 $2')}.${password ? ' A password is required to access the documents.' : ''}`,
+        customMessage: fullMessage,
         firmProfile: firmProfile ? {
           firmName: firmProfile.firmName,
           phone: firmProfile.phone || undefined,

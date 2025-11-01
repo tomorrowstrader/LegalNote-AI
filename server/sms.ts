@@ -4,6 +4,7 @@ import twilio from 'twilio';
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+const twilioSenderName = process.env.TWILIO_SENDER_NAME; // Optional alphanumeric sender ID
 
 // Validate that all required credentials are present
 if (!accountSid || !authToken || !twilioPhoneNumber) {
@@ -49,9 +50,10 @@ export async function sendVerificationCode(
     }
 
     // Send SMS via Twilio
+    // Use alphanumeric sender ID if explicitly configured, otherwise fall back to phone number
     const message = await twilioClient.messages.create({
       body: `Your verification code for ${firmName} is: ${verificationCode}\n\nThis code expires in 15 minutes.\n\nPowered by LegalNote AI`,
-      from: twilioPhoneNumber,
+      from: twilioSenderName ? twilioSenderName : twilioPhoneNumber,
       to: phoneNumber,
     });
 
