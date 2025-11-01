@@ -222,7 +222,7 @@ export default function ShareLinkModal({
           </DialogHeader>
 
           <div className="py-8 text-center">
-            <div className="text-6xl font-bold text-primary mb-4">{countdown}</div>
+            <div className="text-6xl font-bold text-foreground mb-4">{countdown}</div>
             <p className="text-muted-foreground">
               Sending to {recipientEmail}
             </p>

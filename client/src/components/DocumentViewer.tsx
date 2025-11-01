@@ -67,15 +67,15 @@ export default function DocumentViewer({
       if (format === 'pdf') {
         await exportToPDF(content);
         toast({
-          title: "PDF Export Complete",
-          description: "Your legal documents have been exported as PDF",
+          title: "Download Ready",
+          description: "Your PDF is ready. Choose where to save it in the dialog.",
           duration: 3000,
         });
       } else {
         await exportToWord(content);
         toast({
-          title: "Word Export Complete",
-          description: "Your legal documents have been exported as Word document",
+          title: "Download Ready",
+          description: "Your Word document is ready. Choose where to save it in the dialog.",
           duration: 3000,
         });
       }

@@ -535,6 +535,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/cases/:id", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { priority, deadline, textNotes } = req.body;
+      
+      // Get current case to verify access
+      const currentCase = await storage.getCase(req.params.id, userId);
+      if (!currentCase) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      
+      // Build update object with only provided fields
+      const updates: any = {};
+      if (priority !== undefined) updates.priority = priority;
+      if (deadline !== undefined) updates.deadline = deadline;
+      if (textNotes !== undefined) updates.textNotes = textNotes;
+      
+      // Update the case
+      const updatedCase = await storage.updateCase(req.params.id, updates, userId);
+      
+      await logAuditEvent(userId, "case_updated", {
+        caseId: req.params.id,
+        metadata: { updates },
+        req,
+      });
+      
+      res.json(updatedCase);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.post("/api/cases/:id/email", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;

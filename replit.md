@@ -43,6 +43,10 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **Error Sanitization**: Production errors hide internal details, generic messages, server-side logging.
 - **Audit Logging**: Comprehensive security event tracking (severity, metadata), structured JSON for SIEM integration.
 - **Reliability & Data Protection**: 7-day audio retention policy, automatic/manual retry for API failures, early audio deletion, expiration cleanup, consent documentation.
+- **Share Link Security**: 
+  - **SMS Two-Factor Authentication**: Platform-level SMS verification using Twilio API provides strong identity verification. When enabled, recipients must verify their phone number (which must match the solicitor-specified number) before accessing documents. Twilio handles SMS delivery, code generation, and rate limiting.
+  - **Password Protection (Optional)**: Additional password-based access control is available as a secondary security layer. However, SMS 2FA is considered the primary security mechanism because: (1) It verifies identity via out-of-band communication channel, (2) Protects against link forwarding/sharing, (3) Ensures only the intended recipient can access documents, (4) Provides audit trail of access attempts. Password protection alone can be shared/forwarded easily and doesn't verify identity.
+  - **Recommendation**: For UK legal practice, SMS 2FA is preferred as it aligns with SRA guidelines for secure client communication and identity verification. Password protection may be kept as an optional additional layer for scenarios where the client prefers both methods, or removed to simplify the UX if deemed redundant.
 
 ## External Dependencies
 

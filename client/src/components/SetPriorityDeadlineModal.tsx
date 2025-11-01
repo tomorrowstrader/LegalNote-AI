@@ -63,6 +63,7 @@ export default function SetPriorityDeadlineModal({
   );
   const [notes, setNotes] = useState("");
   const [showCalendarSyncDialog, setShowCalendarSyncDialog] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   
@@ -174,7 +175,7 @@ export default function SetPriorityDeadlineModal({
 
           <div className="space-y-2">
             <Label>Deadline Date (Optional)</Label>
-            <Popover>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -189,7 +190,10 @@ export default function SetPriorityDeadlineModal({
                 <Calendar
                   mode="single"
                   selected={deadline}
-                  onSelect={setDeadline}
+                  onSelect={(date) => {
+                    setDeadline(date);
+                    setCalendarOpen(false);
+                  }}
                   initialFocus
                   data-testid="calendar-deadline"
                 />
