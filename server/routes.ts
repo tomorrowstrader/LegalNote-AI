@@ -549,7 +549,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Build update object with only provided fields
       const updates: any = {};
       if (priority !== undefined) updates.priority = priority;
-      if (deadline !== undefined) updates.deadline = deadline;
+      if (deadline !== undefined) {
+        // Convert deadline string to Date object for Drizzle
+        updates.deadline = deadline ? new Date(deadline) : null;
+      }
       if (textNotes !== undefined) updates.textNotes = textNotes;
       
       // Update the case

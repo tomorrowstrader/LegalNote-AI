@@ -112,7 +112,7 @@ export default function CaseDetail() {
   const { data: processingStatus } = useQuery<ProcessingStatus>({
     queryKey: [`/api/cases/${caseId}/processing-status`],
     enabled: !!caseId && caseData?.status === 'processing',
-    refetchInterval: 2000, // Poll every 2 seconds
+    refetchInterval: 5000, // Poll every 5 seconds
   });
 
   // Refresh case data when processing completes (any terminal status)
