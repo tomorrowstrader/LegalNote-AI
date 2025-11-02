@@ -8,16 +8,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -62,7 +52,6 @@ export default function SetPriorityDeadlineModal({
     currentDeadline ? new Date(currentDeadline) : undefined
   );
   const [notes, setNotes] = useState("");
-  const [showCalendarSyncDialog, setShowCalendarSyncDialog] = useState(false);
   const [showSyncCalendarModal, setShowSyncCalendarModal] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const { toast } = useToast();
@@ -109,8 +98,11 @@ export default function SetPriorityDeadlineModal({
       
       onOpenChange(false);
       
+      // Open calendar sync modal after a brief delay to ensure parent modal closes first
       if (deadline) {
-        setShowCalendarSyncDialog(true);
+        setTimeout(() => {
+          setShowSyncCalendarModal(true);
+        }, 300);
       }
     },
     onError: (error: any) => {
@@ -234,30 +226,6 @@ export default function SetPriorityDeadlineModal({
           </Button>
         </DialogFooter>
       </DialogContent>
-
-      <AlertDialog open={showCalendarSyncDialog} onOpenChange={setShowCalendarSyncDialog}>
-        <AlertDialogContent data-testid="dialog-calendar-sync">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Sync to Calendar?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Would you like to sync this deadline to your Google Calendar or Outlook calendar? 
-              You can also sync it later from Settings → Calendar Connections.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-sync-later">Maybe Later</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => {
-                setShowCalendarSyncDialog(false);
-                setShowSyncCalendarModal(true);
-              }}
-              data-testid="button-sync-now"
-            >
-              Sync to Calendar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <SyncCalendarModal
         open={showSyncCalendarModal}
