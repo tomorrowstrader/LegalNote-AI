@@ -38,7 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useLocation } from "wouter";
+import SyncCalendarModal from "@/components/SyncCalendarModal";
 
 interface SetPriorityDeadlineModalProps {
   open: boolean;
@@ -63,9 +63,9 @@ export default function SetPriorityDeadlineModal({
   );
   const [notes, setNotes] = useState("");
   const [showCalendarSyncDialog, setShowCalendarSyncDialog] = useState(false);
+  const [showSyncCalendarModal, setShowSyncCalendarModal] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
   
   // Initialize form values when modal opens
   useEffect(() => {
@@ -249,7 +249,7 @@ export default function SetPriorityDeadlineModal({
             <AlertDialogAction 
               onClick={() => {
                 setShowCalendarSyncDialog(false);
-                setLocation('/settings');
+                setShowSyncCalendarModal(true);
               }}
               data-testid="button-sync-now"
             >
@@ -258,6 +258,14 @@ export default function SetPriorityDeadlineModal({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <SyncCalendarModal
+        open={showSyncCalendarModal}
+        onOpenChange={setShowSyncCalendarModal}
+        caseId={caseId}
+        caseTitle={caseTitle}
+        deadline={deadline?.toISOString() || null}
+      />
     </Dialog>
   );
 }

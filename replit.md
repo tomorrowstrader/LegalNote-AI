@@ -3,6 +3,12 @@
 ## Overview
 LegalNote AI is a professional legal documentation platform for solicitors and law firms. It enables legal professionals to record client meetings, automatically generate attendance notes, legal opinions, and searchable transcripts, while ensuring GDPR compliance, client consent management, and professional document workflows with firm branding on all exports. The project aims to provide an efficient and compliant solution for legal document creation and management, offering a secure and streamlined way to manage legal documentation and client interactions.
 
+## Recent Changes (November 2, 2025)
+- **Password Protection Security Enhancement**: Share link passwords now use bcrypt hashing (10 salt rounds) with automatic migration of legacy plaintext passwords on first successful login
+- **Calendar Sync Integration**: Fixed calendar sync workflow - users can now sync case deadlines directly to Google Calendar or Outlook after setting a deadline (previously only navigated to settings page)
+- **Quick Note Transcription**: Added dedicated `/api/transcribe` endpoint for Quick Notes feature with OpenAI Whisper integration
+- **Email Personalization**: Share link emails now greet recipients by their own name instead of the case client's name
+
 ## User Preferences
 **Communication Style:** Simple, everyday language.
 
