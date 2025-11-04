@@ -2210,6 +2210,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // OAuth configuration diagnostic endpoint (shows exact redirect URIs needed)
+  app.get("/api/calendar/oauth-config", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host;
+      const baseUrl = `${protocol}://${host}`;
+
+      const config = {
+        baseUrl,
+        redirectUris: {
+          google: `${baseUrl}/api/calendar/callback/google`,
+          outlook: `${baseUrl}/api/calendar/callback/outlook`,
+        },
+        instructions: {
+          google: {
+            step1: "Go to Google Cloud Console: https://console.cloud.google.com/apis/credentials",
+            step2: "Select your OAuth 2.0 Client ID",
+            step3: `Add this to 'Authorized redirect URIs': ${baseUrl}/api/calendar/callback/google`,
+            step4: "Click Save",
+          },
+          outlook: {
+            step1: "Go to Azure Portal: https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade",
+            step2: "Select your app registration",
+            step3: "Go to 'Authentication' section",
+            step4: `Add this to 'Redirect URIs' (Web platform): ${baseUrl}/api/calendar/callback/outlook`,
+            step5: "Click Save",
+          },
+        },
+        status: {
+          googleConfigured: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+          outlookConfigured: !!(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET),
+        },
+      };
+
+      res.json(config);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Disconnect calendar
   app.delete("/api/calendar/disconnect/:provider", isAuthenticated, async (req: any, res, next) => {
     try {
