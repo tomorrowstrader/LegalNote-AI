@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle } from "lucide-react";
+import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -18,6 +18,8 @@ import type { FirmProfile, InsertFirmProfile } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface UserStatistics {
   id: string;
@@ -366,12 +368,26 @@ function UsageMetrics() {
 
 function CalendarConnections() {
   const { toast } = useToast();
+  const [showTroubleshooting, setShowTroubleshooting] = useState(false);
+  const [copiedUri, setCopiedUri] = useState<string | null>(null);
   
   const { data: connections, isLoading } = useQuery<{
     google: { connected: boolean; email?: string; connectedAt?: string };
     outlook: { connected: boolean; email?: string; connectedAt?: string };
   }>({
     queryKey: ['/api/oauth/connections'],
+  });
+
+  const { data: oauthConfig } = useQuery<{
+    baseUrl: string;
+    redirectUris: { google: string; outlook: string };
+    instructions: {
+      google: { step1: string; step2: string; step3: string; step4: string };
+      outlook: { step1: string; step2: string; step3: string; step4: string; step5: string };
+    };
+    status: { googleConfigured: boolean; outlookConfigured: boolean };
+  }>({
+    queryKey: ['/api/calendar/oauth-config'],
   });
 
   const disconnectMutation = useMutation({
@@ -409,6 +425,17 @@ function CalendarConnections() {
 
   const handleDisconnect = (provider: 'google' | 'outlook') => {
     disconnectMutation.mutate(provider);
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedUri(label);
+    setTimeout(() => setCopiedUri(null), 2000);
+    toast({
+      title: "Copied",
+      description: `${label} copied to clipboard`,
+      duration: 2000,
+    });
   };
 
   if (isLoading) {
@@ -523,6 +550,109 @@ function CalendarConnections() {
             </div>
           </div>
         </div>
+
+        <Separator />
+
+        <Collapsible open={showTroubleshooting} onOpenChange={setShowTroubleshooting}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-between" size="sm">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                <span>Troubleshooting OAuth Configuration</span>
+              </div>
+              {showTroubleshooting ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-4 space-y-4">
+            {oauthConfig && (
+              <>
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    If you see "redirect_uri_mismatch" or "invalid_request" errors, make sure these exact redirect URIs are configured in your OAuth provider settings.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Google Calendar Redirect URI</Label>
+                      <Badge variant={oauthConfig.status.googleConfigured ? "outline" : "destructive"}>
+                        {oauthConfig.status.googleConfigured ? "Configured" : "Not Configured"}
+                      </Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input 
+                        value={oauthConfig.redirectUris.google} 
+                        readOnly 
+                        className="font-mono text-xs"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(oauthConfig.redirectUris.google, "Google redirect URI")}
+                      >
+                        {copiedUri === "Google redirect URI" ? (
+                          <Check className="w-4 h-4" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <div className="text-xs text-muted-foreground space-y-1 pl-3">
+                      <p className="font-medium">Configuration steps:</p>
+                      <ol className="list-decimal list-inside space-y-0.5">
+                        <li>{oauthConfig.instructions.google.step1}</li>
+                        <li>{oauthConfig.instructions.google.step2}</li>
+                        <li>{oauthConfig.instructions.google.step3}</li>
+                        <li>{oauthConfig.instructions.google.step4}</li>
+                      </ol>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Outlook Redirect URI</Label>
+                      <Badge variant={oauthConfig.status.outlookConfigured ? "outline" : "destructive"}>
+                        {oauthConfig.status.outlookConfigured ? "Configured" : "Not Configured"}
+                      </Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input 
+                        value={oauthConfig.redirectUris.outlook} 
+                        readOnly 
+                        className="font-mono text-xs"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(oauthConfig.redirectUris.outlook, "Outlook redirect URI")}
+                      >
+                        {copiedUri === "Outlook redirect URI" ? (
+                          <Check className="w-4 h-4" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <div className="text-xs text-muted-foreground space-y-1 pl-3">
+                      <p className="font-medium">Configuration steps:</p>
+                      <ol className="list-decimal list-inside space-y-0.5">
+                        <li>{oauthConfig.instructions.outlook.step1}</li>
+                        <li>{oauthConfig.instructions.outlook.step2}</li>
+                        <li>{oauthConfig.instructions.outlook.step3}</li>
+                        <li>{oauthConfig.instructions.outlook.step4}</li>
+                        <li>{oauthConfig.instructions.outlook.step5}</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
 
         <Separator />
 
