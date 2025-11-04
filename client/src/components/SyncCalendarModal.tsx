@@ -179,8 +179,8 @@ export default function SyncCalendarModal({
     try {
       setIsConnecting(true);
 
-      // Get OAuth URL from backend
-      const response = await fetch(`/api/calendar/auth/${provider}`, {
+      // Get OAuth URL from backend with popup flag
+      const response = await fetch(`/api/calendar/auth/${provider}?popup=true`, {
         credentials: 'include',
       });
 

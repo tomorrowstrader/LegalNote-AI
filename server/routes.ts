@@ -2032,7 +2032,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // OAuth state management (CSRF protection)
   // In-memory store for OAuth state tokens (expires after 10 minutes)
-  const oauthStateStore = new Map<string, { userId: string; provider: string; createdAt: number }>();
+  const oauthStateStore = new Map<string, { userId: string; provider: string; createdAt: number; popup?: boolean }>();
   
   // Cleanup expired OAuth states every 5 minutes
   setInterval(() => {
@@ -2051,6 +2051,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const provider = req.params.provider;
+      const popup = req.query.popup === 'true';
       
       if (provider !== 'google' && provider !== 'outlook') {
         return res.status(400).json({ message: "Invalid provider. Must be 'google' or 'outlook'" });
@@ -2062,6 +2063,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
         provider,
         createdAt: Date.now(),
+        popup,
       });
 
       // Get base URL from request
@@ -2103,19 +2105,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const provider = req.params.provider;
       const { code, state, error: oauthError } = req.query;
 
+      // Early state validation to determine redirect base
+      const stateData = oauthStateStore.get(state as string);
+      const redirectBase = stateData?.popup ? '/oauth/callback' : '/settings';
+
       // Check for OAuth errors
       if (oauthError) {
-        return res.redirect(`/settings?calendar_error=${encodeURIComponent(oauthError)}`);
+        return res.redirect(`${redirectBase}?calendar_error=${encodeURIComponent(oauthError)}`);
       }
 
       if (!code || !state) {
-        return res.redirect(`/settings?calendar_error=missing_code_or_state`);
+        return res.redirect(`${redirectBase}?calendar_error=missing_code_or_state`);
       }
 
       // Verify state (CSRF protection)
-      const stateData = oauthStateStore.get(state as string);
       if (!stateData) {
-        return res.redirect(`/settings?calendar_error=invalid_state`);
+        return res.redirect(`${redirectBase}?calendar_error=invalid_state`);
       }
 
       // Remove used state
@@ -2123,7 +2128,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Verify provider matches
       if (stateData.provider !== provider) {
-        return res.redirect(`/settings?calendar_error=provider_mismatch`);
+        return res.redirect(`${redirectBase}?calendar_error=provider_mismatch`);
       }
 
       // Get base URL
@@ -2163,11 +2168,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           severity: 'info',
         });
 
-        // Redirect to settings with success message
-        res.redirect(`/settings?calendar_connected=${provider}`);
+        // Redirect with success message
+        res.redirect(`${redirectBase}?calendar_connected=${provider}`);
       } catch (error: any) {
         console.error(`OAuth token exchange failed for ${provider}:`, error);
-        res.redirect(`/settings?calendar_error=token_exchange_failed`);
+        res.redirect(`${redirectBase}?calendar_error=token_exchange_failed`);
       }
     } catch (error) {
       next(error);
