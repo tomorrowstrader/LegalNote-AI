@@ -176,10 +176,35 @@ export default function SyncCalendarModal({
   });
 
   const handleConnectCalendar = async (provider: 'google' | 'outlook') => {
-    try {
-      setIsConnecting(true);
+    setIsConnecting(true);
 
-      // Get OAuth URL from backend with popup flag
+    // CRITICAL: Open popup window IMMEDIATELY (synchronously) in click handler
+    // This must happen BEFORE any async operations to avoid popup blockers on mobile Safari
+    const width = 600;
+    const height = 700;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    const popup = window.open(
+      '',  // Start with blank page
+      `${provider}-oauth`,
+      `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`
+    );
+
+    if (!popup) {
+      setIsConnecting(false);
+      toast({
+        title: "Popup Blocked",
+        description: "Please allow popups for this site to connect your calendar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    popupRef.current = popup;
+
+    try {
+      // NOW do the async fetch (popup is already open)
       const response = await fetch(`/api/calendar/auth/${provider}?popup=true`, {
         credentials: 'include',
       });
@@ -190,29 +215,8 @@ export default function SyncCalendarModal({
 
       const { authUrl } = await response.json();
 
-      // Open popup window
-      const width = 600;
-      const height = 700;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-
-      const popup = window.open(
-        authUrl,
-        `${provider}-oauth`,
-        `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`
-      );
-
-      if (!popup) {
-        setIsConnecting(false);
-        toast({
-          title: "Popup Blocked",
-          description: "Please allow popups for this site to connect your calendar",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      popupRef.current = popup;
+      // Navigate the already-open popup to the OAuth URL
+      popup.location.href = authUrl;
 
       // Check if popup is closed manually
       const checkClosed = setInterval(() => {
@@ -222,6 +226,11 @@ export default function SyncCalendarModal({
         }
       }, 500);
     } catch (error) {
+      // Close the popup on error
+      if (popup && !popup.closed) {
+        popup.close();
+      }
+      
       setIsConnecting(false);
       toast({
         title: "Connection Error",
