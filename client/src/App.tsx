@@ -18,6 +18,7 @@ import AuditLogs from "@/pages/AuditLogs";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Landing from "@/pages/Landing";
 import ShareLinkView from "@/pages/ShareLinkView";
+import OAuthCallback from "@/pages/OAuthCallback";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -27,6 +28,7 @@ function Router() {
     <Switch>
       {/* Public routes (accessible without authentication) */}
       <Route path="/share/:linkId" component={ShareLinkView} />
+      <Route path="/oauth/callback" component={OAuthCallback} />
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />

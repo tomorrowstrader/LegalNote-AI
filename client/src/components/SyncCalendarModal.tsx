@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Calendar as CalendarIcon, Check, X } from "lucide-react";
 import {
   Dialog,
@@ -39,15 +39,73 @@ export default function SyncCalendarModal({
   deadline
 }: SyncCalendarModalProps) {
   const [selectedProvider, setSelectedProvider] = useState<'google' | 'outlook' | ''>('');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const popupRef = useRef<Window | null>(null);
   const { toast } = useToast();
 
-  const { data: connections, isLoading: providersLoading } = useQuery<{
+  const { data: connections, isLoading: providersLoading, refetch: refetchConnections } = useQuery<{
     google: { connected: boolean; email?: string };
     outlook: { connected: boolean; email?: string };
   }>({
     queryKey: ['/api/oauth/connections'],
     enabled: open,
   });
+
+  // Listen for OAuth popup callback
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Security: verify origin
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      // Check if message is from OAuth callback
+      if (event.data?.source === 'calendar-oauth-callback' && event.data?.success) {
+        const { provider } = event.data;
+        
+        setIsConnecting(false);
+        
+        // Close popup if still open
+        if (popupRef.current && !popupRef.current.closed) {
+          popupRef.current.close();
+        }
+
+        toast({
+          title: "Calendar Connected",
+          description: `Successfully connected ${provider === 'google' ? 'Google Calendar' : 'Outlook'}`,
+          duration: 3000,
+        });
+
+        // Refetch connections to update UI
+        refetchConnections();
+
+        // Set the provider and automatically sync
+        setSelectedProvider(provider);
+        
+        // Auto-sync after brief delay
+        setTimeout(() => {
+          if (deadline) {
+            syncMutation.mutate(provider);
+          }
+        }, 500);
+      } else if (event.data?.source === 'calendar-oauth-callback' && event.data?.error) {
+        setIsConnecting(false);
+        
+        if (popupRef.current && !popupRef.current.closed) {
+          popupRef.current.close();
+        }
+
+        toast({
+          title: "Connection Failed",
+          description: event.data.error || "Failed to connect calendar",
+          variant: "destructive",
+        });
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [deadline, refetchConnections, toast]);
 
   const syncMutation = useMutation({
     mutationFn: async (provider: 'google' | 'outlook') => {
@@ -117,6 +175,62 @@ export default function SyncCalendarModal({
     }
   });
 
+  const handleConnectCalendar = async (provider: 'google' | 'outlook') => {
+    try {
+      setIsConnecting(true);
+
+      // Get OAuth URL from backend
+      const response = await fetch(`/api/calendar/auth/${provider}`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get authorization URL');
+      }
+
+      const { authUrl } = await response.json();
+
+      // Open popup window
+      const width = 600;
+      const height = 700;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
+
+      const popup = window.open(
+        authUrl,
+        `${provider}-oauth`,
+        `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`
+      );
+
+      if (!popup) {
+        setIsConnecting(false);
+        toast({
+          title: "Popup Blocked",
+          description: "Please allow popups for this site to connect your calendar",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      popupRef.current = popup;
+
+      // Check if popup is closed manually
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkClosed);
+          setIsConnecting(false);
+        }
+      }, 500);
+    } catch (error) {
+      setIsConnecting(false);
+      toast({
+        title: "Connection Error",
+        description: "Failed to initiate calendar connection",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSync = () => {
     if (!selectedProvider) {
       toast({
@@ -175,30 +289,56 @@ export default function SyncCalendarModal({
             </AlertDescription>
           </Alert>
 
-          <div className="space-y-2">
-            <Label htmlFor="provider">Calendar Provider</Label>
-            <Select value={selectedProvider} onValueChange={(value) => setSelectedProvider(value as 'google' | 'outlook')}>
-              <SelectTrigger id="provider" data-testid="select-calendar-provider">
-                <SelectValue placeholder="Select calendar provider" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="google" disabled={providersLoading || !connections?.google.connected}>
-                  Google Calendar {connections?.google.connected ? '✓' : '(Not connected)'}
-                </SelectItem>
-                <SelectItem value="outlook" disabled={providersLoading || !connections?.outlook.connected}>
-                  Outlook {connections?.outlook.connected ? '✓' : '(Not connected)'}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            
-            {connections && !connections.google.connected && !connections.outlook.connected && (
+          {connections && !connections.google.connected && !connections.outlook.connected ? (
+            <div className="space-y-4">
               <Alert>
                 <AlertDescription>
-                  No calendar connected. Please connect Google Calendar or Outlook in <a href="/settings" className="underline">Settings → Integrations</a> first.
+                  Connect your calendar to sync this deadline and get reminders
                 </AlertDescription>
               </Alert>
-            )}
-          </div>
+              
+              <div className="space-y-3">
+                <Button
+                  className="w-full justify-start"
+                  variant="outline"
+                  onClick={() => handleConnectCalendar('google')}
+                  disabled={isConnecting}
+                  data-testid="button-connect-google"
+                >
+                  <CalendarIcon className="w-4 h-4 mr-2" />
+                  {isConnecting ? "Connecting..." : "Connect Google Calendar"}
+                </Button>
+                
+                <Button
+                  className="w-full justify-start"
+                  variant="outline"
+                  onClick={() => handleConnectCalendar('outlook')}
+                  disabled={isConnecting}
+                  data-testid="button-connect-outlook"
+                >
+                  <CalendarIcon className="w-4 h-4 mr-2" />
+                  {isConnecting ? "Connecting..." : "Connect Outlook"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="provider">Calendar Provider</Label>
+              <Select value={selectedProvider} onValueChange={(value) => setSelectedProvider(value as 'google' | 'outlook')}>
+                <SelectTrigger id="provider" data-testid="select-calendar-provider">
+                  <SelectValue placeholder="Select calendar provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="google" disabled={providersLoading || !connections?.google.connected}>
+                    Google Calendar {connections?.google.connected ? '✓' : '(Not connected)'}
+                  </SelectItem>
+                  <SelectItem value="outlook" disabled={providersLoading || !connections?.outlook.connected}>
+                    Outlook {connections?.outlook.connected ? '✓' : '(Not connected)'}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="gap-2">
