@@ -2105,9 +2105,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const provider = req.params.provider;
       const { code, state, error: oauthError } = req.query;
 
-      // Early state validation to determine redirect base
+      // Always redirect to /oauth/callback - it handles both popup and mobile flows
+      const redirectBase = '/oauth/callback';
+
+      // Early state validation
       const stateData = oauthStateStore.get(state as string);
-      const redirectBase = stateData?.popup ? '/oauth/callback' : '/settings';
 
       // Check for OAuth errors
       if (oauthError) {
