@@ -175,11 +175,55 @@ export default function SyncCalendarModal({
     }
   });
 
+  // Detect if user is on mobile device
+  const isMobile = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
+
   const handleConnectCalendar = async (provider: 'google' | 'outlook') => {
     setIsConnecting(true);
 
-    // CRITICAL: Open popup window IMMEDIATELY (synchronously) in click handler
-    // This must happen BEFORE any async operations to avoid popup blockers on mobile Safari
+    // MOBILE: Use full-page redirect (no popup blockers!)
+    if (isMobile()) {
+      // Save context to sessionStorage so we can restore after OAuth
+      sessionStorage.setItem('calendar-oauth-context', JSON.stringify({
+        caseId,
+        caseTitle,
+        deadline,
+        provider,
+        returnUrl: window.location.pathname,
+      }));
+
+      try {
+        // Get auth URL and do full-page redirect
+        const response = await fetch(`/api/calendar/auth/${provider}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to get authorization URL');
+        }
+
+        const { authUrl } = await response.json();
+
+        // Full-page redirect (works on all mobile browsers!)
+        window.location.href = authUrl;
+      } catch (error) {
+        // Clean up saved context on error
+        sessionStorage.removeItem('calendar-oauth-context');
+        
+        setIsConnecting(false);
+        toast({
+          title: "Connection Error",
+          description: "Failed to initiate calendar connection",
+          variant: "destructive",
+        });
+      }
+
+      return;
+    }
+
+    // DESKTOP: Use popup window (better UX, no page reload)
     const width = 600;
     const height = 700;
     const left = window.screenX + (window.outerWidth - width) / 2;
