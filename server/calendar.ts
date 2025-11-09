@@ -11,6 +11,8 @@ export interface CalendarEventData {
   matterReference?: string;
   deadline: Date;
   description?: string;
+  notes?: string;
+  priority?: string; // urgent | deadline-soon | normal
 }
 
 export interface CalendarSyncResult {
@@ -19,6 +21,13 @@ export interface CalendarSyncResult {
   eventId?: string;
   error?: string;
 }
+
+// Priority-based reminder schedules (minutes before event)
+const REMINDER_SCHEDULES = {
+  urgent: [1440, 240, 60], // 1 day, 4 hours, 1 hour
+  'deadline-soon': [1440, 120], // 1 day, 2 hours
+  normal: [1440], // 1 day
+};
 
 // Helper to format event description
 function formatEventDescription(data: CalendarEventData): string {
@@ -29,8 +38,17 @@ function formatEventDescription(data: CalendarEventData): string {
   if (data.description) {
     description += `\n\n${data.description}`;
   }
+  if (data.notes) {
+    description += `\n\nNotes:\n${data.notes}`;
+  }
   description += `\n\nCreated by LegalNote AI`;
   return description;
+}
+
+// Helper to get reminders based on priority
+function getReminders(priority?: string): number[] {
+  const priorityKey = priority as keyof typeof REMINDER_SCHEDULES;
+  return REMINDER_SCHEDULES[priorityKey] || REMINDER_SCHEDULES.normal;
 }
 
 // Token refresh for Google

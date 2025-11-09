@@ -306,6 +306,8 @@ export interface OAuthStatePayload {
   syncContext?: {
     caseId: string; // UUID string
     deadline: string; // ISO date string
+    notes?: string; // Optional deadline notes
+    priority?: string; // urgent | deadline-soon | normal
   };
 }
 

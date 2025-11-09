@@ -118,9 +118,9 @@ export default function OAuthCallback() {
     
     console.log('[OAuth Callback] Navigating to:', redirectPath);
     
-    // Small delay to ensure toast is queued before navigation
+    // Use wouter navigation to stay within SPA (eliminates 404 flash)
     setTimeout(() => {
-      window.location.href = redirectPath;
+      setLocation(redirectPath, { replace: true });
     }, 200);
   }, [setLocation, toast]);
 

@@ -233,6 +233,8 @@ export default function SetPriorityDeadlineModal({
         caseId={caseId}
         caseTitle={caseTitle}
         deadline={deadline?.toISOString() || null}
+        priority={priority}
+        notes={notes}
       />
     </Dialog>
   );

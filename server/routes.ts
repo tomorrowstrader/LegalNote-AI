@@ -2063,7 +2063,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Optional sync context from request body
-      const { caseId, deadline } = req.body || {};
+      const { caseId, deadline, notes, priority } = req.body || {};
 
       // Create signed OAuth state with sync context
       const statePayload: OAuthStatePayload = {
@@ -2079,6 +2079,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         statePayload.syncContext = {
           caseId, // UUID string - no parsing needed
           deadline: new Date(deadline).toISOString(),
+          notes: notes || undefined,
+          priority: priority || 'normal',
         };
       }
 
@@ -2188,7 +2190,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // If sync context exists, attempt to create calendar event immediately
         if (stateData.syncContext) {
-          const { caseId, deadline } = stateData.syncContext;
+          const { caseId, deadline, notes, priority } = stateData.syncContext;
           
           try {
             // Get case data for event details
@@ -2214,6 +2216,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     clientName: caseData.clientName,
                     matterReference: caseData.matterReference || undefined,
                     deadline: new Date(deadline),
+                    notes: notes || undefined,
+                    priority: priority || 'normal',
                   },
                   storage
                 );
@@ -2398,12 +2402,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/cases/:id/sync-calendar", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const { provider } = req.body;
+      const { provider, notes, priority } = req.body;
 
       console.log('[SYNC] Calendar sync requested:', {
         caseId: req.params.id,
         userId,
         provider,
+        hasNotes: !!notes,
+        priority,
       });
 
       if (!provider || (provider !== 'google' && provider !== 'outlook')) {
@@ -2426,6 +2432,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Case must have a deadline to sync to calendar" });
       }
 
+      // Prepare event data with notes and priority
+      const eventData = {
+        caseId: req.params.id,
+        title: caseData.title,
+        clientName: caseData.clientName,
+        matterReference: caseData.matterReference || undefined,
+        deadline: new Date(caseData.deadline),
+        notes: notes || caseData.textNotes || undefined,
+        priority: priority || caseData.priority || 'normal',
+      };
+
       // Check if event already exists for this provider
       const existingEvent = await storage.getCalendarEventByProvider(req.params.id, userId, provider);
 
@@ -2433,13 +2450,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingEvent) {
         console.log('[SYNC] Updating existing calendar event:', existingEvent.providerEventId);
         // Update existing event
-        result = await updateCalendarEvent(userId, provider, existingEvent.providerEventId, {
-          caseId: req.params.id,
-          title: caseData.title,
-          clientName: caseData.clientName,
-          matterReference: caseData.matterReference || undefined,
-          deadline: new Date(caseData.deadline),
-        }, storage);
+        result = await updateCalendarEvent(userId, provider, existingEvent.providerEventId, eventData, storage);
 
         if (result.success) {
           await storage.updateCalendarEvent(existingEvent.id, {
@@ -2449,13 +2460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         console.log('[SYNC] Creating new calendar event');
         // Create new event
-        result = await createCalendarEvent(userId, provider, {
-          caseId: req.params.id,
-          title: caseData.title,
-          clientName: caseData.clientName,
-          matterReference: caseData.matterReference || undefined,
-          deadline: new Date(caseData.deadline),
-        }, storage);
+        result = await createCalendarEvent(userId, provider, eventData, storage);
 
         console.log('[SYNC] Create result:', {
           success: result.success,

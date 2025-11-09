@@ -29,6 +29,8 @@ interface SyncCalendarModalProps {
   caseId: string;
   caseTitle: string;
   deadline: string | null;
+  priority: string;
+  notes: string;
 }
 
 export default function SyncCalendarModal({ 
@@ -36,7 +38,9 @@ export default function SyncCalendarModal({
   onOpenChange, 
   caseId,
   caseTitle,
-  deadline
+  deadline,
+  priority,
+  notes
 }: SyncCalendarModalProps) {
   const [selectedProvider, setSelectedProvider] = useState<'google' | 'outlook' | ''>('');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -143,7 +147,7 @@ export default function SyncCalendarModal({
       const res = await fetch(`/api/cases/${caseId}/sync-calendar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider }),
+        body: JSON.stringify({ provider, notes, priority }),
       });
       if (!res.ok) {
         const error = await res.json();
@@ -222,7 +226,7 @@ export default function SyncCalendarModal({
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ caseId, deadline }),
+          body: JSON.stringify({ caseId, deadline, notes, priority }),
         });
 
         if (!response.ok) {
@@ -275,7 +279,7 @@ export default function SyncCalendarModal({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ caseId, deadline }),
+        body: JSON.stringify({ caseId, deadline, notes, priority }),
       });
 
       if (!response.ok) {
