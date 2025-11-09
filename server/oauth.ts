@@ -304,7 +304,7 @@ export interface OAuthStatePayload {
   createdAt: number;
   // Optional sync context for auto-sync after OAuth
   syncContext?: {
-    caseId: number;
+    caseId: string; // UUID string
     deadline: string; // ISO date string
   };
 }

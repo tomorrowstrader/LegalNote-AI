@@ -2077,7 +2077,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Add sync context if provided
       if (caseId && deadline) {
         statePayload.syncContext = {
-          caseId: parseInt(caseId, 10),
+          caseId, // UUID string - no parsing needed
           deadline: new Date(deadline).toISOString(),
         };
       }
