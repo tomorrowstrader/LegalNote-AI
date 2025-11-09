@@ -118,8 +118,10 @@ export default function OAuthCallback() {
     
     console.log('[OAuth Callback] Navigating to:', redirectPath);
     
-    // Use window.location for more reliable navigation after OAuth
-    window.location.href = redirectPath;
+    // Small delay to ensure toast is queued before navigation
+    setTimeout(() => {
+      window.location.href = redirectPath;
+    }, 200);
   }, [setLocation, toast]);
 
   return (
