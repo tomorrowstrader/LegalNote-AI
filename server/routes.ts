@@ -2220,9 +2220,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 );
 
                 // Update case to mark as synced
-                await storage.updateCase(caseId, stateData.userId, {
+                await storage.updateCase(caseId, {
                   syncToCalendar: provider as 'google' | 'outlook',
-                });
+                }, stateData.userId);
 
                 // Log successful sync
                 await storage.createAuditLog({
