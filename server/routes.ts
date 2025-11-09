@@ -2221,7 +2221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
                 // Update case to mark as synced
                 await storage.updateCase(caseId, {
-                  syncToCalendar: provider as 'google' | 'outlook',
+                  syncToCalendar: true,
                 }, stateData.userId);
 
                 // Log successful sync

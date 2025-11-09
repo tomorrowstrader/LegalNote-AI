@@ -51,7 +51,7 @@ export default function OAuthCallback() {
     
     // If auto-sync was attempted, redirect to the case page
     if (caseId && (syncSuccess || syncError)) {
-      redirectPath = `/cases/${caseId}`;
+      redirectPath = `/case/${caseId}`;
     }
     
     // Show appropriate toast based on sync status
