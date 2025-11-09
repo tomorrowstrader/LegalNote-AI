@@ -392,7 +392,7 @@ function CalendarConnections() {
 
   const disconnectMutation = useMutation({
     mutationFn: async (provider: 'google' | 'outlook') => {
-      const res = await fetch(`/api/oauth/disconnect/${provider}`, {
+      const res = await fetch(`/api/calendar/disconnect/${provider}`, {
         method: 'DELETE',
         credentials: 'include',
       });
