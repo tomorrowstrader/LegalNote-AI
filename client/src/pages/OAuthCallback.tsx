@@ -7,6 +7,9 @@ export default function OAuthCallback() {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('[OAuth Callback] Component mounted');
+    console.log('[OAuth Callback] Current URL:', window.location.href);
+    
     // Parse URL parameters
     const urlParams = new URLSearchParams(window.location.search);
     const calendarConnected = urlParams.get('calendar_connected');
@@ -14,6 +17,15 @@ export default function OAuthCallback() {
     const syncSuccess = urlParams.get('sync_success');
     const syncError = urlParams.get('sync_error');
     const caseId = urlParams.get('case_id');
+    
+    console.log('[OAuth Callback] Parsed params:', {
+      calendarConnected,
+      calendarError,
+      syncSuccess,
+      syncError,
+      caseId,
+      isPopup: !!(window.opener && !window.opener.closed)
+    });
 
     // Check if this is a popup window
     if (window.opener && !window.opener.closed) {
@@ -46,16 +58,28 @@ export default function OAuthCallback() {
     }
 
     // FULL-PAGE REDIRECT FLOW (Mobile)
+    console.log('[OAuth Callback] Full-page redirect flow');
+    
     // Determine where to redirect
-    let redirectPath = '/settings';
+    let redirectPath = '/';
     
     // If auto-sync was attempted, redirect to the case page
     if (caseId && (syncSuccess || syncError)) {
       redirectPath = `/case/${caseId}`;
+      console.log('[OAuth Callback] Redirecting to case page:', redirectPath);
+    } else if (calendarConnected || calendarError) {
+      // If just connecting calendar (no auto-sync), go to settings
+      redirectPath = '/settings';
+      console.log('[OAuth Callback] Redirecting to settings:', redirectPath);
+    } else {
+      // Fallback to dashboard
+      redirectPath = '/';
+      console.log('[OAuth Callback] Fallback redirect to dashboard');
     }
     
     // Show appropriate toast based on sync status
     if (syncSuccess === 'true' && calendarConnected) {
+      console.log('[OAuth Callback] Showing success toast for auto-sync');
       toast({
         title: "Calendar Synced!",
         description: `Connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook'} and synced deadline automatically.`,
@@ -63,6 +87,7 @@ export default function OAuthCallback() {
       });
     } else if (syncError && calendarConnected) {
       // Connected but sync failed - user can retry manually
+      console.log('[OAuth Callback] Showing partial success toast (connected but sync failed)');
       const errorMessages: Record<string, string> = {
         case_not_found: "Case not found. Please try syncing manually.",
         event_creation_failed: "Calendar event creation failed. Please try syncing manually.",
@@ -76,12 +101,14 @@ export default function OAuthCallback() {
       });
     } else if (calendarConnected) {
       // Just connected, no sync attempt
+      console.log('[OAuth Callback] Showing connection success toast');
       toast({
         title: "Calendar Connected",
         description: `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook'}. You can now sync case deadlines.`,
         duration: 5000,
       });
     } else if (calendarError) {
+      console.log('[OAuth Callback] Showing error toast:', calendarError);
       toast({
         title: "Connection Failed",
         description: calendarError,
@@ -89,7 +116,10 @@ export default function OAuthCallback() {
       });
     }
     
-    setLocation(redirectPath);
+    console.log('[OAuth Callback] Navigating to:', redirectPath);
+    
+    // Use window.location for more reliable navigation after OAuth
+    window.location.href = redirectPath;
   }, [setLocation, toast]);
 
   return (
