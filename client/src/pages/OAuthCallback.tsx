@@ -40,56 +40,16 @@ export default function OAuthCallback() {
     }
 
     // FULL-PAGE REDIRECT FLOW (Mobile)
-    // Check for saved context from before OAuth redirect
-    const savedContext = sessionStorage.getItem('calendar-oauth-context');
+    // Clear any saved context
+    sessionStorage.removeItem('calendar-oauth-context');
+    sessionStorage.removeItem('calendar-auto-sync');
     
-    if (savedContext) {
-      try {
-        const context = JSON.parse(savedContext);
-        const { caseId, caseTitle, provider } = context;
-        
-        // Clear the saved context
-        sessionStorage.removeItem('calendar-oauth-context');
-        
-        if (calendarConnected) {
-          // Success! Store auto-sync flag and redirect to case
-          sessionStorage.setItem('calendar-auto-sync', JSON.stringify({
-            caseId,
-            provider: calendarConnected,
-          }));
-          
-          toast({
-            title: "Calendar Connected",
-            description: `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook'}. Syncing deadline...`,
-            duration: 4000,
-          });
-          
-          setLocation(`/cases/${caseId}`);
-        } else if (calendarError) {
-          toast({
-            title: "Connection Failed",
-            description: calendarError,
-            variant: "destructive",
-          });
-          
-          setLocation(`/cases/${caseId}`);
-        } else {
-          // No error, no success - redirect to case anyway
-          setLocation(`/cases/${caseId}`);
-        }
-        
-        return;
-      } catch (e) {
-        console.error('Failed to parse calendar OAuth context:', e);
-      }
-    }
-    
-    // No context, no popup - default redirect to settings
+    // Show success/error toast and redirect to settings
     if (calendarConnected) {
       toast({
         title: "Calendar Connected",
-        description: `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook'}`,
-        duration: 3000,
+        description: `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook'}. You can now sync case deadlines.`,
+        duration: 5000,
       });
     } else if (calendarError) {
       toast({

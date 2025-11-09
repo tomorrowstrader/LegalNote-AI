@@ -123,61 +123,6 @@ export default function CaseDetail() {
     }
   }, [processingStatus?.status, caseData?.status, caseId]);
 
-  // Auto-sync to calendar after OAuth redirect (mobile flow)
-  useEffect(() => {
-    const autoSyncData = sessionStorage.getItem('calendar-auto-sync');
-    
-    if (autoSyncData && caseId) {
-      try {
-        const { caseId: syncCaseId, provider } = JSON.parse(autoSyncData);
-        
-        // Only sync if this is the correct case
-        if (syncCaseId === caseId) {
-          // Clear the flag
-          sessionStorage.removeItem('calendar-auto-sync');
-          
-          // Trigger sync immediately (mutation is defined above)
-          const syncTimeout = setTimeout(() => {
-            fetch(`/api/cases/${caseId}/sync-calendar`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ provider }),
-            })
-              .then(async (res) => {
-                if (!res.ok) {
-                  const error = await res.json();
-                  throw new Error(error.message || 'Failed to sync calendar');
-                }
-                return res.json();
-              })
-              .then((data) => {
-                queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
-                queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
-                
-                toast({
-                  title: "Calendar Synced",
-                  description: `Case deadline synced to ${data.provider === 'google' ? 'Google Calendar' : 'Outlook'}`,
-                  duration: 6000,
-                });
-              })
-              .catch((error) => {
-                toast({
-                  title: "Sync Failed",
-                  description: error.message || "Failed to sync to calendar",
-                  variant: "destructive",
-                });
-              });
-          }, 1000);
-          
-          return () => clearTimeout(syncTimeout);
-        }
-      } catch (e) {
-        console.error('Failed to parse calendar auto-sync data:', e);
-        sessionStorage.removeItem('calendar-auto-sync');
-      }
-    }
-  }, [caseId, toast]);
-
   // Check if there's a valid consent log (consentGiven === true)
   const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
   
@@ -227,38 +172,6 @@ export default function CaseDetail() {
         duration: 8000,
       });
     },
-  });
-
-  const syncCalendarMutation = useMutation({
-    mutationFn: async (provider: 'google' | 'outlook') => {
-      const res = await fetch(`/api/cases/${caseId}/sync-calendar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider }),
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || 'Failed to sync calendar');
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
-      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
-      
-      toast({
-        title: "Calendar Synced",
-        description: `Case deadline synced to ${data.provider === 'google' ? 'Google Calendar' : 'Outlook'}`,
-        duration: 6000,
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Sync Failed",
-        description: error.message || "Failed to sync to calendar",
-        variant: "destructive",
-      });
-    }
   });
 
   if (isLoading) {
