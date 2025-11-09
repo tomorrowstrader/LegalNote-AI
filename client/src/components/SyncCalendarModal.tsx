@@ -61,7 +61,13 @@ export default function SyncCalendarModal({
 
       // Check if message is from OAuth callback
       if (event.data?.source === 'calendar-oauth-callback' && event.data?.success) {
-        const { provider } = event.data;
+        const { provider, syncSuccess, syncError, caseId: messageCaseId } = event.data;
+        
+        // Defensive: verify the popup's caseId matches the currently open case (prevent cross-case races)
+        if (messageCaseId && messageCaseId !== caseId) {
+          console.warn('OAuth callback caseId mismatch - ignoring message');
+          return;
+        }
         
         setIsConnecting(false);
         
@@ -70,24 +76,49 @@ export default function SyncCalendarModal({
           popupRef.current.close();
         }
 
-        toast({
-          title: "Calendar Connected",
-          description: `Successfully connected ${provider === 'google' ? 'Google Calendar' : 'Outlook'}`,
-          duration: 3000,
-        });
-
         // Refetch connections to update UI
         refetchConnections();
 
-        // Set the provider and automatically sync
-        setSelectedProvider(provider);
-        
-        // Auto-sync after brief delay
-        setTimeout(() => {
-          if (deadline) {
-            syncMutation.mutate(provider);
-          }
-        }, 500);
+        // Check if auto-sync was successful
+        if (syncSuccess) {
+          // Auto-sync succeeded!
+          queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId] });
+          
+          toast({
+            title: "Calendar Synced!",
+            description: `Connected ${provider === 'google' ? 'Google Calendar' : 'Outlook'} and synced deadline automatically.`,
+            duration: 6000,
+          });
+          
+          // Close modal
+          onOpenChange(false);
+        } else if (syncError) {
+          // Auto-sync failed, but connection succeeded
+          const errorMessages: Record<string, string> = {
+            case_not_found: "Case not found.",
+            event_creation_failed: "Calendar event creation failed.",
+            unknown: "Auto-sync failed.",
+          };
+          
+          toast({
+            title: "Calendar Connected",
+            description: `${errorMessages[syncError] || "Auto-sync failed."} You can try syncing manually.`,
+            duration: 8000,
+          });
+          
+          // Set the provider so user can retry manually
+          setSelectedProvider(provider);
+        } else {
+          // Just connected, no sync attempt (shouldn't happen with our new flow)
+          toast({
+            title: "Calendar Connected",
+            description: `Successfully connected ${provider === 'google' ? 'Google Calendar' : 'Outlook'}`,
+            duration: 3000,
+          });
+          
+          setSelectedProvider(provider);
+        }
       } else if (event.data?.source === 'calendar-oauth-callback' && event.data?.error) {
         setIsConnecting(false);
         
@@ -105,7 +136,7 @@ export default function SyncCalendarModal({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [deadline, refetchConnections, toast]);
+  }, [caseId, onOpenChange, refetchConnections, toast]);
 
   const syncMutation = useMutation({
     mutationFn: async (provider: 'google' | 'outlook') => {

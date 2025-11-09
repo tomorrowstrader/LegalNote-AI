@@ -11,16 +11,22 @@ export default function OAuthCallback() {
     const urlParams = new URLSearchParams(window.location.search);
     const calendarConnected = urlParams.get('calendar_connected');
     const calendarError = urlParams.get('calendar_error');
+    const syncSuccess = urlParams.get('sync_success');
+    const syncError = urlParams.get('sync_error');
+    const caseId = urlParams.get('case_id');
 
     // Check if this is a popup window
     if (window.opener && !window.opener.closed) {
       // POPUP FLOW (Desktop)
       if (calendarConnected) {
-        // Send success message to parent window
+        // Send success message to parent window (includes sync status)
         window.opener.postMessage({
           source: 'calendar-oauth-callback',
           success: true,
           provider: calendarConnected,
+          syncSuccess: syncSuccess === 'true',
+          syncError,
+          caseId,
         }, window.location.origin);
       } else if (calendarError) {
         // Send error message to parent window
@@ -40,12 +46,36 @@ export default function OAuthCallback() {
     }
 
     // FULL-PAGE REDIRECT FLOW (Mobile)
-    // Clear any saved context
-    sessionStorage.removeItem('calendar-oauth-context');
-    sessionStorage.removeItem('calendar-auto-sync');
+    // Determine where to redirect
+    let redirectPath = '/settings';
     
-    // Show success/error toast and redirect to settings
-    if (calendarConnected) {
+    // If auto-sync was attempted, redirect to the case page
+    if (caseId && (syncSuccess || syncError)) {
+      redirectPath = `/cases/${caseId}`;
+    }
+    
+    // Show appropriate toast based on sync status
+    if (syncSuccess === 'true' && calendarConnected) {
+      toast({
+        title: "Calendar Synced!",
+        description: `Connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook'} and synced deadline automatically.`,
+        duration: 6000,
+      });
+    } else if (syncError && calendarConnected) {
+      // Connected but sync failed - user can retry manually
+      const errorMessages: Record<string, string> = {
+        case_not_found: "Case not found. Please try syncing manually.",
+        event_creation_failed: "Calendar event creation failed. Please try syncing manually.",
+        unknown: "Auto-sync failed. Please try syncing manually.",
+      };
+      
+      toast({
+        title: "Calendar Connected",
+        description: errorMessages[syncError] || "Connected successfully, but auto-sync failed. Please sync manually.",
+        duration: 8000,
+      });
+    } else if (calendarConnected) {
+      // Just connected, no sync attempt
       toast({
         title: "Calendar Connected",
         description: `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook'}. You can now sync case deadlines.`,
@@ -59,7 +89,7 @@ export default function OAuthCallback() {
       });
     }
     
-    setLocation('/settings');
+    setLocation(redirectPath);
   }, [setLocation, toast]);
 
   return (
