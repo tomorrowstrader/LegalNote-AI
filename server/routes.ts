@@ -29,6 +29,10 @@ import {
   exchangeGoogleCode,
   exchangeMicrosoftCode,
   generateOAuthState,
+  signOAuthState,
+  verifyOAuthState,
+  generateSecureNonce,
+  type OAuthStatePayload,
 } from "./oauth";
 import bcrypt from "bcrypt";
 
@@ -2047,7 +2051,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // OAuth Calendar Integration Routes
   
   // Initiate OAuth flow for calendar provider
-  app.get("/api/calendar/auth/:provider", isAuthenticated, async (req: any, res, next) => {
+  // Accepts optional sync context (caseId, deadline) for auto-sync after OAuth
+  app.post("/api/calendar/auth/:provider", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const provider = req.params.provider;
@@ -2057,14 +2062,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid provider. Must be 'google' or 'outlook'" });
       }
 
-      // Generate and store OAuth state for CSRF protection
-      const state = generateOAuthState();
-      oauthStateStore.set(state, {
+      // Optional sync context from request body
+      const { caseId, deadline } = req.body || {};
+
+      // Create signed OAuth state with sync context
+      const statePayload: OAuthStatePayload = {
         userId,
-        provider,
-        createdAt: Date.now(),
+        provider: provider as 'google' | 'outlook',
         popup,
-      });
+        nonce: generateSecureNonce(),
+        createdAt: Date.now(),
+      };
+
+      // Add sync context if provided
+      if (caseId && deadline) {
+        statePayload.syncContext = {
+          caseId: parseInt(caseId, 10),
+          deadline: new Date(deadline).toISOString(),
+        };
+      }
+
+      // Sign the state token
+      const signedState = signOAuthState(statePayload);
 
       // Get base URL from request
       const protocol = req.headers['x-forwarded-proto'] || 'https';
@@ -2076,10 +2095,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (provider === 'google') {
           const client = createGoogleOAuthClient(baseUrl);
-          authUrl = getGoogleAuthUrl(client, state);
+          authUrl = getGoogleAuthUrl(client, signedState);
         } else {
           const client = createMicrosoftOAuthClient(baseUrl);
-          authUrl = await getMicrosoftAuthUrl(client, `${baseUrl}/api/calendar/callback/outlook`, state);
+          authUrl = await getMicrosoftAuthUrl(client, `${baseUrl}/api/calendar/callback/outlook`, signedState);
         }
 
         // Return auth URL for frontend to redirect
@@ -2099,7 +2118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // OAuth callback handler
+  // OAuth callback handler with auto-sync support
   app.get("/api/calendar/callback/:provider", async (req: any, res, next) => {
     try {
       const provider = req.params.provider;
@@ -2107,9 +2126,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Always redirect to /oauth/callback - it handles both popup and mobile flows
       const redirectBase = '/oauth/callback';
-
-      // Early state validation
-      const stateData = oauthStateStore.get(state as string);
 
       // Check for OAuth errors
       if (oauthError) {
@@ -2120,13 +2136,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.redirect(`${redirectBase}?calendar_error=missing_code_or_state`);
       }
 
-      // Verify state (CSRF protection)
+      // Verify and decode signed state token
+      const stateData = verifyOAuthState(state as string);
+      
       if (!stateData) {
+        console.error('Invalid or expired OAuth state token');
         return res.redirect(`${redirectBase}?calendar_error=invalid_state`);
       }
-
-      // Remove used state
-      oauthStateStore.delete(state as string);
 
       // Verify provider matches
       if (stateData.provider !== provider) {
@@ -2170,7 +2186,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
           severity: 'info',
         });
 
-        // Redirect with success message
+        // If sync context exists, attempt to create calendar event immediately
+        if (stateData.syncContext) {
+          const { caseId, deadline } = stateData.syncContext;
+          
+          try {
+            // Get case data for event details
+            const caseData = await storage.getCase(caseId, stateData.userId);
+            
+            if (!caseData) {
+              console.error(`Case ${caseId} not found for auto-sync`);
+              return res.redirect(`${redirectBase}?calendar_connected=${provider}&sync_error=case_not_found`);
+            }
+
+            // Create calendar event with retry logic
+            const maxRetries = 3;
+            let lastError: any = null;
+            
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+              try {
+                await createCalendarEvent(
+                  storage,
+                  stateData.userId,
+                  provider as 'google' | 'outlook',
+                  {
+                    title: `${caseData.clientName} - ${caseData.caseType}`,
+                    description: `Case deadline for ${caseData.clientName}`,
+                    startTime: new Date(deadline),
+                    endTime: new Date(new Date(deadline).getTime() + 60 * 60 * 1000), // 1 hour duration
+                    caseId,
+                  },
+                  baseUrl
+                );
+
+                // Update case to mark as synced
+                await storage.updateCase(caseId, stateData.userId, {
+                  syncToCalendar: provider as 'google' | 'outlook',
+                });
+
+                // Log successful sync
+                await storage.createAuditLog({
+                  eventType: 'calendar_event_created',
+                  userId: stateData.userId,
+                  caseId,
+                  metadata: {
+                    provider,
+                    eventTitle: `${caseData.clientName} - ${caseData.caseType}`,
+                    deadline: deadline,
+                    autoSync: true,
+                  },
+                  severity: 'info',
+                });
+
+                // Success! Redirect to case page with success message
+                return res.redirect(`${redirectBase}?calendar_connected=${provider}&sync_success=true&case_id=${caseId}`);
+              } catch (error: any) {
+                lastError = error;
+                console.error(`Calendar event creation attempt ${attempt}/${maxRetries} failed:`, error);
+                
+                // Exponential backoff: wait before retry
+                if (attempt < maxRetries) {
+                  await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+                }
+              }
+            }
+
+            // All retries failed
+            console.error(`Calendar event creation failed after ${maxRetries} attempts:`, lastError);
+            return res.redirect(`${redirectBase}?calendar_connected=${provider}&sync_error=event_creation_failed&case_id=${caseId}`);
+          } catch (error: any) {
+            console.error('Auto-sync error:', error);
+            return res.redirect(`${redirectBase}?calendar_connected=${provider}&sync_error=unknown&case_id=${caseId}`);
+          }
+        }
+
+        // No sync context - just redirect with connection success
         res.redirect(`${redirectBase}?calendar_connected=${provider}`);
       } catch (error: any) {
         console.error(`OAuth token exchange failed for ${provider}:`, error);
