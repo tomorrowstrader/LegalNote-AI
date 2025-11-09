@@ -185,19 +185,13 @@ export default function SyncCalendarModal({
 
     // MOBILE: Use full-page redirect (no popup blockers!)
     if (isMobile()) {
-      // Save context to sessionStorage so we can restore after OAuth
-      sessionStorage.setItem('calendar-oauth-context', JSON.stringify({
-        caseId,
-        caseTitle,
-        deadline,
-        provider,
-        returnUrl: window.location.pathname,
-      }));
-
       try {
-        // Get auth URL and do full-page redirect
+        // POST with sync context - backend will handle auto-sync after OAuth
         const response = await fetch(`/api/calendar/auth/${provider}`, {
+          method: 'POST',
           credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ caseId, deadline }),
         });
 
         if (!response.ok) {
@@ -209,9 +203,6 @@ export default function SyncCalendarModal({
         // Full-page redirect (works on all mobile browsers!)
         window.location.href = authUrl;
       } catch (error) {
-        // Clean up saved context on error
-        sessionStorage.removeItem('calendar-oauth-context');
-        
         setIsConnecting(false);
         toast({
           title: "Connection Error",
@@ -248,9 +239,12 @@ export default function SyncCalendarModal({
     popupRef.current = popup;
 
     try {
-      // NOW do the async fetch (popup is already open)
+      // POST with sync context - backend will handle auto-sync after OAuth
       const response = await fetch(`/api/calendar/auth/${provider}?popup=true`, {
+        method: 'POST',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caseId, deadline }),
       });
 
       if (!response.ok) {
