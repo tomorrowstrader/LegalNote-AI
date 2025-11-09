@@ -165,7 +165,16 @@ async function createGoogleCalendarEvent(
   storage: IStorage
 ): Promise<CalendarSyncResult> {
   try {
-    const { token } = await getValidAccessToken(userId, 'google', storage);
+    console.log('[CALENDAR] Starting Google Calendar event creation');
+    console.log('[CALENDAR] User ID:', userId);
+    console.log('[CALENDAR] Event data:', {
+      caseId: data.caseId,
+      title: data.title,
+      deadline: data.deadline.toISOString(),
+    });
+
+    const { token, integration } = await getValidAccessToken(userId, 'google', storage);
+    console.log('[CALENDAR] Got access token for:', integration.email);
 
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: token });
@@ -192,10 +201,14 @@ async function createGoogleCalendarEvent(
       },
     };
 
+    console.log('[CALENDAR] Calling Google Calendar API to insert event...');
     const response = await calendar.events.insert({
       calendarId: 'primary',
       requestBody: event,
     });
+
+    console.log('[CALENDAR] ✅ Event created successfully! Event ID:', response.data.id);
+    console.log('[CALENDAR] Event link:', response.data.htmlLink);
 
     return {
       success: true,
@@ -203,6 +216,13 @@ async function createGoogleCalendarEvent(
       eventId: response.data.id || undefined,
     };
   } catch (error: any) {
+    console.error('[CALENDAR] ❌ Failed to create Google Calendar event:', error.message);
+    console.error('[CALENDAR] Error details:', {
+      code: error.code,
+      status: error.status,
+      errors: error.errors,
+      stack: error.stack,
+    });
     return {
       success: false,
       provider: 'google',

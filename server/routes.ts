@@ -2386,6 +2386,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const { provider } = req.body;
 
+      console.log('[SYNC] Calendar sync requested:', {
+        caseId: req.params.id,
+        userId,
+        provider,
+      });
+
       if (!provider || (provider !== 'google' && provider !== 'outlook')) {
         return res.status(400).json({ message: "Invalid provider. Must be 'google' or 'outlook'" });
       }
@@ -2395,6 +2401,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!caseData) {
         return res.status(404).json({ message: "Case not found" });
       }
+
+      console.log('[SYNC] Case found:', {
+        title: caseData.title,
+        deadline: caseData.deadline?.toISOString(),
+      });
 
       // Check if case has a deadline
       if (!caseData.deadline) {
@@ -2406,6 +2417,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let result;
       if (existingEvent) {
+        console.log('[SYNC] Updating existing calendar event:', existingEvent.providerEventId);
         // Update existing event
         result = await updateCalendarEvent(userId, provider, existingEvent.providerEventId, {
           caseId: req.params.id,
@@ -2421,6 +2433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       } else {
+        console.log('[SYNC] Creating new calendar event');
         // Create new event
         result = await createCalendarEvent(userId, provider, {
           caseId: req.params.id,
@@ -2430,7 +2443,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           deadline: new Date(caseData.deadline),
         }, storage);
 
+        console.log('[SYNC] Create result:', {
+          success: result.success,
+          eventId: result.eventId,
+          error: result.error,
+        });
+
         if (result.success && result.eventId) {
+          console.log('[SYNC] Saving calendar event to database');
           await storage.createCalendarEvent({
             caseId: req.params.id,
             userId: userId,
@@ -2442,6 +2462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (result.success) {
+        console.log('[SYNC] ✅ Calendar sync successful');
         // Update case to mark calendar sync enabled
         await storage.updateCase(req.params.id, { syncToCalendar: true }, userId);
 
@@ -2453,6 +2474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         res.json({ success: true, provider: result.provider });
       } else {
+        console.error('[SYNC] ❌ Calendar sync failed:', result.error);
         await logAuditEvent(userId, "calendar_sync_failed", {
           caseId: req.params.id,
           metadata: { provider, error: result.error },
@@ -2466,6 +2488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
     } catch (error: any) {
+      console.error('[SYNC] ❌ Exception during sync:', error);
       next(error);
     }
   });
