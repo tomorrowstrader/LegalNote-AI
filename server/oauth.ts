@@ -2,6 +2,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { ConfidentialClientApplication, AuthorizationUrlRequest, AuthorizationCodeRequest } from '@azure/msal-node';
 import type { IStorage } from './storage';
 import type { InsertCalendarIntegration } from '@shared/schema';
+import crypto from 'crypto';
 
 // OAuth scopes for calendar access
 const GOOGLE_SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
@@ -293,8 +294,94 @@ export async function ensureFreshToken(
 }
 
 /**
- * Generate a random state parameter for CSRF protection
+ * OAuth state payload that can include sync context
+ */
+export interface OAuthStatePayload {
+  userId: string;
+  provider: 'google' | 'outlook';
+  popup: boolean;
+  nonce: string;
+  createdAt: number;
+  // Optional sync context for auto-sync after OAuth
+  syncContext?: {
+    caseId: number;
+    deadline: string; // ISO date string
+  };
+}
+
+/**
+ * Generate a cryptographically secure random nonce
+ */
+export function generateSecureNonce(): string {
+  return crypto.randomBytes(16).toString('base64url');
+}
+
+/**
+ * Sign OAuth state payload using HMAC
+ */
+export function signOAuthState(payload: OAuthStatePayload): string {
+  const secret = process.env.SESSION_SECRET || 'default-oauth-secret-change-in-production';
+  
+  // JSON stringify the payload
+  const payloadJson = JSON.stringify(payload);
+  const payloadBase64 = Buffer.from(payloadJson).toString('base64url');
+  
+  // Create HMAC signature
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(payloadBase64);
+  const signature = hmac.digest('base64url');
+  
+  // Return signed token: payload.signature
+  return `${payloadBase64}.${signature}`;
+}
+
+/**
+ * Verify and decode OAuth state token
+ */
+export function verifyOAuthState(signedToken: string): OAuthStatePayload | null {
+  try {
+    const secret = process.env.SESSION_SECRET || 'default-oauth-secret-change-in-production';
+    
+    // Split token into payload and signature
+    const parts = signedToken.split('.');
+    if (parts.length !== 2) {
+      return null;
+    }
+    
+    const [payloadBase64, signature] = parts;
+    
+    // Verify signature
+    const hmac = crypto.createHmac('sha256', secret);
+    hmac.update(payloadBase64);
+    const expectedSignature = hmac.digest('base64url');
+    
+    if (signature !== expectedSignature) {
+      console.error('OAuth state signature mismatch');
+      return null;
+    }
+    
+    // Decode payload
+    const payloadJson = Buffer.from(payloadBase64, 'base64url').toString('utf-8');
+    const payload: OAuthStatePayload = JSON.parse(payloadJson);
+    
+    // Verify token age (expire after 10 minutes)
+    const tenMinutes = 10 * 60 * 1000;
+    if (Date.now() - payload.createdAt > tenMinutes) {
+      console.error('OAuth state expired');
+      return null;
+    }
+    
+    return payload;
+  } catch (error) {
+    console.error('Failed to verify OAuth state:', error);
+    return null;
+  }
+}
+
+/**
+ * Generate a random state parameter for CSRF protection (legacy - use signOAuthState instead)
+ * @deprecated Use signOAuthState for better security
  */
 export function generateOAuthState(): string {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  return crypto.randomBytes(16).toString('base64url');
 }
