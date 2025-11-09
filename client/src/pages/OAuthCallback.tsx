@@ -1,10 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function OAuthCallback() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [showPopupConfirmation, setShowPopupConfirmation] = useState(false);
 
   useEffect(() => {
     console.log('[OAuth Callback] Component mounted');
@@ -49,10 +52,8 @@ export default function OAuthCallback() {
         }, window.location.origin);
       }
 
-      // Close popup after brief delay to ensure message is received
-      setTimeout(() => {
-        window.close();
-      }, 100);
+      // Show confirmation page instead of auto-closing
+      setShowPopupConfirmation(true);
       
       return;
     }
@@ -124,11 +125,44 @@ export default function OAuthCallback() {
     }, 200);
   }, [setLocation, toast]);
 
+  // Popup confirmation page (desktop flow)
+  if (showPopupConfirmation) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const syncSuccess = urlParams.get('sync_success') === 'true';
+    const calendarConnected = urlParams.get('calendar_connected');
+    
+    return (
+      <div className="flex items-center justify-center min-h-screen p-6">
+        <div className="text-center max-w-md space-y-4">
+          <div className="flex justify-center">
+            <CheckCircle2 className="w-16 h-16 text-green-600" />
+          </div>
+          <h2 className="text-2xl font-semibold">
+            {syncSuccess ? "Deadline Added to Calendar!" : "Calendar Connected!"}
+          </h2>
+          <p className="text-muted-foreground">
+            {syncSuccess 
+              ? `Your deadline has been successfully added to your ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook calendar'}.`
+              : `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook'}. You can now sync case deadlines.`
+            }
+          </p>
+          <Button 
+            onClick={() => window.close()}
+            className="mt-4"
+            data-testid="button-close-popup"
+          >
+            Close Window
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="text-center">
         <h2 className="text-lg font-semibold mb-2">Completing connection...</h2>
-        <p className="text-muted-foreground">This window will close automatically</p>
+        <p className="text-muted-foreground">Please wait...</p>
       </div>
     </div>
   );

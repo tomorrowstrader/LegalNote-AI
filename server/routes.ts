@@ -2063,7 +2063,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Optional sync context from request body
-      const { caseId, deadline, notes, priority } = req.body || {};
+      const { caseId, deadline, notes, priority, isAllDay } = req.body || {};
 
       // Create signed OAuth state with sync context
       const statePayload: OAuthStatePayload = {
@@ -2081,6 +2081,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           deadline: new Date(deadline).toISOString(),
           notes: notes || undefined,
           priority: priority || 'normal',
+          isAllDay: isAllDay || false,
         };
       }
 
@@ -2190,7 +2191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // If sync context exists, attempt to create calendar event immediately
         if (stateData.syncContext) {
-          const { caseId, deadline, notes, priority } = stateData.syncContext;
+          const { caseId, deadline, notes, priority, isAllDay } = stateData.syncContext;
           
           try {
             // Get case data for event details
@@ -2218,6 +2219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     deadline: new Date(deadline),
                     notes: notes || undefined,
                     priority: priority || 'normal',
+                    isAllDay: isAllDay || false,
                   },
                   storage
                 );
@@ -2402,7 +2404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/cases/:id/sync-calendar", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const { provider, notes, priority } = req.body;
+      const { provider, notes, priority, isAllDay } = req.body;
 
       console.log('[SYNC] Calendar sync requested:', {
         caseId: req.params.id,
@@ -2410,6 +2412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         provider,
         hasNotes: !!notes,
         priority,
+        isAllDay,
       });
 
       if (!provider || (provider !== 'google' && provider !== 'outlook')) {
@@ -2432,7 +2435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Case must have a deadline to sync to calendar" });
       }
 
-      // Prepare event data with notes and priority
+      // Prepare event data with notes, priority, and isAllDay flag
       const eventData = {
         caseId: req.params.id,
         title: caseData.title,
@@ -2441,6 +2444,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         deadline: new Date(caseData.deadline),
         notes: notes || caseData.textNotes || undefined,
         priority: priority || caseData.priority || 'normal',
+        isAllDay: isAllDay !== undefined ? isAllDay : false,
       };
 
       // Check if event already exists for this provider

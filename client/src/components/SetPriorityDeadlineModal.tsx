@@ -51,6 +51,7 @@ export default function SetPriorityDeadlineModal({
   const [deadline, setDeadline] = useState<Date | undefined>(
     currentDeadline ? new Date(currentDeadline) : undefined
   );
+  const [deadlineTime, setDeadlineTime] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [showSyncCalendarModal, setShowSyncCalendarModal] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -60,7 +61,27 @@ export default function SetPriorityDeadlineModal({
   useEffect(() => {
     if (open) {
       setPriority(currentPriority);
-      setDeadline(currentDeadline ? new Date(currentDeadline) : undefined);
+      
+      if (currentDeadline) {
+        const date = new Date(currentDeadline);
+        setDeadline(date);
+        
+        // Extract time if it exists
+        // Check UTC time to avoid timezone issues (all-day deadlines are stored at midnight UTC)
+        const hasTime = date.getUTCHours() !== 0 || date.getUTCMinutes() !== 0 || date.getUTCSeconds() !== 0;
+        if (hasTime) {
+          // Show time in local timezone for user convenience
+          const hours = date.getHours().toString().padStart(2, '0');
+          const minutes = date.getMinutes().toString().padStart(2, '0');
+          setDeadlineTime(`${hours}:${minutes}`);
+        } else {
+          setDeadlineTime("");
+        }
+      } else {
+        setDeadline(undefined);
+        setDeadlineTime("");
+      }
+      
       setNotes("");
     }
   }, [open, currentPriority, currentDeadline]);
@@ -124,9 +145,20 @@ export default function SetPriorityDeadlineModal({
       return;
     }
     
+    // Combine date and time if both are set
+    let finalDeadline: Date | null = null;
+    if (deadline) {
+      finalDeadline = new Date(deadline);
+      if (deadlineTime) {
+        const [hours, minutes] = deadlineTime.split(':').map(Number);
+        finalDeadline.setHours(hours, minutes, 0, 0);
+      }
+      // If no time specified, it will remain as a date-only (all-day event)
+    }
+    
     updateCaseMutation.mutate({
       priority,
-      deadline: deadline ? deadline.toISOString() : null,
+      deadline: finalDeadline ? finalDeadline.toISOString() : null,
       textNotes: notes || undefined,
     });
   };
@@ -134,6 +166,7 @@ export default function SetPriorityDeadlineModal({
   const handleCancel = () => {
     setPriority("");
     setDeadline(undefined);
+    setDeadlineTime("");
     setNotes("");
     onOpenChange(false);
   };
@@ -193,6 +226,38 @@ export default function SetPriorityDeadlineModal({
             </Popover>
           </div>
 
+          {deadline && (
+            <div className="space-y-2">
+              <Label htmlFor="deadline-time">Time (Optional)</Label>
+              <Select value={deadlineTime} onValueChange={setDeadlineTime}>
+                <SelectTrigger id="deadline-time" data-testid="select-deadline-time">
+                  <SelectValue placeholder="All day (no specific time)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All day (no specific time)</SelectItem>
+                  {Array.from({ length: 24 }, (_, hour) => {
+                    const times = [0, 30].map(min => {
+                      const h = hour.toString().padStart(2, '0');
+                      const m = min.toString().padStart(2, '0');
+                      const timeValue = `${h}:${m}`;
+                      const displayTime = new Date(2000, 0, 1, hour, min).toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit',
+                        hour12: true 
+                      });
+                      return (
+                        <SelectItem key={timeValue} value={timeValue}>
+                          {displayTime}
+                        </SelectItem>
+                      );
+                    });
+                    return times;
+                  }).flat()}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="deadline-notes">Notes (Optional)</Label>
             <Textarea
@@ -235,6 +300,7 @@ export default function SetPriorityDeadlineModal({
         deadline={deadline?.toISOString() || null}
         priority={priority}
         notes={notes}
+        isAllDay={!deadlineTime}
       />
     </Dialog>
   );

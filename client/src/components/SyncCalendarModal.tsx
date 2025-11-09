@@ -31,6 +31,7 @@ interface SyncCalendarModalProps {
   deadline: string | null;
   priority: string;
   notes: string;
+  isAllDay: boolean;
 }
 
 export default function SyncCalendarModal({ 
@@ -40,7 +41,8 @@ export default function SyncCalendarModal({
   caseTitle,
   deadline,
   priority,
-  notes
+  notes,
+  isAllDay
 }: SyncCalendarModalProps) {
   const [selectedProvider, setSelectedProvider] = useState<'google' | 'outlook' | ''>('');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -147,7 +149,7 @@ export default function SyncCalendarModal({
       const res = await fetch(`/api/cases/${caseId}/sync-calendar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, notes, priority }),
+        body: JSON.stringify({ provider, notes, priority, isAllDay }),
       });
       if (!res.ok) {
         const error = await res.json();
@@ -226,7 +228,7 @@ export default function SyncCalendarModal({
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ caseId, deadline, notes, priority }),
+          body: JSON.stringify({ caseId, deadline, notes, priority, isAllDay }),
         });
 
         if (!response.ok) {
@@ -279,7 +281,7 @@ export default function SyncCalendarModal({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ caseId, deadline, notes, priority }),
+        body: JSON.stringify({ caseId, deadline, notes, priority, isAllDay }),
       });
 
       if (!response.ok) {

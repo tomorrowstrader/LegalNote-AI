@@ -308,6 +308,7 @@ export interface OAuthStatePayload {
     deadline: string; // ISO date string
     notes?: string; // Optional deadline notes
     priority?: string; // urgent | deadline-soon | normal
+    isAllDay?: boolean; // True if deadline has no specific time
   };
 }
 

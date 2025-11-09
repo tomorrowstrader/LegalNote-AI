@@ -44,7 +44,8 @@ function Router() {
           <Route path="/admin" component={AdminDashboard} />
         </>
       )}
-      <Route component={NotFound} />
+      {/* Only show 404 after auth is resolved to prevent flash during OAuth callback */}
+      {!isLoading && <Route component={NotFound} />}
     </Switch>
   );
 }

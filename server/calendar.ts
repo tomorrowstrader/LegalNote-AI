@@ -13,6 +13,7 @@ export interface CalendarEventData {
   description?: string;
   notes?: string;
   priority?: string; // urgent | deadline-soon | normal
+  isAllDay?: boolean; // True if deadline has no specific time
 }
 
 export interface CalendarSyncResult {
@@ -189,6 +190,8 @@ async function createGoogleCalendarEvent(
       caseId: data.caseId,
       title: data.title,
       deadline: data.deadline.toISOString(),
+      priority: data.priority,
+      isAllDay: data.isAllDay,
     });
 
     const { token, integration } = await getValidAccessToken(userId, 'google', storage);
@@ -199,25 +202,49 @@ async function createGoogleCalendarEvent(
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-    const event = {
+    // Get priority-based reminders
+    const reminderMinutes = getReminders(data.priority);
+    
+    const event: any = {
       summary: `Deadline: ${data.title}`,
       description: formatEventDescription(data),
-      start: {
-        dateTime: data.deadline.toISOString(),
-        timeZone: 'Europe/London',
-      },
-      end: {
-        dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(),
-        timeZone: 'Europe/London',
-      },
       reminders: {
         useDefault: false,
-        overrides: [
-          { method: 'email', minutes: 24 * 60 },
-          { method: 'popup', minutes: 60 },
-        ],
+        overrides: reminderMinutes.map(minutes => ({
+          method: 'popup',
+          minutes,
+        })),
       },
     };
+
+    if (data.isAllDay) {
+      // All-day event - Google requires end date to be the next day (exclusive)
+      // Format in local timezone to avoid UTC shifting
+      const formatLocalDate = (d: Date) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      const dateStr = formatLocalDate(data.deadline);
+      const endDate = new Date(data.deadline);
+      endDate.setDate(endDate.getDate() + 1);
+      const endDateStr = formatLocalDate(endDate);
+      
+      event.start = { date: dateStr };
+      event.end = { date: endDateStr };
+    } else {
+      // Timed event
+      event.start = {
+        dateTime: data.deadline.toISOString(),
+        timeZone: 'Europe/London',
+      };
+      event.end = {
+        dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(),
+        timeZone: 'Europe/London',
+      };
+    }
 
     console.log('[CALENDAR] Calling Google Calendar API to insert event...');
     const response = await calendar.events.insert({
@@ -263,25 +290,49 @@ async function updateGoogleCalendarEvent(
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-    const event = {
+    // Get priority-based reminders
+    const reminderMinutes = getReminders(data.priority);
+    
+    const event: any = {
       summary: `Deadline: ${data.title}`,
       description: formatEventDescription(data),
-      start: {
-        dateTime: data.deadline.toISOString(),
-        timeZone: 'Europe/London',
-      },
-      end: {
-        dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(),
-        timeZone: 'Europe/London',
-      },
       reminders: {
         useDefault: false,
-        overrides: [
-          { method: 'email', minutes: 24 * 60 },
-          { method: 'popup', minutes: 60 },
-        ],
+        overrides: reminderMinutes.map(minutes => ({
+          method: 'popup',
+          minutes,
+        })),
       },
     };
+
+    if (data.isAllDay) {
+      // All-day event - Google requires end date to be the next day (exclusive)
+      // Format in local timezone to avoid UTC shifting
+      const formatLocalDate = (d: Date) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      const dateStr = formatLocalDate(data.deadline);
+      const endDate = new Date(data.deadline);
+      endDate.setDate(endDate.getDate() + 1);
+      const endDateStr = formatLocalDate(endDate);
+      
+      event.start = { date: dateStr };
+      event.end = { date: endDateStr };
+    } else {
+      // Timed event
+      event.start = {
+        dateTime: data.deadline.toISOString(),
+        timeZone: 'Europe/London',
+      };
+      event.end = {
+        dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(),
+        timeZone: 'Europe/London',
+      };
+    }
 
     await calendar.events.update({
       calendarId: 'primary',
