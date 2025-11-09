@@ -2205,19 +2205,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             for (let attempt = 1; attempt <= maxRetries; attempt++) {
               try {
-                await createCalendarEvent(
-                  storage,
+                const result = await createCalendarEvent(
                   stateData.userId,
                   provider as 'google' | 'outlook',
                   {
-                    title: `${caseData.clientName} - ${caseData.caseType}`,
-                    description: `Case deadline for ${caseData.clientName}`,
-                    startTime: new Date(deadline),
-                    endTime: new Date(new Date(deadline).getTime() + 60 * 60 * 1000), // 1 hour duration
                     caseId,
+                    title: caseData.title,
+                    clientName: caseData.clientName,
+                    matterReference: caseData.matterReference || undefined,
+                    deadline: new Date(deadline),
                   },
-                  baseUrl
+                  storage
                 );
+
+                if (!result.success) {
+                  throw new Error(result.error || 'Calendar event creation failed');
+                }
+
+                // Save calendar event to database
+                if (result.eventId) {
+                  await storage.createCalendarEvent({
+                    caseId,
+                    userId: stateData.userId,
+                    provider: provider as 'google' | 'outlook',
+                    providerEventId: result.eventId,
+                    eventType: 'deadline',
+                  });
+                }
 
                 // Update case to mark as synced
                 await storage.updateCase(caseId, {
