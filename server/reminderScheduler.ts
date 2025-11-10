@@ -69,29 +69,50 @@ function getReminderTemplates(priority: string, isAllDay: boolean): ReminderTemp
 function applyEightAMFloor(
   reminderTime: DateTime,
   deadline: DateTime,
-  template: ReminderTemplate
+  template: ReminderTemplate,
+  priority: string
 ): DateTime {
-  const eightAMSameDay = deadline.startOf('day').set(FLOOR_TIME);
-  const eightAMPreviousDay = eightAMSameDay.minus({ days: 1 });
+  const deadlineDay = deadline.startOf('day');
+  const reminderDay = reminderTime.startOf('day');
+  const eightAMDeadlineDay = deadlineDay.set(FLOOR_TIME);
+  const eightAMReminderDay = reminderDay.set(FLOOR_TIME);
   
-  // If calculated reminder is after 8am and before deadline, use it
-  if (reminderTime >= eightAMSameDay && reminderTime < deadline) {
+  // Check if reminder is on a different day than deadline
+  const isPreviousDay = reminderDay < deadlineDay;
+  
+  // If reminder is on previous day and already >= 8am on that day, keep it
+  if (isPreviousDay && reminderTime >= eightAMReminderDay) {
     return reminderTime;
   }
   
-  // If deadline is before 8am same day, we need special handling
-  if (deadline < eightAMSameDay) {
-    // For 5-hour reminders on early deadlines, use 11am previous day
-    // This keeps it distinct from the 24h reminder at 8am previous day
-    if (template.hoursBeforeDeadline === 5) {
+  // If reminder is on previous day but before 8am on that day, clamp to 8am
+  if (isPreviousDay && reminderTime < eightAMReminderDay) {
+    return eightAMReminderDay;
+  }
+  
+  // Reminder is on same day as deadline
+  // If calculated reminder is after 8am and before deadline, use it
+  if (reminderTime >= eightAMDeadlineDay && reminderTime < deadline) {
+    return reminderTime;
+  }
+  
+  // If deadline itself is before 8am, use previous day
+  if (deadline < eightAMDeadlineDay) {
+    const previousDay = deadlineDay.minus({ days: 1 });
+    const eightAMPreviousDay = previousDay.set(FLOOR_TIME);
+    
+    // For 5-hour reminders on early deadlines with urgent/deadline-soon priority,
+    // use 11am previous day to keep it distinct from 24h reminder at 8am
+    const isUrgent = priority === 'urgent' || priority === 'deadline-soon';
+    if (template.hoursBeforeDeadline === 5 && isUrgent) {
       return eightAMPreviousDay.set({ hour: 11, minute: 0 });
     }
-    // For 24-hour reminders, use 8am previous day
+    // For other cases (including normal priority), use 8am previous day
     return eightAMPreviousDay;
   }
   
   // Otherwise clamp to 8am same day
-  return eightAMSameDay;
+  return eightAMDeadlineDay;
 }
 
 /**
@@ -99,7 +120,8 @@ function applyEightAMFloor(
  */
 function materializeTemplate(
   template: ReminderTemplate,
-  deadline: DateTime
+  deadline: DateTime,
+  priority: string
 ): { time: DateTime; provenance: string } {
   let reminderTime: DateTime;
   let provenance: string;
@@ -117,7 +139,7 @@ function materializeTemplate(
   } else if (template.hoursBeforeDeadline) {
     // Calculated time template (for timed events)
     const calculated = deadline.minus({ hours: template.hoursBeforeDeadline });
-    reminderTime = applyEightAMFloor(calculated, deadline, template);
+    reminderTime = applyEightAMFloor(calculated, deadline, template, priority);
     
     provenance = `${template.hoursBeforeDeadline}h before (clamped to 8am floor)`;
   } else {
@@ -156,7 +178,7 @@ export function computeReminderSchedule(params: {
   
   // Materialize templates into concrete reminder times
   const materializedReminders = templates.map(template => 
-    materializeTemplate(template, deadline)
+    materializeTemplate(template, deadline, priority)
   );
   
   // Deduplicate reminders (keep first occurrence of each unique time)
