@@ -93,7 +93,7 @@ export default function SetPriorityDeadlineModal({
   ];
 
   const updateCaseMutation = useMutation({
-    mutationFn: async (data: { priority: string; deadline: string | null; textNotes?: string }) => {
+    mutationFn: async (data: { priority: string; deadline: string | null; deadlineIsAllDay?: boolean; textNotes?: string }) => {
       const res = await fetch(`/api/cases/${caseId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -147,6 +147,8 @@ export default function SetPriorityDeadlineModal({
     
     // Combine date and time if both are set
     let finalDeadline: Date | null = null;
+    const isAllDay = !deadlineTime; // All-day if no time is specified
+    
     if (deadline) {
       finalDeadline = new Date(deadline);
       if (deadlineTime) {
@@ -159,6 +161,7 @@ export default function SetPriorityDeadlineModal({
     updateCaseMutation.mutate({
       priority,
       deadline: finalDeadline ? finalDeadline.toISOString() : null,
+      deadlineIsAllDay: finalDeadline ? isAllDay : undefined,
       textNotes: notes || undefined,
     });
   };

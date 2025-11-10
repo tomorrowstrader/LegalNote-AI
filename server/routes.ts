@@ -651,7 +651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/cases/:id", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const { priority, deadline, textNotes } = req.body;
+      const { priority, deadline, deadlineIsAllDay, textNotes } = req.body;
       
       // Get current case to verify access
       const currentCase = await storage.getCase(req.params.id, userId);
@@ -663,9 +663,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates: any = {};
       if (priority !== undefined) updates.priority = priority;
       if (deadline !== undefined) {
-        // Convert deadline string to Date object for Drizzle
-        updates.deadline = deadline ? new Date(deadline) : null;
+        if (deadline) {
+          const deadlineDate = new Date(deadline);
+          // Normalize all-day deadlines to start of day (midnight UTC)
+          if (deadlineIsAllDay) {
+            deadlineDate.setUTCHours(0, 0, 0, 0);
+          }
+          updates.deadline = deadlineDate;
+        } else {
+          updates.deadline = null;
+        }
       }
+      if (deadlineIsAllDay !== undefined) updates.deadlineIsAllDay = deadlineIsAllDay;
       if (textNotes !== undefined) updates.textNotes = textNotes;
       
       // Update the case
