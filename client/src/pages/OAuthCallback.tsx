@@ -52,8 +52,14 @@ export default function OAuthCallback() {
         }, window.location.origin);
       }
 
-      // Show confirmation page instead of auto-closing
-      setShowPopupConfirmation(true);
+      // Redirect to confirmation page for calendar sync
+      if (syncSuccess || syncError) {
+        const confirmationUrl = `/calendar-sync-confirmation?provider=${calendarConnected}&success=${syncSuccess === 'true'}`;
+        setLocation(confirmationUrl, { replace: true });
+      } else {
+        // Just calendar connection, show old confirmation
+        setShowPopupConfirmation(true);
+      }
       
       return;
     }
@@ -64,10 +70,10 @@ export default function OAuthCallback() {
     // Determine where to redirect
     let redirectPath = '/';
     
-    // If auto-sync was attempted, redirect to the case page
+    // If auto-sync was attempted, redirect to confirmation page
     if (caseId && (syncSuccess || syncError)) {
-      redirectPath = `/case/${caseId}`;
-      console.log('[OAuth Callback] Redirecting to case page:', redirectPath);
+      redirectPath = `/calendar-sync-confirmation?provider=${calendarConnected}&success=${syncSuccess === 'true'}`;
+      console.log('[OAuth Callback] Redirecting to confirmation page:', redirectPath);
     } else if (calendarConnected || calendarError) {
       // If just connecting calendar (no auto-sync), go to settings
       redirectPath = '/settings';
@@ -78,29 +84,8 @@ export default function OAuthCallback() {
       console.log('[OAuth Callback] Fallback redirect to dashboard');
     }
     
-    // Show appropriate toast based on sync status
-    if (syncSuccess === 'true' && calendarConnected) {
-      console.log('[OAuth Callback] Showing success toast for auto-sync');
-      toast({
-        title: "Calendar Synced!",
-        description: `Connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook'} and synced deadline automatically.`,
-        duration: 6000,
-      });
-    } else if (syncError && calendarConnected) {
-      // Connected but sync failed - user can retry manually
-      console.log('[OAuth Callback] Showing partial success toast (connected but sync failed)');
-      const errorMessages: Record<string, string> = {
-        case_not_found: "Case not found. Please try syncing manually.",
-        event_creation_failed: "Calendar event creation failed. Please try syncing manually.",
-        unknown: "Auto-sync failed. Please try syncing manually.",
-      };
-      
-      toast({
-        title: "Calendar Connected",
-        description: errorMessages[syncError] || "Connected successfully, but auto-sync failed. Please sync manually.",
-        duration: 8000,
-      });
-    } else if (calendarConnected) {
+    // Show appropriate toast based on sync status (only for non-sync flows)
+    if (calendarConnected && !syncSuccess && !syncError) {
       // Just connected, no sync attempt
       console.log('[OAuth Callback] Showing connection success toast');
       toast({

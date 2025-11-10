@@ -19,6 +19,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import Landing from "@/pages/Landing";
 import ShareLinkView from "@/pages/ShareLinkView";
 import OAuthCallback from "@/pages/OAuthCallback";
+import CalendarSyncConfirmation from "@/pages/CalendarSyncConfirmation";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -29,6 +30,7 @@ function Router() {
       {/* Public routes (accessible without authentication) */}
       <Route path="/share/:linkId" component={ShareLinkView} />
       <Route path="/oauth/callback" component={OAuthCallback} />
+      <Route path="/calendar-sync-confirmation" component={CalendarSyncConfirmation} />
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
