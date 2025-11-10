@@ -3,7 +3,9 @@
 ## Overview
 LegalNote AI is a professional legal documentation platform for solicitors and law firms. It enables legal professionals to record client meetings, automatically generate attendance notes, legal opinions, and searchable transcripts, while ensuring GDPR compliance, client consent management, and professional document workflows with firm branding on all exports. The project aims to provide an efficient and compliant solution for legal document creation and management, offering a secure and streamlined way to manage legal documentation and client interactions.
 
-## Recent Changes (November 2, 2025)
+## Recent Changes (November 10, 2025)
+- **Template-Based Reminder System**: Implemented production-grade reminder scheduler using Luxon for DST-safe, timezone-aware calendar reminders with Europe/London handling. Features template-based rules (no calculate-then-clamp edge cases), smart fallback for early morning deadlines (<8am), automatic deduplication, and 8am floor constraint to prevent early notifications. Priority-based schedules: Normal (1 reminder), Urgent/Deadline-Soon (2 reminders with distinct times).
+- **Calendar Sync Confirmation Page**: Added dedicated confirmation page after successful calendar sync (desktop popup and mobile flows) with clear success messaging and navigation back to case.
 - **Password Protection Security Enhancement**: Share link passwords now use bcrypt hashing (10 salt rounds) with automatic migration of legacy plaintext passwords on first successful login
 - **Calendar Sync Integration**: Fixed calendar sync workflow - users can now sync case deadlines directly to Google Calendar or Outlook after setting a deadline (previously only navigated to settings page)
 - **Quick Note Transcription**: Added dedicated `/api/transcribe` endpoint for Quick Notes feature with OpenAI Whisper integration
@@ -58,11 +60,11 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 
 - **UI & Styling**: Tailwind CSS, custom CSS variables, Google Fonts (Inter, JetBrains Mono).
 - **Form Management**: React Hook Form with Hookform Resolvers, Zod for validation.
-- **Date Handling**: date-fns.
+- **Date Handling**: date-fns (frontend), Luxon (backend timezone-aware operations).
 - **Icons**: Lucide React.
 - **Audio Recording & Storage**: MediaRecorder API, Replit Object Storage with presigned URL uploads (Uppy + AWS S3), GDPR-compliant retention policy.
 - **AI Services**: OpenAI Whisper API (transcription), GPT-4o (document generation).
 - **Email Service**: Resend API for professional transactional emails.
 - **SMS Service**: Twilio API for platform-level SMS two-factor authentication.
-- **Calendar Integration**: Google Calendar API (googleapis package) and Microsoft Graph API (@microsoft/microsoft-graph-client package) for bidirectional calendar sync with OAuth 2.0 authentication.
+- **Calendar Integration**: Google Calendar API (googleapis package) and Microsoft Graph API (@microsoft/microsoft-graph-client package) for bidirectional calendar sync with OAuth 2.0 authentication. Template-based reminder scheduler with Europe/London timezone handling and DST support.
 - **Document Export**: jsPDF (PDF generation), docx (Word document generation).
