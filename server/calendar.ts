@@ -219,18 +219,27 @@ async function createGoogleCalendarEvent(
 
     if (data.isAllDay) {
       // All-day event - Google requires end date to be the next day (exclusive)
-      // Format in local timezone to avoid UTC shifting
+      // Format in Europe/London timezone to match user's location
       const formatLocalDate = (d: Date) => {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
+        const formatter = new Intl.DateTimeFormat('en-GB', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          timeZone: 'Europe/London'
+        });
+        const parts = formatter.formatToParts(d);
+        const year = parts.find(p => p.type === 'year')!.value;
+        const month = parts.find(p => p.type === 'month')!.value;
+        const day = parts.find(p => p.type === 'day')!.value;
         return `${year}-${month}-${day}`;
       };
       
       const dateStr = formatLocalDate(data.deadline);
-      const endDate = new Date(data.deadline);
-      endDate.setDate(endDate.getDate() + 1);
-      const endDateStr = formatLocalDate(endDate);
+      
+      // Add one calendar day (not 24 hours!) to handle DST transitions correctly
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const nextDay = new Date(year, month - 1, day + 1); // month is 0-indexed
+      const endDateStr = formatLocalDate(nextDay);
       
       event.start = { date: dateStr };
       event.end = { date: endDateStr };
@@ -307,18 +316,27 @@ async function updateGoogleCalendarEvent(
 
     if (data.isAllDay) {
       // All-day event - Google requires end date to be the next day (exclusive)
-      // Format in local timezone to avoid UTC shifting
+      // Format in Europe/London timezone to match user's location
       const formatLocalDate = (d: Date) => {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
+        const formatter = new Intl.DateTimeFormat('en-GB', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          timeZone: 'Europe/London'
+        });
+        const parts = formatter.formatToParts(d);
+        const year = parts.find(p => p.type === 'year')!.value;
+        const month = parts.find(p => p.type === 'month')!.value;
+        const day = parts.find(p => p.type === 'day')!.value;
         return `${year}-${month}-${day}`;
       };
       
       const dateStr = formatLocalDate(data.deadline);
-      const endDate = new Date(data.deadline);
-      endDate.setDate(endDate.getDate() + 1);
-      const endDateStr = formatLocalDate(endDate);
+      
+      // Add one calendar day (not 24 hours!) to handle DST transitions correctly
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const nextDay = new Date(year, month - 1, day + 1); // month is 0-indexed
+      const endDateStr = formatLocalDate(nextDay);
       
       event.start = { date: dateStr };
       event.end = { date: endDateStr };
@@ -385,6 +403,20 @@ async function deleteGoogleCalendarEvent(
   }
 }
 
+// Outlook reminder mapping (Outlook only supports ONE reminder)
+// Use closest-to-deadline reminder for each priority level
+function getOutlookReminderMinutes(priority: string): number {
+  switch (priority) {
+    case 'urgent':
+      return 60; // 1 hour before (closest to deadline)
+    case 'deadline-soon':
+      return 120; // 2 hours before
+    case 'normal':
+    default:
+      return 1440; // 1 day before
+  }
+}
+
 // Outlook Calendar operations
 async function createOutlookCalendarEvent(
   userId: string,
@@ -400,23 +432,60 @@ async function createOutlookCalendarEvent(
       },
     });
 
-    const event = {
+    // Format date in Europe/London timezone for all-day events
+    const formatLocalDate = (d: Date) => {
+      const formatter = new Intl.DateTimeFormat('en-GB', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        timeZone: 'Europe/London'
+      });
+      const parts = formatter.formatToParts(d);
+      const year = parts.find(p => p.type === 'year')!.value;
+      const month = parts.find(p => p.type === 'month')!.value;
+      const day = parts.find(p => p.type === 'day')!.value;
+      return `${year}-${month}-${day}`;
+    };
+
+    const event: any = {
       subject: `Deadline: ${data.title}`,
       body: {
         contentType: 'Text',
         content: formatEventDescription(data),
       },
-      start: {
-        dateTime: data.deadline.toISOString(),
-        timeZone: 'GMT Standard Time',
-      },
-      end: {
-        dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(),
-        timeZone: 'GMT Standard Time',
-      },
       isReminderOn: true,
-      reminderMinutesBeforeStart: 60,
+      reminderMinutesBeforeStart: getOutlookReminderMinutes(data.priority || 'normal'),
     };
+
+    if (data.isAllDay) {
+      // All-day event - Outlook requires isAllDay: true and midnight-to-midnight time range
+      const dateStr = formatLocalDate(data.deadline);
+      
+      // Add one calendar day (not 24 hours!) to handle DST transitions correctly
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const nextDay = new Date(year, month - 1, day + 1); // month is 0-indexed
+      const endDateStr = formatLocalDate(nextDay);
+      
+      event.isAllDay = true;
+      event.start = {
+        dateTime: `${dateStr}T00:00:00`,
+        timeZone: 'Europe/London',
+      };
+      event.end = {
+        dateTime: `${endDateStr}T00:00:00`,
+        timeZone: 'Europe/London',
+      };
+    } else {
+      // Timed event
+      event.start = {
+        dateTime: data.deadline.toISOString(),
+        timeZone: 'Europe/London',
+      };
+      event.end = {
+        dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(),
+        timeZone: 'Europe/London',
+      };
+    }
 
     const response = await client.api('/me/events').post(event);
 
@@ -449,23 +518,60 @@ async function updateOutlookCalendarEvent(
       },
     });
 
-    const event = {
+    // Format date in Europe/London timezone for all-day events
+    const formatLocalDate = (d: Date) => {
+      const formatter = new Intl.DateTimeFormat('en-GB', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        timeZone: 'Europe/London'
+      });
+      const parts = formatter.formatToParts(d);
+      const year = parts.find(p => p.type === 'year')!.value;
+      const month = parts.find(p => p.type === 'month')!.value;
+      const day = parts.find(p => p.type === 'day')!.value;
+      return `${year}-${month}-${day}`;
+    };
+
+    const event: any = {
       subject: `Deadline: ${data.title}`,
       body: {
         contentType: 'Text',
         content: formatEventDescription(data),
       },
-      start: {
-        dateTime: data.deadline.toISOString(),
-        timeZone: 'GMT Standard Time',
-      },
-      end: {
-        dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(),
-        timeZone: 'GMT Standard Time',
-      },
       isReminderOn: true,
-      reminderMinutesBeforeStart: 60,
+      reminderMinutesBeforeStart: getOutlookReminderMinutes(data.priority || 'normal'),
     };
+
+    if (data.isAllDay) {
+      // All-day event - Outlook requires isAllDay: true and midnight-to-midnight time range
+      const dateStr = formatLocalDate(data.deadline);
+      
+      // Add one calendar day (not 24 hours!) to handle DST transitions correctly
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const nextDay = new Date(year, month - 1, day + 1); // month is 0-indexed
+      const endDateStr = formatLocalDate(nextDay);
+      
+      event.isAllDay = true;
+      event.start = {
+        dateTime: `${dateStr}T00:00:00`,
+        timeZone: 'Europe/London',
+      };
+      event.end = {
+        dateTime: `${endDateStr}T00:00:00`,
+        timeZone: 'Europe/London',
+      };
+    } else {
+      // Timed event
+      event.start = {
+        dateTime: data.deadline.toISOString(),
+        timeZone: 'Europe/London',
+      };
+      event.end = {
+        dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(),
+        timeZone: 'Europe/London',
+      };
+    }
 
     await client.api(`/me/events/${eventId}`).patch(event);
 

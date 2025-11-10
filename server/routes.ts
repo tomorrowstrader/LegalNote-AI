@@ -663,16 +663,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates: any = {};
       if (priority !== undefined) updates.priority = priority;
       if (deadline !== undefined) {
-        if (deadline) {
-          const deadlineDate = new Date(deadline);
-          // Normalize all-day deadlines to start of day (midnight UTC)
-          if (deadlineIsAllDay) {
-            deadlineDate.setUTCHours(0, 0, 0, 0);
-          }
-          updates.deadline = deadlineDate;
-        } else {
-          updates.deadline = null;
-        }
+        // Store deadline as-is without normalization
+        // The deadlineIsAllDay flag indicates how to interpret the timestamp
+        updates.deadline = deadline ? new Date(deadline) : null;
       }
       if (deadlineIsAllDay !== undefined) updates.deadlineIsAllDay = deadlineIsAllDay;
       if (textNotes !== undefined) updates.textNotes = textNotes;

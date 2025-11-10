@@ -29,6 +29,7 @@ interface CaseCardProps {
   priority?: "urgent" | "deadline-soon" | "normal";
   audioExpiresIn?: number;
   deadline?: string | null;
+  deadlineIsAllDay?: boolean;
   reviewed?: boolean;
 }
 
@@ -42,6 +43,7 @@ export default function CaseCard({
   priority = "normal",
   audioExpiresIn,
   deadline = null,
+  deadlineIsAllDay = false,
   reviewed = false
 }: CaseCardProps) {
   const [, setLocation] = useLocation();
@@ -315,6 +317,7 @@ export default function CaseCard({
         caseTitle={title}
         currentPriority={priority}
         currentDeadline={deadline}
+        currentDeadlineIsAllDay={deadlineIsAllDay}
       />
 
       <ShareLinkModal

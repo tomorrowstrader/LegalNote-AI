@@ -37,6 +37,7 @@ interface SetPriorityDeadlineModalProps {
   caseTitle: string;
   currentPriority?: string;
   currentDeadline?: string | null;
+  currentDeadlineIsAllDay?: boolean;
 }
 
 export default function SetPriorityDeadlineModal({ 
@@ -45,7 +46,8 @@ export default function SetPriorityDeadlineModal({
   caseId,
   caseTitle,
   currentPriority = "normal",
-  currentDeadline = null
+  currentDeadline = null,
+  currentDeadlineIsAllDay = false
 }: SetPriorityDeadlineModalProps) {
   const [priority, setPriority] = useState<string>(currentPriority);
   const [deadline, setDeadline] = useState<Date | undefined>(
@@ -66,15 +68,14 @@ export default function SetPriorityDeadlineModal({
         const date = new Date(currentDeadline);
         setDeadline(date);
         
-        // Extract time if it exists
-        // Check UTC time to avoid timezone issues (all-day deadlines are stored at midnight UTC)
-        const hasTime = date.getUTCHours() !== 0 || date.getUTCMinutes() !== 0 || date.getUTCSeconds() !== 0;
-        if (hasTime) {
-          // Show time in local timezone for user convenience
+        // Use explicit deadlineIsAllDay flag instead of inferring from timestamp
+        if (!currentDeadlineIsAllDay) {
+          // Timed deadline - show time in local timezone
           const hours = date.getHours().toString().padStart(2, '0');
           const minutes = date.getMinutes().toString().padStart(2, '0');
           setDeadlineTime(`${hours}:${minutes}`);
         } else {
+          // All-day deadline - no time
           setDeadlineTime("");
         }
       } else {
@@ -84,7 +85,7 @@ export default function SetPriorityDeadlineModal({
       
       setNotes("");
     }
-  }, [open, currentPriority, currentDeadline]);
+  }, [open, currentPriority, currentDeadline, currentDeadlineIsAllDay]);
 
   const priorityOptions = [
     { value: "urgent", label: "Urgent - Action Required", color: "text-destructive" },
