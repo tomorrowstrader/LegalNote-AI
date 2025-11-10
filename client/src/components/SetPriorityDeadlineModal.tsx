@@ -233,12 +233,12 @@ export default function SetPriorityDeadlineModal({
           {deadline && (
             <div className="space-y-2">
               <Label htmlFor="deadline-time">Time (Optional)</Label>
-              <Select value={deadlineTime} onValueChange={setDeadlineTime}>
+              <Select value={deadlineTime || "all-day"} onValueChange={(value) => setDeadlineTime(value === "all-day" ? "" : value)}>
                 <SelectTrigger id="deadline-time" data-testid="select-deadline-time">
                   <SelectValue placeholder="All day (no specific time)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All day (no specific time)</SelectItem>
+                  <SelectItem value="all-day">All day (no specific time)</SelectItem>
                   {Array.from({ length: 24 }, (_, hour) => {
                     const times = [0, 30].map(min => {
                       const h = hour.toString().padStart(2, '0');
