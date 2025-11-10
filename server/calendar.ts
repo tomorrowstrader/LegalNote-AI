@@ -2,6 +2,7 @@ import { google } from 'googleapis';
 import { Client } from '@microsoft/microsoft-graph-client';
 import type { IStorage } from './storage';
 import type { CalendarIntegration } from '@shared/schema';
+import { computeReminderSchedule, selectOutlookReminder } from './reminderScheduler';
 
 // Calendar integration types
 export interface CalendarEventData {
@@ -39,133 +40,6 @@ function formatEventDescription(data: CalendarEventData): string {
   return description;
 }
 
-/**
- * Compute reminder schedule with 8am floor constraint
- * Returns absolute reminder times and minutes-before-event for Google Calendar
- */
-function computeReminderSchedule(params: {
-  deadline: Date;
-  isAllDay: boolean;
-  priority: string;
-}): { reminderTimes: Date[]; minutesBefore: number[] } {
-  const { deadline, isAllDay, priority } = params;
-  const reminderTimes: Date[] = [];
-
-  // Helper: Get date at 8am in Europe/London timezone
-  const getEightAM = (date: Date): Date => {
-    const result = new Date(date);
-    result.setHours(8, 0, 0, 0);
-    return result;
-  };
-
-  // Helper: Apply 8am floor to reminder, using previous day if deadline is too early
-  const applyEightAMFloor = (reminderTime: Date, deadline: Date): Date => {
-    const deadlineDay = new Date(deadline);
-    deadlineDay.setHours(0, 0, 0, 0);
-    
-    const eightAMSameDay = getEightAM(deadlineDay);
-    const previousDay = new Date(deadlineDay);
-    previousDay.setDate(previousDay.getDate() - 1);
-    const eightAMPreviousDay = getEightAM(previousDay);
-    
-    // If calculated reminder is after 8am same day and before deadline, use it
-    if (reminderTime >= eightAMSameDay && reminderTime < deadline) {
-      return reminderTime;
-    }
-    
-    // If deadline is before 8am same day, we MUST use previous day
-    if (deadline <= eightAMSameDay) {
-      return eightAMPreviousDay;
-    }
-    
-    // Otherwise clamp to 8am same day (calculated reminder was too early)
-    return eightAMSameDay;
-  };
-
-  if (isAllDay) {
-    // All-day events: Treat as occurring at 5pm for reminder calculation purposes
-    // This ensures 8am reminders are genuinely "before" the event
-    const deadlineDay = new Date(deadline);
-    deadlineDay.setHours(17, 0, 0, 0); // 5pm on deadline day
-    
-    const effectiveDeadline = deadlineDay;
-
-    if (priority === 'normal') {
-      // 1 reminder: 8am on deadline day (9 hours before 5pm)
-      const reminderDay = new Date(effectiveDeadline);
-      reminderDay.setHours(0, 0, 0, 0);
-      reminderTimes.push(getEightAM(reminderDay));
-    } else {
-      // 'deadline-soon' or 'urgent': 8am 2 days before + 8am on deadline day
-      const reminderDay = new Date(effectiveDeadline);
-      reminderDay.setHours(0, 0, 0, 0);
-      
-      const twoDaysBefore = new Date(reminderDay);
-      twoDaysBefore.setDate(twoDaysBefore.getDate() - 2);
-      reminderTimes.push(getEightAM(twoDaysBefore));
-      reminderTimes.push(getEightAM(reminderDay));
-    }
-    
-    // For all-day events, calculate minutes from the 5pm effective time
-    const minutesBefore = reminderTimes.map(reminderTime => {
-      const diffMs = effectiveDeadline.getTime() - reminderTime.getTime();
-      return Math.max(0, Math.floor(diffMs / (60 * 1000)));
-    });
-    
-    return { reminderTimes, minutesBefore };
-  } else {
-    // Timed event - calculate based on deadline time with 8am floor
-    if (priority === 'normal') {
-      // 1 reminder: 5 hours before, not earlier than 8am on deadline day
-      const fiveHoursBefore = new Date(deadline.getTime() - 5 * 60 * 60 * 1000);
-      reminderTimes.push(applyEightAMFloor(fiveHoursBefore, deadline));
-    } else {
-      // 'deadline-soon' or 'urgent': 24h before + 5h before (both with 8am floors)
-      
-      // 24 hours before - apply 8am floor
-      const twentyFourHoursBefore = new Date(deadline.getTime() - 24 * 60 * 60 * 1000);
-      const reminder24h = applyEightAMFloor(twentyFourHoursBefore, deadline);
-      reminderTimes.push(reminder24h);
-      
-      // 5 hours before - apply 8am floor
-      const fiveHoursBefore = new Date(deadline.getTime() - 5 * 60 * 60 * 1000);
-      const reminder5h = applyEightAMFloor(fiveHoursBefore, deadline);
-      
-      // Only add if different from 24h reminder (avoid duplicates)
-      if (reminder5h.getTime() !== reminder24h.getTime()) {
-        reminderTimes.push(reminder5h);
-      }
-    }
-    
-    // Convert to minutes-before-event for Google Calendar API
-    const minutesBefore = reminderTimes.map(reminderTime => {
-      const diffMs = deadline.getTime() - reminderTime.getTime();
-      return Math.max(0, Math.floor(diffMs / (60 * 1000)));
-    });
-
-    return { reminderTimes, minutesBefore };
-  }
-}
-
-/**
- * Select single reminder for Outlook (which only supports one reminder)
- * Returns the closest reminder to the deadline in minutes
- */
-function selectOutlookReminder(reminderTimes: Date[], deadline: Date): number {
-  if (reminderTimes.length === 0) {
-    return 60; // Default 1 hour
-  }
-  
-  // Pick the closest reminder to deadline
-  const closestReminder = reminderTimes.reduce((closest, current) => {
-    const closestDiff = Math.abs(deadline.getTime() - closest.getTime());
-    const currentDiff = Math.abs(deadline.getTime() - current.getTime());
-    return currentDiff < closestDiff ? current : closest;
-  });
-  
-  const diffMs = deadline.getTime() - closestReminder.getTime();
-  return Math.max(0, Math.floor(diffMs / (60 * 1000)));
-}
 
 // Token refresh for Google
 async function refreshGoogleToken(
@@ -560,11 +434,13 @@ async function createOutlookCalendarEvent(
     };
 
     // Compute time-based reminders with 8am floor constraint
-    const { reminderTimes } = computeReminderSchedule({
+    const schedule = computeReminderSchedule({
       deadline: data.deadline,
       isAllDay: data.isAllDay || false,
       priority: data.priority || 'normal',
     });
+
+    const outlookReminder = selectOutlookReminder(schedule);
 
     const event: any = {
       subject: `Deadline: ${data.title}`,
@@ -572,8 +448,8 @@ async function createOutlookCalendarEvent(
         contentType: 'Text',
         content: formatEventDescription(data),
       },
-      isReminderOn: true,
-      reminderMinutesBeforeStart: selectOutlookReminder(reminderTimes, data.deadline),
+      isReminderOn: outlookReminder !== null,
+      reminderMinutesBeforeStart: outlookReminder?.minutes || 60,
     };
 
     if (data.isAllDay) {
@@ -653,11 +529,13 @@ async function updateOutlookCalendarEvent(
     };
 
     // Compute time-based reminders with 8am floor constraint
-    const { reminderTimes } = computeReminderSchedule({
+    const schedule = computeReminderSchedule({
       deadline: data.deadline,
       isAllDay: data.isAllDay || false,
       priority: data.priority || 'normal',
     });
+
+    const outlookReminder = selectOutlookReminder(schedule);
 
     const event: any = {
       subject: `Deadline: ${data.title}`,
@@ -665,8 +543,8 @@ async function updateOutlookCalendarEvent(
         contentType: 'Text',
         content: formatEventDescription(data),
       },
-      isReminderOn: true,
-      reminderMinutesBeforeStart: selectOutlookReminder(reminderTimes, data.deadline),
+      isReminderOn: outlookReminder !== null,
+      reminderMinutesBeforeStart: outlookReminder?.minutes || 60,
     };
 
     if (data.isAllDay) {
