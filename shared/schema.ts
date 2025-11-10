@@ -41,6 +41,7 @@ export const cases = pgTable("cases", {
   aiProcessingMetadata: jsonb("ai_processing_metadata").default({}), // Tracks tokens, costs, processing status, errors
   deadline: timestamp("deadline"), // Case deadline for calendar sync
   syncToCalendar: boolean("sync_to_calendar").notNull().default(false), // Whether to sync deadline to calendar
+  deadlineIsAllDay: boolean("deadline_is_all_day").notNull().default(false), // Whether deadline is all-day or has specific time
 });
 
 export const audioRecordings = pgTable("audio_recordings", {
