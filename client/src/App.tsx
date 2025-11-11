@@ -16,6 +16,7 @@ import Settings from "@/pages/Settings";
 import MyProfile from "@/pages/MyProfile";
 import AuditLogs from "@/pages/AuditLogs";
 import AdminDashboard from "@/pages/AdminDashboard";
+import SecurityFeatures from "@/pages/SecurityFeatures";
 import Landing from "@/pages/Landing";
 import ShareLinkView from "@/pages/ShareLinkView";
 import OAuthCallback from "@/pages/OAuthCallback";
@@ -44,6 +45,7 @@ function Router() {
           <Route path="/profile" component={MyProfile} />
           <Route path="/audit-logs" component={AuditLogs} />
           <Route path="/admin" component={AdminDashboard} />
+          <Route path="/security" component={SecurityFeatures} />
         </>
       )}
       {/* Only show 404 after auth is resolved to prevent flash during OAuth callback */}

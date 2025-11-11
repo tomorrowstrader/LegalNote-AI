@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Scale, Menu, User, HelpCircle } from "lucide-react";
+import { Scale, Menu, User, HelpCircle, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -94,6 +94,12 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild data-testid="menu-item-audit-logs">
                   <Link href="/audit-logs">Audit Logs</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild data-testid="menu-item-security">
+                  <Link href="/security">
+                    <Shield className="w-4 h-4 mr-2" />
+                    Security & Compliance
+                  </Link>
                 </DropdownMenuItem>
                 {isAdmin && (
                   <>
