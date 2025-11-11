@@ -1,6 +1,9 @@
+import cron from 'node-cron';
 import { jobQueue } from './services/jobQueue';
 import { AIProcessingPipeline } from './services/aiProcessingPipeline';
 import { storage } from './storage';
+import { runGlobalDataRetentionCleanup } from './services/dataRetentionCleanup';
+import { cleanupSessionTracking } from './services/securityMonitor';
 
 /**
  * Initialize job queue workers on server startup
@@ -29,5 +32,39 @@ export function initializeWorkers() {
     }
   });
 
+  // Schedule periodic security and maintenance tasks
+  scheduleMaintenanceTasks();
+
   console.log('[WORKERS] Job queue workers initialized successfully');
+}
+
+/**
+ * Schedule periodic maintenance tasks using cron
+ */
+function scheduleMaintenanceTasks() {
+  // Run data retention cleanup daily at 2:00 AM (Europe/London timezone)
+  // Cron expression: '0 2 * * *' = At minute 0 of hour 2 every day
+  cron.schedule('0 2 * * *', () => {
+    console.log('[CRON] Running daily data retention cleanup at 2 AM');
+    runGlobalDataRetentionCleanup().catch(error => {
+      console.error('[CRON] Data retention cleanup failed:', error);
+    });
+  }, {
+    scheduled: true,
+    timezone: 'Europe/London'
+  });
+
+  // Clean up session tracking every hour at minute 0
+  // Cron expression: '0 * * * *' = At minute 0 of every hour
+  cron.schedule('0 * * * *', () => {
+    console.log('[CRON] Running hourly session tracking cleanup');
+    cleanupSessionTracking();
+  }, {
+    scheduled: true,
+    timezone: 'Europe/London'
+  });
+
+  console.log('[WORKERS] Scheduled maintenance tasks with cron:');
+  console.log('  - Data retention cleanup: Daily at 2:00 AM (Europe/London)');
+  console.log('  - Session tracking cleanup: Hourly at minute :00 (Europe/London)');
 }

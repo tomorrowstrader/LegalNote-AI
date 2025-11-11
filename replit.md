@@ -3,7 +3,16 @@
 ## Overview
 LegalNote AI is a professional legal documentation platform for solicitors and law firms. It enables legal professionals to record client meetings, automatically generate attendance notes, legal opinions, and searchable transcripts, while ensuring GDPR compliance, client consent management, and professional document workflows with firm branding on all exports. The project aims to provide an efficient and compliant solution for legal document creation and management, offering a secure and streamlined way to manage legal documentation and client interactions.
 
-## Recent Changes (November 10, 2025)
+## Recent Changes
+
+### November 11, 2025
+- **Automated Testing Framework**: Implemented comprehensive unit testing with Vitest covering all 7 reminder scheduler scenarios, DST transitions, edge cases, and provenance tracking (18 tests total). Ensures regression prevention and validates DST-safe timezone handling.
+- **Security Monitoring System**: Added failed login attempt tracking with configurable account lockout (5 attempts, 15min lockout), suspicious activity detection (IP changes, concurrent sessions), and comprehensive security event logging.
+- **Audit Log Integrity**: Implemented cryptographic signatures (HMAC-SHA256) for audit logs to detect tampering. Critical for legal compliance - ensures tamper-evident audit trail for all system actions. Enforces AUDIT_LOG_SECRET environment variable in production (throws error if missing).
+- **Automated Data Retention**: Created GDPR-compliant cleanup service using node-cron scheduler that automatically removes expired share links (7-day grace period), old audio files (7-day retention), and manages consent log archival. Scheduled to run daily at 2:00 AM (Europe/London) with hourly session cleanup. **Note**: Audio file deletion requires GCS permissions that must be configured by Replit support - cleanup logic is working but actual deletion may fail without proper infrastructure permissions.
+- **Session Timeout Warnings**: Frontend component monitors user activity and displays warning 5 minutes before 4-hour session timeout, allowing users to extend their session with one click. Session extension properly resets countdown timer to prevent forced logout.
+
+### November 10, 2025
 - **Template-Based Reminder System**: Implemented production-grade reminder scheduler using Luxon for DST-safe, timezone-aware calendar reminders with Europe/London handling. Features template-based rules (no calculate-then-clamp edge cases), smart fallback for early morning deadlines (<8am), automatic deduplication, and 8am floor constraint to prevent early notifications. Priority-based schedules: Normal (1 reminder), Urgent/Deadline-Soon (2 reminders with distinct times).
 - **Calendar Sync Confirmation Page**: Added dedicated confirmation page after successful calendar sync (desktop popup and mobile flows) with clear success messaging and navigation back to case.
 - **Password Protection Security Enhancement**: Share link passwords now use bcrypt hashing (10 salt rounds) with automatic migration of legacy plaintext passwords on first successful login
@@ -49,8 +58,10 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **Input Sanitization**: Zod validation, path traversal prevention, XSS protection, SQL injection prevention (Drizzle ORM), regex validation.
 - **Network Security**: Environment-aware Content Security Policy, CORS, HSTS, security headers (Helmet).
 - **Error Sanitization**: Production errors hide internal details, generic messages, server-side logging.
-- **Audit Logging**: Comprehensive security event tracking (severity, metadata), structured JSON for SIEM integration.
-- **Reliability & Data Protection**: 7-day audio retention policy, automatic/manual retry for API failures, early audio deletion, expiration cleanup, consent documentation.
+- **Audit Logging**: Comprehensive security event tracking (severity, metadata), structured JSON for SIEM integration, cryptographic signatures (HMAC-SHA256) for tamper detection.
+- **Security Monitoring**: Failed login attempt tracking with account lockout (5 attempts, 15min), suspicious activity detection (IP changes, concurrent sessions), automated security event logging.
+- **Session Security**: 4-hour timeout with 5-minute warning, automatic session extension on activity, activity-based tracking.
+- **Reliability & Data Protection**: 7-day audio retention policy, automatic/manual retry for API failures, early audio deletion, expiration cleanup, consent documentation, automated GDPR-compliant data retention cleanup (daily at 2 AM).
 - **Share Link Security**: 
   - **SMS Two-Factor Authentication**: Platform-level SMS verification using Twilio API provides strong identity verification. When enabled, recipients must verify their phone number (which must match the solicitor-specified number) before accessing documents. Twilio handles SMS delivery, code generation, and rate limiting.
   - **Password Protection (Optional)**: Additional password-based access control is available as a secondary security layer. However, SMS 2FA is considered the primary security mechanism because: (1) It verifies identity via out-of-band communication channel, (2) Protects against link forwarding/sharing, (3) Ensures only the intended recipient can access documents, (4) Provides audit trail of access attempts. Password protection alone can be shared/forwarded easily and doesn't verify identity.
@@ -68,3 +79,4 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **SMS Service**: Twilio API for platform-level SMS two-factor authentication.
 - **Calendar Integration**: Google Calendar API (googleapis package) and Microsoft Graph API (@microsoft/microsoft-graph-client package) for bidirectional calendar sync with OAuth 2.0 authentication. Template-based reminder scheduler with Europe/London timezone handling and DST support.
 - **Document Export**: jsPDF (PDF generation), docx (Word document generation).
+- **Testing**: Vitest with happy-dom for unit testing, comprehensive test coverage for critical business logic (reminder scheduler, security features).
