@@ -251,12 +251,79 @@ ${transcript}`;
   }
 
   /**
+   * Check if transcript contains substantive legal matters worthy of formal legal opinion
+   */
+  private async checkForLegalMatters(transcript: string): Promise<{ hasLegalContent: boolean; reason?: string }> {
+    const checkPrompt = `You are a UK-qualified solicitor assessing whether a client meeting transcript contains substantive legal matters that warrant a formal legal opinion.
+
+A formal legal opinion is appropriate when the transcript contains:
+- Legal issues, questions, or problems requiring analysis
+- Client instructions on legal matters
+- Discussion of rights, obligations, or legal risks
+- Regulatory/compliance matters
+- Contractual or transactional elements
+- Discussion of legal remedies or procedures
+
+A formal legal opinion is NOT appropriate when the transcript contains:
+- Only consent to recording dialogue
+- Administrative/scheduling discussions only
+- General conversation without legal substance
+- Minimal legal discussion insufficient for analysis
+
+Analyze this transcript and determine if it contains enough substantive legal content to warrant generating a formal legal opinion.
+
+Transcript:
+${transcript}
+
+Respond with ONLY one of these exact phrases:
+- "SUFFICIENT_LEGAL_CONTENT" if the transcript contains substantive legal matters worthy of formal legal opinion
+- "INSUFFICIENT_LEGAL_CONTENT" if the transcript lacks substantive legal matters for formal analysis`;
+
+    try {
+      const response = await openaiClient.chat.completions.create({
+        model: MODELS.DOCUMENT_GENERATION,
+        messages: [{ role: 'user', content: checkPrompt }],
+        temperature: 0.1,
+        max_tokens: 100,
+      });
+
+      const result = response.choices[0]?.message?.content?.trim() || '';
+      
+      if (result.includes('INSUFFICIENT_LEGAL_CONTENT')) {
+        return { 
+          hasLegalContent: false, 
+          reason: 'This recording does not contain substantive legal matters requiring a formal legal opinion. The transcript appears to consist primarily of administrative dialogue or lacks sufficient legal content for formal analysis. Consider generating an Attendance Note or Summary instead.'
+        };
+      }
+      
+      return { hasLegalContent: true };
+    } catch (error) {
+      console.error('Error checking for legal matters:', error);
+      // On error, default to allowing generation (fail open)
+      return { hasLegalContent: true };
+    }
+  }
+
+  /**
    * Generate legal opinion from transcript
    */
   async generateLegalOpinion(
     transcript: string,
     metadata: CaseMetadata
   ): Promise<DocumentGenerationResult> {
+    // Pre-check: Ensure transcript contains substantive legal matters
+    const contentCheck = await this.checkForLegalMatters(transcript);
+    if (!contentCheck.hasLegalContent) {
+      return {
+        success: false,
+        content: '',
+        error: contentCheck.reason,
+        inputTokens: 0,
+        outputTokens: 0,
+        cost: 0,
+      };
+    }
+
     const systemPrompt = `You are a senior UK-qualified solicitor with expertise in English and Welsh law, providing preliminary legal opinions based on client consultations in compliance with SRA standards.
 
 CRITICAL ANTI-HALLUCINATION INSTRUCTIONS:
