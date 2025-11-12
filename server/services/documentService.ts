@@ -53,11 +53,15 @@ Duration:       [Extract meeting duration from transcript (e.g., "1 hour 15 minu
     }
 
     // Build footer with optional client confirmation
+    const preparedByFormat = prefs.showFullSolicitorName 
+      ? '[Solicitor name and title if known, otherwise "To be completed"]'
+      : '[Solicitor initials if known, otherwise "To be completed"]';
+
     let footerSection = `Time Engaged: [Extract total duration from transcript (e.g., "1 hour 15 minutes") - if not available, state "Not recorded"]
 
 This attendance note is subject to legal professional privilege.
 
-Prepared by: [Solicitor initials if known, otherwise "To be completed"]
+Prepared by: ${preparedByFormat}
 Date Prepared: ${metadata.recordingDate}`;
 
     if (prefs.includeClientConfirmation) {
