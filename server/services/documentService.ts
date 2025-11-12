@@ -39,25 +39,25 @@ export class DocumentService {
     // Build metadata header based on preferences
     let metadataFields = `File Reference:  ${metadata.matterReference || 'TBD'}
 Date:           ${metadata.recordingDate}
-Time:           [Extract meeting start time from transcript in 24-hour format (e.g., "14:30"), or state "Not recorded"]
-Duration:       [Extract meeting duration from transcript (e.g., "1 hour 15 minutes"), or state "Not recorded"]`;
+Time:           {Meeting start time in 24-hour format from transcript, or "Not recorded"}
+Duration:       {Total meeting duration from transcript, or "Not recorded"}`;
 
     if (prefs.includeLocation) {
-      metadataFields += `\nLocation:       [Extract meeting location from transcript (Office Meeting/Telephone/Video Conference), or state "Not recorded"]`;
+      metadataFields += `\nLocation:       {Meeting location from transcript, or "Not recorded"}`;
     }
 
     if (prefs.showFullSolicitorName) {
-      metadataFields += `\nSolicitor:      [Extract solicitor name and title from transcript if mentioned, otherwise state "Not recorded"]`;
+      metadataFields += `\nSolicitor:      {Solicitor full name and title from transcript, or "Not recorded"}`;
     } else {
-      metadataFields += `\nSolicitor:      [Extract solicitor initials from transcript if mentioned (e.g., "SW"), otherwise state "Not recorded"]`;
+      metadataFields += `\nSolicitor:      {Solicitor initials from transcript, or "Not recorded"}`;
     }
 
     // Build footer with optional client confirmation
     const preparedByFormat = prefs.showFullSolicitorName 
-      ? '[Solicitor name and title if known, otherwise "To be completed"]'
-      : '[Solicitor initials if known, otherwise "To be completed"]';
+      ? '{Solicitor name and title from transcript, or "To be completed"}'
+      : '{Solicitor initials from transcript, or "To be completed"}';
 
-    let footerSection = `Time Engaged: [Extract total duration from transcript (e.g., "1 hour 15 minutes") - if not available, state "Not recorded"]
+    let footerSection = `Time Engaged: {Total meeting duration from transcript, or "Not recorded"}
 
 This attendance note is subject to legal professional privilege.
 
