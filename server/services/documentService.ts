@@ -84,6 +84,13 @@ CRITICAL INSTRUCTIONS:
 - Use UK legal terminology and practice conventions throughout
 - Format the document professionally with clean spacing (use white space for visual separation, NO horizontal lines or underscores)
 
+CONSENT RECORDING HANDLING:
+- If the transcript includes consent dialogue for audio recording, acknowledge it ONCE in a single brief line at the start of "MATTERS DISCUSSED": "Client consent to audio recording obtained."
+- Do NOT elaborate on the consent process, GDPR explanations, data protection details, or consent script language
+- Do NOT include consent dialogue as a separate numbered topic or section
+- Focus exclusively on substantive legal matters discussed AFTER consent was obtained
+- If the recording consists primarily of consent dialogue with minimal legal discussion, produce a brief attendance note acknowledging limited substantive legal content was discussed
+
 Your attendance note MUST follow this professional UK legal practice format:
 
 **ATTENDANCE NOTE**
