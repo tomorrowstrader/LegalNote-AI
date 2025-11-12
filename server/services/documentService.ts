@@ -204,6 +204,13 @@ CRITICAL INSTRUCTIONS:
 - Use UK legal terminology and practice conventions
 - Prioritize accuracy over completeness - it is better to omit information than to guess
 
+CONSENT RECORDING HANDLING:
+- If the transcript includes consent dialogue for audio recording, you may briefly note "Consent to recording obtained" if contextually relevant
+- Do NOT include consent dialogue in "Key Points", "Critical Issues", or any substantive sections
+- Do NOT elaborate on consent process, GDPR explanations, or data protection discussions
+- Focus exclusively on substantive legal matters, client concerns, and action items
+- Exclude all consent-related dialogue from the summary entirely
+
 Structure your summary as follows:
 
 **MEETING SUMMARY**
