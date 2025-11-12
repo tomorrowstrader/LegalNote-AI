@@ -14,14 +14,62 @@ export interface CaseMetadata {
   recordingDate: string;
 }
 
+export interface FirmPreferences {
+  includeLocation?: boolean;
+  showFullSolicitorName?: boolean;
+  includeClientConfirmation?: boolean;
+}
+
 export class DocumentService {
   /**
    * Generate attendance note from transcript
    */
   async generateAttendanceNote(
     transcript: string,
-    metadata: CaseMetadata
+    metadata: CaseMetadata,
+    firmPreferences?: FirmPreferences
   ): Promise<DocumentGenerationResult> {
+    // Apply firm preferences (default to true if not specified)
+    const prefs = {
+      includeLocation: firmPreferences?.includeLocation ?? true,
+      showFullSolicitorName: firmPreferences?.showFullSolicitorName ?? true,
+      includeClientConfirmation: firmPreferences?.includeClientConfirmation ?? false,
+    };
+
+    // Build metadata header based on preferences
+    let metadataFields = `File Reference:  ${metadata.matterReference || 'TBD'}
+Date:           ${metadata.recordingDate}
+Time:           [Extract meeting start time from transcript in 24-hour format (e.g., "14:30"), or state "Not recorded"]
+Duration:       [Extract meeting duration from transcript (e.g., "1 hour 15 minutes"), or state "Not recorded"]`;
+
+    if (prefs.includeLocation) {
+      metadataFields += `\nLocation:       [Extract meeting location from transcript (Office Meeting/Telephone/Video Conference), or state "Not recorded"]`;
+    }
+
+    if (prefs.showFullSolicitorName) {
+      metadataFields += `\nSolicitor:      [Extract solicitor name and title from transcript if mentioned, otherwise state "Not recorded"]`;
+    } else {
+      metadataFields += `\nSolicitor:      [Extract solicitor initials from transcript if mentioned (e.g., "SW"), otherwise state "Not recorded"]`;
+    }
+
+    // Build footer with optional client confirmation
+    let footerSection = `Time Engaged: [Extract total duration from transcript (e.g., "1 hour 15 minutes") - if not available, state "Not recorded"]
+
+This attendance note is subject to legal professional privilege.
+
+Prepared by: [Solicitor initials if known, otherwise "To be completed"]
+Date Prepared: ${metadata.recordingDate}`;
+
+    if (prefs.includeClientConfirmation) {
+      footerSection += `\n\n**CLIENT CONFIRMATION**
+
+I confirm the above is an accurate record of our meeting.
+
+Client Signature: ________________
+
+Date: ________________`;
+    }
+
     const systemPrompt = `You are a UK-qualified solicitor specializing in creating professional attendance notes compliant with Solicitors Regulation Authority (SRA) standards and English law practice requirements.
 
 CRITICAL INSTRUCTIONS:
@@ -36,12 +84,7 @@ Your attendance note MUST follow this professional UK legal practice format:
 
 **ATTENDANCE NOTE**
 
-File Reference:  ${metadata.matterReference || 'TBD'}
-Date:           ${metadata.recordingDate}
-Time:           [Extract meeting start time from transcript in 24-hour format (e.g., "14:30"), or state "Not recorded"]
-Duration:       [Extract meeting duration from transcript (e.g., "1 hour 15 minutes"), or state "Not recorded"]
-Location:       [Extract meeting location from transcript (Office Meeting/Telephone/Video Conference), or state "Not recorded"]
-Solicitor:      [Extract solicitor name from transcript if mentioned, otherwise state "Not recorded"]
+${metadataFields}
 
 **MATTER:**     ${metadata.title}
 
@@ -100,12 +143,7 @@ Solicitor:      [Extract solicitor name from transcript if mentioned, otherwise 
    
    Next appointment: [Date/time if scheduled, or "To be arranged"]
 
-Time Engaged: [Extract total duration from transcript (e.g., "1 hour 15 minutes") - if not available, state "Not recorded"]
-
-This attendance note is subject to legal professional privilege.
-
-Prepared by: [Solicitor initials if known, otherwise "To be completed"]
-Date Prepared: ${metadata.recordingDate}
+${footerSection}
 
 FORMATTING GUIDELINES:
 - Use **bold** for ALL section headings (ATTENDANCE NOTE, MATTERS DISCUSSED, each numbered topic, NEXT STEPS)

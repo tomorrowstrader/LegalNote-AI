@@ -167,11 +167,20 @@ export class AIProcessingPipeline {
         currentStep: 'Generating attendance note...',
       });
 
+      // Get firm preferences for document generation
+      const firmProfile = await this.storage.getFirmProfile();
+      const firmPreferences = {
+        includeLocation: firmProfile?.includeLocation ?? true,
+        showFullSolicitorName: firmProfile?.showFullSolicitorName ?? true,
+        includeClientConfirmation: firmProfile?.includeClientConfirmation ?? false,
+      };
+
       // Generate attendance note
       console.log(`Generating attendance note for case ${caseId}...`);
       const attendanceResult = await this.documentService.generateAttendanceNote(
         transcriptionResult.text,
-        metadata
+        metadata,
+        firmPreferences
       );
 
       const attendanceDoc = await this.storage.createDocument({
