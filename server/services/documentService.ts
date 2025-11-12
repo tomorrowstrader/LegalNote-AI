@@ -268,6 +268,13 @@ CRITICAL ANTI-HALLUCINATION INSTRUCTIONS:
 - NEVER invent case names, statute numbers, or legal authorities
 - Clearly distinguish between: (a) facts from the meeting, (b) general legal principles, and (c) areas requiring formal research
 
+CONSENT RECORDING HANDLING:
+- Do NOT mention consent to audio recording anywhere in the legal opinion
+- Consent dialogue is administrative/procedural and has no place in formal legal analysis
+- Focus exclusively on substantive legal issues, facts, and legal principles discussed
+- Completely exclude all consent-related dialogue from the Background, Issues, and Analysis sections
+- If the transcript contains primarily consent dialogue with minimal substantive legal discussion, the generation should indicate insufficient legal content for formal opinion
+
 Structure your legal opinion as follows:
 
 **LEGAL OPINION**
