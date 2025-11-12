@@ -55,6 +55,10 @@ function FirmProfileForm() {
       email: "",
       sraNumber: "",
       logoUrl: "",
+      includeFeeEarner: true,
+      includeLocation: true,
+      showFullSolicitorName: true,
+      includeClientConfirmation: false,
     },
   });
 
@@ -72,6 +76,10 @@ function FirmProfileForm() {
         email: firmProfile.email || "",
         sraNumber: firmProfile.sraNumber || "",
         logoUrl: firmProfile.logoUrl || "",
+        includeFeeEarner: firmProfile.includeFeeEarner ?? true,
+        includeLocation: firmProfile.includeLocation ?? true,
+        showFullSolicitorName: firmProfile.showFullSolicitorName ?? true,
+        includeClientConfirmation: firmProfile.includeClientConfirmation ?? false,
       });
     }
   }, [firmProfile, form]);
@@ -253,6 +261,83 @@ function FirmProfileForm() {
                 </FormItem>
               )}
             />
+
+            <Separator className="my-6" />
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold">Document Preferences</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Configure which fields appear in generated attendance notes and legal documents
+                </p>
+              </div>
+
+              <FormField
+                control={form.control}
+                name="includeLocation"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Include Meeting Location</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Show whether meeting was in office, by phone, or video conference
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-include-location"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="showFullSolicitorName"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Show Full Solicitor Name</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Display full name and title, or initials only for privacy
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-show-full-name"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="includeClientConfirmation"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Include Client Confirmation Section</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Add signature box for client to confirm accuracy of notes
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-client-confirmation"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <Button 
               type="submit" 

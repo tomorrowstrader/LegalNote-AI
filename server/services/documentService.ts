@@ -30,69 +30,97 @@ CRITICAL INSTRUCTIONS:
 - Do NOT invent, assume, or fabricate any details not present in the transcript
 - If information is unclear or missing, explicitly state "Not specified in meeting" rather than guessing
 - Use UK legal terminology and practice conventions throughout
-- Format the document professionally with proper markdown (use **bold** for headings and section titles, bullet points with • or -, numbered lists where appropriate)
+- Format the document professionally with clean spacing (use white space for visual separation, NO horizontal lines or underscores)
 
 Your attendance note MUST follow this professional UK legal practice format:
 
-**Attendance Note**
+**ATTENDANCE NOTE**
 
-**Date:** ${metadata.recordingDate}  **Time:** [Extract time from transcript, or state "Not recorded"]  **File No:** ${metadata.matterReference || 'TBD'}
+File Reference:  ${metadata.matterReference || 'TBD'}
+Date:           ${metadata.recordingDate}
+Time:           [Extract meeting start time from transcript in 24-hour format (e.g., "14:30"), or state "Not recorded"]
+Duration:       [Extract meeting duration from transcript (e.g., "1 hour 15 minutes"), or state "Not recorded"]
+Location:       [Extract meeting location from transcript (Office Meeting/Telephone/Video Conference), or state "Not recorded"]
+Solicitor:      [Extract solicitor name from transcript if mentioned, otherwise state "Not recorded"]
 
-**Matter:** ${metadata.title}
+**MATTER:**     ${metadata.title}
 
-**Attendance upon:** ${metadata.clientName} [If the transcript identifies client's role (e.g., tenant, claimant), add it after a dash: "- tenant"]
+**CLIENT:**     ${metadata.clientName}
 
-**Notes:**
+**MATTERS DISCUSSED**
 
-**Client:** ${metadata.clientName}
-**Date of Consultation:** ${metadata.recordingDate}
-**Time:** [Extract meeting start and end times from transcript (e.g., "2:12 PM – 3:10 PM"), or state "Not recorded"]
-**Location:** [Extract meeting location from transcript, or state "Not recorded"]
+**1. [FIRST MAJOR TOPIC - USE CLEAR PROFESSIONAL HEADING IN CAPS]**
 
-[Then create numbered sections for each major topic discussed. Each section should have:]
+   [Opening paragraph describing the issue or matter discussed - based strictly on transcript. Use professional legal narrative style.]
+   
+   [Client's position/situation - describe what the client disclosed using formal language]
+   
+   [Legal advice provided - use professional terminology. Always write: "I advised the client that..." NOT "We discussed..." or "I told them..."]
+   
+   Key points advised:
+   - [Advice point 1]
+   - [Advice point 2]
+   - [Advice point 3]
+   
+   [Client's response: "The client confirmed understanding and instructed..." or "The client requested..."]
 
-**1. [First Major Topic - Use Clear Professional Heading]**
+**2. [SECOND MAJOR TOPIC - IN CAPS]**
 
-[Opening paragraph describing the issue or matter discussed - based strictly on transcript]
+   [Continue same professional structure for each topic discussed]
+   
+   Facts established:
+   - [Fact 1 from transcript]
+   - [Fact 2 from transcript]
+   
+   Legal position explained:
+   I advised the client that [legal principle or position]. Specifically:
+   
+   - [Advice point 1]
+   - [Advice point 2]
 
-[Client's position/situation - what they told you]
+**3. [ADDITIONAL TOPICS AS NEEDED]**
 
-[Your advice or discussion points - use bullet points with • for sub-items when listing multiple related points]
+   [Continue for each major discussion point]
 
-• [Point 1]
-• [Point 2]  
-• [Point 3]
+**[FINAL NUMBERED SECTION]. NEXT STEPS**
 
-**2. [Second Major Topic]**
+   Solicitor to action:
+   1. [First action step with clear description]
+      Due: [Specific date if mentioned, or "To be determined"]
+   
+   2. [Second action step]
+      Due: [Specific date if mentioned]
+   
+   Client to action:
+   1. [Action required from client]
+      Due: [Specific date if mentioned]
+   
+   2. [Action required from client]
+      Due: [Specific date if mentioned]
+   
+   Next appointment: [Date/time if scheduled, or "To be arranged"]
 
-[Continue same structure for each topic]
+Time Engaged: [Extract total duration from transcript (e.g., "1 hour 15 minutes") - if not available, state "Not recorded"]
 
-**3. [Additional Topics as Needed]**
+This attendance note is subject to legal professional privilege.
 
-[Last numbered section should typically be "Next Steps" or "Recommended Course of Action"]
-
-**[Final numbered section]. Next Steps**
-
-[Outline the recommended course of action with numbered sub-steps or bullet points:]
-
-1. [First action step]
-   o [Sub-detail if relevant]
-   o [Sub-detail if relevant]
-2. [Second action step]
-3. [Third action step]
-
-[Add any important disclaimers or follow-up requirements]
-
-**Time engaged:** [Extract total duration from transcript - if not available, state "Not recorded"]
+Prepared by: [Solicitor initials if known, otherwise "To be completed"]
+Date Prepared: ${metadata.recordingDate}
 
 FORMATTING GUIDELINES:
-- Use **bold** for all section headings and major topic titles
+- Use **bold** for ALL section headings (ATTENDANCE NOTE, MATTERS DISCUSSED, each numbered topic, NEXT STEPS)
+- Use clean white space between sections - NO horizontal lines or underscores
+- Use dash (-) for ALL sub-points and bullet lists
 - Use numbered lists (1. 2. 3.) for main topics and sequential action steps
-- Use bullet points (•) for related items within a topic
-- Use sub-bullets (o) for nested details under action items
-- Write in formal but clear UK legal language
-- Use professional terminology: "I advised", "You confirmed", "We discussed"
-- Include specific amounts, dates, and deadlines where mentioned
+- Write in formal but clear UK legal language throughout
+- ALWAYS use professional terminology:
+  * "I advised the client that..." NOT "We discussed..." or "I told them..."
+  * "The client instructed..." NOT "They said..."
+  * "The client confirmed..." NOT "They agreed..."
+  * "I explained the legal position regarding..." NOT "I talked about..."
+- Include specific amounts, dates, and deadlines where mentioned in transcript
+- Use 24-hour time format (14:30 not 2:30 PM)
+- Use full date format (10 November 2025 not 10/11/2025)
 - If the client has vulnerabilities or special circumstances, note them where relevant to the legal position
 
 IMPORTANT: This attendance note must be reviewed and verified by the supervising solicitor before being added to the client file. All legal advice and action items should be confirmed against current UK law and SRA guidance.

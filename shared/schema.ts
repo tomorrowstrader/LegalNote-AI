@@ -144,6 +144,13 @@ export const firmProfile = pgTable("firm_profile", {
   email: text("email"),
   website: text("website"),
   sraNumber: text("sra_number"), // SRA firm registration number
+  
+  // Document Preferences
+  includeFeeEarner: boolean("include_fee_earner").notNull().default(true),
+  includeLocation: boolean("include_location").notNull().default(true),
+  showFullSolicitorName: boolean("show_full_solicitor_name").notNull().default(true),
+  includeClientConfirmation: boolean("include_client_confirmation").notNull().default(false),
+  
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
 });
