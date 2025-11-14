@@ -504,19 +504,17 @@ export default function ShareLinkModal({
             </div>
           </div>
 
-          {isExternal && (
-            <div className="space-y-2">
-              <Label htmlFor="password">Password Protection (Optional)</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Set a password for extra security"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                data-testid="input-password"
-              />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="password">Password Protection (Optional)</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="Set a password for extra security"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              data-testid="input-password"
+            />
+          </div>
 
           <div className="border-t pt-4">
             <div className="flex items-center space-x-2 mb-3">
