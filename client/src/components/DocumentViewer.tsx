@@ -13,7 +13,7 @@ import DownloadModal from "@/components/DownloadModal";
 interface Document {
   id: string;
   caseId: string;
-  type: 'attendance_note' | 'summary' | 'legal_opinion';
+  type: 'attendance_note' | 'summary' | 'legal_opinion' | 'transcript';
   content: string;
   version: number;
   createdAt: string;
@@ -97,8 +97,8 @@ export default function DocumentViewer({
       }
 
       if (selectedDocs.includes('transcript')) {
-        if (transcript) {
-          content.transcript = transcript;
+        if (transcriptContent) {
+          content.transcript = transcriptContent;
         }
       }
 
@@ -145,8 +145,11 @@ export default function DocumentViewer({
   const attendanceNote = documents.find(d => d.type === 'attendance_note');
   const summary = documents.find(d => d.type === 'summary');
   const legalOpinion = documents.find(d => d.type === 'legal_opinion');
+  const transcriptDoc = documents.find(d => d.type === 'transcript');
+  
+  const transcriptContent = transcriptDoc?.content ?? transcript;
 
-  const hasAnyDocument = documents.length > 0 || transcript || textNotes;
+  const hasAnyDocument = documents.length > 0 || transcriptContent || textNotes;
 
   // If case is still pending and no documents, show placeholder
   if (status === 'pending' && !hasAnyDocument) {
@@ -194,9 +197,9 @@ export default function DocumentViewer({
         </div>
       </div>
 
-      <Tabs defaultValue={(summary || textNotes) ? "summary" : transcript ? "transcript" : "attendance"} className="w-full">
+      <Tabs defaultValue={(summary || textNotes) ? "summary" : transcriptContent ? "transcript" : "attendance"} className="w-full">
         <TabsList className="grid w-full grid-cols-4 h-auto">
-          <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcript} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+          <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
             <span className="hidden sm:inline">Transcript</span>
             <span className="sm:hidden">Script</span>
           </TabsTrigger>
@@ -222,8 +225,8 @@ export default function DocumentViewer({
               </div>
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
-              {transcript ? (
-                <p className="text-foreground whitespace-pre-wrap">{transcript}</p>
+              {transcriptContent ? (
+                <p className="text-foreground whitespace-pre-wrap">{transcriptContent}</p>
               ) : (
                 <p className="text-sm text-muted-foreground italic">
                   Transcript not yet available. Process this case with AI to generate a transcript.
@@ -320,7 +323,7 @@ export default function DocumentViewer({
           hasAttendanceNote: !!attendanceNote,
           hasLegalOpinion: !!legalOpinion,
           hasSummary: !!summary || !!textNotes,
-          hasTranscript: !!transcript,
+          hasTranscript: !!transcriptContent,
         }}
         sharedDocuments={['attendance_note', 'legal_opinion', 'summary', 'transcript']}
         onDownload={handleDownload}
