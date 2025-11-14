@@ -64,7 +64,10 @@ export default function ShareLinkModal({
   const [customMessage, setCustomMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [sharedDocuments, setSharedDocuments] = useState<string[]>(["attendance_note"]);
+  const [sharedDocuments, setSharedDocuments] = useState<string[]>(() => {
+    // Default to attendance_note only if it exists
+    return availableDocuments.hasAttendanceNote ? ["attendance_note"] : [];
+  });
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -205,7 +208,7 @@ export default function ShareLinkModal({
     setCustomMessage("");
     setIsSending(false);
     setCountdown(null);
-    setSharedDocuments(["attendance_note"]);
+    setSharedDocuments(availableDocuments.hasAttendanceNote ? ["attendance_note"] : []);
     onOpenChange(false);
   };
 

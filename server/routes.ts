@@ -102,11 +102,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Case not found" });
       }
       
-      // Get documents
-      const documents = await storage.getActiveDocumentsByCase(shareLink.caseId, shareLink.createdBy);
+      // Get documents and filter based on sharedDocuments selection
+      const allDocuments = await storage.getActiveDocumentsByCase(shareLink.caseId, shareLink.createdBy);
+      const sharedDocs = shareLink.sharedDocuments || ["attendance_note"]; // Fallback for old links
+      const documents = allDocuments.filter(doc => sharedDocs.includes(doc.type));
       
-      // Get transcript
-      const transcript = await storage.getTranscriptByCase(shareLink.caseId, shareLink.createdBy);
+      // Get transcript only if explicitly shared
+      const transcript = sharedDocs.includes("transcript") 
+        ? await storage.getTranscriptByCase(shareLink.caseId, shareLink.createdBy)
+        : null;
       
       // Get firm profile for PDF export branding
       const firmProfile = await storage.getFirmProfile();
