@@ -806,6 +806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         smsProtection: z.boolean().default(false),
         smsPhoneNumber: z.string().optional(),
         customMessage: z.string().optional(),
+        sharedDocuments: z.array(z.enum(["attendance_note", "legal_opinion", "summary", "transcript"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
       });
       
       const validationResult = shareLinkRequestSchema.safeParse(req.body);
@@ -816,7 +817,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const { recipientEmail, recipientName, isExternal, organization, expiration, accessLevel, password, clientConsent, smsProtection, smsPhoneNumber, customMessage } = validationResult.data;
+      const { recipientEmail, recipientName, isExternal, organization, expiration, accessLevel, password, clientConsent, smsProtection, smsPhoneNumber, customMessage, sharedDocuments } = validationResult.data;
       
       // Validate SMS phone number if SMS protection is enabled
       let formattedPhoneNumber: string | undefined;
@@ -901,6 +902,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         clientConsent,
         smsProtection: smsProtection || false,
         smsPhoneNumber: formattedPhoneNumber,
+        sharedDocuments,
       });
       
       // Get firm profile for email branding
