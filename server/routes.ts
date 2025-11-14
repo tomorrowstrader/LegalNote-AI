@@ -159,6 +159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           recipientName: shareLink.recipientName,
           expiresAt: shareLink.expiresAt,
           accessLevel: shareLink.accessLevel,
+          sharedDocuments: sharedDocs,
         },
         firmProfile: firmProfile || undefined,
       });

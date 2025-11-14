@@ -13,8 +13,9 @@ import { Lock, FileText, AlertCircle, CheckCircle2, Clock, Smartphone, Loader2, 
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { exportToPDF } from "@/lib/documentExport";
+import { exportToPDF, exportToWord } from "@/lib/documentExport";
 import type { FirmProfile } from "@shared/schema";
+import DownloadModal from "@/components/DownloadModal";
 
 interface ShareLinkData {
   requiresSmsVerification: boolean;
@@ -43,6 +44,7 @@ interface ShareLinkData {
     recipientName: string;
     expiresAt: Date;
     accessLevel: string;
+    sharedDocuments: string[];
   };
   firmProfile?: FirmProfile;
 }
@@ -54,11 +56,14 @@ export default function ShareLinkView() {
   const [verificationCode, setVerificationCode] = useState("");
   const [smsStep, setSmsStep] = useState<"phone" | "code">("phone");
   const [password, setPassword] = useState("");
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
   const { toast } = useToast();
 
   const { data, isLoading, error, refetch } = useQuery<ShareLinkData>({
     queryKey: ['/api/share', linkId],
     enabled: !!linkId,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const sendSmsMutation = useMutation({
@@ -180,33 +185,66 @@ export default function ShareLinkView() {
     verifyPasswordMutation.mutate(password);
   };
 
-  const handleDownloadPDF = async (documentType: 'attendance_note' | 'legal_opinion') => {
-    if (!data?.caseData || !data?.documents) return;
+  const handleDownload = async (selectedDocs: string[], format: 'pdf' | 'word') => {
+    if (!data?.caseData || !data?.documents || !data?.shareLink) return;
 
-    const document = data.documents.find(doc => doc.type === documentType);
-    if (!document) return;
+    const sharedDocs = data.shareLink.sharedDocuments || [];
+    
+    const invalidDocs = selectedDocs.filter(doc => !sharedDocs.includes(doc));
+    if (invalidDocs.length > 0) {
+      toast({
+        title: "Invalid Selection",
+        description: "Some selected documents are not available for download",
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
+    }
 
     try {
-      await exportToPDF({
+      const documentContent: any = {
         caseTitle: data.caseData.title,
         clientName: data.caseData.clientName,
         matterReference: data.caseData.matterReference || undefined,
-        createdAt: document.createdAt.toString(),
-        documentType,
-        attendanceNote: documentType === 'attendance_note' ? document.content : undefined,
-        legalOpinion: documentType === 'legal_opinion' ? document.content : undefined,
+        createdAt: data.documents[0]?.createdAt.toString() || new Date().toISOString(),
+        documentType: selectedDocs.length === 1 ? selectedDocs[0] as any : 'full_case',
         firmProfile: data.firmProfile,
-      });
+      };
+
+      if (selectedDocs.includes('attendance_note') && sharedDocs.includes('attendance_note')) {
+        const doc = data.documents.find(d => d.type === 'attendance_note');
+        if (doc) documentContent.attendanceNote = doc.content;
+      }
+
+      if (selectedDocs.includes('legal_opinion') && sharedDocs.includes('legal_opinion')) {
+        const doc = data.documents.find(d => d.type === 'legal_opinion');
+        if (doc) documentContent.legalOpinion = doc.content;
+      }
+
+      if (selectedDocs.includes('summary') && sharedDocs.includes('summary')) {
+        const doc = data.documents.find(d => d.type === 'summary');
+        if (doc) documentContent.summary = doc.content;
+      }
+
+      if (selectedDocs.includes('transcript') && sharedDocs.includes('transcript') && data.transcript) {
+        documentContent.transcript = data.transcript.content;
+      }
+
+      if (format === 'pdf') {
+        await exportToPDF(documentContent);
+      } else {
+        await exportToWord(documentContent);
+      }
 
       toast({
-        title: "PDF Downloaded",
-        description: "Your document has been downloaded successfully",
+        title: `${format.toUpperCase()} Downloaded`,
+        description: "Your documents have been downloaded successfully",
         duration: 3000,
       });
     } catch (error) {
       toast({
         title: "Download Failed",
-        description: "Failed to download PDF. Please try again.",
+        description: `Failed to download ${format.toUpperCase()}. Please try again.`,
         variant: "destructive",
         duration: 5000,
       });
@@ -487,6 +525,17 @@ export default function ShareLinkView() {
 
   const attendanceNote = documents?.find(doc => doc.type === "attendance_note");
   const legalOpinion = documents?.find(doc => doc.type === "legal_opinion");
+  const summary = documents?.find(doc => doc.type === "summary");
+
+  const sharedDocs = shareLink?.sharedDocuments || [];
+  const availableDocuments = {
+    hasAttendanceNote: !!attendanceNote && sharedDocs.includes("attendance_note"),
+    hasLegalOpinion: !!legalOpinion && sharedDocs.includes("legal_opinion"),
+    hasSummary: !!summary && sharedDocs.includes("summary"),
+    hasTranscript: !!transcript && sharedDocs.includes("transcript"),
+  };
+
+  const canDownload = shareLink?.accessLevel === "download";
 
   return (
     <div className="min-h-screen bg-background">
@@ -539,43 +588,70 @@ export default function ShareLinkView() {
         {/* Documents Tabs */}
         <Card>
           <CardHeader>
-            <CardTitle>Case Documents</CardTitle>
-            <CardDescription>
-              Review the documents prepared for this matter
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Case Documents</CardTitle>
+                <CardDescription>
+                  Review the documents prepared for this matter
+                </CardDescription>
+              </div>
+              {canDownload && (
+                <Button
+                  onClick={() => setShowDownloadModal(true)}
+                  variant="default"
+                  size="sm"
+                  data-testid="button-open-download-modal"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Documents
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue={attendanceNote ? "attendance" : "opinion"}>
-              <TabsList className="grid w-full grid-cols-2 gap-1">
-                <TabsTrigger 
-                  value="attendance" 
-                  disabled={!attendanceNote}
-                  data-testid="tab-attendance-note"
-                >
-                  Attendance Note
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="opinion" 
-                  disabled={!legalOpinion}
-                  data-testid="tab-legal-opinion"
-                >
-                  Legal Opinion
-                </TabsTrigger>
+            <Tabs defaultValue={
+              attendanceNote ? "attendance" : 
+              legalOpinion ? "opinion" : 
+              summary ? "summary" : 
+              "transcript"
+            }>
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1">
+                {attendanceNote && (
+                  <TabsTrigger 
+                    value="attendance" 
+                    data-testid="tab-attendance-note"
+                  >
+                    Attendance Note
+                  </TabsTrigger>
+                )}
+                {legalOpinion && (
+                  <TabsTrigger 
+                    value="opinion" 
+                    data-testid="tab-legal-opinion"
+                  >
+                    Legal Opinion
+                  </TabsTrigger>
+                )}
+                {summary && (
+                  <TabsTrigger 
+                    value="summary" 
+                    data-testid="tab-summary"
+                  >
+                    Summary
+                  </TabsTrigger>
+                )}
+                {transcript && (
+                  <TabsTrigger 
+                    value="transcript" 
+                    data-testid="tab-transcript"
+                  >
+                    Transcript
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               {attendanceNote && (
                 <TabsContent value="attendance" className="mt-4">
-                  <div className="flex justify-end mb-4">
-                    <Button 
-                      onClick={() => handleDownloadPDF('attendance_note')}
-                      variant="outline"
-                      size="sm"
-                      data-testid="button-download-attendance-note"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download PDF
-                    </Button>
-                  </div>
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <div className="whitespace-pre-wrap" data-testid="content-attendance-note">
                       {attendanceNote.content}
@@ -586,20 +662,29 @@ export default function ShareLinkView() {
 
               {legalOpinion && (
                 <TabsContent value="opinion" className="mt-4">
-                  <div className="flex justify-end mb-4">
-                    <Button 
-                      onClick={() => handleDownloadPDF('legal_opinion')}
-                      variant="outline"
-                      size="sm"
-                      data-testid="button-download-legal-opinion"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download PDF
-                    </Button>
-                  </div>
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <div className="whitespace-pre-wrap" data-testid="content-legal-opinion">
                       {legalOpinion.content}
+                    </div>
+                  </div>
+                </TabsContent>
+              )}
+
+              {summary && (
+                <TabsContent value="summary" className="mt-4">
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <div className="whitespace-pre-wrap" data-testid="content-summary">
+                      {summary.content}
+                    </div>
+                  </div>
+                </TabsContent>
+              )}
+
+              {transcript && (
+                <TabsContent value="transcript" className="mt-4">
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <div className="whitespace-pre-wrap font-mono text-xs" data-testid="content-transcript">
+                      {transcript.content}
                     </div>
                   </div>
                 </TabsContent>
@@ -615,6 +700,15 @@ export default function ShareLinkView() {
           </p>
         </div>
       </div>
+
+      {/* Download Modal */}
+      <DownloadModal
+        open={showDownloadModal}
+        onOpenChange={setShowDownloadModal}
+        availableDocuments={availableDocuments}
+        sharedDocuments={sharedDocs}
+        onDownload={handleDownload}
+      />
     </div>
   );
 }

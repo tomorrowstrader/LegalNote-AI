@@ -21,6 +21,7 @@ interface DownloadModalProps {
     hasSummary: boolean;
     hasTranscript: boolean;
   };
+  sharedDocuments: string[];
   onDownload: (selectedDocs: string[], format: 'pdf' | 'word') => Promise<void>;
 }
 
@@ -28,13 +29,20 @@ export default function DownloadModal({
   open,
   onOpenChange,
   availableDocuments,
+  sharedDocuments,
   onDownload,
 }: DownloadModalProps) {
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>(() => {
     const defaults: string[] = [];
-    if (availableDocuments.hasAttendanceNote) defaults.push("attendance_note");
-    if (availableDocuments.hasLegalOpinion) defaults.push("legal_opinion");
-    if (availableDocuments.hasSummary) defaults.push("summary");
+    if (availableDocuments.hasAttendanceNote && sharedDocuments.includes("attendance_note")) {
+      defaults.push("attendance_note");
+    }
+    if (availableDocuments.hasLegalOpinion && sharedDocuments.includes("legal_opinion")) {
+      defaults.push("legal_opinion");
+    }
+    if (availableDocuments.hasSummary && sharedDocuments.includes("summary")) {
+      defaults.push("summary");
+    }
     return defaults;
   });
   const [isDownloading, setIsDownloading] = useState(false);
@@ -62,9 +70,15 @@ export default function DownloadModal({
   const handleClose = () => {
     if (!isDownloading) {
       const defaults: string[] = [];
-      if (availableDocuments.hasAttendanceNote) defaults.push("attendance_note");
-      if (availableDocuments.hasLegalOpinion) defaults.push("legal_opinion");
-      if (availableDocuments.hasSummary) defaults.push("summary");
+      if (availableDocuments.hasAttendanceNote && sharedDocuments.includes("attendance_note")) {
+        defaults.push("attendance_note");
+      }
+      if (availableDocuments.hasLegalOpinion && sharedDocuments.includes("legal_opinion")) {
+        defaults.push("legal_opinion");
+      }
+      if (availableDocuments.hasSummary && sharedDocuments.includes("summary")) {
+        defaults.push("summary");
+      }
       setSelectedDocuments(defaults);
       onOpenChange(false);
     }
