@@ -204,6 +204,7 @@ export const shareLinks = pgTable("share_links", {
   smsVerifiedAt: timestamp("sms_verified_at"), // When SMS verification was completed
   smsCodeSentCount: integer("sms_code_sent_count").notNull().default(0), // Rate limit: max 3 SMS sends per link
   smsVerificationAttempts: integer("sms_verification_attempts").notNull().default(0), // Rate limit: max 5 verification attempts per link
+  sharedDocuments: text("shared_documents").array().notNull().default(sql`ARRAY['attendance_note']::text[]`), // Document types to share: attendance_note, legal_opinion, summary, transcript
 });
 
 // Input validation helpers
@@ -408,6 +409,7 @@ export const insertShareLinkSchema = createInsertSchema(shareLinks).omit({
   smsPhoneNumber: z.string().max(50).transform(sanitizeString).optional(),
   smsVerificationCode: z.string().max(10).optional(),
   smsCodeExpiresAt: z.date().optional(),
+  sharedDocuments: z.array(z.enum(["attendance_note", "legal_opinion", "summary", "transcript"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
 });
 
 // Types

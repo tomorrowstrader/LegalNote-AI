@@ -30,6 +30,12 @@ interface ShareLinkModalProps {
   caseId: string;
   caseTitle: string;
   userRole: "Partner" | "Senior Associate" | "Solicitor" | "Paralegal";
+  availableDocuments?: {
+    hasAttendanceNote: boolean;
+    hasLegalOpinion: boolean;
+    hasSummary: boolean;
+    hasTranscript: boolean;
+  };
 }
 
 export default function ShareLinkModal({ 
@@ -37,7 +43,13 @@ export default function ShareLinkModal({
   onOpenChange, 
   caseId,
   caseTitle,
-  userRole 
+  userRole,
+  availableDocuments = {
+    hasAttendanceNote: true,
+    hasLegalOpinion: true,
+    hasSummary: true,
+    hasTranscript: true,
+  }
 }: ShareLinkModalProps) {
   const [recipientEmail, setRecipientEmail] = useState("");
   const [recipientName, setRecipientName] = useState("");
@@ -52,6 +64,7 @@ export default function ShareLinkModal({
   const [customMessage, setCustomMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [sharedDocuments, setSharedDocuments] = useState<string[]>(["attendance_note"]);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -91,6 +104,7 @@ export default function ShareLinkModal({
           smsProtection,
           smsPhoneNumber: smsProtection ? smsPhoneNumber : undefined,
           customMessage: customMessage.trim() || undefined,
+          sharedDocuments,
         }),
       });
 
@@ -123,7 +137,17 @@ export default function ShareLinkModal({
         title: "Missing Information",
         description: "Please fill in all required fields",
         variant: "destructive",
-        duration: 8000, // 8 seconds for error messages
+        duration: 8000,
+      });
+      return;
+    }
+
+    if (sharedDocuments.length === 0) {
+      toast({
+        title: "No Documents Selected",
+        description: "Please select at least one document to share",
+        variant: "destructive",
+        duration: 8000,
       });
       return;
     }
@@ -133,7 +157,7 @@ export default function ShareLinkModal({
         title: "Consent Required",
         description: "You must confirm client consent for external sharing",
         variant: "destructive",
-        duration: 8000, // 8 seconds for error messages
+        duration: 8000,
       });
       return;
     }
@@ -181,6 +205,7 @@ export default function ShareLinkModal({
     setCustomMessage("");
     setIsSending(false);
     setCountdown(null);
+    setSharedDocuments(["attendance_note"]);
     onOpenChange(false);
   };
 
@@ -301,6 +326,98 @@ export default function ShareLinkModal({
             </p>
           </div>
 
+          <div className="space-y-3 border rounded-md p-4 bg-card">
+            <Label className="text-base font-medium">Select Documents to Share</Label>
+            <p className="text-sm text-muted-foreground">Choose which documents the recipient can access</p>
+            <div className="space-y-3">
+              {availableDocuments.hasAttendanceNote && (
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="doc-attendance-note"
+                    checked={sharedDocuments.includes("attendance_note")}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSharedDocuments([...sharedDocuments, "attendance_note"]);
+                      } else {
+                        setSharedDocuments(sharedDocuments.filter(d => d !== "attendance_note"));
+                      }
+                    }}
+                    data-testid="checkbox-attendance-note"
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="doc-attendance-note" className="font-normal">Attendance Note</Label>
+                    <p className="text-xs text-muted-foreground">Professional summary of the meeting</p>
+                  </div>
+                </div>
+              )}
+              {availableDocuments.hasLegalOpinion && (
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="doc-legal-opinion"
+                    checked={sharedDocuments.includes("legal_opinion")}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSharedDocuments([...sharedDocuments, "legal_opinion"]);
+                      } else {
+                        setSharedDocuments(sharedDocuments.filter(d => d !== "legal_opinion"));
+                      }
+                    }}
+                    data-testid="checkbox-legal-opinion"
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="doc-legal-opinion" className="font-normal">Legal Opinion</Label>
+                    <p className="text-xs text-muted-foreground">Legal analysis and advice</p>
+                  </div>
+                </div>
+              )}
+              {availableDocuments.hasSummary && (
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="doc-summary"
+                    checked={sharedDocuments.includes("summary")}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSharedDocuments([...sharedDocuments, "summary"]);
+                      } else {
+                        setSharedDocuments(sharedDocuments.filter(d => d !== "summary"));
+                      }
+                    }}
+                    data-testid="checkbox-summary"
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="doc-summary" className="font-normal">Summary</Label>
+                    <p className="text-xs text-muted-foreground">Brief overview of the case</p>
+                  </div>
+                </div>
+              )}
+              {availableDocuments.hasTranscript && (
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="doc-transcript"
+                    checked={sharedDocuments.includes("transcript")}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSharedDocuments([...sharedDocuments, "transcript"]);
+                      } else {
+                        setSharedDocuments(sharedDocuments.filter(d => d !== "transcript"));
+                      }
+                    }}
+                    data-testid="checkbox-transcript"
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="doc-transcript" className="font-normal flex items-center gap-2">
+                      Transcript
+                      <AlertTriangle className="w-3 h-3 text-amber-500" />
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Raw conversation transcript. Consider sharing Attendance Note instead for a professional summary.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="flex items-center space-x-2">
             <Checkbox
               id="external"
@@ -322,7 +439,7 @@ export default function ShareLinkModal({
           {isExternal && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="organization">Organization</Label>
+                <Label htmlFor="organization">Organization (optional)</Label>
                 <Input
                   id="organization"
                   placeholder="Recipient's organization"
