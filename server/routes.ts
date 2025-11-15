@@ -128,10 +128,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metadata: {
           shareLinkId: linkId,
           recipientEmail: shareLink.recipientEmail,
+          recipientName: shareLink.recipientName,
           accessCount: shareLink.accessCount + 1,
+          documentsShared: sharedDocs,
+          documentCount: documents.length,
         },
         severity: "info",
       });
+
+      // Log individual document access by client
+      for (const doc of documents) {
+        await storage.createAuditLog({
+          eventType: "document_viewed_by_client",
+          userId: shareLink.createdBy,
+          caseId: shareLink.caseId,
+          documentId: doc.id,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          metadata: {
+            shareLinkId: linkId,
+            recipientEmail: shareLink.recipientEmail,
+            recipientName: shareLink.recipientName,
+            documentType: doc.type,
+            accessLevel: shareLink.accessLevel,
+          },
+          severity: "info",
+        });
+      }
+
+      if (transcript) {
+        await storage.createAuditLog({
+          eventType: "transcript_viewed_by_client",
+          userId: shareLink.createdBy,
+          caseId: shareLink.caseId,
+          transcriptId: transcript.id,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          metadata: {
+            shareLinkId: linkId,
+            recipientEmail: shareLink.recipientEmail,
+            recipientName: shareLink.recipientName,
+            accessLevel: shareLink.accessLevel,
+          },
+          severity: "info",
+        });
+      }
       
       // Return case data with documents
       res.json({
@@ -678,6 +719,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update the case
       const updatedCase = await storage.updateCase(req.params.id, updates, userId);
       
+      // Log specific audit events for different update types
+      if (textNotes !== undefined) {
+        await logAuditEvent(userId, "quick_note_added", {
+          caseId: req.params.id,
+          metadata: { 
+            noteLength: textNotes?.length || 0,
+            hasContent: !!textNotes?.trim(),
+          },
+          req,
+        });
+      }
+      
+      if (deadline !== undefined || deadlineIsAllDay !== undefined) {
+        await logAuditEvent(userId, "deadline_changed", {
+          caseId: req.params.id,
+          metadata: { 
+            deadline: deadline,
+            deadlineIsAllDay: deadlineIsAllDay,
+            priority: priority || currentCase.priority,
+          },
+          req,
+        });
+      }
+      
+      if (priority !== undefined) {
+        await logAuditEvent(userId, "priority_changed", {
+          caseId: req.params.id,
+          metadata: { 
+            oldPriority: currentCase.priority,
+            newPriority: priority,
+          },
+          req,
+        });
+      }
+      
+      // General case update log
       await logAuditEvent(userId, "case_updated", {
         caseId: req.params.id,
         metadata: { updates },
@@ -2561,6 +2638,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({ success: true, deletedCount: eventsToDelete.length });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Log document export/download events
+  app.post("/api/cases/:id/audit/export", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { format, documents: exportedDocs } = req.body;
+      
+      // Verify user has access to the case
+      const caseData = await storage.getCase(req.params.id, userId);
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      await logAuditEvent(userId, "documents_exported", {
+        caseId: req.params.id,
+        metadata: { 
+          format: format || 'pdf',
+          documents: exportedDocs || [],
+          documentCount: exportedDocs?.length || 0,
+        },
+        req,
+      });
+      
+      res.json({ success: true });
     } catch (error: any) {
       next(error);
     }

@@ -13,11 +13,13 @@ import {
 import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
+import DownloadModal from "@/components/DownloadModal";
 import { useLocation } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { exportToPDF } from "@/lib/documentExport";
+import { exportToPDF, exportToWord } from "@/lib/documentExport";
+import type { FirmProfile } from "@shared/schema";
 
 interface CaseCardProps {
   id: string;
@@ -50,7 +52,28 @@ export default function CaseCard({
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
   const { toast} = useToast();
+
+  const { data: documents = [] } = useQuery<any[]>({
+    queryKey: ['/api/cases', id, 'documents'],
+    enabled: showDownloadModal,
+  });
+
+  const { data: caseData } = useQuery<any>({
+    queryKey: ['/api/cases', id],
+    enabled: showDownloadModal,
+  });
+
+  const { data: transcript } = useQuery<any>({
+    queryKey: ['/api/cases', id, 'transcript'],
+    enabled: showDownloadModal,
+  });
+
+  const { data: firmProfile } = useQuery<FirmProfile>({
+    queryKey: ['/api/firm-profile'],
+    enabled: showDownloadModal,
+  });
 
   const markReviewedMutation = useMutation({
     mutationFn: async (newReviewedState: boolean) => {
@@ -115,48 +138,79 @@ export default function CaseCard({
     },
   });
 
-  const downloadPDFMutation = useMutation({
-    mutationFn: async () => {
-      // Fetch all case data in parallel
-      const [caseData, documents, transcript, firmProfile] = await Promise.all([
-        fetch(`/api/cases/${id}`, { credentials: 'include' }).then(r => r.json()),
-        fetch(`/api/cases/${id}/documents`, { credentials: 'include' }).then(r => r.json()),
-        fetch(`/api/cases/${id}/transcript`, { credentials: 'include' }).then(r => r.json()).catch(() => null),
-        fetch(`/api/firm-profile`, { credentials: 'include' }).then(r => r.json()).catch(() => null),
-      ]);
+  const handleDownload = async (selectedDocs: string[], format: 'pdf' | 'word') => {
+    if (!caseData || !documents) return;
 
-      // Find active documents by type
-      const activeDocuments = documents.filter((doc: any) => doc.isActive);
-      const attendanceNote = activeDocuments.find((doc: any) => doc.type === 'attendance_note');
-      const legalOpinion = activeDocuments.find((doc: any) => doc.type === 'legal_opinion');
+    const activeDocuments = documents.filter((doc: any) => doc.isActive);
+    const attendanceNote = activeDocuments.find((doc: any) => doc.type === 'attendance_note');
+    const legalOpinion = activeDocuments.find((doc: any) => doc.type === 'legal_opinion');
+    const summary = activeDocuments.find((doc: any) => doc.type === 'summary');
+    const transcriptDoc = activeDocuments.find((doc: any) => doc.type === 'transcript');
+    
+    const transcriptContent = transcriptDoc?.content ?? transcript?.content;
+    const summaryContent = summary?.content || caseData.textNotes;
 
-      // Generate comprehensive PDF
-      await exportToPDF({
+    const content: Record<string, string> = {};
+    
+    if (selectedDocs.includes('attendance_note') && attendanceNote) {
+      content.attendanceNote = attendanceNote.content;
+    }
+    if (selectedDocs.includes('legal_opinion') && legalOpinion) {
+      content.legalOpinion = legalOpinion.content;
+    }
+    if (selectedDocs.includes('summary') && summaryContent) {
+      content.summary = summaryContent;
+    }
+    if (selectedDocs.includes('transcript') && transcriptContent) {
+      content.transcript = transcriptContent;
+    }
+
+    const hasAnyContent = content.attendanceNote || content.legalOpinion || content.summary || content.transcript;
+    if (!hasAnyContent) {
+      toast({
+        title: "No content available",
+        description: "None of the selected documents have content to export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const exportFn = format === 'pdf' ? exportToPDF : exportToWord;
+      await exportFn({
         caseTitle: caseData.title,
         clientName: caseData.clientName,
         matterReference: caseData.matterReference,
         createdAt: caseData.createdAt,
-        attendanceNote: attendanceNote?.content,
-        legalOpinion: legalOpinion?.content,
-        transcript: transcript?.content,
-        documentType: 'full_case',
+        documentType: 'selected',
         firmProfile: firmProfile,
+        ...content,
       });
-    },
-    onSuccess: () => {
+
+      // Log export audit event
+      try {
+        await fetch(`/api/cases/${id}/audit/export`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ format, documents: selectedDocs }),
+        });
+      } catch (auditError) {
+        console.error('Failed to log export audit event:', auditError);
+      }
+
       toast({
-        title: "PDF downloaded",
-        description: "Comprehensive case PDF has been generated",
+        title: `${format.toUpperCase()} downloaded`,
+        description: `Selected documents exported successfully`,
       });
-    },
-    onError: () => {
+    } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to generate PDF. Please try again.",
+        title: "Export failed",
+        description: `Failed to export as ${format.toUpperCase()}. Please try again.`,
         variant: "destructive",
       });
-    },
-  });
+    }
+  };
 
 
   const statusConfig = {
@@ -202,7 +256,7 @@ export default function CaseCard({
         description: "Team member assignment will be available soon",
       });
     } else if (action === 'download') {
-      downloadPDFMutation.mutate();
+      setShowDownloadModal(true);
     }
   };
 
@@ -272,7 +326,7 @@ export default function CaseCard({
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={(e) => handleAction('download', e)} data-testid={`action-download-${id}`}>
                   <Download className="w-4 h-4 mr-2" />
-                  Download PDF
+                  Download Document
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={(e) => handleAction('archive', e)} data-testid={`action-archive-${id}`}>
@@ -326,6 +380,19 @@ export default function CaseCard({
         caseId={id}
         caseTitle={title}
         userRole="Partner"
+      />
+
+      <DownloadModal
+        open={showDownloadModal}
+        onOpenChange={setShowDownloadModal}
+        availableDocuments={{
+          hasAttendanceNote: !!documents.find((d: any) => d.isActive && d.type === 'attendance_note'),
+          hasLegalOpinion: !!documents.find((d: any) => d.isActive && d.type === 'legal_opinion'),
+          hasSummary: !!documents.find((d: any) => d.isActive && d.type === 'summary') || !!caseData?.textNotes,
+          hasTranscript: !!documents.find((d: any) => d.isActive && d.type === 'transcript') || !!transcript?.content,
+        }}
+        sharedDocuments={['attendance_note', 'legal_opinion', 'summary', 'transcript']}
+        onDownload={handleDownload}
       />
     </Card>
   );

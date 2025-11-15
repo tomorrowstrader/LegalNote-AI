@@ -20,6 +20,7 @@ interface Document {
 }
 
 interface DocumentViewerProps {
+  caseId: string;
   documents: Document[];
   transcript?: string;
   textNotes?: string;
@@ -31,6 +32,7 @@ interface DocumentViewerProps {
 }
 
 export default function DocumentViewer({
+  caseId,
   documents,
   transcript,
   textNotes,
@@ -128,6 +130,18 @@ export default function DocumentViewer({
           description: "Your Word document is ready. Choose where to save it in the dialog.",
           duration: 3000,
         });
+      }
+
+      // Log export audit event
+      try {
+        await fetch(`/api/cases/${caseId}/audit/export`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ format, documents: selectedDocs }),
+        });
+      } catch (auditError) {
+        console.error('Failed to log export audit event:', auditError);
       }
 
       setShowDownloadModal(false);

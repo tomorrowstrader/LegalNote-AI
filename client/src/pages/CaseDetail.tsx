@@ -1,4 +1,5 @@
-import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -7,12 +8,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import DocumentViewer from "@/components/DocumentViewer";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { AuditTrail } from "@/components/AuditTrail";
+import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { useEffect } from "react";
 
 interface CaseWithDocuments {
   id: string;
@@ -75,6 +76,7 @@ export default function CaseDetail() {
   const params = useParams();
   const caseId = params.id;
   const { toast } = useToast();
+  const [showAddNoteModal, setShowAddNoteModal] = useState(false);
 
   const { data: caseData, isLoading, error } = useQuery<CaseWithDocuments>({
     queryKey: [`/api/cases/${caseId}`],
@@ -322,6 +324,38 @@ export default function CaseDetail() {
           </div>
         )}
 
+        {/* Quick Notes Section */}
+        <div className="mb-8 p-6 bg-card rounded-lg border border-border">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <MessageSquarePlus className="w-5 h-5 text-accent" />
+              <h3 className="font-semibold text-foreground">Quick Notes</h3>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddNoteModal(true)}
+              className="gap-2"
+              data-testid="button-add-quick-note"
+            >
+              <Plus className="w-4 h-4" />
+              {caseData.textNotes ? "Edit Note" : "Add Note"}
+            </Button>
+          </div>
+          
+          {caseData.textNotes ? (
+            <div className="prose prose-sm max-w-none">
+              <p className="text-foreground whitespace-pre-wrap" data-testid="text-quick-notes-content">
+                {caseData.textNotes}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic" data-testid="text-no-quick-notes">
+              No quick notes added yet. Click "Add Note" to add text or voice notes to this case.
+            </p>
+          )}
+        </div>
+
         {caseData.status === 'processing' && (
           <div className="mb-8 p-6 bg-card rounded-lg border-2 border-accent shadow-lg" data-testid="processing-status-card">
             <div className="flex items-start gap-4 mb-4">
@@ -443,6 +477,7 @@ export default function CaseDetail() {
         )}
 
         <DocumentViewer
+          caseId={caseId!}
           documents={documents}
           transcript={transcript?.content}
           textNotes={caseData.textNotes}
@@ -457,6 +492,12 @@ export default function CaseDetail() {
           <AuditTrail caseId={caseId!} limit={50} />
         </div>
       </div>
+
+      <AddQuickNoteModal
+        open={showAddNoteModal}
+        onOpenChange={setShowAddNoteModal}
+        caseId={caseId!}
+      />
     </div>
   );
 }
