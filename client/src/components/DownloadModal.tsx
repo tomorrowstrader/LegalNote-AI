@@ -37,12 +37,6 @@ export default function DownloadModal({
     if (availableDocuments.hasAttendanceNote && sharedDocuments.includes("attendance_note")) {
       defaults.push("attendance_note");
     }
-    if (availableDocuments.hasLegalOpinion && sharedDocuments.includes("legal_opinion")) {
-      defaults.push("legal_opinion");
-    }
-    if (availableDocuments.hasSummary && sharedDocuments.includes("summary")) {
-      defaults.push("summary");
-    }
     return defaults;
   });
   const [isDownloading, setIsDownloading] = useState(false);
@@ -72,12 +66,6 @@ export default function DownloadModal({
       const defaults: string[] = [];
       if (availableDocuments.hasAttendanceNote && sharedDocuments.includes("attendance_note")) {
         defaults.push("attendance_note");
-      }
-      if (availableDocuments.hasLegalOpinion && sharedDocuments.includes("legal_opinion")) {
-        defaults.push("legal_opinion");
-      }
-      if (availableDocuments.hasSummary && sharedDocuments.includes("summary")) {
-        defaults.push("summary");
       }
       setSelectedDocuments(defaults);
       onOpenChange(false);
