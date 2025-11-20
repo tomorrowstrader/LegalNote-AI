@@ -93,6 +93,8 @@ export interface IStorage {
   getDocumentsByCase(caseId: string, userId: string): Promise<Document[]>;
   getActiveDocumentsByCase(caseId: string, userId: string): Promise<Document[]>;
   updateDocument(id: string, updates: Partial<Document>, userId: string): Promise<Document | undefined>;
+  approveDocument(id: string, userId: string, comment?: string): Promise<Document | undefined>;
+  unlockDocument(id: string, userId: string): Promise<Document | undefined>;
   
   createAuditLog(auditData: InsertAuditTrail): Promise<AuditTrail>;
   getAuditLogs(filters?: {
@@ -468,6 +470,65 @@ export class MemStorage implements IStorage {
     
     const updated = { ...existing, ...updates };
     this.documents.set(id, updated);
+    return updated;
+  }
+
+  async approveDocument(id: string, userId: string, comment?: string): Promise<Document | undefined> {
+    const existing = this.documents.get(id);
+    if (!existing) return undefined;
+    
+    const caseRecord = this.cases.get(existing.caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    
+    const updated = {
+      ...existing,
+      status: 'approved' as const,
+      approvedBy: userId,
+      approvedAt: new Date(),
+      approvalComment: comment ?? null,
+    };
+    this.documents.set(id, updated);
+    
+    await this.createAuditLog({
+      eventType: 'document_approved',
+      userId,
+      caseId: existing.caseId,
+      documentId: id,
+      metadata: {
+        documentType: existing.type,
+        comment: comment ?? null,
+      },
+    });
+    
+    return updated;
+  }
+
+  async unlockDocument(id: string, userId: string): Promise<Document | undefined> {
+    const existing = this.documents.get(id);
+    if (!existing) return undefined;
+    
+    const caseRecord = this.cases.get(existing.caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    
+    const updated = {
+      ...existing,
+      status: 'draft' as const,
+      approvedBy: null,
+      approvedAt: null,
+      approvalComment: null,
+    };
+    this.documents.set(id, updated);
+    
+    await this.createAuditLog({
+      eventType: 'document_unlocked',
+      userId,
+      caseId: existing.caseId,
+      documentId: id,
+      metadata: {
+        documentType: existing.type,
+      },
+    });
+    
     return updated;
   }
 
@@ -978,6 +1039,69 @@ export class DbStorage implements IStorage {
       .set(updates)
       .where(eq(documents.id, id))
       .returning();
+    return result[0];
+  }
+
+  async approveDocument(id: string, userId: string, comment?: string): Promise<Document | undefined> {
+    const document = await db.select().from(documents).where(eq(documents.id, id));
+    if (!document[0]) return undefined;
+    
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, document[0].caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return undefined;
+    
+    const result = await db
+      .update(documents)
+      .set({
+        status: 'approved',
+        approvedBy: userId,
+        approvedAt: new Date(),
+        approvalComment: comment ?? null,
+      })
+      .where(eq(documents.id, id))
+      .returning();
+    
+    await this.createAuditLog({
+      eventType: 'document_approved',
+      userId,
+      caseId: document[0].caseId,
+      documentId: id,
+      metadata: {
+        documentType: document[0].type,
+        comment: comment ?? null,
+      },
+    });
+    
+    return result[0];
+  }
+
+  async unlockDocument(id: string, userId: string): Promise<Document | undefined> {
+    const document = await db.select().from(documents).where(eq(documents.id, id));
+    if (!document[0]) return undefined;
+    
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, document[0].caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return undefined;
+    
+    const result = await db
+      .update(documents)
+      .set({
+        status: 'draft',
+        approvedBy: null,
+        approvedAt: null,
+        approvalComment: null,
+      })
+      .where(eq(documents.id, id))
+      .returning();
+    
+    await this.createAuditLog({
+      eventType: 'document_unlocked',
+      userId,
+      caseId: document[0].caseId,
+      documentId: id,
+      metadata: {
+        documentType: document[0].type,
+      },
+    });
+    
     return result[0];
   }
 

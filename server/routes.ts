@@ -767,6 +767,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Document Review Workflow Routes
+  app.post("/api/documents/:id/approve", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body with Zod
+      const approveSchema = z.object({
+        comment: z.string().trim().max(1000, "Comment too long").optional(),
+      });
+      
+      const validationResult = approveSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Validation error",
+          errors: validationResult.error.format()
+        });
+      }
+      
+      const { comment } = validationResult.data;
+      
+      const approvedDocument = await storage.approveDocument(req.params.id, userId, comment);
+      
+      if (!approvedDocument) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      res.json(approvedDocument);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/documents/:id/unlock", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // No request body validation needed for unlock (no body expected)
+      const unlockedDocument = await storage.unlockDocument(req.params.id, userId);
+      
+      if (!unlockedDocument) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      res.json(unlockedDocument);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.post("/api/cases/:id/email", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;

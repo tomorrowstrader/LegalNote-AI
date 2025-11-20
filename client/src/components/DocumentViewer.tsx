@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch } from "lucide-react";
+import { FileDown, FileSearch, CheckCircle, Lock, Unlock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile } from "@shared/schema";
 import DownloadModal from "@/components/DownloadModal";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface Document {
   id: string;
@@ -17,6 +19,10 @@ interface Document {
   content: string;
   version: number;
   createdAt: string;
+  status: 'draft' | 'approved';
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  approvalComment?: string | null;
 }
 
 interface DocumentViewerProps {
@@ -156,12 +162,149 @@ export default function DocumentViewer({
     }
   };
 
+  // Document approval mutations
+  const approveMutation = useMutation({
+    mutationFn: async ({ documentId }: { documentId: string }) => {
+      return await apiRequest(`/api/documents/${documentId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment: '' }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId, 'documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId] });
+      toast({
+        title: "Document Approved",
+        description: "Document has been marked as final and is now locked",
+        duration: 3000,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Approval Failed",
+        description: "Failed to approve document. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    },
+  });
+
+  const unlockMutation = useMutation({
+    mutationFn: async ({ documentId }: { documentId: string }) => {
+      return await apiRequest(`/api/documents/${documentId}/unlock`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId, 'documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId] });
+      toast({
+        title: "Document Unlocked",
+        description: "Document returned to draft status for editing",
+        duration: 3000,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Unlock Failed",
+        description: "Failed to unlock document. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    },
+  });
+
   const attendanceNote = documents.find(d => d.type === 'attendance_note');
   const summary = documents.find(d => d.type === 'summary');
   const legalOpinion = documents.find(d => d.type === 'legal_opinion');
   const transcriptDoc = documents.find(d => d.type === 'transcript');
   
   const transcriptContent = transcriptDoc?.content ?? transcript;
+
+  // Helper component for document status and actions
+  const DocumentStatusActions = ({ document }: { document?: Document }) => {
+    if (!document) return null;
+
+    const isApproved = document.status === 'approved';
+    const isApproving = approveMutation.isPending;
+    const isUnlocking = unlockMutation.isPending;
+
+    const formatApprovalDate = (dateString: string) => {
+      const date = new Date(dateString);
+      return date.toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    return (
+      <div className="flex flex-col items-end gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" data-testid="badge-version">
+            Version {document.version}
+          </Badge>
+          {isApproved ? (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="default" className="gap-1" data-testid="badge-status-approved">
+                    <Lock className="w-3 h-3" data-testid="icon-lock" />
+                    Approved
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="text-xs">
+                    <p className="font-semibold">Document Locked</p>
+                    <p className="text-muted-foreground">This document is final and cannot be edited</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => unlockMutation.mutate({ documentId: document.id })}
+                disabled={isUnlocking}
+                className="gap-1"
+                data-testid="button-unlock-document"
+              >
+                <Unlock className="w-3 h-3" />
+                Edit Final Document
+              </Button>
+            </>
+          ) : (
+            <>
+              <Badge variant="secondary" data-testid="badge-status-draft">
+                Draft
+              </Badge>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => approveMutation.mutate({ documentId: document.id })}
+                disabled={isApproving}
+                className="gap-1"
+                data-testid="button-approve-document"
+              >
+                <CheckCircle className="w-3 h-3" />
+                Mark as Final
+              </Button>
+            </>
+          )}
+        </div>
+        {isApproved && document.approvedAt && (
+          <div className="text-xs text-muted-foreground" data-testid="text-approval-metadata">
+            Approved {formatApprovalDate(document.approvedAt)}
+            {document.approvalComment && (
+              <span className="ml-1">• {document.approvalComment}</span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const hasAnyDocument = documents.length > 0 || transcriptContent || textNotes;
 
@@ -253,13 +396,9 @@ export default function DocumentViewer({
         <TabsContent value="summary" className="mt-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <CardTitle>Case Summary</CardTitle>
-                {summary && (
-                  <Badge variant="outline" data-testid="badge-version">
-                    Version {summary.version}
-                  </Badge>
-                )}
+                <DocumentStatusActions document={summary} />
               </div>
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
@@ -284,13 +423,9 @@ export default function DocumentViewer({
         <TabsContent value="attendance" className="mt-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <CardTitle>Attendance Note</CardTitle>
-                {attendanceNote && (
-                  <Badge variant="outline" data-testid="badge-version">
-                    Version {attendanceNote.version}
-                  </Badge>
-                )}
+                <DocumentStatusActions document={attendanceNote} />
               </div>
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
@@ -308,13 +443,9 @@ export default function DocumentViewer({
         <TabsContent value="opinion" className="mt-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <CardTitle>Legal Opinion</CardTitle>
-                {legalOpinion && (
-                  <Badge variant="outline" data-testid="badge-version">
-                    Version {legalOpinion.version}
-                  </Badge>
-                )}
+                <DocumentStatusActions document={legalOpinion} />
               </div>
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">

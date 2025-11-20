@@ -88,6 +88,10 @@ export const documents = pgTable("documents", {
   createdBy: varchar("created_by").notNull().references(() => users.id),
   isActive: boolean("is_active").notNull().default(true), // Current version flag
   parentVersionId: varchar("parent_version_id"), // Self-referential FK to previous version - set manually to avoid circular reference
+  status: text("status").notNull().default("draft"), // draft, approved
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  approvalComment: text("approval_comment"),
 });
 
 export const clientVersionTracking = pgTable("client_version_tracking", {
@@ -116,6 +120,7 @@ export const auditTrail = pgTable("audit_trail", {
   // Audio playback: audio_playback_started, audio_playback_paused, audio_seeked, audio_deleted
   // AI operations: transcript_generated, document_generated, document_regenerated
   // Document modifications: document_edited, transcript_redacted
+  // Document review: document_approved, document_unlocked
   // Exports: document_exported_pdf, document_exported_word, audit_exported_csv
   // Case actions: case_created, case_viewed, case_updated, case_priority_changed, case_assigned, case_email_sent, calendar_synced, calendar_sync_failed
   // System events: user_login, user_logout, session_expired
