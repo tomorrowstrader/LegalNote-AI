@@ -11,6 +11,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile } from "@shared/schema";
 import DownloadModal from "@/components/DownloadModal";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Document {
   id: string;
@@ -110,7 +112,12 @@ function EditableDocumentContent({
           </Button>
         </div>
       )}
-      <p className="text-foreground whitespace-pre-wrap">{document.content}</p>
+      <ReactMarkdown 
+        remarkPlugins={[remarkGfm]}
+        className="text-foreground"
+      >
+        {document.content}
+      </ReactMarkdown>
     </div>
   );
 }
@@ -297,11 +304,25 @@ export default function DocumentViewer({
 
   const editMutation = useMutation({
     mutationFn: async ({ documentId, content }: { documentId: string; content: string }) => {
-      return await apiRequest(`/api/documents/${documentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      });
+      console.log('[EDIT] Attempting to save document:', { documentId, contentLength: content.length, contentPreview: content.substring(0, 100) });
+      
+      try {
+        const result = await apiRequest(`/api/documents/${documentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        });
+        console.log('[EDIT] Save successful:', result);
+        return result;
+      } catch (error: any) {
+        console.error('[EDIT] Save failed:', {
+          error,
+          message: error?.message,
+          body: error?.body,
+          status: error?.status,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId, 'documents'] });
