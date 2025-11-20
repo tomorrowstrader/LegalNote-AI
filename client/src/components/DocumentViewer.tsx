@@ -112,12 +112,11 @@ function EditableDocumentContent({
           </Button>
         </div>
       )}
-      <ReactMarkdown 
-        remarkPlugins={[remarkGfm]}
-        className="text-foreground"
-      >
-        {document.content}
-      </ReactMarkdown>
+      <div className="prose prose-sm max-w-none text-foreground">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {document.content}
+        </ReactMarkdown>
+      </div>
     </div>
   );
 }
