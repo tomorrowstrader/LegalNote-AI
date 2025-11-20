@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, CheckCircle, Lock, Unlock } from "lucide-react";
+import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -50,6 +50,8 @@ export default function DocumentViewer({
 }: DocumentViewerProps) {
   const { toast } = useToast();
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState<string>("");
 
   // Fetch firm profile for exports
   const { data: firmProfile } = useQuery<FirmProfile>({
@@ -215,12 +217,125 @@ export default function DocumentViewer({
     },
   });
 
+  const editMutation = useMutation({
+    mutationFn: async ({ documentId, content }: { documentId: string; content: string }) => {
+      return await apiRequest(`/api/documents/${documentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId, 'documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId] });
+      setEditingDocId(null);
+      setEditContent("");
+      toast({
+        title: "Document Updated",
+        description: "Your changes have been saved successfully",
+        duration: 3000,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Update Failed",
+        description: "Failed to save changes. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    },
+  });
+
+  const startEditing = (document: Document) => {
+    setEditingDocId(document.id);
+    setEditContent(document.content);
+  };
+
+  const cancelEditing = () => {
+    setEditingDocId(null);
+    setEditContent("");
+  };
+
+  const saveEdits = (documentId: string) => {
+    if (!editContent.trim()) {
+      toast({
+        title: "Invalid Content",
+        description: "Document content cannot be empty",
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
+    }
+    editMutation.mutate({ documentId, content: editContent });
+  };
+
   const attendanceNote = documents.find(d => d.type === 'attendance_note');
   const summary = documents.find(d => d.type === 'summary');
   const legalOpinion = documents.find(d => d.type === 'legal_opinion');
   const transcriptDoc = documents.find(d => d.type === 'transcript');
   
   const transcriptContent = transcriptDoc?.content ?? transcript;
+
+  // Helper component for editable document content
+  const EditableDocumentContent = ({ document }: { document: Document }) => {
+    const isEditing = editingDocId === document.id;
+    const isDraft = document.status === 'draft';
+    const isSaving = editMutation.isPending;
+
+    if (isEditing) {
+      return (
+        <div className="space-y-4">
+          <textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            className="w-full min-h-[400px] p-4 rounded-md border border-input bg-background text-foreground font-mono text-sm"
+            placeholder="Enter document content..."
+            disabled={isSaving}
+            data-testid="textarea-edit-document"
+          />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => saveEdits(document.id)}
+              disabled={isSaving}
+              data-testid="button-save-edits"
+            >
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={cancelEditing}
+              disabled={isSaving}
+              data-testid="button-cancel-edits"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {isDraft && (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => startEditing(document)}
+              className="gap-1"
+              data-testid="button-edit-document"
+            >
+              <Edit className="w-3 h-3" />
+              Edit Document
+            </Button>
+          </div>
+        )}
+        <p className="text-foreground whitespace-pre-wrap">{document.content}</p>
+      </div>
+    );
+  };
 
   // Helper component for document status and actions
   const DocumentStatusActions = ({ document }: { document?: Document }) => {
@@ -229,6 +344,7 @@ export default function DocumentViewer({
     const isApproved = document.status === 'approved';
     const isApproving = approveMutation.isPending;
     const isUnlocking = unlockMutation.isPending;
+    const isEditing = editMutation.isPending;
 
     const formatApprovalDate = (dateString: string) => {
       const date = new Date(dateString);
@@ -277,14 +393,25 @@ export default function DocumentViewer({
             </>
           ) : (
             <>
-              <Badge variant="secondary" data-testid="badge-status-draft">
-                Draft
-              </Badge>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="destructive" className="gap-1" data-testid="badge-status-draft">
+                    <AlertCircle className="w-3 h-3" data-testid="icon-awaiting-review" />
+                    Awaiting Review
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="text-xs">
+                    <p className="font-semibold">Review Required</p>
+                    <p className="text-muted-foreground">This AI-generated document needs your professional review and approval</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
               <Button
                 size="sm"
                 variant="default"
                 onClick={() => approveMutation.mutate({ documentId: document.id })}
-                disabled={isApproving}
+                disabled={isApproving || isEditing}
                 className="gap-1"
                 data-testid="button-approve-document"
               >
@@ -403,7 +530,7 @@ export default function DocumentViewer({
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
               {summary ? (
-                <p className="text-foreground whitespace-pre-wrap">{summary.content}</p>
+                <EditableDocumentContent document={summary} />
               ) : textNotes ? (
                 <div>
                   <p className="text-sm text-muted-foreground mb-4 italic">
@@ -430,7 +557,7 @@ export default function DocumentViewer({
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
               {attendanceNote ? (
-                <p className="text-foreground whitespace-pre-wrap">{attendanceNote.content}</p>
+                <EditableDocumentContent document={attendanceNote} />
               ) : (
                 <p className="text-sm text-muted-foreground italic">
                   No attendance note available yet. Documents will be generated automatically.
@@ -450,7 +577,7 @@ export default function DocumentViewer({
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
               {legalOpinion ? (
-                <p className="text-foreground whitespace-pre-wrap">{legalOpinion.content}</p>
+                <EditableDocumentContent document={legalOpinion} />
               ) : (
                 <p className="text-sm text-muted-foreground italic">
                   No legal opinion available yet. Documents will be generated automatically.

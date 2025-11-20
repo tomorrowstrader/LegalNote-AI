@@ -816,6 +816,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/documents/:id", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body with Zod
+      const updateDocumentSchema = z.object({
+        content: z.string().min(1, "Content cannot be empty").max(100000, "Content too long"),
+      });
+      
+      const validationResult = updateDocumentSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Validation error",
+          errors: validationResult.error.format()
+        });
+      }
+      
+      const { content } = validationResult.data;
+      
+      // Get the document first to check if it exists and is a draft
+      const existingDoc = await storage.getDocument(req.params.id);
+      if (!existingDoc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      if (existingDoc.status === 'approved') {
+        return res.status(400).json({ 
+          message: "Cannot edit approved documents. Unlock the document first." 
+        });
+      }
+      
+      // Update content and increment version
+      const updatedDocument = await storage.updateDocument(
+        req.params.id, 
+        { 
+          content,
+          version: existingDoc.version + 1 
+        }, 
+        userId
+      );
+      
+      if (!updatedDocument) {
+        return res.status(404).json({ message: "Failed to update document" });
+      }
+      
+      // Create audit log for document edit
+      await storage.createAuditLog({
+        eventType: 'document_edited',
+        userId,
+        caseId: existingDoc.caseId,
+        documentId: req.params.id,
+        metadata: {
+          documentType: existingDoc.type,
+          oldVersion: existingDoc.version,
+          newVersion: updatedDocument.version,
+          contentLength: content.length,
+        },
+      });
+      
+      res.json(updatedDocument);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.post("/api/cases/:id/email", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
