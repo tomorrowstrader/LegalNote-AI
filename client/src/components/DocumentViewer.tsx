@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit, Bold, Italic, Underline } from "lucide-react";
+import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -58,100 +58,11 @@ function EditableDocumentContent({
   isSaving: boolean;
 }) {
   const isDraft = document.status === 'draft';
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const applyFormatting = (formatType: 'bold' | 'italic' | 'underline') => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = editContent.substring(start, end);
-
-    let formattedText = '';
-    let wrapper = '';
-    
-    switch (formatType) {
-      case 'bold':
-        wrapper = '**';
-        formattedText = `**${selectedText || 'text'}**`;
-        break;
-      case 'italic':
-        wrapper = '*';
-        formattedText = `*${selectedText || 'text'}*`;
-        break;
-      case 'underline':
-        wrapper = '__';
-        formattedText = `__${selectedText || 'text'}__`;
-        break;
-    }
-
-    const newContent = editContent.substring(0, start) + formattedText + editContent.substring(end);
-    onEditContentChange(newContent);
-
-    // Set cursor position after formatting
-    setTimeout(() => {
-      if (selectedText) {
-        textarea.setSelectionRange(start + wrapper.length, end + wrapper.length);
-      } else {
-        textarea.setSelectionRange(start + wrapper.length, start + wrapper.length + 4);
-      }
-      textarea.focus();
-    }, 0);
-  };
 
   if (isEditing) {
     return (
       <div className="space-y-4">
-        <div className="flex gap-1 p-2 border border-input rounded-md bg-muted/50">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => applyFormatting('bold')}
-                disabled={isSaving}
-                data-testid="button-format-bold"
-                type="button"
-              >
-                <Bold className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Bold (Markdown: **text**)</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => applyFormatting('italic')}
-                disabled={isSaving}
-                data-testid="button-format-italic"
-                type="button"
-              >
-                <Italic className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Italic (Markdown: *text*)</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => applyFormatting('underline')}
-                disabled={isSaving}
-                data-testid="button-format-underline"
-                type="button"
-              >
-                <Underline className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Underline (Markdown: __text__)</TooltipContent>
-          </Tooltip>
-        </div>
         <textarea
-          ref={textareaRef}
           value={editContent}
           onChange={(e) => onEditContentChange(e.target.value)}
           className="w-full min-h-[400px] p-4 rounded-md border border-input bg-background text-foreground font-mono text-sm"

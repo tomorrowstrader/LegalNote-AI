@@ -44,6 +44,14 @@ export const cases = pgTable("cases", {
   deadlineIsAllDay: boolean("deadline_is_all_day").notNull().default(false), // Whether deadline is all-day or has specific time
 });
 
+export const quickNotes = pgTable("quick_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  content: text("content").notNull(),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const audioRecordings = pgTable("audio_recordings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
@@ -255,6 +263,15 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   textNotes: z.string().max(100000).optional(), // 100KB limit for text notes
 });
 
+export const insertQuickNoteSchema = createInsertSchema(quickNotes).omit({
+  id: true,
+  createdAt: true,
+  createdBy: true, // Security: Server assigns this from authenticated session
+}).extend({
+  content: z.string().min(1).max(50000).transform(sanitizeString), // 50KB limit per quick note
+  caseId: z.string().uuid(),
+});
+
 export const insertAudioRecordingSchema = createInsertSchema(audioRecordings).omit({
   id: true,
   recordedAt: true,
@@ -424,6 +441,9 @@ export type User = typeof users.$inferSelect;
 
 export type InsertCase = z.infer<typeof insertCaseSchema>;
 export type Case = typeof cases.$inferSelect;
+
+export type InsertQuickNote = z.infer<typeof insertQuickNoteSchema>;
+export type QuickNote = typeof quickNotes.$inferSelect;
 
 export type InsertAudioRecording = z.infer<typeof insertAudioRecordingSchema>;
 export type AudioRecording = typeof audioRecordings.$inferSelect;

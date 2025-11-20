@@ -324,38 +324,6 @@ export default function CaseDetail() {
           </div>
         )}
 
-        {/* Quick Notes Section */}
-        <div className="mb-8 p-6 bg-card rounded-lg border border-border">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <MessageSquarePlus className="w-5 h-5 text-accent" />
-              <h3 className="font-semibold text-foreground">Quick Notes</h3>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAddNoteModal(true)}
-              className="gap-2"
-              data-testid="button-add-quick-note"
-            >
-              <Plus className="w-4 h-4" />
-              {caseData.textNotes ? "Edit Note" : "Add Note"}
-            </Button>
-          </div>
-          
-          {caseData.textNotes ? (
-            <div className="prose prose-sm max-w-none">
-              <p className="text-foreground whitespace-pre-wrap" data-testid="text-quick-notes-content">
-                {caseData.textNotes}
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground italic" data-testid="text-no-quick-notes">
-              No quick notes added yet. Click "Add Note" to add text or voice notes to this case.
-            </p>
-          )}
-        </div>
-
         {caseData.status === 'processing' && (
           <div className="mb-8 p-6 bg-card rounded-lg border-2 border-accent shadow-lg" data-testid="processing-status-card">
             <div className="flex items-start gap-4 mb-4">
@@ -487,6 +455,38 @@ export default function CaseDetail() {
           matterReference={caseData.matterReference}
           createdAt={caseData.createdAt}
         />
+
+        {/* Quick Notes Section */}
+        <div className="mt-8 p-6 bg-card rounded-lg border border-border">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <MessageSquarePlus className="w-5 h-5 text-accent" />
+              <h3 className="font-semibold text-foreground">Quick Notes</h3>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddNoteModal(true)}
+              className="gap-2"
+              data-testid="button-add-quick-note"
+            >
+              <Plus className="w-4 h-4" />
+              {caseData.textNotes ? "Edit Note" : "Add Note"}
+            </Button>
+          </div>
+          
+          {caseData.textNotes ? (
+            <div className="prose prose-sm max-w-none">
+              <p className="text-foreground whitespace-pre-wrap" data-testid="text-quick-notes-content">
+                {caseData.textNotes}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic" data-testid="text-no-quick-notes">
+              No quick notes added yet. Click "Add Note" to add text or voice notes to this case.
+            </p>
+          )}
+        </div>
 
         <div className="mt-8">
           <AuditTrail caseId={caseId!} limit={50} />
