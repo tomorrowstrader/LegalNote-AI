@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit } from "lucide-react";
+import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit, Bold, Italic, Underline } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -58,11 +58,100 @@ function EditableDocumentContent({
   isSaving: boolean;
 }) {
   const isDraft = document.status === 'draft';
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const applyFormatting = (formatType: 'bold' | 'italic' | 'underline') => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = editContent.substring(start, end);
+
+    let formattedText = '';
+    let wrapper = '';
+    
+    switch (formatType) {
+      case 'bold':
+        wrapper = '**';
+        formattedText = `**${selectedText || 'text'}**`;
+        break;
+      case 'italic':
+        wrapper = '*';
+        formattedText = `*${selectedText || 'text'}*`;
+        break;
+      case 'underline':
+        wrapper = '__';
+        formattedText = `__${selectedText || 'text'}__`;
+        break;
+    }
+
+    const newContent = editContent.substring(0, start) + formattedText + editContent.substring(end);
+    onEditContentChange(newContent);
+
+    // Set cursor position after formatting
+    setTimeout(() => {
+      if (selectedText) {
+        textarea.setSelectionRange(start + wrapper.length, end + wrapper.length);
+      } else {
+        textarea.setSelectionRange(start + wrapper.length, start + wrapper.length + 4);
+      }
+      textarea.focus();
+    }, 0);
+  };
 
   if (isEditing) {
     return (
       <div className="space-y-4">
+        <div className="flex gap-1 p-2 border border-input rounded-md bg-muted/50">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => applyFormatting('bold')}
+                disabled={isSaving}
+                data-testid="button-format-bold"
+                type="button"
+              >
+                <Bold className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Bold (Markdown: **text**)</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => applyFormatting('italic')}
+                disabled={isSaving}
+                data-testid="button-format-italic"
+                type="button"
+              >
+                <Italic className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Italic (Markdown: *text*)</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => applyFormatting('underline')}
+                disabled={isSaving}
+                data-testid="button-format-underline"
+                type="button"
+              >
+                <Underline className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Underline (Markdown: __text__)</TooltipContent>
+          </Tooltip>
+        </div>
         <textarea
+          ref={textareaRef}
           value={editContent}
           onChange={(e) => onEditContentChange(e.target.value)}
           className="w-full min-h-[400px] p-4 rounded-md border border-input bg-background text-foreground font-mono text-sm"
@@ -498,18 +587,18 @@ export default function DocumentViewer({
         </div>
       </div>
 
-      <Tabs defaultValue={(summary || textNotes) ? "summary" : transcriptContent ? "transcript" : "attendance"} className="w-full">
+      <Tabs defaultValue={attendanceNote ? "attendance" : (summary || textNotes) ? "summary" : transcriptContent ? "transcript" : "opinion"} className="w-full">
         <TabsList className="grid w-full grid-cols-4 h-auto">
-          <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
-            <span className="hidden sm:inline">Transcript</span>
-            <span className="sm:hidden">Script</span>
+          <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+            <span className="hidden sm:inline">Attendance Note</span>
+            <span className="sm:hidden">Att. Note</span>
           </TabsTrigger>
           <TabsTrigger value="summary" data-testid="tab-summary" disabled={!summary && !textNotes} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
             Summary
           </TabsTrigger>
-          <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
-            <span className="hidden sm:inline">Attendance Note</span>
-            <span className="sm:hidden">Att. Note</span>
+          <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+            <span className="hidden sm:inline">Transcript</span>
+            <span className="sm:hidden">Script</span>
           </TabsTrigger>
           <TabsTrigger value="opinion" data-testid="tab-opinion" disabled={!legalOpinion} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
             <span className="hidden sm:inline">Legal Opinion</span>
@@ -517,20 +606,29 @@ export default function DocumentViewer({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="transcript" className="mt-6">
+        <TabsContent value="attendance" className="mt-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Full Transcript</CardTitle>
-                <Badge variant="outline" data-testid="badge-ai-generated">AI Generated</Badge>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <CardTitle>Attendance Note</CardTitle>
+                <DocumentStatusActions document={attendanceNote} />
               </div>
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
-              {transcriptContent ? (
-                <p className="text-foreground whitespace-pre-wrap">{transcriptContent}</p>
+              {attendanceNote ? (
+                <EditableDocumentContent 
+                  document={attendanceNote}
+                  isEditing={editingDocId === attendanceNote.id}
+                  editContent={editContent}
+                  onEditContentChange={setEditContent}
+                  onStartEditing={startEditing}
+                  onCancelEditing={cancelEditing}
+                  onSaveEdits={saveEdits}
+                  isSaving={editMutation.isPending}
+                />
               ) : (
                 <p className="text-sm text-muted-foreground italic">
-                  Transcript not yet available. Process this case with AI to generate a transcript.
+                  No attendance note available yet. Documents will be generated automatically.
                 </p>
               )}
             </CardContent>
@@ -573,29 +671,20 @@ export default function DocumentViewer({
           </Card>
         </TabsContent>
 
-        <TabsContent value="attendance" className="mt-6">
+        <TabsContent value="transcript" className="mt-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <CardTitle>Attendance Note</CardTitle>
-                <DocumentStatusActions document={attendanceNote} />
+              <div className="flex items-center justify-between">
+                <CardTitle>Full Transcript</CardTitle>
+                <Badge variant="outline" data-testid="badge-ai-generated">AI Generated</Badge>
               </div>
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
-              {attendanceNote ? (
-                <EditableDocumentContent 
-                  document={attendanceNote}
-                  isEditing={editingDocId === attendanceNote.id}
-                  editContent={editContent}
-                  onEditContentChange={setEditContent}
-                  onStartEditing={startEditing}
-                  onCancelEditing={cancelEditing}
-                  onSaveEdits={saveEdits}
-                  isSaving={editMutation.isPending}
-                />
+              {transcriptContent ? (
+                <p className="text-foreground whitespace-pre-wrap">{transcriptContent}</p>
               ) : (
                 <p className="text-sm text-muted-foreground italic">
-                  No attendance note available yet. Documents will be generated automatically.
+                  Transcript not yet available. Process this case with AI to generate a transcript.
                 </p>
               )}
             </CardContent>
