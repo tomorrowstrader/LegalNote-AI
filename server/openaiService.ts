@@ -109,7 +109,17 @@ Please draft a professional attendance note following UK legal standards. The no
 7. Advice given (if any)
 8. Next steps and action points
 
-Format the note professionally with proper headings and structure. Be concise but comprehensive.`;
+FORMATTING REQUIREMENTS:
+- Use markdown formatting with **bold** for section headings
+- Always add a blank line before bullet point lists
+- Use proper markdown lists (- or •) 
+- Example:
+  **Key Points:**
+  
+  - First point
+  - Second point
+
+Be concise but comprehensive.`;
 
     const client = this.getClient();
     
@@ -159,7 +169,17 @@ Please draft a professional legal opinion following UK legal standards. The opin
 6. Preliminary recommendations
 7. Disclaimer about need for further review
 
-Format the opinion professionally with proper legal structure. Be thorough but acknowledge this is a preliminary assessment based on initial consultation.`;
+FORMATTING REQUIREMENTS:
+- Use markdown formatting with **bold** for section headings
+- Always add a blank line before bullet point lists
+- Use proper markdown lists (- or •)
+- Example:
+  **Key Points:**
+  
+  - First point
+  - Second point
+
+Be thorough but acknowledge this is a preliminary assessment based on initial consultation.`;
 
     const client = this.getClient();
     

@@ -365,4 +365,42 @@
   div[class*="react-joyride__tooltip"] {
     animation: joyrideTooltipFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.1s both;
   }
+
+  /* Markdown prose styling fixes */
+  .prose strong {
+    font-weight: 600;
+    color: hsl(var(--foreground));
+  }
+
+  .prose ul,
+  .prose ol {
+    margin-top: 0.75em;
+    margin-bottom: 0.75em;
+    padding-left: 1.5em;
+  }
+
+  .prose li {
+    margin-top: 0.25em;
+    margin-bottom: 0.25em;
+  }
+
+  .prose p + ul,
+  .prose p + ol,
+  .prose strong + ul,
+  .prose strong + ol {
+    margin-top: 0.5em;
+  }
+
+  /* Ensure bullet points display correctly */
+  .prose ul {
+    list-style-type: disc;
+  }
+
+  .prose ol {
+    list-style-type: decimal;
+  }
+
+  .prose li::marker {
+    color: hsl(var(--foreground) / 0.6);
+  }
 }
