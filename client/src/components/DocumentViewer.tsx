@@ -37,6 +37,84 @@ interface DocumentViewerProps {
   createdAt: string;
 }
 
+// Helper component for editable document content (extracted to prevent re-renders)
+function EditableDocumentContent({ 
+  document,
+  isEditing,
+  editContent,
+  onEditContentChange,
+  onStartEditing,
+  onCancelEditing,
+  onSaveEdits,
+  isSaving,
+}: { 
+  document: Document;
+  isEditing: boolean;
+  editContent: string;
+  onEditContentChange: (value: string) => void;
+  onStartEditing: (doc: Document) => void;
+  onCancelEditing: () => void;
+  onSaveEdits: (documentId: string) => void;
+  isSaving: boolean;
+}) {
+  const isDraft = document.status === 'draft';
+
+  if (isEditing) {
+    return (
+      <div className="space-y-4">
+        <textarea
+          value={editContent}
+          onChange={(e) => onEditContentChange(e.target.value)}
+          className="w-full min-h-[400px] p-4 rounded-md border border-input bg-background text-foreground font-mono text-sm"
+          placeholder="Enter document content..."
+          disabled={isSaving}
+          data-testid="textarea-edit-document"
+          autoFocus
+        />
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            onClick={() => onSaveEdits(document.id)}
+            disabled={isSaving}
+            data-testid="button-save-edits"
+          >
+            {isSaving ? "Saving..." : "Save Changes"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onCancelEditing}
+            disabled={isSaving}
+            data-testid="button-cancel-edits"
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {isDraft && (
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onStartEditing(document)}
+            className="gap-1"
+            data-testid="button-edit-document"
+          >
+            <Edit className="w-3 h-3" />
+            Edit Document
+          </Button>
+        </div>
+      )}
+      <p className="text-foreground whitespace-pre-wrap">{document.content}</p>
+    </div>
+  );
+}
+
 export default function DocumentViewer({
   caseId,
   documents,
@@ -276,67 +354,6 @@ export default function DocumentViewer({
   
   const transcriptContent = transcriptDoc?.content ?? transcript;
 
-  // Helper component for editable document content
-  const EditableDocumentContent = ({ document }: { document: Document }) => {
-    const isEditing = editingDocId === document.id;
-    const isDraft = document.status === 'draft';
-    const isSaving = editMutation.isPending;
-
-    if (isEditing) {
-      return (
-        <div className="space-y-4">
-          <textarea
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            className="w-full min-h-[400px] p-4 rounded-md border border-input bg-background text-foreground font-mono text-sm"
-            placeholder="Enter document content..."
-            disabled={isSaving}
-            data-testid="textarea-edit-document"
-          />
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              onClick={() => saveEdits(document.id)}
-              disabled={isSaving}
-              data-testid="button-save-edits"
-            >
-              {isSaving ? "Saving..." : "Save Changes"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={cancelEditing}
-              disabled={isSaving}
-              data-testid="button-cancel-edits"
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        {isDraft && (
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => startEditing(document)}
-              className="gap-1"
-              data-testid="button-edit-document"
-            >
-              <Edit className="w-3 h-3" />
-              Edit Document
-            </Button>
-          </div>
-        )}
-        <p className="text-foreground whitespace-pre-wrap">{document.content}</p>
-      </div>
-    );
-  };
-
   // Helper component for document status and actions
   const DocumentStatusActions = ({ document }: { document?: Document }) => {
     if (!document) return null;
@@ -530,7 +547,16 @@ export default function DocumentViewer({
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
               {summary ? (
-                <EditableDocumentContent document={summary} />
+                <EditableDocumentContent 
+                  document={summary}
+                  isEditing={editingDocId === summary.id}
+                  editContent={editContent}
+                  onEditContentChange={setEditContent}
+                  onStartEditing={startEditing}
+                  onCancelEditing={cancelEditing}
+                  onSaveEdits={saveEdits}
+                  isSaving={editMutation.isPending}
+                />
               ) : textNotes ? (
                 <div>
                   <p className="text-sm text-muted-foreground mb-4 italic">
@@ -557,7 +583,16 @@ export default function DocumentViewer({
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
               {attendanceNote ? (
-                <EditableDocumentContent document={attendanceNote} />
+                <EditableDocumentContent 
+                  document={attendanceNote}
+                  isEditing={editingDocId === attendanceNote.id}
+                  editContent={editContent}
+                  onEditContentChange={setEditContent}
+                  onStartEditing={startEditing}
+                  onCancelEditing={cancelEditing}
+                  onSaveEdits={saveEdits}
+                  isSaving={editMutation.isPending}
+                />
               ) : (
                 <p className="text-sm text-muted-foreground italic">
                   No attendance note available yet. Documents will be generated automatically.
@@ -577,7 +612,16 @@ export default function DocumentViewer({
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
               {legalOpinion ? (
-                <EditableDocumentContent document={legalOpinion} />
+                <EditableDocumentContent 
+                  document={legalOpinion}
+                  isEditing={editingDocId === legalOpinion.id}
+                  editContent={editContent}
+                  onEditContentChange={setEditContent}
+                  onStartEditing={startEditing}
+                  onCancelEditing={cancelEditing}
+                  onSaveEdits={saveEdits}
+                  isSaving={editMutation.isPending}
+                />
               ) : (
                 <p className="text-sm text-muted-foreground italic">
                   No legal opinion available yet. Documents will be generated automatically.
