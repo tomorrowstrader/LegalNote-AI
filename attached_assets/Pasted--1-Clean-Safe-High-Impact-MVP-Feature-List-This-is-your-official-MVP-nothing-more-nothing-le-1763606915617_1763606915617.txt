@@ -1,0 +1,172 @@
+✅ 1. Clean, Safe, High-Impact MVP Feature List
+
+This is your official MVP — nothing more, nothing less.
+It delivers maximum value with minimum risk.
+
+⸻
+
+🔹 MVP Feature 1: Meeting Recording (Browser-Based)
+	•	One-click record
+	•	Optional screen capture (future)
+	•	Automatic diarisation (who said what)
+	•	Background noise removal
+	•	Secure encrypted streaming
+	•	Timestamped recording ID linked to matter
+
+⸻
+
+🔹 MVP Feature 2: Consent Capture (SRA + GDPR)
+	•	Built-in solicitor script for verbal consent
+	•	Client verbal acknowledgment captured
+	•	Consent stored as a hash against matter ID
+	•	Included in audit log
+	•	Visible in final note metadata
+	•	Audio auto-deletion after 24h (minimises liability)
+
+This is one of your strongest differentiators.
+
+⸻
+
+🔹 MVP Feature 3: Transcript (Clean + Speaker Separated)
+	•	Speaker-labelled
+	•	Time-stamped
+	•	Auto-punctuated
+	•	Searchable
+	•	Downloadable
+
+This replaces manual transcription tools.
+
+⸻
+
+🔹 MVP Feature 4: Summary Draft
+
+A clear, concise 6–10 bullet summary covering:
+	•	Key points raised
+	•	Instructions received
+	•	Factual background
+	•	Important clarifications
+	•	Time references (optional)
+
+This is your quick digest output.
+
+⸻
+
+🔹 MVP Feature 5: Attendance Note Draft (Structured)
+
+Your signature feature — the reason boutiques will buy.
+
+Structure:
+	1.	Matter Reference
+	2.	Attendees (with roles)
+	3.	Purpose of Meeting
+	4.	Chronology of Discussion
+	5.	Instructions Received
+	6.	Advice Explained (if given verbally)
+⚠ Verbatim, extracted from transcript — not AI-generated advice
+	7.	Risks / Issues Flagged
+	8.	Actions & Next Steps (with owner + deadline)
+	9.	Follow-Up Requirements
+
+This renders hours of solicitors’ admin into minutes.
+
+⸻
+
+🔹 MVP Feature 6: Review Workflow (Risk Mitigation)
+	•	Draft status → Review status → Approved status
+	•	Lockable fields
+	•	Solicitor confirmation stamp
+	•	Audit trail of who changed what, and when
+	•	‘Download as PDF/Word’ with metadata
+
+Protects you.
+Protects the solicitor.
+Protects the client.
+
+⸻
+
+🔹 MVP Feature 7: Audit Log + Metadata
+
+Every record includes:
+	•	Recording timestamp
+	•	Consent captured (yes/no + time)
+	•	Editor history
+	•	Audio deletion confirmed
+	•	Version number
+	•	Exported by whom + when
+
+This is pure SRA-compliance gold.
+
+⸻
+
+🔹 MVP Feature 8: Secure UK/EU Data Storage
+	•	AES-256 encryption
+	•	TLS 1.3
+	•	No cross-border transfers
+	•	24h audio deletion
+	•	60–90 day transcript retention (configurable)
+
+Boutique firms will LOVE this.
+
+⸻
+
+⭐ Everything above = Safe. Necessary. Sellable. Adoptable.*
+
+Legal opinions? Not needed.
+Analysis engines? Not needed.
+Law RAG systems? Not needed.
+(You add those later when you have trust + traction.)
+
+⸻
+
+✅ 2. Product Roadmap — Phase 1 → Phase 2 → Phase 3
+
+This is your founder-ready roadmap.
+
+Phase 1 — MVP (0–4 months)
+
+🎯 Goal: Launch safely and land first 3–5 firms
+Includes:
+	•	Recording
+	•	Consent
+	•	Transcript
+	•	Summary
+	•	Attendance note
+	•	Review workflow
+	•	Audit log
+	•	Secure hosting
+
+Outcome: LegalNote becomes the UK’s first compliance-first meeting-to-note engine.
+
+⸻
+
+Phase 2 — v1.0 (4–12 months)
+
+🎯 Goal: Expand value + defensibility
+Add:
+	•	Redaction tools
+	•	Privilege tagging
+	•	Custom templates per firm
+	•	Matter integration (manual + API)
+	•	User roles & permissions
+	•	Export to case management systems
+	•	Usage analytics
+	•	Billing system
+
+Outcome: Stickiness and reliability increase.
+
+⸻
+
+Phase 3 — v2.0 (12–24 months)
+
+🎯 Goal: Expand into higher-value automation
+Add:
+	•	“Issue Outline” (safe)
+	•	“Next Steps Generator” (safe)
+	•	“Chronology Builder”
+	•	Email-to-note ingestion
+	•	Zoom/Teams integration
+	•	Barrister/solicitor-in-the-loop validation
+	•	RAG-based legislative context (grounded, no advice)
+	•	Multi-jurisdictional expansion
+
+Outcome: You evolve into the UK’s dominant solicitor workflow AI.
