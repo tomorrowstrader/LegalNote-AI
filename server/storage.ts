@@ -4,6 +4,7 @@ import {
   type AudioRecording, type InsertAudioRecording, 
   type ConsentLog, type InsertConsentLog,
   type Transcript, type InsertTranscript,
+  type QuickNote, type InsertQuickNote,
   type Document, type InsertDocument,
   type AuditTrail, type InsertAuditTrail,
   type FirmProfile, type InsertFirmProfile,
@@ -16,6 +17,7 @@ import {
   audioRecordings,
   consentLogs,
   transcripts,
+  quickNotes,
   documents,
   auditTrail,
   firmProfile,
@@ -88,6 +90,9 @@ export interface IStorage {
   getTranscriptByCase(caseId: string, userId: string): Promise<Transcript | undefined>;
   updateTranscript(id: string, updates: Partial<Transcript>, userId: string): Promise<Transcript | undefined>;
   
+  createQuickNote(noteData: InsertQuickNote, userId: string): Promise<QuickNote>;
+  getQuickNotesByCase(caseId: string, userId: string): Promise<QuickNote[]>;
+  
   createDocument(documentData: InsertDocument): Promise<Document>;
   getDocument(id: string): Promise<Document | undefined>;
   getDocumentsByCase(caseId: string, userId: string): Promise<Document[]>;
@@ -155,6 +160,7 @@ export class MemStorage implements IStorage {
   private audioRecordings: Map<string, AudioRecording>;
   private consentLogs: Map<string, ConsentLog>;
   private transcripts: Map<string, Transcript>;
+  private quickNotes: Map<string, QuickNote>;
   private documents: Map<string, Document>;
   private auditLogs: Map<string, AuditTrail>;
   private calendarIntegrations: Map<string, CalendarIntegration>;
@@ -165,6 +171,7 @@ export class MemStorage implements IStorage {
     this.audioRecordings = new Map();
     this.consentLogs = new Map();
     this.transcripts = new Map();
+    this.quickNotes = new Map();
     this.documents = new Map();
     this.auditLogs = new Map();
     this.calendarIntegrations = new Map();
@@ -418,6 +425,28 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...updates };
     this.transcripts.set(id, updated);
     return updated;
+  }
+
+  async createQuickNote(noteData: InsertQuickNote, userId: string): Promise<QuickNote> {
+    const id = randomUUID();
+    const quickNote: QuickNote = {
+      id,
+      caseId: noteData.caseId,
+      content: noteData.content,
+      createdBy: userId,
+      createdAt: new Date(),
+    };
+    this.quickNotes.set(id, quickNote);
+    return quickNote;
+  }
+
+  async getQuickNotesByCase(caseId: string, userId: string): Promise<QuickNote[]> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    
+    return Array.from(this.quickNotes.values())
+      .filter((note) => note.caseId === caseId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   async createDocument(insertDocument: InsertDocument): Promise<Document> {
@@ -977,6 +1006,29 @@ export class DbStorage implements IStorage {
       .where(eq(transcripts.id, id))
       .returning();
     return result[0];
+  }
+
+  async createQuickNote(noteData: InsertQuickNote, userId: string): Promise<QuickNote> {
+    const result = await db
+      .insert(quickNotes)
+      .values({
+        caseId: noteData.caseId,
+        content: noteData.content,
+        createdBy: userId,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getQuickNotesByCase(caseId: string, userId: string): Promise<QuickNote[]> {
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return [];
+    
+    return await db
+      .select()
+      .from(quickNotes)
+      .where(eq(quickNotes.caseId, caseId))
+      .orderBy(desc(quickNotes.createdAt));
   }
 
   async createDocument(documentData: InsertDocument): Promise<Document> {

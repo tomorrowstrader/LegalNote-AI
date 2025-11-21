@@ -59,11 +59,12 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
   const audioFormatRef = useRef(getSupportedMimeType());
 
   const updateNoteMutation = useMutation({
-    mutationFn: async (textNotes: string) => {
-      const res = await fetch(`/api/cases/${caseId}`, {
-        method: 'PATCH',
+    mutationFn: async (content: string) => {
+      const res = await fetch(`/api/cases/${caseId}/quick-notes`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ textNotes }),
+        body: JSON.stringify({ content }),
+        credentials: 'include',
       });
       if (!res.ok) {
         const error = await res.text();
@@ -74,6 +75,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
       queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId, 'quick-notes'] });
       
       toast({
         title: "Quick Note Saved",
@@ -87,7 +89,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
       setRecordingDuration(0);
       onOpenChange(false);
     },
-    onError: (error: any) => {
+    onError: (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to save quick note",

@@ -694,6 +694,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Quick Notes routes
+  app.post("/api/cases/:id/quick-notes", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { content } = req.body;
+
+      if (!content || typeof content !== 'string' || !content.trim()) {
+        return res.status(400).json({ message: "Content is required" });
+      }
+
+      // Verify case exists and belongs to user
+      const caseRecord = await storage.getCase(req.params.id, userId);
+      if (!caseRecord) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      const quickNote = await storage.createQuickNote({
+        caseId: req.params.id,
+        content: content.trim(),
+      }, userId);
+
+      await logAuditEvent(userId, "quick_note_added", {
+        caseId: req.params.id,
+        metadata: { 
+          noteLength: content.length,
+          quickNoteId: quickNote.id,
+        },
+        req,
+      });
+
+      res.json(quickNote);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/cases/:id/quick-notes", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const quickNotes = await storage.getQuickNotesByCase(req.params.id, userId);
+      res.json(quickNotes);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.patch("/api/cases/:id", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
