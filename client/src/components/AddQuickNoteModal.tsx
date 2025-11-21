@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 interface AddQuickNoteModalProps {
   open: boolean;
@@ -60,17 +60,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
 
   const updateNoteMutation = useMutation({
     mutationFn: async (content: string) => {
-      const res = await fetch(`/api/cases/${caseId}/quick-notes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const error = await res.text();
-        throw new Error(error || 'Failed to save note');
-      }
-      return res.json();
+      return await apiRequest('POST', `/api/cases/${caseId}/quick-notes`, { content });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
@@ -89,7 +79,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
       setRecordingDuration(0);
       onOpenChange(false);
     },
-    onError: (error: any) {
+    onError: (error) => {
       toast({
         title: "Error",
         description: error.message || "Failed to save quick note",
