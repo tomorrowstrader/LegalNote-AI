@@ -508,7 +508,7 @@ export default function DocumentViewer({
         </div>
       </div>
 
-      <Tabs defaultValue={attendanceNote ? "attendance" : (summary || textNotes) ? "summary" : transcriptContent ? "transcript" : "opinion"} className="w-full">
+      <Tabs defaultValue="attendance" className="w-full">
         <TabsList className="grid w-full grid-cols-4 h-auto">
           <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
             <span className="hidden sm:inline">Attendance Note</span>
