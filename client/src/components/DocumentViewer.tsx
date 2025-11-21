@@ -269,8 +269,10 @@ export default function DocumentViewer({
       return await apiRequest('POST', `/api/documents/${documentId}/approve`, { comment: '' });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId, 'documents'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      setEditingDocId(null);
+      setEditContent("");
       toast({
         title: "Document Approved",
         description: "Document has been marked as final and is now locked",
@@ -292,8 +294,8 @@ export default function DocumentViewer({
       return await apiRequest('POST', `/api/documents/${documentId}/unlock`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId, 'documents'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
       toast({
         title: "Document Unlocked",
         description: "Document returned to draft status for editing",
@@ -329,8 +331,8 @@ export default function DocumentViewer({
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId, 'documents'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
       setEditingDocId(null);
       setEditContent("");
       toast({

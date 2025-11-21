@@ -34,7 +34,7 @@ export default function DownloadModal({
 }: DownloadModalProps) {
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>(() => {
     const defaults: string[] = [];
-    if (availableDocuments.hasAttendanceNote && sharedDocuments.includes("attendance_note")) {
+    if (availableDocuments.hasAttendanceNote) {
       defaults.push("attendance_note");
     }
     return defaults;
@@ -64,7 +64,7 @@ export default function DownloadModal({
   const handleClose = () => {
     if (!isDownloading) {
       const defaults: string[] = [];
-      if (availableDocuments.hasAttendanceNote && sharedDocuments.includes("attendance_note")) {
+      if (availableDocuments.hasAttendanceNote) {
         defaults.push("attendance_note");
       }
       setSelectedDocuments(defaults);
