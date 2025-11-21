@@ -251,11 +251,7 @@ export default function DocumentViewer({
   // Document approval mutations
   const approveMutation = useMutation({
     mutationFn: async ({ documentId }: { documentId: string }) => {
-      return await apiRequest(`/api/documents/${documentId}/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comment: '' }),
-      });
+      return await apiRequest('POST', `/api/documents/${documentId}/approve`, { comment: '' });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId, 'documents'] });
@@ -278,9 +274,7 @@ export default function DocumentViewer({
 
   const unlockMutation = useMutation({
     mutationFn: async ({ documentId }: { documentId: string }) => {
-      return await apiRequest(`/api/documents/${documentId}/unlock`, {
-        method: 'POST',
-      });
+      return await apiRequest('POST', `/api/documents/${documentId}/unlock`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId, 'documents'] });
@@ -306,11 +300,7 @@ export default function DocumentViewer({
       console.log('[EDIT] Attempting to save document:', { documentId, contentLength: content.length, contentPreview: content.substring(0, 100) });
       
       try {
-        const result = await apiRequest(`/api/documents/${documentId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content }),
-        });
+        const result = await apiRequest('PATCH', `/api/documents/${documentId}`, { content });
         console.log('[EDIT] Save successful:', result);
         return result;
       } catch (error: any) {
