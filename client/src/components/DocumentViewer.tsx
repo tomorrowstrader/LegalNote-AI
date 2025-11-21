@@ -64,11 +64,23 @@ function EditableDocumentContent({
   if (isEditing) {
     return (
       <div className="space-y-4">
-        <div className="w-full rounded-md border border-input bg-background p-4 prose prose-sm max-w-none text-foreground min-h-[500px] focus-within:ring-2 focus-within:ring-ring overflow-auto" contentEditable suppressContentEditableWarning onInput={(e) => {
-          const text = e.currentTarget.innerText || '';
-          onEditContentChange(text);
-        }}>
-          {editContent || 'Start editing...'}
+        <div className="grid grid-cols-1 gap-4">
+          <div className="relative">
+            <textarea
+              value={editContent}
+              onChange={(e) => onEditContentChange(e.target.value)}
+              className="w-full min-h-[500px] p-4 rounded-md border border-input bg-background text-foreground text-sm resize-none focus:ring-2 focus:ring-ring focus:border-transparent"
+              placeholder="Edit document..."
+              disabled={isSaving}
+              data-testid="textarea-edit-document"
+              autoFocus
+            />
+          </div>
+          <div className="rounded-md border border-border bg-muted/30 p-4 prose prose-sm max-w-none text-foreground overflow-auto max-h-[500px]">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {editContent}
+            </ReactMarkdown>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button
