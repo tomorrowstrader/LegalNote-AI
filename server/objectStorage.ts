@@ -1,33 +1,21 @@
-import { Storage, File } from "@google-cloud/storage";
+import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Response } from "express";
 import { randomUUID } from "crypto";
-import {
-  ObjectAclPolicy,
-  ObjectPermission,
-  canAccessObject,
-  getObjectAclPolicy,
-  setObjectAclPolicy,
-} from "./objectAcl";
+import { Readable } from "stream";
 
-const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
-
-export const objectStorageClient = new Storage({
+// Initialize S3 client for Backblaze B2 (S3-compatible)
+const s3Client = new S3Client({
+  region: "us-west-004", // Backblaze region (can vary based on endpoint)
   credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
-      },
-    },
-    universe_domain: "googleapis.com",
+    accessKeyId: process.env.BACKBLAZE_KEY_ID || "",
+    secretAccessKey: process.env.BACKBLAZE_APPLICATION_KEY || "",
   },
-  projectId: "",
+  endpoint: process.env.BACKBLAZE_S3_ENDPOINT || "https://s3.us-west-004.backblazeb2.com",
+  forcePathStyle: true, // Backblaze B2 requires path-style URLs
 });
+
+const BUCKET_NAME = process.env.BACKBLAZE_BUCKET_NAME || "";
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -38,301 +26,183 @@ export class ObjectNotFoundError extends Error {
 }
 
 export class ObjectStorageService {
-  constructor() {}
+  constructor() {
+    if (!BUCKET_NAME) {
+      throw new Error("BACKBLAZE_BUCKET_NAME environment variable not set");
+    }
+  }
 
   getPublicObjectSearchPaths(): Array<string> {
-    const pathsStr = process.env.PUBLIC_OBJECT_SEARCH_PATHS || "";
-    const paths = Array.from(
-      new Set(
-        pathsStr
-          .split(",")
-          .map((path) => path.trim())
-          .filter((path) => path.length > 0)
-      )
-    );
-    if (paths.length === 0) {
-      throw new Error(
-        "PUBLIC_OBJECT_SEARCH_PATHS not set. Create a bucket in 'Object Storage' " +
-          "tool and set PUBLIC_OBJECT_SEARCH_PATHS env var (comma-separated paths)."
-      );
-    }
-    return paths;
+    return ["public"];
   }
 
   getPrivateObjectDir(): string {
-    const dir = process.env.PRIVATE_OBJECT_DIR || "";
-    if (!dir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
-      );
-    }
-    return dir;
+    return ".private";
   }
 
-  async searchPublicObject(filePath: string): Promise<File | null> {
-    for (const searchPath of this.getPublicObjectSearchPaths()) {
-      const fullPath = `${searchPath}/${filePath}`;
-
-      const { bucketName, objectName } = parseObjectPath(fullPath);
-      const bucket = objectStorageClient.bucket(bucketName);
-      const file = bucket.file(objectName);
-
-      const [exists] = await file.exists();
-      if (exists) {
-        return file;
-      }
-    }
-
-    return null;
-  }
-
-  async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
+  async downloadObject(fileKey: string, res: Response, cacheTtlSec: number = 3600) {
     try {
-      const [metadata] = await file.getMetadata();
-      const aclPolicy = await getObjectAclPolicy(file);
-      const isPublic = aclPolicy?.visibility === "public";
-      
-      const fileSize = parseInt(metadata.size as string, 10);
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: fileKey,
+      });
+
+      const data = await s3Client.send(command);
+      const contentType = data.ContentType || "application/octet-stream";
+      const contentLength = data.ContentLength || 0;
       const rangeHeader = res.req?.headers.range;
-      
+
       // Support Range requests for audio/video playback
       if (rangeHeader) {
         const parts = rangeHeader.replace(/bytes=/, "").split("-");
         const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-        const chunkSize = (end - start) + 1;
-        
+        const end = parts[1] ? parseInt(parts[1], 10) : contentLength - 1;
+        const chunkSize = end - start + 1;
+
         res.status(206);
         res.set({
-          "Content-Type": metadata.contentType || "application/octet-stream",
+          "Content-Type": contentType,
           "Content-Length": chunkSize.toString(),
-          "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+          "Content-Range": `bytes ${start}-${end}/${contentLength}`,
           "Accept-Ranges": "bytes",
-          "Cache-Control": `${isPublic ? "public" : "private"}, max-age=${cacheTtlSec}`,
+          "Cache-Control": `private, max-age=${cacheTtlSec}`,
         });
 
-        const stream = file.createReadStream({ start, end });
-        
-        stream.on("error", (err) => {
-          console.error("Stream error:", err);
-          if (!res.headersSent) {
-            res.status(500).json({ error: "Error streaming file" });
-          }
-        });
-
-        stream.pipe(res);
+        // For range requests, we need to read and slice the stream
+        if (data.Body instanceof Readable) {
+          data.Body.pipe(res);
+        } else {
+          res.end(data.Body);
+        }
       } else {
         // Full file download
         res.status(200);
         res.set({
-          "Content-Type": metadata.contentType || "application/octet-stream",
-          "Content-Length": metadata.size,
+          "Content-Type": contentType,
+          "Content-Length": contentLength.toString(),
           "Accept-Ranges": "bytes",
-          "Cache-Control": `${isPublic ? "public" : "private"}, max-age=${cacheTtlSec}`,
+          "Cache-Control": `private, max-age=${cacheTtlSec}`,
         });
 
-        const stream = file.createReadStream();
-
-        stream.on("error", (err) => {
-          console.error("Stream error:", err);
-          if (!res.headersSent) {
-            res.status(500).json({ error: "Error streaming file" });
-          }
-        });
-
-        stream.pipe(res);
+        if (data.Body instanceof Readable) {
+          data.Body.pipe(res);
+        } else {
+          res.end(data.Body);
+        }
       }
     } catch (error) {
-      console.error("Error downloading file:", error);
+      console.error("Error downloading file from Backblaze B2:", error);
       if (!res.headersSent) {
-        res.status(500).json({ error: "Error downloading file" });
+        res.status(500).json({ error: "Error streaming file" });
       }
     }
   }
 
   async getObjectEntityUploadURL(maxSizeBytes?: number): Promise<string> {
-    const privateObjectDir = this.getPrivateObjectDir();
-    if (!privateObjectDir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
-      );
-    }
-
     const objectId = randomUUID();
-    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    const fullPath = `.private/uploads/${objectId}`;
 
-    const { bucketName, objectName } = parseObjectPath(fullPath);
+    try {
+      const command = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: fullPath,
+        ...(maxSizeBytes && { ContentLength: maxSizeBytes }),
+      });
 
-    return signObjectURL({
-      bucketName,
-      objectName,
-      method: "PUT",
-      ttlSec: 900,
-      maxSizeBytes,
-    });
-  }
-
-  async getObjectEntityFile(objectPath: string): Promise<File> {
-    if (!objectPath.startsWith("/objects/")) {
-      throw new ObjectNotFoundError();
+      // Generate presigned URL valid for 15 minutes
+      const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
+      return signedUrl;
+    } catch (error) {
+      console.error("Error generating presigned URL:", error);
+      throw new Error("Failed to generate upload URL");
     }
-
-    const parts = objectPath.slice(1).split("/");
-    if (parts.length < 2) {
-      throw new ObjectNotFoundError();
-    }
-
-    const entityId = parts.slice(1).join("/");
-    let entityDir = this.getPrivateObjectDir();
-    if (!entityDir.endsWith("/")) {
-      entityDir = `${entityDir}/`;
-    }
-    const objectEntityPath = `${entityDir}${entityId}`;
-    const { bucketName, objectName } = parseObjectPath(objectEntityPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const objectFile = bucket.file(objectName);
-    const [exists] = await objectFile.exists();
-    if (!exists) {
-      throw new ObjectNotFoundError();
-    }
-    return objectFile;
-  }
-
-  normalizeObjectEntityPath(rawPath: string): string {
-    if (!rawPath.startsWith("https://storage.googleapis.com/")) {
-      return rawPath;
-    }
-  
-    const url = new URL(rawPath);
-    const rawObjectPath = url.pathname;
-  
-    let objectEntityDir = this.getPrivateObjectDir();
-    if (!objectEntityDir.startsWith("/")) {
-      objectEntityDir = `/${objectEntityDir}`;
-    }
-    if (!objectEntityDir.endsWith("/")) {
-      objectEntityDir = `${objectEntityDir}/`;
-    }
-  
-    if (!rawObjectPath.startsWith(objectEntityDir)) {
-      return rawObjectPath;
-    }
-  
-    const entityId = rawObjectPath.slice(objectEntityDir.length);
-    return `/objects/${entityId}`;
-  }
-
-  async trySetObjectEntityAclPolicy(
-    rawPath: string,
-    aclPolicy: ObjectAclPolicy
-  ): Promise<string> {
-    const normalizedPath = this.normalizeObjectEntityPath(rawPath);
-    if (!normalizedPath.startsWith("/")) {
-      return normalizedPath;
-    }
-
-    const objectFile = await this.getObjectEntityFile(normalizedPath);
-    await setObjectAclPolicy(objectFile, aclPolicy);
-    return normalizedPath;
-  }
-
-  async canAccessObjectEntity({
-    userId,
-    objectFile,
-    requestedPermission,
-  }: {
-    userId?: string;
-    objectFile: File;
-    requestedPermission?: ObjectPermission;
-  }): Promise<boolean> {
-    return canAccessObject({
-      userId,
-      objectFile,
-      requestedPermission: requestedPermission ?? ObjectPermission.READ,
-    });
   }
 
   async deleteObjectEntity(objectPath: string): Promise<void> {
-    const { bucketName, objectName } = parseObjectPath(objectPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const file = bucket.file(objectName);
-    
-    const [exists] = await file.exists();
-    if (!exists) {
+    try {
+      // Normalize path - accept both with and without leading slash
+      let key = objectPath;
+      if (key.startsWith("/")) {
+        key = key.substring(1);
+      }
+
+      console.log(`[S3] Deleting object: ${key} from bucket: ${BUCKET_NAME}`);
+
+      const command = new DeleteObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+      });
+
+      const response = await s3Client.send(command);
+      console.log(`[S3] Delete response:`, response.$metadata?.httpStatusCode);
+    } catch (error) {
+      console.error(`[S3] Error deleting object ${objectPath}:`, error);
+      throw new Error(`Failed to delete object from Backblaze B2: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  async uploadFile(fileKey: string, fileContent: Buffer, contentType: string): Promise<void> {
+    try {
+      const command = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: fileKey,
+        Body: fileContent,
+        ContentType: contentType,
+      });
+
+      await s3Client.send(command);
+      console.log(`[S3] Successfully uploaded ${fileKey}`);
+    } catch (error) {
+      console.error(`[S3] Error uploading file:`, error);
+      throw new Error(`Failed to upload file to Backblaze B2: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  async getObjectEntityFile(objectPath: string): Promise<Buffer> {
+    try {
+      let key = objectPath;
+      if (key.startsWith("/")) {
+        key = key.substring(1);
+      }
+
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+      });
+
+      const data = await s3Client.send(command);
+      
+      if (!data.Body) {
+        throw new ObjectNotFoundError();
+      }
+
+      // Convert stream to buffer
+      if (data.Body instanceof Readable) {
+        return new Promise((resolve, reject) => {
+          const chunks: any[] = [];
+          data.Body!.on("data", (chunk) => chunks.push(chunk));
+          data.Body!.on("end", () => resolve(Buffer.concat(chunks)));
+          data.Body!.on("error", reject);
+        });
+      } else {
+        return Buffer.from(data.Body as any);
+      }
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) throw error;
+      console.error(`[S3] Error getting file:`, error);
       throw new ObjectNotFoundError();
     }
-    
-    await file.delete();
-  }
-}
-
-function parseObjectPath(path: string): {
-  bucketName: string;
-  objectName: string;
-} {
-  if (!path.startsWith("/")) {
-    path = `/${path}`;
-  }
-  const pathParts = path.split("/");
-  if (pathParts.length < 3) {
-    throw new Error("Invalid path: must contain at least a bucket name");
   }
 
-  const bucketName = pathParts[1];
-  const objectName = pathParts.slice(2).join("/");
-
-  return {
-    bucketName,
-    objectName,
-  };
-}
-
-async function signObjectURL({
-  bucketName,
-  objectName,
-  method,
-  ttlSec,
-  maxSizeBytes,
-}: {
-  bucketName: string;
-  objectName: string;
-  method: "GET" | "PUT" | "DELETE" | "HEAD";
-  ttlSec: number;
-  maxSizeBytes?: number;
-}): Promise<string> {
-  const request: any = {
-    bucket_name: bucketName,
-    object_name: objectName,
-    method,
-    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-  };
-  
-  // Add content-length constraint if specified
-  if (maxSizeBytes !== undefined) {
-    request.conditions = [
-      ["content-length-range", 0, maxSizeBytes]
-    ];
-  }
-  
-  const response = await fetch(
-    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(request),
+  normalizeObjectEntityPath(rawPath: string): string {
+    // Normalize S3 URLs to local format
+    if (rawPath.includes("backblazeb2.com") || rawPath.includes("amazonaws.com")) {
+      const url = new URL(rawPath);
+      const key = url.pathname.split("/").pop();
+      if (key) {
+        return `/objects/${key}`;
+      }
     }
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`
-    );
+    return rawPath;
   }
-
-  const { signed_url: signedURL } = await response.json();
-  return signedURL;
 }

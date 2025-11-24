@@ -22,7 +22,7 @@ export async function cleanupExpiredAudio(): Promise<void> {
     for (const recording of expiredRecordings) {
       try {
         if (recording.filePath) {
-          // Delete from object storage
+          // Delete from Backblaze B2
           await objectStorageService.deleteObjectEntity(recording.filePath);
           
           // Mark as deleted in database
@@ -37,6 +37,7 @@ export async function cleanupExpiredAudio(): Promise<void> {
               filePath: recording.filePath,
               expiresAt: recording.expiresAt.toISOString(),
               deletedAt: new Date().toISOString(),
+              storage: "backblaze_b2",
             },
             severity: "warning",
           });

@@ -95,12 +95,12 @@ export async function cleanupOldAudioFiles(userId: string): Promise<{
         // Check if audio is older than retention period
         if (caseRecord.recordedAt < cutoffDate) {
           try {
-            // Delete from object storage
+            // Delete from Backblaze B2
             const objectStorage = new ObjectStorageService();
             const urlParts = caseRecord.audioUrl.split('/');
             const objectKey = urlParts[urlParts.length - 1];
             
-            // Actually delete the audio file from object storage
+            // Actually delete the audio file from Backblaze B2
             await objectStorage.deleteObjectEntity(objectKey);
 
             // Update case to remove audio URL
@@ -110,7 +110,7 @@ export async function cleanupOldAudioFiles(userId: string): Promise<{
 
             deleted++;
 
-            console.log('[DATA-RETENTION] Deleted old audio file:', {
+            console.log('[DATA-RETENTION] Deleted old audio file from Backblaze B2:', {
               caseId: caseRecord.id,
               recordedAt: caseRecord.recordedAt,
               objectKey,
@@ -130,12 +130,13 @@ export async function cleanupOldAudioFiles(userId: string): Promise<{
                 objectKey,
                 retentionDays: AUDIO_RETENTION_DAYS,
                 reason: 'automatic_retention_cleanup',
+                storage: 'backblaze_b2',
               }),
               ipAddress: 'system',
               userAgent: 'data-retention-service',
             });
           } catch (error) {
-            console.error('[DATA-RETENTION] Error deleting audio file:', error);
+            console.error('[DATA-RETENTION] Error deleting audio file from Backblaze B2:', error);
             errors++;
           }
         }
