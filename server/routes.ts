@@ -2831,6 +2831,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // TEST ENDPOINT: Trigger audio cleanup (development only)
+  app.post("/api/test/trigger-audio-cleanup", async (req, res, next) => {
+    try {
+      // Security: Only allow in development mode
+      if (process.env.NODE_ENV !== 'development') {
+        return res.status(403).json({ 
+          message: "This endpoint is only available in development mode" 
+        });
+      }
+
+      const { cleanupExpiredAudio } = await import("./audioCleanup");
+      await cleanupExpiredAudio();
+
+      res.json({ 
+        success: true, 
+        message: "Audio cleanup completed successfully",
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('[TEST] Error triggering cleanup:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to trigger audio cleanup",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
