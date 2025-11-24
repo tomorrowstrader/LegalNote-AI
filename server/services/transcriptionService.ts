@@ -16,19 +16,32 @@ export class TranscriptionService {
 
   /**
    * Transcribe audio file from object storage using OpenAI Whisper
+   * @param audioPath - Path to audio file in object storage
+   * @param audioDuration - Duration in seconds
+   * @param mimeType - MIME type of the audio file (defaults to audio/webm)
    */
-  async transcribeAudio(audioPath: string, audioDuration: number): Promise<TranscriptionResult> {
+  async transcribeAudio(audioPath: string, audioDuration: number, mimeType?: string): Promise<TranscriptionResult> {
     try {
       console.log(`Starting transcription for audio: ${audioPath}`);
 
       // Get audio file from Backblaze B2 storage (returns Buffer)
       const buffer = await this.objectStorageService.getObjectEntityFile(audioPath);
       
-      // Use default content type for audio recordings (webm format from MediaRecorder API)
-      const contentType = 'audio/webm';
+      // Use provided MIME type or default to webm (most common from MediaRecorder API)
+      const contentType = mimeType || 'audio/webm';
+      
+      // Determine file extension from MIME type for OpenAI
+      const extensionMap: Record<string, string> = {
+        'audio/webm': 'webm',
+        'audio/wav': 'wav',
+        'audio/ogg': 'ogg',
+        'audio/mp4': 'm4a',
+        'audio/mpeg': 'mp3',
+      };
+      const extension = extensionMap[contentType] || 'webm';
       
       // Convert buffer to File-like object for OpenAI
-      const audioFile = this.bufferToFile(buffer, 'audio.webm', contentType);
+      const audioFile = this.bufferToFile(buffer, `audio.${extension}`, contentType);
       
       console.log(`Sending ${buffer.length} bytes to Whisper API...`);
 

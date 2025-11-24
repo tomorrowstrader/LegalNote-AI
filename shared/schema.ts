@@ -56,6 +56,7 @@ export const audioRecordings = pgTable("audio_recordings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
   filePath: text("file_path"), // Storage path for audio file
+  mimeType: text("mime_type"), // MIME type of audio (audio/webm, audio/wav, etc.)
   duration: integer("duration"), // Duration in seconds
   recordedAt: timestamp("recorded_at").notNull().defaultNow(),
   expiresAt: timestamp("expires_at").notNull(), // 24hr from recording

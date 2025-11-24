@@ -91,7 +91,8 @@ export class AIProcessingPipeline {
 
       const transcriptionResult = await this.transcriptionService.transcribeAudio(
         audio.filePath,
-        audio.duration || 0
+        audio.duration || 0,
+        audio.mimeType || undefined
       );
 
       // Save transcript

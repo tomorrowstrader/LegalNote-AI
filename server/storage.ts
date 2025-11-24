@@ -267,6 +267,7 @@ export class MemStorage implements IStorage {
       recordedAt: new Date(),
       expiresAt: insertAudioRecording.expiresAt,
       filePath: insertAudioRecording.filePath ?? null,
+      mimeType: insertAudioRecording.mimeType ?? null,
       duration: insertAudioRecording.duration ?? null,
       deletedAt: null,
     };
@@ -926,6 +927,7 @@ export class DbStorage implements IStorage {
       .values({
         caseId: insertAudioRecording.caseId,
         filePath: insertAudioRecording.filePath ?? null,
+        mimeType: insertAudioRecording.mimeType ?? null,
         duration: insertAudioRecording.duration ?? null,
         expiresAt: insertAudioRecording.expiresAt,
       })

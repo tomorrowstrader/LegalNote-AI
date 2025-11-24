@@ -1350,9 +1350,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Store the object path for database (standardized format: /objects/{uuid})
         const objectPath = dbPath;
 
-        // Update audio record with file path and duration
+        // Update audio record with file path, duration, and MIME type
         const updated = await storage.updateAudioRecording(audioId, {
           filePath: objectPath,
+          mimeType: req.file.mimetype,
           duration: parseFloat(req.body.duration),
         });
 
