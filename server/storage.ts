@@ -130,6 +130,14 @@ export interface IStorage {
   // Search methods
   searchCases(query: string, userId: string): Promise<Case[]>;
   
+  // Object storage ownership verification
+  findObjectByPath(objectPath: string, userId: string): Promise<{
+    type: 'audio' | 'document' | 'transcript' | 'unknown';
+    objectId: string;
+    caseId: string;
+    owned: boolean;
+  } | null>;
+  
   // Calendar Event methods
   createCalendarEvent(eventData: InsertCalendarEvent): Promise<CalendarEvent>;
   getCalendarEventsByCase(caseId: string, userId: string): Promise<CalendarEvent[]>;
@@ -709,6 +717,28 @@ export class MemStorage implements IStorage {
       c.matterReference?.toLowerCase().includes(lowerQuery) ||
       c.textNotes?.toLowerCase().includes(lowerQuery)
     );
+  }
+  
+  async findObjectByPath(objectPath: string, userId: string): Promise<{
+    type: 'audio' | 'document' | 'transcript' | 'unknown';
+    objectId: string;
+    caseId: string;
+    owned: boolean;
+  } | null> {
+    // MemStorage: Check audio recordings
+    for (const audio of this.audioRecordings.values()) {
+      if (audio.filePath === objectPath) {
+        const caseData = await this.getCase(audio.caseId, userId);
+        return {
+          type: 'audio',
+          objectId: audio.id,
+          caseId: audio.caseId,
+          owned: caseData !== undefined,
+        };
+      }
+    }
+    
+    return null;
   }
   
   async createCalendarEvent(eventData: InsertCalendarEvent): Promise<CalendarEvent> {
@@ -1467,6 +1497,37 @@ export class DbStorage implements IStorage {
     });
     
     return filteredCases;
+  }
+  
+  async findObjectByPath(objectPath: string, userId: string): Promise<{
+    type: 'audio' | 'document' | 'transcript' | 'unknown';
+    objectId: string;
+    caseId: string;
+    owned: boolean;
+  } | null> {
+    // Check if this is an audio recording
+    const audioRecording = await db
+      .select()
+      .from(audioRecordings)
+      .where(eq(audioRecordings.filePath, objectPath))
+      .limit(1);
+    
+    if (audioRecording.length > 0) {
+      const audio = audioRecording[0];
+      // Verify ownership through case
+      const caseData = await this.getCase(audio.caseId, userId);
+      return {
+        type: 'audio',
+        objectId: audio.id,
+        caseId: audio.caseId,
+        owned: caseData !== undefined,
+      };
+    }
+    
+    // Future: Add checks for other object types (documents, transcripts, etc.)
+    // when they start storing files in object storage
+    
+    return null;
   }
   
   async createCalendarEvent(eventData: InsertCalendarEvent): Promise<CalendarEvent> {

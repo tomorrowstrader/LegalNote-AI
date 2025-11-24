@@ -1281,20 +1281,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   });
 
-  // Helper function for parsing object storage paths
-  const parseObjectPath = (path: string): { bucketName: string; objectName: string } => {
-    if (!path.startsWith("/")) {
-      path = `/${path}`;
-    }
-    const pathParts = path.split("/");
-    if (pathParts.length < 3) {
-      throw new Error("Invalid path: must contain at least a bucket name");
-    }
-    const bucketName = pathParts[1];
-    const objectName = pathParts.slice(2).join("/");
-    return { bucketName, objectName };
-  };
-
   // Multer error handling middleware
   const handleMulterError = (err: any, req: any, res: Response, next: NextFunction) => {
     if (err instanceof multer.default.MulterError) {
@@ -1348,49 +1334,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log(`Received audio file: ${req.file.originalname}, size: ${audioBuffer.length} bytes, type: ${req.file.mimetype}`);
 
-        // Upload directly to GCS using server-side method
+        // Upload to Backblaze B2 using S3 SDK
         const objectStorageService = new ObjectStorageService();
-        const privateObjectDir = objectStorageService.getPrivateObjectDir();
         
-        // Generate unique object name and full path
-        const { randomUUID } = await import('crypto');
-        const objectId = randomUUID();
-        const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+        // Generate unique object ID with proper path mapping
+        const { id, key, dbPath } = objectStorageService.createPrivateObjectId();
         
-        const { bucketName, objectName } = parseObjectPath(fullPath);
+        console.log(`Uploading audio to Backblaze B2: ${key} (DB path: ${dbPath})`);
         
-        console.log(`Uploading audio to bucket: ${bucketName}, object: ${objectName}`);
+        // Upload to S3-compatible storage (Backblaze B2)
+        await objectStorageService.uploadFile(key, audioBuffer, req.file.mimetype);
         
-        // Import GCS client and upload
-        const { objectStorageClient } = await import('./objectStorage');
-        const bucket = objectStorageClient.bucket(bucketName);
-        const file = bucket.file(objectName);
+        console.log(`Audio uploaded successfully to ${key}`);
         
-        // Upload buffer to GCS with proper content type
-        await file.save(audioBuffer, {
-          metadata: {
-            contentType: req.file.mimetype,
-          },
-        });
-        
-        console.log(`Audio uploaded successfully to ${fullPath}`);
-        
-        // Construct the storage URL and normalize
-        const storageURL = `https://storage.googleapis.com/${bucketName}/${objectName}`;
-        const normalizedPath = objectStorageService.normalizeObjectEntityPath(storageURL);
-        
-        console.log(`Normalized path: ${normalizedPath}, setting ACL...`);
-        
-        // Set ACL policy
-        const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
-          storageURL,
-          {
-            owner: userId,
-            visibility: "private",
-          }
-        );
-        
-        console.log(`ACL set, final objectPath: ${objectPath}`);
+        // Store the object path for database (standardized format: /objects/{uuid})
+        const objectPath = dbPath;
 
         // Update audio record with file path and duration
         const updated = await storage.updateAudioRecording(audioId, {
@@ -1948,56 +1906,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const objectPath = `/objects/${req.params.objectPath}`;
-      const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
       
-      const canAccess = await objectStorageService.canAccessObjectEntity({
-        objectFile,
-        userId: userId,
-        requestedPermission: ObjectPermission.READ,
-      });
+      // SECURITY: Verify ownership using centralized storage method
+      const objectInfo = await storage.findObjectByPath(objectPath, userId);
       
-      if (!canAccess) {
+      // Authorization: User must own the object
+      // CRITICAL: If object is unknown (null) OR not owned, deny access
+      // This prevents access to legacy paths, unknown object types, and unowned objects
+      if (!objectInfo) {
+        // Object not found in any table - deny access
         return res.sendStatus(403);
       }
       
-      // Find audio recording with this path to check expiration
-      const audioRecordings = await storage.getCases(userId).then(async cases => {
-        const recordings = [];
-        for (const c of cases) {
-          const rec = await storage.getAudioRecordingByCase(c.id, userId);
-          if (rec && rec.filePath === objectPath) {
-            recordings.push(rec);
-          }
-        }
-        return recordings;
-      });
-      
-      const audioRecording = audioRecordings[0];
-      if (audioRecording && new Date() > audioRecording.expiresAt && !audioRecording.deletedAt) {
-        // GDPR Compliance: Delete expired audio and log audit event
-        try {
-          await objectStorageService.deleteObjectEntity(objectPath);
-          await storage.updateAudioRecording(audioRecording.id, { deletedAt: new Date() });
-          
-          await logAuditEvent(userId, "audio_deleted", {
-            caseId: audioRecording.caseId,
-            audioRecordingId: audioRecording.id,
-            metadata: {
-              reason: "24hr_retention_policy_expiration",
-              filePath: objectPath,
-              expiresAt: audioRecording.expiresAt.toISOString(),
-              deletedAt: new Date().toISOString(),
-            },
-            severity: "warning",
-            req,
-          });
-        } catch (deleteError) {
-          console.error("Failed to delete expired audio:", deleteError);
-        }
-        
-        return res.status(410).json({ message: "Audio recording has expired (24hr retention policy)" });
+      if (!objectInfo.owned) {
+        // Object exists but user doesn't own it - deny access
+        return res.sendStatus(403);
       }
       
+      // Type-specific processing (currently only audio)
+      if (objectInfo.type === 'audio') {
+        const audioRecording = await storage.getAudioRecording(objectInfo.objectId);
+        
+        if (!audioRecording) {
+          return res.sendStatus(404);
+        }
+        
+        // GDPR Compliance: Check expiration and delete if expired
+        if (new Date() > audioRecording.expiresAt && !audioRecording.deletedAt) {
+          try {
+            await objectStorageService.deleteObjectEntity(objectPath);
+            await storage.updateAudioRecording(audioRecording.id, { deletedAt: new Date() });
+            
+            await logAuditEvent(userId, "audio_deleted", {
+              caseId: audioRecording.caseId,
+              audioRecordingId: audioRecording.id,
+              metadata: {
+                reason: "24hr_retention_policy_expiration",
+                filePath: objectPath,
+                expiresAt: audioRecording.expiresAt.toISOString(),
+                deletedAt: new Date().toISOString(),
+              },
+              severity: "warning",
+              req,
+            });
+          } catch (deleteError) {
+            console.error("Failed to delete expired audio:", deleteError);
+          }
+          
+          return res.status(410).json({ message: "Audio recording has expired (24hr retention policy)" });
+        }
+      }
+      
+      // Fetch and stream the object (ownership already verified)
+      const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
       objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
       if (error instanceof ObjectNotFoundError) {
