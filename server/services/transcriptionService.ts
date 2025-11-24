@@ -1,7 +1,5 @@
 import { openaiClient, MODELS, calculateTranscriptionCost } from '../config/openai';
 import { ObjectStorageService } from '../objectStorage';
-import { Readable } from 'stream';
-import { File } from '@google-cloud/storage';
 
 export interface TranscriptionResult {
   text: string;
@@ -23,15 +21,11 @@ export class TranscriptionService {
     try {
       console.log(`Starting transcription for audio: ${audioPath}`);
 
-      // Get audio file from storage
-      const file = await this.objectStorageService.getObjectEntityFile(audioPath);
+      // Get audio file from Backblaze B2 storage (returns Buffer)
+      const buffer = await this.objectStorageService.getObjectEntityFile(audioPath);
       
-      // Download audio file to buffer
-      const [buffer] = await file.download();
-      
-      // Get file metadata for content type
-      const [metadata] = await file.getMetadata();
-      const contentType = metadata.contentType || 'audio/webm';
+      // Use default content type for audio recordings (webm format from MediaRecorder API)
+      const contentType = 'audio/webm';
       
       // Convert buffer to File-like object for OpenAI
       const audioFile = this.bufferToFile(buffer, 'audio.webm', contentType);
