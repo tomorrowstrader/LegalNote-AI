@@ -161,7 +161,7 @@ export default function DocumentViewer({
         title: "No Documents Selected",
         description: "Please select at least one document to export",
         variant: "destructive",
-        duration: 5000,
+        duration: 6000,
       });
       return;
     }
@@ -211,7 +211,7 @@ export default function DocumentViewer({
           title: "No Content Available",
           description: "The selected documents don't have any content to export",
           variant: "destructive",
-          duration: 5000,
+          duration: 6000,
         });
         setShowDownloadModal(false);
         return;
@@ -222,14 +222,14 @@ export default function DocumentViewer({
         toast({
           title: "Download Ready",
           description: "Your PDF is ready. Choose where to save it in the dialog.",
-          duration: 3000,
+          duration: 6000,
         });
       } else {
         await exportToWord(content);
         toast({
           title: "Download Ready",
           description: "Your Word document is ready. Choose where to save it in the dialog.",
-          duration: 3000,
+          duration: 6000,
         });
       }
 
@@ -252,7 +252,7 @@ export default function DocumentViewer({
         title: "Export Failed",
         description: "Failed to export documents. Please try again.",
         variant: "destructive",
-        duration: 5000,
+        duration: 6000,
       });
     }
   };
@@ -270,7 +270,7 @@ export default function DocumentViewer({
       toast({
         title: "Document Approved",
         description: "Document has been marked as final and is now locked",
-        duration: 3000,
+        duration: 6000,
       });
     },
     onError: () => {
@@ -278,7 +278,7 @@ export default function DocumentViewer({
         title: "Approval Failed",
         description: "Failed to approve document. Please try again.",
         variant: "destructive",
-        duration: 5000,
+        duration: 6000,
       });
     },
   });
@@ -293,7 +293,7 @@ export default function DocumentViewer({
       toast({
         title: "Document Unlocked",
         description: "Document returned to draft status for editing",
-        duration: 3000,
+        duration: 6000,
       });
     },
     onError: () => {
@@ -301,7 +301,7 @@ export default function DocumentViewer({
         title: "Unlock Failed",
         description: "Failed to unlock document. Please try again.",
         variant: "destructive",
-        duration: 5000,
+        duration: 6000,
       });
     },
   });

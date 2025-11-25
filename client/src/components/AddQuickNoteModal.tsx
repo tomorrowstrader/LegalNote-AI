@@ -70,7 +70,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
       toast({
         title: "Quick Note Saved",
         description: "Your note has been added to the case successfully",
-        duration: 3000,
+        duration: 6000,
       });
       
       // Reset and close
@@ -138,7 +138,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
         title: "Recording Error",
         description: error.message || "Failed to access microphone",
         variant: "destructive",
-        duration: 8000,
+        duration: 6000,
       });
     }
   };
@@ -177,7 +177,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
         title: "Transcription Failed",
         description: error.message || "Failed to transcribe audio. Please try again.",
         variant: "destructive",
-        duration: 8000,
+        duration: 6000,
       });
     } finally {
       setIsTranscribing(false);

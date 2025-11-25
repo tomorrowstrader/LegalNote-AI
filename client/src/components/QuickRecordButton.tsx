@@ -105,7 +105,7 @@ export default function QuickRecordButton() {
       toast({
         title: "Case created successfully",
         description: "Your case has been saved and is ready for processing.",
-        duration: 6000, // 6 seconds for success messages
+        duration: 6000,
         action: (
           <ToastAction 
             altText="View case" 
@@ -122,7 +122,7 @@ export default function QuickRecordButton() {
         title: "Error creating case",
         description: error.message || "Something went wrong",
         variant: "destructive",
-        duration: 8000, // 8 seconds for error messages
+        duration: 6000,
       });
     },
   });

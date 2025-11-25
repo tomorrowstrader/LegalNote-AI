@@ -136,7 +136,7 @@ export default function CaseDetail() {
       toast({
         title: "Processing complete",
         description: "Documents have been generated successfully",
-        duration: 5000,
+        duration: 6000,
       });
       queryClient.invalidateQueries({ 
         queryKey: [`/api/cases/${caseId}`] 
@@ -147,7 +147,7 @@ export default function CaseDetail() {
         title: "Processing failed",
         description: error.message || "Failed to process case. Please try again.",
         variant: "destructive",
-        duration: 8000,
+        duration: 6000,
       });
     },
   });
@@ -160,7 +160,7 @@ export default function CaseDetail() {
       toast({
         title: "Retry started",
         description: "AI processing has been queued again",
-        duration: 5000,
+        duration: 6000,
       });
       queryClient.invalidateQueries({ 
         queryKey: [`/api/cases/${caseId}`] 
@@ -171,7 +171,7 @@ export default function CaseDetail() {
         title: "Retry failed",
         description: error.message || "Failed to retry processing. Please try again.",
         variant: "destructive",
-        duration: 8000,
+        duration: 6000,
       });
     },
   });
