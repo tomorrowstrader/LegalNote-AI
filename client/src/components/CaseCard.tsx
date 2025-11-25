@@ -15,11 +15,9 @@ import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
 import DownloadModal from "@/components/DownloadModal";
 import { useLocation } from "wouter";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { exportToPDF, exportToWord } from "@/lib/documentExport";
-import type { FirmProfile } from "@shared/schema";
+import { useCaseActions } from "@/hooks/useCaseActions";
+import { useCaseExport } from "@/hooks/useCaseExport";
 
 interface CaseCardProps {
   id: string;
@@ -53,163 +51,10 @@ export default function CaseCard({
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const { toast} = useToast();
+  const { toast } = useToast();
 
-  const { data: documents = [] } = useQuery<any[]>({
-    queryKey: ['/api/cases', id, 'documents'],
-    enabled: showDownloadModal,
-  });
-
-  const { data: caseData } = useQuery<any>({
-    queryKey: ['/api/cases', id],
-    enabled: showDownloadModal,
-  });
-
-  const { data: transcript } = useQuery<any>({
-    queryKey: ['/api/cases', id, 'transcript'],
-    enabled: showDownloadModal,
-  });
-
-  const { data: firmProfile } = useQuery<FirmProfile>({
-    queryKey: ['/api/firm-profile'],
-    enabled: showDownloadModal,
-  });
-
-  const markReviewedMutation = useMutation({
-    mutationFn: async (newReviewedState: boolean) => {
-      return await apiRequest('POST', `/api/cases/${id}/review`, { reviewed: newReviewedState });
-    },
-    onSuccess: (_, newReviewedState) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cases', id] });
-      toast({
-        title: "Case updated",
-        description: newReviewedState ? "Case marked as reviewed successfully" : "Case unmarked as reviewed successfully",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to update review status",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const archiveMutation = useMutation({
-    mutationFn: async (archived: boolean) => {
-      return await apiRequest('POST', `/api/cases/${id}/archive`, { archived });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cases', id] });
-      toast({
-        title: "Case archived",
-        description: "Case has been archived successfully",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to archive case",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const assignMutation = useMutation({
-    mutationFn: async (assignedToUserId: string | null) => {
-      return await apiRequest('POST', `/api/cases/${id}/assign`, { assignedToUserId });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cases', id] });
-      toast({
-        title: "Case assigned",
-        description: "Case has been assigned successfully",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to assign case",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleDownload = async (selectedDocs: string[], format: 'pdf' | 'word') => {
-    if (!caseData || !documents) return;
-
-    const activeDocuments = documents.filter((doc: any) => doc.isActive);
-    const attendanceNote = activeDocuments.find((doc: any) => doc.type === 'attendance_note');
-    const legalOpinion = activeDocuments.find((doc: any) => doc.type === 'legal_opinion');
-    const summary = activeDocuments.find((doc: any) => doc.type === 'summary');
-    const transcriptDoc = activeDocuments.find((doc: any) => doc.type === 'transcript');
-    
-    const transcriptContent = transcriptDoc?.content ?? transcript?.content;
-    const summaryContent = summary?.content || caseData.textNotes;
-
-    const content: Record<string, string> = {};
-    
-    if (selectedDocs.includes('attendance_note') && attendanceNote) {
-      content.attendanceNote = attendanceNote.content;
-    }
-    if (selectedDocs.includes('legal_opinion') && legalOpinion) {
-      content.legalOpinion = legalOpinion.content;
-    }
-    if (selectedDocs.includes('summary') && summaryContent) {
-      content.summary = summaryContent;
-    }
-    if (selectedDocs.includes('transcript') && transcriptContent) {
-      content.transcript = transcriptContent;
-    }
-
-    const hasAnyContent = content.attendanceNote || content.legalOpinion || content.summary || content.transcript;
-    if (!hasAnyContent) {
-      toast({
-        title: "No content available",
-        description: "None of the selected documents have content to export",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const exportFn = format === 'pdf' ? exportToPDF : exportToWord;
-      await exportFn({
-        caseTitle: caseData.title,
-        clientName: caseData.clientName,
-        matterReference: caseData.matterReference,
-        createdAt: caseData.createdAt,
-        documentType: 'selected',
-        firmProfile: firmProfile,
-        ...content,
-      });
-
-      try {
-        await fetch(`/api/cases/${id}/audit/export`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ format, documents: selectedDocs }),
-        });
-      } catch (auditError) {
-        console.error('Failed to log export audit event:', auditError);
-      }
-
-      toast({
-        title: `${format.toUpperCase()} downloaded`,
-        description: `Selected documents exported successfully`,
-      });
-    } catch (error) {
-      toast({
-        title: "Export failed",
-        description: `Failed to export as ${format.toUpperCase()}. Please try again.`,
-        variant: "destructive",
-      });
-    }
-  };
+  const { markReviewedMutation, archiveMutation, assignMutation } = useCaseActions({ caseId: id });
+  const { documents, caseData, transcript, handleDownload } = useCaseExport({ caseId: id, enabled: showDownloadModal });
 
   const statusConfig = {
     completed: { icon: CheckCircle2, label: "Completed", variant: "default" as const },

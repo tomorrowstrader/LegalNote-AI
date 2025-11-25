@@ -23,9 +23,10 @@ import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useCaseActions } from "@/hooks/useCaseActions";
+import { useCaseExport } from "@/hooks/useCaseExport";
 import { format } from "date-fns";
-import { exportToPDF, exportToWord } from "@/lib/documentExport";
-import type { Case, AudioRecording, ConsentLog, FirmProfile } from "@shared/schema";
+import type { Case, AudioRecording, ConsentLog } from "@shared/schema";
 
 export default function CaseDetail() {
   const [, setLocation] = useLocation();
@@ -146,130 +147,20 @@ export default function CaseDetail() {
     },
   });
 
-  // Firm profile for branded exports
-  const { data: firmProfile } = useQuery<FirmProfile>({
-    queryKey: ['/api/firm-profile'],
+  // Shared hooks for case actions and export
+  const { markReviewedMutation, archiveMutation } = useCaseActions({ 
+    caseId: caseId!, 
+    onArchiveSuccess: () => setLocation('/') 
+  });
+  const { handleDownload } = useCaseExport({ 
+    caseId: caseId!, 
     enabled: showDownloadModal,
+    prefetchedData: {
+      caseData: caseData,
+      documents: documents,
+      transcript: transcript,
+    }
   });
-
-  // Mark as reviewed mutation
-  const markReviewedMutation = useMutation({
-    mutationFn: async (newReviewedState: boolean) => {
-      return await apiRequest('POST', `/api/cases/${caseId}/review`, { reviewed: newReviewedState });
-    },
-    onSuccess: (_, newReviewedState) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
-      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
-      toast({
-        title: "Case updated",
-        description: newReviewedState ? "Case marked as reviewed" : "Case unmarked as reviewed",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to update review status",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Archive mutation
-  const archiveMutation = useMutation({
-    mutationFn: async (archived: boolean) => {
-      return await apiRequest('POST', `/api/cases/${caseId}/archive`, { archived });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
-      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
-      toast({
-        title: "Case archived",
-        description: "Case has been archived successfully",
-      });
-      setLocation('/');
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to archive case",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Handle download with firm branding
-  const handleDownload = async (selectedDocs: string[], format: 'pdf' | 'word') => {
-    if (!caseData || !documents) return;
-
-    const activeDocuments = documents.filter((doc: any) => doc.isActive);
-    const attendanceNote = activeDocuments.find((doc: any) => doc.type === 'attendance_note');
-    const legalOpinion = activeDocuments.find((doc: any) => doc.type === 'legal_opinion');
-    const summary = activeDocuments.find((doc: any) => doc.type === 'summary');
-    const transcriptDoc = activeDocuments.find((doc: any) => doc.type === 'transcript');
-    
-    const transcriptContent = transcriptDoc?.content ?? transcript?.content;
-    const summaryContent = summary?.content || caseData.textNotes;
-
-    const content: Record<string, string> = {};
-    
-    if (selectedDocs.includes('attendance_note') && attendanceNote) {
-      content.attendanceNote = attendanceNote.content;
-    }
-    if (selectedDocs.includes('legal_opinion') && legalOpinion) {
-      content.legalOpinion = legalOpinion.content;
-    }
-    if (selectedDocs.includes('summary') && summaryContent) {
-      content.summary = summaryContent;
-    }
-    if (selectedDocs.includes('transcript') && transcriptContent) {
-      content.transcript = transcriptContent;
-    }
-
-    const hasAnyContent = content.attendanceNote || content.legalOpinion || content.summary || content.transcript;
-    if (!hasAnyContent) {
-      toast({
-        title: "No content available",
-        description: "None of the selected documents have content to export",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const exportFn = format === 'pdf' ? exportToPDF : exportToWord;
-      await exportFn({
-        caseTitle: caseData.title,
-        clientName: caseData.clientName,
-        matterReference: caseData.matterReference,
-        createdAt: caseData.createdAt,
-        documentType: 'selected',
-        firmProfile: firmProfile,
-        ...content,
-      });
-
-      try {
-        await fetch(`/api/cases/${caseId}/audit/export`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ format, documents: selectedDocs }),
-        });
-      } catch (auditError) {
-        console.error('Failed to log export audit event:', auditError);
-      }
-
-      toast({
-        title: `${format.toUpperCase()} downloaded`,
-        description: `Selected documents exported successfully`,
-      });
-    } catch (error) {
-      toast({
-        title: "Export failed",
-        description: `Failed to export as ${format.toUpperCase()}. Please try again.`,
-        variant: "destructive",
-      });
-    }
-  };
 
   if (isLoading) {
     return (
