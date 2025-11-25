@@ -426,7 +426,7 @@ export default function QuickRecordButton() {
           // Success
           toast({
             title: "Case created successfully",
-            description: "Your case has been saved. AI processing is underway.",
+            description: "Meeting-to-Matter™ AI Engine is preparing your documents.",
             duration: 6000,
             action: (
               <ToastAction 
@@ -640,12 +640,12 @@ export default function QuickRecordButton() {
                   <h3 className="text-lg font-semibold" data-testid="text-processing-title">
                     {processingStep === 'complete' 
                       ? 'All Done!' 
-                      : 'Processing Your Recording'}
+                      : 'Meeting-to-Matter™ AI Engine'}
                   </h3>
                   <p className="text-sm text-muted-foreground" data-testid="text-processing-description">
                     {processingStep === 'complete'
                       ? 'Your case is ready. Redirecting...'
-                      : 'Please wait while we save your case and start the AI processing.'}
+                      : 'Please wait while we save your case and prepare your documents.'}
                   </p>
                 </div>
                 
@@ -710,7 +710,7 @@ export default function QuickRecordButton() {
                     </div>
                     <div className="flex-1">
                       <p className={`text-sm font-medium ${processingStep === 'processing' ? 'text-foreground' : processingStep === 'complete' ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
-                        Starting AI processing
+                        Activating AI Engine
                       </p>
                     </div>
                   </div>
