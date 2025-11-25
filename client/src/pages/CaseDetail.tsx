@@ -1,19 +1,31 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus } from "lucide-react";
+import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import DocumentViewer from "@/components/DocumentViewer";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { AuditTrail } from "@/components/AuditTrail";
 import AddQuickNoteModal from "@/components/AddQuickNoteModal";
+import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
+import ShareLinkModal from "@/components/ShareLinkModal";
+import DownloadModal from "@/components/DownloadModal";
 import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { exportToPDF, exportToWord } from "@/lib/documentExport";
+import type { FirmProfile } from "@shared/schema";
 
 interface CaseWithDocuments {
   id: string;
@@ -32,6 +44,9 @@ interface CaseWithDocuments {
   nextSteps?: string[];
   legalOpinion?: string;
   transcript?: string;
+  reviewed?: boolean;
+  deadline?: string | null;
+  deadlineIsAllDay?: boolean;
   aiProcessingMetadata?: {
     currentStep?: string;
     progress?: number;
@@ -77,6 +92,9 @@ export default function CaseDetail() {
   const caseId = params.id;
   const { toast } = useToast();
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
+  const [showPriorityModal, setShowPriorityModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
   const { data: caseData, isLoading, error } = useQuery<CaseWithDocuments>({
     queryKey: [`/api/cases/${caseId}`],
@@ -176,6 +194,131 @@ export default function CaseDetail() {
     },
   });
 
+  // Firm profile for branded exports
+  const { data: firmProfile } = useQuery<FirmProfile>({
+    queryKey: ['/api/firm-profile'],
+    enabled: showDownloadModal,
+  });
+
+  // Mark as reviewed mutation
+  const markReviewedMutation = useMutation({
+    mutationFn: async (newReviewedState: boolean) => {
+      return await apiRequest('POST', `/api/cases/${caseId}/review`, { reviewed: newReviewedState });
+    },
+    onSuccess: (_, newReviewedState) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      toast({
+        title: "Case updated",
+        description: newReviewedState ? "Case marked as reviewed" : "Case unmarked as reviewed",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update review status",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Archive mutation
+  const archiveMutation = useMutation({
+    mutationFn: async (archived: boolean) => {
+      return await apiRequest('POST', `/api/cases/${caseId}/archive`, { archived });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      toast({
+        title: "Case archived",
+        description: "Case has been archived successfully",
+      });
+      setLocation('/');
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to archive case",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle download with firm branding
+  const handleDownload = async (selectedDocs: string[], format: 'pdf' | 'word') => {
+    if (!caseData || !documents) return;
+
+    const activeDocuments = documents.filter((doc: any) => doc.isActive);
+    const attendanceNote = activeDocuments.find((doc: any) => doc.type === 'attendance_note');
+    const legalOpinion = activeDocuments.find((doc: any) => doc.type === 'legal_opinion');
+    const summary = activeDocuments.find((doc: any) => doc.type === 'summary');
+    const transcriptDoc = activeDocuments.find((doc: any) => doc.type === 'transcript');
+    
+    const transcriptContent = transcriptDoc?.content ?? transcript?.content;
+    const summaryContent = summary?.content || caseData.textNotes;
+
+    const content: Record<string, string> = {};
+    
+    if (selectedDocs.includes('attendance_note') && attendanceNote) {
+      content.attendanceNote = attendanceNote.content;
+    }
+    if (selectedDocs.includes('legal_opinion') && legalOpinion) {
+      content.legalOpinion = legalOpinion.content;
+    }
+    if (selectedDocs.includes('summary') && summaryContent) {
+      content.summary = summaryContent;
+    }
+    if (selectedDocs.includes('transcript') && transcriptContent) {
+      content.transcript = transcriptContent;
+    }
+
+    const hasAnyContent = content.attendanceNote || content.legalOpinion || content.summary || content.transcript;
+    if (!hasAnyContent) {
+      toast({
+        title: "No content available",
+        description: "None of the selected documents have content to export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const exportFn = format === 'pdf' ? exportToPDF : exportToWord;
+      await exportFn({
+        caseTitle: caseData.title,
+        clientName: caseData.clientName,
+        matterReference: caseData.matterReference,
+        createdAt: caseData.createdAt,
+        documentType: 'selected',
+        firmProfile: firmProfile,
+        ...content,
+      });
+
+      try {
+        await fetch(`/api/cases/${caseId}/audit/export`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ format, documents: selectedDocs }),
+        });
+      } catch (auditError) {
+        console.error('Failed to log export audit event:', auditError);
+      }
+
+      toast({
+        title: `${format.toUpperCase()} downloaded`,
+        description: `Selected documents exported successfully`,
+      });
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: `Failed to export as ${format.toUpperCase()}. Please try again.`,
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -230,24 +373,70 @@ export default function CaseDetail() {
         </Button>
 
         <div className="mb-8">
-          <div className="flex items-start justify-between mb-4">
-            <div>
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="flex-1 min-w-0">
               <h1 className="text-3xl font-semibold text-foreground mb-2">
                 {caseData.title}
               </h1>
               <p className="text-lg text-muted-foreground">{caseData.clientName}</p>
             </div>
-            {caseData.sourceType === 'audio' && hasValidConsent ? (
-              <Badge className="bg-accent" data-testid="badge-gdpr-compliant">
-                <Shield className="w-3 h-3 mr-1" />
-                GDPR Compliant
-              </Badge>
-            ) : caseData.sourceType === 'audio' ? (
-              <Badge variant="destructive" data-testid="badge-consent-missing">
-                <Shield className="w-3 h-3 mr-1" />
-                Consent Required
-              </Badge>
-            ) : null}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {caseData.sourceType === 'audio' && hasValidConsent ? (
+                <Badge className="bg-accent" data-testid="badge-gdpr-compliant">
+                  <Shield className="w-3 h-3 mr-1" />
+                  GDPR Compliant
+                </Badge>
+              ) : caseData.sourceType === 'audio' ? (
+                <Badge variant="destructive" data-testid="badge-consent-missing">
+                  <Shield className="w-3 h-3 mr-1" />
+                  Consent Required
+                </Badge>
+              ) : null}
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2" data-testid="button-case-actions">
+                    <MoreVertical className="w-4 h-4" />
+                    <span className="hidden sm:inline">Actions</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => setShowPriorityModal(true)} data-testid="action-set-priority">
+                    <AlertCircle className="w-4 h-4 mr-2" />
+                    Set Priority/Deadline
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowAddNoteModal(true)} data-testid="action-add-note">
+                    <MessageSquarePlus className="w-4 h-4 mr-2" />
+                    Add Quick Note
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowShareModal(true)} data-testid="action-share">
+                    <Share2 className="w-4 h-4 mr-2" />
+                    Secure Share
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => markReviewedMutation.mutate(!caseData.reviewed)} 
+                    data-testid="action-mark-reviewed"
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    {caseData.reviewed ? "Unmark as Reviewed" : "Mark as Reviewed"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowDownloadModal(true)} data-testid="action-download">
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Document
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => archiveMutation.mutate(true)}
+                    className="text-destructive focus:text-destructive"
+                    data-testid="action-archive"
+                  >
+                    <Archive className="w-4 h-4 mr-2" />
+                    Archive Case
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-4 text-sm">
@@ -497,6 +686,37 @@ export default function CaseDetail() {
         open={showAddNoteModal}
         onOpenChange={setShowAddNoteModal}
         caseId={caseId!}
+      />
+
+      <SetPriorityDeadlineModal
+        open={showPriorityModal}
+        onOpenChange={setShowPriorityModal}
+        caseId={caseId!}
+        caseTitle={caseData.title}
+        currentPriority={caseData.priority as "urgent" | "deadline-soon" | "normal" || "normal"}
+        currentDeadline={caseData.deadline || null}
+        currentDeadlineIsAllDay={caseData.deadlineIsAllDay || false}
+      />
+
+      <ShareLinkModal
+        open={showShareModal}
+        onOpenChange={setShowShareModal}
+        caseId={caseId!}
+        caseTitle={caseData.title}
+        userRole="Partner"
+      />
+
+      <DownloadModal
+        open={showDownloadModal}
+        onOpenChange={setShowDownloadModal}
+        availableDocuments={{
+          hasAttendanceNote: !!documents.find((d: any) => d.isActive && d.type === 'attendance_note'),
+          hasLegalOpinion: !!documents.find((d: any) => d.isActive && d.type === 'legal_opinion'),
+          hasSummary: !!documents.find((d: any) => d.isActive && d.type === 'summary') || !!caseData.textNotes,
+          hasTranscript: !!documents.find((d: any) => d.isActive && d.type === 'transcript') || !!transcript?.content,
+        }}
+        sharedDocuments={['attendance_note', 'legal_opinion', 'summary', 'transcript']}
+        onDownload={handleDownload}
       />
     </div>
   );
