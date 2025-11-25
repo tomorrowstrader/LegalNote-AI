@@ -1519,8 +1519,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Download audio file from storage
       const objectStorageService = new ObjectStorageService();
-      const objectFile = await objectStorageService.getObjectEntityFile(audioRecording.filePath);
-      const audioBuffer = await objectFile.download().then(([buffer]) => buffer);
+      const audioBuffer = await objectStorageService.getObjectEntityFile(audioRecording.filePath);
       
       // Transcribe using OpenAI Whisper
       console.log(`Starting transcription for case ${caseId}`);

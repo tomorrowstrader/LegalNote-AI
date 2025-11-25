@@ -86,7 +86,7 @@ export class AIProcessingPipeline {
       await this.updateProcessingStatus(caseId, userId, {
         status: 'transcribing',
         progress: 20,
-        currentStep: 'Transcribing audio with Whisper AI...',
+        currentStep: 'Converting speech to text...',
       });
 
       const transcriptionResult = await this.transcriptionService.transcribeAudio(
