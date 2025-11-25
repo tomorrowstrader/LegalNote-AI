@@ -2631,11 +2631,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req,
         });
 
-        res.status(500).json({ 
-          success: false, 
-          message: "Failed to sync to calendar",
-          error: result.error 
-        });
+        // Check if this is an OAuth token expiry issue
+        const isTokenExpired = result.error === 'invalid_grant' || 
+                               result.error?.includes('invalid_grant') ||
+                               result.error?.includes('Token has been expired') ||
+                               result.error?.includes('Token has been revoked');
+
+        if (isTokenExpired) {
+          // Don't delete the connection - just inform user they need to reconnect
+          // User can manually reconnect in Settings to get fresh tokens
+          res.status(401).json({ 
+            success: false, 
+            message: "Your calendar connection has expired. Please go to Settings and reconnect your calendar.",
+            error: 'token_expired',
+            requiresReconnect: true,
+          });
+        } else {
+          res.status(500).json({ 
+            success: false, 
+            message: "Failed to sync to calendar",
+            error: result.error 
+          });
+        }
       }
     } catch (error: any) {
       console.error('[SYNC] ❌ Exception during sync:', error);

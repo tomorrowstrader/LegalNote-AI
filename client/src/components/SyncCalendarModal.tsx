@@ -153,7 +153,10 @@ export default function SyncCalendarModal({
       });
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || 'Failed to sync calendar');
+        // Add requiresReconnect flag to error for handling
+        const err = new Error(error.message || 'Failed to sync calendar') as any;
+        err.requiresReconnect = error.requiresReconnect;
+        throw err;
       }
       return res.json();
     },
@@ -170,10 +173,17 @@ export default function SyncCalendarModal({
       onOpenChange(false);
     },
     onError: (error: any) => {
+      // If token expired, refresh connections list to show reconnect buttons
+      if (error.requiresReconnect) {
+        refetchConnections();
+        setSelectedProvider('');
+      }
+      
       toast({
         title: "Sync Failed",
         description: error.message || "Failed to sync to calendar",
         variant: "destructive",
+        duration: 8000,
       });
     }
   });
