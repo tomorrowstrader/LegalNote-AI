@@ -25,11 +25,8 @@ import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalen
 import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber } from "./sms";
 import {
   createGoogleOAuthClient,
-  createMicrosoftOAuthClient,
   getGoogleAuthUrl,
-  getMicrosoftAuthUrl,
   exchangeGoogleCode,
-  exchangeMicrosoftCode,
   generateOAuthState,
   signOAuthState,
   verifyOAuthState,
@@ -2578,14 +2575,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const provider = req.params.provider;
       
-      if (provider !== 'google' && provider !== 'outlook') {
-        return res.status(400).json({ message: "Invalid provider. Must be 'google' or 'outlook'" });
+      if (provider !== 'google') {
+        return res.status(400).json({ message: "Invalid provider. Only 'google' is supported" });
       }
 
       // Create signed OAuth state
       const statePayload: OAuthStatePayload = {
         userId,
-        provider: provider as 'google' | 'outlook',
+        provider: 'google',
         popup: false,
         nonce: generateSecureNonce(),
         createdAt: Date.now(),
@@ -2599,25 +2596,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const baseUrl = `${protocol}://${host}`;
 
       try {
-        let authUrl: string;
-        
-        if (provider === 'google') {
-          const client = createGoogleOAuthClient(baseUrl);
-          authUrl = getGoogleAuthUrl(client, signedState);
-          console.log('[OAUTH] Generated Google auth URL:', authUrl);
-          console.log('[OAUTH] Redirect URI used:', `${baseUrl}/api/calendar/callback/google`);
-        } else {
-          const client = createMicrosoftOAuthClient(baseUrl);
-          authUrl = await getMicrosoftAuthUrl(client, `${baseUrl}/api/calendar/callback/outlook`, signedState);
-        }
+        const client = createGoogleOAuthClient(baseUrl);
+        const authUrl = getGoogleAuthUrl(client, signedState);
+        console.log('[OAUTH] Generated Google auth URL:', authUrl);
+        console.log('[OAUTH] Redirect URI used:', `${baseUrl}/api/calendar/callback/google`);
 
         // Redirect to OAuth authorization URL
         console.log('[OAUTH] Redirecting to:', authUrl);
         return res.redirect(authUrl);
       } catch (configError: any) {
-        console.error(`[OAUTH] Failed to create ${provider} OAuth client:`, configError.message);
+        console.error(`[OAUTH] Failed to create Google OAuth client:`, configError.message);
         return res.status(503).json({
-          message: `${provider === 'google' ? 'Google' : 'Microsoft'} OAuth is not configured. Please contact your administrator.`,
+          message: `Google OAuth is not configured. Please contact your administrator.`,
         });
       }
     } catch (error) {
@@ -2633,8 +2623,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const provider = req.params.provider;
       const popup = req.query.popup === 'true';
       
-      if (provider !== 'google' && provider !== 'outlook') {
-        return res.status(400).json({ message: "Invalid provider. Must be 'google' or 'outlook'" });
+      if (provider !== 'google') {
+        return res.status(400).json({ message: "Invalid provider. Only 'google' is supported" });
       }
 
       // Optional sync context from request body
@@ -2643,7 +2633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create signed OAuth state with sync context
       const statePayload: OAuthStatePayload = {
         userId,
-        provider: provider as 'google' | 'outlook',
+        provider: 'google',
         popup,
         nonce: generateSecureNonce(),
         createdAt: Date.now(),
@@ -2669,15 +2659,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const baseUrl = `${protocol}://${host}`;
 
       try {
-        let authUrl: string;
-        
-        if (provider === 'google') {
-          const client = createGoogleOAuthClient(baseUrl);
-          authUrl = getGoogleAuthUrl(client, signedState);
-        } else {
-          const client = createMicrosoftOAuthClient(baseUrl);
-          authUrl = await getMicrosoftAuthUrl(client, `${baseUrl}/api/calendar/callback/outlook`, signedState);
-        }
+        const client = createGoogleOAuthClient(baseUrl);
+        const authUrl = getGoogleAuthUrl(client, signedState);
 
         // Return auth URL for frontend to redirect
         res.json({ authUrl });
@@ -2685,7 +2668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // OAuth credentials not configured
         if (error.message.includes('not configured')) {
           return res.status(503).json({
-            message: `${provider === 'google' ? 'Google' : 'Microsoft'} OAuth is not configured. Please contact your administrator.`,
+            message: `Google OAuth is not configured. Please contact your administrator.`,
             details: error.message,
           });
         }
@@ -2733,20 +2716,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const baseUrl = `${protocol}://${host}`;
 
       try {
-        let tokenData;
-
-        if (provider === 'google') {
-          const client = createGoogleOAuthClient(baseUrl);
-          tokenData = await exchangeGoogleCode(client, code as string);
-        } else {
-          const client = createMicrosoftOAuthClient(baseUrl);
-          tokenData = await exchangeMicrosoftCode(client, code as string, `${baseUrl}/api/calendar/callback/outlook`);
+        if (provider !== 'google') {
+          return res.redirect(`${redirectBase}?calendar_error=invalid_provider`);
         }
+
+        const client = createGoogleOAuthClient(baseUrl);
+        const tokenData = await exchangeGoogleCode(client, code as string);
 
         // Save calendar integration to storage
         await storage.saveCalendarIntegration({
           userId: stateData.userId,
-          provider: provider as 'google' | 'outlook',
+          provider: 'google',
           accessToken: tokenData.accessToken,
           refreshToken: tokenData.refreshToken || undefined,
           expiresAt: tokenData.expiresAt || undefined,
@@ -2785,7 +2765,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               try {
                 const result = await createCalendarEvent(
                   stateData.userId,
-                  provider as 'google' | 'outlook',
                   {
                     caseId,
                     title: caseData.title,
@@ -2808,7 +2787,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   await storage.createCalendarEvent({
                     caseId,
                     userId: stateData.userId,
-                    provider: provider as 'google' | 'outlook',
+                    provider: 'google',
                     providerEventId: result.eventId,
                     eventType: 'deadline',
                   });
@@ -2923,7 +2902,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         baseUrl,
         redirectUris: {
           google: `${baseUrl}/api/calendar/callback/google`,
-          outlook: `${baseUrl}/api/calendar/callback/outlook`,
         },
         instructions: {
           google: {
@@ -2932,17 +2910,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             step3: `Add this to 'Authorized redirect URIs': ${baseUrl}/api/calendar/callback/google`,
             step4: "Click Save",
           },
-          outlook: {
-            step1: "Go to Azure Portal: https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade",
-            step2: "Select your app registration",
-            step3: "Go to 'Authentication' section",
-            step4: `Add this to 'Redirect URIs' (Web platform): ${baseUrl}/api/calendar/callback/outlook`,
-            step5: "Click Save",
-          },
         },
         status: {
           googleConfigured: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-          outlookConfigured: !!(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET),
         },
       };
 
@@ -2958,11 +2928,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const provider = req.params.provider;
 
-      if (provider !== 'google' && provider !== 'outlook') {
-        return res.status(400).json({ message: "Invalid provider" });
+      if (provider !== 'google') {
+        return res.status(400).json({ message: "Invalid provider. Only 'google' is supported" });
       }
 
-      await storage.deleteCalendarIntegration(userId, provider as 'google' | 'outlook');
+      await storage.deleteCalendarIntegration(userId, 'google');
 
       // Log audit event
       await storage.createAuditLog({
@@ -3005,8 +2975,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isAllDay,
       });
 
-      if (!provider || (provider !== 'google' && provider !== 'outlook')) {
-        return res.status(400).json({ message: "Invalid provider. Must be 'google' or 'outlook'" });
+      if (!provider || provider !== 'google') {
+        return res.status(400).json({ message: "Invalid provider. Only 'google' is supported" });
       }
 
       // Get case and verify access
@@ -3094,43 +3064,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Fall back to user's own OAuth connection
           console.log('[SYNC] Replit connection not available, using user OAuth');
           if (existingEvent) {
-            result = await updateCalendarEvent(userId, provider, existingEvent.providerEventId, eventData, storage);
+            result = await updateCalendarEvent(userId, existingEvent.providerEventId, eventData, storage);
             if (result.success) {
               await storage.updateCalendarEvent(existingEvent.id, { lastUpdatedAt: new Date() });
             }
           } else {
-            result = await createCalendarEvent(userId, provider, eventData, storage);
+            result = await createCalendarEvent(userId, eventData, storage);
             if (result.success && result.eventId) {
               await storage.createCalendarEvent({
                 caseId: req.params.id,
                 userId: userId,
-                provider: provider,
+                provider: 'google',
                 providerEventId: result.eventId,
                 eventType: 'deadline',
               });
             }
-          }
-        }
-      } else {
-        // Outlook - use existing OAuth flow
-        if (existingEvent) {
-          console.log('[SYNC] Updating existing calendar event:', existingEvent.providerEventId);
-          result = await updateCalendarEvent(userId, provider, existingEvent.providerEventId, eventData, storage);
-          if (result.success) {
-            await storage.updateCalendarEvent(existingEvent.id, { lastUpdatedAt: new Date() });
-          }
-        } else {
-          console.log('[SYNC] Creating new calendar event');
-          result = await createCalendarEvent(userId, provider, eventData, storage);
-          console.log('[SYNC] Create result:', result);
-          if (result.success && result.eventId) {
-            await storage.createCalendarEvent({
-              caseId: req.params.id,
-              userId: userId,
-              provider: provider,
-              providerEventId: result.eventId,
-              eventType: 'deadline',
-            });
           }
         }
       }
@@ -3189,8 +3137,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const { provider } = req.body;
 
-      if (provider && provider !== 'google' && provider !== 'outlook') {
-        return res.status(400).json({ message: "Invalid provider. Must be 'google' or 'outlook'" });
+      if (provider && provider !== 'google') {
+        return res.status(400).json({ message: "Invalid provider. Only 'google' is supported" });
       }
 
       // Get case and verify access
@@ -3202,14 +3150,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get calendar events for this case
       const events = await storage.getCalendarEventsByCase(req.params.id, userId);
       
-      // Filter by provider if specified
+      // Filter by provider if specified (only google supported)
       const eventsToDelete = provider 
-        ? events.filter(e => e.provider === provider)
+        ? events.filter(e => e.provider === 'google')
         : events;
 
       // Delete events from calendars and database
       for (const event of eventsToDelete) {
-        await deleteCalendarEvent(userId, event.provider as 'google' | 'outlook', event.providerEventId, storage);
+        await deleteCalendarEvent(userId, event.providerEventId, storage);
         await storage.deleteCalendarEvent(event.id);
       }
 

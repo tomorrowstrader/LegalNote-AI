@@ -1,8 +1,7 @@
 import { google } from 'googleapis';
-import { Client } from '@microsoft/microsoft-graph-client';
 import type { IStorage } from './storage';
 import type { CalendarIntegration } from '@shared/schema';
-import { computeReminderSchedule, selectOutlookReminder } from './reminderScheduler';
+import { computeReminderSchedule } from './reminderScheduler';
 
 // Calendar integration types
 export interface CalendarEventData {
@@ -19,7 +18,7 @@ export interface CalendarEventData {
 
 export interface CalendarSyncResult {
   success: boolean;
-  provider: 'google' | 'outlook';
+  provider: 'google';
   eventId?: string;
   error?: string;
 }
@@ -68,63 +67,9 @@ async function refreshGoogleToken(
   // Update token in database
   await storage.saveCalendarIntegration({
     userId: integration.userId,
-    provider: integration.provider as 'google' | 'outlook',
+    provider: 'google',
     accessToken: newAccessToken,
     refreshToken: integration.refreshToken || undefined,
-    expiresAt: newExpiresAt,
-    calendarId: integration.calendarId || undefined,
-    email: integration.email || undefined,
-  });
-
-  return newAccessToken;
-}
-
-// Token refresh for Microsoft
-async function refreshMicrosoftToken(
-  refreshToken: string,
-  storage: IStorage,
-  integration: CalendarIntegration
-): Promise<string> {
-  const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
-
-  if (!clientId || !clientSecret) {
-    throw new Error('Microsoft OAuth credentials not configured');
-  }
-
-  const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-
-  const params = new URLSearchParams({
-    client_id: clientId,
-    client_secret: clientSecret,
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken,
-    scope: 'Calendars.ReadWrite offline_access',
-  });
-
-  const response = await fetch(tokenEndpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to refresh Microsoft access token');
-  }
-
-  const data = await response.json();
-  const newAccessToken = data.access_token;
-  const newRefreshToken = data.refresh_token;
-  const expiresIn = data.expires_in; // seconds
-  const newExpiresAt = new Date(Date.now() + expiresIn * 1000);
-
-  // Update token in database
-  await storage.saveCalendarIntegration({
-    userId: integration.userId,
-    provider: integration.provider as 'google' | 'outlook',
-    accessToken: newAccessToken,
-    refreshToken: newRefreshToken || refreshToken,
     expiresAt: newExpiresAt,
     calendarId: integration.calendarId || undefined,
     email: integration.email || undefined,
@@ -136,13 +81,12 @@ async function refreshMicrosoftToken(
 // Get valid access token (with automatic refresh)
 async function getValidAccessToken(
   userId: string,
-  provider: 'google' | 'outlook',
   storage: IStorage
 ): Promise<{ token: string; integration: CalendarIntegration }> {
-  const integration = await storage.getCalendarIntegration(userId, provider);
+  const integration = await storage.getCalendarIntegration(userId, 'google');
 
   if (!integration) {
-    throw new Error(`${provider === 'google' ? 'Google Calendar' : 'Outlook'} not connected for this user`);
+    throw new Error('Google Calendar not connected for this user');
   }
 
   // Check if token is expired or about to expire (5 min buffer)
@@ -151,12 +95,10 @@ async function getValidAccessToken(
   const needsRefresh = !expiresAt || expiresAt.getTime() - now.getTime() < 5 * 60 * 1000;
 
   if (needsRefresh && integration.refreshToken) {
-    const newToken = provider === 'google'
-      ? await refreshGoogleToken(integration.refreshToken, storage, integration)
-      : await refreshMicrosoftToken(integration.refreshToken, storage, integration);
+    const newToken = await refreshGoogleToken(integration.refreshToken, storage, integration);
     
     // Fetch updated integration with new token
-    const updated = await storage.getCalendarIntegration(userId, provider);
+    const updated = await storage.getCalendarIntegration(userId, 'google');
     if (!updated) {
       throw new Error('Failed to retrieve updated integration');
     }
@@ -183,7 +125,7 @@ async function createGoogleCalendarEvent(
       isAllDay: data.isAllDay,
     });
 
-    const { token, integration } = await getValidAccessToken(userId, 'google', storage);
+    const { token, integration } = await getValidAccessToken(userId, storage);
     console.log('[CALENDAR] Got access token for:', integration.email);
 
     const oauth2Client = new google.auth.OAuth2();
@@ -285,7 +227,7 @@ async function updateGoogleCalendarEvent(
   storage: IStorage
 ): Promise<CalendarSyncResult> {
   try {
-    const { token } = await getValidAccessToken(userId, 'google', storage);
+    const { token } = await getValidAccessToken(userId, storage);
 
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: token });
@@ -375,7 +317,7 @@ async function deleteGoogleCalendarEvent(
   storage: IStorage
 ): Promise<CalendarSyncResult> {
   try {
-    const { token } = await getValidAccessToken(userId, 'google', storage);
+    const { token } = await getValidAccessToken(userId, storage);
 
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: token });
@@ -400,267 +342,30 @@ async function deleteGoogleCalendarEvent(
   }
 }
 
-// Outlook reminder mapping (Outlook only supports ONE reminder)
-// Use closest-to-deadline reminder for each priority level
-
-// Outlook Calendar operations
-async function createOutlookCalendarEvent(
-  userId: string,
-  data: CalendarEventData,
-  storage: IStorage
-): Promise<CalendarSyncResult> {
-  try {
-    const { token } = await getValidAccessToken(userId, 'outlook', storage);
-
-    const client = Client.initWithMiddleware({
-      authProvider: {
-        getAccessToken: async () => token,
-      },
-    });
-
-    // Format date in Europe/London timezone for all-day events
-    const formatLocalDate = (d: Date) => {
-      const formatter = new Intl.DateTimeFormat('en-GB', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        timeZone: 'Europe/London'
-      });
-      const parts = formatter.formatToParts(d);
-      const year = parts.find(p => p.type === 'year')!.value;
-      const month = parts.find(p => p.type === 'month')!.value;
-      const day = parts.find(p => p.type === 'day')!.value;
-      return `${year}-${month}-${day}`;
-    };
-
-    // Compute time-based reminders with 8am floor constraint
-    const schedule = computeReminderSchedule({
-      deadline: data.deadline,
-      isAllDay: data.isAllDay || false,
-      priority: data.priority || 'normal',
-    });
-
-    const outlookReminder = selectOutlookReminder(schedule);
-
-    const event: any = {
-      subject: `Deadline: ${data.title}`,
-      body: {
-        contentType: 'Text',
-        content: formatEventDescription(data),
-      },
-      isReminderOn: outlookReminder !== null,
-      reminderMinutesBeforeStart: outlookReminder?.minutes || 60,
-    };
-
-    if (data.isAllDay) {
-      // All-day event - Outlook requires isAllDay: true and midnight-to-midnight time range
-      const dateStr = formatLocalDate(data.deadline);
-      
-      // Add one calendar day (not 24 hours!) to handle DST transitions correctly
-      const [year, month, day] = dateStr.split('-').map(Number);
-      const nextDay = new Date(year, month - 1, day + 1); // month is 0-indexed
-      const endDateStr = formatLocalDate(nextDay);
-      
-      event.isAllDay = true;
-      event.start = {
-        dateTime: `${dateStr}T00:00:00`,
-        timeZone: 'Europe/London',
-      };
-      event.end = {
-        dateTime: `${endDateStr}T00:00:00`,
-        timeZone: 'Europe/London',
-      };
-    } else {
-      // Timed event
-      event.start = {
-        dateTime: data.deadline.toISOString(),
-        timeZone: 'Europe/London',
-      };
-      event.end = {
-        dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(),
-        timeZone: 'Europe/London',
-      };
-    }
-
-    const response = await client.api('/me/events').post(event);
-
-    return {
-      success: true,
-      provider: 'outlook',
-      eventId: response.id,
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      provider: 'outlook',
-      error: error.message || 'Failed to create Outlook Calendar event',
-    };
-  }
-}
-
-async function updateOutlookCalendarEvent(
-  userId: string,
-  eventId: string,
-  data: CalendarEventData,
-  storage: IStorage
-): Promise<CalendarSyncResult> {
-  try {
-    const { token } = await getValidAccessToken(userId, 'outlook', storage);
-
-    const client = Client.initWithMiddleware({
-      authProvider: {
-        getAccessToken: async () => token,
-      },
-    });
-
-    // Format date in Europe/London timezone for all-day events
-    const formatLocalDate = (d: Date) => {
-      const formatter = new Intl.DateTimeFormat('en-GB', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        timeZone: 'Europe/London'
-      });
-      const parts = formatter.formatToParts(d);
-      const year = parts.find(p => p.type === 'year')!.value;
-      const month = parts.find(p => p.type === 'month')!.value;
-      const day = parts.find(p => p.type === 'day')!.value;
-      return `${year}-${month}-${day}`;
-    };
-
-    // Compute time-based reminders with 8am floor constraint
-    const schedule = computeReminderSchedule({
-      deadline: data.deadline,
-      isAllDay: data.isAllDay || false,
-      priority: data.priority || 'normal',
-    });
-
-    const outlookReminder = selectOutlookReminder(schedule);
-
-    const event: any = {
-      subject: `Deadline: ${data.title}`,
-      body: {
-        contentType: 'Text',
-        content: formatEventDescription(data),
-      },
-      isReminderOn: outlookReminder !== null,
-      reminderMinutesBeforeStart: outlookReminder?.minutes || 60,
-    };
-
-    if (data.isAllDay) {
-      // All-day event - Outlook requires isAllDay: true and midnight-to-midnight time range
-      const dateStr = formatLocalDate(data.deadline);
-      
-      // Add one calendar day (not 24 hours!) to handle DST transitions correctly
-      const [year, month, day] = dateStr.split('-').map(Number);
-      const nextDay = new Date(year, month - 1, day + 1); // month is 0-indexed
-      const endDateStr = formatLocalDate(nextDay);
-      
-      event.isAllDay = true;
-      event.start = {
-        dateTime: `${dateStr}T00:00:00`,
-        timeZone: 'Europe/London',
-      };
-      event.end = {
-        dateTime: `${endDateStr}T00:00:00`,
-        timeZone: 'Europe/London',
-      };
-    } else {
-      // Timed event
-      event.start = {
-        dateTime: data.deadline.toISOString(),
-        timeZone: 'Europe/London',
-      };
-      event.end = {
-        dateTime: new Date(data.deadline.getTime() + 60 * 60 * 1000).toISOString(),
-        timeZone: 'Europe/London',
-      };
-    }
-
-    await client.api(`/me/events/${eventId}`).patch(event);
-
-    return {
-      success: true,
-      provider: 'outlook',
-      eventId: eventId,
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      provider: 'outlook',
-      error: error.message || 'Failed to update Outlook Calendar event',
-    };
-  }
-}
-
-async function deleteOutlookCalendarEvent(
-  userId: string,
-  eventId: string,
-  storage: IStorage
-): Promise<CalendarSyncResult> {
-  try {
-    const { token } = await getValidAccessToken(userId, 'outlook', storage);
-
-    const client = Client.initWithMiddleware({
-      authProvider: {
-        getAccessToken: async () => token,
-      },
-    });
-
-    await client.api(`/me/events/${eventId}`).delete();
-
-    return {
-      success: true,
-      provider: 'outlook',
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      provider: 'outlook',
-      error: error.message || 'Failed to delete Outlook Calendar event',
-    };
-  }
-}
-
 // Public API
 export async function createCalendarEvent(
   userId: string,
-  provider: 'google' | 'outlook',
   data: CalendarEventData,
   storage: IStorage
 ): Promise<CalendarSyncResult> {
-  if (provider === 'google') {
-    return createGoogleCalendarEvent(userId, data, storage);
-  } else {
-    return createOutlookCalendarEvent(userId, data, storage);
-  }
+  return createGoogleCalendarEvent(userId, data, storage);
 }
 
 export async function updateCalendarEvent(
   userId: string,
-  provider: 'google' | 'outlook',
   eventId: string,
   data: CalendarEventData,
   storage: IStorage
 ): Promise<CalendarSyncResult> {
-  if (provider === 'google') {
-    return updateGoogleCalendarEvent(userId, eventId, data, storage);
-  } else {
-    return updateOutlookCalendarEvent(userId, eventId, data, storage);
-  }
+  return updateGoogleCalendarEvent(userId, eventId, data, storage);
 }
 
 export async function deleteCalendarEvent(
   userId: string,
-  provider: 'google' | 'outlook',
   eventId: string,
   storage: IStorage
 ): Promise<CalendarSyncResult> {
-  if (provider === 'google') {
-    return deleteGoogleCalendarEvent(userId, eventId, storage);
-  } else {
-    return deleteOutlookCalendarEvent(userId, eventId, storage);
-  }
+  return deleteGoogleCalendarEvent(userId, eventId, storage);
 }
 
 // Check which calendar providers are connected for a user
@@ -669,21 +374,14 @@ export async function getConnectedProviders(
   storage: IStorage
 ): Promise<{ 
   google: { connected: boolean; email?: string; connectedAt?: string }; 
-  outlook: { connected: boolean; email?: string; connectedAt?: string };
 }> {
   const googleIntegration = await storage.getCalendarIntegration(userId, 'google');
-  const outlookIntegration = await storage.getCalendarIntegration(userId, 'outlook');
 
   return {
     google: {
       connected: !!googleIntegration,
       email: googleIntegration?.email || undefined,
       connectedAt: googleIntegration?.connectedAt?.toISOString(),
-    },
-    outlook: {
-      connected: !!outlookIntegration,
-      email: outlookIntegration?.email || undefined,
-      connectedAt: outlookIntegration?.connectedAt?.toISOString(),
     },
   };
 }

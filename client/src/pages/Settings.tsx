@@ -457,25 +457,23 @@ function CalendarConnections() {
   
   const { data: connections, isLoading } = useQuery<{
     google: { connected: boolean; email?: string; connectedAt?: string };
-    outlook: { connected: boolean; email?: string; connectedAt?: string };
   }>({
     queryKey: ['/api/oauth/connections'],
   });
 
   const { data: oauthConfig } = useQuery<{
     baseUrl: string;
-    redirectUris: { google: string; outlook: string };
+    redirectUris: { google: string };
     instructions: {
       google: { step1: string; step2: string; step3: string; step4: string };
-      outlook: { step1: string; step2: string; step3: string; step4: string; step5: string };
     };
-    status: { googleConfigured: boolean; outlookConfigured: boolean };
+    status: { googleConfigured: boolean };
   }>({
     queryKey: ['/api/calendar/oauth-config'],
   });
 
   const disconnectMutation = useMutation({
-    mutationFn: async (provider: 'google' | 'outlook') => {
+    mutationFn: async (provider: 'google') => {
       const res = await fetch(`/api/calendar/disconnect/${provider}`, {
         method: 'DELETE',
         credentials: 'include',
@@ -486,11 +484,11 @@ function CalendarConnections() {
       }
       return res.json();
     },
-    onSuccess: (_, provider) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/oauth/connections'] });
       toast({
         title: "Calendar Disconnected",
-        description: `${provider === 'google' ? 'Google Calendar' : 'Outlook'} has been disconnected`,
+        description: "Google Calendar has been disconnected",
         duration: 4000,
       });
     },
@@ -503,12 +501,12 @@ function CalendarConnections() {
     },
   });
 
-  const handleConnect = (provider: 'google' | 'outlook') => {
-    window.location.href = `/api/oauth/connect/${provider}`;
+  const handleConnect = () => {
+    window.location.href = `/api/oauth/connect/google`;
   };
 
-  const handleDisconnect = (provider: 'google' | 'outlook') => {
-    disconnectMutation.mutate(provider);
+  const handleDisconnect = () => {
+    disconnectMutation.mutate('google');
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -570,7 +568,7 @@ function CalendarConnections() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleDisconnect('google')}
+                    onClick={handleDisconnect}
                     disabled={disconnectMutation.isPending}
                     data-testid="button-disconnect-google"
                   >
@@ -581,30 +579,12 @@ function CalendarConnections() {
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={() => handleConnect('google')}
+                  onClick={handleConnect}
                   data-testid="button-connect-google"
                 >
                   Connect
                 </Button>
               )}
-            </div>
-          </div>
-
-          {/* Outlook Calendar - Disabled for MVP (Phase 2 feature) */}
-          <div className="flex items-center justify-between p-4 border rounded-md opacity-50">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="font-medium">Microsoft Outlook</p>
-                <p className="text-sm text-muted-foreground">Coming soon</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="gap-1">
-                Coming Soon
-              </Badge>
             </div>
           </div>
         </div>
@@ -667,45 +647,6 @@ function CalendarConnections() {
                       </ol>
                     </div>
                   </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">Outlook Redirect URI</Label>
-                      <Badge variant={oauthConfig.status.outlookConfigured ? "outline" : "destructive"}>
-                        {oauthConfig.status.outlookConfigured ? "Configured" : "Not Configured"}
-                      </Badge>
-                    </div>
-                    <div className="flex gap-2">
-                      <Input 
-                        value={oauthConfig.redirectUris.outlook} 
-                        readOnly 
-                        className="font-mono text-xs"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => copyToClipboard(oauthConfig.redirectUris.outlook, "Outlook redirect URI")}
-                      >
-                        {copiedUri === "Outlook redirect URI" ? (
-                          <Check className="w-4 h-4" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
-                      </Button>
-                    </div>
-                    <div className="text-xs text-muted-foreground space-y-1 pl-3">
-                      <p className="font-medium">Configuration steps:</p>
-                      <ol className="list-decimal list-inside space-y-0.5">
-                        <li>{oauthConfig.instructions.outlook.step1}</li>
-                        <li>{oauthConfig.instructions.outlook.step2}</li>
-                        <li>{oauthConfig.instructions.outlook.step3}</li>
-                        <li>{oauthConfig.instructions.outlook.step4}</li>
-                        <li>{oauthConfig.instructions.outlook.step5}</li>
-                      </ol>
-                    </div>
-                  </div>
                 </div>
               </>
             )}
@@ -717,7 +658,7 @@ function CalendarConnections() {
         <div className="space-y-2">
           <p className="text-sm font-medium">How it works</p>
           <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-            <li>Connect your personal calendar account (Google or Outlook)</li>
+            <li>Connect your Google Calendar account</li>
             <li>Set deadlines on cases using "Set Priority & Deadline"</li>
             <li>Sync deadlines to your calendar using "Sync to Calendar"</li>
             <li>Calendar events update automatically when you change case deadlines</li>
@@ -907,7 +848,7 @@ export default function Settings() {
                       <div>
                         <p className="font-medium">OAuth Authentication</p>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Your account is secured via Google, Outlook, or email authentication. Password management is handled by your chosen identity provider.
+                          Your account is secured via Replit authentication. Password management is handled by your identity provider.
                         </p>
                       </div>
                     </div>
