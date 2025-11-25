@@ -421,6 +421,8 @@ export class MemStorage implements IStorage {
       id,
       caseId: insertTranscript.caseId,
       content: insertTranscript.content,
+      utterances: insertTranscript.utterances ?? [],
+      speakerCount: insertTranscript.speakerCount ?? null,
       createdAt: new Date(),
       redactions: insertTranscript.redactions ?? [],
     };
@@ -1041,6 +1043,8 @@ export class DbStorage implements IStorage {
       .values({
         caseId: transcriptData.caseId,
         content: transcriptData.content,
+        utterances: transcriptData.utterances ?? [],
+        speakerCount: transcriptData.speakerCount ?? null,
         redactions: transcriptData.redactions ?? [],
       })
       .returning();

@@ -84,6 +84,13 @@ CRITICAL INSTRUCTIONS:
 - Use UK legal terminology and practice conventions throughout
 - Format the document professionally with clean spacing (use white space for visual separation, NO horizontal lines or underscores)
 
+SPEAKER-LABELED TRANSCRIPTS:
+- The transcript may include speaker labels in the format "[Speaker A]: text" or "[Speaker B]: text"
+- Use these labels to distinguish between client statements and solicitor advice
+- Typically, the solicitor provides legal advice (identify by content like "I advised...", legal analysis, instructions)
+- Use the speaker context to more accurately attribute statements and advice
+- If speaker identities are unclear, use context clues from the content to determine roles
+
 CONSENT RECORDING HANDLING:
 - If the transcript includes consent dialogue for audio recording, acknowledge it ONCE in a single brief line at the start of "MATTERS DISCUSSED": "Client consent to audio recording obtained."
 - Do NOT elaborate on the consent process, GDPR explanations, data protection details, or consent script language
@@ -203,6 +210,12 @@ CRITICAL INSTRUCTIONS:
 - If any section cannot be completed from the transcript, state "Not discussed in meeting" rather than speculating
 - Use UK legal terminology and practice conventions
 - Prioritize accuracy over completeness - it is better to omit information than to guess
+
+SPEAKER-LABELED TRANSCRIPTS:
+- The transcript may include speaker labels in the format "[Speaker A]: text" or "[Speaker B]: text"
+- Use these labels to distinguish between client statements and solicitor advice
+- Identify the solicitor by content (legal advice, analysis) and the client by their concerns/questions
+- Leverage speaker separation to more accurately summarize client concerns vs solicitor recommendations
 
 CONSENT RECORDING HANDLING:
 - If the transcript includes consent dialogue for audio recording, you may briefly note "Consent to recording obtained" if contextually relevant

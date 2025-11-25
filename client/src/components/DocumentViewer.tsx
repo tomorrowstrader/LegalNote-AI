@@ -14,6 +14,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { RichTextEditor } from "@/components/RichTextEditor";
+import DiarizedTranscriptViewer, { type SpeakerUtterance } from "@/components/DiarizedTranscriptViewer";
 
 interface Document {
   id: string;
@@ -32,12 +33,15 @@ interface DocumentViewerProps {
   caseId: string;
   documents: Document[];
   transcript?: string;
+  transcriptUtterances?: SpeakerUtterance[];
+  speakerCount?: number;
   textNotes?: string;
   status: string;
   caseTitle: string;
   clientName: string;
   matterReference?: string;
   createdAt: string;
+  onTranscriptTimestampClick?: (timestampMs: number) => void;
 }
 
 // Helper component for editable document content - single panel with inline editing
@@ -115,12 +119,15 @@ export default function DocumentViewer({
   caseId,
   documents,
   transcript,
+  transcriptUtterances,
+  speakerCount,
   textNotes,
   status,
   caseTitle,
   clientName,
   matterReference,
   createdAt,
+  onTranscriptTimestampClick,
 }: DocumentViewerProps) {
   const { toast } = useToast();
   const [showDownloadModal, setShowDownloadModal] = useState(false);
@@ -587,13 +594,27 @@ export default function DocumentViewer({
         <TabsContent value="transcript" className="mt-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <CardTitle>Full Transcript</CardTitle>
-                <Badge variant="outline" data-testid="badge-ai-generated">AI Generated</Badge>
+                <div className="flex gap-2">
+                  {transcriptUtterances && transcriptUtterances.length > 0 && (
+                    <Badge variant="default" data-testid="badge-diarized">
+                      Speaker Diarization
+                    </Badge>
+                  )}
+                  <Badge variant="outline" data-testid="badge-ai-generated">AI Generated</Badge>
+                </div>
               </div>
             </CardHeader>
-            <CardContent className="prose prose-sm max-w-none">
-              {transcriptContent ? (
+            <CardContent>
+              {transcriptUtterances && transcriptUtterances.length > 0 ? (
+                <DiarizedTranscriptViewer
+                  utterances={transcriptUtterances}
+                  speakerCount={speakerCount}
+                  fallbackContent={transcriptContent}
+                  onTimestampClick={onTranscriptTimestampClick}
+                />
+              ) : transcriptContent ? (
                 <p className="text-foreground whitespace-pre-wrap">{transcriptContent}</p>
               ) : (
                 <p className="text-sm text-muted-foreground italic">

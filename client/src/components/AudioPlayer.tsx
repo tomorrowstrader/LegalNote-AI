@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef, type Ref } from "react";
 import { Play, Pause, Volume2, VolumeX, AlertTriangle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -6,15 +6,20 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatDistanceToNow, differenceInDays, differenceInHours, differenceInMinutes } from "date-fns";
 import { logAuditEvent } from "@/lib/auditLogger";
 
+export interface AudioPlayerHandle {
+  seekTo: (timeMs: number) => void;
+}
+
 interface AudioPlayerProps {
   audioUrl: string | null;
   expiresAt: Date | null;
   onExpired?: () => void;
   caseId?: string;
   audioRecordingId?: string;
+  playerRef?: Ref<AudioPlayerHandle>;
 }
 
-export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecordingId }: AudioPlayerProps) {
+export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecordingId, playerRef }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const timelineRef = useRef<HTMLInputElement>(null);
   const isSeekingRef = useRef(false);
@@ -27,6 +32,30 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
+
+  useImperativeHandle(playerRef, () => ({
+    seekTo: async (timeMs: number) => {
+      if (!audioRef.current || isExpired) return;
+      const timeSeconds = timeMs / 1000;
+      if (!isFinite(timeSeconds)) return;
+      const previousTime = audioRef.current.currentTime;
+      audioRef.current.currentTime = timeSeconds;
+      setCurrentTime(timeSeconds);
+      
+      await logAuditEvent({
+        eventType: "audio_seeked",
+        caseId,
+        audioRecordingId,
+        metadata: { 
+          from: previousTime,
+          to: timeSeconds,
+          duration: audioRef.current.duration,
+          source: "transcript_timestamp",
+        },
+        severity: "info",
+      });
+    },
+  }), [isExpired, caseId, audioRecordingId]);
 
   useEffect(() => {
     setIsExpired(false);

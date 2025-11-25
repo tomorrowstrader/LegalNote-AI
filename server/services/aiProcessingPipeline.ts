@@ -1,4 +1,5 @@
 import { TranscriptionService } from './transcriptionService';
+import { AssemblyAIService, formatDiarizedTranscript, type SpeakerUtterance } from './assemblyAIService';
 import { DocumentService } from './documentService';
 import { IStorage } from '../storage';
 import { auditLogger, AuditEventType } from '../auditLog';
@@ -33,6 +34,7 @@ export interface ProcessingMetadata {
 
 export class AIProcessingPipeline {
   private transcriptionService: TranscriptionService;
+  private assemblyAIService: AssemblyAIService | null = null;
   private documentService: DocumentService;
   private storage: IStorage;
 
@@ -40,6 +42,17 @@ export class AIProcessingPipeline {
     this.transcriptionService = new TranscriptionService();
     this.documentService = new DocumentService();
     this.storage = storage;
+
+    if (process.env.ASSEMBLYAI_API_KEY) {
+      try {
+        this.assemblyAIService = new AssemblyAIService();
+        console.log('[AI Pipeline] AssemblyAI service initialized - speaker diarization enabled');
+      } catch (error) {
+        console.warn('[AI Pipeline] AssemblyAI not available, falling back to Whisper (no diarization)');
+      }
+    } else {
+      console.log('[AI Pipeline] No AssemblyAI key - using Whisper transcription (no diarization)');
+    }
   }
 
   /**
@@ -81,24 +94,63 @@ export class AIProcessingPipeline {
         severity: 'medium',
       });
 
-      // Step 1: Transcribe audio
+      // Step 1: Transcribe audio (with diarization if AssemblyAI available)
       console.log(`Transcribing audio for case ${caseId}...`);
       await this.updateProcessingStatus(caseId, userId, {
         status: 'transcribing',
         progress: 20,
-        currentStep: 'Converting speech to text...',
+        currentStep: this.assemblyAIService 
+          ? 'Converting speech to text with speaker identification...'
+          : 'Converting speech to text...',
       });
 
-      const transcriptionResult = await this.transcriptionService.transcribeAudio(
-        audio.filePath,
-        audio.duration || 0,
-        audio.mimeType || undefined
-      );
+      let transcriptText: string;
+      let transcriptUtterances: SpeakerUtterance[] = [];
+      let speakerCount: number | undefined;
+      let transcriptionCost: number;
 
-      // Save transcript
+      if (this.assemblyAIService) {
+        try {
+          const diarizedResult = await this.assemblyAIService.transcribeWithDiarization(
+            audio.filePath,
+            audio.duration || 0
+          );
+          transcriptText = diarizedResult.text;
+          transcriptUtterances = diarizedResult.utterances;
+          speakerCount = diarizedResult.speakerCount;
+          transcriptionCost = diarizedResult.cost;
+          console.log(`[Diarization] Detected ${speakerCount} speakers, ${transcriptUtterances.length} utterances`);
+        } catch (assemblyError) {
+          console.error('[AI Pipeline] AssemblyAI transcription failed, falling back to Whisper:', assemblyError);
+          await this.updateProcessingStatus(caseId, userId, {
+            status: 'transcribing',
+            progress: 25,
+            currentStep: 'Retrying with alternative transcription service...',
+          });
+          const whisperResult = await this.transcriptionService.transcribeAudio(
+            audio.filePath,
+            audio.duration || 0,
+            audio.mimeType || undefined
+          );
+          transcriptText = whisperResult.text;
+          transcriptionCost = whisperResult.cost;
+        }
+      } else {
+        const whisperResult = await this.transcriptionService.transcribeAudio(
+          audio.filePath,
+          audio.duration || 0,
+          audio.mimeType || undefined
+        );
+        transcriptText = whisperResult.text;
+        transcriptionCost = whisperResult.cost;
+      }
+
+      // Save transcript with diarization data if available
       const transcript = await this.storage.createTranscript({
         caseId,
-        content: transcriptionResult.text,
+        content: transcriptText,
+        utterances: transcriptUtterances.length > 0 ? transcriptUtterances : undefined,
+        speakerCount: speakerCount,
       });
 
       auditLogger.log({
@@ -108,8 +160,10 @@ export class AIProcessingPipeline {
         resourceType: 'transcript',
         details: { 
           caseId,
-          textLength: transcriptionResult.text.length,
-          cost: transcriptionResult.cost,
+          textLength: transcriptText.length,
+          cost: transcriptionCost,
+          hasDiarization: transcriptUtterances.length > 0,
+          speakerCount: speakerCount,
         },
         severity: 'medium',
       });
@@ -118,8 +172,13 @@ export class AIProcessingPipeline {
         status: 'generating_documents',
         progress: 40,
         currentStep: 'Generating summary...',
-        transcriptionCost: transcriptionResult.cost,
+        transcriptionCost: transcriptionCost,
       });
+
+      // For document generation, use formatted diarized transcript if available
+      const transcriptForDocGen = transcriptUtterances.length > 0
+        ? formatDiarizedTranscript(transcriptUtterances)
+        : transcriptText;
 
       // Step 2: Generate documents
       const metadata = {
@@ -132,7 +191,7 @@ export class AIProcessingPipeline {
       // Generate summary
       console.log(`Generating summary for case ${caseId}...`);
       const summaryResult = await this.documentService.generateSummary(
-        transcriptionResult.text,
+        transcriptForDocGen,
         metadata
       );
 
@@ -179,7 +238,7 @@ export class AIProcessingPipeline {
       // Generate attendance note
       console.log(`Generating attendance note for case ${caseId}...`);
       const attendanceResult = await this.documentService.generateAttendanceNote(
-        transcriptionResult.text,
+        transcriptForDocGen,
         metadata,
         firmPreferences
       );
@@ -219,7 +278,7 @@ export class AIProcessingPipeline {
       // Generate legal opinion
       console.log(`Generating legal opinion for case ${caseId}...`);
       const opinionResult = await this.documentService.generateLegalOpinion(
-        transcriptionResult.text,
+        transcriptForDocGen,
         metadata
       );
 
@@ -250,7 +309,7 @@ export class AIProcessingPipeline {
       });
 
       // Calculate total cost and tokens
-      const totalCost = transcriptionResult.cost + 
+      const totalCost = transcriptionCost + 
                        summaryResult.cost + 
                        attendanceResult.cost + 
                        opinionResult.cost;

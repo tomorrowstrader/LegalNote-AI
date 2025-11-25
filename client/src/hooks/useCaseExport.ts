@@ -3,6 +3,22 @@ import { useToast } from "@/hooks/use-toast";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
 import type { FirmProfile, Case } from "@shared/schema";
 
+interface SpeakerUtterance {
+  speaker: string;
+  text: string;
+  start: number;
+  end: number;
+  confidence: number;
+}
+
+function formatDiarizedTranscriptForExport(utterances: SpeakerUtterance[]): string {
+  if (!utterances || utterances.length === 0) return '';
+  return utterances.map(u => {
+    const speakerLabel = u.speaker.startsWith('Speaker') ? u.speaker : `Speaker ${u.speaker}`;
+    return `[${speakerLabel}]: ${u.text}`;
+  }).join('\n\n');
+}
+
 interface UseCaseExportOptions {
   caseId: string;
   enabled: boolean;
@@ -49,7 +65,14 @@ export function useCaseExport({ caseId, enabled, prefetchedData }: UseCaseExport
     const summary = activeDocuments.find((doc: any) => doc.type === 'summary');
     const transcriptDoc = activeDocuments.find((doc: any) => doc.type === 'transcript');
     
-    const transcriptContent = transcriptDoc?.content ?? transcript?.content;
+    let transcriptContent: string | undefined;
+    if (transcriptDoc?.content) {
+      transcriptContent = transcriptDoc.content;
+    } else if (transcript?.utterances && transcript.utterances.length > 0) {
+      transcriptContent = formatDiarizedTranscriptForExport(transcript.utterances);
+    } else if (transcript?.content) {
+      transcriptContent = transcript.content;
+    }
     const summaryContent = summary?.content || caseData.textNotes;
 
     const content: Record<string, string> = {};

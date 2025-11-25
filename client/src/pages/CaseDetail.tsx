@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import DocumentViewer from "@/components/DocumentViewer";
-import { AudioPlayer } from "@/components/AudioPlayer";
+import { AudioPlayer, type AudioPlayerHandle } from "@/components/AudioPlayer";
 import { AuditTrail } from "@/components/AuditTrail";
 import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
@@ -37,6 +37,11 @@ export default function CaseDetail() {
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const audioPlayerRef = useRef<AudioPlayerHandle>(null);
+
+  const handleTranscriptTimestampClick = (timeMs: number) => {
+    audioPlayerRef.current?.seekTo(timeMs);
+  };
 
   const { data: caseData, isLoading, error } = useQuery<Case>({
     queryKey: [`/api/cases/${caseId}`],
@@ -53,7 +58,22 @@ export default function CaseDetail() {
     enabled: !!caseId && caseData?.sourceType === 'audio',
   });
 
-  const { data: transcript } = useQuery<{ id: string; caseId: string; content: string; createdAt: string }>({
+  interface SpeakerUtterance {
+    speaker: string;
+    text: string;
+    start: number;
+    end: number;
+    confidence: number;
+  }
+  
+  const { data: transcript } = useQuery<{ 
+    id: string; 
+    caseId: string; 
+    content: string; 
+    utterances?: SpeakerUtterance[];
+    speakerCount?: number;
+    createdAt: string;
+  }>({
     queryKey: [`/api/cases/${caseId}/transcript`],
     enabled: !!caseId && (caseData?.status === 'review_required' || caseData?.status === 'completed'),
   });
@@ -352,6 +372,7 @@ export default function CaseDetail() {
               expiresAt={new Date(audioData.expiresAt)}
               caseId={caseData.id}
               audioRecordingId={audioData.id}
+              playerRef={audioPlayerRef}
             />
           </div>
         )}
@@ -480,12 +501,15 @@ export default function CaseDetail() {
           caseId={caseId!}
           documents={documents}
           transcript={transcript?.content}
+          transcriptUtterances={transcript?.utterances}
+          speakerCount={transcript?.speakerCount}
           textNotes={caseData.textNotes}
           status={caseData.status}
           caseTitle={caseData.title}
           clientName={caseData.clientName}
           matterReference={caseData.matterReference}
           createdAt={caseData.createdAt}
+          onTranscriptTimestampClick={handleTranscriptTimestampClick}
         />
 
         {/* Quick Notes Section */}

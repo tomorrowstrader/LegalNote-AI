@@ -81,6 +81,8 @@ export const transcripts = pgTable("transcripts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
   content: text("content").notNull(),
+  utterances: jsonb("utterances").default([]), // Array of {speaker, text, start, end, confidence} for diarization
+  speakerCount: integer("speaker_count"), // Number of distinct speakers detected
   createdAt: timestamp("created_at").notNull().defaultNow(),
   redactions: jsonb("redactions").default([]), // Array of {start, end, reason, redactedBy, timestamp}
 });
