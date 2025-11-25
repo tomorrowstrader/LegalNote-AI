@@ -29,7 +29,7 @@ export default function Dashboard() {
 
   // Calculate stats from real data
   const totalCases = cases?.length || 0;
-  const completedCases = cases?.filter(c => c.status === "completed").length || 0;
+  const actionedCases = cases?.filter(c => c.status === "completed").length || 0;
   const thisMonthCases = cases?.filter(c => {
     const caseDate = new Date(c.createdAt);
     const now = new Date();
@@ -38,7 +38,7 @@ export default function Dashboard() {
   }).length || 0;
   
   const successRate = totalCases > 0 
-    ? Math.round((completedCases / totalCases) * 100) 
+    ? Math.round((actionedCases / totalCases) * 100) 
     : 0;
 
   // Transform Case data to CaseCard props format
@@ -136,10 +136,10 @@ export default function Dashboard() {
             icon={Clock}
           />
           <StatsCard
-            title="Completed"
-            value={completedCases}
+            title="Actioned"
+            value={actionedCases}
             icon={CheckCircle2}
-            description={`${successRate}% success rate`}
+            description={`${successRate}% of total cases`}
           />
         </div>
 

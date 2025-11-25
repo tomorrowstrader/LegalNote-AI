@@ -1146,6 +1146,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sharedDocuments,
       });
       
+      // Auto-mark case as completed (actioned) when shared with client
+      await storage.updateCase(req.params.id, { status: "completed" }, userId);
+      
       // Get firm profile for email branding
       const firmProfile = await storage.getFirmProfile();
       
