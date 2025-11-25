@@ -40,7 +40,7 @@ interface DocumentViewerProps {
   createdAt: string;
 }
 
-// Helper component for editable document content (extracted to prevent re-renders)
+// Helper component for editable document content - single panel with inline editing
 function EditableDocumentContent({ 
   document,
   isEditing,
@@ -62,42 +62,31 @@ function EditableDocumentContent({
 }) {
   const isDraft = document.status === 'draft';
 
-  if (isEditing) {
-    return (
-      <div className="space-y-4">
-        <RichTextEditor
-          content={editContent}
-          onChange={onEditContentChange}
-          disabled={isSaving}
-          placeholder="Edit document content..."
-        />
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            onClick={() => onSaveEdits(document.id)}
-            disabled={isSaving}
-            data-testid="button-save-edits"
-          >
-            {isSaving ? "Saving..." : "Save Changes"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onCancelEditing}
-            disabled={isSaving}
-            data-testid="button-cancel-edits"
-          >
-            Cancel
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      {isDraft && (
-        <div className="flex gap-2">
+      {/* Action buttons */}
+      <div className="flex gap-2 flex-wrap">
+        {isEditing ? (
+          <>
+            <Button
+              size="sm"
+              onClick={() => onSaveEdits(document.id)}
+              disabled={isSaving}
+              data-testid="button-save-edits"
+            >
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onCancelEditing}
+              disabled={isSaving}
+              data-testid="button-cancel-edits"
+            >
+              Cancel
+            </Button>
+          </>
+        ) : isDraft ? (
           <Button
             size="sm"
             variant="default"
@@ -108,13 +97,16 @@ function EditableDocumentContent({
             <Edit className="w-3 h-3" />
             Edit Document
           </Button>
-        </div>
-      )}
-      <div className="prose prose-sm max-w-none text-foreground">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {document.content}
-        </ReactMarkdown>
+        ) : null}
       </div>
+
+      {/* Single panel: RichTextEditor handles both viewing and editing */}
+      <RichTextEditor
+        content={isEditing ? editContent : document.content}
+        onChange={onEditContentChange}
+        disabled={!isEditing}
+        placeholder="Document content..."
+      />
     </div>
   );
 }

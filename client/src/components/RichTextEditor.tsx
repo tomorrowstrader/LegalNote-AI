@@ -99,7 +99,8 @@ export function RichTextEditor({ content, onChange, disabled, placeholder }: Ric
   }
 
   return (
-    <div className="border border-input rounded-md overflow-hidden bg-background">
+    <div className={`rounded-md overflow-hidden ${disabled ? 'bg-muted/20' : 'border border-input bg-background'}`}>
+      {!disabled && (
       <div className="flex items-center gap-1 p-2 border-b border-border bg-muted/30">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -224,6 +225,7 @@ export function RichTextEditor({ content, onChange, disabled, placeholder }: Ric
           <TooltipContent>Numbered List</TooltipContent>
         </Tooltip>
       </div>
+      )}
 
       <EditorContent 
         editor={editor} 
