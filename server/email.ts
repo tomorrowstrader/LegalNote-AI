@@ -180,3 +180,278 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
     return { success: false, error: error.message || 'Unknown error' };
   }
 }
+
+interface SendRecordingConfirmationParams {
+  to: string;
+  solicitorName: string;
+  caseTitle: string;
+  clientName: string;
+  matterReference?: string;
+  recordingDuration: string;
+  recordedAt: Date;
+  caseId: string;
+  documentsGenerated: string[];
+  firmProfile?: {
+    firmName: string;
+    phone?: string;
+    email?: string;
+  };
+}
+
+/**
+ * Sends a confirmation email to the solicitor when a recording is successfully saved
+ */
+export async function sendRecordingConfirmationEmail(params: SendRecordingConfirmationParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const {
+    to,
+    solicitorName,
+    caseTitle,
+    clientName,
+    matterReference,
+    recordingDuration,
+    recordedAt,
+    caseId,
+    documentsGenerated,
+    firmProfile
+  } = params;
+
+  const baseUrl = process.env.REPLIT_DOMAINS 
+    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+    : 'http://localhost:5000';
+  const caseUrl = `${baseUrl}/cases/${caseId}`;
+
+  const formattedDate = recordedAt.toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  const formattedTime = recordedAt.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body {
+          font-family: 'Helvetica Neue', Arial, sans-serif;
+          line-height: 1.6;
+          color: #333;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background-color: #f9f9f9;
+        }
+        .container {
+          background-color: #fff;
+          padding: 30px;
+          border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+          text-align: center;
+          padding-bottom: 20px;
+          margin-bottom: 25px;
+          border-bottom: 2px solid #22c55e;
+        }
+        .success-icon {
+          width: 60px;
+          height: 60px;
+          background-color: #22c55e;
+          border-radius: 50%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 15px;
+        }
+        .success-icon svg {
+          width: 30px;
+          height: 30px;
+          fill: white;
+        }
+        .header h1 {
+          font-size: 22px;
+          color: #22c55e;
+          margin: 0;
+        }
+        .case-box {
+          background-color: #f5f5f5;
+          padding: 20px;
+          border-radius: 6px;
+          margin: 20px 0;
+        }
+        .case-box h3 {
+          margin: 0 0 15px 0;
+          font-size: 16px;
+          color: #333;
+        }
+        .detail-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 8px 0;
+          border-bottom: 1px solid #e5e5e5;
+        }
+        .detail-row:last-child {
+          border-bottom: none;
+        }
+        .detail-label {
+          color: #666;
+          font-size: 14px;
+        }
+        .detail-value {
+          font-weight: 600;
+          font-size: 14px;
+        }
+        .documents-list {
+          background-color: #f0fdf4;
+          border: 1px solid #22c55e30;
+          border-radius: 6px;
+          padding: 15px 20px;
+          margin: 20px 0;
+        }
+        .documents-list h4 {
+          margin: 0 0 10px 0;
+          font-size: 14px;
+          color: #166534;
+        }
+        .documents-list ul {
+          margin: 0;
+          padding-left: 20px;
+        }
+        .documents-list li {
+          padding: 3px 0;
+          font-size: 14px;
+          color: #166534;
+        }
+        .cta-button {
+          display: inline-block;
+          background-color: #000;
+          color: #fff;
+          padding: 14px 35px;
+          text-decoration: none;
+          border-radius: 6px;
+          font-weight: bold;
+          margin: 20px 0;
+        }
+        .footer {
+          margin-top: 30px;
+          padding-top: 20px;
+          border-top: 1px solid #ddd;
+          font-size: 12px;
+          color: #666;
+          text-align: center;
+        }
+        .protection-note {
+          background-color: #f0f9ff;
+          border-left: 4px solid #3b82f6;
+          padding: 12px 15px;
+          margin: 20px 0;
+          font-size: 13px;
+        }
+        .protection-note strong {
+          color: #1e40af;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="success-icon">
+            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+          </div>
+          <h1>Recording Successfully Saved</h1>
+        </div>
+
+        <p>Dear ${solicitorName},</p>
+
+        <p>Your client meeting recording has been successfully processed and saved to LegalNote AI. All protection layers were active during recording.</p>
+
+        <div class="case-box">
+          <h3>Recording Details</h3>
+          <div class="detail-row">
+            <span class="detail-label">Case</span>
+            <span class="detail-value">${caseTitle}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Client</span>
+            <span class="detail-value">${clientName}</span>
+          </div>
+          ${matterReference ? `
+          <div class="detail-row">
+            <span class="detail-label">Matter Reference</span>
+            <span class="detail-value">${matterReference}</span>
+          </div>
+          ` : ''}
+          <div class="detail-row">
+            <span class="detail-label">Date</span>
+            <span class="detail-value">${formattedDate}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Time</span>
+            <span class="detail-value">${formattedTime}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Duration</span>
+            <span class="detail-value">${recordingDuration}</span>
+          </div>
+        </div>
+
+        ${documentsGenerated.length > 0 ? `
+        <div class="documents-list">
+          <h4>Documents Being Generated</h4>
+          <ul>
+            ${documentsGenerated.map(doc => `<li>${doc}</li>`).join('')}
+          </ul>
+        </div>
+        ` : ''}
+
+        <div class="protection-note">
+          <strong>Protected Recording</strong><br>
+          Your recording was protected with chunked uploads, network monitoring, and session auto-extension. The consent segment has been flagged for extended retention.
+        </div>
+
+        <p style="text-align: center;">
+          <a href="${caseUrl}" class="cta-button">View Case</a>
+        </p>
+
+        <p style="font-size: 13px; color: #666;">
+          If the button above doesn't work, copy and paste this link into your browser:<br>
+          <a href="${caseUrl}">${caseUrl}</a>
+        </p>
+
+        <div class="footer">
+          <p>This confirmation was sent by LegalNote AI</p>
+          ${firmProfile?.firmName ? `<p>${firmProfile.firmName}</p>` : ''}
+          <p>This is an automated message. Please do not reply to this email.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'LegalNote AI <onboarding@resend.dev>',
+      to: [to],
+      subject: `Recording Saved - ${clientName}${matterReference ? ` (${matterReference})` : ''} - ${formattedDate}`,
+      html: emailHtml,
+    });
+
+    if (error) {
+      console.error('[EMAIL] Error sending recording confirmation via Resend:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[EMAIL] Recording confirmation sent successfully:', data?.id);
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending recording confirmation:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}

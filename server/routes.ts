@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema } from "@shared/schema";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { chunkedUploadService } from "./services/chunkedUploadService";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { MAX_AUDIO_SIZE_BYTES } from "./uploadSecurity";
 import {
@@ -17,7 +18,8 @@ import {
 import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { openaiService } from "./openaiService";
-import { sendCaseEmail } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail } from "./email";
+import { generateSignedAuditPDF } from "./services/signedAuditExport";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders } from "./calendar";
 import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
 import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber } from "./sms";
@@ -873,6 +875,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/documents/:id/verify", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { verifyDocumentHash } = await import("./utils/documentHash");
+      const userId = req.user.claims.sub;
+      
+      const document = await storage.getDocument(req.params.id);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Verify user has access to the case
+      const caseData = await storage.getCase(document.caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Verify document integrity
+      const isValid = document.contentHash 
+        ? verifyDocumentHash(document.content, document.contentHash)
+        : false;
+      
+      res.json({
+        documentId: document.id,
+        verified: isValid,
+        hasHash: !!document.contentHash,
+        algorithm: "SHA-256",
+        verifiedAt: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.patch("/api/documents/:id", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
@@ -1387,6 +1422,228 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // NOTE: Legacy PUT /api/audio/:id route removed - replaced by POST /api/audio/:id/upload multipart
+
+  // ============================================
+  // CHUNKED UPLOAD ROUTES (10-second incremental uploads)
+  // ============================================
+
+  // Create a new chunked upload session
+  app.post("/api/audio/chunk-session", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { mimeType, caseId } = req.body;
+
+      if (!mimeType) {
+        return res.status(400).json({ message: "mimeType is required" });
+      }
+
+      const sessionId = chunkedUploadService.createSession(userId, mimeType, caseId);
+      
+      res.json({ 
+        sessionId,
+        message: "Chunked upload session created",
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Upload a chunk to an existing session
+  app.post("/api/audio/chunk-session/:sessionId/chunk",
+    isAuthenticated,
+    audioUploadLimiter,
+    upload.single('chunk'),
+    handleMulterError,
+    async (req: any, res, next) => {
+      try {
+        const userId = req.user.claims.sub;
+        const { sessionId } = req.params;
+        const chunkNumber = parseInt(req.body.chunkNumber, 10);
+
+        if (!req.file) {
+          return res.status(400).json({ message: "Chunk data is required" });
+        }
+
+        if (isNaN(chunkNumber) || chunkNumber < 0) {
+          return res.status(400).json({ message: "Valid chunkNumber is required" });
+        }
+
+        const result = await chunkedUploadService.uploadChunk(
+          sessionId,
+          userId,
+          chunkNumber,
+          req.file.buffer
+        );
+
+        res.json({
+          success: true,
+          chunkNumber,
+          chunksReceived: result.received,
+          bytesStored: result.bytesStored,
+        });
+      } catch (error: any) {
+        if (error.message.includes("not found") || error.message.includes("Unauthorized")) {
+          return res.status(404).json({ message: error.message });
+        }
+        next(error);
+      }
+    }
+  );
+
+  // Finalize a chunked upload session and assemble the audio file
+  app.post("/api/audio/chunk-session/:sessionId/finalize", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+      const { audioRecordingId, duration } = req.body;
+
+      if (!audioRecordingId) {
+        return res.status(400).json({ message: "audioRecordingId is required" });
+      }
+
+      // Verify the audio recording exists and user owns it
+      const audioRecording = await storage.getAudioRecording(audioRecordingId);
+      if (!audioRecording) {
+        return res.status(404).json({ message: "Audio recording not found" });
+      }
+
+      const caseData = await storage.getCase(audioRecording.caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      // Finalize the session (combines chunks and uploads to storage)
+      const result = await chunkedUploadService.finalizeSession(
+        sessionId,
+        userId,
+        audioRecordingId
+      );
+
+      // Update the audio recording with the file path
+      const updated = await storage.updateAudioRecording(audioRecordingId, {
+        filePath: result.filePath,
+        duration: duration ? parseFloat(duration) : undefined,
+        consentSegmentPath: result.consentSegmentPath,
+      });
+
+      auditLogger.logFromRequest(AuditEventType.AUDIO_UPLOADED, req, {
+        resourceId: audioRecordingId,
+        resourceType: "audio",
+        action: "chunked_upload_finalized",
+        severity: "medium",
+        metadata: {
+          totalChunks: result.totalChunks,
+          totalBytes: result.totalBytes,
+          consentSegmentPreserved: !!result.consentSegmentPath,
+        },
+      });
+
+      // Send recording confirmation email asynchronously (don't block response)
+      (async () => {
+        try {
+          const user = await storage.getUser(userId);
+          const firmProfile = await storage.getFirmProfile(userId);
+          
+          if (user?.email) {
+            const durationSeconds = duration ? parseFloat(duration) : 0;
+            const minutes = Math.floor(durationSeconds / 60);
+            const seconds = Math.floor(durationSeconds % 60);
+            const recordingDuration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+            await sendRecordingConfirmationEmail({
+              to: user.email,
+              solicitorName: user.firstName || user.email.split('@')[0],
+              caseTitle: caseData.title,
+              clientName: caseData.clientName,
+              matterReference: caseData.matterReference || undefined,
+              recordingDuration,
+              recordedAt: new Date(),
+              caseId: caseData.id,
+              documentsGenerated: ['Attendance Note', 'Case Summary', 'Full Transcript'],
+              firmProfile: firmProfile ? {
+                firmName: firmProfile.firmName,
+                phone: firmProfile.phone || undefined,
+                email: firmProfile.email || undefined,
+              } : undefined,
+            });
+
+            console.log(`[EMAIL] Recording confirmation sent for case ${caseData.id}`);
+          }
+        } catch (emailError) {
+          console.error('[EMAIL] Failed to send recording confirmation:', emailError);
+        }
+      })();
+
+      res.json({
+        success: true,
+        audioRecording: updated,
+        totalChunks: result.totalChunks,
+        totalBytes: result.totalBytes,
+        consentSegmentPreserved: !!result.consentSegmentPath,
+      });
+    } catch (error: any) {
+      if (error.message.includes("not found") || error.message.includes("Unauthorized")) {
+        return res.status(404).json({ message: error.message });
+      }
+      next(error);
+    }
+  });
+
+  // Get status of a chunked upload session
+  app.get("/api/audio/chunk-session/:sessionId/status", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+
+      const status = chunkedUploadService.getSessionStatus(sessionId, userId);
+      res.json(status);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Cancel a chunked upload session
+  app.delete("/api/audio/chunk-session/:sessionId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+
+      const cancelled = chunkedUploadService.cancelSession(sessionId, userId);
+      
+      if (!cancelled) {
+        return res.status(404).json({ message: "Session not found or already finalized" });
+      }
+
+      res.json({ success: true, message: "Session cancelled" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Recover a chunked upload session (for resuming after connection issues)
+  app.get("/api/audio/chunk-session/:sessionId/recover", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+
+      const recovery = chunkedUploadService.recoverSession(sessionId, userId);
+      
+      if (!recovery) {
+        return res.status(404).json({ 
+          canRecover: false,
+          message: "Session not found, expired, or already finalized" 
+        });
+      }
+
+      res.json(recovery);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // ============================================
+  // END CHUNKED UPLOAD ROUTES
+  // ============================================
 
   app.get("/api/audio/by-case/:caseId", isAuthenticated, async (req: any, res, next) => {
     try {
@@ -1967,6 +2224,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       res.json(logs);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/audit/export/signed-pdf", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId, eventType, startDate, endDate, limit } = req.body;
+
+      const filters: any = {};
+      if (caseId) filters.caseId = caseId;
+      if (eventType) filters.eventType = eventType;
+      if (startDate) filters.startDate = new Date(startDate);
+      if (endDate) filters.endDate = new Date(endDate);
+      if (limit) filters.limit = limit;
+
+      const logs = await storage.getAuditLogs(filters);
+
+      if (logs.length === 0) {
+        return res.status(400).json({ message: "No audit logs found matching filters" });
+      }
+
+      const user = await storage.getUser(userId);
+      const firmProfile = await storage.getFirmProfile(userId);
+
+      const pdfBuffer = generateSignedAuditPDF(logs, {
+        generatedAt: new Date().toISOString(),
+        generatedBy: user?.email || userId,
+        filters: {
+          caseId: caseId || undefined,
+          eventType: eventType || undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+        },
+        recordCount: logs.length,
+        firmName: firmProfile?.firmName || undefined,
+      });
+
+      await logAuditEvent(userId, "document_downloaded", {
+        metadata: {
+          action: "audit_exported_signed_pdf",
+          recordCount: logs.length,
+          filters: { caseId, eventType, limit },
+        },
+        severity: "warning",
+        req,
+      });
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="audit-trail-signed-${Date.now()}.pdf"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+      res.send(pdfBuffer);
     } catch (error) {
       next(error);
     }

@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Shield, Download, Search, Filter, Clock, User, Eye, FileText, Send, Loader2 } from "lucide-react";
+import { Shield, Download, Search, Filter, Clock, User, Eye, FileText, Send, Loader2, FileCheck } from "lucide-react";
 import type { AuditTrail as AuditTrailType } from "@shared/schema";
 import { logAuditEvent } from "@/lib/auditLogger";
+import { useToast } from "@/hooks/use-toast";
 
 const EVENT_ICONS: Record<string, any> = {
   case_viewed: Eye,
@@ -103,10 +104,12 @@ function formatMetadata(eventType: string, metadata: Record<string, any> | null)
 // NOTE: This page should be restricted to admin users only once role-based access control is implemented
 // Currently accessible to all authenticated users - implement role check before production deployment
 export default function AuditLogs() {
+  const { toast } = useToast();
   const [caseIdFilter, setCaseIdFilter] = useState("");
   const [eventTypeFilter, setEventTypeFilter] = useState("");
   const [limit, setLimit] = useState(100);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
 
   const queryParams = new URLSearchParams();
   if (caseIdFilter) queryParams.append("caseId", caseIdFilter);
@@ -169,6 +172,52 @@ export default function AuditLogs() {
       });
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleExportSignedPDF = async () => {
+    if (!auditLogs || auditLogs.length === 0) return;
+
+    setIsExportingPDF(true);
+    try {
+      const response = await fetch("/api/audit/export/signed-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          caseId: caseIdFilter || undefined,
+          eventType: eventTypeFilter || undefined,
+          limit,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate signed PDF");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `audit-trail-signed-${format(new Date(), "yyyy-MM-dd-HHmmss")}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Signed PDF Generated",
+        description: "Your digitally signed audit trail has been downloaded",
+        duration: 5000,
+      });
+    } catch (error) {
+      console.error("Failed to export signed PDF:", error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to generate signed PDF. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      setIsExportingPDF(false);
     }
   };
 
@@ -272,6 +321,24 @@ export default function AuditLogs() {
                   <>
                     <Download className="w-4 h-4 mr-2" />
                     Export CSV
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={handleExportSignedPDF}
+                variant="default"
+                disabled={!auditLogs || auditLogs.length === 0 || isExportingPDF}
+                data-testid="button-export-signed-pdf"
+              >
+                {isExportingPDF ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <FileCheck className="w-4 h-4 mr-2" />
+                    Signed PDF
                   </>
                 )}
               </Button>

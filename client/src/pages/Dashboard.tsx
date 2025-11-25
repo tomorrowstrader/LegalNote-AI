@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, CircleCheck, Keyboard } from "lucide-react";
+import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, CircleCheck, Keyboard, Shield } from "lucide-react";
 import StatsCard from "@/components/StatsCard";
 import CaseCard from "@/components/CaseCard";
 import EmptyState from "@/components/EmptyState";
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { SafeguardsStatus } from "@/components/SafeguardsStatus";
 
 interface AttentionStats {
   audioExpiringCount: number;
@@ -373,6 +374,11 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Safeguards Status - Shows recording protection features */}
+        <div className="mb-6">
+          <SafeguardsStatus />
         </div>
 
         <div className="bg-card border border-border rounded-lg p-4 sm:p-6 mb-6">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, Square, Loader2, CheckCircle2, FileText, Upload, Sparkles, Shield, AlertTriangle } from "lucide-react";
+import { Mic, Square, Loader2, CheckCircle2, FileText, Upload, Sparkles, Shield, AlertTriangle, Wifi, WifiOff, CloudUpload, Battery, BatteryLow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ToastAction } from "@/components/ui/toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import ConsentModal from "@/components/ConsentModal";
 import TextNotesModal from "@/components/TextNotesModal";
 import { useMutation } from "@tanstack/react-query";
@@ -27,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { logAuditEvent } from "@/lib/auditLogger";
+import { useChunkedRecording } from "@/hooks/useChunkedRecording";
 
 // Recording session state management for crash recovery detection
 const RECORDING_SESSION_KEY = 'legalnote_recording_session';
@@ -85,7 +87,7 @@ export default function QuickRecordButton() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [stopConfirmationPending, setStopConfirmationPending] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  const [isRecordingLocal, setIsRecordingLocal] = useState(false);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const [showMetadataModal, setShowMetadataModal] = useState(false);
   const [showTextNotesModal, setShowTextNotesModal] = useState(false);
@@ -97,11 +99,58 @@ export default function QuickRecordButton() {
   const [matterRef, setMatterRef] = useState("");
   const [showInterruptedWarning, setShowInterruptedWarning] = useState(false);
   const [interruptedDuration, setInterruptedDuration] = useState(0);
+  const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
+  const [showLowBatteryWarning, setShowLowBatteryWarning] = useState(false);
+  const [useChunkedUpload, setUseChunkedUpload] = useState(true);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioBlobRef = useRef<Blob | null>(null);
   const audioFormatRef = useRef(getSupportedMimeType());
+
+  const chunkedRecording = useChunkedRecording({
+    onChunkUploaded: (chunkNumber, totalChunks) => {
+      console.log(`Chunk ${chunkNumber} uploaded (total: ${totalChunks})`);
+    },
+    onNetworkStatusChange: (status) => {
+      if (!status.online) {
+        toast({
+          title: "Connection lost",
+          description: "Chunks will upload when connection is restored.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
+    },
+    onError: (error) => {
+      console.error('Chunked recording error:', error);
+    },
+  });
+
+  const isRecording = useChunkedUpload ? chunkedRecording.isRecording : isRecordingLocal;
+  const setIsRecording = useChunkedUpload 
+    ? () => {} 
+    : setIsRecordingLocal;
+
+  useEffect(() => {
+    if ('getBattery' in navigator) {
+      (navigator as any).getBattery().then((battery: any) => {
+        setBatteryLevel(Math.round(battery.level * 100));
+        
+        battery.addEventListener('levelchange', () => {
+          setBatteryLevel(Math.round(battery.level * 100));
+        });
+      }).catch(() => {
+        setBatteryLevel(null);
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (batteryLevel !== null && batteryLevel < 20 && !isRecording) {
+      setShowLowBatteryWarning(true);
+    }
+  }, [batteryLevel, isRecording]);
 
   // Beforeunload handler to warn users before closing during recording
   const beforeUnloadHandler = useCallback((e: BeforeUnloadEvent) => {
@@ -237,33 +286,47 @@ export default function QuickRecordButton() {
   
   const startActualRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const { mimeType } = audioFormatRef.current;
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-      
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+      if (useChunkedUpload) {
+        const success = await chunkedRecording.startRecording();
+        if (!success) {
+          throw new Error('Failed to start chunked recording');
         }
-      };
-      
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        audioBlobRef.current = audioBlob;
-        stream.getTracks().forEach(track => track.stop());
-      };
-      
-      mediaRecorder.start();
-      setShowConsentModal(true);
-      setIsRecording(true);
-      setRecordingDuration(0);
+        setShowConsentModal(true);
+        setRecordingDuration(0);
+      } else {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const { mimeType } = audioFormatRef.current;
+        const mediaRecorder = new MediaRecorder(stream, { mimeType });
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+        
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+        
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+          audioBlobRef.current = audioBlob;
+          stream.getTracks().forEach(track => track.stop());
+        };
+        
+        mediaRecorder.start();
+        setShowConsentModal(true);
+        setIsRecordingLocal(true);
+        setRecordingDuration(0);
+      }
 
-      // Log recording started event
+      // Dispatch event for session auto-extension during recording
+      window.dispatchEvent(new CustomEvent('recording-started'));
+
       await logAuditEvent({
         eventType: "recording_started",
-        metadata: { source: "quick_record_button" },
+        metadata: { 
+          source: "quick_record_button",
+          chunkedUpload: useChunkedUpload,
+        },
         severity: "info",
       });
     } catch (error) {
@@ -280,19 +343,29 @@ export default function QuickRecordButton() {
   useEffect(() => {
     if (!isRecording) return;
 
+    if (useChunkedUpload) {
+      setRecordingDuration(chunkedRecording.duration);
+    }
+
     const interval = setInterval(() => {
-      setRecordingDuration(prev => {
-        const newDuration = prev + 1;
-        // Update localStorage session every 5 seconds for crash recovery detection
-        if (newDuration % 5 === 0) {
-          updateRecordingSession(newDuration);
+      if (useChunkedUpload) {
+        setRecordingDuration(chunkedRecording.duration);
+        if (chunkedRecording.duration % 5 === 0) {
+          updateRecordingSession(chunkedRecording.duration);
         }
-        return newDuration;
-      });
+      } else {
+        setRecordingDuration(prev => {
+          const newDuration = prev + 1;
+          if (newDuration % 5 === 0) {
+            updateRecordingSession(newDuration);
+          }
+          return newDuration;
+        });
+      }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRecording, updateRecordingSession]);
+  }, [isRecording, updateRecordingSession, useChunkedUpload, chunkedRecording.duration]);
 
   // Auto-reset stop confirmation after 5 seconds
   useEffect(() => {
@@ -331,19 +404,25 @@ export default function QuickRecordButton() {
   };
 
   const handleConsentDeclined = async () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+    if (useChunkedUpload) {
+      chunkedRecording.cancelRecording();
+    } else {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      setIsRecordingLocal(false);
     }
+    
+    // Dispatch event for session timeout component
+    window.dispatchEvent(new CustomEvent('recording-stopped'));
+    
     setConsentGiven(false);
     setShowConsentModal(false);
-    setIsRecording(false);
     setRecordingDuration(0);
     audioBlobRef.current = null;
-    // Clear recording session (user chose to decline consent)
     clearRecordingSession();
     setShowTextNotesModal(true);
 
-    // Log consent declined event
     await logAuditEvent({
       eventType: "consent_declined",
       metadata: { 
@@ -362,16 +441,23 @@ export default function QuickRecordButton() {
     };
   }, []);
 
-  const handleStopClick = () => {
+  const handleStopClick = async () => {
     if (!stopConfirmationPending) {
-      // First click - show confirmation state
       setStopConfirmationPending(true);
     } else {
-      // Second click - actually stop recording
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
+      if (useChunkedUpload) {
+        const audioBlob = await chunkedRecording.stopRecording();
+        audioBlobRef.current = audioBlob;
+      } else {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+        setIsRecordingLocal(false);
       }
-      setIsRecording(false);
+      
+      // Dispatch event for session timeout component
+      window.dispatchEvent(new CustomEvent('recording-stopped'));
+      
       setStopConfirmationPending(false);
       setShowMetadataModal(true);
     }
@@ -412,11 +498,18 @@ export default function QuickRecordButton() {
         caseId: caseResult.id,
       });
       
-      // Update processing step to uploading
       setProcessingStep('uploading');
       
-      // Step 3: Upload audio file
-      if (audioBlobRef.current) {
+      if (useChunkedUpload && chunkedRecording.chunkSessionId) {
+        try {
+          const result = await chunkedRecording.finalizeAndUpload(audioResult.id);
+          console.log(`Chunked upload finalized: ${result.totalChunks} chunks, ${result.totalBytes} bytes`);
+        } catch (uploadError: any) {
+          console.error('Chunked upload finalization failed:', uploadError);
+          uploadFailed = true;
+          throw uploadError;
+        }
+      } else if (audioBlobRef.current) {
         try {
           const formData = new FormData();
           const { extension } = audioFormatRef.current;
@@ -436,7 +529,7 @@ export default function QuickRecordButton() {
         } catch (uploadError: any) {
           console.error('Audio upload failed:', uploadError);
           uploadFailed = true;
-          throw uploadError; // Re-throw to prevent further processing
+          throw uploadError;
         }
       }
       
@@ -676,6 +769,33 @@ export default function QuickRecordButton() {
           <p className="text-xs sm:text-sm font-mono font-semibold text-primary-foreground" data-testid="text-quick-duration">
             {formatDuration(recordingDuration)}
           </p>
+          
+          {useChunkedUpload && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="hidden sm:flex items-center gap-1">
+                  {chunkedRecording.isUploading ? (
+                    <CloudUpload className="w-3 h-3 text-blue-400 animate-pulse" />
+                  ) : chunkedRecording.networkStatus.online ? (
+                    <Wifi className="w-3 h-3 text-green-400" />
+                  ) : (
+                    <WifiOff className="w-3 h-3 text-amber-400" />
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {chunkedRecording.chunksUploaded}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-sm max-w-[220px]">
+                  {chunkedRecording.networkStatus.online 
+                    ? `${chunkedRecording.chunksUploaded} chunks saved to cloud. Your recording is protected every 10 seconds.`
+                    : "Offline - chunks will upload when connected."}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="hidden sm:flex items-center gap-1 text-green-400">
@@ -684,11 +804,18 @@ export default function QuickRecordButton() {
               </div>
             </TooltipTrigger>
             <TooltipContent>
-              <p className="text-sm max-w-[200px]">
-                You'll be warned if you try to close this tab during recording.
-              </p>
+              <div className="text-sm max-w-[250px] space-y-1">
+                <p className="font-medium">Recording Safeguards Active:</p>
+                <ul className="text-xs space-y-0.5">
+                  <li>• Tab close warning enabled</li>
+                  {useChunkedUpload && <li>• Chunks saved every 10 seconds</li>}
+                  {useChunkedUpload && chunkedRecording.networkStatus.online && <li>• Network connection stable</li>}
+                  <li>• Consent segment preserved</li>
+                </ul>
+              </div>
             </TooltipContent>
           </Tooltip>
+          
           <Button
             variant="ghost"
             size="sm"
@@ -905,6 +1032,47 @@ export default function QuickRecordButton() {
         onClose={() => setShowTextNotesModal(false)}
         onSave={saveTextNotes}
       />
+
+      {/* Low Battery Warning Dialog */}
+      <Dialog open={showLowBatteryWarning} onOpenChange={setShowLowBatteryWarning}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-low-battery-warning">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BatteryLow className="w-5 h-5 text-amber-500" />
+              Low Battery Warning
+            </DialogTitle>
+            <DialogDescription>
+              Your device battery is low ({batteryLevel}%). We recommend charging before starting a recording.
+            </DialogDescription>
+          </DialogHeader>
+          <Alert className="bg-amber-500/10 border-amber-500/30">
+            <BatteryLow className="w-4 h-4 text-amber-500" />
+            <AlertDescription>
+              If your device shuts down during recording, some audio data may be lost.
+              With chunked uploads enabled, you'll only lose the last 10 seconds maximum.
+            </AlertDescription>
+          </Alert>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowLowBatteryWarning(false)}
+              data-testid="button-battery-understood"
+            >
+              I'll Charge First
+            </Button>
+            <Button
+              onClick={() => {
+                setShowLowBatteryWarning(false);
+                initiateRecording();
+              }}
+              className="bg-accent hover:bg-accent"
+              data-testid="button-record-anyway"
+            >
+              Record Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Interrupted Recording Warning Dialog */}
       <Dialog open={showInterruptedWarning} onOpenChange={setShowInterruptedWarning}>

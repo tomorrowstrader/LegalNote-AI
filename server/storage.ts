@@ -29,6 +29,7 @@ import {
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, isNull, sql, count } from "drizzle-orm";
+import { generateDocumentHash } from "./utils/documentHash";
 
 // Server-side audio recording creation type (includes server-calculated expiresAt)
 export type ServerAudioRecordingInsert = InsertAudioRecording & {
@@ -479,12 +480,14 @@ export class MemStorage implements IStorage {
 
   async createDocument(insertDocument: InsertDocument): Promise<Document> {
     const id = randomUUID();
+    const contentHash = generateDocumentHash(insertDocument.content);
     const document: Document = {
       id,
       caseId: insertDocument.caseId,
       transcriptSnapshotId: insertDocument.transcriptSnapshotId ?? null,
       type: insertDocument.type,
       content: insertDocument.content,
+      contentHash,
       version: insertDocument.version,
       versionType: insertDocument.versionType,
       createdAt: new Date(),
@@ -524,6 +527,11 @@ export class MemStorage implements IStorage {
     
     const caseRecord = this.cases.get(existing.caseId);
     if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    
+    // Regenerate hash if content was updated
+    if (updates.content) {
+      updates.contentHash = generateDocumentHash(updates.content);
+    }
     
     const updated = { ...existing, ...updates };
     this.documents.set(id, updated);
@@ -1103,6 +1111,7 @@ export class DbStorage implements IStorage {
   }
 
   async createDocument(documentData: InsertDocument): Promise<Document> {
+    const contentHash = generateDocumentHash(documentData.content);
     const result = await db
       .insert(documents)
       .values({
@@ -1110,6 +1119,7 @@ export class DbStorage implements IStorage {
         transcriptSnapshotId: documentData.transcriptSnapshotId ?? null,
         type: documentData.type,
         content: documentData.content,
+        contentHash,
         version: documentData.version,
         versionType: documentData.versionType,
         createdBy: documentData.createdBy,
@@ -1156,6 +1166,11 @@ export class DbStorage implements IStorage {
     
     const caseRecord = await db.select().from(cases).where(and(eq(cases.id, document[0].caseId), eq(cases.createdBy, userId)));
     if (!caseRecord[0]) return undefined;
+    
+    // Regenerate hash if content was updated
+    if (updates.content) {
+      updates.contentHash = generateDocumentHash(updates.content);
+    }
     
     const result = await db
       .update(documents)

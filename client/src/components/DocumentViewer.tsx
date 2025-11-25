@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit } from "lucide-react";
+import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -54,6 +54,7 @@ function EditableDocumentContent({
   onCancelEditing,
   onSaveEdits,
   isSaving,
+  autoSaveStatus,
 }: { 
   document: Document;
   isEditing: boolean;
@@ -63,13 +64,14 @@ function EditableDocumentContent({
   onCancelEditing: () => void;
   onSaveEdits: (documentId: string) => void;
   isSaving: boolean;
+  autoSaveStatus: 'idle' | 'saving' | 'saved' | 'error';
 }) {
   const isDraft = document.status === 'draft';
 
   return (
     <div className="space-y-4">
       {/* Action buttons */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         {isEditing ? (
           <>
             <Button
@@ -89,6 +91,28 @@ function EditableDocumentContent({
             >
               Cancel
             </Button>
+            {autoSaveStatus !== 'idle' && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="indicator-autosave">
+                {autoSaveStatus === 'saving' && (
+                  <>
+                    <CloudUpload className="w-3 h-3 animate-pulse text-blue-500" />
+                    <span>Auto-saving...</span>
+                  </>
+                )}
+                {autoSaveStatus === 'saved' && (
+                  <>
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                    <span className="text-green-600 dark:text-green-400">Saved</span>
+                  </>
+                )}
+                {autoSaveStatus === 'error' && (
+                  <>
+                    <AlertCircle className="w-3 h-3 text-amber-500" />
+                    <span className="text-amber-600 dark:text-amber-400">Auto-save failed</span>
+                  </>
+                )}
+              </div>
+            )}
           </>
         ) : isDraft ? (
           <Button
@@ -133,6 +157,10 @@ export default function DocumentViewer({
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>("");
+  const [lastSavedContent, setLastSavedContent] = useState<string>("");
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
 
   // Fetch firm profile for exports
   const { data: firmProfile } = useQuery<FirmProfile>({
@@ -312,11 +340,14 @@ export default function DocumentViewer({
         throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      localStorage.removeItem(`legalnote_draft_${variables.documentId}`);
       setEditingDocId(null);
       setEditContent("");
+      setLastSavedContent("");
+      setAutoSaveStatus('idle');
       toast({
         title: "Document Updated",
         description: "Your changes have been saved successfully",
@@ -333,14 +364,42 @@ export default function DocumentViewer({
     },
   });
 
+  const DRAFT_STORAGE_KEY = `legalnote_draft_`;
+
   const startEditing = (document: Document) => {
+    const savedDraft = localStorage.getItem(`${DRAFT_STORAGE_KEY}${document.id}`);
+    const contentToLoad = savedDraft ? JSON.parse(savedDraft).content : document.content;
+    
     setEditingDocId(document.id);
-    setEditContent(document.content);
+    setEditContent(contentToLoad);
+    setLastSavedContent(document.content);
+    setAutoSaveStatus('idle');
+
+    if (savedDraft) {
+      const savedData = JSON.parse(savedDraft);
+      const savedTime = new Date(savedData.timestamp).toLocaleTimeString('en-GB', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      toast({
+        title: "Draft Recovered",
+        description: `Unsaved changes from ${savedTime} have been restored`,
+        duration: 5000,
+      });
+    }
   };
 
   const cancelEditing = () => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+    if (editingDocId) {
+      localStorage.removeItem(`${DRAFT_STORAGE_KEY}${editingDocId}`);
+    }
     setEditingDocId(null);
     setEditContent("");
+    setLastSavedContent("");
+    setAutoSaveStatus('idle');
   };
 
   const saveEdits = (documentId: string) => {
@@ -355,6 +414,48 @@ export default function DocumentViewer({
     }
     editMutation.mutate({ documentId, content: editContent });
   };
+
+  const autoSaveDocument = useCallback(async (documentId: string, content: string) => {
+    if (!content.trim() || content === lastSavedContent) {
+      return;
+    }
+
+    setAutoSaveStatus('saving');
+    try {
+      await apiRequest('PATCH', `/api/documents/${documentId}`, { content });
+      setLastSavedContent(content);
+      setAutoSaveStatus('saved');
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      setTimeout(() => setAutoSaveStatus('idle'), 3000);
+    } catch (error) {
+      console.error('[AUTO-SAVE] Failed:', error);
+      setAutoSaveStatus('error');
+      setTimeout(() => setAutoSaveStatus('idle'), 5000);
+    }
+  }, [caseId, lastSavedContent]);
+
+  useEffect(() => {
+    if (!editingDocId || !editContent) return;
+
+    localStorage.setItem(`${DRAFT_STORAGE_KEY}${editingDocId}`, JSON.stringify({
+      content: editContent,
+      timestamp: new Date().toISOString(),
+    }));
+
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      autoSaveDocument(editingDocId, editContent);
+    }, AUTO_SAVE_INTERVAL);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [editingDocId, editContent, autoSaveDocument, DRAFT_STORAGE_KEY]);
 
   const attendanceNote = documents.find(d => d.type === 'attendance_note');
   const summary = documents.find(d => d.type === 'summary');
@@ -545,6 +646,7 @@ export default function DocumentViewer({
                   onCancelEditing={cancelEditing}
                   onSaveEdits={saveEdits}
                   isSaving={editMutation.isPending}
+                  autoSaveStatus={editingDocId === attendanceNote.id ? autoSaveStatus : 'idle'}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground italic">
@@ -574,6 +676,7 @@ export default function DocumentViewer({
                   onCancelEditing={cancelEditing}
                   onSaveEdits={saveEdits}
                   isSaving={editMutation.isPending}
+                  autoSaveStatus={editingDocId === summary.id ? autoSaveStatus : 'idle'}
                 />
               ) : textNotes ? (
                 <div>
@@ -644,6 +747,7 @@ export default function DocumentViewer({
                   onCancelEditing={cancelEditing}
                   onSaveEdits={saveEdits}
                   isSaving={editMutation.isPending}
+                  autoSaveStatus={editingDocId === legalOpinion.id ? autoSaveStatus : 'idle'}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground italic">

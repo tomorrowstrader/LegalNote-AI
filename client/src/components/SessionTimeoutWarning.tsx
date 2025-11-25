@@ -25,11 +25,13 @@ import {
 const SESSION_DURATION_MS = 4 * 60 * 60 * 1000; // 4 hours
 const WARNING_BEFORE_MS = 5 * 60 * 1000; // 5 minutes before timeout
 const ACTIVITY_THROTTLE_MS = 30 * 1000; // Throttle activity checks to every 30s
+const RECORDING_EXTENSION_INTERVAL_MS = 60 * 1000; // Extend session every 60s during recording
 
 export function SessionTimeoutWarning() {
   const [showWarning, setShowWarning] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [lastActivity, setLastActivity] = useState(Date.now());
+  const [isRecording, setIsRecording] = useState(false);
 
   // Update last activity timestamp (throttled)
   const updateActivity = useCallback(() => {
@@ -67,6 +69,43 @@ export function SessionTimeoutWarning() {
     };
   }, [updateActivity]);
 
+  // Listen for recording state changes via custom event
+  useEffect(() => {
+    const handleRecordingStart = () => {
+      setIsRecording(true);
+      updateActivity(); // Immediately extend session when recording starts
+    };
+    
+    const handleRecordingStop = () => {
+      setIsRecording(false);
+    };
+
+    window.addEventListener('recording-started', handleRecordingStart);
+    window.addEventListener('recording-stopped', handleRecordingStop);
+
+    return () => {
+      window.removeEventListener('recording-started', handleRecordingStart);
+      window.removeEventListener('recording-stopped', handleRecordingStop);
+    };
+  }, [updateActivity]);
+
+  // Auto-extend session during recording
+  useEffect(() => {
+    if (!isRecording) return;
+
+    const intervalId = setInterval(() => {
+      fetch('/api/ping', { method: 'POST' })
+        .then(() => {
+          setLastActivity(Date.now());
+        })
+        .catch(() => {
+          // Silently fail - user might be offline
+        });
+    }, RECORDING_EXTENSION_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [isRecording]);
+
   // Check session timeout status
   useEffect(() => {
     const checkTimeout = setInterval(() => {
@@ -76,19 +115,19 @@ export function SessionTimeoutWarning() {
 
       setTimeRemaining(timeUntilTimeout);
 
-      // Show warning if within WARNING_BEFORE_MS of timeout
-      if (timeUntilTimeout <= WARNING_BEFORE_MS && timeUntilTimeout > 0) {
+      // Show warning if within WARNING_BEFORE_MS of timeout (skip during recording)
+      if (timeUntilTimeout <= WARNING_BEFORE_MS && timeUntilTimeout > 0 && !isRecording) {
         setShowWarning(true);
       }
 
-      // Session expired
-      if (timeUntilTimeout <= 0) {
+      // Session expired (skip redirect during recording to avoid data loss)
+      if (timeUntilTimeout <= 0 && !isRecording) {
         window.location.href = '/login?timeout=true';
       }
     }, 1000); // Check every second
 
     return () => clearInterval(checkTimeout);
-  }, [lastActivity]);
+  }, [lastActivity, isRecording]);
 
   // Handle extend session
   const handleExtendSession = () => {

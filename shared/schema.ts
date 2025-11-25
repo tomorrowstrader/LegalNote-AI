@@ -56,6 +56,7 @@ export const audioRecordings = pgTable("audio_recordings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
   filePath: text("file_path"), // Storage path for audio file
+  consentSegmentPath: text("consent_segment_path"), // Storage path for preserved consent segment (first 15-20 seconds)
   mimeType: text("mime_type"), // MIME type of audio (audio/webm, audio/wav, etc.)
   duration: integer("duration"), // Duration in seconds
   recordedAt: timestamp("recorded_at").notNull().defaultNow(),
@@ -93,6 +94,7 @@ export const documents = pgTable("documents", {
   transcriptSnapshotId: varchar("transcript_snapshot_id").references(() => transcripts.id), // Links to redaction state at generation time
   type: text("type").notNull(), // attendance_note, summary, legal_opinion
   content: text("content").notNull(),
+  contentHash: text("content_hash"), // SHA-256 hash for integrity verification
   version: integer("version").notNull().default(1),
   versionType: text("version_type").notNull(), // ai_generated, manually_edited, ai_regenerated
   createdAt: timestamp("created_at").notNull().defaultNow(),
