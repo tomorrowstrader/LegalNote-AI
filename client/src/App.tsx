@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { useDoubleTapL } from "@/hooks/useDoubleTapL";
 import TopNavigation from "@/components/TopNavigation";
 import FirmSetupPrompt from "@/components/FirmSetupPrompt";
 import OnboardingTour from "@/components/OnboardingTour";
@@ -57,6 +58,8 @@ function Router() {
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
   const [restartTourTrigger, setRestartTourTrigger] = useState(0);
+
+  useDoubleTapL();
 
   const handleRestartTour = () => {
     setRestartTourTrigger(prev => prev + 1);

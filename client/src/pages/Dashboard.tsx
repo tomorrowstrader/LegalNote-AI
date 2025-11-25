@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive } from "lucide-react";
+import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, CircleCheck, Keyboard } from "lucide-react";
 import StatsCard from "@/components/StatsCard";
 import CaseCard from "@/components/CaseCard";
 import EmptyState from "@/components/EmptyState";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { Case } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format } from "date-fns";
+import { format, differenceInDays, differenceInHours, isPast } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -20,6 +20,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+
+interface AttentionStats {
+  audioExpiringCount: number;
+}
 
 type StatusTab = "active" | "review" | "completed" | "archived";
 type SortOption = "deadline" | "created" | "client" | "priority";
@@ -34,6 +38,35 @@ export default function Dashboard() {
   const { data: cases, isLoading } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
   });
+
+  const { data: attentionStats } = useQuery<AttentionStats>({
+    queryKey: ["/api/dashboard/attention-stats"],
+  });
+
+  const needsAttention = useMemo(() => {
+    if (!cases) return { overdue: [], awaitingReviewLong: [], allClear: true };
+    
+    const now = new Date();
+    
+    const overdue = cases.filter(c => 
+      c.deadline && 
+      isPast(new Date(c.deadline)) && 
+      !c.reviewed && 
+      !c.archived
+    );
+    
+    const awaitingReviewLong = cases.filter(c => {
+      if (c.status !== "completed" || c.reviewed || c.archived) return false;
+      const daysSinceCreated = differenceInDays(now, new Date(c.createdAt));
+      return daysSinceCreated >= 2;
+    });
+    
+    const audioExpiring = attentionStats?.audioExpiringCount || 0;
+    
+    const allClear = overdue.length === 0 && awaitingReviewLong.length === 0 && audioExpiring === 0;
+    
+    return { overdue, awaitingReviewLong, audioExpiring, allClear };
+  }, [cases, attentionStats]);
 
   const transformCase = (caseItem: Case) => {
     const creatorName = user?.firstName && user?.lastName 
@@ -207,15 +240,24 @@ export default function Dashboard() {
               Premium, modern Legal Compliance AI Dashboard
             </p>
           </div>
-          <Button
-            onClick={() => setLocation('/new-note')}
-            className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold gap-2 flex-shrink-0 shadow-md"
-            data-testid="button-new-note"
-          >
-            <FileText className="w-4 h-4" />
-            <span className="hidden sm:inline">New Note</span>
-            <span className="sm:hidden">New</span>
-          </Button>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2.5 py-1.5 rounded-md border border-border/50">
+              <Keyboard className="w-3 h-3" />
+              <span>Press</span>
+              <kbd className="px-1.5 py-0.5 bg-background border border-border rounded text-[10px] font-mono font-medium">L</kbd>
+              <kbd className="px-1.5 py-0.5 bg-background border border-border rounded text-[10px] font-mono font-medium">L</kbd>
+              <span>to record</span>
+            </div>
+            <Button
+              onClick={() => setLocation('/new-note')}
+              className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold gap-2 shadow-md"
+              data-testid="button-new-note"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">New Note</span>
+              <span className="sm:hidden">New</span>
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-4 sm:gap-5 grid-cols-2 lg:grid-cols-4 mb-8 sm:mb-10">
@@ -241,6 +283,96 @@ export default function Dashboard() {
             value={priorityCasesCount > 0 ? priorityCasesCount : "—"}
             icon={AlertTriangle}
           />
+        </div>
+
+        {/* Needs Attention Section */}
+        <div className="mb-6">
+          {needsAttention.allClear ? (
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4 flex items-center gap-3">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <CircleCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="font-medium text-emerald-700 dark:text-emerald-300">All caught up</p>
+                <p className="text-sm text-emerald-600/80 dark:text-emerald-400/80">No urgent items need your attention right now</p>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <AlertCircle className="w-5 h-5 text-amber-500" />
+                <h2 className="font-semibold text-foreground">Needs Attention</h2>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {needsAttention.overdue.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setActiveTab("active");
+                      setSortBy("deadline");
+                    }}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 hover-elevate text-left"
+                    data-testid="attention-overdue"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                      <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-red-700 dark:text-red-300">
+                        {needsAttention.overdue.length} Overdue
+                      </p>
+                      <p className="text-sm text-red-600/80 dark:text-red-400/80 truncate">
+                        {needsAttention.overdue.length === 1 
+                          ? needsAttention.overdue[0].clientName 
+                          : `${needsAttention.overdue[0].clientName} + ${needsAttention.overdue.length - 1} more`}
+                      </p>
+                    </div>
+                  </button>
+                )}
+                
+                {needsAttention.awaitingReviewLong.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setActiveTab("review");
+                      setSortBy("created");
+                    }}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 hover-elevate text-left"
+                    data-testid="attention-review"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-amber-700 dark:text-amber-300">
+                        {needsAttention.awaitingReviewLong.length} Awaiting Review
+                      </p>
+                      <p className="text-sm text-amber-600/80 dark:text-amber-400/80">
+                        Pending for 2+ days
+                      </p>
+                    </div>
+                  </button>
+                )}
+                
+                {needsAttention.audioExpiring > 0 && (
+                  <div
+                    className="flex items-center gap-3 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20"
+                    data-testid="attention-audio"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+                      <Mic className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-orange-700 dark:text-orange-300">
+                        {needsAttention.audioExpiring} Audio Expiring
+                      </p>
+                      <p className="text-sm text-orange-600/80 dark:text-orange-400/80">
+                        Within 24 hours (GDPR)
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="bg-card border border-border rounded-lg p-4 sm:p-6 mb-6">

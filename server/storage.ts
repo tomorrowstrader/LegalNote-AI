@@ -81,6 +81,7 @@ export interface IStorage {
   getAudioRecordingByCase(caseId: string, userId: string): Promise<AudioRecording | undefined>;
   updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined>;
   getExpiredAudioRecordings(): Promise<AudioRecording[]>;
+  getExpiringAudioCount(userId: string, withinHours: number): Promise<number>;
   
   createConsentLog(consentData: InsertConsentLog, userId: string): Promise<ConsentLog>;
   getConsentLogsByCase(caseId: string, userId: string): Promise<ConsentLog[]>;
@@ -302,6 +303,22 @@ export class MemStorage implements IStorage {
     return Array.from(this.audioRecordings.values()).filter(
       (recording) => recording.expiresAt < now && !recording.deletedAt
     );
+  }
+
+  async getExpiringAudioCount(userId: string, withinHours: number): Promise<number> {
+    const now = new Date();
+    const threshold = new Date(now.getTime() + withinHours * 60 * 60 * 1000);
+    
+    const userCases = Array.from(this.cases.values()).filter(c => c.createdBy === userId);
+    const userCaseIds = new Set(userCases.map(c => c.id));
+    
+    return Array.from(this.audioRecordings.values()).filter(
+      (recording) => 
+        userCaseIds.has(recording.caseId) &&
+        recording.expiresAt > now &&
+        recording.expiresAt <= threshold &&
+        !recording.deletedAt
+    ).length;
   }
 
   async createAuditLog(insertAuditLog: InsertAuditTrail): Promise<AuditTrail> {
@@ -966,6 +983,24 @@ export class DbStorage implements IStorage {
         lte(audioRecordings.expiresAt, now),
         isNull(audioRecordings.deletedAt)
       ));
+  }
+
+  async getExpiringAudioCount(userId: string, withinHours: number): Promise<number> {
+    const now = new Date();
+    const threshold = new Date(now.getTime() + withinHours * 60 * 60 * 1000);
+    
+    const result = await db
+      .select({ count: count() })
+      .from(audioRecordings)
+      .innerJoin(cases, eq(audioRecordings.caseId, cases.id))
+      .where(and(
+        eq(cases.createdBy, userId),
+        gte(audioRecordings.expiresAt, now),
+        lte(audioRecordings.expiresAt, threshold),
+        isNull(audioRecordings.deletedAt)
+      ));
+    
+    return result[0]?.count || 0;
   }
 
   async createConsentLog(consentData: InsertConsentLog, userId: string): Promise<ConsentLog> {

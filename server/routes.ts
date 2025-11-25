@@ -544,6 +544,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dashboard attention stats - audio expiring soon
+  app.get("/api/dashboard/attention-stats", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const audioExpiringCount = await storage.getExpiringAudioCount(userId, 24);
+      res.json({ audioExpiringCount });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Search cases
   app.get("/api/search", isAuthenticated, async (req: any, res, next) => {
     try {
