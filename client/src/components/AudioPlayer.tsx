@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { Play, Pause, Volume2, VolumeX, AlertTriangle } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, AlertTriangle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, differenceInDays, differenceInHours, differenceInMinutes } from "date-fns";
 import { logAuditEvent } from "@/lib/auditLogger";
 
 interface AudioPlayerProps {
@@ -268,6 +268,36 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const getRetentionCountdown = () => {
+    if (!expiresAt || isExpired) return null;
+    const now = new Date();
+    const days = differenceInDays(expiresAt, now);
+    const hours = differenceInHours(expiresAt, now) % 24;
+    const minutes = differenceInMinutes(expiresAt, now) % 60;
+    
+    const parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0 && days === 0) parts.push(`${minutes}m`);
+    
+    const timeString = parts.join(' ') || 'less than 1 minute';
+    const isUrgent = days === 0 && hours < 24;
+    
+    return (
+      <div 
+        className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-md ${
+          isUrgent 
+            ? 'bg-destructive/10 text-destructive border border-destructive/20' 
+            : 'bg-muted text-muted-foreground'
+        }`}
+        data-testid="text-retention-countdown"
+      >
+        <Clock className="h-3 w-3" />
+        <span>Audio retained for: <strong>{timeString}</strong></span>
+      </div>
+    );
+  };
+
   const getExpirationWarning = () => {
     if (!expiresAt || isExpired) return null;
     const now = new Date();
@@ -366,6 +396,11 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
               data-testid="slider-volume"
             />
           </div>
+        </div>
+        
+        {/* GDPR Retention Countdown */}
+        <div className="flex justify-end">
+          {getRetentionCountdown()}
         </div>
       </div>
     </div>

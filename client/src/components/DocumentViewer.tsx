@@ -111,7 +111,7 @@ function EditableDocumentContent({
         <div className="flex gap-2">
           <Button
             size="sm"
-            variant="outline"
+            variant="default"
             onClick={() => onStartEditing(document)}
             className="gap-1"
             data-testid="button-edit-document"
