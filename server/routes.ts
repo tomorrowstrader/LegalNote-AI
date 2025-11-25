@@ -2177,6 +2177,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // OAuth Calendar Integration Routes
   
+  // Direct OAuth connect route (for Settings page navigation)
+  // GET endpoint that redirects to the OAuth authorization URL
+  app.get("/api/oauth/connect/:provider", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const provider = req.params.provider;
+      
+      if (provider !== 'google' && provider !== 'outlook') {
+        return res.status(400).json({ message: "Invalid provider. Must be 'google' or 'outlook'" });
+      }
+
+      // Create signed OAuth state
+      const statePayload: OAuthStatePayload = {
+        userId,
+        provider: provider as 'google' | 'outlook',
+        popup: false,
+        nonce: generateSecureNonce(),
+        createdAt: Date.now(),
+      };
+
+      const signedState = signOAuthState(statePayload);
+
+      // Get base URL from request
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host;
+      const baseUrl = `${protocol}://${host}`;
+
+      try {
+        let authUrl: string;
+        
+        if (provider === 'google') {
+          const client = createGoogleOAuthClient(baseUrl);
+          authUrl = getGoogleAuthUrl(client, signedState);
+        } else {
+          const client = createMicrosoftOAuthClient(baseUrl);
+          authUrl = await getMicrosoftAuthUrl(client, `${baseUrl}/api/calendar/callback/outlook`, signedState);
+        }
+
+        // Redirect to OAuth authorization URL
+        return res.redirect(authUrl);
+      } catch (configError: any) {
+        console.error(`[OAUTH] Failed to create ${provider} OAuth client:`, configError.message);
+        return res.status(503).json({
+          message: `${provider === 'google' ? 'Google' : 'Microsoft'} OAuth is not configured. Please contact your administrator.`,
+        });
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Initiate OAuth flow for calendar provider
   // Accepts optional sync context (caseId, deadline) for auto-sync after OAuth
   app.post("/api/calendar/auth/:provider", isAuthenticated, async (req: any, res, next) => {
