@@ -29,7 +29,8 @@ export default function Dashboard() {
 
   // Calculate stats from real data
   const totalCases = cases?.length || 0;
-  const actionedCases = cases?.filter(c => c.status === "completed").length || 0;
+  // Actioned = reviewed by solicitor OR shared with client (status completed)
+  const actionedCases = cases?.filter(c => c.status === "completed" || c.reviewed === true).length || 0;
   const thisMonthCases = cases?.filter(c => {
     const caseDate = new Date(c.createdAt);
     const now = new Date();
