@@ -2210,12 +2210,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (provider === 'google') {
           const client = createGoogleOAuthClient(baseUrl);
           authUrl = getGoogleAuthUrl(client, signedState);
+          console.log('[OAUTH] Generated Google auth URL:', authUrl);
+          console.log('[OAUTH] Redirect URI used:', `${baseUrl}/api/calendar/callback/google`);
         } else {
           const client = createMicrosoftOAuthClient(baseUrl);
           authUrl = await getMicrosoftAuthUrl(client, `${baseUrl}/api/calendar/callback/outlook`, signedState);
         }
 
         // Redirect to OAuth authorization URL
+        console.log('[OAUTH] Redirecting to:', authUrl);
         return res.redirect(authUrl);
       } catch (configError: any) {
         console.error(`[OAUTH] Failed to create ${provider} OAuth client:`, configError.message);
