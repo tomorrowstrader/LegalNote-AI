@@ -25,66 +25,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
-import type { FirmProfile } from "@shared/schema";
-
-interface CaseWithDocuments {
-  id: string;
-  title: string;
-  clientName: string;
-  matterReference?: string;
-  createdBy: string;
-  createdAt: string;
-  status: string;
-  priority: string;
-  sourceType: string;
-  textNotes?: string;
-  consentGiven?: boolean;
-  attendanceNote?: string;
-  keyIssues?: string[];
-  nextSteps?: string[];
-  legalOpinion?: string;
-  transcript?: string;
-  reviewed?: boolean;
-  deadline?: string | null;
-  deadlineIsAllDay?: boolean;
-  aiProcessingMetadata?: {
-    currentStep?: string;
-    progress?: number;
-    totalCost?: number;
-    totalTokens?: number;
-    error?: string;
-  };
-}
-
-interface AudioRecording {
-  id: string;
-  caseId: string;
-  filePath: string | null;
-  duration: number | null;
-  expiresAt: string;
-  deletedAt: string | null;
-}
-
-interface ConsentLog {
-  id: string;
-  caseId: string;
-  consentGiven: boolean;
-  consentTimestamp: string;
-  consentModality: string;
-}
-
-interface ProcessingStatus {
-  status: string;
-  processingMetadata: {
-    status: string;
-    progress: number;
-    currentStep: string;
-    totalCost: number;
-    totalTokens: number;
-    error?: string;
-    completedAt?: string;
-  };
-}
+import type { Case, AudioRecording, ConsentLog, FirmProfile } from "@shared/schema";
 
 export default function CaseDetail() {
   const [, setLocation] = useLocation();
@@ -96,7 +37,7 @@ export default function CaseDetail() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
 
-  const { data: caseData, isLoading, error } = useQuery<CaseWithDocuments>({
+  const { data: caseData, isLoading, error } = useQuery<Case>({
     queryKey: [`/api/cases/${caseId}`],
     enabled: !!caseId,
   });
@@ -129,7 +70,18 @@ export default function CaseDetail() {
   });
 
   // Poll processing status when case is being processed
-  const { data: processingStatus } = useQuery<ProcessingStatus>({
+  const { data: processingStatus } = useQuery<{
+    status: string;
+    processingMetadata: {
+      status: string;
+      progress: number;
+      currentStep: string;
+      totalCost: number;
+      totalTokens: number;
+      error?: string;
+      completedAt?: string;
+    };
+  }>({
     queryKey: [`/api/cases/${caseId}/processing-status`],
     enabled: !!caseId && caseData?.status === 'processing',
     refetchInterval: 5000, // Poll every 5 seconds
