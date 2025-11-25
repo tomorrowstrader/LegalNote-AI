@@ -10,15 +10,20 @@ interface StatsCardProps {
 
 export default function StatsCard({ title, value, icon: Icon, description }: StatsCardProps) {
   return (
-    <Card data-testid={`card-stat-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-      <CardContent className="p-4 sm:p-6">
-        <div className="flex items-center justify-between mb-1 sm:mb-2">
-          <p className="text-xs sm:text-sm font-medium text-muted-foreground">{title}</p>
-          <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-primary dark:text-primary-foreground" />
+    <Card 
+      className="group relative overflow-visible transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg dark:border-[hsl(45,85%,55%,0.15)] dark:shadow-[0_4px_20px_rgba(0,0,20,0.4),inset_0_1px_0_rgba(216,172,74,0.08)]"
+      data-testid={`card-stat-${title.toLowerCase().replace(/\s+/g, '-')}`}
+    >
+      <CardContent className="p-5 sm:p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-muted dark:bg-[hsl(220,60%,15%)] border border-border/50 dark:border-[hsl(45,85%,55%,0.1)]">
+            <Icon className="w-4 h-4 text-muted-foreground dark:text-[hsl(45,85%,65%)]" strokeWidth={1.5} />
+          </div>
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
         </div>
-        <p className="text-2xl sm:text-3xl font-semibold text-foreground">{value}</p>
+        <p className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">{value}</p>
         {description && (
-          <p className="text-xs text-muted-foreground mt-1 sm:mt-2">{description}</p>
+          <p className="text-xs text-muted-foreground mt-2">{description}</p>
         )}
       </CardContent>
     </Card>

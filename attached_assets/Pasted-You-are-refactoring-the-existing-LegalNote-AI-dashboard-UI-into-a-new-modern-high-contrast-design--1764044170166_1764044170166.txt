@@ -1,0 +1,379 @@
+You are refactoring the existing LegalNote AI dashboard UI into a new, modern, high-contrast design inspired by the reference image I’ve provided (light + dark dashboard with stacked cards and gold accents).
+Context
+
+
+Product: LegalNote AI
+
+
+Audience: UK solicitors and legal teams
+
+
+Goals:
+
+
+Compliance-first, professional, trustworthy
+
+
+Visually modern and sophisticated
+
+
+Non-intimidating and calming
+
+
+High contrast and easy to read
+
+
+
+
+Please keep all existing functionality and routing (buttons, nav links, search, filters, etc.) and focus on layout + styling.
+Use the same stack currently in this project.
+If unsure, assume React + TypeScript + Tailwind CSS.
+
+High-level design requirements
+
+
+Two themes: Light Mode and Dark Mode
+
+
+Implement a theme system (e.g. using Tailwind + data-theme attribute or CSS variables) with a toggle.
+
+
+All components should support both themes cleanly.
+
+
+
+
+Layout sections (same structure as my current app)
+
+
+Top navigation bar
+
+
+KPI cards row (“Total Cases”, “This Month”, “Completed”, “Priority Cases”)
+
+
+“Priority Cases” row
+
+
+“Recent Cases” grid
+
+
+
+
+Top Navigation Bar
+
+
+Left: Logo (LegalNote AI icon + text)
+
+
+Center-left: navigation links: Dashboard, New Note, Saved Cases, Settings
+
+
+Center-right: search bar stretching nicely (search cases, clients, or content)
+
+
+Right: Filters button, microphone button, profile/avatar icon
+
+
+Background: slightly elevated from page with a subtle shadow and clear bottom border.
+
+
+
+
+
+Visual & Style System
+General
+
+
+Overall aesthetic: premium SaaS for legal teams. Think “Stripe Dashboard + Notion + Apple”.
+
+
+Rounded corners: use a consistent radius (e.g. rounded-xl / rounded-2xl) for cards and buttons.
+
+
+Spacing: generous and consistent (p-4, p-6, gap-4 etc.).
+
+
+Use a clear hierarchy of font sizes and weights:
+
+
+Page title: bold, large (text-2xl or text-3xl)
+
+
+Section titles: text-lg / text-xl
+
+
+Card labels and metadata: text-xs–text-sm
+
+
+
+
+All text should meet WCAG AA contrast against its background.
+
+
+Colours
+Define a small design token set (using Tailwind config extension or CSS variables):
+
+
+Primary Brand Gold: warm but not washed out (e.g. #D8AC4A or similar)
+
+
+Primary Navy / Slate: deep, not grey (e.g. #0B1020 / #111827)
+
+
+Light Background: off-white / very light neutral, not yellow (#F5F5F7 etc.)
+
+
+Card Background (Light): #FFFFFF with subtle tinted gradient or very soft warm tint.
+
+
+Card Background (Dark): slightly lighter navy/indigo with subtle inner glow.
+
+
+Accent Badges:
+
+
+Action Required: red (e.g. #E74C3C)
+
+
+Deadline Approaching: amber (#F39C12)
+
+
+Reviewed: green (#27AE60)
+
+
+
+
+Avoid overly pale yellows. The new light theme should feel clean, neutral and professional with gold as a highlight, not as the base background.
+Shadows & Depth
+The previous design felt washed out. Fix that:
+
+
+Use clear but soft shadows on cards:
+
+
+e.g. Tailwind: shadow-[0_14px_30px_rgba(15,23,42,0.12)] for main cards.
+
+
+
+
+Distinguish layers:
+
+
+Nav bar above background
+
+
+KPI stat cards slightly higher
+
+
+Priority cards and recent cards clearly separated from background
+
+
+
+
+Avoid heavy blur; go for crisp, directional shadows.
+
+
+
+Components & Layout Details
+1. KPI Stat Cards Row
+
+
+4 cards in a responsive grid.
+
+
+Each card shows:
+
+
+Icon (small, line-based)
+
+
+Label (e.g. “Total Cases”)
+
+
+Main number (big)
+
+
+Small sub-label (e.g. “6 this month” / “0% success rate”)
+
+
+
+
+Light mode:
+
+
+White background (or very subtle warm gradient)
+
+
+Thin border (border with a soft neutral)
+
+
+Distinct shadow and hover state (hover:-translate-y-0.5 hover:shadow-lg).
+
+
+
+
+Dark mode:
+
+
+Deep slate/indigo background with a subtle top highlight and gold edge glow.
+
+
+
+
+2. Priority Cases
+
+
+Section heading: “Priority Cases”.
+
+
+Cards horizontally scrollable on smaller screens, grid on larger screens.
+
+
+Each case card includes:
+
+
+Small “Details” label
+
+
+Status badge (Action Required / Deadline Approaching / Reviewed)
+
+
+Case title and secondary text
+
+
+Date row with calendar icon
+
+
+Assignee row with avatar or icon
+
+
+
+
+Light mode cards: white, clear shadow, clear separation from background.
+
+
+Dark mode cards: darker variant with clear card borders and well-defined shadows.
+
+
+3. Recent Cases
+
+
+Grid with 2–4 columns depending on screen width.
+
+
+Same style as priority cards but slightly less emphasis (e.g. smaller shadow or subtler background).
+
+
+Ensure good internal spacing and readable typography.
+
+
+
+Interactions & States
+
+
+Buttons (e.g. “New Note”, “Filters”, mic, etc.) should:
+
+
+Have clear hover and active states
+
+
+Use gold as primary for “New Note” and neutral for secondary actions
+
+
+
+
+Cards:
+
+
+Slight scale or translate on hover
+
+
+Cursor pointer if clickable
+
+
+
+
+Use focus outlines for accessibility.
+
+
+
+Implementation specifics
+
+
+Create a reusable DashboardLayout component that encapsulates:
+
+
+NavBar
+
+
+Main content container
+
+
+Light/dark theme styles
+
+
+
+
+Create reusable card components:
+
+
+KpiCard
+
+
+CaseCard (used for both priority and recent cases with props for badges, title, date, assignee, etc.)
+
+
+
+
+Theme handling:
+
+
+Implement a theme toggle (icon in nav bar) that switches between light and dark mode.
+
+
+Use Tailwind dark mode or CSS variables so the same components respond to theme changes.
+
+
+
+
+Code quality:
+
+
+Use semantic HTML where possible (main, header, section, etc.).
+
+
+Keep components small and composable.
+
+
+Use TypeScript types/interfaces if TypeScript is enabled.
+
+
+
+
+
+Deliverable
+
+
+Refactored Dashboard page implementing:
+
+
+New high-contrast, sophisticated UI
+
+
+Light and dark themes
+
+
+Reusable components for cards
+
+
+Accessible, responsive layout
+
+
+
+
+The overall impression for a solicitor seeing this for the first time should be:
+
+“This looks premium, clear, and professional. I can understand my cases at a glance and it doesn’t feel confusing or gimmicky.”
+
+Please now generate the code and integrate it into the existing project.
