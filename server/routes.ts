@@ -19,6 +19,7 @@ import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { openaiService } from "./openaiService";
 import { sendCaseEmail } from "./email";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders } from "./calendar";
+import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
 import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber } from "./sms";
 import {
   createGoogleOAuthClient,
@@ -2496,7 +2497,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/oauth/connections", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
+      
+      // Check Replit-managed Google Calendar connection first
+      const replitGoogleConnected = await isReplitCalendarConnected();
+      
+      // Get user's own OAuth connections
       const providers = await getConnectedProviders(userId, storage);
+      
+      // If Replit connection is available, override Google status
+      if (replitGoogleConnected) {
+        providers.google = {
+          connected: true,
+          email: 'Connected via Replit',
+          connectedAt: new Date().toISOString(),
+        };
+      }
+      
       res.json(providers);
     } catch (error) {
       next(error);
@@ -2631,37 +2647,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if event already exists for this provider
       const existingEvent = await storage.getCalendarEventByProvider(req.params.id, userId, provider);
 
-      let result;
-      if (existingEvent) {
-        console.log('[SYNC] Updating existing calendar event:', existingEvent.providerEventId);
-        // Update existing event
-        result = await updateCalendarEvent(userId, provider, existingEvent.providerEventId, eventData, storage);
-
-        if (result.success) {
-          await storage.updateCalendarEvent(existingEvent.id, {
-            lastUpdatedAt: new Date(),
-          });
+      let result: { success: boolean; eventId?: string; error?: string; provider?: string };
+      
+      // For Google, try Replit-managed connection first (more reliable)
+      if (provider === 'google') {
+        const replitConnected = await isReplitCalendarConnected();
+        
+        if (replitConnected) {
+          console.log('[SYNC] Using Replit-managed Google Calendar connection');
+          
+          if (existingEvent) {
+            console.log('[SYNC] Updating existing calendar event:', existingEvent.providerEventId);
+            const updateResult = await updateReplitCalendarEvent(existingEvent.providerEventId, {
+              title: caseData.title,
+              deadline: eventData.deadline.toISOString(),
+              notes: eventData.notes,
+              priority: eventData.priority,
+              isAllDay: eventData.isAllDay,
+            });
+            result = { ...updateResult, provider: 'google' };
+            
+            if (result.success) {
+              await storage.updateCalendarEvent(existingEvent.id, {
+                lastUpdatedAt: new Date(),
+              });
+            }
+          } else {
+            console.log('[SYNC] Creating new calendar event via Replit connector');
+            const createResult = await createReplitCalendarEvent({
+              caseId: req.params.id,
+              title: caseData.title,
+              deadline: eventData.deadline.toISOString(),
+              notes: eventData.notes,
+              priority: eventData.priority,
+              isAllDay: eventData.isAllDay,
+            });
+            result = { ...createResult, provider: 'google' };
+            
+            console.log('[SYNC] Replit create result:', result);
+            
+            if (result.success && result.eventId) {
+              console.log('[SYNC] Saving calendar event to database');
+              await storage.createCalendarEvent({
+                caseId: req.params.id,
+                userId: userId,
+                provider: provider,
+                providerEventId: result.eventId,
+                eventType: 'deadline',
+              });
+            }
+          }
+        } else {
+          // Fall back to user's own OAuth connection
+          console.log('[SYNC] Replit connection not available, using user OAuth');
+          if (existingEvent) {
+            result = await updateCalendarEvent(userId, provider, existingEvent.providerEventId, eventData, storage);
+            if (result.success) {
+              await storage.updateCalendarEvent(existingEvent.id, { lastUpdatedAt: new Date() });
+            }
+          } else {
+            result = await createCalendarEvent(userId, provider, eventData, storage);
+            if (result.success && result.eventId) {
+              await storage.createCalendarEvent({
+                caseId: req.params.id,
+                userId: userId,
+                provider: provider,
+                providerEventId: result.eventId,
+                eventType: 'deadline',
+              });
+            }
+          }
         }
       } else {
-        console.log('[SYNC] Creating new calendar event');
-        // Create new event
-        result = await createCalendarEvent(userId, provider, eventData, storage);
-
-        console.log('[SYNC] Create result:', {
-          success: result.success,
-          eventId: result.eventId,
-          error: result.error,
-        });
-
-        if (result.success && result.eventId) {
-          console.log('[SYNC] Saving calendar event to database');
-          await storage.createCalendarEvent({
-            caseId: req.params.id,
-            userId: userId,
-            provider: provider,
-            providerEventId: result.eventId,
-            eventType: 'deadline',
-          });
+        // Outlook - use existing OAuth flow
+        if (existingEvent) {
+          console.log('[SYNC] Updating existing calendar event:', existingEvent.providerEventId);
+          result = await updateCalendarEvent(userId, provider, existingEvent.providerEventId, eventData, storage);
+          if (result.success) {
+            await storage.updateCalendarEvent(existingEvent.id, { lastUpdatedAt: new Date() });
+          }
+        } else {
+          console.log('[SYNC] Creating new calendar event');
+          result = await createCalendarEvent(userId, provider, eventData, storage);
+          console.log('[SYNC] Create result:', result);
+          if (result.success && result.eventId) {
+            await storage.createCalendarEvent({
+              caseId: req.params.id,
+              userId: userId,
+              provider: provider,
+              providerEventId: result.eventId,
+              eventType: 'deadline',
+            });
+          }
         }
       }
 
