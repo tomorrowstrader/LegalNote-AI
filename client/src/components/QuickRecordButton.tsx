@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Mic, Square } from "lucide-react";
+import { Mic, Square, Loader2, CheckCircle2, FileText, Upload, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -79,6 +79,8 @@ export default function QuickRecordButton() {
   const [showMetadataModal, setShowMetadataModal] = useState(false);
   const [showTextNotesModal, setShowTextNotesModal] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStep, setProcessingStep] = useState<'saving' | 'uploading' | 'processing' | 'complete'>('saving');
   const [caseTitle, setCaseTitle] = useState("");
   const [clientName, setClientName] = useState("");
   const [matterRef, setMatterRef] = useState("");
@@ -285,6 +287,10 @@ export default function QuickRecordButton() {
       return;
     }
     
+    // Show processing overlay immediately
+    setIsProcessing(true);
+    setProcessingStep('saving');
+    
     let caseResult: CaseResponse | null = null;
     let consentLogFailed = false;
     let uploadFailed = false;
@@ -304,6 +310,9 @@ export default function QuickRecordButton() {
       const audioResult = await apiRequest<AudioResponse>("POST", "/api/audio", {
         caseId: caseResult.id,
       });
+      
+      // Update processing step to uploading
+      setProcessingStep('uploading');
       
       // Step 3: Upload audio file
       if (audioBlobRef.current) {
@@ -351,6 +360,9 @@ export default function QuickRecordButton() {
       // Step 5: Trigger AI processing (transcription + document generation)
       // Critical: Only trigger if consent was successfully logged (GDPR requirement)
       if (!consentLogFailed) {
+        // Update processing step
+        setProcessingStep('processing');
+        
         // Trigger processing asynchronously (don't wait for completion)
         apiRequest("POST", `/api/cases/${caseResult.id}/process`, {})
           .then(() => {
@@ -386,6 +398,7 @@ export default function QuickRecordButton() {
         
         if (consentLogFailed) {
           // Critical failure: consent logging is required for GDPR compliance
+          setIsProcessing(false);
           toast({
             title: "Action required",
             description: "Case created but consent log failed. GDPR compliance requires you to save consent.",
@@ -404,6 +417,12 @@ export default function QuickRecordButton() {
           // Don't close modal - keep it open so user can see the issue
           return;
         } else {
+          // Show complete step briefly before closing
+          setProcessingStep('complete');
+          
+          // Wait a moment to show completion, then close and show toast
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          
           // Success
           toast({
             title: "Case created successfully",
@@ -425,6 +444,8 @@ export default function QuickRecordButton() {
       // Only close modal and clear state if everything succeeded
       if (!consentLogFailed) {
         setShowMetadataModal(false);
+        setIsProcessing(false);
+        setProcessingStep('saving');
         setRecordingDuration(0);
         setCaseTitle("");
         setClientName("");
@@ -433,6 +454,10 @@ export default function QuickRecordButton() {
         setConsentGiven(null);
       }
     } catch (error: any) {
+      // Reset processing state on error
+      setIsProcessing(false);
+      setProcessingStep('saving');
+      
       // If case was created but later steps failed, inform user about partial success
       if (caseResult && !uploadFailed) {
         const caseId = caseResult.id;
@@ -594,67 +619,167 @@ export default function QuickRecordButton() {
         </TooltipContent>
       </Tooltip>
 
-      <Dialog open={showMetadataModal} onOpenChange={setShowMetadataModal}>
-        <DialogContent data-testid="dialog-metadata">
-          <DialogHeader>
-            <DialogTitle>Add Case Details</DialogTitle>
-            <DialogDescription>
-              Recording complete. Add case information while we process the transcription.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="quick-case-title">
-                Case Title <span className="text-accent">*</span>
-              </Label>
-              <Input
-                id="quick-case-title"
-                placeholder="e.g., Estate Planning Consultation"
-                value={caseTitle}
-                onChange={(e) => setCaseTitle(e.target.value)}
-                data-testid="input-quick-case-title"
-              />
+      <Dialog open={showMetadataModal} onOpenChange={(open) => !isProcessing && setShowMetadataModal(open)}>
+        <DialogContent data-testid="dialog-metadata" className="sm:max-w-md">
+          {isProcessing ? (
+            <div className="py-8" data-testid="processing-overlay">
+              <div className="flex flex-col items-center justify-center space-y-6">
+                <div className="relative">
+                  {processingStep === 'complete' ? (
+                    <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
+                      <CheckCircle2 className="w-10 h-10 text-green-500" />
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center animate-pulse">
+                      <Loader2 className="w-10 h-10 text-accent animate-spin" />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="text-center space-y-2">
+                  <h3 className="text-lg font-semibold" data-testid="text-processing-title">
+                    {processingStep === 'complete' 
+                      ? 'All Done!' 
+                      : 'Processing Your Recording'}
+                  </h3>
+                  <p className="text-sm text-muted-foreground" data-testid="text-processing-description">
+                    {processingStep === 'complete'
+                      ? 'Your case is ready. Redirecting...'
+                      : 'Please wait while we save your case and start the AI processing.'}
+                  </p>
+                </div>
+                
+                <div className="w-full max-w-xs space-y-3 pt-2">
+                  <div className="flex items-center gap-3">
+                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                      processingStep === 'saving' 
+                        ? 'bg-accent/20' 
+                        : 'bg-green-500/20'
+                    }`}>
+                      {processingStep === 'saving' ? (
+                        <Loader2 className="w-4 h-4 text-accent animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${processingStep === 'saving' ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        Saving case details
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                      processingStep === 'uploading' 
+                        ? 'bg-accent/20' 
+                        : processingStep === 'saving' 
+                          ? 'bg-muted' 
+                          : 'bg-green-500/20'
+                    }`}>
+                      {processingStep === 'uploading' ? (
+                        <Loader2 className="w-4 h-4 text-accent animate-spin" />
+                      ) : processingStep === 'saving' ? (
+                        <Upload className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${processingStep === 'uploading' ? 'text-foreground' : processingStep === 'saving' ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
+                        Uploading audio recording
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                      processingStep === 'processing' 
+                        ? 'bg-accent/20' 
+                        : processingStep === 'complete' 
+                          ? 'bg-green-500/20' 
+                          : 'bg-muted'
+                    }`}>
+                      {processingStep === 'processing' ? (
+                        <Loader2 className="w-4 h-4 text-accent animate-spin" />
+                      ) : processingStep === 'complete' ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <Sparkles className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${processingStep === 'processing' ? 'text-foreground' : processingStep === 'complete' ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
+                        Starting AI processing
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="quick-client-name">
-                Client Name <span className="text-accent">*</span>
-              </Label>
-              <Input
-                id="quick-client-name"
-                placeholder="e.g., Mrs. Catherine Williams"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                data-testid="input-quick-client-name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quick-matter-ref">Matter Reference</Label>
-              <Input
-                id="quick-matter-ref"
-                placeholder="e.g., MAT-2025-001"
-                value={matterRef}
-                onChange={(e) => setMatterRef(e.target.value)}
-                data-testid="input-quick-matter-ref"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowMetadataModal(false)}
-              data-testid="button-cancel-metadata"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={saveCase}
-              disabled={!caseTitle || !clientName}
-              className="bg-accent hover:bg-accent"
-              data-testid="button-save-case"
-            >
-              Save & Process
-            </Button>
-          </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Add Case Details</DialogTitle>
+                <DialogDescription>
+                  Recording complete. Add case information while we process the transcription.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="quick-case-title">
+                    Case Title <span className="text-accent">*</span>
+                  </Label>
+                  <Input
+                    id="quick-case-title"
+                    placeholder="e.g., Estate Planning Consultation"
+                    value={caseTitle}
+                    onChange={(e) => setCaseTitle(e.target.value)}
+                    data-testid="input-quick-case-title"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quick-client-name">
+                    Client Name <span className="text-accent">*</span>
+                  </Label>
+                  <Input
+                    id="quick-client-name"
+                    placeholder="e.g., Mrs. Catherine Williams"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    data-testid="input-quick-client-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quick-matter-ref">Matter Reference</Label>
+                  <Input
+                    id="quick-matter-ref"
+                    placeholder="e.g., MAT-2025-001"
+                    value={matterRef}
+                    onChange={(e) => setMatterRef(e.target.value)}
+                    data-testid="input-quick-matter-ref"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowMetadataModal(false)}
+                  data-testid="button-cancel-metadata"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={saveCase}
+                  disabled={!caseTitle || !clientName}
+                  className="bg-accent hover:bg-accent"
+                  data-testid="button-save-case"
+                >
+                  Save & Process
+                </Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
