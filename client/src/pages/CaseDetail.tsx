@@ -332,7 +332,7 @@ export default function CaseDetail() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <h3 className="font-semibold text-foreground">AI Processing in Progress</h3>
+                  <h3 className="font-semibold text-foreground">Meeting-to-Matter™ AI Engine</h3>
                   {(!processingStatus || processingStatus.processingMetadata?.status === 'processing') && (
                     <Loader2 className="w-4 h-4 animate-spin text-accent" />
                   )}

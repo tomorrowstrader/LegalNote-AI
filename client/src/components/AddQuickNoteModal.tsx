@@ -241,7 +241,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
             <p className="text-muted-foreground">
-              Processing your recording with OpenAI Whisper...
+              Meeting-to-Matter™ AI is transcribing your recording...
             </p>
           </div>
         </DialogContent>

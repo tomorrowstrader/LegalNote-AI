@@ -483,8 +483,8 @@ export default function DocumentViewer({
             <h3 className="text-lg font-semibold text-foreground mb-2">No Documents Yet</h3>
             <p className="text-sm text-muted-foreground text-center max-w-md">
               {textNotes 
-                ? 'AI processing will generate documents from your meeting notes.' 
-                : 'Record audio and process with AI to generate legal documents automatically.'}
+                ? 'Meeting-to-Matter™ AI Engine will generate documents from your meeting notes.' 
+                : 'Record audio and use Meeting-to-Matter™ AI Engine to generate legal documents automatically.'}
             </p>
           </CardContent>
         </Card>

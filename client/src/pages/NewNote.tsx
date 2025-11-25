@@ -418,7 +418,7 @@ export default function NewNote() {
           <div>
             <h1 className="text-3xl font-semibold text-foreground">Create New Note</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Record client meeting with consent capture and automatic transcription
+              Record client meeting with consent capture and automatic transcription powered by Meeting-to-Matter™ AI
             </p>
           </div>
 
