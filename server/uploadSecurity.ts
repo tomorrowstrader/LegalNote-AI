@@ -1,5 +1,3 @@
-import { File } from "@google-cloud/storage";
-
 // Security constants
 export const MAX_AUDIO_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
 export const ALLOWED_AUDIO_MIME_TYPES = [
@@ -62,6 +60,15 @@ export interface ValidationResult {
   error?: string;
 }
 
+// MIME type normalization map (aliases → canonical)
+const MIME_ALIASES: Record<string, string> = {
+  'audio/mp3': 'audio/mpeg',
+  'audio/wave': 'audio/wav',
+  'audio/x-wav': 'audio/wav',
+  'audio/m4a': 'audio/mp4',
+  'audio/x-m4a': 'audio/mp4',
+};
+
 /**
  * Validates file size
  */
@@ -91,40 +98,18 @@ export function validateMimeType(mimeType: string): ValidationResult {
   return { valid: true };
 }
 
-// MIME type normalization map (aliases → canonical)
-const MIME_ALIASES: Record<string, string> = {
-  'audio/mp3': 'audio/mpeg',
-  'audio/wave': 'audio/wav',
-  'audio/x-wav': 'audio/wav',
-  'audio/m4a': 'audio/mp4',
-  'audio/x-m4a': 'audio/mp4',
-};
-
 /**
- * Verifies file magic numbers match the claimed MIME type
- * 
- * Logic: Group signatures by offset. For each offset, at least ONE signature must match.
- * All unique offsets must have a matching signature.
+ * Verifies file magic numbers match the claimed MIME type (Buffer version)
  */
-export async function verifyMagicNumbers(
-  file: File,
+export function verifyMagicNumbersFromBuffer(
+  fileBuffer: Buffer,
   claimedMimeType: string
-): Promise<ValidationResult> {
+): ValidationResult {
   try {
     let normalizedMime = claimedMimeType.toLowerCase().split(';')[0].trim();
     
     // Normalize MIME aliases to canonical types
     normalizedMime = MIME_ALIASES[normalizedMime] || normalizedMime;
-    
-    // Read first 32 bytes for magic number verification
-    const stream = file.createReadStream({ start: 0, end: 31 });
-    const chunks: Buffer[] = [];
-    
-    for await (const chunk of stream) {
-      chunks.push(chunk as Buffer);
-    }
-    
-    const fileHeader = Buffer.concat(chunks);
     
     // Get magic numbers for this MIME type
     const magicSignatures = AUDIO_MAGIC_NUMBERS[normalizedMime] || [];
@@ -137,6 +122,9 @@ export async function verifyMagicNumbers(
         error: `File type ${normalizedMime} cannot be verified for security`,
       };
     }
+    
+    // Use first 32 bytes for magic number verification
+    const fileHeader = fileBuffer.slice(0, 32);
     
     // Group signatures by offset
     const signaturesByOffset = new Map<number, Buffer[]>();
@@ -174,47 +162,29 @@ export async function verifyMagicNumbers(
 }
 
 /**
- * Comprehensive file validation
+ * Comprehensive file validation for Buffer-based uploads
  */
-export async function validateUploadedFile(
-  file: File
-): Promise<ValidationResult> {
-  try {
-    // Get file metadata
-    const [metadata] = await file.getMetadata();
-    
-    // Validate file size - GCS returns size as string, parse it safely
-    const fileSize = metadata.size ? parseInt(String(metadata.size), 10) : 0;
-    if (isNaN(fileSize)) {
-      return {
-        valid: false,
-        error: 'Unable to determine file size',
-      };
-    }
-    
-    const sizeValidation = validateFileSize(fileSize);
-    if (!sizeValidation.valid) {
-      return sizeValidation;
-    }
-    
-    // Validate MIME type
-    const mimeValidation = validateMimeType(metadata.contentType || '');
-    if (!mimeValidation.valid) {
-      return mimeValidation;
-    }
-    
-    // Verify magic numbers
-    const magicValidation = await verifyMagicNumbers(file, metadata.contentType || '');
-    if (!magicValidation.valid) {
-      return magicValidation;
-    }
-    
-    return { valid: true };
-  } catch (error) {
-    console.error('Error validating uploaded file:', error);
-    return {
-      valid: false,
-      error: 'Failed to validate file',
-    };
+export function validateAudioBuffer(
+  buffer: Buffer,
+  mimeType: string
+): ValidationResult {
+  // Validate file size
+  const sizeValidation = validateFileSize(buffer.length);
+  if (!sizeValidation.valid) {
+    return sizeValidation;
   }
+  
+  // Validate MIME type
+  const mimeValidation = validateMimeType(mimeType);
+  if (!mimeValidation.valid) {
+    return mimeValidation;
+  }
+  
+  // Verify magic numbers
+  const magicValidation = verifyMagicNumbersFromBuffer(buffer, mimeType);
+  if (!magicValidation.valid) {
+    return magicValidation;
+  }
+  
+  return { valid: true };
 }

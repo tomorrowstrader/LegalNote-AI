@@ -239,25 +239,4 @@ export class ObjectStorageService {
     // Fallback: remove leading slash and use as-is
     return dbPath.startsWith("/") ? dbPath.substring(1) : dbPath;
   }
-
-  // Stub ACL methods for compatibility with existing routes
-  // (Bucket is private; actual authorization handled at route level via user authentication)
-  async canAccessObjectEntity(params: {
-    objectFile: Buffer | string;
-    userId: string;
-    requestedPermission: string;
-  }): Promise<boolean> {
-    // Since bucket is private and routes check authentication,
-    // grant access if user is authenticated (already checked by route middleware)
-    return true;
-  }
-
-  async trySetObjectEntityAclPolicy(
-    objectPath: string,
-    policy: { owner: string; visibility: string }
-  ): Promise<string> {
-    // Return the object path as-is (ACL not needed for private S3 buckets)
-    // Ownership tracking handled at database level
-    return objectPath;
-  }
 }
