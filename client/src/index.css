@@ -210,6 +210,16 @@
     @apply border-border;
   }
 
+  /* Smooth theme transition */
+  *,
+  *::before,
+  *::after {
+    transition: background-color 0.4s ease, 
+                border-color 0.4s ease, 
+                box-shadow 0.4s ease,
+                color 0.2s ease;
+  }
+
   body {
     @apply font-sans antialiased text-foreground;
   }
