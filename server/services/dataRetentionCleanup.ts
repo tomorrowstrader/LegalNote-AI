@@ -17,6 +17,24 @@ const SHARE_LINK_GRACE_PERIOD_DAYS = 7; // Keep for 7 days after expiration
 const CONSENT_LOG_RETENTION_YEARS = 7; // UK GDPR requirement for legal records
 
 /**
+ * Consent segment retention: INDEFINITE
+ * 
+ * Consent audio segments are preserved indefinitely because:
+ * 1. They document the legal basis for processing client data (GDPR Article 7)
+ * 2. They provide evidence of informed consent in case of disputes
+ * 3. Solicitor professional liability cases can arise years after the meeting
+ * 4. The storage cost is minimal (typically 20-60 seconds per recording)
+ * 
+ * Consent segments are identified by:
+ * - Path containing 'consent/' directory
+ * - Filename containing '_consent' suffix
+ */
+function isConsentSegment(filePath: string): boolean {
+  if (!filePath) return false;
+  return filePath.includes('consent/') || filePath.includes('_consent');
+}
+
+/**
  * Clean up expired share links
  */
 export async function cleanupExpiredShareLinks(userId: string): Promise<{

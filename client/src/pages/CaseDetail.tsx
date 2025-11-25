@@ -15,6 +15,7 @@ import {
 import DocumentViewer from "@/components/DocumentViewer";
 import { AudioPlayer, type AudioPlayerHandle } from "@/components/AudioPlayer";
 import { AuditTrail } from "@/components/AuditTrail";
+import { ConsentEvidence } from "@/components/ConsentEvidence";
 import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
@@ -543,6 +544,17 @@ export default function CaseDetail() {
             </p>
           )}
         </div>
+
+        {/* Consent Evidence Section - preserved indefinitely for compliance */}
+        {caseData.sourceType === 'audio' && (
+          <div className="mt-8">
+            <ConsentEvidence 
+              caseId={caseId!} 
+              audioRecording={audioData}
+              consentLogs={consentLogs}
+            />
+          </div>
+        )}
 
         <div className="mt-8">
           <AuditTrail caseId={caseId!} limit={50} />

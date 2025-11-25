@@ -1519,11 +1519,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         audioRecordingId
       );
 
-      // Update the audio recording with the file path
+      // Update the audio recording with the file path and consent duration
       const updated = await storage.updateAudioRecording(audioRecordingId, {
         filePath: result.filePath,
         duration: duration ? parseFloat(duration) : undefined,
         consentSegmentPath: result.consentSegmentPath,
+        consentDurationSeconds: result.consentDurationSeconds,
       });
 
       auditLogger.logFromRequest(AuditEventType.AUDIO_UPLOADED, req, {
@@ -1538,13 +1539,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
 
-      // Send recording confirmation email asynchronously (don't block response)
+      // Send recording confirmation email asynchronously (only if user preference enabled)
       (async () => {
         try {
           const user = await storage.getUser(userId);
-          const firmProfile = await storage.getFirmProfile(userId);
+          const userPreferences = await storage.getUserPreferences(userId);
+          
+          // Check if user has enabled recording confirmation emails (default: off)
+          if (!userPreferences?.sendRecordingConfirmationEmails) {
+            console.log(`[EMAIL] Recording confirmation skipped - user preference disabled for case ${caseData.id}`);
+            return;
+          }
           
           if (user?.email) {
+            const firmProfile = await storage.getFirmProfile(userId);
             const durationSeconds = duration ? parseFloat(duration) : 0;
             const minutes = Math.floor(durationSeconds / 60);
             const seconds = Math.floor(durationSeconds % 60);
@@ -1641,6 +1649,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Mark consent confirmation timestamp for a recording session
+  app.post("/api/audio/chunk-session/:sessionId/consent", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+
+      const result = chunkedUploadService.markConsentConfirmed(sessionId, userId);
+      
+      await logAuditEvent(userId, "consent_timestamp_marked", {
+        metadata: {
+          sessionId,
+          consentChunk: result.consentChunk,
+          elapsedSeconds: result.elapsedSeconds,
+        },
+        severity: "info",
+        req,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      if (error.message.includes("not found") || error.message.includes("Unauthorized")) {
+        return res.status(404).json({ message: error.message });
+      }
+      next(error);
+    }
+  });
+
   // ============================================
   // END CHUNKED UPLOAD ROUTES
   // ============================================
@@ -1688,6 +1723,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.json(audioRecording);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Get presigned URL for consent segment audio (preserved indefinitely for compliance)
+  app.get("/api/audio/:audioId/consent-segment", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { audioId } = req.params;
+
+      const audioRecording = await storage.getAudioRecording(audioId, userId);
+      if (!audioRecording) {
+        return res.status(404).json({ message: "Audio recording not found" });
+      }
+
+      if (!audioRecording.consentSegmentPath) {
+        return res.status(404).json({ message: "No consent segment available for this recording" });
+      }
+
+      const objectStorageService = new ObjectStorageService();
+      const presignedUrl = await objectStorageService.getPresignedUrl(audioRecording.consentSegmentPath);
+      
+      await logAuditEvent(userId, "consent_segment_accessed", {
+        audioRecordingId: audioId,
+        caseId: audioRecording.caseId,
+        metadata: {
+          consentSegmentPath: audioRecording.consentSegmentPath,
+        },
+        severity: "info",
+        req,
+      });
+
+      res.json({ 
+        url: presignedUrl,
+        expiresAt: new Date(Date.now() + 3600000).toISOString(),
+      });
     } catch (error: any) {
       next(error);
     }

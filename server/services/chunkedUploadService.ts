@@ -22,11 +22,15 @@ interface RecordingSession {
   lastActivityAt: Date;
   finalized: boolean;
   consentSegmentPreserved: boolean;
+  consentConfirmedAt?: Date;
+  consentConfirmedChunk?: number;
+  consentElapsedSeconds?: number;
 }
 
 const activeSessions = new Map<string, RecordingSession>();
 
-const CONSENT_SEGMENT_DURATION_CHUNKS = 2;
+const CHUNK_INTERVAL_SECONDS = 10;
+const FALLBACK_CONSENT_CHUNKS = 2;
 const SESSION_EXPIRY_MS = 30 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -102,6 +106,39 @@ export class ChunkedUploadService {
     };
   }
 
+  markConsentConfirmed(sessionId: string, userId: string): { 
+    success: boolean; 
+    consentChunk: number;
+    elapsedSeconds: number;
+  } {
+    const session = activeSessions.get(sessionId);
+    
+    if (!session) {
+      throw new Error("Recording session not found or expired");
+    }
+
+    if (session.userId !== userId) {
+      throw new Error("Unauthorized: Session belongs to different user");
+    }
+
+    const now = new Date();
+    const elapsedMs = now.getTime() - session.createdAt.getTime();
+    const elapsedSeconds = Math.floor(elapsedMs / 1000);
+    const consentChunk = Math.ceil(elapsedSeconds / CHUNK_INTERVAL_SECONDS);
+
+    session.consentConfirmedAt = now;
+    session.consentConfirmedChunk = consentChunk;
+    session.consentElapsedSeconds = elapsedSeconds;
+
+    console.log(`[ChunkedUpload] Consent confirmed for session ${sessionId} at chunk ${consentChunk} (${elapsedSeconds}s elapsed)`);
+
+    return {
+      success: true,
+      consentChunk,
+      elapsedSeconds,
+    };
+  }
+
   async finalizeSession(
     sessionId: string, 
     userId: string,
@@ -112,6 +149,7 @@ export class ChunkedUploadService {
     totalBytes: number; 
     filePath: string;
     consentSegmentPath?: string;
+    consentDurationSeconds?: number;
   }> {
     const session = activeSessions.get(sessionId);
     
@@ -160,11 +198,16 @@ export class ChunkedUploadService {
     const dbPath = `${objectInfo.dbPath}${extension}`;
 
     let consentSegmentPath: string | undefined;
+    let consentDurationSeconds: number | undefined;
     
-    if (totalChunks >= CONSENT_SEGMENT_DURATION_CHUNKS) {
+    const consentChunkCount = session.consentConfirmedChunk ?? FALLBACK_CONSENT_CHUNKS;
+    
+    if (totalChunks >= 1 && consentChunkCount > 0) {
       try {
+        const chunksToPreserve = Math.min(consentChunkCount + 1, totalChunks);
         const consentChunks: Buffer[] = [];
-        for (let i = 0; i < Math.min(CONSENT_SEGMENT_DURATION_CHUNKS, totalChunks); i++) {
+        
+        for (let i = 0; i < chunksToPreserve; i++) {
           const chunk = session.chunks.get(sortedChunkNumbers[i]);
           if (chunk) {
             consentChunks.push(chunk);
@@ -174,13 +217,15 @@ export class ChunkedUploadService {
         if (consentChunks.length > 0) {
           const consentAudio = Buffer.concat(consentChunks);
           const consentObjectInfo = this.objectStorage.createPrivateObjectId();
-          const consentFileKey = `${consentObjectInfo.key}_consent${extension}`;
+          const consentFileKey = `consent/${consentObjectInfo.key}_consent${extension}`;
           
           await this.objectStorage.uploadFile(consentFileKey, consentAudio, session.mimeType);
-          consentSegmentPath = `${consentObjectInfo.dbPath}_consent${extension}`;
+          consentSegmentPath = `consent/${consentObjectInfo.dbPath}_consent${extension}`;
+          consentDurationSeconds = session.consentElapsedSeconds ?? chunksToPreserve * CHUNK_INTERVAL_SECONDS;
           session.consentSegmentPreserved = true;
           
-          console.log(`[ChunkedUpload] Preserved consent segment: ${consentSegmentPath}`);
+          const source = session.consentElapsedSeconds ? 'timestamp-based' : 'fallback';
+          console.log(`[ChunkedUpload] Preserved consent segment (${source}): ${consentSegmentPath} (${chunksToPreserve} chunks, ${consentDurationSeconds}s actual duration)`);
         }
       } catch (error) {
         console.error(`[ChunkedUpload] Failed to preserve consent segment:`, error);
@@ -200,6 +245,7 @@ export class ChunkedUploadService {
       totalBytes,
       filePath: dbPath,
       consentSegmentPath,
+      consentDurationSeconds,
     };
   }
 

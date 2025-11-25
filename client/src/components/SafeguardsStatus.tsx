@@ -37,7 +37,7 @@ const safeguards: SafeguardItem[] = [
   },
   {
     name: "Consent Preservation",
-    description: "First 15 seconds preserved for GDPR compliance",
+    description: "Audio from start until consent confirmed - preserved indefinitely for GDPR compliance",
     icon: <FileText className="w-4 h-4" />,
     status: "active",
   },

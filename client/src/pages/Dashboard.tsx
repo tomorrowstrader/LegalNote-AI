@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { SafeguardsStatus } from "@/components/SafeguardsStatus";
 
 interface AttentionStats {
   audioExpiringCount: number;
@@ -374,11 +373,6 @@ export default function Dashboard() {
               </div>
             </div>
           )}
-        </div>
-
-        {/* Safeguards Status - Shows recording protection features */}
-        <div className="mb-6">
-          <SafeguardsStatus />
         </div>
 
         <div className="bg-card border border-border rounded-lg p-4 sm:p-6 mb-6">

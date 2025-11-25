@@ -392,6 +392,14 @@ export default function QuickRecordButton() {
     // Close ConsentModal BEFORE any audit logging
     setShowConsentModal(false);
     
+    // Mark consent timestamp for accurate consent segment preservation
+    if (useChunkedUpload) {
+      const consentResult = await chunkedRecording.markConsentConfirmed();
+      if (consentResult) {
+        console.log(`Consent segment will preserve ${consentResult.elapsedSeconds}s of recording`);
+      }
+    }
+    
     // Log consent given event (client-side audit)
     await logAuditEvent({
       eventType: "consent_given",

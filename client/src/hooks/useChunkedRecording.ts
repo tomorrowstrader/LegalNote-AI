@@ -39,6 +39,7 @@ interface UseChunkedRecordingReturn {
   startRecording: () => Promise<boolean>;
   stopRecording: () => Promise<Blob | null>;
   cancelRecording: () => void;
+  markConsentConfirmed: () => Promise<{ success: boolean; consentChunk: number; elapsedSeconds: number } | null>;
   finalizeAndUpload: (audioRecordingId: string) => Promise<{ success: boolean; totalChunks: number; totalBytes: number }>;
   mimeType: string;
   chunkSessionId: string | null;
@@ -362,6 +363,27 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     clearLocalSession();
   }, [clearLocalSession]);
 
+  const markConsentConfirmed = useCallback(async (): Promise<{ success: boolean; consentChunk: number; elapsedSeconds: number } | null> => {
+    if (!chunkSessionRef.current) {
+      console.warn('No active chunk session for consent marking');
+      return null;
+    }
+
+    try {
+      const response = await apiRequest<{
+        success: boolean;
+        consentChunk: number;
+        elapsedSeconds: number;
+      }>("POST", `/api/audio/chunk-session/${chunkSessionRef.current.sessionId}/consent`, {});
+
+      console.log(`Consent confirmed at chunk ${response.consentChunk} (~${response.elapsedSeconds}s)`);
+      return response;
+    } catch (error) {
+      console.error('Failed to mark consent confirmation:', error);
+      return null;
+    }
+  }, []);
+
   const finalizeAndUpload = useCallback(async (audioRecordingId: string): Promise<{ success: boolean; totalChunks: number; totalBytes: number }> => {
     if (!chunkSessionRef.current) {
       throw new Error('No active chunk session');
@@ -410,6 +432,7 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     startRecording,
     stopRecording,
     cancelRecording,
+    markConsentConfirmed,
     finalizeAndUpload,
     mimeType: audioFormatRef.current.mimeType,
     chunkSessionId: chunkSessionRef.current?.sessionId || null,

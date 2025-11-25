@@ -56,11 +56,12 @@ export const audioRecordings = pgTable("audio_recordings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
   filePath: text("file_path"), // Storage path for audio file
-  consentSegmentPath: text("consent_segment_path"), // Storage path for preserved consent segment (first 15-20 seconds)
+  consentSegmentPath: text("consent_segment_path"), // Storage path for preserved consent segment (timestamp-based)
+  consentDurationSeconds: integer("consent_duration_seconds"), // Exact duration of consent segment (from start to consent confirmation)
   mimeType: text("mime_type"), // MIME type of audio (audio/webm, audio/wav, etc.)
   duration: integer("duration"), // Duration in seconds
   recordedAt: timestamp("recorded_at").notNull().defaultNow(),
-  expiresAt: timestamp("expires_at").notNull(), // 24hr from recording
+  expiresAt: timestamp("expires_at").notNull(), // 7 days from recording
   deletedAt: timestamp("deleted_at"), // Actual deletion timestamp
 });
 
@@ -123,7 +124,8 @@ export const userPreferences = pgTable("user_preferences", {
   userId: varchar("user_id").notNull().unique().references(() => users.id),
   dismissedReviewBanner: boolean("dismissed_review_banner").notNull().default(false),
   completedOnboarding: boolean("completed_onboarding").notNull().default(false),
-  consentWorkflowPreferences: jsonb("consent_workflow_preferences").default({}), // Future workflow settings
+  consentWorkflowPreferences: jsonb("consent_workflow_preferences").default({}),
+  sendRecordingConfirmationEmails: boolean("send_recording_confirmation_emails").notNull().default(false),
 });
 
 export const auditTrail = pgTable("audit_trail", {
@@ -348,6 +350,7 @@ export const insertUserPreferencesSchema = createInsertSchema(userPreferences).o
   userId: z.string().min(1), // Replit Auth IDs are not UUIDs
   dismissedReviewBanner: z.boolean().default(false),
   completedOnboarding: z.boolean().default(false),
+  sendRecordingConfirmationEmails: z.boolean().default(false),
 });
 
 export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({

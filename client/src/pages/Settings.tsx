@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
+import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check, Mail } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -14,7 +14,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertFirmProfileSchema } from "@shared/schema";
-import type { FirmProfile, InsertFirmProfile } from "@shared/schema";
+import type { FirmProfile, InsertFirmProfile, UserPreferences } from "@shared/schema";
+import { SafeguardsStatus } from "@/components/SafeguardsStatus";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -727,6 +728,99 @@ function CalendarConnections() {
   );
 }
 
+function NotificationSettings() {
+  const { toast } = useToast();
+  
+  const { data: preferences, isLoading } = useQuery<UserPreferences>({
+    queryKey: ['/api/user-preferences'],
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: Partial<UserPreferences>) => {
+      const response = await fetch('/api/user-preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update preferences');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/user-preferences'] });
+      toast({
+        title: "Preferences Updated",
+        description: "Your notification preferences have been saved.",
+        duration: 3000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update preferences. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    },
+  });
+
+  const handleEmailToggle = (checked: boolean) => {
+    updateMutation.mutate({ sendRecordingConfirmationEmails: checked });
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Loading notification preferences...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Bell className="w-5 h-5" />
+          <CardTitle>Notification Preferences</CardTitle>
+        </div>
+        <CardDescription>
+          Control which notifications you receive
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex items-center justify-between p-4 border rounded-md">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mt-0.5">
+              <Mail className="w-5 h-5 text-muted-foreground" />
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium">Recording Confirmation Emails</p>
+              <p className="text-sm text-muted-foreground">
+                Receive an email each time a recording is successfully saved and processed
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={preferences?.sendRecordingConfirmationEmails ?? false}
+            onCheckedChange={handleEmailToggle}
+            disabled={updateMutation.isPending}
+            data-testid="switch-recording-confirmation-emails"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Recording confirmation emails are disabled by default to prevent inbox overload. Enable if you prefer email confirmations for each meeting recording.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Settings() {
   const { user } = useAuth();
   const isAdmin = (user as any)?.isAdmin === true;
@@ -758,15 +852,20 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="firm" className="space-y-6">
-          <TabsList>
+          <TabsList className="flex flex-wrap gap-1">
             <TabsTrigger value="firm" data-testid="tab-firm">Firm</TabsTrigger>
-            <TabsTrigger value="usage" data-testid="tab-usage">Usage Metrics</TabsTrigger>
+            <TabsTrigger value="notifications" data-testid="tab-notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="usage" data-testid="tab-usage">Usage</TabsTrigger>
             <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
             <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
           </TabsList>
 
           <TabsContent value="firm" className="space-y-6">
             <FirmProfileForm />
+          </TabsContent>
+
+          <TabsContent value="notifications" className="space-y-6">
+            <NotificationSettings />
           </TabsContent>
 
           <TabsContent value="usage" className="space-y-6">
@@ -778,6 +877,8 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="security" className="space-y-6">
+            <SafeguardsStatus />
+            
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
@@ -794,7 +895,7 @@ export default function Settings() {
                       <div>
                         <p className="font-medium">GDPR Compliance Active</p>
                         <p className="text-sm text-muted-foreground mt-1">
-                          All audio files are automatically deleted after 7 days. Consent logs are maintained for all recordings and accessible via audit trail.
+                          All audio files are automatically deleted after 7 days. Consent segment audio preserved indefinitely for legal compliance proof.
                         </p>
                       </div>
                     </div>
