@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { Mic, Square, Loader2, CheckCircle2, FileText, Upload, Sparkles } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Mic, Square, Loader2, CheckCircle2, FileText, Upload, Sparkles, Shield, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -7,6 +7,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Tooltip,
@@ -17,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ToastAction } from "@/components/ui/toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import ConsentModal from "@/components/ConsentModal";
 import TextNotesModal from "@/components/TextNotesModal";
 import { useMutation } from "@tanstack/react-query";
@@ -25,6 +27,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { logAuditEvent } from "@/lib/auditLogger";
+
+// Recording session state management for crash recovery detection
+const RECORDING_SESSION_KEY = 'legalnote_recording_session';
+
+interface RecordingSession {
+  startedAt: string;
+  duration: number;
+  lastUpdateAt: string;
+}
 
 interface CaseResponse {
   id: string;
@@ -84,11 +95,92 @@ export default function QuickRecordButton() {
   const [caseTitle, setCaseTitle] = useState("");
   const [clientName, setClientName] = useState("");
   const [matterRef, setMatterRef] = useState("");
+  const [showInterruptedWarning, setShowInterruptedWarning] = useState(false);
+  const [interruptedDuration, setInterruptedDuration] = useState(0);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioBlobRef = useRef<Blob | null>(null);
   const audioFormatRef = useRef(getSupportedMimeType());
+
+  // Beforeunload handler to warn users before closing during recording
+  const beforeUnloadHandler = useCallback((e: BeforeUnloadEvent) => {
+    e.preventDefault();
+    // Modern browsers require returnValue to be set
+    e.returnValue = 'You have an active recording. If you leave, your recording will be lost.';
+    return e.returnValue;
+  }, []);
+
+  // Start tracking recording session in localStorage
+  const startRecordingSession = useCallback(() => {
+    const session: RecordingSession = {
+      startedAt: new Date().toISOString(),
+      duration: 0,
+      lastUpdateAt: new Date().toISOString(),
+    };
+    localStorage.setItem(RECORDING_SESSION_KEY, JSON.stringify(session));
+  }, []);
+
+  // Update recording session duration periodically
+  const updateRecordingSession = useCallback((duration: number) => {
+    try {
+      const sessionStr = localStorage.getItem(RECORDING_SESSION_KEY);
+      if (sessionStr) {
+        const session: RecordingSession = JSON.parse(sessionStr);
+        session.duration = duration;
+        session.lastUpdateAt = new Date().toISOString();
+        localStorage.setItem(RECORDING_SESSION_KEY, JSON.stringify(session));
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+  }, []);
+
+  // Clear recording session (on successful save or intentional cancel)
+  const clearRecordingSession = useCallback(() => {
+    localStorage.removeItem(RECORDING_SESSION_KEY);
+  }, []);
+
+  // Check for interrupted recording on mount
+  useEffect(() => {
+    try {
+      const sessionStr = localStorage.getItem(RECORDING_SESSION_KEY);
+      if (sessionStr) {
+        const session: RecordingSession = JSON.parse(sessionStr);
+        // Check if session is stale (more than 5 minutes old since last update)
+        const lastUpdate = new Date(session.lastUpdateAt);
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        
+        if (lastUpdate < fiveMinutesAgo && session.duration > 0) {
+          // Stale session found - show warning
+          setInterruptedDuration(session.duration);
+          setShowInterruptedWarning(true);
+          // Clear the stale session
+          clearRecordingSession();
+        } else if (session.duration === 0) {
+          // Session with no duration - likely just started and crashed, clear it
+          clearRecordingSession();
+        }
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+      localStorage.removeItem(RECORDING_SESSION_KEY);
+    }
+  }, [clearRecordingSession]);
+
+  // Add/remove beforeunload handler based on recording state
+  useEffect(() => {
+    if (isRecording) {
+      window.addEventListener('beforeunload', beforeUnloadHandler);
+      startRecordingSession();
+    } else {
+      window.removeEventListener('beforeunload', beforeUnloadHandler);
+    }
+    
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnloadHandler);
+    };
+  }, [isRecording, beforeUnloadHandler, startRecordingSession]);
 
   const createCaseMutation = useMutation<CaseResponse, Error, any>({
     mutationFn: async (caseData: any) => {
@@ -189,11 +281,18 @@ export default function QuickRecordButton() {
     if (!isRecording) return;
 
     const interval = setInterval(() => {
-      setRecordingDuration(prev => prev + 1);
+      setRecordingDuration(prev => {
+        const newDuration = prev + 1;
+        // Update localStorage session every 5 seconds for crash recovery detection
+        if (newDuration % 5 === 0) {
+          updateRecordingSession(newDuration);
+        }
+        return newDuration;
+      });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRecording]);
+  }, [isRecording, updateRecordingSession]);
 
   // Auto-reset stop confirmation after 5 seconds
   useEffect(() => {
@@ -240,6 +339,8 @@ export default function QuickRecordButton() {
     setIsRecording(false);
     setRecordingDuration(0);
     audioBlobRef.current = null;
+    // Clear recording session (user chose to decline consent)
+    clearRecordingSession();
     setShowTextNotesModal(true);
 
     // Log consent declined event
@@ -443,6 +544,9 @@ export default function QuickRecordButton() {
       
       // Only close modal and clear state if everything succeeded
       if (!consentLogFailed) {
+        // Clear recording session from localStorage (successful save)
+        clearRecordingSession();
+        
         setShowMetadataModal(false);
         setIsProcessing(false);
         setProcessingStep('saving');
@@ -572,6 +676,19 @@ export default function QuickRecordButton() {
           <p className="text-xs sm:text-sm font-mono font-semibold text-primary-foreground" data-testid="text-quick-duration">
             {formatDuration(recordingDuration)}
           </p>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="hidden sm:flex items-center gap-1 text-green-400">
+                <Shield className="w-3 h-3" />
+                <span className="text-xs">Protected</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="text-sm max-w-[200px]">
+                You'll be warned if you try to close this tab during recording.
+              </p>
+            </TooltipContent>
+          </Tooltip>
           <Button
             variant="ghost"
             size="sm"
@@ -788,6 +905,45 @@ export default function QuickRecordButton() {
         onClose={() => setShowTextNotesModal(false)}
         onSave={saveTextNotes}
       />
+
+      {/* Interrupted Recording Warning Dialog */}
+      <Dialog open={showInterruptedWarning} onOpenChange={setShowInterruptedWarning}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-interrupted-warning">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Recording Interrupted
+            </DialogTitle>
+            <DialogDescription>
+              It looks like a previous recording session was interrupted unexpectedly.
+            </DialogDescription>
+          </DialogHeader>
+          <Alert className="bg-amber-500/10 border-amber-500/30">
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            <AlertDescription>
+              A recording of approximately <strong>{formatDuration(interruptedDuration)}</strong> was lost. 
+              This can happen if your browser closed, battery died, or the page was refreshed.
+            </AlertDescription>
+          </Alert>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p><strong>Tips to prevent data loss:</strong></p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Keep your device charged during recordings</li>
+              <li>Avoid refreshing or closing the browser tab</li>
+              <li>For long meetings, consider taking backup notes</li>
+            </ul>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setShowInterruptedWarning(false)}
+              className="bg-accent hover:bg-accent"
+              data-testid="button-acknowledge-interrupted"
+            >
+              I Understand
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

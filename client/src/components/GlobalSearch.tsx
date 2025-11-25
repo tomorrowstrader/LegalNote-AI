@@ -49,7 +49,7 @@ export default function GlobalSearch() {
       params.set('status', statusFilter);
     }
     
-    setLocation(`/saved-cases?${params.toString()}`);
+    setLocation(`/cases?${params.toString()}`);
     setMobileOpen(false);
     setSearchQuery("");
   };

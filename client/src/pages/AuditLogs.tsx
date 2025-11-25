@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Shield, Download, Search, Filter, Clock, User, Eye, FileText, Send } from "lucide-react";
+import { Shield, Download, Search, Filter, Clock, User, Eye, FileText, Send, Loader2 } from "lucide-react";
 import type { AuditTrail as AuditTrailType } from "@shared/schema";
 import { logAuditEvent } from "@/lib/auditLogger";
 
@@ -106,6 +106,7 @@ export default function AuditLogs() {
   const [caseIdFilter, setCaseIdFilter] = useState("");
   const [eventTypeFilter, setEventTypeFilter] = useState("");
   const [limit, setLimit] = useState(100);
+  const [isExporting, setIsExporting] = useState(false);
 
   const queryParams = new URLSearchParams();
   if (caseIdFilter) queryParams.append("caseId", caseIdFilter);
@@ -126,44 +127,49 @@ export default function AuditLogs() {
   const handleExportCSV = async () => {
     if (!auditLogs || auditLogs.length === 0) return;
 
-    const headers = ["Timestamp", "Event Type", "User ID", "Case ID", "Document ID", "IP Address", "Severity", "Metadata"];
-    const rows = auditLogs.map(log => [
-      format(new Date(log.timestamp), "yyyy-MM-dd HH:mm:ss"),
-      log.eventType,
-      log.userId,
-      log.caseId || "",
-      log.documentId || "",
-      log.ipAddress || "",
-      log.severity,
-      JSON.stringify(log.metadata || {}),
-    ]);
+    setIsExporting(true);
+    try {
+      const headers = ["Timestamp", "Event Type", "User ID", "Case ID", "Document ID", "IP Address", "Severity", "Metadata"];
+      const rows = auditLogs.map(log => [
+        format(new Date(log.timestamp), "yyyy-MM-dd HH:mm:ss"),
+        log.eventType,
+        log.userId,
+        log.caseId || "",
+        log.documentId || "",
+        log.ipAddress || "",
+        log.severity,
+        JSON.stringify(log.metadata || {}),
+      ]);
 
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(",")),
-    ].join("\n");
+      const csvContent = [
+        headers.join(","),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(",")),
+      ].join("\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `audit-logs-${format(new Date(), "yyyy-MM-dd-HHmmss")}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `audit-logs-${format(new Date(), "yyyy-MM-dd-HHmmss")}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
 
-    // Log CSV export event
-    await logAuditEvent({
-      eventType: "audit_exported_csv",
-      metadata: { 
-        recordCount: auditLogs.length,
-        filters: {
-          caseId: caseIdFilter || null,
-          eventType: eventTypeFilter || null,
-          limit,
+      // Log CSV export event
+      await logAuditEvent({
+        eventType: "audit_exported_csv",
+        metadata: { 
+          recordCount: auditLogs.length,
+          filters: {
+            caseId: caseIdFilter || null,
+            eventType: eventTypeFilter || null,
+            limit,
+          },
         },
-      },
-      severity: "warning",
-    });
+        severity: "warning",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -254,11 +260,20 @@ export default function AuditLogs() {
               <Button
                 onClick={handleExportCSV}
                 variant="outline"
-                disabled={!auditLogs || auditLogs.length === 0}
+                disabled={!auditLogs || auditLogs.length === 0 || isExporting}
                 data-testid="button-export-csv"
               >
-                <Download className="w-4 h-4 mr-2" />
-                Export CSV
+                {isExporting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    Export CSV
+                  </>
+                )}
               </Button>
             </div>
           </CardContent>

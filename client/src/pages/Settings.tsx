@@ -589,47 +589,21 @@ function CalendarConnections() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-4 border rounded-md">
+          {/* Outlook Calendar - Disabled for MVP (Phase 2 feature) */}
+          <div className="flex items-center justify-between p-4 border rounded-md opacity-50">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
                 <Calendar className="w-5 h-5 text-muted-foreground" />
               </div>
               <div>
                 <p className="font-medium">Microsoft Outlook</p>
-                {connections?.outlook.connected && connections.outlook.email ? (
-                  <p className="text-sm text-muted-foreground">{connections.outlook.email}</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Not connected</p>
-                )}
+                <p className="text-sm text-muted-foreground">Coming soon</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {connections?.outlook.connected ? (
-                <>
-                  <Badge variant="outline" className="gap-1">
-                    <CheckCircle2 className="w-3 h-3" />
-                    Connected
-                  </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDisconnect('outlook')}
-                    disabled={disconnectMutation.isPending}
-                    data-testid="button-disconnect-outlook"
-                  >
-                    {disconnectMutation.isPending ? "Disconnecting..." : "Disconnect"}
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => handleConnect('outlook')}
-                  data-testid="button-connect-outlook"
-                >
-                  Connect
-                </Button>
-              )}
+              <Badge variant="secondary" className="gap-1">
+                Coming Soon
+              </Badge>
             </div>
           </div>
         </div>
