@@ -100,3 +100,8 @@ externalPort = 6800
 [[ports]]
 localPort = 46637
 externalPort = 8008
+
+[userenv]
+
+[userenv.shared]
+RECALL_REGION = "us-west-2"
