@@ -688,9 +688,7 @@ function VideoConferencing() {
 
   const connectMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('/api/recall/connect', {
-        method: 'POST',
-      });
+      const res = await apiRequest('POST', '/api/recall/connect');
       return res;
     },
     onSuccess: (data: { valid: boolean; message: string }) => {
@@ -720,9 +718,7 @@ function VideoConferencing() {
 
   const disconnectMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('/api/recall/disconnect', {
-        method: 'DELETE',
-      });
+      const res = await apiRequest('DELETE', '/api/recall/disconnect');
       return res;
     },
     onSuccess: () => {

@@ -76,26 +76,18 @@ export function ImportRecordingModal({
   const importMutation = useMutation({
     mutationFn: async (params: { botId: string }) => {
       // Step 1: Create the import (consent not yet confirmed)
-      const importRes = await apiRequest('/api/recall/import', {
-        method: 'POST',
-        body: JSON.stringify({
-          botId: params.botId,
-          caseId,
-        }),
+      const importRes = await apiRequest('POST', '/api/recall/import', {
+        botId: params.botId,
+        caseId,
       });
       
       // Step 2: Confirm consent via attestation (creates audit trail)
-      await apiRequest(`/api/recall/import/${importRes.id}/consent`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          userConfirmsVerbalConsent: true,
-        }),
+      await apiRequest('PATCH', `/api/recall/import/${importRes.id}/consent`, {
+        userConfirmsVerbalConsent: true,
       });
       
       // Step 3: Start processing
-      await apiRequest(`/api/recall/import/${importRes.id}/process`, {
-        method: 'POST',
-      });
+      await apiRequest('POST', `/api/recall/import/${importRes.id}/process`);
       
       return importRes;
     },
