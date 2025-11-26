@@ -3201,6 +3201,728 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // Recall.ai Video Conferencing Integration
+  // ============================================
+  
+  // Check if Recall.ai is configured
+  app.get("/api/recall/status", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { recallService } = await import("./services/recallService");
+      const userId = req.user.claims.sub;
+      
+      const connection = await storage.getRecallConnection(userId);
+      const isConfigured = recallService.isConfigured();
+      
+      res.json({
+        configured: isConfigured,
+        connected: connection?.status === 'active',
+        connection: connection ? {
+          status: connection.status,
+          connectedAt: connection.connectedAt,
+          lastSyncAt: connection.lastSyncAt,
+        } : null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Connect to Recall.ai (validate API key and create connection)
+  app.post("/api/recall/connect", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { recallService } = await import("./services/recallService");
+      const userId = req.user.claims.sub;
+      
+      const result = await recallService.validateConnection(userId);
+      
+      if (result.valid) {
+        await storage.createAuditLog({
+          eventType: 'recall_connected',
+          userId,
+          metadata: { message: result.message },
+          severity: 'info',
+        });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Disconnect from Recall.ai
+  app.delete("/api/recall/disconnect", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { recallService } = await import("./services/recallService");
+      const userId = req.user.claims.sub;
+      
+      await recallService.disconnectUser(userId);
+      
+      await storage.createAuditLog({
+        eventType: 'recall_disconnected',
+        userId,
+        metadata: {},
+        severity: 'info',
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // List available meetings for import
+  app.get("/api/recall/meetings", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { recallService } = await import("./services/recallService");
+      const userId = req.user.claims.sub;
+      
+      // Check if user is connected
+      const connection = await storage.getRecallConnection(userId);
+      if (!connection || connection.status !== 'active') {
+        return res.status(400).json({ message: "Not connected to Recall.ai" });
+      }
+      
+      const meetings = await recallService.getImportableMeetings(userId);
+      res.json(meetings);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Get user's meeting imports
+  app.get("/api/recall/imports", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const imports = await storage.getMeetingImportsByUser(userId);
+      res.json(imports);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Start importing a meeting
+  app.post("/api/recall/import", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { recallService } = await import("./services/recallService");
+      const userId = req.user.claims.sub;
+      const { botId, caseId, preConsentEmailId } = req.body;
+      // SECURITY: Never trust client-provided consentConfirmed - always verify server-side
+      
+      if (!botId) {
+        return res.status(400).json({ message: "Bot ID is required" });
+      }
+      
+      // Check if user is connected
+      const connection = await storage.getRecallConnection(userId);
+      if (!connection || connection.status !== 'active') {
+        return res.status(400).json({ message: "Not connected to Recall.ai" });
+      }
+      
+      // Verify case access if provided
+      if (caseId) {
+        const caseData = await storage.getCase(caseId, userId);
+        if (!caseData) {
+          return res.status(404).json({ message: "Case not found" });
+        }
+      }
+      
+      // Server-side consent verification from pre-consent email acknowledgement
+      let hasValidConsent = false;
+      if (preConsentEmailId) {
+        const consentEmail = await storage.getPreConsentEmail(preConsentEmailId);
+        if (consentEmail && consentEmail.consentAcknowledged && consentEmail.userId === userId) {
+          hasValidConsent = true;
+        }
+      }
+      
+      // Start the import with server-verified consent status
+      const meetingImport = await recallService.startMeetingImport(
+        userId,
+        botId,
+        caseId,
+        hasValidConsent, // Only true if we verified server-side
+        preConsentEmailId
+      );
+      
+      await storage.createAuditLog({
+        eventType: 'meeting_import_started',
+        userId,
+        caseId: caseId || undefined,
+        metadata: {
+          botId,
+          platform: meetingImport.meetingPlatform,
+          consentVerified: hasValidConsent,
+          preConsentEmailId: preConsentEmailId || null,
+        },
+        severity: 'info',
+      });
+      
+      res.json(meetingImport);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Get import status
+  app.get("/api/recall/import/:importId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const importData = await storage.getMeetingImport(req.params.importId);
+      
+      if (!importData || importData.userId !== userId) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+      
+      res.json(importData);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Process an import (download audio and trigger transcription)
+  app.post("/api/recall/import/:importId/process", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { recallService } = await import("./services/recallService");
+      const userId = req.user.claims.sub;
+      const importData = await storage.getMeetingImport(req.params.importId);
+      
+      // Security: Verify import belongs to authenticated user
+      if (!importData || importData.userId !== userId) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+      
+      // Security: Verify case ownership if a case is linked
+      if (importData.caseId) {
+        const linkedCase = await storage.getCase(importData.caseId, userId);
+        if (!linkedCase) {
+          return res.status(403).json({ 
+            message: "Access denied: You don't have permission to process this import for the linked case" 
+          });
+        }
+      }
+      
+      if (importData.status !== 'pending') {
+        return res.status(400).json({ message: `Import is already ${importData.status}` });
+      }
+      
+      // GDPR: Server-side consent verification
+      // Don't trust client-provided consentConfirmed - verify against pre-consent emails or require explicit confirmation
+      let hasValidConsent = false;
+      
+      // Check if there's an acknowledged pre-consent email for this meeting
+      if (importData.preConsentEmailId) {
+        const consentEmail = await storage.getPreConsentEmail(importData.preConsentEmailId);
+        if (consentEmail && consentEmail.consentAcknowledged && consentEmail.userId === userId) {
+          hasValidConsent = true;
+        }
+      }
+      
+      // If no pre-consent email, check the import's consent confirmation status
+      // This is set via the /consent endpoint which should be called after user confirms in UI
+      if (!hasValidConsent && importData.consentConfirmed) {
+        // Consent was confirmed through the UI workflow
+        hasValidConsent = true;
+      }
+      
+      if (!hasValidConsent) {
+        return res.status(400).json({ 
+          message: "Consent must be confirmed before processing",
+          requiresConsent: true 
+        });
+      }
+      
+      // Update status to downloading
+      await storage.updateMeetingImport(importData.id, { status: 'downloading' });
+      
+      try {
+        // Get the recording from Recall.ai
+        const recording = await recallService.getBotRecording(importData.recallBotId);
+        if (!recording || !recording.media?.audio_url) {
+          throw new Error('No audio recording available');
+        }
+        
+        // Download the audio
+        const audioBuffer = await recallService.downloadAudio(recording.media.audio_url);
+        
+        // Store in object storage
+        const objectStorage = await import("./objectStorage");
+        const audioPath = `.private/imports/${importData.id}/audio.mp3`;
+        await objectStorage.uploadObject(audioPath, audioBuffer, 'audio/mpeg');
+        
+        // Calculate Recall.ai cost for this import
+        const { calculateRecallAICost } = await import("./config/openai");
+        const recallCost = importData.durationSeconds 
+          ? calculateRecallAICost(importData.durationSeconds) 
+          : 0;
+        
+        // Update with audio path and cost
+        await storage.updateMeetingImport(importData.id, { 
+          status: 'transcribing',
+          audioStoragePath: audioPath,
+          importedAt: new Date(),
+        });
+        
+        // If there's a linked case, trigger transcription
+        if (importData.caseId) {
+          // Store Recall.ai cost in case metadata for billing visibility
+          const existingCase = await storage.getCase(importData.caseId, userId);
+          if (existingCase) {
+            const currentMetadata = existingCase.aiProcessingMetadata || {};
+            await storage.updateCase(importData.caseId, {
+              aiProcessingMetadata: {
+                ...currentMetadata,
+                recallAiCost: recallCost,
+                recordingSource: 'video_import',
+                meetingPlatform: importData.meetingPlatform,
+                meetingDurationSeconds: importData.durationSeconds,
+              },
+            }, userId);
+          }
+          // Create audio recording entry
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 7); // 7 day retention
+          
+          await storage.createAudioRecording({
+            caseId: importData.caseId,
+            filePath: audioPath,
+            mimeType: 'audio/mpeg',
+            duration: importData.durationSeconds || undefined,
+            expiresAt,
+          });
+          
+          // Trigger processing
+          const caseData = await storage.getCase(importData.caseId, userId);
+          if (caseData) {
+            await storage.updateCase(importData.caseId, { status: 'processing' }, userId);
+            
+            // Trigger async transcription
+            const { processCase } = await import("./processingService");
+            processCase(importData.caseId, userId).then(async () => {
+              await storage.updateMeetingImport(importData.id, { status: 'completed' });
+              await storage.createAuditLog({
+                eventType: 'meeting_import_completed',
+                userId,
+                caseId: importData.caseId || undefined,
+                metadata: { importId: importData.id },
+                severity: 'info',
+              });
+            }).catch(async (err) => {
+              console.error('Meeting import processing failed:', err);
+              await storage.updateMeetingImport(importData.id, { 
+                status: 'failed',
+                errorMessage: err.message,
+              });
+              await storage.createAuditLog({
+                eventType: 'meeting_import_failed',
+                userId,
+                caseId: importData.caseId || undefined,
+                metadata: { importId: importData.id, error: err.message },
+                severity: 'warning',
+              });
+            });
+          }
+        } else {
+          // Mark as completed (user needs to link to a case later)
+          await storage.updateMeetingImport(importData.id, { status: 'completed' });
+        }
+        
+        res.json({ success: true, status: 'processing' });
+      } catch (error: any) {
+        await storage.updateMeetingImport(importData.id, { 
+          status: 'failed',
+          errorMessage: error.message,
+        });
+        throw error;
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Link import to a case
+  app.patch("/api/recall/import/:importId/link-case", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId } = req.body;
+      
+      if (!caseId) {
+        return res.status(400).json({ message: "Case ID is required" });
+      }
+      
+      const importData = await storage.getMeetingImport(req.params.importId);
+      if (!importData || importData.userId !== userId) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+      
+      // Verify case access
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      
+      await storage.updateMeetingImport(importData.id, { caseId });
+      
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Update consent status - requires audit log entry for GDPR compliance
+  app.patch("/api/recall/import/:importId/consent", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { preConsentEmailId, userConfirmsVerbalConsent } = req.body;
+      // SECURITY: Don't accept a direct "confirmed" flag - require evidence
+      
+      const importData = await storage.getMeetingImport(req.params.importId);
+      if (!importData || importData.userId !== userId) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+      
+      let consentConfirmed = false;
+      let consentSource = '';
+      
+      // Option 1: Verify pre-consent email was acknowledged
+      if (preConsentEmailId) {
+        const consentEmail = await storage.getPreConsentEmail(preConsentEmailId);
+        if (consentEmail && consentEmail.consentAcknowledged && consentEmail.userId === userId) {
+          consentConfirmed = true;
+          consentSource = 'pre_consent_email';
+        } else {
+          return res.status(400).json({ 
+            message: "Pre-consent email has not been acknowledged by the participant" 
+          });
+        }
+      }
+      // Option 2: User attests that verbal consent was obtained during the call
+      // This creates an audit trail of the user's attestation for GDPR compliance
+      else if (userConfirmsVerbalConsent === true) {
+        consentConfirmed = true;
+        consentSource = 'user_verbal_attestation';
+        
+        // Create audit log of the user's attestation
+        await storage.createAuditLog({
+          eventType: 'consent_attestation',
+          userId,
+          caseId: importData.caseId || undefined,
+          metadata: {
+            importId: importData.id,
+            attestationType: 'verbal_consent_obtained',
+            attestedAt: new Date().toISOString(),
+            meetingPlatform: importData.meetingPlatform,
+          },
+          severity: 'info',
+        });
+      }
+      
+      if (!consentConfirmed) {
+        return res.status(400).json({ 
+          message: "Consent verification required. Provide preConsentEmailId or userConfirmsVerbalConsent." 
+        });
+      }
+      
+      await storage.updateMeetingImport(importData.id, { 
+        consentConfirmed: true,
+        preConsentEmailId: preConsentEmailId || undefined,
+      });
+      
+      res.json({ success: true, consentSource });
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Pre-consent email routes
+  app.post("/api/pre-consent", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { 
+        recipientEmail, 
+        recipientName, 
+        meetingPlatform, 
+        scheduledMeetingTime, 
+        meetingUrl,
+        caseId 
+      } = req.body;
+      
+      if (!recipientEmail || !recipientName) {
+        return res.status(400).json({ message: "Recipient email and name are required" });
+      }
+      
+      // Generate consent token
+      const consentToken = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+      
+      // Get firm profile for email branding
+      const firmProfile = await storage.getFirmProfile();
+      const firmName = firmProfile?.firmName || 'LegalNote AI';
+      
+      // Create email content
+      const emailSubject = `Recording Consent for Video Meeting - ${firmName}`;
+      const emailBody = `Dear ${recipientName},
+
+We are writing to inform you that we would like to record our upcoming video meeting for the purposes of creating accurate attendance notes and legal documentation.
+
+Meeting Details:
+${scheduledMeetingTime ? `- Scheduled Time: ${new Date(scheduledMeetingTime).toLocaleString('en-GB')}` : ''}
+${meetingPlatform ? `- Platform: ${meetingPlatform.charAt(0).toUpperCase() + meetingPlatform.slice(1)}` : ''}
+${meetingUrl ? `- Meeting Link: ${meetingUrl}` : ''}
+
+By acknowledging this consent, you agree to the recording being used to generate accurate meeting notes and documentation. The recording will be:
+- Stored securely with encryption
+- Retained for a maximum of 7 days
+- Used solely for the purpose of creating legal documentation
+- Processed in compliance with GDPR and data protection requirements
+
+Please click the button below to acknowledge your consent:
+
+[Acknowledge Consent Button]
+
+If you have any questions or concerns, please contact us before the meeting.
+
+Kind regards,
+${firmName}`;
+
+      // Create consent email record
+      const consentEmail = await storage.createPreConsentEmail({
+        userId,
+        caseId: caseId || undefined,
+        recipientEmail,
+        recipientName,
+        meetingPlatform: meetingPlatform || undefined,
+        scheduledMeetingTime: scheduledMeetingTime ? new Date(scheduledMeetingTime) : undefined,
+        meetingUrl: meetingUrl || undefined,
+        emailSubject,
+        emailBody,
+        consentToken,
+        emailStatus: 'pending',
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      });
+      
+      // Send email using Resend
+      try {
+        const resend = await import("resend");
+        const resendClient = new resend.Resend(process.env.RESEND_API_KEY);
+        
+        const baseUrl = `${req.protocol}://${req.headers.host}`;
+        const consentUrl = `${baseUrl}/consent/${consentToken}`;
+        
+        const htmlBody = emailBody
+          .replace(/\n/g, '<br>')
+          .replace('[Acknowledge Consent Button]', 
+            `<a href="${consentUrl}" style="display: inline-block; background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 16px 0;">Acknowledge Consent</a>`
+          );
+        
+        await resendClient.emails.send({
+          from: `${firmName} <noreply@${process.env.RESEND_DOMAIN || 'resend.dev'}>`,
+          to: recipientEmail,
+          subject: emailSubject,
+          html: htmlBody,
+        });
+        
+        await storage.updatePreConsentEmail(consentEmail.id, { 
+          emailStatus: 'sent',
+          emailSentAt: new Date(),
+        });
+        
+        await storage.createAuditLog({
+          eventType: 'pre_consent_email_sent',
+          userId,
+          caseId: caseId || undefined,
+          metadata: { 
+            recipientEmail, 
+            recipientName,
+            meetingPlatform,
+            consentEmailId: consentEmail.id,
+          },
+          severity: 'info',
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send pre-consent email:', emailError);
+        await storage.updatePreConsentEmail(consentEmail.id, { 
+          emailStatus: 'failed',
+        });
+        return res.status(500).json({ 
+          message: "Failed to send consent email",
+          error: emailError.message 
+        });
+      }
+      
+      res.json({ 
+        success: true, 
+        consentEmailId: consentEmail.id,
+        message: "Consent email sent successfully" 
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Get pre-consent emails for user
+  app.get("/api/pre-consent", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const emails = await storage.getPreConsentEmailsByUser(userId);
+      res.json(emails);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Public endpoint for acknowledging consent (no auth required)
+  app.post("/api/pre-consent/acknowledge/:token", async (req, res, next) => {
+    try {
+      const { token } = req.params;
+      
+      const consentEmail = await storage.getPreConsentEmailByToken(token);
+      if (!consentEmail) {
+        return res.status(404).json({ message: "Consent request not found" });
+      }
+      
+      // Check if already acknowledged
+      if (consentEmail.consentAcknowledged) {
+        return res.json({ 
+          success: true, 
+          alreadyAcknowledged: true,
+          message: "Consent was already acknowledged" 
+        });
+      }
+      
+      // Check if expired
+      if (consentEmail.expiresAt && new Date(consentEmail.expiresAt) < new Date()) {
+        return res.status(400).json({ message: "Consent request has expired" });
+      }
+      
+      // Get IP address
+      const ipAddress = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown';
+      
+      // Acknowledge consent
+      await storage.acknowledgePreConsentEmail(consentEmail.id, ipAddress);
+      
+      await storage.createAuditLog({
+        eventType: 'pre_consent_acknowledged',
+        userId: consentEmail.userId,
+        caseId: consentEmail.caseId || undefined,
+        metadata: { 
+          recipientEmail: consentEmail.recipientEmail,
+          consentEmailId: consentEmail.id,
+          ipAddress,
+        },
+        severity: 'info',
+      });
+      
+      res.json({ 
+        success: true, 
+        message: "Thank you for acknowledging the recording consent" 
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Get consent acknowledgement page (public)
+  app.get("/consent/:token", async (req, res, next) => {
+    try {
+      const { token } = req.params;
+      
+      const consentEmail = await storage.getPreConsentEmailByToken(token);
+      if (!consentEmail) {
+        return res.status(404).send(`
+          <!DOCTYPE html>
+          <html>
+          <head><title>Consent Not Found</title></head>
+          <body style="font-family: sans-serif; padding: 40px; text-align: center;">
+            <h1>Consent Request Not Found</h1>
+            <p>This consent request is invalid or has been removed.</p>
+          </body>
+          </html>
+        `);
+      }
+      
+      if (consentEmail.consentAcknowledged) {
+        return res.send(`
+          <!DOCTYPE html>
+          <html>
+          <head><title>Consent Already Acknowledged</title></head>
+          <body style="font-family: sans-serif; padding: 40px; text-align: center;">
+            <h1>Consent Already Acknowledged</h1>
+            <p>Thank you! Your consent was acknowledged on ${new Date(consentEmail.consentAcknowledgedAt!).toLocaleString('en-GB')}.</p>
+          </body>
+          </html>
+        `);
+      }
+      
+      if (consentEmail.expiresAt && new Date(consentEmail.expiresAt) < new Date()) {
+        return res.send(`
+          <!DOCTYPE html>
+          <html>
+          <head><title>Consent Expired</title></head>
+          <body style="font-family: sans-serif; padding: 40px; text-align: center;">
+            <h1>Consent Request Expired</h1>
+            <p>This consent request has expired. Please contact your solicitor for a new consent request.</p>
+          </body>
+          </html>
+        `);
+      }
+      
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Recording Consent</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
+            h1 { color: #1a1a1a; }
+            .card { background: #f8f9fa; border-radius: 8px; padding: 24px; margin: 24px 0; }
+            .button { display: inline-block; background: #000; color: #fff; padding: 14px 28px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; text-decoration: none; }
+            .button:hover { background: #333; }
+            .success { display: none; color: #059669; }
+            .error { display: none; color: #dc2626; }
+          </style>
+        </head>
+        <body>
+          <h1>Recording Consent</h1>
+          <div class="card">
+            <h2>Meeting Recording Consent</h2>
+            <p>Dear ${consentEmail.recipientName},</p>
+            <p>By clicking "Acknowledge Consent" below, you agree to the recording of your video meeting for the purpose of creating accurate legal documentation.</p>
+            <p><strong>Your consent confirms:</strong></p>
+            <ul>
+              <li>The meeting may be recorded</li>
+              <li>The recording will be used to generate attendance notes</li>
+              <li>The recording will be stored securely and deleted within 7 days</li>
+              <li>Processing complies with GDPR and data protection requirements</li>
+            </ul>
+          </div>
+          <button class="button" onclick="acknowledgeConsent()">Acknowledge Consent</button>
+          <p class="success" id="success">Thank you! Your consent has been recorded.</p>
+          <p class="error" id="error">Something went wrong. Please try again.</p>
+          <script>
+            async function acknowledgeConsent() {
+              try {
+                const response = await fetch('/api/pre-consent/acknowledge/${token}', { method: 'POST' });
+                if (response.ok) {
+                  document.getElementById('success').style.display = 'block';
+                  document.querySelector('.button').style.display = 'none';
+                } else {
+                  document.getElementById('error').style.display = 'block';
+                }
+              } catch (e) {
+                document.getElementById('error').style.display = 'block';
+              }
+            }
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // TEST ENDPOINT: Trigger audio cleanup (development only)
   app.post("/api/test/trigger-audio-cleanup", async (req, res, next) => {
     try {

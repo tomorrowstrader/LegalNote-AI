@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive } from "lucide-react";
+import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,6 +20,7 @@ import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
 import DownloadModal from "@/components/DownloadModal";
+import ImportRecordingModal from "@/components/ImportRecordingModal";
 import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -38,6 +39,7 @@ export default function CaseDetail() {
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const audioPlayerRef = useRef<AudioPlayerHandle>(null);
 
   const handleTranscriptTimestampClick = (timeMs: number) => {
@@ -272,6 +274,10 @@ export default function CaseDetail() {
                   <DropdownMenuItem onClick={() => setShowAddNoteModal(true)} data-testid="action-add-note">
                     <MessageSquarePlus className="w-4 h-4 mr-2" />
                     Add Quick Note
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowImportModal(true)} data-testid="action-import-recording">
+                    <Video className="w-4 h-4 mr-2" />
+                    Import Recording
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setShowShareModal(true)} data-testid="action-share">
@@ -596,6 +602,13 @@ export default function CaseDetail() {
         }}
         sharedDocuments={['attendance_note', 'legal_opinion', 'summary', 'transcript']}
         onDownload={handleDownload}
+      />
+
+      <ImportRecordingModal
+        open={showImportModal}
+        onOpenChange={setShowImportModal}
+        caseId={caseId!}
+        caseTitle={caseData.title}
       />
     </div>
   );

@@ -669,6 +669,209 @@ function CalendarConnections() {
   );
 }
 
+function VideoConferencing() {
+  const { toast } = useToast();
+  
+  interface RecallStatus {
+    configured: boolean;
+    connected: boolean;
+    connection: {
+      status: string;
+      connectedAt: string;
+      lastSyncAt: string;
+    } | null;
+  }
+  
+  const { data: recallStatus, isLoading } = useQuery<RecallStatus>({
+    queryKey: ['/api/recall/status'],
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('/api/recall/connect', {
+        method: 'POST',
+      });
+      return res;
+    },
+    onSuccess: (data: { valid: boolean; message: string }) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/recall/status'] });
+      if (data.valid) {
+        toast({
+          title: "Video Integration Connected",
+          description: "You can now import meeting recordings from Zoom, Teams, and Meet",
+          duration: 4000,
+        });
+      } else {
+        toast({
+          title: "Connection Issue",
+          description: data.message || "Unable to connect video integration",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Failed to connect video integration",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('/api/recall/disconnect', {
+        method: 'DELETE',
+      });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/recall/status'] });
+      toast({
+        title: "Video Integration Disconnected",
+        description: "Meeting import feature has been disabled",
+        duration: 4000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Disconnect Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Loading video integration status...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Activity className="w-5 h-5" />
+          <CardTitle>Video Conferencing</CardTitle>
+        </div>
+        <CardDescription>
+          Import recordings from Zoom, Microsoft Teams, and Google Meet to automatically generate attendance notes
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!recallStatus?.configured ? (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Video conferencing integration is not configured. Contact your administrator to set up the RECALL_API_KEY.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 border rounded-md">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium">Meeting Recording Import</p>
+                  <p className="text-sm text-muted-foreground">
+                    Import from Zoom, Teams, and Meet
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {recallStatus.connected ? (
+                  <>
+                    <Badge variant="outline" className="gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Connected
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => disconnectMutation.mutate()}
+                      disabled={disconnectMutation.isPending}
+                      data-testid="button-disconnect-recall"
+                    >
+                      {disconnectMutation.isPending ? "Disconnecting..." : "Disconnect"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => connectMutation.mutate()}
+                    disabled={connectMutation.isPending}
+                    data-testid="button-connect-recall"
+                  >
+                    {connectMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      "Connect"
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {recallStatus.connected && recallStatus.connection && (
+              <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+                <p>Connected since: {new Date(recallStatus.connection.connectedAt).toLocaleDateString('en-GB', { 
+                  day: 'numeric', 
+                  month: 'short', 
+                  year: 'numeric' 
+                })}</p>
+                {recallStatus.connection.lastSyncAt && (
+                  <p>Last sync: {new Date(recallStatus.connection.lastSyncAt).toLocaleString('en-GB')}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <Separator />
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium">How it works</p>
+          <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+            <li>Record your video meetings using Zoom, Teams, or Google Meet</li>
+            <li>After the call ends, open the case in LegalNote AI</li>
+            <li>Click "Import Recording" to select from your recent meetings</li>
+            <li>Confirm client consent was obtained before or during the call</li>
+            <li>LegalNote AI downloads the recording and generates your attendance note automatically</li>
+          </ul>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Supported platforms</p>
+          <div className="flex gap-2">
+            <Badge variant="secondary">Zoom</Badge>
+            <Badge variant="secondary">Microsoft Teams</Badge>
+            <Badge variant="secondary">Google Meet</Badge>
+          </div>
+        </div>
+
+        <div className="p-3 bg-muted rounded-md">
+          <p className="text-xs text-muted-foreground">
+            <strong>GDPR Notice:</strong> Meeting recordings are processed securely and deleted within 7 days. 
+            Client consent must be confirmed before importing any recording.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function NotificationSettings() {
   const { toast } = useToast();
   
@@ -815,6 +1018,7 @@ export default function Settings() {
 
           <TabsContent value="integrations" className="space-y-6">
             <CalendarConnections />
+            <VideoConferencing />
           </TabsContent>
 
           <TabsContent value="security" className="space-y-6">

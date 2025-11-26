@@ -12,6 +12,9 @@ import {
   type CalendarEvent, type InsertCalendarEvent,
   type CalendarIntegration, type InsertCalendarIntegration,
   type ShareLink, type InsertShareLink,
+  type RecallConnection, type InsertRecallConnection,
+  type MeetingImport, type InsertMeetingImport,
+  type PreConsentEmail, type InsertPreConsentEmail,
   users,
   cases,
   audioRecordings,
@@ -24,7 +27,10 @@ import {
   userPreferences,
   calendarEvents,
   calendarIntegrations,
-  shareLinks
+  shareLinks,
+  recallConnections,
+  meetingImports,
+  preConsentEmails
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -162,6 +168,27 @@ export interface IStorage {
   incrementShareLinkAccess(id: string): Promise<void>;
   updateShareLinkSmsCode(id: string, code: string, expiresAt: Date): Promise<ShareLink | undefined>;
   verifyShareLinkSmsCode(id: string, code: string): Promise<{ verified: boolean; expired?: boolean; invalid?: boolean }>;
+  
+  // Recall.ai Connection methods
+  getRecallConnection(userId: string): Promise<RecallConnection | undefined>;
+  createRecallConnection(connectionData: InsertRecallConnection): Promise<RecallConnection>;
+  updateRecallConnection(userId: string, updates: Partial<RecallConnection>): Promise<RecallConnection | undefined>;
+  deleteRecallConnection(userId: string): Promise<void>;
+  
+  // Meeting Import methods
+  createMeetingImport(importData: InsertMeetingImport): Promise<MeetingImport>;
+  getMeetingImport(id: string): Promise<MeetingImport | undefined>;
+  getMeetingImportsByUser(userId: string): Promise<MeetingImport[]>;
+  getMeetingImportsByCase(caseId: string, userId: string): Promise<MeetingImport[]>;
+  updateMeetingImport(id: string, updates: Partial<MeetingImport>): Promise<MeetingImport | undefined>;
+  
+  // Pre-Consent Email methods
+  createPreConsentEmail(emailData: InsertPreConsentEmail): Promise<PreConsentEmail>;
+  getPreConsentEmail(id: string): Promise<PreConsentEmail | undefined>;
+  getPreConsentEmailByToken(token: string): Promise<PreConsentEmail | undefined>;
+  getPreConsentEmailsByUser(userId: string): Promise<PreConsentEmail[]>;
+  updatePreConsentEmail(id: string, updates: Partial<PreConsentEmail>): Promise<PreConsentEmail | undefined>;
+  acknowledgePreConsentEmail(id: string, ipAddress: string): Promise<PreConsentEmail | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -855,6 +882,69 @@ export class MemStorage implements IStorage {
 
   async verifyShareLinkSmsCode(_id: string, _code: string): Promise<{ verified: boolean; expired?: boolean; invalid?: boolean }> {
     throw new Error("MemStorage does not support share links - use DbStorage");
+  }
+  
+  // Recall.ai Connection methods (stubs for MemStorage)
+  async getRecallConnection(_userId: string): Promise<RecallConnection | undefined> {
+    return undefined;
+  }
+  
+  async createRecallConnection(_connectionData: InsertRecallConnection): Promise<RecallConnection> {
+    throw new Error("MemStorage does not support Recall connections - use DbStorage");
+  }
+  
+  async updateRecallConnection(_userId: string, _updates: Partial<RecallConnection>): Promise<RecallConnection | undefined> {
+    throw new Error("MemStorage does not support Recall connections - use DbStorage");
+  }
+  
+  async deleteRecallConnection(_userId: string): Promise<void> {
+    // No-op for MemStorage
+  }
+  
+  // Meeting Import methods (stubs for MemStorage)
+  async createMeetingImport(_importData: InsertMeetingImport): Promise<MeetingImport> {
+    throw new Error("MemStorage does not support meeting imports - use DbStorage");
+  }
+  
+  async getMeetingImport(_id: string): Promise<MeetingImport | undefined> {
+    return undefined;
+  }
+  
+  async getMeetingImportsByUser(_userId: string): Promise<MeetingImport[]> {
+    return [];
+  }
+  
+  async getMeetingImportsByCase(_caseId: string, _userId: string): Promise<MeetingImport[]> {
+    return [];
+  }
+  
+  async updateMeetingImport(_id: string, _updates: Partial<MeetingImport>): Promise<MeetingImport | undefined> {
+    throw new Error("MemStorage does not support meeting imports - use DbStorage");
+  }
+  
+  // Pre-Consent Email methods (stubs for MemStorage)
+  async createPreConsentEmail(_emailData: InsertPreConsentEmail): Promise<PreConsentEmail> {
+    throw new Error("MemStorage does not support pre-consent emails - use DbStorage");
+  }
+  
+  async getPreConsentEmail(_id: string): Promise<PreConsentEmail | undefined> {
+    return undefined;
+  }
+  
+  async getPreConsentEmailByToken(_token: string): Promise<PreConsentEmail | undefined> {
+    return undefined;
+  }
+  
+  async getPreConsentEmailsByUser(_userId: string): Promise<PreConsentEmail[]> {
+    return [];
+  }
+  
+  async updatePreConsentEmail(_id: string, _updates: Partial<PreConsentEmail>): Promise<PreConsentEmail | undefined> {
+    throw new Error("MemStorage does not support pre-consent emails - use DbStorage");
+  }
+  
+  async acknowledgePreConsentEmail(_id: string, _ipAddress: string): Promise<PreConsentEmail | undefined> {
+    throw new Error("MemStorage does not support pre-consent emails - use DbStorage");
   }
 }
 
@@ -1803,6 +1893,179 @@ export class DbStorage implements IStorage {
       .where(eq(shareLinks.id, id));
 
     return { verified: true };
+  }
+  
+  // Recall.ai Connection methods
+  async getRecallConnection(userId: string): Promise<RecallConnection | undefined> {
+    const result = await db
+      .select()
+      .from(recallConnections)
+      .where(eq(recallConnections.userId, userId))
+      .limit(1);
+    return result[0];
+  }
+  
+  async createRecallConnection(connectionData: InsertRecallConnection): Promise<RecallConnection> {
+    const result = await db
+      .insert(recallConnections)
+      .values({
+        userId: connectionData.userId,
+        status: connectionData.status || 'active',
+        metadata: connectionData.metadata || {},
+      })
+      .onConflictDoUpdate({
+        target: [recallConnections.userId],
+        set: {
+          status: connectionData.status || 'active',
+          metadata: connectionData.metadata || {},
+          connectedAt: new Date(),
+        },
+      })
+      .returning();
+    return result[0];
+  }
+  
+  async updateRecallConnection(userId: string, updates: Partial<RecallConnection>): Promise<RecallConnection | undefined> {
+    const result = await db
+      .update(recallConnections)
+      .set(updates)
+      .where(eq(recallConnections.userId, userId))
+      .returning();
+    return result[0];
+  }
+  
+  async deleteRecallConnection(userId: string): Promise<void> {
+    await db.delete(recallConnections).where(eq(recallConnections.userId, userId));
+  }
+  
+  // Meeting Import methods
+  async createMeetingImport(importData: InsertMeetingImport): Promise<MeetingImport> {
+    const result = await db
+      .insert(meetingImports)
+      .values({
+        userId: importData.userId,
+        caseId: importData.caseId || null,
+        recallBotId: importData.recallBotId,
+        recallRecordingId: importData.recallRecordingId || null,
+        meetingPlatform: importData.meetingPlatform,
+        meetingUrl: importData.meetingUrl || null,
+        meetingTitle: importData.meetingTitle || null,
+        meetingStartTime: importData.meetingStartTime || null,
+        meetingEndTime: importData.meetingEndTime || null,
+        durationSeconds: importData.durationSeconds || null,
+        participants: importData.participants || [],
+        status: importData.status || 'pending',
+        consentConfirmed: importData.consentConfirmed || false,
+        preConsentEmailId: importData.preConsentEmailId || null,
+      })
+      .returning();
+    return result[0];
+  }
+  
+  async getMeetingImport(id: string): Promise<MeetingImport | undefined> {
+    const result = await db
+      .select()
+      .from(meetingImports)
+      .where(eq(meetingImports.id, id));
+    return result[0];
+  }
+  
+  async getMeetingImportsByUser(userId: string): Promise<MeetingImport[]> {
+    return await db
+      .select()
+      .from(meetingImports)
+      .where(eq(meetingImports.userId, userId))
+      .orderBy(desc(meetingImports.createdAt));
+  }
+  
+  async getMeetingImportsByCase(caseId: string, userId: string): Promise<MeetingImport[]> {
+    return await db
+      .select()
+      .from(meetingImports)
+      .where(
+        and(
+          eq(meetingImports.caseId, caseId),
+          eq(meetingImports.userId, userId)
+        )
+      )
+      .orderBy(desc(meetingImports.createdAt));
+  }
+  
+  async updateMeetingImport(id: string, updates: Partial<MeetingImport>): Promise<MeetingImport | undefined> {
+    const result = await db
+      .update(meetingImports)
+      .set(updates)
+      .where(eq(meetingImports.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  // Pre-Consent Email methods
+  async createPreConsentEmail(emailData: InsertPreConsentEmail): Promise<PreConsentEmail> {
+    const result = await db
+      .insert(preConsentEmails)
+      .values({
+        userId: emailData.userId,
+        caseId: emailData.caseId || null,
+        recipientEmail: emailData.recipientEmail,
+        recipientName: emailData.recipientName,
+        meetingPlatform: emailData.meetingPlatform || null,
+        scheduledMeetingTime: emailData.scheduledMeetingTime || null,
+        meetingUrl: emailData.meetingUrl || null,
+        emailSubject: emailData.emailSubject,
+        emailBody: emailData.emailBody,
+        consentToken: emailData.consentToken,
+        emailStatus: emailData.emailStatus || 'pending',
+        expiresAt: emailData.expiresAt || null,
+      })
+      .returning();
+    return result[0];
+  }
+  
+  async getPreConsentEmail(id: string): Promise<PreConsentEmail | undefined> {
+    const result = await db
+      .select()
+      .from(preConsentEmails)
+      .where(eq(preConsentEmails.id, id));
+    return result[0];
+  }
+  
+  async getPreConsentEmailByToken(token: string): Promise<PreConsentEmail | undefined> {
+    const result = await db
+      .select()
+      .from(preConsentEmails)
+      .where(eq(preConsentEmails.consentToken, token));
+    return result[0];
+  }
+  
+  async getPreConsentEmailsByUser(userId: string): Promise<PreConsentEmail[]> {
+    return await db
+      .select()
+      .from(preConsentEmails)
+      .where(eq(preConsentEmails.userId, userId))
+      .orderBy(desc(preConsentEmails.createdAt));
+  }
+  
+  async updatePreConsentEmail(id: string, updates: Partial<PreConsentEmail>): Promise<PreConsentEmail | undefined> {
+    const result = await db
+      .update(preConsentEmails)
+      .set(updates)
+      .where(eq(preConsentEmails.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async acknowledgePreConsentEmail(id: string, ipAddress: string): Promise<PreConsentEmail | undefined> {
+    const result = await db
+      .update(preConsentEmails)
+      .set({
+        consentAcknowledged: true,
+        consentAcknowledgedAt: new Date(),
+        consentAcknowledgedIp: ipAddress,
+      })
+      .where(eq(preConsentEmails.id, id))
+      .returning();
+    return result[0];
   }
 }
 

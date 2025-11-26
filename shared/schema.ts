@@ -227,6 +227,64 @@ export const shareLinks = pgTable("share_links", {
   sharedDocuments: text("shared_documents").array().notNull().default(sql`ARRAY['attendance_note']::text[]`), // Document types to share: attendance_note, legal_opinion, summary, transcript
 });
 
+// Recall.ai video conferencing connection (per-user OAuth)
+export const recallConnections = pgTable("recall_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  status: text("status").notNull().default("active"), // active, disconnected, error
+  connectedAt: timestamp("connected_at").notNull().defaultNow(),
+  lastSyncAt: timestamp("last_sync_at"),
+  metadata: jsonb("metadata").default({}), // Stores Recall account info, capabilities
+}, (table) => ({
+  userUnique: unique().on(table.userId),
+}));
+
+// Meeting imports from Recall.ai
+export const meetingImports = pgTable("meeting_imports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  caseId: varchar("case_id").references(() => cases.id), // Linked case (null if not yet linked)
+  recallBotId: text("recall_bot_id").notNull(), // Recall.ai bot ID
+  recallRecordingId: text("recall_recording_id"), // Recall.ai recording ID
+  meetingPlatform: text("meeting_platform").notNull(), // zoom, teams, meet
+  meetingUrl: text("meeting_url"), // Original meeting URL
+  meetingTitle: text("meeting_title"),
+  meetingStartTime: timestamp("meeting_start_time"),
+  meetingEndTime: timestamp("meeting_end_time"),
+  durationSeconds: integer("duration_seconds"),
+  participants: jsonb("participants").default([]), // Array of {email, name, joined_at}
+  status: text("status").notNull().default("pending"), // pending, downloading, transcribing, completed, failed
+  audioStoragePath: text("audio_storage_path"), // Path in object storage
+  errorMessage: text("error_message"),
+  consentConfirmed: boolean("consent_confirmed").notNull().default(false), // Whether consent was confirmed for this import
+  preConsentEmailId: varchar("pre_consent_email_id").references(() => preConsentEmails.id), // Link to pre-meeting consent email
+  recallCostUSD: text("recall_cost_usd"), // Cost for this recording from Recall.ai (stored as text for precision)
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  importedAt: timestamp("imported_at"), // When recording was successfully imported
+});
+
+// Pre-meeting consent emails for video calls
+export const preConsentEmails = pgTable("pre_consent_emails", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  caseId: varchar("case_id").references(() => cases.id), // Optional: link to existing case
+  recipientEmail: text("recipient_email").notNull(),
+  recipientName: text("recipient_name").notNull(),
+  meetingPlatform: text("meeting_platform"), // zoom, teams, meet
+  scheduledMeetingTime: timestamp("scheduled_meeting_time"),
+  meetingUrl: text("meeting_url"),
+  emailSubject: text("email_subject").notNull(),
+  emailBody: text("email_body").notNull(),
+  consentToken: text("consent_token").notNull(), // Unique token for consent acknowledgement
+  consentAcknowledged: boolean("consent_acknowledged").notNull().default(false),
+  consentAcknowledgedAt: timestamp("consent_acknowledged_at"),
+  consentAcknowledgedIp: text("consent_acknowledged_ip"),
+  emailSentAt: timestamp("email_sent_at"),
+  emailStatus: text("email_status").notNull().default("pending"), // pending, sent, failed, bounced
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"), // Consent expires after a period
+});
+
 // Input validation helpers
 const sanitizeString = (str: string) => str.trim();
 
@@ -364,7 +422,9 @@ export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({
     "transcript_viewed", "transcript_redacted",
     "audio_accessed", "audio_deleted",
     "ai_processing_started", "ai_transcription_completed", "ai_document_generated", "ai_processing_failed",
-    "share_link_created", "share_link_accessed", "share_link_sms_sent", "share_link_sms_verified", "share_link_sms_failed"
+    "share_link_created", "share_link_accessed", "share_link_sms_sent", "share_link_sms_verified", "share_link_sms_failed",
+    "recall_connected", "recall_disconnected", "meeting_import_started", "meeting_import_completed", "meeting_import_failed",
+    "pre_consent_email_sent", "pre_consent_acknowledged"
   ]),
   userId: z.string().uuid(),
   caseId: z.string().uuid().optional(),
@@ -442,6 +502,49 @@ export const insertShareLinkSchema = createInsertSchema(shareLinks).omit({
   sharedDocuments: z.array(z.enum(["attendance_note", "legal_opinion", "summary", "transcript"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
 });
 
+export const insertRecallConnectionSchema = createInsertSchema(recallConnections).omit({
+  id: true,
+  connectedAt: true,
+}).extend({
+  userId: z.string().min(1), // Replit Auth IDs are not UUIDs
+  status: z.enum(["active", "disconnected", "error"]).default("active"),
+});
+
+export const insertMeetingImportSchema = createInsertSchema(meetingImports).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  userId: z.string().min(1), // Replit Auth IDs are not UUIDs
+  caseId: z.string().uuid().optional(),
+  recallBotId: z.string().min(1).max(500),
+  recallRecordingId: z.string().max(500).optional(),
+  meetingPlatform: z.enum(["zoom", "teams", "meet", "webex"]),
+  meetingUrl: z.string().url().max(1000).optional(),
+  meetingTitle: z.string().max(500).transform(sanitizeString).optional(),
+  durationSeconds: z.number().int().min(0).max(43200).optional(), // Max 12 hours
+  status: z.enum(["pending", "downloading", "transcribing", "completed", "failed"]).default("pending"),
+  consentConfirmed: z.boolean().default(false),
+});
+
+export const insertPreConsentEmailSchema = createInsertSchema(preConsentEmails).omit({
+  id: true,
+  createdAt: true,
+  consentAcknowledged: true,
+  consentAcknowledgedAt: true,
+  consentAcknowledgedIp: true,
+}).extend({
+  userId: z.string().min(1), // Replit Auth IDs are not UUIDs
+  caseId: z.string().uuid().optional(),
+  recipientEmail: z.string().email().max(255).transform(sanitizeString),
+  recipientName: z.string().min(1).max(200).transform(sanitizeString),
+  meetingPlatform: z.enum(["zoom", "teams", "meet", "webex"]).optional(),
+  meetingUrl: z.string().url().max(1000).optional(),
+  emailSubject: z.string().min(1).max(500).transform(sanitizeString),
+  emailBody: z.string().min(1).max(10000),
+  consentToken: z.string().min(1).max(100),
+  emailStatus: z.enum(["pending", "sent", "failed", "bounced"]).default("pending"),
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
@@ -485,3 +588,12 @@ export type CalendarEvent = typeof calendarEvents.$inferSelect;
 
 export type InsertShareLink = z.infer<typeof insertShareLinkSchema>;
 export type ShareLink = typeof shareLinks.$inferSelect;
+
+export type InsertRecallConnection = z.infer<typeof insertRecallConnectionSchema>;
+export type RecallConnection = typeof recallConnections.$inferSelect;
+
+export type InsertMeetingImport = z.infer<typeof insertMeetingImportSchema>;
+export type MeetingImport = typeof meetingImports.$inferSelect;
+
+export type InsertPreConsentEmail = z.infer<typeof insertPreConsentEmailSchema>;
+export type PreConsentEmail = typeof preConsentEmails.$inferSelect;
