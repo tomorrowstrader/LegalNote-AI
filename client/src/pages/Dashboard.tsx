@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, CircleCheck, Keyboard, Shield } from "lucide-react";
+import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, CircleCheck, Keyboard, Shield, Video } from "lucide-react";
+import { ScheduledMeetingsViewer } from "@/components/ScheduledMeetingsViewer";
 import StatsCard from "@/components/StatsCard";
 import CaseCard from "@/components/CaseCard";
 import EmptyState from "@/components/EmptyState";
@@ -373,6 +374,11 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Upcoming Meetings Section */}
+        <div className="mb-6">
+          <ScheduledMeetingsViewer />
         </div>
 
         <div className="bg-card border border-border rounded-lg p-4 sm:p-6 mb-6">

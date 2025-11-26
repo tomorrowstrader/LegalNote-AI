@@ -455,3 +455,131 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
     return { success: false, error: error.message || 'Unknown error' };
   }
 }
+
+interface SendPreConsentEmailParams {
+  to: string;
+  recipientName: string;
+  subject: string;
+  body: string;
+  consentUrl: string;
+}
+
+export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { to, recipientName, subject, body, consentUrl } = params;
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          line-height: 1.6;
+          color: #1a1a1a;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background-color: #f5f5f5;
+        }
+        .container {
+          background: white;
+          border-radius: 8px;
+          padding: 32px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .header {
+          border-bottom: 2px solid #000;
+          padding-bottom: 16px;
+          margin-bottom: 24px;
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 24px;
+          font-weight: 600;
+        }
+        .content {
+          white-space: pre-wrap;
+          margin-bottom: 24px;
+        }
+        .cta-button {
+          display: inline-block;
+          background: #000;
+          color: #fff;
+          padding: 14px 28px;
+          border-radius: 6px;
+          text-decoration: none;
+          font-weight: 500;
+          margin: 16px 0;
+        }
+        .cta-button:hover {
+          background: #333;
+        }
+        .footer {
+          margin-top: 32px;
+          padding-top: 16px;
+          border-top: 1px solid #e5e5e5;
+          font-size: 12px;
+          color: #666;
+        }
+        .notice {
+          background: #f8f9fa;
+          border-radius: 6px;
+          padding: 16px;
+          margin: 24px 0;
+          font-size: 14px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Recording Consent Request</h1>
+        </div>
+        
+        <div class="content">${body.replace(/\n/g, '<br>')}</div>
+        
+        <div style="text-align: center;">
+          <a href="${consentUrl}" class="cta-button">Provide Consent</a>
+        </div>
+        
+        <div class="notice">
+          <strong>What happens next?</strong><br>
+          By clicking "Provide Consent", you acknowledge that the meeting may be recorded for the purpose of creating accurate legal documentation. The recording will be stored securely and processed in compliance with GDPR.
+        </div>
+        
+        <p style="font-size: 13px; color: #666;">
+          If the button above doesn't work, copy and paste this link into your browser:<br>
+          <a href="${consentUrl}">${consentUrl}</a>
+        </p>
+        
+        <div class="footer">
+          <p>This email was sent by LegalNote AI on behalf of your legal representative.</p>
+          <p>If you did not expect this email, please contact your legal representative.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'LegalNote AI <onboarding@resend.dev>',
+      to: [to],
+      subject,
+      html: emailHtml,
+    });
+
+    if (error) {
+      console.error('[EMAIL] Error sending pre-consent email via Resend:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[EMAIL] Pre-consent email sent successfully:', data?.id);
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending pre-consent email:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}

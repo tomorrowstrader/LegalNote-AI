@@ -4,6 +4,7 @@ import { AIProcessingPipeline } from './services/aiProcessingPipeline';
 import { storage } from './storage';
 import { runGlobalDataRetentionCleanup } from './services/dataRetentionCleanup';
 import { cleanupSessionTracking } from './services/securityMonitor';
+import { meetingSchedulerService } from './services/meetingSchedulerService';
 
 /**
  * Initialize job queue workers on server startup
@@ -64,7 +65,52 @@ function scheduleMaintenanceTasks() {
     timezone: 'Europe/London'
   });
 
+  // Run meeting scheduler tasks every 5 minutes
+  // Sends consent emails, deploys bots for approved meetings, checks bot status
+  cron.schedule('*/5 * * * *', async () => {
+    console.log('[CRON] Running meeting scheduler tasks');
+    await runMeetingSchedulerTasks();
+  }, {
+    scheduled: true,
+    timezone: 'Europe/London'
+  });
+
   console.log('[WORKERS] Scheduled maintenance tasks with cron:');
   console.log('  - Data retention cleanup: Daily at 2:00 AM (Europe/London)');
   console.log('  - Session tracking cleanup: Hourly at minute :00 (Europe/London)');
+  console.log('  - Meeting scheduler: Every 5 minutes (Europe/London)');
+}
+
+/**
+ * Run meeting scheduler tasks for all users with connected calendars
+ * This includes polling calendars and processing meetings
+ */
+async function runMeetingSchedulerTasks() {
+  try {
+    // First, poll calendars for all users with connected Google Calendar
+    const calendarIntegrations = await storage.getActiveCalendarIntegrations('google');
+    
+    for (const integration of calendarIntegrations) {
+      try {
+        console.log(`[MEETING_SCHEDULER] Polling calendar for user ${integration.userId}`);
+        await meetingSchedulerService.pollCalendarMeetings(integration.userId);
+      } catch (error) {
+        console.error(`[MEETING_SCHEDULER] Error polling calendar for user ${integration.userId}:`, error);
+      }
+    }
+
+    // Then process meetings: send consent emails, deploy bots, check bot status
+    const allMeetings = await storage.getAllScheduledMeetingsWithAutoRecord();
+    const userIds = [...new Set(allMeetings.map(m => m.userId))];
+
+    for (const userId of userIds) {
+      try {
+        await meetingSchedulerService.runScheduledTasks(userId);
+      } catch (error) {
+        console.error(`[MEETING_SCHEDULER] Error running tasks for user ${userId}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('[MEETING_SCHEDULER] Error in cron job:', error);
+  }
 }

@@ -15,6 +15,7 @@ import {
   type RecallConnection, type InsertRecallConnection,
   type MeetingImport, type InsertMeetingImport,
   type PreConsentEmail, type InsertPreConsentEmail,
+  type ScheduledMeeting, type InsertScheduledMeeting,
   users,
   cases,
   audioRecordings,
@@ -30,7 +31,8 @@ import {
   shareLinks,
   recallConnections,
   meetingImports,
-  preConsentEmails
+  preConsentEmails,
+  scheduledMeetings
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -156,6 +158,7 @@ export interface IStorage {
   
   // Calendar Integration methods (per-user OAuth)
   getCalendarIntegration(userId: string, provider: 'google' | 'outlook'): Promise<CalendarIntegration | undefined>;
+  getActiveCalendarIntegrations(provider: 'google' | 'outlook'): Promise<CalendarIntegration[]>;
   saveCalendarIntegration(integrationData: InsertCalendarIntegration): Promise<CalendarIntegration>;
   deleteCalendarIntegration(userId: string, provider: 'google' | 'outlook'): Promise<void>;
   getUserCalendarIntegrations(userId: string): Promise<CalendarIntegration[]>;
@@ -189,6 +192,18 @@ export interface IStorage {
   getPreConsentEmailsByUser(userId: string): Promise<PreConsentEmail[]>;
   updatePreConsentEmail(id: string, updates: Partial<PreConsentEmail>): Promise<PreConsentEmail | undefined>;
   acknowledgePreConsentEmail(id: string, ipAddress: string): Promise<PreConsentEmail | undefined>;
+  
+  // Scheduled Meeting methods
+  createScheduledMeeting(meetingData: InsertScheduledMeeting): Promise<ScheduledMeeting>;
+  getScheduledMeeting(id: string): Promise<ScheduledMeeting | undefined>;
+  getScheduledMeetingByCalendarEvent(userId: string, calendarEventId: string, provider: string): Promise<ScheduledMeeting | undefined>;
+  getScheduledMeetingsByUser(userId: string): Promise<ScheduledMeeting[]>;
+  getUpcomingScheduledMeetings(userId: string, daysAhead?: number): Promise<ScheduledMeeting[]>;
+  getMeetingsNeedingConsent(userId: string): Promise<ScheduledMeeting[]>;
+  getMeetingsReadyForBot(userId: string): Promise<ScheduledMeeting[]>;
+  getAllScheduledMeetingsWithAutoRecord(): Promise<ScheduledMeeting[]>;
+  updateScheduledMeeting(id: string, updates: Partial<ScheduledMeeting>): Promise<ScheduledMeeting | undefined>;
+  deleteScheduledMeeting(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -825,6 +840,11 @@ export class MemStorage implements IStorage {
     return this.calendarIntegrations.get(key);
   }
   
+  async getActiveCalendarIntegrations(provider: 'google' | 'outlook'): Promise<CalendarIntegration[]> {
+    return Array.from(this.calendarIntegrations.values())
+      .filter(integration => integration.provider === provider);
+  }
+  
   async saveCalendarIntegration(integrationData: InsertCalendarIntegration): Promise<CalendarIntegration> {
     const key = `${integrationData.userId}-${integrationData.provider}`;
     const existing = this.calendarIntegrations.get(key);
@@ -945,6 +965,47 @@ export class MemStorage implements IStorage {
   
   async acknowledgePreConsentEmail(_id: string, _ipAddress: string): Promise<PreConsentEmail | undefined> {
     throw new Error("MemStorage does not support pre-consent emails - use DbStorage");
+  }
+  
+  // Scheduled Meeting methods (stubs for MemStorage)
+  async createScheduledMeeting(_meetingData: InsertScheduledMeeting): Promise<ScheduledMeeting> {
+    throw new Error("MemStorage does not support scheduled meetings - use DbStorage");
+  }
+  
+  async getScheduledMeeting(_id: string): Promise<ScheduledMeeting | undefined> {
+    return undefined;
+  }
+  
+  async getScheduledMeetingByCalendarEvent(_userId: string, _calendarEventId: string, _provider: string): Promise<ScheduledMeeting | undefined> {
+    return undefined;
+  }
+  
+  async getScheduledMeetingsByUser(_userId: string): Promise<ScheduledMeeting[]> {
+    return [];
+  }
+  
+  async getUpcomingScheduledMeetings(_userId: string, _daysAhead?: number): Promise<ScheduledMeeting[]> {
+    return [];
+  }
+  
+  async getMeetingsNeedingConsent(_userId: string): Promise<ScheduledMeeting[]> {
+    return [];
+  }
+  
+  async getMeetingsReadyForBot(_userId: string): Promise<ScheduledMeeting[]> {
+    return [];
+  }
+  
+  async getAllScheduledMeetingsWithAutoRecord(): Promise<ScheduledMeeting[]> {
+    return [];
+  }
+  
+  async updateScheduledMeeting(_id: string, _updates: Partial<ScheduledMeeting>): Promise<ScheduledMeeting | undefined> {
+    throw new Error("MemStorage does not support scheduled meetings - use DbStorage");
+  }
+  
+  async deleteScheduledMeeting(_id: string): Promise<void> {
+    // No-op for MemStorage
   }
 }
 
@@ -1747,6 +1808,13 @@ export class DbStorage implements IStorage {
     return result[0];
   }
   
+  async getActiveCalendarIntegrations(provider: 'google' | 'outlook'): Promise<CalendarIntegration[]> {
+    return await db
+      .select()
+      .from(calendarIntegrations)
+      .where(eq(calendarIntegrations.provider, provider));
+  }
+  
   async saveCalendarIntegration(integrationData: InsertCalendarIntegration): Promise<CalendarIntegration> {
     const result = await db
       .insert(calendarIntegrations)
@@ -2066,6 +2134,171 @@ export class DbStorage implements IStorage {
       .where(eq(preConsentEmails.id, id))
       .returning();
     return result[0];
+  }
+  
+  // Scheduled Meeting methods
+  async createScheduledMeeting(meetingData: InsertScheduledMeeting): Promise<ScheduledMeeting> {
+    const result = await db
+      .insert(scheduledMeetings)
+      .values({
+        userId: meetingData.userId,
+        calendarEventId: meetingData.calendarEventId,
+        calendarProvider: meetingData.calendarProvider || 'google',
+        title: meetingData.title,
+        description: meetingData.description || null,
+        meetingUrl: meetingData.meetingUrl || null,
+        meetingPlatform: meetingData.meetingPlatform || null,
+        startTime: meetingData.startTime,
+        endTime: meetingData.endTime || null,
+        attendees: meetingData.attendees || [],
+        clientEmail: meetingData.clientEmail || null,
+        clientName: meetingData.clientName || null,
+        autoRecordEnabled: meetingData.autoRecordEnabled || false,
+        consentStatus: meetingData.consentStatus || 'pending',
+        preConsentEmailId: meetingData.preConsentEmailId || null,
+        recallBotId: meetingData.recallBotId || null,
+        botStatus: meetingData.botStatus || null,
+        meetingImportId: meetingData.meetingImportId || null,
+        lastPolledAt: meetingData.lastPolledAt || null,
+      })
+      .onConflictDoUpdate({
+        target: [scheduledMeetings.userId, scheduledMeetings.calendarEventId, scheduledMeetings.calendarProvider],
+        set: {
+          title: meetingData.title,
+          description: meetingData.description || null,
+          meetingUrl: meetingData.meetingUrl || null,
+          meetingPlatform: meetingData.meetingPlatform || null,
+          startTime: meetingData.startTime,
+          endTime: meetingData.endTime || null,
+          attendees: meetingData.attendees || [],
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return result[0];
+  }
+  
+  async getScheduledMeeting(id: string): Promise<ScheduledMeeting | undefined> {
+    const result = await db
+      .select()
+      .from(scheduledMeetings)
+      .where(eq(scheduledMeetings.id, id));
+    return result[0];
+  }
+  
+  async getScheduledMeetingByCalendarEvent(userId: string, calendarEventId: string, provider: string): Promise<ScheduledMeeting | undefined> {
+    const result = await db
+      .select()
+      .from(scheduledMeetings)
+      .where(
+        and(
+          eq(scheduledMeetings.userId, userId),
+          eq(scheduledMeetings.calendarEventId, calendarEventId),
+          eq(scheduledMeetings.calendarProvider, provider)
+        )
+      );
+    return result[0];
+  }
+  
+  async getScheduledMeetingsByUser(userId: string): Promise<ScheduledMeeting[]> {
+    return await db
+      .select()
+      .from(scheduledMeetings)
+      .where(eq(scheduledMeetings.userId, userId))
+      .orderBy(desc(scheduledMeetings.startTime));
+  }
+  
+  async getUpcomingScheduledMeetings(userId: string, daysAhead: number = 7): Promise<ScheduledMeeting[]> {
+    const now = new Date();
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + daysAhead);
+    
+    return await db
+      .select()
+      .from(scheduledMeetings)
+      .where(
+        and(
+          eq(scheduledMeetings.userId, userId),
+          gte(scheduledMeetings.startTime, now),
+          lte(scheduledMeetings.startTime, futureDate)
+        )
+      )
+      .orderBy(scheduledMeetings.startTime);
+  }
+  
+  async getMeetingsNeedingConsent(userId: string): Promise<ScheduledMeeting[]> {
+    const now = new Date();
+    const twoDaysAhead = new Date();
+    twoDaysAhead.setDate(twoDaysAhead.getDate() + 2);
+    
+    return await db
+      .select()
+      .from(scheduledMeetings)
+      .where(
+        and(
+          eq(scheduledMeetings.userId, userId),
+          eq(scheduledMeetings.autoRecordEnabled, true),
+          eq(scheduledMeetings.consentStatus, 'pending'),
+          gte(scheduledMeetings.startTime, now),
+          lte(scheduledMeetings.startTime, twoDaysAhead)
+        )
+      )
+      .orderBy(scheduledMeetings.startTime);
+  }
+  
+  async getMeetingsReadyForBot(userId: string): Promise<ScheduledMeeting[]> {
+    const now = new Date();
+    const tenMinutesAhead = new Date();
+    tenMinutesAhead.setMinutes(tenMinutesAhead.getMinutes() + 10);
+    
+    return await db
+      .select()
+      .from(scheduledMeetings)
+      .where(
+        and(
+          eq(scheduledMeetings.userId, userId),
+          eq(scheduledMeetings.autoRecordEnabled, true),
+          eq(scheduledMeetings.consentStatus, 'approved'),
+          isNull(scheduledMeetings.recallBotId),
+          gte(scheduledMeetings.startTime, now),
+          lte(scheduledMeetings.startTime, tenMinutesAhead)
+        )
+      )
+      .orderBy(scheduledMeetings.startTime);
+  }
+  
+  async getAllScheduledMeetingsWithAutoRecord(): Promise<ScheduledMeeting[]> {
+    const now = new Date();
+    const twoDaysAhead = new Date();
+    twoDaysAhead.setDate(twoDaysAhead.getDate() + 2);
+    
+    return await db
+      .select()
+      .from(scheduledMeetings)
+      .where(
+        and(
+          eq(scheduledMeetings.autoRecordEnabled, true),
+          gte(scheduledMeetings.startTime, now),
+          lte(scheduledMeetings.startTime, twoDaysAhead)
+        )
+      )
+      .orderBy(scheduledMeetings.startTime);
+  }
+  
+  async updateScheduledMeeting(id: string, updates: Partial<ScheduledMeeting>): Promise<ScheduledMeeting | undefined> {
+    const result = await db
+      .update(scheduledMeetings)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(scheduledMeetings.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async deleteScheduledMeeting(id: string): Promise<void> {
+    await db.delete(scheduledMeetings).where(eq(scheduledMeetings.id, id));
   }
 }
 

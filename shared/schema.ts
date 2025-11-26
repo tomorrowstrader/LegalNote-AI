@@ -263,6 +263,34 @@ export const meetingImports = pgTable("meeting_imports", {
   importedAt: timestamp("imported_at"), // When recording was successfully imported
 });
 
+// Scheduled meetings from calendar integration (for auto-recording)
+export const scheduledMeetings = pgTable("scheduled_meetings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  calendarEventId: text("calendar_event_id").notNull(), // Google Calendar event ID
+  calendarProvider: text("calendar_provider").notNull().default("google"), // google, outlook
+  title: text("title").notNull(),
+  description: text("description"),
+  meetingUrl: text("meeting_url"), // Extracted meeting link (Zoom, Teams, Meet)
+  meetingPlatform: text("meeting_platform"), // zoom, teams, meet, webex
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time"),
+  attendees: jsonb("attendees").default([]), // Array of {email, name, responseStatus}
+  clientEmail: text("client_email"), // Primary client email for consent
+  clientName: text("client_name"), // Primary client name
+  autoRecordEnabled: boolean("auto_record_enabled").notNull().default(false), // Opt-in for auto-recording
+  consentStatus: text("consent_status").notNull().default("pending"), // pending, sent, approved, declined, expired
+  preConsentEmailId: varchar("pre_consent_email_id").references(() => preConsentEmails.id),
+  recallBotId: text("recall_bot_id"), // Recall.ai bot ID when deployed
+  botStatus: text("bot_status"), // waiting, joining, in_call, done, failed
+  meetingImportId: varchar("meeting_import_id"), // Link to imported recording
+  lastPolledAt: timestamp("last_polled_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userCalendarEventUnique: unique().on(table.userId, table.calendarEventId, table.calendarProvider),
+}));
+
 // Pre-meeting consent emails for video calls
 export const preConsentEmails = pgTable("pre_consent_emails", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -526,6 +554,25 @@ export const insertMeetingImportSchema = createInsertSchema(meetingImports).omit
   consentConfirmed: z.boolean().default(false),
 });
 
+export const insertScheduledMeetingSchema = createInsertSchema(scheduledMeetings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  userId: z.string().min(1),
+  calendarEventId: z.string().min(1).max(500),
+  calendarProvider: z.enum(["google", "outlook"]).default("google"),
+  title: z.string().min(1).max(500).transform(sanitizeString),
+  description: z.string().max(5000).transform(sanitizeString).optional(),
+  meetingUrl: z.string().url().max(1000).optional(),
+  meetingPlatform: z.enum(["zoom", "teams", "meet", "webex"]).optional(),
+  clientEmail: z.string().email().max(255).transform(sanitizeString).optional(),
+  clientName: z.string().max(200).transform(sanitizeString).optional(),
+  autoRecordEnabled: z.boolean().default(false),
+  consentStatus: z.enum(["pending", "sent", "approved", "declined", "expired"]).default("pending"),
+  botStatus: z.enum(["waiting", "joining", "in_call", "done", "failed"]).optional(),
+});
+
 export const insertPreConsentEmailSchema = createInsertSchema(preConsentEmails).omit({
   id: true,
   createdAt: true,
@@ -597,3 +644,6 @@ export type MeetingImport = typeof meetingImports.$inferSelect;
 
 export type InsertPreConsentEmail = z.infer<typeof insertPreConsentEmailSchema>;
 export type PreConsentEmail = typeof preConsentEmails.$inferSelect;
+
+export type InsertScheduledMeeting = z.infer<typeof insertScheduledMeetingSchema>;
+export type ScheduledMeeting = typeof scheduledMeetings.$inferSelect;

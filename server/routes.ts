@@ -3801,6 +3801,13 @@ ${firmName}`;
       // Acknowledge consent
       await storage.acknowledgePreConsentEmail(consentEmail.id, ipAddress);
       
+      // Update any linked scheduled meeting's consent status
+      const meetings = await storage.getScheduledMeetingsByUser(consentEmail.userId);
+      const linkedMeeting = meetings.find(m => m.preConsentEmailId === consentEmail.id);
+      if (linkedMeeting) {
+        await storage.updateScheduledMeeting(linkedMeeting.id, { consentStatus: 'approved' });
+      }
+      
       await storage.createAuditLog({
         eventType: 'pre_consent_acknowledged',
         userId: consentEmail.userId,
@@ -3808,6 +3815,7 @@ ${firmName}`;
         metadata: { 
           recipientEmail: consentEmail.recipientEmail,
           consentEmailId: consentEmail.id,
+          scheduledMeetingId: linkedMeeting?.id,
           ipAddress,
         },
         severity: 'info',
@@ -3918,6 +3926,180 @@ ${firmName}`;
         </body>
         </html>
       `);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ==================== SCHEDULED MEETINGS API ====================
+  
+  // Get upcoming scheduled meetings (next 7 days)
+  app.get("/api/scheduled-meetings", isAuthenticated, async (req, res, next) => {
+    try {
+      const userId = req.user!.id;
+      const daysAhead = parseInt(req.query.daysAhead as string) || 7;
+      
+      const meetings = await storage.getUpcomingScheduledMeetings(userId, daysAhead);
+      res.json(meetings);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Poll calendar and sync meetings
+  app.post("/api/scheduled-meetings/sync", isAuthenticated, async (req, res, next) => {
+    try {
+      const userId = req.user!.id;
+      
+      const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
+      const meetings = await meetingSchedulerService.pollCalendarMeetings(userId);
+      
+      await storage.createAuditLog({
+        eventType: 'calendar_synced',
+        userId,
+        metadata: { meetingsCount: meetings.length },
+        severity: 'info',
+      });
+      
+      res.json({ success: true, meetings });
+    } catch (error: any) {
+      console.error('[SCHEDULED_MEETINGS] Error syncing calendar:', error);
+      
+      if (error.message?.includes('not connected')) {
+        return res.status(400).json({ 
+          message: "Google Calendar not connected. Please connect your calendar in Settings.",
+          needsCalendarConnection: true,
+        });
+      }
+      
+      next(error);
+    }
+  });
+  
+  // Update scheduled meeting (enable/disable auto-record, set client info)
+  app.patch("/api/scheduled-meetings/:id", isAuthenticated, async (req, res, next) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      const { autoRecordEnabled, clientEmail, clientName } = req.body;
+      
+      const meeting = await storage.getScheduledMeeting(id);
+      if (!meeting || meeting.userId !== userId) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      
+      const updates: any = {};
+      if (autoRecordEnabled !== undefined) updates.autoRecordEnabled = autoRecordEnabled;
+      if (clientEmail !== undefined) updates.clientEmail = clientEmail;
+      if (clientName !== undefined) updates.clientName = clientName;
+      
+      const updated = await storage.updateScheduledMeeting(id, updates);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Manually trigger consent email for a meeting
+  app.post("/api/scheduled-meetings/:id/send-consent", isAuthenticated, async (req, res, next) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      
+      const meeting = await storage.getScheduledMeeting(id);
+      if (!meeting || meeting.userId !== userId) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      
+      if (!meeting.clientEmail) {
+        return res.status(400).json({ message: "No client email set for this meeting" });
+      }
+      
+      const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
+      const success = await meetingSchedulerService.sendConsentEmailForMeeting(meeting);
+      
+      if (success) {
+        await storage.createAuditLog({
+          eventType: 'pre_consent_email_sent',
+          userId,
+          metadata: { 
+            meetingId: meeting.id,
+            recipientEmail: meeting.clientEmail,
+          },
+          severity: 'info',
+        });
+        
+        res.json({ success: true, message: "Consent email sent" });
+      } else {
+        res.status(500).json({ success: false, message: "Failed to send consent email" });
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Manually deploy bot for a meeting
+  app.post("/api/scheduled-meetings/:id/deploy-bot", isAuthenticated, async (req, res, next) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      
+      const meeting = await storage.getScheduledMeeting(id);
+      if (!meeting || meeting.userId !== userId) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      
+      if (!meeting.meetingUrl) {
+        return res.status(400).json({ message: "No meeting URL detected for this meeting" });
+      }
+      
+      if (meeting.consentStatus !== 'approved') {
+        return res.status(400).json({ message: "Client consent not yet approved" });
+      }
+      
+      const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
+      const success = await meetingSchedulerService.deployBotForMeeting(meeting);
+      
+      if (success) {
+        res.json({ success: true, message: "Bot deployed" });
+      } else {
+        res.status(500).json({ success: false, message: "Failed to deploy bot" });
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Set meeting URL manually (for meetings without detected URL)
+  app.post("/api/scheduled-meetings/:id/set-url", isAuthenticated, async (req, res, next) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      const { meetingUrl } = req.body;
+      
+      if (!meetingUrl) {
+        return res.status(400).json({ message: "Meeting URL is required" });
+      }
+      
+      const meeting = await storage.getScheduledMeeting(id);
+      if (!meeting || meeting.userId !== userId) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      
+      // Detect platform from URL
+      let meetingPlatform: string | undefined;
+      const urlLower = meetingUrl.toLowerCase();
+      if (urlLower.includes('zoom.us')) meetingPlatform = 'zoom';
+      else if (urlLower.includes('teams.microsoft.com') || urlLower.includes('teams.live.com')) meetingPlatform = 'teams';
+      else if (urlLower.includes('meet.google.com')) meetingPlatform = 'meet';
+      else if (urlLower.includes('webex.com')) meetingPlatform = 'webex';
+      
+      const updated = await storage.updateScheduledMeeting(id, { 
+        meetingUrl,
+        meetingPlatform: meetingPlatform || null,
+      });
+      
+      res.json(updated);
     } catch (error) {
       next(error);
     }
