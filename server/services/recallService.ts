@@ -2,7 +2,11 @@ import { storage } from '../storage';
 import type { MeetingImport, RecallConnection } from '@shared/schema';
 
 const RECALL_API_BASE = 'https://api.recall.ai/api/v1';
-const RECALL_API_KEY = process.env.RECALL_API_KEY;
+
+// Read API key dynamically to handle secrets loaded after module init
+function getRecallApiKey(): string {
+  return process.env.RECALL_API_KEY || '';
+}
 
 interface RecallBotResponse {
   id: string;
@@ -67,30 +71,26 @@ interface RecallError {
 }
 
 export class RecallService {
-  private apiKey: string;
-  
   constructor() {
-    if (!RECALL_API_KEY) {
-      console.warn('RECALL_API_KEY not configured - video conferencing import will be disabled');
-    }
-    this.apiKey = RECALL_API_KEY || '';
+    // API key is read dynamically via getRecallApiKey()
   }
   
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!getRecallApiKey();
   }
   
   private async apiRequest<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    if (!this.apiKey) {
+    const apiKey = getRecallApiKey();
+    if (!apiKey) {
       throw new Error('Recall.ai API key not configured');
     }
     
     const url = `${RECALL_API_BASE}${endpoint}`;
     const headers: HeadersInit = {
-      'Authorization': `Token ${this.apiKey}`,
+      'Authorization': `Token ${apiKey}`,
       'Content-Type': 'application/json',
       ...options.headers,
     };
