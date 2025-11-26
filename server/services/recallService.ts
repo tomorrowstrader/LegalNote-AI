@@ -1,7 +1,10 @@
 import { storage } from '../storage';
 import type { MeetingImport, RecallConnection } from '@shared/schema';
 
-const RECALL_API_BASE = 'https://api.recall.ai/api/v1';
+// Recall.ai uses regional endpoints - default to us-west-2, can be overridden via env var
+// Options: us-west-2, us-east-1, eu-central-1, ap-northeast-1
+const RECALL_REGION = process.env.RECALL_REGION || 'us-west-2';
+const RECALL_API_BASE = `https://${RECALL_REGION}.recall.ai/api/v1`;
 
 // Read API key dynamically to handle secrets loaded after module init
 function getRecallApiKey(): string {
