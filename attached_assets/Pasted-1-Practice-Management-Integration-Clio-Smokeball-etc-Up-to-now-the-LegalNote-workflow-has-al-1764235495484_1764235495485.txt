@@ -1,0 +1,72 @@
+1. Practice Management Integration (Clio, Smokeball, etc.)
+
+Up to now, the LegalNote workflow has always assumed:
+	•	The solicitor opens LegalNote right before the meeting,
+	•	They either use Quick Record or
+	•	Create a new case, which immediately sets them up to start recording the meeting.
+
+So when you suggested:
+
+“…before the meeting the solicitor selects the client/matter in LegalNote…”
+
+I need clarity on how that would technically work because all client data, matter details, documents and past notes live inside the practice management system, not LegalNote.
+
+My core questions for clarity:
+
+a. Where does LegalNote fetch the context from?
+Are we imagining that LegalNote imports:
+	•	client details
+	•	matter details
+	•	previous attendance notes
+	•	documents
+	•	key dates
+
+directly from Clio/Smokeball, and displays them when a solicitor clicks “Start New Meeting”?
+
+b. What happens when a solicitor creates a case in LegalNote before they’ve had a meeting?
+Since a matter can exist in Clio without any meeting scheduled yet, how do we map:
+	•	Clio matter → LegalNote context
+	•	without prematurely creating “meeting sessions” in either system?
+
+c. What’s the exact moment where context-loading should happen?
+Options I’m considering:
+	1.	When a solicitor creates a new Case/Meeting inside LegalNote
+	2.	When they select an existing matter already synced from the PMS
+	3.	Or only after they actually press “Start Recording”
+I need clarity on which moment makes the workflow simplest and avoids doubling work for them.
+
+Right now this integration seems powerful, but requires deeper thinking so it truly solves a real solicitor workflow bottleneck, not adds steps.
+
+⸻
+
+2. Email Integration (Gmail / Outlook)
+
+The concept is extremely strong — solicitors constantly search through massive email threads to reconstruct the “story” of a matter.
+
+So the idea that LegalNote can show the full email timeline inside the meeting workspace is very appealing.
+
+My main question:
+
+How do we determine which emails belong to the matter?
+
+Options could include:
+	1.	All emails to/from the client
+But this risks including irrelevant messages.
+	2.	Emails with the matter reference in the subject line
+Many firms use unique matter IDs (e.g. “REF: 44329-1”).
+	3.	Emails manually “linked” from their PMS
+Clio, for example, lets users associate specific emails with a matter.
+	4.	Rule-based automatic linking
+e.g.
+
+	•	Sender = client
+	•	Subject contains keywords
+	•	Thread previously linked to matter
+	•	Or they tag the email in Outlook/Gmail (“Assign to LegalNote Matter”)
+
+Before we design it, I need clarity on whether:
+	•	LegalNote automatically pulls everything,
+	•	Or whether
+	•	The solicitor needs to confirm which emails belong.
+
+This decision affects how powerful — and how safe — email integration will be
