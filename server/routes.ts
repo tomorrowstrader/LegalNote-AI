@@ -4565,6 +4565,316 @@ ${firmName}`;
     }
   });
 
+  // ============================
+  // SHAREPOINT/ONEDRIVE INTEGRATION ROUTES
+  // ============================
+
+  // Get SharePoint/OneDrive connection status
+  app.get("/api/storage/status", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { isStorageConnected, getStorageInfo } = await import("./sharepoint");
+      
+      const [sharePointConnected, oneDriveConnected] = await Promise.all([
+        isStorageConnected('sharepoint'),
+        isStorageConnected('onedrive'),
+      ]);
+      
+      const connections = await storage.getUserSharePointConnections(userId);
+      const sharePointConnection = connections.find(c => c.provider === 'sharepoint');
+      const oneDriveConnection = connections.find(c => c.provider === 'onedrive');
+      
+      const result: any = {
+        sharepoint: {
+          available: sharePointConnected,
+          connected: !!sharePointConnection,
+          autoSyncEnabled: sharePointConnection?.autoSyncEnabled ?? false,
+          email: sharePointConnection?.email || null,
+          driveName: sharePointConnection?.driveName || null,
+        },
+        onedrive: {
+          available: oneDriveConnected,
+          connected: !!oneDriveConnection,
+          autoSyncEnabled: oneDriveConnection?.autoSyncEnabled ?? false,
+          email: oneDriveConnection?.email || null,
+          driveName: oneDriveConnection?.driveName || null,
+        },
+      };
+      
+      // Get additional info if Replit connectors are available
+      if (sharePointConnected && !sharePointConnection) {
+        try {
+          const info = await getStorageInfo('sharepoint');
+          result.sharepoint.availableInfo = {
+            email: info.email,
+            drive: info.drive,
+            sites: info.sites,
+          };
+        } catch {}
+      }
+      
+      if (oneDriveConnected && !oneDriveConnection) {
+        try {
+          const info = await getStorageInfo('onedrive');
+          result.onedrive.availableInfo = {
+            email: info.email,
+            drive: info.drive,
+          };
+        } catch {}
+      }
+      
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Connect SharePoint/OneDrive (save connection after Replit connector auth)
+  app.post("/api/storage/connect", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { provider, driveId, siteId } = req.body;
+      
+      if (!provider || !['sharepoint', 'onedrive'].includes(provider)) {
+        return res.status(400).json({ message: "Invalid provider. Use 'sharepoint' or 'onedrive'" });
+      }
+      
+      const { isStorageConnected, getStorageInfo, ensureLegalNoteFolderStructure, getSiteDrives } = await import("./sharepoint");
+      
+      // Check if Replit connector is available
+      const connectorAvailable = await isStorageConnected(provider);
+      if (!connectorAvailable) {
+        return res.status(400).json({ 
+          message: `${provider === 'sharepoint' ? 'SharePoint' : 'OneDrive'} connector not set up. Please connect via Replit Tools first.` 
+        });
+      }
+      
+      // Get connection info
+      const info = await getStorageInfo(provider);
+      
+      let targetDriveId = driveId;
+      let targetDriveName = info.drive?.name || null;
+      
+      // For SharePoint, user can specify a site and drive
+      if (provider === 'sharepoint' && siteId) {
+        const siteDrives = await getSiteDrives(siteId);
+        if (siteDrives.length > 0) {
+          targetDriveId = siteDrives[0].id;
+          targetDriveName = siteDrives[0].name;
+        }
+      } else if (!targetDriveId && info.drive) {
+        targetDriveId = info.drive.id;
+      }
+      
+      if (!targetDriveId) {
+        return res.status(400).json({ message: "No drive found. Please select a drive." });
+      }
+      
+      // Create folder structure
+      const folders = await ensureLegalNoteFolderStructure(provider, targetDriveId);
+      if (!folders.rootFolder) {
+        return res.status(500).json({ message: "Failed to create LegalNote folder structure" });
+      }
+      
+      // Save connection
+      const connection = await storage.saveSharePointConnection({
+        userId,
+        provider,
+        driveId: targetDriveId,
+        driveName: targetDriveName,
+        email: info.email,
+        status: 'active',
+        autoSyncEnabled: true,
+      });
+      
+      await storage.createAuditLog({
+        eventType: `${provider}_connected`,
+        userId,
+        metadata: {
+          driveId: targetDriveId,
+          driveName: targetDriveName,
+          email: info.email,
+        },
+        severity: 'info',
+      });
+      
+      res.json({
+        success: true,
+        connection: {
+          provider: connection.provider,
+          driveId: connection.driveId,
+          driveName: connection.driveName,
+          email: connection.email,
+          autoSyncEnabled: connection.autoSyncEnabled,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Disconnect SharePoint/OneDrive
+  app.delete("/api/storage/disconnect/:provider", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { provider } = req.params;
+      
+      if (!['sharepoint', 'onedrive'].includes(provider)) {
+        return res.status(400).json({ message: "Invalid provider" });
+      }
+      
+      await storage.deleteSharePointConnection(userId, provider as 'sharepoint' | 'onedrive');
+      
+      await storage.createAuditLog({
+        eventType: `${provider}_disconnected`,
+        userId,
+        metadata: {},
+        severity: 'info',
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update auto-sync setting
+  app.patch("/api/storage/:provider/settings", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { provider } = req.params;
+      const { autoSyncEnabled } = req.body;
+      
+      if (!['sharepoint', 'onedrive'].includes(provider)) {
+        return res.status(400).json({ message: "Invalid provider" });
+      }
+      
+      const connection = await storage.getSharePointConnection(userId, provider as 'sharepoint' | 'onedrive');
+      if (!connection) {
+        return res.status(404).json({ message: "Connection not found" });
+      }
+      
+      const updated = await storage.updateSharePointConnection(
+        userId, 
+        provider as 'sharepoint' | 'onedrive',
+        { autoSyncEnabled }
+      );
+      
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Sync a document to storage
+  app.post("/api/storage/sync-document", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { provider, documentId, caseId } = req.body;
+      
+      if (!provider || !['sharepoint', 'onedrive'].includes(provider)) {
+        return res.status(400).json({ message: "Invalid provider" });
+      }
+      
+      if (!documentId || !caseId) {
+        return res.status(400).json({ message: "documentId and caseId are required" });
+      }
+      
+      const connection = await storage.getSharePointConnection(userId, provider as 'sharepoint' | 'onedrive');
+      if (!connection) {
+        return res.status(400).json({ message: `Not connected to ${provider}` });
+      }
+      
+      // Get document and case
+      const document = await storage.getDocument(documentId);
+      const caseData = await storage.getCase(caseId, userId);
+      
+      if (!document || !caseData) {
+        return res.status(404).json({ message: "Document or case not found" });
+      }
+      
+      const { syncDocumentToStorage } = await import("./sharepoint");
+      
+      // Determine file name and content
+      const ext = document.format === 'docx' ? '.docx' : '.pdf';
+      const fileName = `${document.title || document.type}${ext}`;
+      const content = document.content || '';
+      const mimeType = document.format === 'docx' 
+        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : 'application/pdf';
+      
+      const uploaded = await syncDocumentToStorage(
+        provider as 'sharepoint' | 'onedrive',
+        connection.driveId,
+        caseData.title,
+        caseData.clientName,
+        document.type,
+        fileName,
+        Buffer.from(content),
+        mimeType
+      );
+      
+      if (!uploaded) {
+        return res.status(500).json({ message: "Failed to sync document" });
+      }
+      
+      await storage.createAuditLog({
+        eventType: 'document_synced_to_storage',
+        userId,
+        caseId,
+        metadata: {
+          provider,
+          documentId,
+          fileName,
+          webUrl: uploaded.webUrl,
+        },
+        severity: 'info',
+      });
+      
+      res.json({
+        success: true,
+        file: uploaded,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // List SharePoint sites (for site selection UI)
+  app.get("/api/storage/sharepoint/sites", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { isStorageConnected, getSharePointSites } = await import("./sharepoint");
+      
+      const connected = await isStorageConnected('sharepoint');
+      if (!connected) {
+        return res.status(400).json({ message: "SharePoint connector not set up" });
+      }
+      
+      const sites = await getSharePointSites();
+      res.json(sites);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get drives for a SharePoint site
+  app.get("/api/storage/sharepoint/sites/:siteId/drives", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { siteId } = req.params;
+      const { isStorageConnected, getSiteDrives } = await import("./sharepoint");
+      
+      const connected = await isStorageConnected('sharepoint');
+      if (!connected) {
+        return res.status(400).json({ message: "SharePoint connector not set up" });
+      }
+      
+      const drives = await getSiteDrives(siteId);
+      res.json(drives);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // TEST ENDPOINT: Trigger audio cleanup (development only)
   app.post("/api/test/trigger-audio-cleanup", async (req, res, next) => {
     try {
