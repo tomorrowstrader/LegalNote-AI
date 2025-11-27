@@ -16,6 +16,7 @@ import {
   type MeetingImport, type InsertMeetingImport,
   type PreConsentEmail, type InsertPreConsentEmail,
   type ScheduledMeeting, type InsertScheduledMeeting,
+  type SharePointConnection, type InsertSharePointConnection,
   users,
   cases,
   audioRecordings,
@@ -32,7 +33,8 @@ import {
   recallConnections,
   meetingImports,
   preConsentEmails,
-  scheduledMeetings
+  scheduledMeetings,
+  sharePointConnections
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -204,6 +206,13 @@ export interface IStorage {
   getAllScheduledMeetingsWithAutoRecord(): Promise<ScheduledMeeting[]>;
   updateScheduledMeeting(id: string, updates: Partial<ScheduledMeeting>): Promise<ScheduledMeeting | undefined>;
   deleteScheduledMeeting(id: string): Promise<void>;
+  
+  // SharePoint/OneDrive Connection methods
+  getSharePointConnection(userId: string, provider: 'sharepoint' | 'onedrive'): Promise<SharePointConnection | undefined>;
+  getUserSharePointConnections(userId: string): Promise<SharePointConnection[]>;
+  saveSharePointConnection(connectionData: InsertSharePointConnection): Promise<SharePointConnection>;
+  updateSharePointConnection(userId: string, provider: 'sharepoint' | 'onedrive', updates: Partial<SharePointConnection>): Promise<SharePointConnection | undefined>;
+  deleteSharePointConnection(userId: string, provider: 'sharepoint' | 'onedrive'): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -1005,6 +1014,27 @@ export class MemStorage implements IStorage {
   }
   
   async deleteScheduledMeeting(_id: string): Promise<void> {
+    // No-op for MemStorage
+  }
+  
+  // SharePoint/OneDrive Connection methods (stubs)
+  async getSharePointConnection(_userId: string, _provider: 'sharepoint' | 'onedrive'): Promise<SharePointConnection | undefined> {
+    return undefined;
+  }
+  
+  async getUserSharePointConnections(_userId: string): Promise<SharePointConnection[]> {
+    return [];
+  }
+  
+  async saveSharePointConnection(_connectionData: InsertSharePointConnection): Promise<SharePointConnection> {
+    throw new Error("MemStorage does not support SharePoint connections - use DbStorage");
+  }
+  
+  async updateSharePointConnection(_userId: string, _provider: 'sharepoint' | 'onedrive', _updates: Partial<SharePointConnection>): Promise<SharePointConnection | undefined> {
+    throw new Error("MemStorage does not support SharePoint connections - use DbStorage");
+  }
+  
+  async deleteSharePointConnection(_userId: string, _provider: 'sharepoint' | 'onedrive'): Promise<void> {
     // No-op for MemStorage
   }
 }
@@ -2299,6 +2329,82 @@ export class DbStorage implements IStorage {
   
   async deleteScheduledMeeting(id: string): Promise<void> {
     await db.delete(scheduledMeetings).where(eq(scheduledMeetings.id, id));
+  }
+  
+  // SharePoint/OneDrive Connection methods
+  async getSharePointConnection(userId: string, provider: 'sharepoint' | 'onedrive'): Promise<SharePointConnection | undefined> {
+    const result = await db
+      .select()
+      .from(sharePointConnections)
+      .where(
+        and(
+          eq(sharePointConnections.userId, userId),
+          eq(sharePointConnections.provider, provider)
+        )
+      );
+    return result[0];
+  }
+  
+  async getUserSharePointConnections(userId: string): Promise<SharePointConnection[]> {
+    return await db
+      .select()
+      .from(sharePointConnections)
+      .where(eq(sharePointConnections.userId, userId));
+  }
+  
+  async saveSharePointConnection(connectionData: InsertSharePointConnection): Promise<SharePointConnection> {
+    const result = await db
+      .insert(sharePointConnections)
+      .values({
+        userId: connectionData.userId,
+        provider: connectionData.provider,
+        driveId: connectionData.driveId,
+        driveName: connectionData.driveName ?? null,
+        email: connectionData.email ?? null,
+        status: connectionData.status || 'active',
+        autoSyncEnabled: connectionData.autoSyncEnabled ?? true,
+      })
+      .onConflictDoUpdate({
+        target: [sharePointConnections.userId, sharePointConnections.provider],
+        set: {
+          driveId: connectionData.driveId,
+          driveName: connectionData.driveName ?? null,
+          email: connectionData.email ?? null,
+          status: connectionData.status || 'active',
+          autoSyncEnabled: connectionData.autoSyncEnabled ?? true,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return result[0];
+  }
+  
+  async updateSharePointConnection(userId: string, provider: 'sharepoint' | 'onedrive', updates: Partial<SharePointConnection>): Promise<SharePointConnection | undefined> {
+    const result = await db
+      .update(sharePointConnections)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(sharePointConnections.userId, userId),
+          eq(sharePointConnections.provider, provider)
+        )
+      )
+      .returning();
+    return result[0];
+  }
+  
+  async deleteSharePointConnection(userId: string, provider: 'sharepoint' | 'onedrive'): Promise<void> {
+    await db
+      .delete(sharePointConnections)
+      .where(
+        and(
+          eq(sharePointConnections.userId, userId),
+          eq(sharePointConnections.provider, provider)
+        )
+      );
   }
 }
 
