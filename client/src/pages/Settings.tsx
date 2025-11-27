@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check, Mail, Briefcase } from "lucide-react";
+import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check, Mail, Briefcase, Cloud, HardDrive } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -1072,6 +1072,233 @@ function ClioIntegration() {
   );
 }
 
+function StorageIntegrations() {
+  const { toast } = useToast();
+  
+  interface StorageStatus {
+    sharepoint: {
+      available: boolean;
+      connected: boolean;
+      autoSyncEnabled: boolean;
+      email: string | null;
+      driveName: string | null;
+      availableInfo?: {
+        email: string | null;
+        drive: { id: string; name: string } | null;
+        sites?: Array<{ id: string; name: string; displayName: string }>;
+      };
+    };
+    onedrive: {
+      available: boolean;
+      connected: boolean;
+      autoSyncEnabled: boolean;
+      email: string | null;
+      driveName: string | null;
+      availableInfo?: {
+        email: string | null;
+        drive: { id: string; name: string } | null;
+      };
+    };
+  }
+  
+  const { data: storageStatus, isLoading } = useQuery<StorageStatus>({
+    queryKey: ['/api/storage/status'],
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: async (provider: 'sharepoint' | 'onedrive') => {
+      const res = await apiRequest('POST', '/api/storage/connect', { provider });
+      return res;
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/storage/status'] });
+      toast({
+        title: "Connected",
+        description: `Successfully connected to ${data.connection?.driveName || 'cloud storage'}.`,
+        duration: 4000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Connection Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: async (provider: 'sharepoint' | 'onedrive') => {
+      const res = await fetch(`/api/storage/disconnect/${provider}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to disconnect');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/storage/status'] });
+      toast({
+        title: "Disconnected",
+        description: "Cloud storage has been disconnected.",
+        duration: 4000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Disconnect Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleAutoSyncMutation = useMutation({
+    mutationFn: async ({ provider, enabled }: { provider: 'sharepoint' | 'onedrive'; enabled: boolean }) => {
+      const res = await apiRequest('PATCH', `/api/storage/${provider}/settings`, { autoSyncEnabled: enabled });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/storage/status'] });
+      toast({
+        title: "Settings Updated",
+        description: "Auto-sync setting has been updated.",
+        duration: 3000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Loading cloud storage status...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const renderStorageProvider = (
+    provider: 'sharepoint' | 'onedrive',
+    label: string,
+    icon: 'cloud' | 'drive',
+    status: StorageStatus['sharepoint'] | StorageStatus['onedrive'] | undefined
+  ) => {
+    const IconComponent = icon === 'cloud' ? Cloud : HardDrive;
+    
+    return (
+      <div className="flex items-center justify-between p-4 border rounded-md" key={provider}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+            <IconComponent className="w-5 h-5 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="font-medium">{label}</p>
+            {status?.connected ? (
+              <p className="text-sm text-muted-foreground">
+                {status.driveName || status.email || 'Connected'}
+              </p>
+            ) : status?.available ? (
+              <p className="text-sm text-muted-foreground">Available - Click to connect</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Connect via Replit Tools</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {status?.connected ? (
+            <>
+              <div className="flex items-center gap-2 mr-2">
+                <span className="text-xs text-muted-foreground">Auto-sync</span>
+                <Switch
+                  checked={status.autoSyncEnabled}
+                  onCheckedChange={(checked) => toggleAutoSyncMutation.mutate({ provider, enabled: checked })}
+                  disabled={toggleAutoSyncMutation.isPending}
+                  data-testid={`switch-autosync-${provider}`}
+                />
+              </div>
+              <Badge variant="outline" className="gap-1">
+                <CheckCircle2 className="w-3 h-3" />
+                Connected
+              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => disconnectMutation.mutate(provider)}
+                disabled={disconnectMutation.isPending}
+                data-testid={`button-disconnect-${provider}`}
+              >
+                {disconnectMutation.isPending ? "..." : "Disconnect"}
+              </Button>
+            </>
+          ) : status?.available ? (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => connectMutation.mutate(provider)}
+              disabled={connectMutation.isPending}
+              data-testid={`button-connect-${provider}`}
+            >
+              {connectMutation.isPending ? "Connecting..." : "Connect"}
+            </Button>
+          ) : (
+            <Badge variant="secondary" className="gap-1">
+              Setup in Replit Tools
+            </Badge>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Cloud className="w-5 h-5" />
+          <CardTitle>Cloud Storage</CardTitle>
+        </div>
+        <CardDescription>
+          Automatically sync generated documents to your cloud storage
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-4">
+          {renderStorageProvider('onedrive', 'OneDrive', 'drive', storageStatus?.onedrive)}
+          {renderStorageProvider('sharepoint', 'SharePoint', 'cloud', storageStatus?.sharepoint)}
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium">How it works</p>
+          <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+            <li>Connect your OneDrive or SharePoint account</li>
+            <li>Documents are organized in: LegalNote AI / Cases / [Client - Case Title]</li>
+            <li>Enable auto-sync to automatically upload new documents</li>
+            <li>Attendance notes, AI summaries, and transcripts sync to separate folders</li>
+          </ul>
+        </div>
+
+        <div className="p-3 bg-muted rounded-md">
+          <p className="text-xs text-muted-foreground">
+            <strong>Note:</strong> For SharePoint, documents sync to your default drive. 
+            For firm-wide document libraries, ask your IT team to set up SharePoint integration in Replit Tools.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function NotificationSettings() {
   const { toast } = useToast();
   
@@ -1219,6 +1446,7 @@ export default function Settings() {
           <TabsContent value="integrations" className="space-y-6">
             <CalendarConnections />
             <VideoConferencing />
+            <StorageIntegrations />
             <ClioIntegration />
           </TabsContent>
 
