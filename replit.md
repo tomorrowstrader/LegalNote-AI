@@ -73,3 +73,14 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
   - Uses EU endpoint for GDPR compliance
   - Features: Import matters, link cases to matters, sync client information
   - Schema: clioConnections (OAuth tokens), clioMatterLinks (case-matter mapping)
+
+### Cloud Storage (SharePoint/OneDrive)
+- **Architecture**: Firm-wide integration via Replit connector (workspace-level Microsoft auth)
+- **Scope**: All documents from all solicitors sync to a single connected Microsoft account
+- **Use Cases**:
+  - Solo practitioners: Personal OneDrive backup (one user = one connector = perfect isolation)
+  - Boutique firms: Shared document library where all solicitors' work syncs to central repository
+- **Folder Structure**: LegalNote AI / Cases / [Client - Case Title] / [Document Type]
+- **Schema**: sharePointConnections (provider, driveId, auto-sync settings)
+- **Known Limitation**: Uses workspace-level Replit connector rather than per-user OAuth
+- **Future Enhancement**: Implement per-user Microsoft OAuth for true multi-tenant isolation

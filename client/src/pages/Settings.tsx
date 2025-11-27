@@ -1264,13 +1264,21 @@ function StorageIntegrations() {
       <CardHeader>
         <div className="flex items-center gap-2">
           <Cloud className="w-5 h-5" />
-          <CardTitle>Cloud Storage</CardTitle>
+          <CardTitle>Firm Cloud Storage</CardTitle>
         </div>
         <CardDescription>
-          Automatically sync generated documents to your cloud storage
+          Centralized document backup for your firm
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <Alert>
+          <Cloud className="h-4 w-4" />
+          <AlertDescription>
+            This is a firm-wide integration. All solicitors' documents will sync to the same connected storage account, 
+            creating a centralized document repository for your practice.
+          </AlertDescription>
+        </Alert>
+
         <div className="space-y-4">
           {renderStorageProvider('onedrive', 'OneDrive', 'drive', storageStatus?.onedrive)}
           {renderStorageProvider('sharepoint', 'SharePoint', 'cloud', storageStatus?.sharepoint)}
@@ -1281,17 +1289,17 @@ function StorageIntegrations() {
         <div className="space-y-2">
           <p className="text-sm font-medium">How it works</p>
           <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-            <li>Connect your OneDrive or SharePoint account</li>
-            <li>Documents are organized in: LegalNote AI / Cases / [Client - Case Title]</li>
-            <li>Enable auto-sync to automatically upload new documents</li>
-            <li>Attendance notes, AI summaries, and transcripts sync to separate folders</li>
+            <li>Admin connects the firm's OneDrive or SharePoint account via Replit Tools</li>
+            <li>Documents from all solicitors sync to: LegalNote AI / Cases / [Client - Case Title]</li>
+            <li>Each case gets organized folders for attendance notes, summaries, and transcripts</li>
+            <li>Perfect for boutique firms wanting a shared document library</li>
           </ul>
         </div>
 
         <div className="p-3 bg-muted rounded-md">
           <p className="text-xs text-muted-foreground">
-            <strong>Note:</strong> For SharePoint, documents sync to your default drive. 
-            For firm-wide document libraries, ask your IT team to set up SharePoint integration in Replit Tools.
+            <strong>Setup:</strong> Connect your firm's Microsoft account in Replit Tools first, then click "Connect" above. 
+            For solo practitioners, this provides automatic backup of all your generated documents.
           </p>
         </div>
       </CardContent>
