@@ -1,0 +1,44 @@
+1. Legal Opinion Feature – Should We Disable It?
+
+Given the SRA risk, PI insurance concerns, and potential regulatory exposure around generating legal opinions, should we now move away from opinion-generation entirely?
+
+If so, what are the technical steps required to cleanly remove or disable this feature from the app (front end + back end)?
+
+⸻
+
+2. Automatic Case Naming / Matter Reference Population
+
+When a solicitor creates a new case, how should:
+	•	the Case Name
+	•	the Matter Reference
+	•	and any other identifying fields
+
+be automatically populated?
+
+Ideally, can LegalNote pull the matter reference directly from the PMS integration and use it to auto-fill related text fields? If yes, how do we implement this?
+
+⸻
+
+3. Email Panel vs Document Panel – Clarification for MVP
+
+Your suggestion about an email timeline panel is excellent, and prompted me to have an idea, but I’m unsure whether it belongs in MVP/MCP.
+
+Many meetings require reviewing documents, evidence, PDFs, attachments, etc. (usually beforehand).
+
+I’ve had experience of Solicitors receiving these via Google Drive links, zipped folders, or direct uploads. I don’t know whether there are more official PMS-like workflows widely utilised for the process by bigger firm, but I assume a legal 500 firm isn’t just receiving case related docuemtn via gmail from clients (but I could be wrong).
+
+Questions:
+
+a. Can we create a “Document Panel” similar to the email panel?
+One that lets the solicitor:
+	•	view relevant documents,
+	•	ask questions about them,
+	•	generate prep notes,
+	•	extract key topics before the meeting?
+
+b. Can LegalNote assist the solicitor in becoming “meeting-ready” by analysing these documents prior to the meeting?
+
+c. How would we implement this while respecting security/SRA requirements?
+Does this require hosting documents inside LegalNote, or can we safely pull them from external storage (Drive, SharePoint, PMS document vault) without storing copies?
+
+d. Is document handling viable for MVP, or does it risk scope creep?
