@@ -51,7 +51,7 @@ export default function Landing() {
             </CardHeader>
             <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0 lg:p-6 lg:pt-0">
               <CardDescription className="text-xs sm:text-sm">
-                Automatically generate attendance notes and legal opinions from recordings
+                Automatically generate professional attendance notes from recordings
               </CardDescription>
             </CardContent>
           </Card>

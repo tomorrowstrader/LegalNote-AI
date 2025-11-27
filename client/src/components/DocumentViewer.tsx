@@ -19,7 +19,7 @@ import DiarizedTranscriptViewer, { type SpeakerUtterance } from "@/components/Di
 interface Document {
   id: string;
   caseId: string;
-  type: 'attendance_note' | 'summary' | 'legal_opinion' | 'transcript';
+  type: 'attendance_note' | 'summary' | 'transcript';
   content: string;
   version: number;
   createdAt: string;
@@ -185,7 +185,6 @@ export default function DocumentViewer({
     try {
       const attendanceNote = documents.find(d => d.type === 'attendance_note');
       const summary = documents.find(d => d.type === 'summary');
-      const legalOpinion = documents.find(d => d.type === 'legal_opinion');
 
       const content: any = {
         caseTitle,
@@ -202,12 +201,6 @@ export default function DocumentViewer({
         }
       }
 
-      if (selectedDocs.includes('legal_opinion')) {
-        if (legalOpinion?.content) {
-          content.legalOpinion = legalOpinion.content;
-        }
-      }
-
       if (selectedDocs.includes('summary')) {
         const summaryContent = summary?.content || textNotes;
         if (summaryContent) {
@@ -221,7 +214,7 @@ export default function DocumentViewer({
         }
       }
 
-      const hasAnyContent = content.attendanceNote || content.legalOpinion || content.summary || content.transcript;
+      const hasAnyContent = content.attendanceNote || content.summary || content.transcript;
       if (!hasAnyContent) {
         toast({
           title: "No Content Available",
@@ -459,7 +452,6 @@ export default function DocumentViewer({
 
   const attendanceNote = documents.find(d => d.type === 'attendance_note');
   const summary = documents.find(d => d.type === 'summary');
-  const legalOpinion = documents.find(d => d.type === 'legal_opinion');
   const transcriptDoc = documents.find(d => d.type === 'transcript');
   
   const transcriptContent = transcriptDoc?.content ?? transcript;
@@ -609,7 +601,7 @@ export default function DocumentViewer({
       </div>
 
       <Tabs defaultValue="attendance" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-3 h-auto">
           <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
             <span className="hidden sm:inline">Attendance Note</span>
             <span className="sm:hidden">Att. Note</span>
@@ -620,10 +612,6 @@ export default function DocumentViewer({
           <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
             <span className="hidden sm:inline">Transcript</span>
             <span className="sm:hidden">Script</span>
-          </TabsTrigger>
-          <TabsTrigger value="opinion" data-testid="tab-opinion" disabled={!legalOpinion} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
-            <span className="hidden sm:inline">Legal Opinion</span>
-            <span className="sm:hidden">Opinion</span>
           </TabsTrigger>
         </TabsList>
 
@@ -728,35 +716,6 @@ export default function DocumentViewer({
           </Card>
         </TabsContent>
 
-        <TabsContent value="opinion" className="mt-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <CardTitle>Legal Opinion</CardTitle>
-                <DocumentStatusActions document={legalOpinion} />
-              </div>
-            </CardHeader>
-            <CardContent className="prose prose-sm max-w-none">
-              {legalOpinion ? (
-                <EditableDocumentContent 
-                  document={legalOpinion}
-                  isEditing={editingDocId === legalOpinion.id}
-                  editContent={editContent}
-                  onEditContentChange={setEditContent}
-                  onStartEditing={startEditing}
-                  onCancelEditing={cancelEditing}
-                  onSaveEdits={saveEdits}
-                  isSaving={editMutation.isPending}
-                  autoSaveStatus={editingDocId === legalOpinion.id ? autoSaveStatus : 'idle'}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground italic">
-                  No legal opinion available yet. Documents will be generated automatically.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       <DownloadModal
@@ -764,11 +723,10 @@ export default function DocumentViewer({
         onOpenChange={setShowDownloadModal}
         availableDocuments={{
           hasAttendanceNote: !!attendanceNote,
-          hasLegalOpinion: !!legalOpinion,
           hasSummary: !!summary || !!textNotes,
           hasTranscript: !!transcriptContent,
         }}
-        sharedDocuments={['attendance_note', 'legal_opinion', 'summary', 'transcript']}
+        sharedDocuments={['attendance_note', 'summary', 'transcript']}
         onDownload={handleDownload}
       />
     </div>

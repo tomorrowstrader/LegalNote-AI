@@ -32,7 +32,6 @@ interface ShareLinkModalProps {
   userRole: "Partner" | "Senior Associate" | "Solicitor" | "Paralegal";
   availableDocuments?: {
     hasAttendanceNote: boolean;
-    hasLegalOpinion: boolean;
     hasSummary: boolean;
     hasTranscript: boolean;
   };
@@ -46,7 +45,6 @@ export default function ShareLinkModal({
   userRole,
   availableDocuments = {
     hasAttendanceNote: true,
-    hasLegalOpinion: true,
     hasSummary: true,
     hasTranscript: true,
   }
@@ -350,26 +348,6 @@ export default function ShareLinkModal({
                   <div className="space-y-0.5">
                     <Label htmlFor="doc-attendance-note" className="font-normal">Attendance Note</Label>
                     <p className="text-xs text-muted-foreground">Professional summary of the meeting</p>
-                  </div>
-                </div>
-              )}
-              {availableDocuments.hasLegalOpinion && (
-                <div className="flex items-start space-x-2">
-                  <Checkbox
-                    id="doc-legal-opinion"
-                    checked={sharedDocuments.includes("legal_opinion")}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSharedDocuments([...sharedDocuments, "legal_opinion"]);
-                      } else {
-                        setSharedDocuments(sharedDocuments.filter(d => d !== "legal_opinion"));
-                      }
-                    }}
-                    data-testid="checkbox-legal-opinion"
-                  />
-                  <div className="space-y-0.5">
-                    <Label htmlFor="doc-legal-opinion" className="font-normal">Legal Opinion</Label>
-                    <p className="text-xs text-muted-foreground">Legal analysis and advice</p>
                   </div>
                 </div>
               )}

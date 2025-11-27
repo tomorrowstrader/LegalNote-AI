@@ -69,7 +69,7 @@ export default function TextNotesModal({ open, onClose, onSave }: TextNotesModal
           </DialogTitle>
           <DialogDescription>
             Since recording consent was declined, you can manually type your meeting notes below. 
-            We'll still generate attendance notes and legal opinions from your text.
+            We'll generate a professional attendance note from your text.
           </DialogDescription>
         </DialogHeader>
         
@@ -151,7 +151,7 @@ export default function TextNotesModal({ open, onClose, onSave }: TextNotesModal
                     />
                   </FormControl>
                   <FormDescription className="text-xs">
-                    Tip: Be thorough - these notes will be used to generate your attendance note and legal opinion.
+                    Tip: Be thorough - these notes will be used to generate your professional attendance note and summary.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

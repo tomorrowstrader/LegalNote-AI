@@ -84,7 +84,7 @@ export default function CaseDetail() {
   const { data: documents = [] } = useQuery<Array<{
     id: string;
     caseId: string;
-    type: 'attendance_note' | 'summary' | 'legal_opinion';
+    type: 'attendance_note' | 'summary';
     content: string;
     version: number;
     createdAt: string;
@@ -596,11 +596,10 @@ export default function CaseDetail() {
         onOpenChange={setShowDownloadModal}
         availableDocuments={{
           hasAttendanceNote: !!documents.find((d: any) => d.isActive && d.type === 'attendance_note'),
-          hasLegalOpinion: !!documents.find((d: any) => d.isActive && d.type === 'legal_opinion'),
           hasSummary: !!documents.find((d: any) => d.isActive && d.type === 'summary') || !!caseData.textNotes,
           hasTranscript: !!documents.find((d: any) => d.isActive && d.type === 'transcript') || !!transcript?.content,
         }}
-        sharedDocuments={['attendance_note', 'legal_opinion', 'summary', 'transcript']}
+        sharedDocuments={['attendance_note', 'summary', 'transcript']}
         onDownload={handleDownload}
       />
 

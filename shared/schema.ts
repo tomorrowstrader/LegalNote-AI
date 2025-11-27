@@ -93,7 +93,7 @@ export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
   transcriptSnapshotId: varchar("transcript_snapshot_id").references(() => transcripts.id), // Links to redaction state at generation time
-  type: text("type").notNull(), // attendance_note, summary, legal_opinion
+  type: text("type").notNull(), // attendance_note, summary
   content: text("content").notNull(),
   contentHash: text("content_hash"), // SHA-256 hash for integrity verification
   version: integer("version").notNull().default(1),
@@ -224,7 +224,7 @@ export const shareLinks = pgTable("share_links", {
   smsVerifiedAt: timestamp("sms_verified_at"), // When SMS verification was completed
   smsCodeSentCount: integer("sms_code_sent_count").notNull().default(0), // Rate limit: max 3 SMS sends per link
   smsVerificationAttempts: integer("sms_verification_attempts").notNull().default(0), // Rate limit: max 5 verification attempts per link
-  sharedDocuments: text("shared_documents").array().notNull().default(sql`ARRAY['attendance_note']::text[]`), // Document types to share: attendance_note, legal_opinion, summary, transcript
+  sharedDocuments: text("shared_documents").array().notNull().default(sql`ARRAY['attendance_note']::text[]`), // Document types to share: attendance_note, summary, transcript
 });
 
 // Recall.ai video conferencing connection (per-user OAuth)
@@ -410,7 +410,7 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
 }).extend({
   caseId: z.string().uuid(),
   transcriptSnapshotId: z.string().uuid().optional(),
-  type: z.enum(["attendance_note", "summary", "legal_opinion"]),
+  type: z.enum(["attendance_note", "summary"]),
   content: z.string().max(1000000), // 1MB max for documents
   version: z.number().int().min(1).default(1),
   versionType: z.enum(["ai_generated", "manually_edited", "ai_regenerated"]),
@@ -527,7 +527,7 @@ export const insertShareLinkSchema = createInsertSchema(shareLinks).omit({
   smsPhoneNumber: z.string().max(50).transform(sanitizeString).optional(),
   smsVerificationCode: z.string().max(10).optional(),
   smsCodeExpiresAt: z.date().optional(),
-  sharedDocuments: z.array(z.enum(["attendance_note", "legal_opinion", "summary", "transcript"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
+  sharedDocuments: z.array(z.enum(["attendance_note", "summary", "transcript"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
 });
 
 export const insertRecallConnectionSchema = createInsertSchema(recallConnections).omit({

@@ -1091,7 +1091,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         smsProtection: z.boolean().default(false),
         smsPhoneNumber: z.string().optional(),
         customMessage: z.string().optional(),
-        sharedDocuments: z.array(z.enum(["attendance_note", "legal_opinion", "summary", "transcript"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
+        sharedDocuments: z.array(z.enum(["attendance_note", "summary", "transcript"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
       });
       
       const validationResult = shareLinkRequestSchema.safeParse(req.body);
@@ -1929,18 +1929,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: true,
       });
       
-      // Save legal opinion
-      const legalOpinion = await storage.createDocument({
-        caseId,
-        transcriptSnapshotId: transcript.id,
-        type: "legal_opinion",
-        content: result.legalOpinion,
-        version: 1,
-        versionType: "ai_generated",
-        createdBy: userId,
-        isActive: true,
-      });
-      
       // Update case status
       await storage.updateCase(caseId, { status: "completed" }, userId);
       
@@ -1953,7 +1941,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ 
         attendanceNote, 
-        legalOpinion,
         message: "Documents generated successfully" 
       });
     } catch (error: any) {

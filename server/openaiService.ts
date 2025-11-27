@@ -8,7 +8,6 @@ export interface TranscriptionResult {
 
 export interface DocumentGenerationResult {
   attendanceNote: string;
-  legalOpinion: string;
 }
 
 export class OpenAIService {
@@ -66,14 +65,10 @@ export class OpenAIService {
     try {
       console.log(`Generating documents for case: ${caseMetadata.title}`);
       
-      const [attendanceNote, legalOpinion] = await Promise.all([
-        this.generateAttendanceNote(transcript, caseMetadata),
-        this.generateLegalOpinion(transcript, caseMetadata),
-      ]);
+      const attendanceNote = await this.generateAttendanceNote(transcript, caseMetadata);
       
       return {
         attendanceNote,
-        legalOpinion,
       };
     } catch (error: any) {
       console.error('Document generation error:', error);
@@ -140,66 +135,6 @@ Be concise but comprehensive.`;
     });
 
     return response.choices[0]?.message?.content || "Failed to generate attendance note";
-  }
-
-  private async generateLegalOpinion(
-    transcript: string,
-    caseMetadata: {
-      title: string;
-      clientName: string;
-      matterReference?: string;
-    }
-  ): Promise<string> {
-    const prompt = `You are a UK solicitor providing a draft legal opinion based on a client meeting transcript.
-
-CASE DETAILS:
-- Matter: ${caseMetadata.title}
-- Client: ${caseMetadata.clientName}
-${caseMetadata.matterReference ? `- Reference: ${caseMetadata.matterReference}` : ''}
-
-TRANSCRIPT:
-${transcript}
-
-Please draft a professional legal opinion following UK legal standards. The opinion should include:
-1. Brief summary of the matter
-2. Key legal issues identified
-3. Relevant UK law and regulations
-4. Analysis of client's position
-5. Potential risks and considerations
-6. Preliminary recommendations
-7. Disclaimer about need for further review
-
-FORMATTING REQUIREMENTS:
-- Use markdown formatting with **bold** for section headings
-- Always add a blank line before bullet point lists
-- Use proper markdown lists (- or •)
-- Example:
-  **Key Points:**
-  
-  - First point
-  - Second point
-
-Be thorough but acknowledge this is a preliminary assessment based on initial consultation.`;
-
-    const client = this.getClient();
-    
-    const response = await client.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: "You are an experienced UK solicitor providing preliminary legal opinions. You understand UK law and can identify key legal issues, risks, and provide sound initial guidance while appropriately disclaiming that comprehensive advice requires further analysis.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      temperature: 0.4,
-      max_tokens: 3000,
-    });
-
-    return response.choices[0]?.message?.content || "Failed to generate legal opinion";
   }
 }
 

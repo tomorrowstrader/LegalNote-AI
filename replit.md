@@ -1,7 +1,7 @@
 # LegalNote AI - Replit Configuration
 
 ## Overview
-LegalNote AI is a professional legal documentation platform for solicitors and law firms. It streamlines the creation of attendance notes, legal opinions, and searchable transcripts from client meetings, ensuring GDPR compliance, managing client consent, and providing professional document workflows with firm branding. The platform aims to offer an efficient, compliant, and secure solution for legal document creation and management, providing professional protection and significant time savings for legal professionals.
+LegalNote AI is a professional legal documentation platform for solicitors and law firms. It streamlines the creation of attendance notes, AI summaries, and searchable transcripts from client meetings, ensuring GDPR compliance, managing client consent, and providing professional document workflows with firm branding. The platform positions itself as a "compliance-first documentation tool" - recording, transcribing, and formatting solicitors' own work, NOT providing legal analysis. This deliberate positioning avoids SRA compliance risks and PI insurance liability exposure.
 
 ## User Preferences
 **Communication Style:** Simple, everyday language.

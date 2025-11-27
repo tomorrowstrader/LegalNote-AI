@@ -17,7 +17,6 @@ interface DownloadModalProps {
   onOpenChange: (open: boolean) => void;
   availableDocuments: {
     hasAttendanceNote: boolean;
-    hasLegalOpinion: boolean;
     hasSummary: boolean;
     hasTranscript: boolean;
   };
@@ -75,7 +74,6 @@ export default function DownloadModal({
   const getDocumentLabel = (type: string) => {
     switch (type) {
       case "attendance_note": return "Attendance Note";
-      case "legal_opinion": return "Legal Opinion";
       case "summary": return "Summary";
       case "transcript": return "Full Transcript";
       default: return type;
@@ -111,24 +109,6 @@ export default function DownloadModal({
                 >
                   <FileText className="w-4 h-4 text-muted-foreground" />
                   {getDocumentLabel("attendance_note")}
-                </Label>
-              </div>
-            )}
-
-            {availableDocuments.hasLegalOpinion && (
-              <div className="flex items-center space-x-3">
-                <Checkbox
-                  id="doc-opinion"
-                  checked={selectedDocuments.includes("legal_opinion")}
-                  onCheckedChange={() => toggleDocument("legal_opinion")}
-                  data-testid="checkbox-legal-opinion"
-                />
-                <Label 
-                  htmlFor="doc-opinion" 
-                  className="flex items-center gap-2 cursor-pointer font-normal"
-                >
-                  <FileText className="w-4 h-4 text-muted-foreground" />
-                  {getDocumentLabel("legal_opinion")}
                 </Label>
               </div>
             )}

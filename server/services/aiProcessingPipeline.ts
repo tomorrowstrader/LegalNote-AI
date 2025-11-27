@@ -11,7 +11,6 @@ export interface AIProcessingResult {
   documentIds?: {
     summary: string;
     attendanceNote: string;
-    legalOpinion: string;
   };
   totalCost: number;
   error?: string;
@@ -269,54 +268,14 @@ export class AIProcessingPipeline {
         severity: 'medium',
       });
 
-      await this.updateProcessingStatus(caseId, userId, {
-        status: 'generating_documents',
-        progress: 80,
-        currentStep: 'Generating legal opinion...',
-      });
-
-      // Generate legal opinion
-      console.log(`Generating legal opinion for case ${caseId}...`);
-      const opinionResult = await this.documentService.generateLegalOpinion(
-        transcriptForDocGen,
-        metadata
-      );
-
-      const opinionDoc = await this.storage.createDocument({
-        caseId,
-        transcriptSnapshotId: transcript.id,
-        type: 'legal_opinion',
-        content: opinionResult.content,
-        version: 1,
-        versionType: 'ai_generated',
-        createdBy: userId,
-        isActive: true,
-      });
-
-      auditLogger.log({
-        eventType: AuditEventType.AI_DOCUMENT_GENERATED,
-        userId,
-        resourceId: opinionDoc.id,
-        resourceType: 'document',
-        details: { 
-          caseId,
-          documentType: 'legal_opinion',
-          inputTokens: opinionResult.inputTokens,
-          outputTokens: opinionResult.outputTokens,
-          cost: opinionResult.cost,
-        },
-        severity: 'medium',
-      });
-
       // Calculate total cost and tokens
       const totalCost = transcriptionCost + 
                        summaryResult.cost + 
-                       attendanceResult.cost + 
-                       opinionResult.cost;
+                       attendanceResult.cost;
 
       const totalTokens = {
-        input: summaryResult.inputTokens + attendanceResult.inputTokens + opinionResult.inputTokens,
-        output: summaryResult.outputTokens + attendanceResult.outputTokens + opinionResult.outputTokens,
+        input: summaryResult.inputTokens + attendanceResult.inputTokens,
+        output: summaryResult.outputTokens + attendanceResult.outputTokens,
       };
 
       // Update final status
@@ -325,7 +284,7 @@ export class AIProcessingPipeline {
         progress: 100,
         currentStep: 'Processing complete',
         transcriptionCost: transcriptionResult.cost,
-        documentGenerationCost: summaryResult.cost + attendanceResult.cost + opinionResult.cost,
+        documentGenerationCost: summaryResult.cost + attendanceResult.cost,
         totalCost,
         totalTokens,
         completedAt: new Date().toISOString(),
@@ -375,7 +334,6 @@ export class AIProcessingPipeline {
         documentIds: {
           summary: summaryDoc.id,
           attendanceNote: attendanceDoc.id,
-          legalOpinion: opinionDoc.id,
         },
         totalCost,
       };

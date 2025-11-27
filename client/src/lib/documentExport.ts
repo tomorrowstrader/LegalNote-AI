@@ -6,13 +6,12 @@ import type { FirmProfile } from '@shared/schema';
 interface DocumentContent {
   summary?: string;
   attendanceNote?: string;
-  legalOpinion?: string;
   transcript?: string;
   caseTitle: string;
   clientName: string;
   matterReference?: string;
   createdAt: string;
-  documentType?: 'attendance_note' | 'summary' | 'legal_opinion' | 'transcript' | 'full_case';
+  documentType?: 'attendance_note' | 'summary' | 'transcript' | 'full_case';
   firmProfile?: FirmProfile;
 }
 
@@ -171,18 +170,6 @@ export async function exportToPDF(content: DocumentContent) {
     yPosition += 10;
   }
 
-  // Legal Opinion
-  if (content.legalOpinion) {
-    if (yPosition > doc.internal.pageSize.getHeight() - 100) {
-      doc.addPage();
-      yPosition = margin;
-    }
-    addText('LEGAL OPINION', 16, true);
-    yPosition += 5;
-    addText(stripMarkdown(content.legalOpinion));
-    yPosition += 10;
-  }
-
   // Transcript
   if (content.transcript) {
     if (yPosition > doc.internal.pageSize.getHeight() - 100) {
@@ -203,7 +190,6 @@ export async function exportToPDF(content: DocumentContent) {
   
   const documentTypeLabel = content.documentType === 'attendance_note' ? 'Attendance_Note' :
                            content.documentType === 'summary' ? 'Summary' :
-                           content.documentType === 'legal_opinion' ? 'Legal_Opinion' :
                            content.documentType === 'transcript' ? 'Transcript' :
                            'Full_Case_Documentation';
   
@@ -413,19 +399,6 @@ export async function exportToWord(content: DocumentContent) {
     );
   }
 
-  // Legal Opinion section
-  if (content.legalOpinion) {
-    children.push(
-      new Paragraph({
-        text: 'LEGAL OPINION',
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 400, after: 200 },
-      }),
-      ...formatTextSection(content.legalOpinion),
-      new Paragraph({ text: '', spacing: { after: 400 } })
-    );
-  }
-
   // Transcript section
   if (content.transcript) {
     children.push(
@@ -463,7 +436,6 @@ export async function exportToWord(content: DocumentContent) {
   
   const documentTypeLabel = content.documentType === 'attendance_note' ? 'Attendance_Note' :
                            content.documentType === 'summary' ? 'Summary' :
-                           content.documentType === 'legal_opinion' ? 'Legal_Opinion' :
                            content.documentType === 'transcript' ? 'Transcript' :
                            'Full_Case_Documentation';
   

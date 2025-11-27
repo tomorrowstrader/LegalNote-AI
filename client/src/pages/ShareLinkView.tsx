@@ -216,11 +216,6 @@ export default function ShareLinkView() {
         if (doc) documentContent.attendanceNote = doc.content;
       }
 
-      if (selectedDocs.includes('legal_opinion') && sharedDocs.includes('legal_opinion')) {
-        const doc = data.documents.find(d => d.type === 'legal_opinion');
-        if (doc) documentContent.legalOpinion = doc.content;
-      }
-
       if (selectedDocs.includes('summary') && sharedDocs.includes('summary')) {
         const doc = data.documents.find(d => d.type === 'summary');
         if (doc) documentContent.summary = doc.content;
@@ -514,8 +509,6 @@ export default function ShareLinkView() {
     switch (type) {
       case "attendance_note":
         return "Attendance Note";
-      case "legal_opinion":
-        return "Legal Opinion";
       case "summary":
         return "Summary";
       default:
@@ -524,13 +517,11 @@ export default function ShareLinkView() {
   };
 
   const attendanceNote = documents?.find(doc => doc.type === "attendance_note");
-  const legalOpinion = documents?.find(doc => doc.type === "legal_opinion");
   const summary = documents?.find(doc => doc.type === "summary");
 
   const sharedDocs = shareLink?.sharedDocuments || [];
   const availableDocuments = {
     hasAttendanceNote: !!attendanceNote && sharedDocs.includes("attendance_note"),
-    hasLegalOpinion: !!legalOpinion && sharedDocs.includes("legal_opinion"),
     hasSummary: !!summary && sharedDocs.includes("summary"),
     hasTranscript: !!transcript && sharedDocs.includes("transcript"),
   };
@@ -611,25 +602,16 @@ export default function ShareLinkView() {
           <CardContent>
             <Tabs defaultValue={
               attendanceNote ? "attendance" : 
-              legalOpinion ? "opinion" : 
               summary ? "summary" : 
               "transcript"
             }>
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1">
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 gap-1">
                 {attendanceNote && (
                   <TabsTrigger 
                     value="attendance" 
                     data-testid="tab-attendance-note"
                   >
                     Attendance Note
-                  </TabsTrigger>
-                )}
-                {legalOpinion && (
-                  <TabsTrigger 
-                    value="opinion" 
-                    data-testid="tab-legal-opinion"
-                  >
-                    Legal Opinion
                   </TabsTrigger>
                 )}
                 {summary && (
@@ -655,16 +637,6 @@ export default function ShareLinkView() {
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <div className="whitespace-pre-wrap" data-testid="content-attendance-note">
                       {attendanceNote.content}
-                    </div>
-                  </div>
-                </TabsContent>
-              )}
-
-              {legalOpinion && (
-                <TabsContent value="opinion" className="mt-4">
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <div className="whitespace-pre-wrap" data-testid="content-legal-opinion">
-                      {legalOpinion.content}
                     </div>
                   </div>
                 </TabsContent>

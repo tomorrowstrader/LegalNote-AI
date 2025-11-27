@@ -61,7 +61,6 @@ export function useCaseExport({ caseId, enabled, prefetchedData }: UseCaseExport
 
     const activeDocuments = documents.filter((doc: any) => doc.isActive);
     const attendanceNote = activeDocuments.find((doc: any) => doc.type === 'attendance_note');
-    const legalOpinion = activeDocuments.find((doc: any) => doc.type === 'legal_opinion');
     const summary = activeDocuments.find((doc: any) => doc.type === 'summary');
     const transcriptDoc = activeDocuments.find((doc: any) => doc.type === 'transcript');
     
@@ -80,9 +79,6 @@ export function useCaseExport({ caseId, enabled, prefetchedData }: UseCaseExport
     if (selectedDocs.includes('attendance_note') && attendanceNote) {
       content.attendanceNote = attendanceNote.content;
     }
-    if (selectedDocs.includes('legal_opinion') && legalOpinion) {
-      content.legalOpinion = legalOpinion.content;
-    }
     if (selectedDocs.includes('summary') && summaryContent) {
       content.summary = summaryContent;
     }
@@ -90,7 +86,7 @@ export function useCaseExport({ caseId, enabled, prefetchedData }: UseCaseExport
       content.transcript = transcriptContent;
     }
 
-    const hasAnyContent = content.attendanceNote || content.legalOpinion || content.summary || content.transcript;
+    const hasAnyContent = content.attendanceNote || content.summary || content.transcript;
     if (!hasAnyContent) {
       toast({
         title: "No content available",
