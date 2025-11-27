@@ -2611,13 +2611,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const provider = req.params.provider;
       const popup = req.query.popup === 'true';
       
-      if (provider !== 'google') {
-        return res.status(400).json({ message: "Invalid provider. Only 'google' is supported" });
+      if (provider !== 'google' && provider !== 'outlook') {
+        return res.status(400).json({ message: "Invalid provider. Only 'google' and 'outlook' are supported" });
       }
 
       // Optional sync context from request body
       const { caseId, deadline, notes, priority, isAllDay } = req.body || {};
 
+      // Handle Outlook via Replit connector - check if already connected
+      if (provider === 'outlook') {
+        const isConnected = await isReplitOutlookConnected();
+        if (!isConnected) {
+          return res.status(503).json({
+            message: "Outlook is not connected. Please connect Outlook via the Replit Tools pane first.",
+            requiresReplitSetup: true,
+          });
+        }
+
+        // Persist Outlook integration record so downstream flows can detect connection
+        const outlookEmail = await getOutlookUserEmail();
+        await storage.saveCalendarIntegration({
+          userId,
+          provider: 'outlook',
+          accessToken: 'replit-managed', // Token is managed by Replit connector
+          email: outlookEmail || undefined,
+        });
+
+        // Outlook is connected - attempt auto-sync if context provided
+        if (caseId && deadline) {
+          try {
+            const caseData = await storage.getCase(caseId);
+            if (caseData && caseData.createdBy === userId) {
+              const eventData = {
+                caseId,
+                title: caseData.title,
+                clientName: caseData.clientName,
+                matterReference: caseData.matterReference || undefined,
+                deadline: new Date(deadline).toISOString(),
+                notes: notes || '',
+                priority: priority || 'normal',
+                isAllDay: isAllDay || false,
+              };
+              
+              const result = await createReplitOutlookEvent(eventData);
+              
+              if (result.success && result.eventId) {
+                await storage.createCalendarEvent({
+                  caseId,
+                  userId,
+                  provider: 'outlook',
+                  providerEventId: result.eventId,
+                  eventType: 'deadline',
+                  title: `Deadline: ${caseData.title}`,
+                  deadline: new Date(deadline),
+                  isAllDay: isAllDay || false,
+                });
+                
+                await storage.updateCase(caseId, {
+                  calendarSyncStatus: 'synced',
+                  calendarEventId: result.eventId,
+                  calendarProvider: 'outlook',
+                });
+              }
+              
+              return res.json({ 
+                success: result.success, 
+                message: result.success ? "Calendar synced via Outlook" : result.error,
+                provider: 'outlook',
+              });
+            }
+          } catch (syncError: any) {
+            console.error('[Outlook] Auto-sync failed:', syncError);
+            return res.status(500).json({
+              message: "Failed to sync to Outlook calendar",
+              error: syncError.message,
+            });
+          }
+        }
+        
+        return res.json({ 
+          success: true, 
+          connected: true, 
+          message: "Outlook is connected via Replit",
+        });
+      }
+
+      // Google OAuth flow
       // Create signed OAuth state with sync context
       const statePayload: OAuthStatePayload = {
         userId,
@@ -2874,9 +2953,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
       
-      // If Replit Outlook connection is available, override Outlook status
+      // If Replit Outlook connection is available, persist it and override status
       if (replitOutlookConnected) {
         const outlookEmail = await getOutlookUserEmail();
+        
+        // Persist Outlook integration so downstream sync routes can detect it
+        await storage.saveCalendarIntegration({
+          userId,
+          provider: 'outlook',
+          accessToken: 'replit-managed',
+          email: outlookEmail || undefined,
+        });
+        
         providers.outlook = {
           connected: true,
           email: outlookEmail || 'Connected via Replit',

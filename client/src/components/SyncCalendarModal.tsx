@@ -403,16 +403,10 @@ export default function SyncCalendarModal({
                   {isConnecting ? "Connecting..." : "Connect Google Calendar"}
                 </Button>
                 
-                <Button
-                  className="w-full justify-start"
-                  variant="outline"
-                  onClick={() => handleConnectCalendar('outlook')}
-                  disabled={isConnecting}
-                  data-testid="button-connect-outlook"
-                >
-                  <CalendarIcon className="w-4 h-4 mr-2" />
-                  {isConnecting ? "Connecting..." : "Connect Outlook Calendar"}
-                </Button>
+                <div className="text-xs text-muted-foreground p-2 bg-muted rounded-md">
+                  <p className="font-medium mb-1">Outlook Calendar</p>
+                  <p>Outlook integration is managed via the Replit Tools pane. If Outlook is already connected, select it from the dropdown above.</p>
+                </div>
               </div>
             </div>
           ) : (
