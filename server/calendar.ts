@@ -18,7 +18,7 @@ export interface CalendarEventData {
 
 export interface CalendarSyncResult {
   success: boolean;
-  provider: 'google';
+  provider: 'google' | 'outlook';
   eventId?: string;
   error?: string;
 }
@@ -374,14 +374,21 @@ export async function getConnectedProviders(
   storage: IStorage
 ): Promise<{ 
   google: { connected: boolean; email?: string; connectedAt?: string }; 
+  outlook: { connected: boolean; email?: string; connectedAt?: string };
 }> {
   const googleIntegration = await storage.getCalendarIntegration(userId, 'google');
+  const outlookIntegration = await storage.getCalendarIntegration(userId, 'outlook');
 
   return {
     google: {
       connected: !!googleIntegration,
       email: googleIntegration?.email || undefined,
       connectedAt: googleIntegration?.connectedAt?.toISOString(),
+    },
+    outlook: {
+      connected: !!outlookIntegration,
+      email: outlookIntegration?.email || undefined,
+      connectedAt: outlookIntegration?.connectedAt?.toISOString(),
     },
   };
 }

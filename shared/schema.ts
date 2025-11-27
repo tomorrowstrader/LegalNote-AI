@@ -313,6 +313,45 @@ export const preConsentEmails = pgTable("pre_consent_emails", {
   expiresAt: timestamp("expires_at"), // Consent expires after a period
 });
 
+// Clio Practice Management System integration (OAuth 2.0)
+export const clioConnections = pgTable("clio_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  accessToken: text("access_token").notNull(), // Encrypted access token
+  refreshToken: text("refresh_token").notNull(), // Encrypted refresh token
+  tokenExpiresAt: timestamp("token_expires_at").notNull(),
+  clioUserId: text("clio_user_id"), // Clio user ID
+  clioFirmId: text("clio_firm_id"), // Clio firm ID
+  clioFirmName: text("clio_firm_name"), // Clio firm name for display
+  clioUserEmail: text("clio_user_email"), // Connected Clio account email
+  status: text("status").notNull().default("active"), // active, expired, disconnected, error
+  lastSyncAt: timestamp("last_sync_at"), // Last successful sync timestamp
+  syncEnabled: boolean("sync_enabled").notNull().default(true), // Allow auto-sync
+  metadata: jsonb("metadata").default({}), // Additional Clio account info
+  connectedAt: timestamp("connected_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userUnique: unique().on(table.userId),
+}));
+
+// Clio Matter-Case linking (maps Clio matters to LegalNote cases)
+export const clioMatterLinks = pgTable("clio_matter_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  clioMatterId: text("clio_matter_id").notNull(), // Clio matter ID
+  clioMatterNumber: text("clio_matter_number"), // Clio matter reference number
+  clioMatterDescription: text("clio_matter_description"), // Clio matter description
+  clioClientId: text("clio_client_id"), // Clio client ID
+  clioClientName: text("clio_client_name"), // Clio client name
+  syncDirection: text("sync_direction").notNull().default("clio_to_legalnote"), // clio_to_legalnote, legalnote_to_clio, bidirectional
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  userMatterUnique: unique().on(table.userId, table.clioMatterId),
+  caseMatterUnique: unique().on(table.caseId),
+}));
+
 // Input validation helpers
 const sanitizeString = (str: string) => str.trim();
 
@@ -592,6 +631,37 @@ export const insertPreConsentEmailSchema = createInsertSchema(preConsentEmails).
   emailStatus: z.enum(["pending", "sent", "failed", "bounced"]).default("pending"),
 });
 
+export const insertClioConnectionSchema = createInsertSchema(clioConnections).omit({
+  id: true,
+  connectedAt: true,
+  updatedAt: true,
+}).extend({
+  userId: z.string().min(1), // Replit Auth IDs are not UUIDs
+  accessToken: z.string().min(1),
+  refreshToken: z.string().min(1),
+  tokenExpiresAt: z.date(),
+  clioUserId: z.string().max(100).optional(),
+  clioFirmId: z.string().max(100).optional(),
+  clioFirmName: z.string().max(500).optional(),
+  clioUserEmail: z.string().email().max(255).optional(),
+  status: z.enum(["active", "expired", "disconnected", "error"]).default("active"),
+  syncEnabled: z.boolean().default(true),
+});
+
+export const insertClioMatterLinkSchema = createInsertSchema(clioMatterLinks).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  userId: z.string().min(1), // Replit Auth IDs are not UUIDs
+  caseId: z.string().uuid(),
+  clioMatterId: z.string().min(1).max(100),
+  clioMatterNumber: z.string().max(100).optional(),
+  clioMatterDescription: z.string().max(5000).optional(),
+  clioClientId: z.string().max(100).optional(),
+  clioClientName: z.string().max(500).optional(),
+  syncDirection: z.enum(["clio_to_legalnote", "legalnote_to_clio", "bidirectional"]).default("clio_to_legalnote"),
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
@@ -647,3 +717,9 @@ export type PreConsentEmail = typeof preConsentEmails.$inferSelect;
 
 export type InsertScheduledMeeting = z.infer<typeof insertScheduledMeetingSchema>;
 export type ScheduledMeeting = typeof scheduledMeetings.$inferSelect;
+
+export type InsertClioConnection = z.infer<typeof insertClioConnectionSchema>;
+export type ClioConnection = typeof clioConnections.$inferSelect;
+
+export type InsertClioMatterLink = z.infer<typeof insertClioMatterLinkSchema>;
+export type ClioMatterLink = typeof clioMatterLinks.$inferSelect;

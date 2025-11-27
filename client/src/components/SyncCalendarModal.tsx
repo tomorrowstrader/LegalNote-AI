@@ -403,15 +403,15 @@ export default function SyncCalendarModal({
                   {isConnecting ? "Connecting..." : "Connect Google Calendar"}
                 </Button>
                 
-                {/* Outlook - Coming soon (Phase 2) */}
                 <Button
-                  className="w-full justify-start opacity-50"
+                  className="w-full justify-start"
                   variant="outline"
-                  disabled={true}
+                  onClick={() => handleConnectCalendar('outlook')}
+                  disabled={isConnecting}
                   data-testid="button-connect-outlook"
                 >
                   <CalendarIcon className="w-4 h-4 mr-2" />
-                  Outlook (Coming Soon)
+                  {isConnecting ? "Connecting..." : "Connect Outlook Calendar"}
                 </Button>
               </div>
             </div>
@@ -426,8 +426,8 @@ export default function SyncCalendarModal({
                   <SelectItem value="google" disabled={providersLoading || !connections?.google.connected}>
                     Google Calendar {connections?.google.connected ? '✓' : '(Not connected)'}
                   </SelectItem>
-                  <SelectItem value="outlook" disabled={true}>
-                    Outlook (Coming Soon)
+                  <SelectItem value="outlook" disabled={providersLoading || !connections?.outlook?.connected}>
+                    Outlook Calendar {connections?.outlook?.connected ? '✓' : '(Not connected)'}
                   </SelectItem>
                 </SelectContent>
               </Select>

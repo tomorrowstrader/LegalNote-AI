@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check, Mail } from "lucide-react";
+import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check, Mail, Briefcase } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -587,6 +587,34 @@ function CalendarConnections() {
               )}
             </div>
           </div>
+          
+          <div className="flex items-center justify-between p-4 border rounded-md">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-medium">Outlook Calendar</p>
+                {connections?.outlook?.connected && connections.outlook.email ? (
+                  <p className="text-sm text-muted-foreground">{connections.outlook.email}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Not connected</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {connections?.outlook?.connected ? (
+                <Badge variant="outline" className="gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Connected via Replit
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="gap-1">
+                  Connect via Replit Tools
+                </Badge>
+              )}
+            </div>
+          </div>
         </div>
 
         <Separator />
@@ -868,6 +896,182 @@ function VideoConferencing() {
   );
 }
 
+function ClioIntegration() {
+  const { toast } = useToast();
+  const [searchParams] = useState(() => new URLSearchParams(window.location.search));
+  
+  interface ClioStatus {
+    configured: boolean;
+    connected: boolean;
+    status?: string;
+    firmName?: string;
+    email?: string;
+    lastSyncAt?: string;
+    syncEnabled?: boolean;
+    message?: string;
+  }
+  
+  const { data: clioStatus, isLoading, refetch } = useQuery<ClioStatus>({
+    queryKey: ['/api/clio/status'],
+  });
+
+  useEffect(() => {
+    if (searchParams.get('clio_connected') === 'true') {
+      refetch();
+      toast({
+        title: "Clio Connected",
+        description: "Your Clio account has been successfully connected.",
+        duration: 4000,
+      });
+      window.history.replaceState({}, '', '/settings');
+    } else if (searchParams.get('clio_error')) {
+      const error = searchParams.get('clio_error');
+      toast({
+        title: "Clio Connection Failed",
+        description: error || "Failed to connect to Clio",
+        variant: "destructive",
+        duration: 6000,
+      });
+      window.history.replaceState({}, '', '/settings');
+    }
+  }, []);
+
+  const disconnectMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/clio/disconnect');
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/clio/status'] });
+      toast({
+        title: "Clio Disconnected",
+        description: "Your Clio account has been disconnected.",
+        duration: 4000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Disconnect Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleConnect = () => {
+    window.location.href = '/api/clio/auth';
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Loading Clio integration status...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Briefcase className="w-5 h-5" />
+          <CardTitle>Clio Practice Management</CardTitle>
+        </div>
+        <CardDescription>
+          Connect to Clio to import matters and sync case information with your practice management system
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!clioStatus?.configured ? (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {clioStatus?.message || "Clio integration is not configured. Contact your administrator to set up CLIO_CLIENT_ID and CLIO_CLIENT_SECRET."}
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 border rounded-md">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                  <Briefcase className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium">Clio Manage</p>
+                  {clioStatus.connected && clioStatus.firmName ? (
+                    <p className="text-sm text-muted-foreground">{clioStatus.firmName}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not connected</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {clioStatus.connected ? (
+                  <>
+                    <Badge variant="outline" className="gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Connected
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => disconnectMutation.mutate()}
+                      disabled={disconnectMutation.isPending}
+                      data-testid="button-disconnect-clio"
+                    >
+                      {disconnectMutation.isPending ? "Disconnecting..." : "Disconnect"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleConnect}
+                    data-testid="button-connect-clio"
+                  >
+                    Connect
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {clioStatus.connected && clioStatus.email && (
+              <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+                <p>Connected as: {clioStatus.email}</p>
+                {clioStatus.lastSyncAt && (
+                  <p>Last sync: {new Date(clioStatus.lastSyncAt).toLocaleString('en-GB')}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <Separator />
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium">How it works</p>
+          <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+            <li>Connect your Clio account using OAuth</li>
+            <li>Import matters from Clio to create new cases in LegalNote AI</li>
+            <li>Link existing cases to Clio matters for easy reference</li>
+            <li>Matter reference numbers and client names are automatically synced</li>
+          </ul>
+        </div>
+
+        <div className="p-3 bg-muted rounded-md">
+          <p className="text-xs text-muted-foreground">
+            <strong>Note:</strong> LegalNote AI uses Clio's EU endpoint for GDPR compliance. 
+            Only matter metadata is synced - no document content is transferred to Clio.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function NotificationSettings() {
   const { toast } = useToast();
   
@@ -1015,6 +1219,7 @@ export default function Settings() {
           <TabsContent value="integrations" className="space-y-6">
             <CalendarConnections />
             <VideoConferencing />
+            <ClioIntegration />
           </TabsContent>
 
           <TabsContent value="security" className="space-y-6">

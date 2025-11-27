@@ -22,6 +22,7 @@ import { sendCaseEmail, sendRecordingConfirmationEmail } from "./email";
 import { generateSignedAuditPDF } from "./services/signedAuditExport";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders } from "./calendar";
 import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
+import { isReplitOutlookConnected, createReplitOutlookEvent, updateReplitOutlookEvent, deleteReplitOutlookEvent, getOutlookUserEmail } from "./replitOutlook";
 import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber } from "./sms";
 import {
   createGoogleOAuthClient,
@@ -2857,17 +2858,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       
-      // Check Replit-managed Google Calendar connection first
+      // Check Replit-managed connections first
       const replitGoogleConnected = await isReplitCalendarConnected();
+      const replitOutlookConnected = await isReplitOutlookConnected();
       
       // Get user's own OAuth connections
       const providers = await getConnectedProviders(userId, storage);
       
-      // If Replit connection is available, override Google status
+      // If Replit Google connection is available, override Google status
       if (replitGoogleConnected) {
         providers.google = {
           connected: true,
           email: 'Connected via Replit',
+          connectedAt: new Date().toISOString(),
+        };
+      }
+      
+      // If Replit Outlook connection is available, override Outlook status
+      if (replitOutlookConnected) {
+        const outlookEmail = await getOutlookUserEmail();
+        providers.outlook = {
+          connected: true,
+          email: outlookEmail || 'Connected via Replit',
           connectedAt: new Date().toISOString(),
         };
       }
@@ -2962,8 +2974,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isAllDay,
       });
 
-      if (!provider || provider !== 'google') {
-        return res.status(400).json({ message: "Invalid provider. Only 'google' is supported" });
+      if (!provider || !['google', 'outlook'].includes(provider)) {
+        return res.status(400).json({ message: "Invalid provider. Supported: 'google', 'outlook'" });
       }
 
       // Get case and verify access
@@ -2999,8 +3011,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let result: { success: boolean; eventId?: string; error?: string; provider?: string };
       
-      // For Google, try Replit-managed connection first (more reliable)
-      if (provider === 'google') {
+      // Handle Outlook calendar sync
+      if (provider === 'outlook') {
+        const replitOutlookConnected = await isReplitOutlookConnected();
+        
+        if (!replitOutlookConnected) {
+          return res.status(400).json({ message: "Outlook calendar is not connected. Please connect via Settings." });
+        }
+        
+        console.log('[SYNC] Using Replit-managed Outlook Calendar connection');
+        
+        if (existingEvent) {
+          console.log('[SYNC] Updating existing Outlook calendar event:', existingEvent.providerEventId);
+          const updateResult = await updateReplitOutlookEvent(existingEvent.providerEventId, {
+            title: caseData.title,
+            clientName: caseData.clientName,
+            matterReference: caseData.matterReference || undefined,
+            deadline: eventData.deadline.toISOString(),
+            notes: eventData.notes,
+            priority: eventData.priority,
+            isAllDay: eventData.isAllDay,
+          });
+          result = { ...updateResult, provider: 'outlook' };
+          
+          if (result.success) {
+            await storage.updateCalendarEvent(existingEvent.id, {
+              lastUpdatedAt: new Date(),
+            });
+          }
+        } else {
+          console.log('[SYNC] Creating new Outlook calendar event via Replit connector');
+          const createResult = await createReplitOutlookEvent({
+            caseId: req.params.id,
+            title: caseData.title,
+            clientName: caseData.clientName,
+            matterReference: caseData.matterReference || undefined,
+            deadline: eventData.deadline.toISOString(),
+            notes: eventData.notes,
+            priority: eventData.priority,
+            isAllDay: eventData.isAllDay,
+          });
+          result = { ...createResult, provider: 'outlook' };
+          
+          console.log('[SYNC] Outlook create result:', result);
+          
+          if (result.success && result.eventId) {
+            console.log('[SYNC] Saving Outlook calendar event to database');
+            await storage.createCalendarEvent({
+              caseId: req.params.id,
+              userId: userId,
+              provider: 'outlook',
+              providerEventId: result.eventId,
+              eventType: 'deadline',
+            });
+          }
+        }
+      }
+      // Handle Google calendar sync
+      else if (provider === 'google') {
         const replitConnected = await isReplitCalendarConnected();
         
         if (replitConnected) {
@@ -3124,8 +3192,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const { provider } = req.body;
 
-      if (provider && provider !== 'google') {
-        return res.status(400).json({ message: "Invalid provider. Only 'google' is supported" });
+      if (provider && !['google', 'outlook'].includes(provider)) {
+        return res.status(400).json({ message: "Invalid provider. Supported: 'google', 'outlook'" });
       }
 
       // Get case and verify access
@@ -3137,14 +3205,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get calendar events for this case
       const events = await storage.getCalendarEventsByCase(req.params.id, userId);
       
-      // Filter by provider if specified (only google supported)
+      // Filter by provider if specified
       const eventsToDelete = provider 
-        ? events.filter(e => e.provider === 'google')
+        ? events.filter(e => e.provider === provider)
         : events;
 
       // Delete events from calendars and database
       for (const event of eventsToDelete) {
-        await deleteCalendarEvent(userId, event.providerEventId, storage);
+        if (event.provider === 'outlook') {
+          await deleteReplitOutlookEvent(event.providerEventId);
+        } else {
+          await deleteCalendarEvent(userId, event.providerEventId, storage);
+        }
         await storage.deleteCalendarEvent(event.id);
       }
 
@@ -4087,6 +4159,319 @@ ${firmName}`;
       });
       
       res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ============================
+  // CLIO INTEGRATION ROUTES
+  // ============================
+
+  // Get Clio connection status
+  app.get("/api/clio/status", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { clioService } = await import("./clio");
+
+      if (!clioService.isConfigured()) {
+        return res.json({
+          configured: false,
+          connected: false,
+          message: "Clio integration not configured. Add CLIO_CLIENT_ID and CLIO_CLIENT_SECRET to connect.",
+        });
+      }
+
+      const connection = await clioService.getConnection(userId);
+
+      if (!connection) {
+        return res.json({
+          configured: true,
+          connected: false,
+        });
+      }
+
+      res.json({
+        configured: true,
+        connected: connection.status === "active",
+        status: connection.status,
+        firmName: connection.clioFirmName,
+        email: connection.clioUserEmail,
+        lastSyncAt: connection.lastSyncAt,
+        syncEnabled: connection.syncEnabled,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Initiate Clio OAuth flow
+  app.get("/api/clio/auth", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { clioService } = await import("./clio");
+
+      if (!clioService.isConfigured()) {
+        return res.status(503).json({
+          message: "Clio integration not configured. Please contact your administrator.",
+        });
+      }
+
+      const statePayload: OAuthStatePayload = {
+        userId,
+        provider: 'clio',
+        popup: false,
+        nonce: generateSecureNonce(),
+        createdAt: Date.now(),
+      };
+
+      const signedState = signOAuthState(statePayload);
+      const authUrl = clioService.getAuthorizationUrl(signedState);
+
+      res.redirect(authUrl);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Clio OAuth callback
+  app.get("/api/clio/callback", async (req: any, res, next) => {
+    try {
+      const { code, state, error: oauthError } = req.query;
+
+      if (oauthError) {
+        console.error("[Clio] OAuth error:", oauthError);
+        return res.redirect("/settings?clio_error=" + encodeURIComponent(String(oauthError)));
+      }
+
+      if (!code || !state) {
+        return res.redirect("/settings?clio_error=missing_code_or_state");
+      }
+
+      const stateData = verifyOAuthState(state as string);
+      
+      if (!stateData || stateData.provider !== 'clio') {
+        return res.redirect("/settings?clio_error=invalid_state");
+      }
+
+      const { clioService } = await import("./clio");
+
+      try {
+        const tokens = await clioService.exchangeCodeForTokens(code as string);
+        const userInfo = await clioService.getCurrentUser(tokens.access_token);
+
+        await clioService.saveConnection(stateData.userId, tokens, userInfo);
+
+        await storage.createAuditLog({
+          eventType: 'clio_connected',
+          userId: stateData.userId,
+          metadata: {
+            firmName: userInfo.firm.name,
+            clioUserId: userInfo.user.id,
+          },
+          severity: 'info',
+        });
+
+        res.redirect("/settings?clio_connected=true");
+      } catch (exchangeError: any) {
+        console.error("[Clio] Token exchange error:", exchangeError);
+        res.redirect("/settings?clio_error=" + encodeURIComponent("Failed to connect to Clio"));
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Disconnect Clio
+  app.post("/api/clio/disconnect", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { clioService } = await import("./clio");
+
+      await clioService.disconnectUser(userId);
+
+      await storage.createAuditLog({
+        eventType: 'clio_disconnected',
+        userId,
+        metadata: {},
+        severity: 'info',
+      });
+
+      res.json({ success: true, message: "Disconnected from Clio" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get Clio matters list
+  app.get("/api/clio/matters", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { status, search, limit, offset } = req.query;
+      const { clioService } = await import("./clio");
+
+      const accessToken = await clioService.ensureValidToken(userId);
+      
+      if (!accessToken) {
+        return res.status(401).json({
+          message: "Clio connection expired. Please reconnect.",
+          requiresReconnect: true,
+        });
+      }
+
+      const matters = await clioService.getMatters(accessToken, {
+        status: status as string,
+        search: search as string,
+        limit: limit ? parseInt(limit as string, 10) : undefined,
+        offset: offset ? parseInt(offset as string, 10) : undefined,
+      });
+
+      res.json(matters);
+    } catch (error: any) {
+      if (error.message === "CLIO_TOKEN_EXPIRED") {
+        return res.status(401).json({
+          message: "Clio connection expired. Please reconnect.",
+          requiresReconnect: true,
+        });
+      }
+      next(error);
+    }
+  });
+
+  // Import a Clio matter as a new case
+  app.post("/api/clio/matters/:matterId/import", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { matterId } = req.params;
+      const { clioService } = await import("./clio");
+
+      const accessToken = await clioService.ensureValidToken(userId);
+      
+      if (!accessToken) {
+        return res.status(401).json({
+          message: "Clio connection expired. Please reconnect.",
+          requiresReconnect: true,
+        });
+      }
+
+      const matter = await clioService.getMatter(accessToken, matterId);
+      const caseId = await clioService.importMatterAsCase(userId, matter);
+
+      await storage.createAuditLog({
+        eventType: 'clio_matter_imported',
+        userId,
+        caseId,
+        metadata: {
+          clioMatterId: matterId,
+          clioMatterNumber: matter.display_number,
+          clientName: matter.client?.name,
+        },
+        severity: 'info',
+      });
+
+      res.json({
+        success: true,
+        caseId,
+        message: `Imported matter "${matter.display_number}" as case`,
+      });
+    } catch (error: any) {
+      if (error.message === "CLIO_TOKEN_EXPIRED") {
+        return res.status(401).json({
+          message: "Clio connection expired. Please reconnect.",
+          requiresReconnect: true,
+        });
+      }
+      next(error);
+    }
+  });
+
+  // Link an existing case to a Clio matter
+  app.post("/api/cases/:caseId/link-clio", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId } = req.params;
+      const { matterId } = req.body;
+      const { clioService } = await import("./clio");
+
+      const caseData = await storage.getCase(caseId);
+      if (!caseData || caseData.createdBy !== userId) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      const accessToken = await clioService.ensureValidToken(userId);
+      
+      if (!accessToken) {
+        return res.status(401).json({
+          message: "Clio connection expired. Please reconnect.",
+          requiresReconnect: true,
+        });
+      }
+
+      const matter = await clioService.getMatter(accessToken, matterId);
+      await clioService.linkMatterToCase(userId, caseId, matter);
+
+      await storage.createAuditLog({
+        eventType: 'clio_matter_linked',
+        userId,
+        caseId,
+        metadata: {
+          clioMatterId: matterId,
+          clioMatterNumber: matter.display_number,
+        },
+        severity: 'info',
+      });
+
+      res.json({
+        success: true,
+        message: `Linked case to Clio matter "${matter.display_number}"`,
+      });
+    } catch (error: any) {
+      if (error.message === "CLIO_TOKEN_EXPIRED") {
+        return res.status(401).json({
+          message: "Clio connection expired. Please reconnect.",
+          requiresReconnect: true,
+        });
+      }
+      next(error);
+    }
+  });
+
+  // Unlink a case from Clio
+  app.delete("/api/cases/:caseId/link-clio", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId } = req.params;
+      const { clioService } = await import("./clio");
+
+      const caseData = await storage.getCase(caseId);
+      if (!caseData || caseData.createdBy !== userId) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      await clioService.unlinkCase(caseId);
+
+      await storage.createAuditLog({
+        eventType: 'clio_matter_unlinked',
+        userId,
+        caseId,
+        metadata: {},
+        severity: 'info',
+      });
+
+      res.json({ success: true, message: "Unlinked case from Clio" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get linked Clio matters for user
+  app.get("/api/clio/links", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { clioService } = await import("./clio");
+
+      const links = await clioService.getMatterLinks(userId);
+      res.json(links);
     } catch (error) {
       next(error);
     }

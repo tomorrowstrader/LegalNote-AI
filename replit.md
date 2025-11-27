@@ -56,7 +56,20 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **AI Services**: OpenAI Whisper API (transcription), GPT-4o (document generation).
 - **Email Service**: Resend API.
 - **SMS Service**: Twilio API for platform-level SMS two-factor authentication.
-- **Calendar Integration**: Google Calendar API (googleapis) and Microsoft Graph API (@microsoft/microsoft-graph-client) for bidirectional sync.
+- **Calendar Integration**: Google Calendar API (googleapis) and Microsoft Outlook/Graph API via Replit connector for bidirectional sync.
 - **Video Conferencing**: Recall.ai API for post-call recording import from Zoom, Microsoft Teams, and Google Meet ($0.70/hour, GDPR/SOC2/ISO27001 certified).
+- **Practice Management**: Clio Manage integration via OAuth 2.0 (EU endpoint: eu.app.clio.com/api/v4/) for matter import and linking.
 - **Document Export**: jsPDF (PDF generation), docx (Word document generation).
 - **Testing**: Vitest with happy-dom.
+
+## Integration Configuration
+
+### Calendar Integrations
+- **Google Calendar**: OAuth 2.0 via googleapis (requires GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)
+- **Outlook Calendar**: Replit connector integration (oauth handled by Replit Tools pane)
+
+### Practice Management System (PMS)
+- **Clio Manage**: OAuth 2.0 integration (requires CLIO_CLIENT_ID, CLIO_CLIENT_SECRET)
+  - Uses EU endpoint for GDPR compliance
+  - Features: Import matters, link cases to matters, sync client information
+  - Schema: clioConnections (OAuth tokens), clioMatterLinks (case-matter mapping)
