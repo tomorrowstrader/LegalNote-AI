@@ -313,6 +313,24 @@ export const preConsentEmails = pgTable("pre_consent_emails", {
   expiresAt: timestamp("expires_at"), // Consent expires after a period
 });
 
+// SharePoint/OneDrive connections (per-user, Replit-managed)
+export const sharePointConnections = pgTable("share_point_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  provider: text("provider").notNull(), // sharepoint, onedrive
+  driveId: text("drive_id").notNull(), // Microsoft Graph drive ID
+  driveName: text("drive_name"), // Display name (e.g., "Documents" or "OneDrive")
+  email: text("email"), // User's Microsoft account email
+  status: text("status").notNull().default("active"), // active, disconnected, error
+  autoSyncEnabled: boolean("auto_sync_enabled").notNull().default(true), // Auto-sync documents
+  lastSyncAt: timestamp("last_sync_at"),
+  connectedAt: timestamp("connected_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  // Each user can have one SharePoint and one OneDrive connection
+  userProviderUnique: unique().on(table.userId, table.provider),
+}));
+
 // Clio Practice Management System integration (OAuth 2.0)
 export const clioConnections = pgTable("clio_connections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
