@@ -649,6 +649,20 @@ export const insertPreConsentEmailSchema = createInsertSchema(preConsentEmails).
   emailStatus: z.enum(["pending", "sent", "failed", "bounced"]).default("pending"),
 });
 
+export const insertSharePointConnectionSchema = createInsertSchema(sharePointConnections).omit({
+  id: true,
+  connectedAt: true,
+  updatedAt: true,
+}).extend({
+  userId: z.string().min(1), // Replit Auth IDs are not UUIDs
+  provider: z.enum(["sharepoint", "onedrive"]),
+  driveId: z.string().min(1).max(500),
+  driveName: z.string().max(500).optional(),
+  email: z.string().email().max(255).optional(),
+  status: z.enum(["active", "disconnected", "error"]).default("active"),
+  autoSyncEnabled: z.boolean().default(true),
+});
+
 export const insertClioConnectionSchema = createInsertSchema(clioConnections).omit({
   id: true,
   connectedAt: true,
@@ -741,3 +755,6 @@ export type ClioConnection = typeof clioConnections.$inferSelect;
 
 export type InsertClioMatterLink = z.infer<typeof insertClioMatterLinkSchema>;
 export type ClioMatterLink = typeof clioMatterLinks.$inferSelect;
+
+export type InsertSharePointConnection = z.infer<typeof insertSharePointConnectionSchema>;
+export type SharePointConnection = typeof sharePointConnections.$inferSelect;
