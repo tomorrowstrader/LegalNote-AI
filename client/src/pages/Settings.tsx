@@ -606,7 +606,7 @@ function CalendarConnections() {
               {connections?.outlook?.connected ? (
                 <Badge variant="outline" className="gap-1">
                   <CheckCircle2 className="w-3 h-3" />
-                  Connected via Replit
+                  Connected
                 </Badge>
               ) : (
                 <Badge variant="secondary" className="gap-1">
