@@ -35,6 +35,8 @@ import {
   type OAuthStatePayload,
 } from "./oauth";
 import bcrypt from "bcrypt";
+import { stripeService } from "./stripeService";
+import { getStripePublishableKey, getUncachableStripeClient } from "./stripeClient";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment platform
@@ -508,6 +510,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
       next(error);
     }
   });
+
+  // ==================== STRIPE BILLING ROUTES ====================
+  
+  // Get Stripe publishable key (public route for checkout)
+  app.get('/api/stripe/config', async (req, res, next) => {
+    try {
+      const publishableKey = await getStripePublishableKey();
+      res.json({ publishableKey });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get products and prices (public for landing page)
+  app.get('/api/stripe/products', async (req, res, next) => {
+    try {
+      const rows = await stripeService.listProductsWithPrices();
+      
+      // Group prices by product
+      const productsMap = new Map();
+      for (const row of rows as any[]) {
+        if (!productsMap.has(row.product_id)) {
+          productsMap.set(row.product_id, {
+            id: row.product_id,
+            name: row.product_name,
+            description: row.product_description,
+            active: row.product_active,
+            metadata: row.product_metadata,
+            prices: []
+          });
+        }
+        if (row.price_id) {
+          productsMap.get(row.product_id).prices.push({
+            id: row.price_id,
+            unit_amount: row.unit_amount,
+            currency: row.currency,
+            recurring: row.recurring,
+            active: row.price_active,
+            metadata: row.price_metadata,
+          });
+        }
+      }
+
+      res.json({ products: Array.from(productsMap.values()) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get user's subscription status (authenticated)
+  app.get('/api/subscription', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user?.stripeSubscriptionId) {
+        return res.json({ 
+          subscription: null,
+          status: user?.subscriptionStatus || null,
+          plan: user?.subscriptionPlan || null,
+          trialEndsAt: user?.trialEndsAt || null,
+        });
+      }
+
+      const subscription = await stripeService.getSubscription(user.stripeSubscriptionId);
+      res.json({ 
+        subscription,
+        status: user.subscriptionStatus,
+        plan: user.subscriptionPlan,
+        trialEndsAt: user.trialEndsAt,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create checkout session
+  app.post('/api/stripe/checkout', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { priceId, trialDays } = req.body;
+
+      if (!priceId) {
+        return res.status(400).json({ message: 'priceId is required' });
+      }
+
+      let user = await storage.getUser(userId);
+      
+      // Create Stripe customer if not exists
+      let customerId = user?.stripeCustomerId;
+      if (!customerId) {
+        const customer = await stripeService.createCustomer(
+          user?.email || req.user.claims.email,
+          userId,
+          `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || undefined
+        );
+        await storage.updateUserStripeInfo(userId, { stripeCustomerId: customer.id });
+        customerId = customer.id;
+      }
+
+      // Get base URL for redirects
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      
+      const session = await stripeService.createCheckoutSession(
+        customerId,
+        priceId,
+        `${baseUrl}/?checkout=success`,
+        `${baseUrl}/?checkout=cancel`,
+        trialDays
+      );
+
+      res.json({ url: session.url });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create customer portal session (manage subscription)
+  app.post('/api/stripe/portal', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user?.stripeCustomerId) {
+        return res.status(400).json({ message: 'No subscription found' });
+      }
+
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const session = await stripeService.createCustomerPortalSession(
+        user.stripeCustomerId,
+        `${baseUrl}/settings`
+      );
+
+      res.json({ url: session.url });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ==================== END STRIPE BILLING ROUTES ====================
 
   // Protected Case routes
   app.post("/api/cases", isAuthenticated, caseCreationLimiter, async (req: any, res, next) => {

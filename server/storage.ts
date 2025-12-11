@@ -78,6 +78,13 @@ export interface UserStatistics {
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  updateUserStripeInfo(userId: string, stripeInfo: {
+    stripeCustomerId?: string;
+    stripeSubscriptionId?: string;
+    subscriptionStatus?: string;
+    subscriptionPlan?: string;
+    trialEndsAt?: Date | null;
+  }): Promise<User | undefined>;
   
   createCase(caseData: InsertCase, userId: string): Promise<Case>;
   getCases(userId: string, includeArchived?: boolean): Promise<Case[]>;
@@ -250,11 +257,38 @@ export class MemStorage implements IStorage {
       firstName: userData.firstName ?? null,
       lastName: userData.lastName ?? null,
       profileImageUrl: userData.profileImageUrl ?? null,
+      stripeCustomerId: existing?.stripeCustomerId ?? null,
+      stripeSubscriptionId: existing?.stripeSubscriptionId ?? null,
+      subscriptionStatus: existing?.subscriptionStatus ?? null,
+      subscriptionPlan: existing?.subscriptionPlan ?? null,
+      trialEndsAt: existing?.trialEndsAt ?? null,
       createdAt: existing?.createdAt || new Date(),
       updatedAt: new Date(),
     };
     this.users.set(userData.id, user);
     return user;
+  }
+
+  async updateUserStripeInfo(userId: string, stripeInfo: {
+    stripeCustomerId?: string;
+    stripeSubscriptionId?: string;
+    subscriptionStatus?: string;
+    subscriptionPlan?: string;
+    trialEndsAt?: Date | null;
+  }): Promise<User | undefined> {
+    const existing = this.users.get(userId);
+    if (!existing) return undefined;
+    const updated: User = {
+      ...existing,
+      stripeCustomerId: stripeInfo.stripeCustomerId ?? existing.stripeCustomerId,
+      stripeSubscriptionId: stripeInfo.stripeSubscriptionId ?? existing.stripeSubscriptionId,
+      subscriptionStatus: stripeInfo.subscriptionStatus ?? existing.subscriptionStatus,
+      subscriptionPlan: stripeInfo.subscriptionPlan ?? existing.subscriptionPlan,
+      trialEndsAt: stripeInfo.trialEndsAt !== undefined ? stripeInfo.trialEndsAt : existing.trialEndsAt,
+      updatedAt: new Date(),
+    };
+    this.users.set(userId, updated);
+    return updated;
   }
 
   async createCase(insertCase: InsertCase, userId: string): Promise<Case> {
@@ -1066,6 +1100,28 @@ export class DbStorage implements IStorage {
           updatedAt: new Date(),
         },
       })
+      .returning();
+    return result[0];
+  }
+
+  async updateUserStripeInfo(userId: string, stripeInfo: {
+    stripeCustomerId?: string;
+    stripeSubscriptionId?: string;
+    subscriptionStatus?: string;
+    subscriptionPlan?: string;
+    trialEndsAt?: Date | null;
+  }): Promise<User | undefined> {
+    const updates: Partial<User> = { updatedAt: new Date() };
+    if (stripeInfo.stripeCustomerId !== undefined) updates.stripeCustomerId = stripeInfo.stripeCustomerId;
+    if (stripeInfo.stripeSubscriptionId !== undefined) updates.stripeSubscriptionId = stripeInfo.stripeSubscriptionId;
+    if (stripeInfo.subscriptionStatus !== undefined) updates.subscriptionStatus = stripeInfo.subscriptionStatus;
+    if (stripeInfo.subscriptionPlan !== undefined) updates.subscriptionPlan = stripeInfo.subscriptionPlan;
+    if (stripeInfo.trialEndsAt !== undefined) updates.trialEndsAt = stripeInfo.trialEndsAt;
+    
+    const result = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, userId))
       .returning();
     return result[0];
   }
