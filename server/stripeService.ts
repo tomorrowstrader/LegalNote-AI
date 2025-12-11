@@ -16,13 +16,13 @@ export class StripeService {
     });
   }
 
-  // Create checkout session for subscription
+  // Create checkout session for subscription with 14-day Professional Evaluation Period
   async createCheckoutSession(
     customerId: string, 
     priceId: string, 
     successUrl: string, 
     cancelUrl: string,
-    trialDays?: number
+    trialDays: number = 14
   ) {
     const stripe = await getUncachableStripeClient();
     
@@ -34,13 +34,11 @@ export class StripeService {
       success_url: successUrl,
       cancel_url: cancelUrl,
       allow_promotion_codes: true,
-    };
-    
-    if (trialDays) {
-      sessionParams.subscription_data = {
+      payment_method_collection: 'always',
+      subscription_data: {
         trial_period_days: trialDays,
-      };
-    }
+      },
+    };
     
     return await stripe.checkout.sessions.create(sessionParams);
   }

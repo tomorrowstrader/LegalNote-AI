@@ -74,7 +74,7 @@ export default function Landing() {
                 data-testid="button-get-started"
               >
                 <Sparkles className="w-4 h-4 mr-2" />
-                Start Free Trial
+                Start Your Evaluation
               </Button>
               <Button 
                 variant="outline" 
@@ -86,7 +86,7 @@ export default function Landing() {
               </Button>
             </div>
             <p className="text-sm text-muted-foreground mt-4">
-              14-day free trial. No credit card required.
+              14-Day Professional Evaluation Period. No payment taken until evaluation ends.
             </p>
           </div>
         </div>
@@ -182,7 +182,7 @@ export default function Landing() {
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Simple, Transparent Pricing</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto mb-8">
-              Choose the plan that fits your practice. All plans include a 14-day free trial.
+              Choose the plan that fits your practice. All plans include a 14-Day Professional Evaluation Period.
             </p>
             
             {/* Billing Toggle */}
@@ -251,7 +251,7 @@ export default function Landing() {
               </CardContent>
               <CardFooter>
                 <Button onClick={handleLogin} className="w-full" data-testid="button-solo-signup">
-                  Start Free Trial
+                  Begin Evaluation
                 </Button>
               </CardFooter>
             </Card>
@@ -297,14 +297,14 @@ export default function Landing() {
               </CardContent>
               <CardFooter>
                 <Button onClick={handleLogin} className="w-full" data-testid="button-team-signup">
-                  Start Free Trial
+                  Begin Evaluation
                 </Button>
               </CardFooter>
             </Card>
           </div>
 
           <p className="text-center text-sm text-muted-foreground mt-8">
-            All prices exclude VAT. Cancel anytime during your trial.
+            All prices exclude VAT. Cancel anytime during your evaluation period.
           </p>
         </div>
       </div>
@@ -320,7 +320,7 @@ export default function Landing() {
           size="lg"
           data-testid="button-cta-signup"
         >
-          Start Your Free Trial
+          Start Your Evaluation
         </Button>
       </div>
 
