@@ -5,6 +5,7 @@ import {
   type ConsentLog, type InsertConsentLog,
   type Transcript, type InsertTranscript,
   type ActionItem, type InsertActionItem,
+  type PreMeetingBriefing, type InsertPreMeetingBriefing,
   type QuickNote, type InsertQuickNote,
   type Document, type InsertDocument,
   type AuditTrail, type InsertAuditTrail,
@@ -25,6 +26,7 @@ import {
   consentLogs,
   transcripts,
   actionItems,
+  preMeetingBriefings,
   quickNotes,
   documents,
   auditTrail,
@@ -119,6 +121,11 @@ export interface IStorage {
   getActionItemsByTranscript(transcriptId: string, userId: string): Promise<ActionItem[]>;
   updateActionItem(id: string, updates: Partial<ActionItem>, userId: string): Promise<ActionItem | undefined>;
   deleteActionItem(id: string, userId: string): Promise<boolean>;
+  
+  // Pre-Meeting Briefing methods
+  createPreMeetingBriefing(briefingData: InsertPreMeetingBriefing): Promise<PreMeetingBriefing>;
+  getPreMeetingBriefingsByCase(caseId: string, userId: string): Promise<PreMeetingBriefing[]>;
+  getLatestPreMeetingBriefing(caseId: string, userId: string): Promise<PreMeetingBriefing | undefined>;
   
   createQuickNote(noteData: InsertQuickNote, userId: string): Promise<QuickNote>;
   getQuickNotesByCase(caseId: string, userId: string): Promise<QuickNote[]>;
@@ -246,6 +253,7 @@ export class MemStorage implements IStorage {
   private consentLogs: Map<string, ConsentLog>;
   private transcripts: Map<string, Transcript>;
   private actionItemsMap: Map<string, ActionItem>;
+  private preMeetingBriefingsMap: Map<string, PreMeetingBriefing>;
   private quickNotes: Map<string, QuickNote>;
   private documents: Map<string, Document>;
   private auditLogs: Map<string, AuditTrail>;
@@ -259,6 +267,7 @@ export class MemStorage implements IStorage {
     this.consentLogs = new Map();
     this.transcripts = new Map();
     this.actionItemsMap = new Map();
+    this.preMeetingBriefingsMap = new Map();
     this.quickNotes = new Map();
     this.documents = new Map();
     this.auditLogs = new Map();
@@ -634,6 +643,37 @@ export class MemStorage implements IStorage {
     if (!caseRecord || caseRecord.createdBy !== userId) return false;
     
     return this.actionItemsMap.delete(id);
+  }
+
+  async createPreMeetingBriefing(briefingData: InsertPreMeetingBriefing): Promise<PreMeetingBriefing> {
+    const id = randomUUID();
+    const briefing: PreMeetingBriefing = {
+      id,
+      caseId: briefingData.caseId,
+      content: briefingData.content,
+      generatedAt: new Date(),
+      generatedBy: briefingData.generatedBy,
+      sourceMeetingCount: briefingData.sourceMeetingCount ?? 0,
+      inputTokens: briefingData.inputTokens ?? null,
+      outputTokens: briefingData.outputTokens ?? null,
+      cost: briefingData.cost ?? null,
+    };
+    this.preMeetingBriefingsMap.set(id, briefing);
+    return briefing;
+  }
+
+  async getPreMeetingBriefingsByCase(caseId: string, userId: string): Promise<PreMeetingBriefing[]> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    
+    return Array.from(this.preMeetingBriefingsMap.values())
+      .filter(b => b.caseId === caseId)
+      .sort((a, b) => b.generatedAt.getTime() - a.generatedAt.getTime());
+  }
+
+  async getLatestPreMeetingBriefing(caseId: string, userId: string): Promise<PreMeetingBriefing | undefined> {
+    const briefings = await this.getPreMeetingBriefingsByCase(caseId, userId);
+    return briefings[0];
   }
 
   async createQuickNote(noteData: InsertQuickNote, userId: string): Promise<QuickNote> {
@@ -1532,6 +1572,38 @@ export class DbStorage implements IStorage {
     
     await db.delete(actionItems).where(eq(actionItems.id, id));
     return true;
+  }
+
+  async createPreMeetingBriefing(briefingData: InsertPreMeetingBriefing): Promise<PreMeetingBriefing> {
+    const result = await db
+      .insert(preMeetingBriefings)
+      .values({
+        caseId: briefingData.caseId,
+        content: briefingData.content,
+        generatedBy: briefingData.generatedBy,
+        sourceMeetingCount: briefingData.sourceMeetingCount ?? 0,
+        inputTokens: briefingData.inputTokens ?? null,
+        outputTokens: briefingData.outputTokens ?? null,
+        cost: briefingData.cost ?? null,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getPreMeetingBriefingsByCase(caseId: string, userId: string): Promise<PreMeetingBriefing[]> {
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return [];
+    
+    return await db
+      .select()
+      .from(preMeetingBriefings)
+      .where(eq(preMeetingBriefings.caseId, caseId))
+      .orderBy(desc(preMeetingBriefings.generatedAt));
+  }
+
+  async getLatestPreMeetingBriefing(caseId: string, userId: string): Promise<PreMeetingBriefing | undefined> {
+    const briefings = await this.getPreMeetingBriefingsByCase(caseId, userId);
+    return briefings[0];
   }
 
   async createQuickNote(noteData: InsertQuickNote, userId: string): Promise<QuickNote> {
