@@ -2526,6 +2526,201 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // Action Items Routes
+  // ============================================
+
+  // Get action items for a case
+  app.get("/api/cases/:id/action-items", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const items = await storage.getActionItemsByCase(caseId, userId);
+      res.json(items);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Create action item for a case
+  app.post("/api/cases/:id/action-items", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const { description, assignee, dueDate, priority, transcriptId, sourceUtteranceIndex } = req.body;
+      
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      // Get transcript for case if not provided
+      let actualTranscriptId = transcriptId;
+      if (!actualTranscriptId) {
+        const transcript = await storage.getTranscriptByCase(caseId, userId);
+        if (!transcript) {
+          return res.status(400).json({ message: "No transcript found for this case" });
+        }
+        actualTranscriptId = transcript.id;
+      }
+      
+      const item = await storage.createActionItem({
+        caseId,
+        transcriptId: actualTranscriptId,
+        description,
+        assignee: assignee || null,
+        dueDate: dueDate ? new Date(dueDate) : undefined,
+        priority: priority || "medium",
+        sourceUtteranceIndex: sourceUtteranceIndex || undefined,
+      });
+      
+      await logAuditEvent(userId, "action_item_created", {
+        caseId,
+        metadata: {
+          actionItemId: item.id,
+          description: item.description.substring(0, 100),
+          assignee: item.assignee,
+          priority: item.priority,
+        },
+        req,
+      });
+      
+      res.json(item);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Update action item (mark complete, etc.)
+  app.patch("/api/action-items/:id", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const { completed, assignee, dueDate, priority, description } = req.body;
+      
+      const updates: any = {};
+      if (completed !== undefined) {
+        updates.completed = completed;
+        if (completed) {
+          updates.completedAt = new Date();
+          updates.completedBy = userId;
+        } else {
+          updates.completedAt = null;
+          updates.completedBy = null;
+        }
+      }
+      if (assignee !== undefined) updates.assignee = assignee;
+      if (dueDate !== undefined) updates.dueDate = dueDate ? new Date(dueDate) : null;
+      if (priority !== undefined) updates.priority = priority;
+      if (description !== undefined) updates.description = description;
+      
+      const item = await storage.updateActionItem(id, updates, userId);
+      if (!item) {
+        return res.status(404).json({ message: "Action item not found or not authorized" });
+      }
+      
+      await logAuditEvent(userId, "action_item_updated", {
+        caseId: item.caseId,
+        metadata: {
+          actionItemId: id,
+          updates: Object.keys(updates),
+          completed: item.completed,
+        },
+        req,
+      });
+      
+      res.json(item);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Delete action item
+  app.delete("/api/action-items/:id", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      
+      const deleted = await storage.deleteActionItem(id, userId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Action item not found or not authorized" });
+      }
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Extract action items from transcript using AI
+  app.post("/api/cases/:id/extract-action-items", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const transcript = await storage.getTranscriptByCase(caseId, userId);
+      if (!transcript) {
+        return res.status(400).json({ message: "No transcript found for this case" });
+      }
+      
+      // Import document service dynamically
+      const { DocumentService } = await import("./services/documentService");
+      const documentService = new DocumentService();
+      
+      const metadata = {
+        title: caseData.title,
+        clientName: caseData.clientName,
+        matterReference: caseData.matterReference || undefined,
+        recordingDate: new Date().toISOString().split('T')[0],
+      };
+      
+      const result = await documentService.extractActionItems(transcript.content, metadata);
+      
+      // Store extracted action items
+      const createdItems = [];
+      for (const item of result.items) {
+        const created = await storage.createActionItem({
+          caseId,
+          transcriptId: transcript.id,
+          description: item.description,
+          assignee: item.assignee || null,
+          dueDate: item.dueDate ? new Date(item.dueDate) : undefined,
+          priority: item.priority || "medium",
+        });
+        createdItems.push(created);
+      }
+      
+      await logAuditEvent(userId, "action_items_extracted", {
+        caseId,
+        metadata: {
+          itemCount: createdItems.length,
+          cost: result.cost,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+        },
+        req,
+      });
+      
+      res.json({
+        items: createdItems,
+        extractionCost: result.cost,
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Protected Object storage route
   app.get("/objects/:objectPath(*)", isAuthenticated, async (req: any, res, next) => {
     const objectStorageService = new ObjectStorageService();

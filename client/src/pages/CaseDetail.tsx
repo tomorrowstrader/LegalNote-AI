@@ -22,6 +22,7 @@ import ShareLinkModal from "@/components/ShareLinkModal";
 import DownloadModal from "@/components/DownloadModal";
 import ImportRecordingModal from "@/components/ImportRecordingModal";
 import SharedHistoryViewer from "@/components/SharedHistoryViewer";
+import ActionItemsViewer from "@/components/ActionItemsViewer";
 import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -572,6 +573,10 @@ export default function CaseDetail() {
             />
           </div>
         )}
+
+        <div className="mt-8">
+          <ActionItemsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
+        </div>
 
         <div className="mt-8">
           <SharedHistoryViewer caseId={caseId!} />

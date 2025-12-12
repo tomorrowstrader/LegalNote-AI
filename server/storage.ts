@@ -4,6 +4,7 @@ import {
   type AudioRecording, type InsertAudioRecording, 
   type ConsentLog, type InsertConsentLog,
   type Transcript, type InsertTranscript,
+  type ActionItem, type InsertActionItem,
   type QuickNote, type InsertQuickNote,
   type Document, type InsertDocument,
   type AuditTrail, type InsertAuditTrail,
@@ -23,6 +24,7 @@ import {
   audioRecordings,
   consentLogs,
   transcripts,
+  actionItems,
   quickNotes,
   documents,
   auditTrail,
@@ -110,6 +112,13 @@ export interface IStorage {
   getTranscript(id: string): Promise<Transcript | undefined>;
   getTranscriptByCase(caseId: string, userId: string): Promise<Transcript | undefined>;
   updateTranscript(id: string, updates: Partial<Transcript>, userId: string): Promise<Transcript | undefined>;
+  
+  // Action Items methods
+  createActionItem(itemData: InsertActionItem): Promise<ActionItem>;
+  getActionItemsByCase(caseId: string, userId: string): Promise<ActionItem[]>;
+  getActionItemsByTranscript(transcriptId: string, userId: string): Promise<ActionItem[]>;
+  updateActionItem(id: string, updates: Partial<ActionItem>, userId: string): Promise<ActionItem | undefined>;
+  deleteActionItem(id: string, userId: string): Promise<boolean>;
   
   createQuickNote(noteData: InsertQuickNote, userId: string): Promise<QuickNote>;
   getQuickNotesByCase(caseId: string, userId: string): Promise<QuickNote[]>;
@@ -236,6 +245,7 @@ export class MemStorage implements IStorage {
   private audioRecordings: Map<string, AudioRecording>;
   private consentLogs: Map<string, ConsentLog>;
   private transcripts: Map<string, Transcript>;
+  private actionItemsMap: Map<string, ActionItem>;
   private quickNotes: Map<string, QuickNote>;
   private documents: Map<string, Document>;
   private auditLogs: Map<string, AuditTrail>;
@@ -248,6 +258,7 @@ export class MemStorage implements IStorage {
     this.audioRecordings = new Map();
     this.consentLogs = new Map();
     this.transcripts = new Map();
+    this.actionItemsMap = new Map();
     this.quickNotes = new Map();
     this.documents = new Map();
     this.auditLogs = new Map();
@@ -549,6 +560,80 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...updates };
     this.transcripts.set(id, updated);
     return updated;
+  }
+
+  // Action Items methods
+  async createActionItem(itemData: InsertActionItem): Promise<ActionItem> {
+    const id = randomUUID();
+    const actionItem: ActionItem = {
+      id,
+      caseId: itemData.caseId,
+      transcriptId: itemData.transcriptId,
+      description: itemData.description,
+      assignee: itemData.assignee ?? null,
+      dueDate: itemData.dueDate ?? null,
+      priority: itemData.priority ?? "medium",
+      completed: itemData.completed ?? false,
+      completedAt: null,
+      completedBy: null,
+      sourceUtteranceIndex: itemData.sourceUtteranceIndex ?? null,
+      createdAt: new Date(),
+    };
+    this.actionItemsMap.set(id, actionItem);
+    return actionItem;
+  }
+
+  async getActionItemsByCase(caseId: string, userId: string): Promise<ActionItem[]> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    
+    return Array.from(this.actionItemsMap.values())
+      .filter(item => item.caseId === caseId)
+      .sort((a, b) => {
+        // Sort by priority (high > medium > low) then by dueDate
+        const priorityOrder = { high: 0, medium: 1, low: 2 };
+        const aPriority = priorityOrder[item.priority as keyof typeof priorityOrder] ?? 1;
+        const bPriority = priorityOrder[item.priority as keyof typeof priorityOrder] ?? 1;
+        if (aPriority !== bPriority) return aPriority - bPriority;
+        if (a.dueDate && b.dueDate) return a.dueDate.getTime() - b.dueDate.getTime();
+        if (a.dueDate) return -1;
+        if (b.dueDate) return 1;
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      });
+  }
+
+  async getActionItemsByTranscript(transcriptId: string, userId: string): Promise<ActionItem[]> {
+    const transcript = this.transcripts.get(transcriptId);
+    if (!transcript) return [];
+    
+    const caseRecord = this.cases.get(transcript.caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    
+    return Array.from(this.actionItemsMap.values())
+      .filter(item => item.transcriptId === transcriptId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async updateActionItem(id: string, updates: Partial<ActionItem>, userId: string): Promise<ActionItem | undefined> {
+    const existing = this.actionItemsMap.get(id);
+    if (!existing) return undefined;
+    
+    const caseRecord = this.cases.get(existing.caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    
+    const updated = { ...existing, ...updates };
+    this.actionItemsMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteActionItem(id: string, userId: string): Promise<boolean> {
+    const existing = this.actionItemsMap.get(id);
+    if (!existing) return false;
+    
+    const caseRecord = this.cases.get(existing.caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return false;
+    
+    return this.actionItemsMap.delete(id);
   }
 
   async createQuickNote(noteData: InsertQuickNote, userId: string): Promise<QuickNote> {
@@ -1378,6 +1463,75 @@ export class DbStorage implements IStorage {
       .where(eq(transcripts.id, id))
       .returning();
     return result[0];
+  }
+
+  // Action Items methods
+  async createActionItem(itemData: InsertActionItem): Promise<ActionItem> {
+    const result = await db
+      .insert(actionItems)
+      .values({
+        caseId: itemData.caseId,
+        transcriptId: itemData.transcriptId,
+        description: itemData.description,
+        assignee: itemData.assignee ?? null,
+        dueDate: itemData.dueDate ?? null,
+        priority: itemData.priority ?? "medium",
+        completed: itemData.completed ?? false,
+        sourceUtteranceIndex: itemData.sourceUtteranceIndex ?? null,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getActionItemsByCase(caseId: string, userId: string): Promise<ActionItem[]> {
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return [];
+    
+    return await db
+      .select()
+      .from(actionItems)
+      .where(eq(actionItems.caseId, caseId))
+      .orderBy(actionItems.priority, actionItems.dueDate, desc(actionItems.createdAt));
+  }
+
+  async getActionItemsByTranscript(transcriptId: string, userId: string): Promise<ActionItem[]> {
+    const transcript = await db.select().from(transcripts).where(eq(transcripts.id, transcriptId));
+    if (!transcript[0]) return [];
+    
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, transcript[0].caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return [];
+    
+    return await db
+      .select()
+      .from(actionItems)
+      .where(eq(actionItems.transcriptId, transcriptId))
+      .orderBy(desc(actionItems.createdAt));
+  }
+
+  async updateActionItem(id: string, updates: Partial<ActionItem>, userId: string): Promise<ActionItem | undefined> {
+    const existing = await db.select().from(actionItems).where(eq(actionItems.id, id));
+    if (!existing[0]) return undefined;
+    
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, existing[0].caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return undefined;
+    
+    const result = await db
+      .update(actionItems)
+      .set(updates)
+      .where(eq(actionItems.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteActionItem(id: string, userId: string): Promise<boolean> {
+    const existing = await db.select().from(actionItems).where(eq(actionItems.id, id));
+    if (!existing[0]) return false;
+    
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, existing[0].caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return false;
+    
+    await db.delete(actionItems).where(eq(actionItems.id, id));
+    return true;
   }
 
   async createQuickNote(noteData: InsertQuickNote, userId: string): Promise<QuickNote> {

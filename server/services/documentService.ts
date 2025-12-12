@@ -301,4 +301,96 @@ ${transcript}`;
       throw new Error(`Document generation failed: ${error.message}`);
     }
   }
+
+  /**
+   * Extract action items from transcript
+   */
+  async extractActionItems(
+    transcript: string,
+    metadata: CaseMetadata
+  ): Promise<{ items: ExtractedActionItem[], cost: number, inputTokens: number, outputTokens: number }> {
+    const systemPrompt = `You are a legal assistant specializing in extracting action items and follow-ups from legal meeting transcripts.
+
+TASK: Extract all action items, tasks, follow-ups, and deadlines mentioned in the transcript.
+
+For each action item, identify:
+1. A clear description of what needs to be done
+2. Who should do it (Solicitor, Client, or specific name if mentioned)
+3. Any deadline or timeframe mentioned (convert to ISO date format YYYY-MM-DD if possible)
+4. Priority level based on urgency words used (high, medium, low)
+
+IMPORTANT RULES:
+- Only extract genuine action items that were explicitly discussed or agreed upon
+- Do not invent or assume action items not mentioned in the transcript
+- Capture follow-up calls, document requests, deadline commitments, research tasks
+- Be conservative - when in doubt, mark as "medium" priority
+
+OUTPUT FORMAT: Return a JSON object with an "items" array:
+{
+  "items": [
+    {
+      "description": "Brief description of the action item",
+      "assignee": "Solicitor" | "Client" | "specific name",
+      "dueDate": "YYYY-MM-DD" | null,
+      "priority": "high" | "medium" | "low"
+    }
+  ]
+}
+
+If no clear action items are found, return: {"items": []}`;
+
+    const userPrompt = `Extract action items from this legal meeting transcript:
+
+Matter: ${metadata.title}
+Client: ${metadata.clientName}
+${metadata.matterReference ? `Reference: ${metadata.matterReference}` : ''}
+
+TRANSCRIPT:
+${transcript}
+
+Return the action items as a JSON object with an "items" array:`;
+
+    try {
+      console.log('Extracting action items with GPT-4o...');
+      
+      const response = await openaiClient.chat.completions.create({
+        model: MODELS.DOCUMENT_GENERATION,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.2,
+        max_tokens: 2000,
+        response_format: { type: 'json_object' },
+      });
+
+      const content = response.choices[0]?.message?.content || '[]';
+      const inputTokens = response.usage?.prompt_tokens || 0;
+      const outputTokens = response.usage?.completion_tokens || 0;
+      const cost = calculateGPT4oCost(inputTokens, outputTokens);
+
+      let items: ExtractedActionItem[] = [];
+      try {
+        const parsed = JSON.parse(content);
+        items = Array.isArray(parsed) ? parsed : (parsed.items || parsed.action_items || []);
+      } catch (parseError) {
+        console.error('Failed to parse action items JSON:', parseError);
+        items = [];
+      }
+
+      console.log(`Extracted ${items.length} action items. Cost: $${cost.toFixed(4)}`);
+
+      return { items, cost, inputTokens, outputTokens };
+    } catch (error: any) {
+      console.error('Action item extraction failed:', error);
+      throw new Error(`Action item extraction failed: ${error.message}`);
+    }
+  }
+}
+
+export interface ExtractedActionItem {
+  description: string;
+  assignee: string | null;
+  dueDate: string | null;
+  priority: 'high' | 'medium' | 'low';
 }

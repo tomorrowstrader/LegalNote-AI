@@ -94,6 +94,22 @@ export const transcripts = pgTable("transcripts", {
   redactions: jsonb("redactions").default([]), // Array of {start, end, reason, redactedBy, timestamp}
 });
 
+// AI-extracted action items from transcripts
+export const actionItems = pgTable("action_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  transcriptId: varchar("transcript_id").notNull().references(() => transcripts.id),
+  description: text("description").notNull(),
+  assignee: text("assignee"), // "Solicitor", "Client", or specific name
+  dueDate: timestamp("due_date"),
+  priority: text("priority").notNull().default("medium"), // high, medium, low
+  completed: boolean("completed").notNull().default(false),
+  completedAt: timestamp("completed_at"),
+  completedBy: varchar("completed_by").references(() => users.id),
+  sourceUtteranceIndex: integer("source_utterance_index"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
@@ -466,6 +482,20 @@ export const insertTranscriptSchema = createInsertSchema(transcripts).omit({
   content: z.string().max(1000000), // 1MB max for transcript
 });
 
+export const insertActionItemSchema = createInsertSchema(actionItems).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  transcriptId: z.string().uuid(),
+  description: z.string().min(1).max(1000),
+  assignee: z.string().optional(),
+  dueDate: z.date().optional(),
+  priority: z.enum(["high", "medium", "low"]).default("medium"),
+  completed: z.boolean().default(false),
+  sourceUtteranceIndex: z.number().int().optional()
+});
+
 export const insertDocumentSchema = createInsertSchema(documents).omit({
   id: true,
   createdAt: true,
@@ -718,6 +748,9 @@ export type ConsentLog = typeof consentLogs.$inferSelect;
 
 export type InsertTranscript = z.infer<typeof insertTranscriptSchema>;
 export type Transcript = typeof transcripts.$inferSelect;
+
+export type InsertActionItem = z.infer<typeof insertActionItemSchema>;
+export type ActionItem = typeof actionItems.$inferSelect;
 
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type Document = typeof documents.$inferSelect;
