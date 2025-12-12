@@ -110,6 +110,19 @@ export const actionItems = pgTable("action_items", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Pre-meeting briefings - AI-generated summaries from all prior meetings on a case
+export const preMeetingBriefings = pgTable("pre_meeting_briefings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  content: text("content").notNull(),
+  generatedAt: timestamp("generated_at").notNull().defaultNow(),
+  generatedBy: varchar("generated_by").notNull().references(() => users.id),
+  sourceMeetingCount: integer("source_meeting_count").notNull().default(0),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  cost: text("cost"), // Stored as string for precision
+});
+
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
@@ -496,6 +509,19 @@ export const insertActionItemSchema = createInsertSchema(actionItems).omit({
   sourceUtteranceIndex: z.number().int().optional()
 });
 
+export const insertPreMeetingBriefingSchema = createInsertSchema(preMeetingBriefings).omit({
+  id: true,
+  generatedAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  content: z.string().max(100000),
+  generatedBy: z.string().min(1),
+  sourceMeetingCount: z.number().int().min(0).default(0),
+  inputTokens: z.number().int().optional(),
+  outputTokens: z.number().int().optional(),
+  cost: z.string().optional(),
+});
+
 export const insertDocumentSchema = createInsertSchema(documents).omit({
   id: true,
   createdAt: true,
@@ -751,6 +777,9 @@ export type Transcript = typeof transcripts.$inferSelect;
 
 export type InsertActionItem = z.infer<typeof insertActionItemSchema>;
 export type ActionItem = typeof actionItems.$inferSelect;
+
+export type InsertPreMeetingBriefing = z.infer<typeof insertPreMeetingBriefingSchema>;
+export type PreMeetingBriefing = typeof preMeetingBriefings.$inferSelect;
 
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type Document = typeof documents.$inferSelect;
