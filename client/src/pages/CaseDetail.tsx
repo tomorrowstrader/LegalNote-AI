@@ -23,6 +23,7 @@ import DownloadModal from "@/components/DownloadModal";
 import ImportRecordingModal from "@/components/ImportRecordingModal";
 import SharedHistoryViewer from "@/components/SharedHistoryViewer";
 import ActionItemsViewer from "@/components/ActionItemsViewer";
+import PreMeetingBriefing from "@/components/PreMeetingBriefing";
 import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -574,8 +575,9 @@ export default function CaseDetail() {
           </div>
         )}
 
-        <div className="mt-8">
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ActionItemsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
+          <PreMeetingBriefing caseId={caseId!} hasTranscript={!!transcript?.content} />
         </div>
 
         <div className="mt-8">
