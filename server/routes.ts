@@ -1397,6 +1397,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req,
       });
       
+      // Track document versions shared with client
+      const allCaseDocuments = await storage.getActiveDocumentsByCase(req.params.id, userId);
+      for (const doc of allCaseDocuments) {
+        if (sharedDocuments.includes(doc.type)) {
+          await storage.createClientVersionTracking({
+            documentId: doc.id,
+            sentToClient: true,
+            sentAt: new Date(),
+            sentBy: userId,
+            sentMethod: smsProtection ? 'sms_2fa' : 'share_link',
+            amendmentReason: null,
+            versionChangeWarned: false,
+          });
+        }
+      }
+      
       res.json({ 
         success: true, 
         message: "Secure link sent successfully",
@@ -2269,6 +2285,134 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add redaction to transcript
+  app.post("/api/cases/:id/transcript/redact", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const { start, end, reason } = req.body;
+      
+      if (typeof start !== 'number' || typeof end !== 'number' || !reason?.trim()) {
+        return res.status(400).json({ message: "Invalid redaction data" });
+      }
+      
+      // Verify ownership
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const transcript = await storage.getTranscriptByCase(caseId, userId);
+      if (!transcript) {
+        return res.status(404).json({ message: "No transcript found" });
+      }
+      
+      // Get current redactions or initialize empty array
+      const currentRedactions = (transcript.redactions || []) as any[];
+      
+      // Check if this segment is already redacted
+      const alreadyRedacted = currentRedactions.some(
+        (r: any) => r.start === start && r.end === end
+      );
+      
+      if (alreadyRedacted) {
+        return res.status(400).json({ message: "This segment is already redacted" });
+      }
+      
+      // Add new redaction
+      const newRedaction = {
+        start,
+        end,
+        reason: reason.trim(),
+        redactedBy: userId,
+        timestamp: new Date().toISOString(),
+      };
+      
+      const updatedRedactions = [...currentRedactions, newRedaction];
+      
+      const updatedTranscript = await storage.updateTranscript(
+        transcript.id,
+        { redactions: updatedRedactions },
+        userId
+      );
+      
+      // Log audit event
+      await logAuditEvent(userId, "transcript_redacted", {
+        caseId,
+        transcriptId: transcript.id,
+        metadata: {
+          action: 'add',
+          start,
+          end,
+          reason: reason.trim(),
+        },
+        req,
+      });
+      
+      res.json(updatedTranscript);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Remove redaction from transcript
+  app.delete("/api/cases/:id/transcript/redact", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const { start, end } = req.body;
+      
+      if (typeof start !== 'number' || typeof end !== 'number') {
+        return res.status(400).json({ message: "Invalid redaction data" });
+      }
+      
+      // Verify ownership
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const transcript = await storage.getTranscriptByCase(caseId, userId);
+      if (!transcript) {
+        return res.status(404).json({ message: "No transcript found" });
+      }
+      
+      // Get current redactions
+      const currentRedactions = (transcript.redactions || []) as any[];
+      
+      // Find and remove the redaction
+      const updatedRedactions = currentRedactions.filter(
+        (r: any) => !(r.start === start && r.end === end)
+      );
+      
+      if (updatedRedactions.length === currentRedactions.length) {
+        return res.status(404).json({ message: "Redaction not found" });
+      }
+      
+      const updatedTranscript = await storage.updateTranscript(
+        transcript.id,
+        { redactions: updatedRedactions },
+        userId
+      );
+      
+      // Log audit event
+      await logAuditEvent(userId, "transcript_redacted", {
+        caseId,
+        transcriptId: transcript.id,
+        metadata: {
+          action: 'remove',
+          start,
+          end,
+        },
+        req,
+      });
+      
+      res.json(updatedTranscript);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Get documents for a case
   app.get("/api/cases/:id/documents", isAuthenticated, async (req: any, res, next) => {
     try {
@@ -2283,6 +2427,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const documents = await storage.getActiveDocumentsByCase(caseId, userId);
       res.json(documents);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Get client version tracking history for a case
+  app.get("/api/cases/:id/shared-history", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      // Verify ownership
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const history = await storage.getClientVersionTrackingByCase(caseId, userId);
+      res.json(history);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Record document shared with client
+  app.post("/api/documents/:documentId/track-share", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { documentId } = req.params;
+      const { sentMethod, amendmentReason } = req.body;
+      
+      // Verify document exists and user owns it
+      const document = await storage.getDocument(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      const caseData = await storage.getCase(document.caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      // Check if a previous version was shared
+      const latestShared = await storage.getLatestClientVersion(documentId);
+      const versionChangeWarned = latestShared ? latestShared.documentId !== documentId : false;
+      
+      const tracking = await storage.createClientVersionTracking({
+        documentId,
+        sentToClient: true,
+        sentAt: new Date(),
+        sentBy: userId,
+        sentMethod: sentMethod || 'share_link',
+        amendmentReason: amendmentReason || null,
+        versionChangeWarned,
+      });
+      
+      // Log audit event
+      await logAuditEvent(userId, "document_shared_with_client", {
+        caseId: document.caseId,
+        documentId,
+        metadata: {
+          documentType: document.type,
+          documentVersion: document.version,
+          sentMethod,
+          versionChangeWarned,
+        },
+        req,
+      });
+      
+      res.json(tracking);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Get latest version sent to client for a document
+  app.get("/api/documents/:documentId/latest-client-version", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { documentId } = req.params;
+      
+      // Verify document exists and user owns it
+      const document = await storage.getDocument(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      const caseData = await storage.getCase(document.caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const latestVersion = await storage.getLatestClientVersion(documentId);
+      res.json(latestVersion || null);
     } catch (error: any) {
       next(error);
     }
@@ -3483,6 +3721,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         req,
       });
+      
+      // Track document versions exported (for client version tracking)
+      const allCaseDocuments = await storage.getActiveDocumentsByCase(req.params.id, userId);
+      for (const doc of allCaseDocuments) {
+        if ((exportedDocs || []).includes(doc.type)) {
+          await storage.createClientVersionTracking({
+            documentId: doc.id,
+            sentToClient: true,
+            sentAt: new Date(),
+            sentBy: userId,
+            sentMethod: 'download',
+            amendmentReason: null,
+            versionChangeWarned: false,
+          });
+        }
+      }
       
       res.json({ success: true });
     } catch (error: any) {

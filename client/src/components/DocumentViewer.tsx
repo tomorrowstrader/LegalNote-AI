@@ -14,7 +14,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { RichTextEditor } from "@/components/RichTextEditor";
-import DiarizedTranscriptViewer, { type SpeakerUtterance } from "@/components/DiarizedTranscriptViewer";
+import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
 
 interface Document {
   id: string;
@@ -35,6 +35,7 @@ interface DocumentViewerProps {
   transcript?: string;
   transcriptUtterances?: SpeakerUtterance[];
   speakerCount?: number;
+  transcriptRedactions?: Redaction[];
   textNotes?: string;
   status: string;
   caseTitle: string;
@@ -145,6 +146,7 @@ export default function DocumentViewer({
   transcript,
   transcriptUtterances,
   speakerCount,
+  transcriptRedactions,
   textNotes,
   status,
   caseTitle,
@@ -356,6 +358,59 @@ export default function DocumentViewer({
       });
     },
   });
+
+  // Redaction mutations
+  const addRedactionMutation = useMutation({
+    mutationFn: async ({ start, end, reason }: { start: number; end: number; reason: string }) => {
+      return await apiRequest('POST', `/api/cases/${caseId}/transcript/redact`, { start, end, reason });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/transcript`] });
+      toast({
+        title: "Segment Redacted",
+        description: "The selected segment has been redacted and will be hidden in exports",
+        duration: 4000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Redaction Failed",
+        description: error.message || "Failed to redact segment. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    },
+  });
+
+  const removeRedactionMutation = useMutation({
+    mutationFn: async ({ start, end }: { start: number; end: number }) => {
+      return await apiRequest('DELETE', `/api/cases/${caseId}/transcript/redact`, { start, end });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/transcript`] });
+      toast({
+        title: "Redaction Removed",
+        description: "The segment is now visible again",
+        duration: 4000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Removal Failed",
+        description: error.message || "Failed to remove redaction. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    },
+  });
+
+  const handleRedact = (redaction: { start: number; end: number; reason: string }) => {
+    addRedactionMutation.mutate(redaction);
+  };
+
+  const handleRemoveRedaction = (start: number, end: number) => {
+    removeRedactionMutation.mutate({ start, end });
+  };
 
   const DRAFT_STORAGE_KEY = `legalnote_draft_`;
 
@@ -704,6 +759,10 @@ export default function DocumentViewer({
                   speakerCount={speakerCount}
                   fallbackContent={transcriptContent}
                   onTimestampClick={onTranscriptTimestampClick}
+                  redactions={transcriptRedactions}
+                  onRedact={handleRedact}
+                  onRemoveRedaction={handleRemoveRedaction}
+                  canRedact={true}
                 />
               ) : transcriptContent ? (
                 <p className="text-foreground whitespace-pre-wrap">{transcriptContent}</p>

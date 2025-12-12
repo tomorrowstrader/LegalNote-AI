@@ -1,8 +1,23 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { Users, Clock, ChevronDown, ChevronUp, EyeOff, Eye, Shield, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export interface SpeakerUtterance {
   speaker: string;
@@ -12,11 +27,23 @@ export interface SpeakerUtterance {
   confidence: number;
 }
 
+export interface Redaction {
+  start: number;
+  end: number;
+  reason: string;
+  redactedBy: string;
+  timestamp: string;
+}
+
 interface DiarizedTranscriptViewerProps {
   utterances: SpeakerUtterance[];
   speakerCount?: number;
   fallbackContent?: string;
   onTimestampClick?: (timestampMs: number) => void;
+  redactions?: Redaction[];
+  onRedact?: (redaction: { start: number; end: number; reason: string }) => void;
+  onRemoveRedaction?: (start: number, end: number) => void;
+  canRedact?: boolean;
 }
 
 const SPEAKER_COLORS = [
@@ -57,9 +84,16 @@ export default function DiarizedTranscriptViewer({
   speakerCount,
   fallbackContent,
   onTimestampClick,
+  redactions = [],
+  onRedact,
+  onRemoveRedaction,
+  canRedact = false,
 }: DiarizedTranscriptViewerProps) {
   const [showTimestamps, setShowTimestamps] = useState(true);
   const [expandedView, setExpandedView] = useState(true);
+  const [redactionMode, setRedactionMode] = useState(false);
+  const [pendingRedaction, setPendingRedaction] = useState<{ start: number; end: number; text: string } | null>(null);
+  const [redactionReason, setRedactionReason] = useState("");
 
   if (!utterances || utterances.length === 0) {
     if (fallbackContent) {
@@ -83,6 +117,43 @@ export default function DiarizedTranscriptViewer({
     ? utterances[utterances.length - 1].end 
     : 0;
 
+  const isRedacted = (start: number, end: number): Redaction | undefined => {
+    return redactions.find(r => r.start === start && r.end === end);
+  };
+
+  const handleUtteranceClick = (utterance: SpeakerUtterance) => {
+    if (!redactionMode || !canRedact) return;
+    
+    const existingRedaction = isRedacted(utterance.start, utterance.end);
+    if (existingRedaction) {
+      onRemoveRedaction?.(utterance.start, utterance.end);
+    } else {
+      setPendingRedaction({
+        start: utterance.start,
+        end: utterance.end,
+        text: utterance.text,
+      });
+    }
+  };
+
+  const handleConfirmRedaction = () => {
+    if (!pendingRedaction || !redactionReason.trim()) return;
+    
+    onRedact?.({
+      start: pendingRedaction.start,
+      end: pendingRedaction.end,
+      reason: redactionReason.trim(),
+    });
+    
+    setPendingRedaction(null);
+    setRedactionReason("");
+  };
+
+  const handleCancelRedaction = () => {
+    setPendingRedaction(null);
+    setRedactionReason("");
+  };
+
   return (
     <div className="space-y-4" data-testid="container-diarized-transcript">
       <div className="flex flex-wrap items-center gap-4 pb-4 border-b">
@@ -98,7 +169,27 @@ export default function DiarizedTranscriptViewer({
             {formatTimestamp(totalDuration)} duration
           </span>
         </div>
-        <div className="flex gap-2 ml-auto">
+        {redactions.length > 0 && (
+          <div className="flex items-center gap-2">
+            <EyeOff className="w-4 h-4 text-amber-500" />
+            <span className="text-sm text-amber-600 dark:text-amber-400">
+              {redactions.length} redaction{redactions.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
+        <div className="flex gap-2 ml-auto flex-wrap">
+          {canRedact && (
+            <Button
+              variant={redactionMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => setRedactionMode(!redactionMode)}
+              className="gap-1"
+              data-testid="button-toggle-redaction-mode"
+            >
+              <Shield className="w-3 h-3" />
+              {redactionMode ? 'Exit Redaction Mode' : 'Redact'}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -121,6 +212,21 @@ export default function DiarizedTranscriptViewer({
           </Button>
         </div>
       </div>
+
+      {redactionMode && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+          <div className="flex items-start gap-2">
+            <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium text-amber-800 dark:text-amber-200">Redaction Mode Active</p>
+              <p className="text-amber-700 dark:text-amber-300 mt-1">
+                Click on any segment to redact it. Redacted segments will be replaced with "[REDACTED]" in exports and shared documents.
+                Click on an already redacted segment to remove the redaction.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 pb-4">
         {uniqueSpeakers.map((speaker, idx) => {
@@ -147,15 +253,21 @@ export default function DiarizedTranscriptViewer({
       <div className={cn("space-y-3", !expandedView && "space-y-1")}>
         {utterances.map((utterance, idx) => {
           const colorIdx = getSpeakerIndex(utterance.speaker) % SPEAKER_COLORS.length;
+          const redaction = isRedacted(utterance.start, utterance.end);
+          const isUtteranceRedacted = !!redaction;
           
           return (
             <div 
               key={idx}
               className={cn(
                 "rounded-lg border p-3 transition-colors",
-                SPEAKER_COLORS[colorIdx],
-                !expandedView && "p-2"
+                isUtteranceRedacted 
+                  ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800" 
+                  : SPEAKER_COLORS[colorIdx],
+                !expandedView && "p-2",
+                redactionMode && canRedact && "cursor-pointer hover:ring-2 hover:ring-primary/50"
               )}
+              onClick={() => handleUtteranceClick(utterance)}
               data-testid={`utterance-${idx}`}
             >
               <div className="flex items-start gap-3">
@@ -164,7 +276,7 @@ export default function DiarizedTranscriptViewer({
                     variant="secondary" 
                     className={cn(
                       "text-white font-medium",
-                      SPEAKER_BADGE_COLORS[colorIdx]
+                      isUtteranceRedacted ? "bg-red-500" : SPEAKER_BADGE_COLORS[colorIdx]
                     )}
                     data-testid={`badge-speaker-label-${idx}`}
                   >
@@ -172,20 +284,61 @@ export default function DiarizedTranscriptViewer({
                   </Badge>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p 
-                    className={cn(
-                      "text-foreground",
-                      expandedView ? "text-sm leading-relaxed" : "text-xs"
-                    )}
-                    data-testid={`text-utterance-${idx}`}
-                  >
-                    {utterance.text}
-                  </p>
+                  {isUtteranceRedacted ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-2">
+                          <EyeOff className="w-4 h-4 text-red-500 flex-shrink-0" />
+                          <span className={cn(
+                            "text-red-600 dark:text-red-400 font-medium italic",
+                            expandedView ? "text-sm" : "text-xs"
+                          )}>
+                            [REDACTED]
+                          </span>
+                          {redactionMode && canRedact && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRemoveRedaction?.(utterance.start, utterance.end);
+                              }}
+                              data-testid={`button-remove-redaction-${idx}`}
+                            >
+                              <X className="w-3 h-3 mr-1" />
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        <p className="font-medium">Redaction Reason:</p>
+                        <p className="text-muted-foreground">{redaction.reason}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Redacted on {new Date(redaction.timestamp).toLocaleDateString()}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <p 
+                      className={cn(
+                        "text-foreground",
+                        expandedView ? "text-sm leading-relaxed" : "text-xs"
+                      )}
+                      data-testid={`text-utterance-${idx}`}
+                    >
+                      {utterance.text}
+                    </p>
+                  )}
                 </div>
                 {showTimestamps && (
                   <button
                     type="button"
-                    onClick={() => onTimestampClick?.(utterance.start)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTimestampClick?.(utterance.start);
+                    }}
                     disabled={!onTimestampClick}
                     className={cn(
                       "flex-shrink-0 text-xs font-mono px-2 py-1 rounded transition-colors",
@@ -204,6 +357,51 @@ export default function DiarizedTranscriptViewer({
           );
         })}
       </div>
+
+      <Dialog open={!!pendingRedaction} onOpenChange={(open) => !open && handleCancelRedaction()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Redaction</DialogTitle>
+            <DialogDescription>
+              This segment will be hidden from all exports and shared documents. You can remove the redaction later if needed.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="bg-muted p-3 rounded-lg">
+              <p className="text-sm font-medium text-muted-foreground mb-1">Text to be redacted:</p>
+              <p className="text-sm italic">"{pendingRedaction?.text}"</p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="redaction-reason">Reason for redaction (required)</Label>
+              <Textarea
+                id="redaction-reason"
+                placeholder="e.g., Contains sensitive personal information, Client requested removal, Privileged information..."
+                value={redactionReason}
+                onChange={(e) => setRedactionReason(e.target.value)}
+                className="min-h-[80px]"
+                data-testid="input-redaction-reason"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelRedaction} data-testid="button-cancel-redaction">
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmRedaction} 
+              disabled={!redactionReason.trim()}
+              className="bg-red-600 hover:bg-red-700"
+              data-testid="button-confirm-redaction"
+            >
+              <EyeOff className="w-4 h-4 mr-2" />
+              Confirm Redaction
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

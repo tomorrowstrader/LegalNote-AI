@@ -17,6 +17,7 @@ import {
   type PreConsentEmail, type InsertPreConsentEmail,
   type ScheduledMeeting, type InsertScheduledMeeting,
   type SharePointConnection, type InsertSharePointConnection,
+  type ClientVersionTracking, type InsertClientVersionTracking,
   users,
   cases,
   audioRecordings,
@@ -34,7 +35,8 @@ import {
   meetingImports,
   preConsentEmails,
   scheduledMeetings,
-  sharePointConnections
+  sharePointConnections,
+  clientVersionTracking
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -119,6 +121,12 @@ export interface IStorage {
   updateDocument(id: string, updates: Partial<Document>, userId: string): Promise<Document | undefined>;
   approveDocument(id: string, userId: string, comment?: string): Promise<Document | undefined>;
   unlockDocument(id: string, userId: string): Promise<Document | undefined>;
+  
+  // Client Version Tracking methods
+  createClientVersionTracking(trackingData: InsertClientVersionTracking): Promise<ClientVersionTracking>;
+  getClientVersionTrackingByDocument(documentId: string): Promise<ClientVersionTracking[]>;
+  getClientVersionTrackingByCase(caseId: string, userId: string): Promise<Array<ClientVersionTracking & { document: Document }>>;
+  getLatestClientVersion(documentId: string): Promise<ClientVersionTracking | undefined>;
   
   createAuditLog(auditData: InsertAuditTrail): Promise<AuditTrail>;
   getAuditLogs(filters?: {
@@ -232,6 +240,7 @@ export class MemStorage implements IStorage {
   private documents: Map<string, Document>;
   private auditLogs: Map<string, AuditTrail>;
   private calendarIntegrations: Map<string, CalendarIntegration>;
+  private clientVersionTrackingRecords: Map<string, ClientVersionTracking>;
 
   constructor() {
     this.users = new Map();
@@ -243,6 +252,7 @@ export class MemStorage implements IStorage {
     this.documents = new Map();
     this.auditLogs = new Map();
     this.calendarIntegrations = new Map();
+    this.clientVersionTrackingRecords = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -680,6 +690,52 @@ export class MemStorage implements IStorage {
     });
     
     return updated;
+  }
+
+  // Client Version Tracking methods
+  async createClientVersionTracking(trackingData: InsertClientVersionTracking): Promise<ClientVersionTracking> {
+    const id = randomUUID();
+    const record: ClientVersionTracking = {
+      id,
+      documentId: trackingData.documentId,
+      sentToClient: trackingData.sentToClient ?? false,
+      sentAt: trackingData.sentAt ?? null,
+      sentBy: trackingData.sentBy ?? null,
+      sentMethod: trackingData.sentMethod ?? null,
+      amendmentReason: trackingData.amendmentReason ?? null,
+      versionChangeWarned: trackingData.versionChangeWarned ?? false,
+    };
+    this.clientVersionTrackingRecords.set(id, record);
+    return record;
+  }
+
+  async getClientVersionTrackingByDocument(documentId: string): Promise<ClientVersionTracking[]> {
+    return Array.from(this.clientVersionTrackingRecords.values())
+      .filter(r => r.documentId === documentId)
+      .sort((a, b) => (b.sentAt?.getTime() || 0) - (a.sentAt?.getTime() || 0));
+  }
+
+  async getClientVersionTrackingByCase(caseId: string, userId: string): Promise<Array<ClientVersionTracking & { document: Document }>> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    
+    const caseDocuments = Array.from(this.documents.values()).filter(d => d.caseId === caseId);
+    const documentIds = new Set(caseDocuments.map(d => d.id));
+    
+    const trackingRecords = Array.from(this.clientVersionTrackingRecords.values())
+      .filter(r => documentIds.has(r.documentId) && r.sentToClient)
+      .sort((a, b) => (b.sentAt?.getTime() || 0) - (a.sentAt?.getTime() || 0));
+    
+    return trackingRecords.map(record => {
+      const document = caseDocuments.find(d => d.id === record.documentId)!;
+      return { ...record, document };
+    }).filter(r => r.document);
+  }
+
+  async getLatestClientVersion(documentId: string): Promise<ClientVersionTracking | undefined> {
+    const records = await this.getClientVersionTrackingByDocument(documentId);
+    const sentRecords = records.filter(r => r.sentToClient);
+    return sentRecords[0];
   }
 
   // Admin methods
@@ -1477,6 +1533,67 @@ export class DbStorage implements IStorage {
       },
     });
     
+    return result[0];
+  }
+
+  // Client Version Tracking methods
+  async createClientVersionTracking(trackingData: InsertClientVersionTracking): Promise<ClientVersionTracking> {
+    const result = await db
+      .insert(clientVersionTracking)
+      .values({
+        documentId: trackingData.documentId,
+        sentToClient: trackingData.sentToClient ?? false,
+        sentAt: trackingData.sentAt ?? null,
+        sentBy: trackingData.sentBy ?? null,
+        sentMethod: trackingData.sentMethod ?? null,
+        amendmentReason: trackingData.amendmentReason ?? null,
+        versionChangeWarned: trackingData.versionChangeWarned ?? false,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getClientVersionTrackingByDocument(documentId: string): Promise<ClientVersionTracking[]> {
+    return await db
+      .select()
+      .from(clientVersionTracking)
+      .where(eq(clientVersionTracking.documentId, documentId))
+      .orderBy(desc(clientVersionTracking.sentAt));
+  }
+
+  async getClientVersionTrackingByCase(caseId: string, userId: string): Promise<Array<ClientVersionTracking & { document: Document }>> {
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return [];
+    
+    const caseDocuments = await db.select().from(documents).where(eq(documents.caseId, caseId));
+    const documentIds = caseDocuments.map(d => d.id);
+    
+    if (documentIds.length === 0) return [];
+    
+    const trackingRecords = await db
+      .select()
+      .from(clientVersionTracking)
+      .where(eq(clientVersionTracking.sentToClient, true))
+      .orderBy(desc(clientVersionTracking.sentAt));
+    
+    const relevantRecords = trackingRecords.filter(r => documentIds.includes(r.documentId));
+    
+    return relevantRecords.map(record => {
+      const document = caseDocuments.find(d => d.id === record.documentId)!;
+      return { ...record, document };
+    }).filter(r => r.document);
+  }
+
+  async getLatestClientVersion(documentId: string): Promise<ClientVersionTracking | undefined> {
+    const result = await db
+      .select()
+      .from(clientVersionTracking)
+      .where(and(
+        eq(clientVersionTracking.documentId, documentId),
+        eq(clientVersionTracking.sentToClient, true)
+      ))
+      .orderBy(desc(clientVersionTracking.sentAt))
+      .limit(1);
     return result[0];
   }
 

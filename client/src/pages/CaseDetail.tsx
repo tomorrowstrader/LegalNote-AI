@@ -21,6 +21,7 @@ import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
 import DownloadModal from "@/components/DownloadModal";
 import ImportRecordingModal from "@/components/ImportRecordingModal";
+import SharedHistoryViewer from "@/components/SharedHistoryViewer";
 import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -69,12 +70,21 @@ export default function CaseDetail() {
     confidence: number;
   }
   
+  interface Redaction {
+    start: number;
+    end: number;
+    reason: string;
+    redactedBy: string;
+    timestamp: string;
+  }
+  
   const { data: transcript } = useQuery<{ 
     id: string; 
     caseId: string; 
     content: string; 
     utterances?: SpeakerUtterance[];
     speakerCount?: number;
+    redactions?: Redaction[];
     createdAt: string;
   }>({
     queryKey: [`/api/cases/${caseId}/transcript`],
@@ -510,6 +520,7 @@ export default function CaseDetail() {
           transcript={transcript?.content}
           transcriptUtterances={transcript?.utterances}
           speakerCount={transcript?.speakerCount}
+          transcriptRedactions={transcript?.redactions}
           textNotes={caseData.textNotes}
           status={caseData.status}
           caseTitle={caseData.title}
@@ -561,6 +572,10 @@ export default function CaseDetail() {
             />
           </div>
         )}
+
+        <div className="mt-8">
+          <SharedHistoryViewer caseId={caseId!} />
+        </div>
 
         <div className="mt-8">
           <AuditTrail caseId={caseId!} limit={50} />
