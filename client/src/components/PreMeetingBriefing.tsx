@@ -36,9 +36,7 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
   const generateMutation = useMutation({
     mutationFn: async () => {
       setIsGenerating(true);
-      const response = await apiRequest(`/api/cases/${caseId}/pre-meeting-briefing`, {
-        method: 'POST',
-      });
+      const response = await apiRequest("POST", `/api/cases/${caseId}/pre-meeting-briefing`, {});
       return response;
     },
     onSuccess: () => {
