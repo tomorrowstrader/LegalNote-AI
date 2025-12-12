@@ -386,6 +386,60 @@ Return the action items as a JSON object with an "items" array:`;
       throw new Error(`Action item extraction failed: ${error.message}`);
     }
   }
+
+  /**
+   * Generate pre-meeting briefing from all documents and transcripts for a case
+   */
+  async generatePreMeetingBriefing(
+    meetings: Array<{
+      date: string;
+      transcript: string;
+      attendanceNote?: string;
+      summary?: string;
+    }>,
+    metadata: CaseMetadata
+  ): Promise<DocumentGenerationResult> {
+    const systemPrompt = `You are a UK legal assistant preparing a concise pre-meeting briefing for a solicitor before their next client meeting.
+
+TASK: Generate a 1-page professional briefing document summarizing all prior meetings on this matter.
+
+The briefing should include:
+1. **Matter Summary** - Brief overview of the case and client situation
+2. **Key Discussion Points** - Main topics from previous meetings
+3. **Outstanding Action Items** - Tasks that were assigned but may still be pending
+4. **Important Dates & Deadlines** - Any critical dates mentioned
+5. **Client Concerns** - Any worries or priorities the client has expressed
+6. **Suggested Agenda Items** - Topics to discuss in the next meeting
+
+CRITICAL RULES:
+- Be concise and scannable - solicitors need to review this quickly before meetings
+- Only include information from the provided meeting records - do not fabricate details
+- Use professional UK legal terminology
+- Format for easy reading with clear headings and bullet points
+- Keep the entire briefing to approximately one printed page
+- If information is not available in the records, note "Not discussed" rather than guessing`;
+
+    const meetingsSummary = meetings.map((m, idx) => `
+--- MEETING ${idx + 1} (${m.date}) ---
+${m.summary ? `SUMMARY:\n${m.summary}\n` : ''}
+${m.attendanceNote ? `ATTENDANCE NOTE:\n${m.attendanceNote}\n` : ''}
+${m.transcript ? `TRANSCRIPT EXCERPT:\n${m.transcript.slice(0, 5000)}\n` : ''}
+`).join('\n');
+
+    const userPrompt = `Generate a pre-meeting briefing for:
+
+Matter: ${metadata.title}
+Client: ${metadata.clientName}
+${metadata.matterReference ? `Reference: ${metadata.matterReference}` : ''}
+Number of Prior Meetings: ${meetings.length}
+
+MEETING RECORDS:
+${meetingsSummary}
+
+Generate the briefing document:`;
+
+    return this.generateDocument(systemPrompt, userPrompt);
+  }
 }
 
 export interface ExtractedActionItem {
