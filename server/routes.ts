@@ -2658,6 +2658,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get pre-meeting briefing for a case
+  app.get("/api/cases/:id/pre-meeting-briefing", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const briefing = await storage.getLatestPreMeetingBriefing(caseId, userId);
+      res.json(briefing || null);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Generate pre-meeting briefing for a case
+  app.post("/api/cases/:id/pre-meeting-briefing", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const transcript = await storage.getTranscriptByCase(caseId, userId);
+      const documents = await storage.getActiveDocumentsByCase(caseId, userId);
+      
+      if (!transcript) {
+        return res.status(400).json({ message: "No transcript found for this case" });
+      }
+      
+      // Import document service
+      const { DocumentService } = await import("./services/documentService");
+      const documentService = new DocumentService();
+      
+      const metadata = {
+        title: caseData.title,
+        clientName: caseData.clientName,
+        matterReference: caseData.matterReference || undefined,
+        recordingDate: new Date().toISOString().split('T')[0],
+      };
+      
+      // Prepare meeting data from documents and transcript
+      const attendanceNote = documents.find(d => d.type === 'attendance_note');
+      const summary = documents.find(d => d.type === 'summary');
+      
+      const meetings = [{
+        date: caseData.createdAt ? new Date(caseData.createdAt).toISOString().split('T')[0] : 'Unknown',
+        transcript: transcript.content,
+        attendanceNote: attendanceNote?.content,
+        summary: summary?.content,
+      }];
+      
+      const result = await documentService.generatePreMeetingBriefing(meetings, metadata);
+      
+      // Store the briefing
+      const briefing = await storage.createPreMeetingBriefing({
+        caseId,
+        content: result.content,
+        generatedBy: userId,
+        sourceMeetingCount: meetings.length,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        cost: result.cost.toString(),
+      });
+      
+      await logAuditEvent(userId, "pre_meeting_briefing_generated", {
+        caseId,
+        metadata: {
+          briefingId: briefing.id,
+          sourceMeetingCount: meetings.length,
+          cost: result.cost,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+        },
+        req,
+      });
+      
+      res.json({
+        briefing,
+        generationCost: result.cost,
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Extract action items from transcript using AI
   app.post("/api/cases/:id/extract-action-items", isAuthenticated, async (req: any, res, next) => {
     try {
