@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Shield, Eye, FileText, Download, Send, Clock, User, Search } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Shield, Eye, FileText, Download, Send, Clock, User, Search, ChevronDown, ChevronRight, Settings } from "lucide-react";
 import type { AuditTrail as AuditTrailType } from "@shared/schema";
 
 interface AuditTrailProps {
@@ -32,6 +34,10 @@ const EVENT_ICONS: Record<string, any> = {
   transcript_viewed: Eye,
   transcript_redacted: Shield,
   audit_exported_csv: Download,
+  pre_meeting_briefing_generated: FileText,
+  ai_processing_started: FileText,
+  ai_processing_completed: FileText,
+  transcription_completed: FileText,
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -55,6 +61,10 @@ const EVENT_LABELS: Record<string, string> = {
   transcript_viewed: "Transcript Viewed",
   transcript_redacted: "Transcript Redacted",
   audit_exported_csv: "Audit Exported (CSV)",
+  pre_meeting_briefing_generated: "Meeting Briefing Generated",
+  ai_processing_started: "AI Processing Started",
+  ai_processing_completed: "AI Processing Completed",
+  transcription_completed: "Transcription Completed",
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -180,15 +190,63 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
         ? `Exported ${metadata.recordCount} records`
         : "Audit trail exported";
     
+    case "pre_meeting_briefing_generated":
+      return metadata.sourceMeetingCount 
+        ? `Prepared briefing from ${metadata.sourceMeetingCount} previous meeting${metadata.sourceMeetingCount > 1 ? 's' : ''}`
+        : "Meeting briefing prepared";
+    
+    case "ai_processing_started":
+      return "AI document generation initiated";
+    
+    case "ai_processing_completed":
+      return "AI document generation completed successfully";
+    
+    case "transcription_completed":
+      return metadata.duration 
+        ? `Audio transcribed (${Math.round(metadata.duration / 60)} minutes)`
+        : "Audio transcription completed";
+    
     default:
+      // Filter out technical fields that aren't meaningful to solicitors
+      const technicalFields = ['userId', 'caseId', 'timestamp', 'cost', 'inputTokens', 'outputTokens', 
+        'totalTokens', 'briefingId', 'transcriptId', 'documentId', 'recordingId', 'processingTime',
+        'model', 'apiVersion', 'requestId', 'sessionId', 'jobId', 'queuePosition'];
+      
       const entries = Object.entries(metadata)
-        .filter(([key]) => !['userId', 'caseId', 'timestamp'].includes(key))
+        .filter(([key]) => !technicalFields.includes(key))
         .map(([key, value]) => {
           const label = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').toLowerCase();
           return `${label}: ${typeof value === 'object' ? JSON.stringify(value) : value}`;
         });
       return entries.length > 0 ? entries.join(", ") : "";
   }
+}
+
+// Extract technical details from metadata for optional display
+function extractTechnicalDetails(metadata: Record<string, any>): { key: string; value: string }[] {
+  const technicalFields = ['cost', 'inputTokens', 'outputTokens', 'totalTokens', 'briefingId', 
+    'transcriptId', 'documentId', 'recordingId', 'processingTime', 'model', 'sourceMeetingCount'];
+  
+  return Object.entries(metadata)
+    .filter(([key]) => technicalFields.includes(key))
+    .map(([key, value]) => {
+      // Format the key nicely
+      const formattedKey = key
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/_/g, ' ')
+        .replace(/^./, str => str.toUpperCase())
+        .trim();
+      
+      // Format specific values
+      let formattedValue = String(value);
+      if (key === 'cost') {
+        formattedValue = `$${Number(value).toFixed(4)}`;
+      } else if (key.includes('Tokens')) {
+        formattedValue = Number(value).toLocaleString();
+      }
+      
+      return { key: formattedKey, value: formattedValue };
+    });
 }
 
 export function AuditTrail({ caseId, limit = 20 }: AuditTrailProps) {
@@ -275,15 +333,37 @@ export function AuditTrail({ caseId, limit = 20 }: AuditTrailProps) {
                       {(() => {
                         const metadata = log.metadata as Record<string, any> | null;
                         const formattedDetails = formatMetadata(log.eventType, metadata || {});
-                        if (formattedDetails) {
-                          return (
-                            <div className="mt-2 text-xs text-muted-foreground">
-                              <span className="font-medium">Details:</span>{" "}
-                              <span>{formattedDetails}</span>
-                            </div>
-                          );
-                        }
-                        return null;
+                        const technicalDetails = metadata ? extractTechnicalDetails(metadata) : [];
+                        
+                        return (
+                          <>
+                            {formattedDetails && (
+                              <div className="mt-2 text-xs text-muted-foreground">
+                                <span className="font-medium">Details:</span>{" "}
+                                <span>{formattedDetails}</span>
+                              </div>
+                            )}
+                            {technicalDetails.length > 0 && (
+                              <Collapsible className="mt-2">
+                                <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid={`trigger-technical-${log.id}`}>
+                                  <Settings className="w-3 h-3" />
+                                  <span>Technical details</span>
+                                  <ChevronDown className="w-3 h-3 transition-transform duration-200 [&[data-state=open]]:rotate-180" />
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="mt-1.5 pl-4 border-l-2 border-muted">
+                                  <div className="space-y-0.5 text-xs text-muted-foreground">
+                                    {technicalDetails.map(({ key, value }) => (
+                                      <div key={key} className="flex gap-2">
+                                        <span className="text-muted-foreground/70">{key}:</span>
+                                        <span className="font-mono">{value}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            )}
+                          </>
+                        );
                       })()}
                     </div>
                   </div>

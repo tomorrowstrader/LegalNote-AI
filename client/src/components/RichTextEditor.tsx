@@ -231,7 +231,9 @@ export function RichTextEditor({ content, onChange, disabled, placeholder }: Ric
         editor={editor} 
         className="[&_.ProseMirror]:min-h-[400px] [&_.ProseMirror]:p-4 [&_.ProseMirror]:focus:outline-none
           [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-bold [&_.ProseMirror_h1]:mb-3 [&_.ProseMirror_h1]:mt-4
+          [&_.ProseMirror_h1]:sticky [&_.ProseMirror_h1]:top-0 [&_.ProseMirror_h1]:bg-background [&_.ProseMirror_h1]:py-2 [&_.ProseMirror_h1]:z-10 [&_.ProseMirror_h1]:border-b [&_.ProseMirror_h1]:border-border
           [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mb-2 [&_.ProseMirror_h2]:mt-3
+          [&_.ProseMirror_h2]:sticky [&_.ProseMirror_h2]:top-8 [&_.ProseMirror_h2]:bg-background [&_.ProseMirror_h2]:py-1.5 [&_.ProseMirror_h2]:z-[9]
           [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:mt-2
           [&_.ProseMirror_p]:mb-2 [&_.ProseMirror_p]:leading-relaxed
           [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ul]:mb-2
