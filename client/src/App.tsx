@@ -34,6 +34,7 @@ function Router() {
       <Route path="/share/:linkId" component={ShareLinkView} />
       <Route path="/oauth/callback" component={OAuthCallback} />
       <Route path="/calendar-sync-confirmation" component={CalendarSyncConfirmation} />
+      <Route path="/landing-preview" component={Landing} />
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
