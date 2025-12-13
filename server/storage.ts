@@ -47,6 +47,79 @@ import { db } from "./db";
 import { eq, and, gte, lte, desc, isNull, sql, count } from "drizzle-orm";
 import { generateDocumentHash } from "./utils/documentHash";
 
+// Fuzzy search helper: Calculate trigram similarity between two strings
+// Returns a value between 0 and 1, where 1 is an exact match
+function trigramSimilarity(str1: string, str2: string): number {
+  if (!str1 || !str2) return 0;
+  if (str1 === str2) return 1;
+  
+  const getTrigrams = (s: string): Set<string> => {
+    const padded = `  ${s} `;
+    const trigrams = new Set<string>();
+    for (let i = 0; i < padded.length - 2; i++) {
+      trigrams.add(padded.substring(i, i + 3));
+    }
+    return trigrams;
+  };
+  
+  const trigrams1 = getTrigrams(str1);
+  const trigrams2 = getTrigrams(str2);
+  
+  let intersection = 0;
+  trigrams1.forEach(t => {
+    if (trigrams2.has(t)) intersection++;
+  });
+  
+  const union = trigrams1.size + trigrams2.size - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+
+// Phonetic matching helper: Check if two strings sound similar
+// Uses a simplified Soundex-like algorithm for common name variations
+function soundsLike(query: string, target: string): boolean {
+  if (!query || !target) return false;
+  
+  const soundex = (s: string): string => {
+    const str = s.toUpperCase().replace(/[^A-Z]/g, '');
+    if (!str) return '';
+    
+    const codes: Record<string, string> = {
+      'B': '1', 'F': '1', 'P': '1', 'V': '1',
+      'C': '2', 'G': '2', 'J': '2', 'K': '2', 'Q': '2', 'S': '2', 'X': '2', 'Z': '2',
+      'D': '3', 'T': '3',
+      'L': '4',
+      'M': '5', 'N': '5',
+      'R': '6'
+    };
+    
+    let result = str[0];
+    let prevCode = codes[str[0]] || '';
+    
+    for (let i = 1; i < str.length && result.length < 4; i++) {
+      const code = codes[str[i]] || '';
+      if (code && code !== prevCode) {
+        result += code;
+      }
+      prevCode = code || prevCode;
+    }
+    
+    return (result + '000').substring(0, 4);
+  };
+  
+  // Check if any word in target sounds like the query
+  const queryWords = query.split(/\s+/).filter(w => w.length > 2);
+  const targetWords = target.split(/\s+/).filter(w => w.length > 2);
+  
+  for (const qWord of queryWords) {
+    const qSoundex = soundex(qWord);
+    for (const tWord of targetWords) {
+      if (soundex(tWord) === qSoundex) return true;
+    }
+  }
+  
+  return false;
+}
+
 // Server-side audio recording creation type (includes server-calculated expiresAt)
 export type ServerAudioRecordingInsert = InsertAudioRecording & {
   expiresAt: Date;
@@ -2080,7 +2153,10 @@ export class DbStorage implements IStorage {
   }
   
   async searchCases(query: string, userId: string): Promise<Case[]> {
-    const lowerQuery = `%${query.toLowerCase()}%`;
+    // Normalize query: collapse whitespace, trim, lowercase
+    const normalizedQuery = query.replace(/\s+/g, '').toLowerCase();
+    const originalQuery = query.toLowerCase().trim();
+    const likeQuery = `%${originalQuery}%`;
     
     // Get all cases for the user
     const userCases = await db
@@ -2089,7 +2165,7 @@ export class DbStorage implements IStorage {
       .where(eq(cases.createdBy, userId))
       .orderBy(desc(cases.createdAt));
     
-    // Find cases with matching transcripts or documents
+    // Find cases with matching transcripts or documents using fuzzy search
     const casesWithTranscripts = await db
       .select({ caseId: transcripts.caseId })
       .from(transcripts)
@@ -2097,7 +2173,7 @@ export class DbStorage implements IStorage {
       .where(
         and(
           eq(cases.createdBy, userId),
-          sql`LOWER(${transcripts.content}) LIKE ${lowerQuery}`
+          sql`LOWER(${transcripts.content}) LIKE ${likeQuery}`
         )
       );
     
@@ -2108,7 +2184,7 @@ export class DbStorage implements IStorage {
       .where(
         and(
           eq(cases.createdBy, userId),
-          sql`LOWER(${documents.content}) LIKE ${lowerQuery}`
+          sql`LOWER(${documents.content}) LIKE ${likeQuery}`
         )
       );
     
@@ -2118,21 +2194,51 @@ export class DbStorage implements IStorage {
       ...casesWithDocuments.map(c => c.caseId)
     ]);
     
-    // Filter cases based on query
-    const filteredCases = userCases.filter(c => {
-      // Direct field matches
-      const titleMatch = c.title.toLowerCase().includes(query.toLowerCase());
-      const clientMatch = c.clientName.toLowerCase().includes(query.toLowerCase());
-      const matterMatch = c.matterReference?.toLowerCase().includes(query.toLowerCase());
-      const notesMatch = c.textNotes?.toLowerCase().includes(query.toLowerCase());
+    // Calculate similarity scores for each case using fuzzy matching
+    const scoredCases = userCases.map(c => {
+      let score = 0;
+      const titleLower = c.title.toLowerCase();
+      const clientLower = c.clientName.toLowerCase();
+      const matterLower = c.matterReference?.toLowerCase() || '';
+      const notesLower = c.textNotes?.toLowerCase() || '';
+      
+      // Normalize fields for comparison (remove spaces)
+      const titleNormalized = titleLower.replace(/\s+/g, '');
+      const clientNormalized = clientLower.replace(/\s+/g, '');
+      
+      // Exact substring matches (highest priority)
+      if (titleLower.includes(originalQuery)) score += 100;
+      if (clientLower.includes(originalQuery)) score += 90;
+      if (matterLower.includes(originalQuery)) score += 80;
+      if (notesLower.includes(originalQuery)) score += 70;
+      
+      // Normalized matches (handles spacing differences like "ted talk" vs "tedtalk")
+      if (titleNormalized.includes(normalizedQuery)) score += 95;
+      if (clientNormalized.includes(normalizedQuery)) score += 85;
+      
+      // Trigram similarity for fuzzy matching (handles typos)
+      const titleSimilarity = trigramSimilarity(originalQuery, titleLower);
+      const clientSimilarity = trigramSimilarity(originalQuery, clientLower);
+      
+      if (titleSimilarity > 0.3) score += titleSimilarity * 50;
+      if (clientSimilarity > 0.3) score += clientSimilarity * 45;
+      
+      // Phonetic matching for client names (handles "Smith" vs "Smyth")
+      if (soundsLike(originalQuery, clientLower)) score += 40;
       
       // Content matches from transcripts/documents
-      const contentMatch = matchingCaseIds.has(c.id);
+      if (matchingCaseIds.has(c.id)) score += 60;
       
-      return titleMatch || clientMatch || matterMatch || notesMatch || contentMatch;
+      return { case: c, score };
     });
     
-    return filteredCases;
+    // Filter cases with any match and sort by score
+    const matchedCases = scoredCases
+      .filter(sc => sc.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(sc => sc.case);
+    
+    return matchedCases;
   }
   
   async findObjectByPath(objectPath: string, userId: string): Promise<{
