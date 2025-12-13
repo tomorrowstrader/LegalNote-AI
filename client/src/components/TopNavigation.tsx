@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import GlobalSearch from "@/components/GlobalSearch";
 import QuickRecordButton from "@/components/QuickRecordButton";
+import CaseQuickSwitch from "@/components/CaseQuickSwitch";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -64,6 +65,8 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
           </div>
 
           <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+            <CaseQuickSwitch />
+            
             <GlobalSearch />
             
             <QuickRecordButton />
