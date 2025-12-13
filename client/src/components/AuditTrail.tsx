@@ -63,6 +63,134 @@ const SEVERITY_COLORS: Record<string, string> = {
   critical: "bg-red-500/10 text-red-500 border-red-500/20",
 };
 
+function formatMetadata(eventType: string, metadata: Record<string, any>): string {
+  if (!metadata || Object.keys(metadata).length === 0) return "";
+  
+  switch (eventType) {
+    case "case_viewed":
+      return metadata.source ? `Viewed from ${metadata.source}` : "Case accessed";
+    
+    case "case_created":
+      return metadata.clientName 
+        ? `New case for client "${metadata.clientName}"`
+        : "New case created";
+    
+    case "case_updated":
+      if (metadata.fields && Array.isArray(metadata.fields)) {
+        return `Updated: ${metadata.fields.join(", ")}`;
+      }
+      if (metadata.field) {
+        return `Updated ${metadata.field}${metadata.oldValue ? ` from "${metadata.oldValue}"` : ""}${metadata.newValue ? ` to "${metadata.newValue}"` : ""}`;
+      }
+      return "Case details updated";
+    
+    case "recording_started":
+      return metadata.duration 
+        ? `Recording duration: ${Math.round(metadata.duration / 60)} minutes`
+        : "Audio recording initiated";
+    
+    case "consent_given":
+      return metadata.method 
+        ? `Consent captured via ${metadata.method}`
+        : "Client provided consent";
+    
+    case "consent_declined":
+      return metadata.reason 
+        ? `Declined: ${metadata.reason}`
+        : "Client declined consent";
+    
+    case "audio_uploaded":
+      if (metadata.filename && metadata.size) {
+        const sizeMB = (metadata.size / (1024 * 1024)).toFixed(1);
+        return `Uploaded "${metadata.filename}" (${sizeMB} MB)`;
+      }
+      return metadata.filename ? `Uploaded "${metadata.filename}"` : "Audio file uploaded";
+    
+    case "audio_playback_started":
+      return metadata.position 
+        ? `Playback started at ${Math.floor(metadata.position / 60)}:${String(Math.floor(metadata.position % 60)).padStart(2, '0')}`
+        : "Audio playback started";
+    
+    case "audio_playback_paused":
+      return metadata.position 
+        ? `Paused at ${Math.floor(metadata.position / 60)}:${String(Math.floor(metadata.position % 60)).padStart(2, '0')}`
+        : "Audio playback paused";
+    
+    case "audio_seeked":
+      if (metadata.from !== undefined && metadata.to !== undefined) {
+        const fromTime = `${Math.floor(metadata.from / 60)}:${String(Math.floor(metadata.from % 60)).padStart(2, '0')}`;
+        const toTime = `${Math.floor(metadata.to / 60)}:${String(Math.floor(metadata.to % 60)).padStart(2, '0')}`;
+        return `Jumped from ${fromTime} to ${toTime}`;
+      }
+      return "Audio position changed";
+    
+    case "audio_deleted":
+      return metadata.reason 
+        ? `Audio removed: ${metadata.reason}`
+        : "Audio recording deleted";
+    
+    case "document_viewed":
+      return metadata.documentType 
+        ? `Viewed ${metadata.documentType}`
+        : "Document accessed";
+    
+    case "document_created":
+      return metadata.documentType 
+        ? `Created ${metadata.documentType}`
+        : "New document generated";
+    
+    case "document_updated":
+      return metadata.documentType 
+        ? `Updated ${metadata.documentType}${metadata.version ? ` (v${metadata.version})` : ""}`
+        : "Document modified";
+    
+    case "document_deleted":
+      return metadata.documentType 
+        ? `Deleted ${metadata.documentType}`
+        : "Document removed";
+    
+    case "document_downloaded":
+      return metadata.format 
+        ? `Downloaded as ${metadata.format.toUpperCase()}`
+        : "Document downloaded";
+    
+    case "document_sent":
+      if (metadata.recipient && metadata.method) {
+        return `Sent to ${metadata.recipient} via ${metadata.method}`;
+      }
+      return metadata.recipient 
+        ? `Sent to ${metadata.recipient}`
+        : "Document sent";
+    
+    case "transcript_viewed":
+      return metadata.section 
+        ? `Viewed ${metadata.section} section`
+        : "Transcript accessed";
+    
+    case "transcript_redacted":
+      if (metadata.redactionCount) {
+        return `${metadata.redactionCount} redaction${metadata.redactionCount > 1 ? 's' : ''} applied`;
+      }
+      return metadata.reason 
+        ? `Redacted: ${metadata.reason}`
+        : "Content redacted for privacy";
+    
+    case "audit_exported_csv":
+      return metadata.recordCount 
+        ? `Exported ${metadata.recordCount} records`
+        : "Audit trail exported";
+    
+    default:
+      const entries = Object.entries(metadata)
+        .filter(([key]) => !['userId', 'caseId', 'timestamp'].includes(key))
+        .map(([key, value]) => {
+          const label = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').toLowerCase();
+          return `${label}: ${typeof value === 'object' ? JSON.stringify(value) : value}`;
+        });
+      return entries.length > 0 ? entries.join(", ") : "";
+  }
+}
+
 export function AuditTrail({ caseId, limit = 20 }: AuditTrailProps) {
   const { data: auditLogs, isLoading } = useQuery<AuditTrailType[]>({
     queryKey: ["/api/audit/case", caseId],
@@ -146,11 +274,12 @@ export function AuditTrail({ caseId, limit = 20 }: AuditTrailProps) {
                       </div>
                       {(() => {
                         const metadata = log.metadata as Record<string, any> | null;
-                        if (metadata && Object.keys(metadata).length > 0) {
+                        const formattedDetails = formatMetadata(log.eventType, metadata || {});
+                        if (formattedDetails) {
                           return (
                             <div className="mt-2 text-xs text-muted-foreground">
                               <span className="font-medium">Details:</span>{" "}
-                              <code className="text-xs">{JSON.stringify(metadata)}</code>
+                              <span>{formattedDetails}</span>
                             </div>
                           );
                         }

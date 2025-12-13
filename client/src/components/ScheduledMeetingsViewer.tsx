@@ -24,6 +24,7 @@ import {
 import { format, formatDistanceToNow, isToday, isTomorrow, isPast, addMinutes } from "date-fns";
 import { useState } from "react";
 import type { ScheduledMeeting } from "@shared/schema";
+import ConfigurationErrorModal from "@/components/ConfigurationErrorModal";
 import {
   Dialog,
   DialogContent,
@@ -322,6 +323,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
 
 export function ScheduledMeetingsViewer() {
   const { toast } = useToast();
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
   
   const { data: meetings, isLoading, error, refetch } = useQuery<ScheduledMeeting[]>({
     queryKey: ['/api/scheduled-meetings'],
@@ -341,11 +343,7 @@ export function ScheduledMeetingsViewer() {
     },
     onError: (error: any) => {
       if (error.message?.includes('not connected') || error.needsCalendarConnection) {
-        toast({ 
-          title: "Calendar not connected", 
-          description: "Connect your Google Calendar in Settings to sync meetings.",
-          variant: "destructive"
-        });
+        setShowCalendarModal(true);
       } else {
         toast({ 
           title: "Sync failed", 
@@ -440,6 +438,12 @@ export function ScheduledMeetingsViewer() {
           </div>
         )}
       </CardContent>
+      
+      <ConfigurationErrorModal
+        open={showCalendarModal}
+        onOpenChange={setShowCalendarModal}
+        errorType="calendar_not_connected"
+      />
     </Card>
   );
 }

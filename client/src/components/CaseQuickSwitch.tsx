@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation, useParams } from "wouter";
+import { useLocation } from "wouter";
 import { ChevronDown, Briefcase, Clock, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,9 +24,9 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function CaseQuickSwitch() {
-  const [, setLocation] = useLocation();
-  const params = useParams();
-  const currentCaseId = params.id;
+  const [location, setLocation] = useLocation();
+  const caseMatch = location.match(/\/case\/([^/]+)/);
+  const currentCaseId = caseMatch ? caseMatch[1] : null;
   const [open, setOpen] = useState(false);
 
   const { data: cases = [], isLoading } = useQuery<Case[]>({

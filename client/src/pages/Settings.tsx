@@ -1403,6 +1403,22 @@ function NotificationSettings() {
 export default function Settings() {
   const { user } = useAuth();
   const isAdmin = (user as any)?.isAdmin === true;
+  
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const validTabs = ['firm', 'notifications', 'usage', 'integrations', 'security'];
+    return validTabs.includes(tab || '') ? tab! : 'firm';
+  });
+  
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const validTabs = ['firm', 'notifications', 'usage', 'integrations', 'security'];
+    if (tab && validTabs.includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, []);
 
   if (!isAdmin) {
     return (
@@ -1430,7 +1446,7 @@ export default function Settings() {
           </p>
         </div>
 
-        <Tabs defaultValue="firm" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="flex flex-wrap gap-1">
             <TabsTrigger value="firm" data-testid="tab-firm">Firm</TabsTrigger>
             <TabsTrigger value="notifications" data-testid="tab-notifications">Notifications</TabsTrigger>

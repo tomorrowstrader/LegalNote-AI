@@ -50,9 +50,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
   const extractMutation = useMutation({
     mutationFn: async () => {
       setIsExtracting(true);
-      const response = await apiRequest(`/api/cases/${caseId}/extract-action-items`, {
-        method: 'POST',
-      });
+      const response = await apiRequest('POST', `/api/cases/${caseId}/extract-action-items`);
       return response;
     },
     onSuccess: (data: any) => {
@@ -75,10 +73,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
-      return await apiRequest(`/api/action-items/${id}`, {
-        method: 'PATCH',
-        body: { completed },
-      });
+      return await apiRequest('PATCH', `/api/action-items/${id}`, { completed });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/action-items`] });
@@ -94,9 +89,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest(`/api/action-items/${id}`, {
-        method: 'DELETE',
-      });
+      return await apiRequest('DELETE', `/api/action-items/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/action-items`] });
