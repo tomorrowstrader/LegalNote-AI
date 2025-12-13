@@ -120,6 +120,12 @@ function soundsLike(query: string, target: string): boolean {
   return false;
 }
 
+// Accent folding helper: Remove diacritics/accents from text
+// e.g., "Café" -> "Cafe", "José" -> "Jose"
+function removeAccents(str: string): string {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 // Server-side audio recording creation type (includes server-calculated expiresAt)
 export type ServerAudioRecordingInsert = InsertAudioRecording & {
   expiresAt: Date;
@@ -2153,9 +2159,9 @@ export class DbStorage implements IStorage {
   }
   
   async searchCases(query: string, userId: string): Promise<Case[]> {
-    // Normalize query: collapse whitespace, trim, lowercase
-    const normalizedQuery = query.replace(/\s+/g, '').toLowerCase();
-    const originalQuery = query.toLowerCase().trim();
+    // Normalize query: collapse whitespace, trim, lowercase, remove accents
+    const originalQuery = removeAccents(query.toLowerCase().trim());
+    const normalizedQuery = originalQuery.replace(/\s+/g, '');
     const likeQuery = `%${originalQuery}%`;
     
     // Get all cases for the user
@@ -2194,42 +2200,68 @@ export class DbStorage implements IStorage {
       ...casesWithDocuments.map(c => c.caseId)
     ]);
     
-    // Calculate similarity scores for each case using fuzzy matching
+    // Calculate similarity scores for each case using tiered priority matching
+    // Priority tiers ensure exact matches always rank above fuzzy matches
     const scoredCases = userCases.map(c => {
-      let score = 0;
-      const titleLower = c.title.toLowerCase();
-      const clientLower = c.clientName.toLowerCase();
-      const matterLower = c.matterReference?.toLowerCase() || '';
-      const notesLower = c.textNotes?.toLowerCase() || '';
+      // Normalize case fields: lowercase and remove accents
+      const titleLower = removeAccents(c.title.toLowerCase());
+      const clientLower = removeAccents(c.clientName.toLowerCase());
+      const matterLower = removeAccents(c.matterReference?.toLowerCase() || '');
+      const notesLower = removeAccents(c.textNotes?.toLowerCase() || '');
       
-      // Normalize fields for comparison (remove spaces)
+      // Further normalize for spacing comparison (remove spaces)
       const titleNormalized = titleLower.replace(/\s+/g, '');
       const clientNormalized = clientLower.replace(/\s+/g, '');
       
-      // Exact substring matches (highest priority)
-      if (titleLower.includes(originalQuery)) score += 100;
-      if (clientLower.includes(originalQuery)) score += 90;
-      if (matterLower.includes(originalQuery)) score += 80;
-      if (notesLower.includes(originalQuery)) score += 70;
+      // Tier 1: Exact substring matches (score 1000+)
+      let tier1Score = 0;
+      if (titleLower.includes(originalQuery)) tier1Score = 1000;
+      else if (clientLower.includes(originalQuery)) tier1Score = 900;
+      else if (matterLower.includes(originalQuery)) tier1Score = 800;
+      else if (notesLower.includes(originalQuery)) tier1Score = 700;
       
-      // Normalized matches (handles spacing differences like "ted talk" vs "tedtalk")
-      if (titleNormalized.includes(normalizedQuery)) score += 95;
-      if (clientNormalized.includes(normalizedQuery)) score += 85;
+      // Tier 2: Normalized matches - handles spacing differences (score 500+)
+      let tier2Score = 0;
+      if (tier1Score === 0) {
+        if (titleNormalized.includes(normalizedQuery)) tier2Score = 600;
+        else if (clientNormalized.includes(normalizedQuery)) tier2Score = 550;
+      }
       
-      // Trigram similarity for fuzzy matching (handles typos)
-      const titleSimilarity = trigramSimilarity(originalQuery, titleLower);
-      const clientSimilarity = trigramSimilarity(originalQuery, clientLower);
+      // Tier 3: Content matches from transcripts/documents (score 400+)
+      let tier3Score = 0;
+      if (tier1Score === 0 && tier2Score === 0) {
+        if (matchingCaseIds.has(c.id)) tier3Score = 400;
+      }
       
-      if (titleSimilarity > 0.3) score += titleSimilarity * 50;
-      if (clientSimilarity > 0.3) score += clientSimilarity * 45;
+      // Tier 4: Fuzzy trigram similarity (score 200+)
+      let tier4Score = 0;
+      if (tier1Score === 0 && tier2Score === 0 && tier3Score === 0) {
+        const titleSimilarity = trigramSimilarity(originalQuery, titleLower);
+        const clientSimilarity = trigramSimilarity(originalQuery, clientLower);
+        const maxSimilarity = Math.max(titleSimilarity, clientSimilarity);
+        if (maxSimilarity > 0.3) {
+          tier4Score = 200 + (maxSimilarity * 100);
+        }
+      }
       
-      // Phonetic matching for client names (handles "Smith" vs "Smyth")
-      if (soundsLike(originalQuery, clientLower)) score += 40;
+      // Tier 5: Phonetic matching for names (score 100+)
+      let tier5Score = 0;
+      if (tier1Score === 0 && tier2Score === 0 && tier3Score === 0 && tier4Score === 0) {
+        if (soundsLike(originalQuery, clientLower)) tier5Score = 100;
+      }
       
-      // Content matches from transcripts/documents
-      if (matchingCaseIds.has(c.id)) score += 60;
+      // Final score is the highest tier that matched (ensures priority ordering)
+      const score = tier1Score || tier2Score || tier3Score || tier4Score || tier5Score;
       
-      return { case: c, score };
+      // Add bonus points for additional matches within the same tier
+      let bonus = 0;
+      if (tier1Score > 0) {
+        if (clientLower.includes(originalQuery)) bonus += 50;
+        if (matterLower.includes(originalQuery)) bonus += 30;
+        if (matchingCaseIds.has(c.id)) bonus += 20;
+      }
+      
+      return { case: c, score: score + bonus };
     });
     
     // Filter cases with any match and sort by score
