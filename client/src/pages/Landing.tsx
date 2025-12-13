@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Scale, FileText, ShieldCheck, Clock, Mic, Calendar, Check, Building2, User, Sparkles } from "lucide-react";
+import { Scale, FileText, ShieldCheck, Clock, Mic, Calendar, Check, Building2, User, Sparkles, ArrowRight, Mail, Linkedin } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 
 interface Price {
   id: string;
@@ -56,17 +57,45 @@ export default function Landing() {
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-accent/5" />
         <div className="relative max-w-6xl mx-auto px-4 pt-12 pb-16 sm:pt-20 sm:pb-24">
-          <div className="text-center">
-            <Badge variant="secondary" className="mb-4">
-              GDPR Compliant
-            </Badge>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-4 tracking-tight" data-testid="text-app-title">
+          <motion.div 
+            className="text-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+            >
+              <Badge variant="secondary" className="mb-4">
+                GDPR Compliant
+              </Badge>
+            </motion.div>
+            <motion.h1 
+              className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-4 tracking-tight" 
+              data-testid="text-app-title"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
               LegalNote AI
-            </h1>
-            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8" data-testid="text-app-description">
+            </motion.h1>
+            <motion.p 
+              className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8" 
+              data-testid="text-app-description"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
               Professional legal documentation platform for UK solicitors. Record client meetings, generate attendance notes automatically, and share documents securely.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            </motion.p>
+            <motion.div 
+              className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+            >
               <Button 
                 onClick={handleLogin} 
                 size="lg" 
@@ -84,16 +113,27 @@ export default function Landing() {
               >
                 View Pricing
               </Button>
-            </div>
-            <p className="text-sm text-muted-foreground mt-4">
+            </motion.div>
+            <motion.p 
+              className="text-sm text-muted-foreground mt-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+            >
               14-Day Professional Evaluation Period. No payment taken until evaluation ends.
-            </p>
-          </div>
+            </motion.p>
+          </motion.div>
         </div>
       </div>
 
       {/* Features Grid */}
-      <div className="max-w-6xl mx-auto px-4 py-16">
+      <motion.div 
+        className="max-w-6xl mx-auto px-4 py-16"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+      >
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold mb-4">Everything You Need</h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
@@ -102,82 +142,111 @@ export default function Landing() {
         </div>
         
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card className="hover-elevate">
-            <CardHeader>
-              <Mic className="w-10 h-10 text-primary mb-2" />
-              <CardTitle>AI Transcription</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                Record client meetings and get accurate transcripts with speaker identification. AssemblyAI-powered for professional accuracy.
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="hover-elevate">
-            <CardHeader>
-              <FileText className="w-10 h-10 text-primary mb-2" />
-              <CardTitle>Attendance Notes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                AI-generated attendance notes in professional legal format. Export to Word or PDF with your firm's branding.
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="hover-elevate">
-            <CardHeader>
-              <Scale className="w-10 h-10 text-primary mb-2" />
-              <CardTitle>GDPR Compliant</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                Built-in consent management, audit trails, and automatic data retention. Full compliance documentation included.
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="hover-elevate">
-            <CardHeader>
-              <ShieldCheck className="w-10 h-10 text-primary mb-2" />
-              <CardTitle>Secure Sharing</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                Share documents with clients via secure links. Optional SMS 2FA and password protection for sensitive materials.
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="hover-elevate">
-            <CardHeader>
-              <Calendar className="w-10 h-10 text-primary mb-2" />
-              <CardTitle>Calendar Sync</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                Sync case deadlines to Google Calendar or Outlook. Never miss an important date with automatic reminders.
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="hover-elevate">
-            <CardHeader>
-              <Clock className="w-10 h-10 text-primary mb-2" />
-              <CardTitle>7-Day Audio Retention</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                Audio files automatically deleted after 7 days. Transcripts and documents retained permanently for your records.
-              </CardDescription>
-            </CardContent>
-          </Card>
+          {[
+            { icon: Mic, title: "AI Transcription", description: "Record client meetings and get accurate transcripts with speaker identification. AssemblyAI-powered for professional accuracy." },
+            { icon: FileText, title: "Attendance Notes", description: "AI-generated attendance notes in professional legal format. Export to Word or PDF with your firm's branding." },
+            { icon: Scale, title: "GDPR Compliant", description: "Built-in consent management, audit trails, and automatic data retention. Full compliance documentation included." },
+            { icon: ShieldCheck, title: "Secure Sharing", description: "Share documents with clients via secure links. Optional SMS 2FA and password protection for sensitive materials." },
+            { icon: Calendar, title: "Calendar Sync", description: "Sync case deadlines to Google Calendar or Outlook. Never miss an important date with automatic reminders." },
+            { icon: Clock, title: "7-Day Audio Retention", description: "Audio files automatically deleted after 7 days. Transcripts and documents retained permanently for your records." },
+          ].map((feature, index) => (
+            <motion.div
+              key={feature.title}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: index * 0.1 }}
+            >
+              <Card className="hover-elevate h-full">
+                <CardHeader>
+                  <feature.icon className="w-10 h-10 text-primary mb-2" />
+                  <CardTitle>{feature.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>{feature.description}</CardDescription>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
         </div>
-      </div>
+      </motion.div>
+
+      {/* How It Works Section */}
+      <motion.div 
+        className="bg-muted/30 py-16"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.6 }}
+      >
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">How It Works</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              From meeting to matter documentation in three simple steps.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <motion.div 
+              className="text-center"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+            >
+              <div className="w-16 h-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold mx-auto mb-4">
+                1
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Record & Consent</h3>
+              <p className="text-muted-foreground">
+                Start a recording with built-in consent capture. Works with in-person meetings or import from Zoom, Teams, and Meet.
+              </p>
+            </motion.div>
+
+            <motion.div 
+              className="text-center relative"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              <div className="hidden md:block absolute top-8 -left-4 w-8">
+                <ArrowRight className="w-8 h-8 text-muted-foreground/50" />
+              </div>
+              <div className="w-16 h-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold mx-auto mb-4">
+                2
+              </div>
+              <h3 className="text-xl font-semibold mb-2">AI Processing</h3>
+              <p className="text-muted-foreground">
+                Our AI transcribes your meeting with speaker identification and generates professional attendance notes and summaries.
+              </p>
+            </motion.div>
+
+            <motion.div 
+              className="text-center relative"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <div className="hidden md:block absolute top-8 -left-4 w-8">
+                <ArrowRight className="w-8 h-8 text-muted-foreground/50" />
+              </div>
+              <div className="w-16 h-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold mx-auto mb-4">
+                3
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Share & Export</h3>
+              <p className="text-muted-foreground">
+                Export branded documents to PDF or Word. Share securely with clients via protected links with optional SMS 2FA.
+              </p>
+            </motion.div>
+          </div>
+        </div>
+      </motion.div>
 
       {/* Pricing Section */}
-      <div id="pricing" className="bg-muted/30 py-16">
+      <div id="pricing" className="py-16">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Simple, Transparent Pricing</h2>
@@ -325,18 +394,82 @@ export default function Landing() {
       </div>
 
       {/* Footer */}
-      <div className="border-t bg-muted/30">
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="text-sm text-muted-foreground">
-              LegalNote AI - Professional Legal Documentation
+      <footer className="border-t bg-muted/30">
+        <div className="max-w-6xl mx-auto px-4 py-12">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            <div className="md:col-span-2">
+              <h3 className="text-lg font-semibold mb-3">LegalNote AI</h3>
+              <p className="text-sm text-muted-foreground mb-4 max-w-sm">
+                Professional legal documentation platform built specifically for UK solicitors. 
+                GDPR compliant, SRA-aligned, designed to streamline your practice.
+              </p>
+              <div className="flex items-center gap-3">
+                <Badge variant="outline" className="text-xs">GDPR Compliant</Badge>
+                <Badge variant="outline" className="text-xs">UK Data Centres</Badge>
+              </div>
             </div>
+
+            <div>
+              <h4 className="font-medium mb-3">Product</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li>
+                  <button 
+                    onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
+                    className="hover:text-foreground transition-colors"
+                    data-testid="link-footer-pricing"
+                  >
+                    Pricing
+                  </button>
+                </li>
+                <li>
+                  <span className="text-muted-foreground/60">Documentation (Coming Soon)</span>
+                </li>
+                <li>
+                  <span className="text-muted-foreground/60">API (Coming Soon)</span>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-medium mb-3">Contact</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  <a 
+                    href="mailto:hello@legalnote.ai" 
+                    className="hover:text-foreground transition-colors"
+                    data-testid="link-footer-email"
+                  >
+                    hello@legalnote.ai
+                  </a>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Linkedin className="w-4 h-4" />
+                  <a 
+                    href="https://linkedin.com/company/legalnote-ai" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="hover:text-foreground transition-colors"
+                    data-testid="link-footer-linkedin"
+                  >
+                    LinkedIn
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="border-t pt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="text-sm text-muted-foreground">
-              Designed for UK Solicitors
+              © {new Date().getFullYear()} LegalNote AI. All rights reserved.
+            </div>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span className="text-muted-foreground/60">Privacy Policy (Coming Soon)</span>
+              <span className="text-muted-foreground/60">Terms of Service (Coming Soon)</span>
             </div>
           </div>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }
