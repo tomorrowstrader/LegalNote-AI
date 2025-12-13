@@ -1,10 +1,17 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video } from "lucide-react";
+import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X } from "lucide-react";
+import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +45,7 @@ export default function CaseDetail() {
   const params = useParams();
   const caseId = params.id;
   const { toast } = useToast();
+  const { isFocusMode, toggleFocusMode, exitFocusMode } = useFocusMode();
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -238,25 +246,43 @@ export default function CaseDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto px-6 lg:px-8 py-8">
-        <Button
-          variant="ghost"
-          onClick={() => setLocation('/')}
-          className="mb-6 gap-2"
-          data-testid="button-back-to-dashboard"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
-        </Button>
+    <div className={`min-h-screen bg-background ${isFocusMode ? 'focus-mode' : ''}`}>
+      {/* Focus Mode Exit Button - floating */}
+      {isFocusMode && (
+        <div className="fixed top-4 right-4 z-50">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exitFocusMode}
+            className="gap-2 bg-background/80 backdrop-blur-sm shadow-lg"
+            data-testid="button-exit-focus-mode"
+          >
+            <X className="w-4 h-4" />
+            Exit Focus Mode
+          </Button>
+        </div>
+      )}
+      
+      <div className={`mx-auto px-6 lg:px-8 py-8 ${isFocusMode ? 'max-w-3xl' : 'max-w-4xl'}`}>
+        {!isFocusMode && (
+          <Button
+            variant="ghost"
+            onClick={() => setLocation('/')}
+            className="mb-6 gap-2"
+            data-testid="button-back-to-dashboard"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </Button>
+        )}
 
         <div className="mb-8">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex-1 min-w-0">
-              <h1 className="text-3xl font-semibold text-foreground mb-2">
+              <h1 className={`font-semibold text-foreground mb-2 ${isFocusMode ? 'text-4xl' : 'text-3xl'}`}>
                 {caseData.title}
               </h1>
-              <p className="text-lg text-muted-foreground">{caseData.clientName}</p>
+              <p className={`text-muted-foreground ${isFocusMode ? 'text-xl' : 'text-lg'}`}>{caseData.clientName}</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               {caseData.sourceType === 'audio' && hasValidConsent ? (
@@ -279,6 +305,11 @@ export default function CaseDetail() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={toggleFocusMode} data-testid="action-focus-mode">
+                    <Focus className="w-4 h-4 mr-2" />
+                    {isFocusMode ? "Exit Focus Mode" : "Focus Mode"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setShowPriorityModal(true)} data-testid="action-set-priority">
                     <AlertCircle className="w-4 h-4 mr-2" />
                     Set Priority/Deadline
@@ -532,60 +563,113 @@ export default function CaseDetail() {
           onTranscriptTimestampClick={handleTranscriptTimestampClick}
         />
 
-        {/* Quick Notes Section */}
-        <div className="mt-8 p-6 bg-card rounded-lg border border-border">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <MessageSquarePlus className="w-5 h-5 text-accent" />
-              <h3 className="font-semibold text-foreground">Quick Notes</h3>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAddNoteModal(true)}
-              className="gap-2"
-              data-testid="button-add-quick-note"
-            >
-              <Plus className="w-4 h-4" />
-              {caseData.textNotes ? "Edit Note" : "Add Note"}
-            </Button>
-          </div>
-          
-          {caseData.textNotes ? (
-            <div className="prose prose-sm max-w-none">
-              <p className="text-foreground whitespace-pre-wrap" data-testid="text-quick-notes-content">
-                {caseData.textNotes}
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground italic" data-testid="text-no-quick-notes">
-              No quick notes added yet. Click "Add Note" to add text or voice notes to this case.
-            </p>
-          )}
-        </div>
-
-        {/* Consent Evidence Section - preserved indefinitely for compliance */}
-        {caseData.sourceType === 'audio' && (
-          <div className="mt-8">
-            <ConsentEvidence 
-              caseId={caseId!} 
-              audioRecording={audioData}
-              consentLogs={consentLogs}
-            />
-          </div>
-        )}
-
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ActionItemsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
-          <PreMeetingBriefing caseId={caseId!} hasTranscript={!!transcript?.content} />
-        </div>
-
+        {/* Briefing Stack - Collapsible Sections */}
         <div className="mt-8">
-          <SharedHistoryViewer caseId={caseId!} />
-        </div>
+          <Accordion type="multiple" defaultValue={["quick-notes", "action-items"]} className="space-y-4">
+            {/* Quick Notes Section */}
+            <AccordionItem value="quick-notes" className="bg-card rounded-lg border border-border px-6">
+              <AccordionTrigger className="hover:no-underline" data-testid="accordion-quick-notes">
+                <div className="flex items-center gap-2">
+                  <MessageSquarePlus className="w-5 h-5 text-accent" />
+                  <span className="font-semibold">Quick Notes</span>
+                  {caseData.textNotes && (
+                    <Badge variant="secondary" className="ml-2 text-xs">Has notes</Badge>
+                  )}
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAddNoteModal(true)}
+                    className="gap-2"
+                    data-testid="button-add-quick-note"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {caseData.textNotes ? "Edit Note" : "Add Note"}
+                  </Button>
+                </div>
+                
+                {caseData.textNotes ? (
+                  <div className="prose prose-sm max-w-none">
+                    <p className="text-foreground whitespace-pre-wrap" data-testid="text-quick-notes-content">
+                      {caseData.textNotes}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic" data-testid="text-no-quick-notes">
+                    No quick notes added yet. Click "Add Note" to add text or voice notes to this case.
+                  </p>
+                )}
+              </AccordionContent>
+            </AccordionItem>
 
-        <div className="mt-8">
-          <AuditTrail caseId={caseId!} limit={50} />
+            {/* Action Items & Pre-Meeting Briefing */}
+            <AccordionItem value="action-items" className="bg-card rounded-lg border border-border px-6">
+              <AccordionTrigger className="hover:no-underline" data-testid="accordion-action-items">
+                <div className="flex items-center gap-2">
+                  <ListChecks className="w-5 h-5 text-accent" />
+                  <span className="font-semibold">Action Items & Briefing</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <ActionItemsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
+                  <PreMeetingBriefing caseId={caseId!} hasTranscript={!!transcript?.content} />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Consent Evidence Section - preserved indefinitely for compliance */}
+            {caseData.sourceType === 'audio' && (
+              <AccordionItem value="consent-evidence" className="bg-card rounded-lg border border-border px-6">
+                <AccordionTrigger className="hover:no-underline" data-testid="accordion-consent-evidence">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-accent" />
+                    <span className="font-semibold">Consent Evidence</span>
+                    {hasValidConsent && (
+                      <Badge className="ml-2 text-xs bg-accent">Verified</Badge>
+                    )}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <ConsentEvidence 
+                    caseId={caseId!} 
+                    audioRecording={audioData}
+                    consentLogs={consentLogs}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            )}
+
+            {/* Sharing History */}
+            <AccordionItem value="sharing-history" className="bg-card rounded-lg border border-border px-6">
+              <AccordionTrigger className="hover:no-underline" data-testid="accordion-sharing-history">
+                <div className="flex items-center gap-2">
+                  <Share2 className="w-5 h-5 text-accent" />
+                  <span className="font-semibold">Sharing History</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <SharedHistoryViewer caseId={caseId!} />
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Audit Trail */}
+            <AccordionItem value="audit-trail" className="bg-card rounded-lg border border-border px-6">
+              <AccordionTrigger className="hover:no-underline" data-testid="accordion-audit-trail">
+                <div className="flex items-center gap-2">
+                  <ScrollText className="w-5 h-5 text-accent" />
+                  <span className="font-semibold">Audit Trail</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <AuditTrail caseId={caseId!} limit={50} />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
       </div>
 

@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { FocusModeProvider, useFocusMode } from "@/contexts/FocusModeContext";
 import { useDoubleTapL } from "@/hooks/useDoubleTapL";
 import TopNavigation from "@/components/TopNavigation";
 import FirmSetupPrompt from "@/components/FirmSetupPrompt";
@@ -55,8 +56,9 @@ function Router() {
   );
 }
 
-function AuthenticatedApp() {
+function AuthenticatedAppContent() {
   const { isAuthenticated, isLoading } = useAuth();
+  const { isFocusMode } = useFocusMode();
   const [restartTourTrigger, setRestartTourTrigger] = useState(0);
 
   useDoubleTapL();
@@ -67,11 +69,19 @@ function AuthenticatedApp() {
 
   return (
     <div className="min-h-screen bg-background">
-      {!isLoading && isAuthenticated && <TopNavigation onRestartTour={handleRestartTour} />}
-      {!isLoading && isAuthenticated && <FirmSetupPrompt />}
-      {!isLoading && isAuthenticated && <OnboardingTour restartTrigger={restartTourTrigger} />}
+      {!isLoading && isAuthenticated && !isFocusMode && <TopNavigation onRestartTour={handleRestartTour} />}
+      {!isLoading && isAuthenticated && !isFocusMode && <FirmSetupPrompt />}
+      {!isLoading && isAuthenticated && !isFocusMode && <OnboardingTour restartTrigger={restartTourTrigger} />}
       <Router />
     </div>
+  );
+}
+
+function AuthenticatedApp() {
+  return (
+    <FocusModeProvider>
+      <AuthenticatedAppContent />
+    </FocusModeProvider>
   );
 }
 
