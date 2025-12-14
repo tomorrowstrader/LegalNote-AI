@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Clock, ChevronDown, ChevronUp, EyeOff, Eye, Shield, X } from "lucide-react";
+import { Users, Clock, ChevronDown, ChevronUp, EyeOff, Eye, Shield, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -77,6 +77,16 @@ function getSpeakerIndex(speaker: string): number {
     return match[0].charCodeAt(0) - 'A'.charCodeAt(0);
   }
   return 0;
+}
+
+const LOW_CONFIDENCE_THRESHOLD = 0.75;
+
+function isLowConfidence(confidence: number): boolean {
+  return confidence > 0 && confidence < LOW_CONFIDENCE_THRESHOLD;
+}
+
+function formatConfidence(confidence: number): string {
+  return `${Math.round(confidence * 100)}%`;
 }
 
 export default function DiarizedTranscriptViewer({
@@ -321,15 +331,35 @@ export default function DiarizedTranscriptViewer({
                       </TooltipContent>
                     </Tooltip>
                   ) : (
-                    <p 
-                      className={cn(
-                        "text-foreground",
-                        expandedView ? "text-sm leading-relaxed" : "text-xs"
+                    <div className="flex items-start gap-2">
+                      {isLowConfidence(utterance.confidence) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="flex-shrink-0 mt-0.5">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">
+                              Low transcription confidence: {formatConfidence(utterance.confidence)}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              This segment may contain errors
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
                       )}
-                      data-testid={`text-utterance-${idx}`}
-                    >
-                      {utterance.text}
-                    </p>
+                      <p 
+                        className={cn(
+                          "text-foreground",
+                          expandedView ? "text-sm leading-relaxed" : "text-xs",
+                          isLowConfidence(utterance.confidence) && "bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded border-l-2 border-amber-400"
+                        )}
+                        data-testid={`text-utterance-${idx}`}
+                      >
+                        {utterance.text}
+                      </p>
+                    </div>
                   )}
                 </div>
                 {showTimestamps && (

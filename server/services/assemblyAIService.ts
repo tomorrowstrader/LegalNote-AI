@@ -34,6 +34,11 @@ interface AssemblyAITranscript {
 const ASSEMBLYAI_API_URL = 'https://api.assemblyai.com/v2';
 const ASSEMBLYAI_COST_PER_HOUR = 0.27;
 
+export interface WordBoostConfig {
+  words: string[];
+  boost: 'low' | 'default' | 'high';
+}
+
 export class AssemblyAIService {
   private objectStorageService: ObjectStorageService;
   private apiKey: string;
@@ -50,9 +55,13 @@ export class AssemblyAIService {
   async transcribeWithDiarization(
     audioPath: string,
     audioDuration: number,
-    expectedSpeakers?: number
+    expectedSpeakers?: number,
+    wordBoostConfig?: WordBoostConfig
   ): Promise<DiarizedTranscriptionResult> {
     console.log(`[AssemblyAI] Starting diarized transcription for: ${audioPath}`);
+    if (wordBoostConfig?.words?.length) {
+      console.log(`[AssemblyAI] Word boost enabled with ${wordBoostConfig.words.length} terms, boost level: ${wordBoostConfig.boost}`);
+    }
 
     try {
       const buffer = await this.objectStorageService.getObjectEntityFile(audioPath);
@@ -61,7 +70,7 @@ export class AssemblyAIService {
       const uploadUrl = await this.uploadAudio(buffer);
       console.log(`[AssemblyAI] Audio uploaded to: ${uploadUrl}`);
 
-      const transcriptId = await this.createTranscript(uploadUrl, expectedSpeakers);
+      const transcriptId = await this.createTranscript(uploadUrl, expectedSpeakers, wordBoostConfig);
       console.log(`[AssemblyAI] Transcript job created: ${transcriptId}`);
 
       const result = await this.pollForCompletion(transcriptId);
@@ -111,7 +120,11 @@ export class AssemblyAIService {
     return data.upload_url;
   }
 
-  private async createTranscript(audioUrl: string, expectedSpeakers?: number): Promise<string> {
+  private async createTranscript(
+    audioUrl: string, 
+    expectedSpeakers?: number,
+    wordBoostConfig?: WordBoostConfig
+  ): Promise<string> {
     const body: Record<string, any> = {
       audio_url: audioUrl,
       speaker_labels: true,
@@ -120,6 +133,11 @@ export class AssemblyAIService {
 
     if (expectedSpeakers && expectedSpeakers >= 2) {
       body.speakers_expected = expectedSpeakers;
+    }
+
+    if (wordBoostConfig?.words?.length) {
+      body.word_boost = wordBoostConfig.words.slice(0, 1000);
+      body.boost_param = wordBoostConfig.boost;
     }
 
     const response = await fetch(`${ASSEMBLYAI_API_URL}/transcript`, {

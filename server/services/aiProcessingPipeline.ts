@@ -1,8 +1,10 @@
 import { TranscriptionService } from './transcriptionService';
-import { AssemblyAIService, formatDiarizedTranscript, type SpeakerUtterance } from './assemblyAIService';
+import { AssemblyAIService, formatDiarizedTranscript, type SpeakerUtterance, type WordBoostConfig } from './assemblyAIService';
 import { DocumentService } from './documentService';
+import { TranscriptCorrectionService } from './transcriptCorrectionService';
 import { IStorage } from '../storage';
 import { auditLogger, AuditEventType } from '../auditLog';
+import { buildWordBoostList } from './legalVocabulary';
 
 export interface AIProcessingResult {
   success: boolean;
@@ -35,11 +37,13 @@ export class AIProcessingPipeline {
   private transcriptionService: TranscriptionService;
   private assemblyAIService: AssemblyAIService | null = null;
   private documentService: DocumentService;
+  private correctionService: TranscriptCorrectionService;
   private storage: IStorage;
 
   constructor(storage: IStorage) {
     this.transcriptionService = new TranscriptionService();
     this.documentService = new DocumentService();
+    this.correctionService = new TranscriptCorrectionService();
     this.storage = storage;
 
     if (process.env.ASSEMBLYAI_API_KEY) {
@@ -108,11 +112,23 @@ export class AIProcessingPipeline {
       let speakerCount: number | undefined;
       let transcriptionCost: number;
 
+      const wordBoostList = buildWordBoostList({
+        clientName: caseData.clientName,
+        title: caseData.title,
+        matterReference: caseData.matterReference || undefined,
+      });
+      const wordBoostConfig: WordBoostConfig = {
+        words: wordBoostList,
+        boost: 'high',
+      };
+
       if (this.assemblyAIService) {
         try {
           const diarizedResult = await this.assemblyAIService.transcribeWithDiarization(
             audio.filePath,
-            audio.duration || 0
+            audio.duration || 0,
+            undefined,
+            wordBoostConfig
           );
           transcriptText = diarizedResult.text;
           transcriptUtterances = diarizedResult.utterances;
@@ -143,6 +159,44 @@ export class AIProcessingPipeline {
         transcriptText = whisperResult.text;
         transcriptionCost = whisperResult.cost;
       }
+
+      // Step 1.5: Apply GPT post-processing for context-aware error correction
+      await this.updateProcessingStatus(caseId, userId, {
+        status: 'transcribing',
+        progress: 35,
+        currentStep: 'Applying context-aware corrections...',
+      });
+
+      let correctionCost = 0;
+      try {
+        const textToCorrect = transcriptUtterances.length > 0
+          ? formatDiarizedTranscript(transcriptUtterances)
+          : transcriptText;
+        
+        const correctionResult = await this.correctionService.correctTranscript(
+          textToCorrect,
+          {
+            clientName: caseData.clientName,
+            matterReference: caseData.matterReference || undefined,
+            caseTitle: caseData.title,
+          }
+        );
+        
+        if (correctionResult.corrections.length > 0) {
+          transcriptText = correctionResult.correctedText;
+          correctionCost = correctionResult.cost;
+          console.log(`[AI Pipeline] Applied ${correctionResult.corrections.length} corrections`);
+          // Note: We intentionally do NOT update transcriptUtterances with corrected text.
+          // The utterances preserve original timing/speaker/confidence data from AssemblyAI.
+          // Corrected text is used for document generation via transcriptText.
+          // Attempting to re-align corrected text to utterances by index is fragile
+          // if GPT adds/removes/merges segments.
+        }
+      } catch (correctionError) {
+        console.warn('[AI Pipeline] Correction pass failed, using original transcript:', correctionError);
+      }
+      
+      transcriptionCost += correctionCost;
 
       // Save transcript with diarization data if available
       const transcript = await this.storage.createTranscript({
@@ -283,7 +337,7 @@ export class AIProcessingPipeline {
         status: 'completed',
         progress: 100,
         currentStep: 'Processing complete',
-        transcriptionCost: transcriptionResult.cost,
+        transcriptionCost: transcriptionCost,
         documentGenerationCost: summaryResult.cost + attendanceResult.cost,
         totalCost,
         totalTokens,
