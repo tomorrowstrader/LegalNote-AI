@@ -76,10 +76,10 @@
   --chart-4: 45 70% 45%;
   --chart-5: 0 0% 50%;
 
-  --font-sans: 'Playfair Display', Georgia, serif;
-  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Lora', Georgia, serif;
+  --font-serif: 'Lora', Georgia, serif;
   --font-mono: JetBrains Mono, monospace;
-  --font-heading: 'Playfair Display', Georgia, serif;
+  --font-heading: 'Lora', Georgia, serif;
   --radius: .5rem; /* 8px */
   --shadow-2xs: 0px 1px 2px 0px hsl(220 10% 10% / 0.05);
   --shadow-xs: 0px 1px 3px 0px hsl(220 10% 10% / 0.08);
