@@ -36,10 +36,10 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   return (
     <nav className="sticky top-0 z-50 bg-gradient-to-r from-primary via-black to-primary border-b border-primary-border shadow-lg">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
-        <div className="grid grid-cols-[auto_1fr_auto] items-center h-16 gap-4">
+        <div className="grid grid-cols-[auto_1fr_auto] items-center h-16 gap-4 md:gap-4">
           <Link href="/" data-testid="link-home">
             <div className="hover-elevate active-elevate-2 rounded-md px-2 py-1 -ml-2 flex-shrink-0">
-              <Logo variant="wordmark" size="md" tone="dark" />
+              <Logo variant="wordmark" size="md" tone="dark" animate />
             </div>
           </Link>
 
@@ -62,7 +62,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
             })}
           </div>
 
-          <div className="flex items-center gap-2 justify-self-end flex-shrink-0">
+          <div className="flex items-center gap-2 ml-auto flex-shrink-0">
             <CaseQuickSwitch />
             
             <GlobalSearch />
