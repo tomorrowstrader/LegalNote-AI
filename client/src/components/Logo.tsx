@@ -19,7 +19,7 @@ export default function Logo({ variant = "icon", size = "md", tone = "auto", ani
     if (animate && variant === "wordmark") {
       const timer = setTimeout(() => {
         setShowIcon(true);
-      }, 1000);
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [animate, variant]);
@@ -90,12 +90,12 @@ export default function Logo({ variant = "icon", size = "md", tone = "auto", ani
     return (
       <div className="relative">
         <div
-          className={`transition-opacity duration-500 ${showIcon ? "opacity-0" : "opacity-100"}`}
+          className={`transition-opacity duration-1000 ease-in-out ${showIcon ? "opacity-0" : "opacity-100"}`}
         >
           {wordmarkElement}
         </div>
         <div
-          className={`absolute inset-0 flex items-center transition-opacity duration-500 ${showIcon ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-0 flex items-center transition-opacity duration-1000 ease-in-out ${showIcon ? "opacity-100" : "opacity-0"}`}
         >
           {iconElement}
         </div>
