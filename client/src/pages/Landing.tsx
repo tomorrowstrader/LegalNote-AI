@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Scale, FileText, ShieldCheck, Clock, Mic, Calendar, Check, Building2, User, Sparkles, ArrowRight, Mail, Linkedin, Quote, Lock, Server } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import Logo from "@/components/Logo";
 
 interface Price {
   id: string;
@@ -57,12 +58,13 @@ export default function Landing() {
       <nav className="relative z-10 max-w-7xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
           <motion.div 
-            className="text-2xl font-bold text-white"
+            className="flex items-center gap-3"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
           >
-            LegalNote AI
+            <Logo variant="icon" size="lg" className="invert" />
+            <span className="text-2xl font-bold text-white">LegalNote AI</span>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, x: 20 }}

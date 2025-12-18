@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
-import { Scale, Menu, User, HelpCircle, Shield } from "lucide-react";
+import { Menu, User, HelpCircle, Shield } from "lucide-react";
+import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -38,7 +39,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
         <div className="flex items-center h-16 gap-2">
           <Link href="/" data-testid="link-home">
             <div className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-md px-2 py-1 -ml-2 flex-shrink-0">
-              <Scale className="w-6 h-6 text-accent" />
+              <Logo variant="icon" size="md" className="invert" />
               <span className="text-lg font-semibold text-primary-foreground whitespace-nowrap">
                 LegalNote AI
               </span>
