@@ -99,7 +99,7 @@ export default function GlobalSearch() {
             placeholder="Search cases, clients, or content..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-primary/20 border-primary-border text-primary-foreground placeholder:text-primary-foreground/60"
+            className="pl-10 bg-white/90 border-white/50 text-foreground placeholder:text-muted-foreground"
             data-testid="input-global-search"
           />
         </div>

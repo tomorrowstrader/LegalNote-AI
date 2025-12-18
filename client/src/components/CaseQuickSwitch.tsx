@@ -54,7 +54,7 @@ export default function CaseQuickSwitch() {
         <Button 
           variant="ghost" 
           size="sm" 
-          className="gap-2 text-primary-foreground/80 hover:text-primary-foreground max-w-[200px]"
+          className="hidden xl:flex gap-2 text-primary-foreground/80 hover:text-primary-foreground max-w-[200px]"
           data-testid="button-case-quick-switch"
         >
           <Briefcase className="w-4 h-4 flex-shrink-0" />
