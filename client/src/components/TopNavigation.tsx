@@ -10,13 +10,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetClose,
-} from "@/components/ui/sheet";
 import GlobalSearch from "@/components/GlobalSearch";
 import QuickRecordButton from "@/components/QuickRecordButton";
 import CaseQuickSwitch from "@/components/CaseQuickSwitch";
@@ -134,63 +127,38 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="lg:hidden text-primary-foreground" 
-              data-testid="button-mobile-menu"
-              onClick={() => setMobileMenuOpen(true)}
-            >
-              <Menu className="w-5 h-5" />
-            </Button>
+            <DropdownMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="lg:hidden text-primary-foreground" 
+                  data-testid="button-mobile-menu"
+                >
+                  <Menu className="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {navLinks.map((link) => {
+                  const isActive = location === link.path;
+                  const Icon = link.icon;
+                  return (
+                    <DropdownMenuItem
+                      key={link.path}
+                      onClick={() => handleNavClick(link.path)}
+                      className={isActive ? "bg-accent/20" : ""}
+                      data-testid={`mobile-link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Icon className="w-4 h-4 mr-2" />
+                      {link.label}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
-
-      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent side="right" className="w-72 bg-gradient-to-b from-primary via-black to-primary border-l border-primary-border p-0">
-          <SheetHeader className="p-4 border-b border-primary-border/50">
-            <div className="flex items-center justify-between">
-              <SheetTitle className="text-primary-foreground">
-                <Logo variant="wordmark" size="sm" tone="dark" />
-              </SheetTitle>
-              <SheetClose asChild>
-                <Button variant="ghost" size="icon" className="text-primary-foreground">
-                  <X className="w-5 h-5" />
-                </Button>
-              </SheetClose>
-            </div>
-          </SheetHeader>
-          
-          <nav className="flex flex-col p-4 gap-1">
-            {navLinks.map((link) => {
-              const isActive = location === link.path;
-              const Icon = link.icon;
-              return (
-                <button
-                  key={link.path}
-                  onClick={() => handleNavClick(link.path)}
-                  className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-colors ${
-                    isActive
-                      ? "bg-accent/20 text-primary-foreground border-l-2 border-accent"
-                      : "text-primary-foreground/80 hover:bg-white/10"
-                  }`}
-                  data-testid={`mobile-link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  <Icon className="w-5 h-5" />
-                  {link.label}
-                </button>
-              );
-            })}
-          </nav>
-
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-primary-border/50">
-            <div className="text-xs text-primary-foreground/60 text-center">
-              {user?.email || 'Not signed in'}
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
     </nav>
   );
 }
