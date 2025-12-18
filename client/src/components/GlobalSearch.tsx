@@ -92,7 +92,7 @@ export default function GlobalSearch() {
     <>
       {/* Desktop search bar - visible on xl screens */}
       <form onSubmit={handleSearch} className="hidden xl:flex items-center gap-2">
-        <div className="relative w-96">
+        <div className="relative w-[clamp(200px,20vw,320px)]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             type="search"
