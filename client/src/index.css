@@ -76,7 +76,7 @@
   --chart-4: 45 70% 45%;
   --chart-5: 0 0% 50%;
 
-  --font-sans: Inter, sans-serif;
+  --font-sans: 'Playfair Display', Georgia, serif;
   --font-serif: 'Playfair Display', Georgia, serif;
   --font-mono: JetBrains Mono, monospace;
   --font-heading: 'Playfair Display', Georgia, serif;
