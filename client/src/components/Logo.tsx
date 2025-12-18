@@ -4,21 +4,28 @@ import logoWordBlack from "@assets/LegalNote_Word-Logo_-_Black_on_White_17660663
 interface LogoProps {
   variant?: "icon" | "wordmark" | "full";
   size?: "sm" | "md" | "lg";
+  tone?: "auto" | "light" | "dark";
   className?: string;
 }
 
-export default function Logo({ variant = "icon", size = "md", className = "" }: LogoProps) {
+export default function Logo({ variant = "icon", size = "md", tone = "auto", className = "" }: LogoProps) {
   const sizeClasses = {
     sm: variant === "icon" ? "h-6 w-6" : "h-6",
     md: variant === "icon" ? "h-8 w-8" : "h-8",
     lg: variant === "icon" ? "h-10 w-10" : "h-10",
   };
 
+  const toneClasses = {
+    auto: "dark:invert",
+    light: "",
+    dark: "invert",
+  };
+
   const iconElement = (
     <img
       src={logoIconBlack}
       alt="LegalNote"
-      className={`${sizeClasses[size]} dark:invert ${className}`}
+      className={`${sizeClasses[size]} ${toneClasses[tone]} ${className}`}
       style={{ objectFit: "contain" }}
     />
   );
@@ -27,7 +34,7 @@ export default function Logo({ variant = "icon", size = "md", className = "" }: 
     <img
       src={logoWordBlack}
       alt="LegalNote AI"
-      className={`${sizeClasses[size]} dark:invert ${className}`}
+      className={`${sizeClasses[size]} ${toneClasses[tone]} ${className}`}
       style={{ objectFit: "contain" }}
     />
   );

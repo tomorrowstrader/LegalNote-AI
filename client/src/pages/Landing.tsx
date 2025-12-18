@@ -63,7 +63,7 @@ export default function Landing() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <Logo variant="icon" size="lg" className="invert" />
+            <Logo variant="icon" size="lg" tone="dark" />
             <span className="text-2xl font-bold text-white">LegalNote AI</span>
           </motion.div>
           <motion.div
@@ -543,7 +543,10 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 py-16">
           <div className="grid md:grid-cols-4 gap-12 mb-12">
             <div className="md:col-span-2">
-              <h3 className="text-2xl font-bold text-white mb-4">LegalNote AI</h3>
+              <div className="flex items-center gap-3 mb-4">
+                <Logo variant="icon" size="lg" tone="dark" />
+                <h3 className="text-2xl font-bold text-white">LegalNote AI</h3>
+              </div>
               <p className="text-white/50 mb-6 max-w-sm leading-relaxed">
                 Professional legal documentation platform built specifically for UK solicitors. 
                 GDPR compliant, SRA-aligned, designed to streamline your practice.
