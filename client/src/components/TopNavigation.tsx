@@ -38,11 +38,8 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex items-center h-16 gap-2">
           <Link href="/" data-testid="link-home">
-            <div className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-md px-2 py-1 -ml-2 flex-shrink-0">
-              <Logo variant="icon" size="md" tone="dark" />
-              <span className="text-lg font-semibold text-primary-foreground whitespace-nowrap">
-                LegalNote AI
-              </span>
+            <div className="hover-elevate active-elevate-2 rounded-md px-2 py-1 -ml-2 flex-shrink-0">
+              <Logo variant="wordmark" size="md" tone="dark" />
             </div>
           </Link>
 

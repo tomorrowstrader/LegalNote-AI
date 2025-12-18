@@ -58,13 +58,11 @@ export default function Landing() {
       <nav className="relative z-10 max-w-7xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
           <motion.div 
-            className="flex items-center gap-3"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <Logo variant="icon" size="lg" tone="dark" />
-            <span className="text-2xl font-bold text-white">LegalNote AI</span>
+            <Logo variant="wordmark" size="lg" tone="dark" />
           </motion.div>
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -543,9 +541,8 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 py-16">
           <div className="grid md:grid-cols-4 gap-12 mb-12">
             <div className="md:col-span-2">
-              <div className="flex items-center gap-3 mb-4">
-                <Logo variant="icon" size="lg" tone="dark" />
-                <h3 className="text-2xl font-bold text-white">LegalNote AI</h3>
+              <div className="mb-4">
+                <Logo variant="wordmark" size="lg" tone="dark" />
               </div>
               <p className="text-white/50 mb-6 max-w-sm leading-relaxed">
                 Professional legal documentation platform built specifically for UK solicitors. 

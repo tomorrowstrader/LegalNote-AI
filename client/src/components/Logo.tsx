@@ -1,5 +1,5 @@
 import logoIconBlack from "@assets/LegalNote_Logo_-_Black_on_White_1766066417574.png";
-import logoWordBlack from "@assets/LegalNote_Word-Logo_-_Black_on_White_1766066398995.png";
+import logoWordBlack from "@assets/LegalNote_Word-Logo_-_Black_on_White_1766066800309.png";
 
 interface LogoProps {
   variant?: "icon" | "wordmark" | "full";
