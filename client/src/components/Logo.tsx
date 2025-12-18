@@ -1,5 +1,6 @@
 import logoIconBlack from "@assets/LegalNote_Logo_-_Black_on_White_1766066417574.png";
-import logoWordBlack from "@assets/LegalNote_Word-Logo_-_Black_on_White_1766066800309.png";
+import logoWordBlack from "@assets/LegalNote_Word-Logo_-_Black_on_White_1766071272501.png";
+import logoWordWhite from "@assets/LegalNote_Word-Logo_-_White_on_Black_1766071272499.png";
 
 interface LogoProps {
   variant?: "icon" | "wordmark" | "full";
@@ -15,7 +16,7 @@ export default function Logo({ variant = "icon", size = "md", tone = "auto", cla
     lg: variant === "icon" ? "h-10 w-10" : "h-10",
   };
 
-  const toneClasses = {
+  const iconToneClasses = {
     auto: "dark:invert",
     light: "",
     dark: "invert",
@@ -25,18 +26,44 @@ export default function Logo({ variant = "icon", size = "md", tone = "auto", cla
     <img
       src={logoIconBlack}
       alt="LegalNote"
-      className={`${sizeClasses[size]} ${toneClasses[tone]} ${className}`}
+      className={`${sizeClasses[size]} ${iconToneClasses[tone]} ${className}`}
       style={{ objectFit: "contain" }}
     />
   );
 
   const wordmarkElement = (
-    <img
-      src={logoWordBlack}
-      alt="LegalNote AI"
-      className={`${sizeClasses[size]} ${toneClasses[tone]} ${className}`}
-      style={{ objectFit: "contain" }}
-    />
+    <>
+      {tone === "dark" ? (
+        <img
+          src={logoWordWhite}
+          alt="LegalNote AI"
+          className={`${sizeClasses[size]} ${className}`}
+          style={{ objectFit: "contain" }}
+        />
+      ) : tone === "light" ? (
+        <img
+          src={logoWordBlack}
+          alt="LegalNote AI"
+          className={`${sizeClasses[size]} ${className}`}
+          style={{ objectFit: "contain" }}
+        />
+      ) : (
+        <>
+          <img
+            src={logoWordBlack}
+            alt="LegalNote AI"
+            className={`${sizeClasses[size]} ${className} dark:hidden`}
+            style={{ objectFit: "contain" }}
+          />
+          <img
+            src={logoWordWhite}
+            alt="LegalNote AI"
+            className={`${sizeClasses[size]} ${className} hidden dark:block`}
+            style={{ objectFit: "contain" }}
+          />
+        </>
+      )}
+    </>
   );
 
   if (variant === "icon") {
