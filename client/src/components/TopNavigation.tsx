@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, User, HelpCircle, Shield } from "lucide-react";
+import { Menu, User, HelpCircle, Shield, Home, FileText, FolderOpen, Settings, X } from "lucide-react";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +10,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetClose,
+} from "@/components/ui/sheet";
 import GlobalSearch from "@/components/GlobalSearch";
 import QuickRecordButton from "@/components/QuickRecordButton";
 import CaseQuickSwitch from "@/components/CaseQuickSwitch";
@@ -20,18 +28,24 @@ interface TopNavigationProps {
 }
 
 const navLinks = [
-  { path: "/", label: "Dashboard" },
-  { path: "/new-note", label: "New Note" },
-  { path: "/cases", label: "Saved Cases" },
-  { path: "/settings", label: "Settings" },
+  { path: "/", label: "Dashboard", icon: Home },
+  { path: "/new-note", label: "New Note", icon: FileText },
+  { path: "/cases", label: "Saved Cases", icon: FolderOpen },
+  { path: "/settings", label: "Settings", icon: Settings },
 ];
 
 export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { user } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Admin check via isAdmin flag from backend (configurable via ADMIN_USER_ID env var)
   const isAdmin = (user as any)?.isAdmin === true;
+
+  const handleNavClick = (path: string) => {
+    setLocation(path);
+    setMobileMenuOpen(false);
+  };
 
   return (
     <nav className="sticky top-0 z-50 bg-gradient-to-r from-primary via-black to-primary border-b border-primary-border shadow-lg">
@@ -120,12 +134,63 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button variant="ghost" size="icon" className="md:hidden text-primary-foreground" data-testid="button-mobile-menu">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="lg:hidden text-primary-foreground" 
+              data-testid="button-mobile-menu"
+              onClick={() => setMobileMenuOpen(true)}
+            >
               <Menu className="w-5 h-5" />
             </Button>
           </div>
         </div>
       </div>
+
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="right" className="w-72 bg-gradient-to-b from-primary via-black to-primary border-l border-primary-border p-0">
+          <SheetHeader className="p-4 border-b border-primary-border/50">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-primary-foreground">
+                <Logo variant="wordmark" size="sm" tone="dark" />
+              </SheetTitle>
+              <SheetClose asChild>
+                <Button variant="ghost" size="icon" className="text-primary-foreground">
+                  <X className="w-5 h-5" />
+                </Button>
+              </SheetClose>
+            </div>
+          </SheetHeader>
+          
+          <nav className="flex flex-col p-4 gap-1">
+            {navLinks.map((link) => {
+              const isActive = location === link.path;
+              const Icon = link.icon;
+              return (
+                <button
+                  key={link.path}
+                  onClick={() => handleNavClick(link.path)}
+                  className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-colors ${
+                    isActive
+                      ? "bg-accent/20 text-primary-foreground border-l-2 border-accent"
+                      : "text-primary-foreground/80 hover:bg-white/10"
+                  }`}
+                  data-testid={`mobile-link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}
+                >
+                  <Icon className="w-5 h-5" />
+                  {link.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-primary-border/50">
+            <div className="text-xs text-primary-foreground/60 text-center">
+              {user?.email || 'Not signed in'}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </nav>
   );
 }
