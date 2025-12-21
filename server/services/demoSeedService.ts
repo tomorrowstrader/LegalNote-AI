@@ -10,7 +10,7 @@
  */
 
 import { db } from "../db";
-import { cases, transcripts, documents, consentLogs, firmProfile, actionItems } from "@shared/schema";
+import { cases, transcripts, documents, consentLogs, actionItems } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
 // Demo case data with realistic UK legal scenarios
@@ -505,22 +505,6 @@ Client confirmed understanding and instructed solicitor to proceed with counter-
   }
 ];
 
-const DEMO_FIRM = {
-  firmName: "Harrison & Associates LLP",
-  addressLine1: "25 Temple Chambers",
-  addressLine2: "Temple",
-  city: "London",
-  postcode: "EC4Y 0DA",
-  country: "United Kingdom",
-  phone: "+44 20 7123 4567",
-  email: "enquiries@harrison-associates.co.uk",
-  website: "www.harrison-associates.co.uk",
-  sraNumber: "SRA123456",
-  includeLocation: true,
-  showFullSolicitorName: true,
-  includeClientConfirmation: false
-};
-
 export async function seedDemoData(userId: string): Promise<{ success: boolean; message: string; casesCreated: number }> {
   try {
     // Check if demo data already exists for this user
@@ -607,14 +591,8 @@ export async function seedDemoData(userId: string): Promise<{ success: boolean; 
       casesCreated++;
     }
 
-    // Seed firm profile if not exists
-    const existingFirm = await db.select().from(firmProfile).limit(1);
-    if (existingFirm.length === 0) {
-      await db.insert(firmProfile).values({
-        ...DEMO_FIRM,
-        updatedBy: userId
-      });
-    }
+    // Note: Firm profile is NOT seeded by demo data - it should be configured 
+    // through the normal admin settings flow to avoid overwriting production data
 
     return { 
       success: true, 
@@ -633,7 +611,7 @@ export async function seedDemoData(userId: string): Promise<{ success: boolean; 
 
 export async function clearDemoData(userId: string): Promise<{ success: boolean; message: string }> {
   try {
-    // Find demo cases by their unique matter references
+    // Find demo cases by their unique matter references - strictly scoped to this user
     const demoMatterRefs = DEMO_CASES.map(c => c.matterReference);
     
     const demoCases = await db.select()
@@ -644,21 +622,31 @@ export async function clearDemoData(userId: string): Promise<{ success: boolean;
       c.matterReference && demoMatterRefs.includes(c.matterReference)
     );
 
+    // Delete all demo data in a safe order, always scoped to both caseId AND verifying user ownership
     for (const demoCase of casesToDelete) {
-      // Delete action items
+      // Double-check this case belongs to the user (defense in depth)
+      if (demoCase.createdBy !== userId) {
+        console.warn(`[DEMO] Skipping case ${demoCase.id} - ownership mismatch`);
+        continue;
+      }
+      
+      // Delete action items for this case
       await db.delete(actionItems).where(eq(actionItems.caseId, demoCase.id));
       
-      // Delete documents
+      // Delete documents for this case
       await db.delete(documents).where(eq(documents.caseId, demoCase.id));
       
-      // Delete transcripts
+      // Delete transcripts for this case
       await db.delete(transcripts).where(eq(transcripts.caseId, demoCase.id));
       
-      // Delete consent logs
+      // Delete consent logs for this case
       await db.delete(consentLogs).where(eq(consentLogs.caseId, demoCase.id));
       
-      // Delete case
-      await db.delete(cases).where(eq(cases.id, demoCase.id));
+      // Delete the case itself - additional user check for safety
+      await db.delete(cases).where(and(
+        eq(cases.id, demoCase.id),
+        eq(cases.createdBy, userId)
+      ));
     }
 
     return { 
