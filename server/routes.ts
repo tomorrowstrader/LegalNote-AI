@@ -5558,6 +5558,74 @@ ${firmName}`;
     }
   });
 
+  // DEMO DATA ENDPOINTS
+  
+  // Seed demo data for demonstrations
+  app.post("/api/demo/seed", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.id;
+      const { seedDemoData } = await import("./services/demoSeedService");
+      const result = await seedDemoData(userId);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error: any) {
+      console.error('[DEMO] Error seeding demo data:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to seed demo data",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  });
+
+  // Reset demo data (clear and re-seed)
+  app.post("/api/demo/reset", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.id;
+      const { resetDemoData } = await import("./services/demoSeedService");
+      const result = await resetDemoData(userId);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error: any) {
+      console.error('[DEMO] Error resetting demo data:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to reset demo data",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  });
+
+  // Clear demo data
+  app.delete("/api/demo/clear", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.id;
+      const { clearDemoData } = await import("./services/demoSeedService");
+      const result = await clearDemoData(userId);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error: any) {
+      console.error('[DEMO] Error clearing demo data:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to clear demo data",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  });
+
   // TEST ENDPOINT: Trigger audio cleanup (development only)
   app.post("/api/test/trigger-audio-cleanup", async (req, res, next) => {
     try {
