@@ -91,3 +91,18 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **Schema**: sharePointConnections (provider, driveId, auto-sync settings)
 - **Known Limitation**: Uses workspace-level Replit connector rather than per-user OAuth
 - **Future Enhancement**: Implement per-user Microsoft OAuth for true multi-tenant isolation
+
+### Demo Data Seeding
+- **Endpoints**: 
+  - `POST /api/demo/seed` - Creates sample cases for demonstrations
+  - `POST /api/demo/reset` - Clears and re-seeds demo data
+  - `DELETE /api/demo/clear` - Removes demo data only
+- **Sample Cases**: 4 realistic UK legal scenarios:
+  1. Sarah Thompson - Conveyancing (property purchase)
+  2. Marcus Webb - Employment Dispute (unfair dismissal)
+  3. Eleanor Chen - Commercial Contract (LLP partnership)
+  4. David Patterson - Family Law (divorce settlement)
+- **Includes**: Full transcripts with utterances, attendance notes, summaries, action items, consent logs
+- **Security**: All data is user-scoped; does not modify shared/global data (e.g., firm profile)
+- **Usage**: For client demonstrations and sales presentations
+- **Roadmap**: See `FUTURE_FEATURES.md` for Waze-inspired product roadmap
