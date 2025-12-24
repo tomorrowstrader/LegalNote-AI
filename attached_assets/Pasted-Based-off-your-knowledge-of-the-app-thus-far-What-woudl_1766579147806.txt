@@ -1,0 +1,38 @@
+Based off your knowledge of the app thus far. What woudl you deem as apprropriate pricing structure for boutique law firm - UK and/or soloist.
+1 step completed
+For UK boutiques and solos, pricing needs to feel modest versus a single fee‑earner’s billable day, and clearly tied to risk reduction rather than “nice‑to‑have AI”. A sensible starting point is a hybrid per‑user SaaS + usage model, with softer entry for solos.
+
+Core structure
+Per‑user, per‑month licence (tiered by firm size)
+
+Solo / 1–2 users: £40–£60 per user / month.
+
+Small boutique (3–20 fee‑earners using the tool): £35–£50 per user / month.
+
+Include: recording, transcription pipeline, note generation, action extraction, audit trails, calendar/PMS integrations, and standard support.
+
+Fair‑use or metered usage component
+
+Bundle a generous monthly recording allowance per user (e.g. 20–30 recorded meeting hours).
+
+Above that, overage at a small per‑hour rate (e.g. £2–£4 / recorded hour) so heavy users cover extra transcription costs without scaring light users.
+
+Solo‑friendly and boutique‑friendly elements
+Solo “chambers‑style” plan
+
+Flat fee (e.g. £60–£80 / month) for 1 user with enough hours baked in that they never think about overage in normal use.
+
+Month‑to‑month or 3‑month minimum, to lower commitment anxiety.
+
+Boutique risk & compliance pack
+
+For 5+ users, offer: one‑off onboarding fee (e.g. £500–£1,500) that includes help with policies, DPIA templates, and insurer‑facing documentation, which you can explicitly position as part of their risk infrastructure rather than set‑up “IT fees”.
+
+Why this structure fits UK boutiques / solos
+Keeps headline cost in the low hundreds per month for a small firm, which is comparable to other core SaaS tools and easy to justify against even a single avoided complaint or claim.
+
+Aligns cost with actual recording intensity, which matters because usage will vary widely by practice area and seniority.
+
+Allows you to frame pricing in risk language: “for ~£X per fee‑earner per month you get standardised, auditable attendance notes and action capture for all recorded meetings”, not “pay £££ for AI features”.
+
+If you like, the next step can be to draft a one‑page pricing sheet you could show to 2–3 friendly boutiques and ask, “Is this in the right ballpark for you?” and adjust from their feedback.
