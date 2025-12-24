@@ -13,7 +13,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  Trash2
+  Trash2,
+  ShieldCheck,
+  FileEdit
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -37,6 +39,23 @@ function getPriorityBadge(priority: string) {
     default:
       return <Badge variant="secondary" className="text-xs">{priority}</Badge>;
   }
+}
+
+function getStatusBadge(status: string | null) {
+  if (status === 'approved') {
+    return (
+      <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">
+        <ShieldCheck className="w-3 h-3 mr-1" />
+        Approved
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800">
+      <FileEdit className="w-3 h-3 mr-1" />
+      Draft
+    </Badge>
+  );
 }
 
 export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItemsViewerProps) {
@@ -87,6 +106,46 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
     },
   });
 
+  const approveMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest('PATCH', `/api/action-items/${id}`, { status: 'approved' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/action-items`] });
+      toast({
+        title: "Action Item Approved",
+        description: "The action item has been approved and is now part of the case record.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Approval Failed",
+        description: error.message || "Failed to approve action item",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkApproveMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('POST', `/api/cases/${caseId}/action-items/approve-all`);
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/action-items`] });
+      toast({
+        title: "Action Items Approved",
+        description: `${data.approvedCount || 0} action items have been approved.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Bulk Approval Failed",
+        description: error.message || "Failed to approve action items",
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       return await apiRequest('DELETE', `/api/action-items/${id}`);
@@ -126,6 +185,8 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
 
   const completedCount = items?.filter(i => i.completed).length || 0;
   const totalCount = items?.length || 0;
+  const draftItems = items?.filter(i => (i as any).status !== 'approved') || [];
+  const approvedCount = items?.filter(i => (i as any).status === 'approved').length || 0;
 
   return (
     <Card>
@@ -135,11 +196,40 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
             <ListTodo className="w-4 h-4" />
             Action Items
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {totalCount > 0 && (
-              <Badge variant="secondary" data-testid="badge-action-item-count">
-                {completedCount}/{totalCount}
-              </Badge>
+              <div className="flex items-center gap-1.5">
+                <Badge variant="secondary" data-testid="badge-action-item-count">
+                  {completedCount}/{totalCount}
+                </Badge>
+                {approvedCount > 0 && (
+                  <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800" data-testid="badge-approved-count">
+                    <ShieldCheck className="w-3 h-3 mr-1" />
+                    {approvedCount} approved
+                  </Badge>
+                )}
+              </div>
+            )}
+            {draftItems.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => bulkApproveMutation.mutate()}
+                disabled={bulkApproveMutation.isPending}
+                data-testid="button-approve-all"
+              >
+                {bulkApproveMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    Approving...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4 mr-1" />
+                    Approve All ({draftItems.length})
+                  </>
+                )}
+              </Button>
             )}
             {hasTranscript && (
               <Button
@@ -180,7 +270,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
               <div
                 key={item.id}
                 className={cn(
-                  "flex items-start gap-3 p-3 rounded-lg border bg-card transition-opacity",
+                  "flex items-start gap-3 p-3 rounded-lg border bg-card transition-opacity group",
                   item.completed && "opacity-60"
                 )}
                 data-testid={`action-item-${idx}`}
@@ -203,7 +293,8 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
                     {item.description}
                   </p>
                   
-                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    {getStatusBadge((item as any).status)}
                     {getPriorityBadge(item.priority)}
                     
                     {item.assignee && (
@@ -225,6 +316,13 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
                       </div>
                     )}
                     
+                    {(item as any).status === 'approved' && (item as any).approvedAt && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <ShieldCheck className="w-3 h-3 text-green-600 dark:text-green-400" />
+                        Approved {format(new Date((item as any).approvedAt), "dd MMM")}
+                      </div>
+                    )}
+                    
                     {item.completed && item.completedAt && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <CheckCircle2 className="w-3 h-3 text-green-600 dark:text-green-400" />
@@ -234,16 +332,31 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
                   </div>
                 </div>
                 
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 opacity-0 group-hover:opacity-100 hover:opacity-100"
-                  onClick={() => deleteMutation.mutate(item.id)}
-                  disabled={deleteMutation.isPending}
-                  data-testid={`button-delete-action-item-${idx}`}
-                >
-                  <Trash2 className="w-4 h-4 text-muted-foreground" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  {(item as any).status !== 'approved' && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={() => approveMutation.mutate(item.id)}
+                      disabled={approveMutation.isPending}
+                      title="Approve this action item"
+                      data-testid={`button-approve-action-item-${idx}`}
+                    >
+                      <ShieldCheck className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    </Button>
+                  )}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 hover:opacity-100"
+                    onClick={() => deleteMutation.mutate(item.id)}
+                    disabled={deleteMutation.isPending}
+                    data-testid={`button-delete-action-item-${idx}`}
+                  >
+                    <Trash2 className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </div>
               </div>
             ))}
           </>

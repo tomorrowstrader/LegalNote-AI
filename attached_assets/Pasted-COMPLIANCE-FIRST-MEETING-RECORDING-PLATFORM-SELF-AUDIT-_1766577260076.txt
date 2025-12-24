@@ -1,0 +1,223 @@
+COMPLIANCE‑FIRST MEETING RECORDING PLATFORM – SELF‑AUDIT CHECKLIST
+Instruction
+
+Act as the firm’s Compliance Officer for Legal Practice (COLP) and Head of Risk.
+
+Use this checklist to perform a thorough self‑audit of our meeting‑to‑attendance‑note platform (recording, transcription, diarisation, attendance notes and action extraction).
+
+For each question:
+
+Give a factual description of how the platform works today.
+
+Mark status as Green (adequate), Amber (partial / unclear), or Red (not in place).
+
+List 1–2 concrete remediation actions for any Amber or Red items (with suggested owner and timescale).
+
+1. Scope, use‑cases and ownership
+1.1 Functions and boundaries
+
+What functions does the app perform today (e.g. recording, transcription, diarisation, attendance‑note drafting, action/obligation extraction)?
+
+Does the app ever generate legal advice, legal conclusions, risk ratings, or case‑strategy suggestions (even implicitly)?
+
+1.2 Intended use‑cases
+
+In which matter types / practice areas is the app intended to be used (e.g. litigation, family, corporate, regulatory, private client)?
+
+In which scenarios is the app not intended to be used (e.g. very sensitive or prohibited matter types)?
+
+1.3 Internal ownership and accountability
+
+Who inside the firm “owns” this tool (named partner, committee, or role)?
+
+How is responsibility for oversight of this tool documented (e.g. AI register, tech governance paper, risk committee minutes)?
+
+2. Legal and regulatory analysis (SRA, LSB, UK GDPR / DPA 2018)
+2.1 SRA / LSB expectations
+
+How does the app support compliance with SRA principles: confidentiality, supervision, competence, record‑keeping and accountability for outputs?
+
+Have we produced a written note mapping this tool to SRA / LSB AI guidance and expectations?
+
+2.2 Lawful basis and DPIA / AI risk assessment
+
+What lawful bases have we identified for:
+
+recording meetings
+
+transcribing audio
+
+generating and storing attendance notes
+
+extracting and storing actions/obligations?
+
+Have we completed a UK‑GDPR DPIA and/or AI‑specific risk assessment for this tool? If yes, where is it stored and when was it last reviewed?
+
+2.3 Data subject rights and special‑category data
+
+How does the system support data subject rights (access, rectification, restriction, erasure, objection) in relation to recordings and transcripts?
+
+How have we assessed and documented handling of special‑category or criminal‑offence data that may arise in meetings?
+
+3. Data handling, security and retention
+3.1 Data flows and locations
+
+Where are audio, transcripts, notes and audit logs stored (cloud provider, data centres, countries, sub‑processors)?
+
+How are tenants, matters and users logically separated (multi‑tenant design, encryption keys, access controls)?
+
+3.2 Retention policies and enforcement
+
+What are our default retention periods for:
+
+raw audio
+
+raw transcripts
+
+final attendance notes
+
+audit logs?
+
+Are these retention periods technically enforced in the system (automatic deletion / archiving), or only described in policy?
+
+3.3 Security controls
+
+What encryption is used for data in transit and at rest?
+
+What authentication and authorisation mechanisms are in place (SSO, MFA options, role‑based access, least‑privilege)?
+
+3.4 Sub‑processors and third‑party models
+
+Which third‑party vendors, APIs or models process client data (speech‑to‑text, LLMs, storage, logging)?
+
+Are there clear contractual restrictions on data use (no cross‑client training, no secondary use, no onward disclosure)?
+
+4. Model behaviour and human oversight
+4.1 AI components and error modes
+
+Which parts of the workflow use AI / ML (e.g. speech recognition, diarisation, summarisation, action extraction)?
+
+What are the known or expected error modes (mis‑hearing, mis‑labelling speakers, hallucinated points, missed actions)?
+
+4.2 Human‑in‑the‑loop controls
+
+At which points must a human (solicitor / supervised fee‑earner) review or approve outputs (transcripts, notes, action lists)?
+
+Is human approval technically enforced (e.g. a “Mark as final attendance note” step) before notes or action lists become part of the matter record or are shared externally?
+
+4.3 Quality assurance and supervision
+
+Do we have any sampling or QA process (e.g. partner review of a percentage of AI‑assisted notes per month)?
+
+How is supervision of junior users documented when they rely on the platform?
+
+5. Consent, client communication and policy fit
+5.1 On‑screen consent and notice
+
+What consent / notice flows exist in the product (pre‑meeting emails, in‑meeting banners, verbal scripts, checkboxes)?
+
+Do these flows explain recording and AI processing in clear, client‑friendly terms?
+
+5.2 Alignment with firm documents
+
+How do these flows align with the firm’s current engagement letters and privacy notice?
+
+Have we updated those documents to refer to recording and AI‑assisted documentation where appropriate?
+
+5.3 Red lines and exceptions
+
+For which matter types or client circumstances (e.g. vulnerability, particularly sensitive issues) is recording discouraged or prohibited?
+
+How are these exceptions communicated to users and enforced or flagged in the application?
+
+6. Auditability and evidential value
+6.1 Logged events
+
+What events are logged (e.g. meeting created, recording started/stopped, consent recorded, audio deleted, transcript created, note edited/finalised, actions created, exports/shares, admin overrides)?
+
+Which identifiers are stored for each event (timestamps, user IDs, matter IDs, IP / device info where appropriate)?
+
+6.2 Reconstructing a matter
+
+For a single meeting, can we reconstruct:
+
+who initiated recording
+
+which participants were informed and how
+
+who accessed or edited recordings / transcripts / notes
+
+who approved the final attendance note
+
+what actions and deadlines were created?
+
+How easily can these logs be exported for SRA audit, internal investigations, PI claims or complaints?
+
+6.3 Authoritative record and disclosure
+
+In case of discrepancy between audio, transcript and curated attendance note, which is treated as the authoritative record in practice?
+
+How will recordings, transcripts, notes and logs be handled in disclosure, DSARs and regulatory requests, including privilege assessments?
+
+7. Insurance and liability
+7.1 PI insurer and broker engagement
+
+Have we explained this tool to our PI broker/insurer (scope, data, controls, supervision)?
+
+Have we documented their feedback, including any conditions, exclusions or recommendations?
+
+7.2 Duty of fair presentation
+
+Does our use of this platform need to be disclosed as a material circumstance for PI insurance?
+
+If disclosed, how are we framing it (risk‑reduction control vs ungoverned AI)?
+
+7.3 Vendor contract and liability
+
+What does the vendor agreement say about:
+
+data use and model training
+
+security requirements and incident notification
+
+liability caps and exclusions
+
+indemnities (e.g. data protection / security breaches)?
+
+Are these terms acceptable in light of our PI cover and risk appetite?
+
+8. Operational readiness and change management
+8.1 Integrations and resilience
+
+Which integrations are live (PMS, DMS, Outlook/Google calendars, SSO, task systems)?
+
+What happens if the platform or an integration is unavailable during a live matter (fallback processes, manual workaround)?
+
+8.2 Implementation and vendor risk
+
+How is vendor risk assessed (financial health, roadmap, independent assurance reports, penetration tests)?
+
+What is our exit plan if we need to stop using the tool (data export formats, data deletion, transition to alternatives)?
+
+8.3 Policies, training and monitoring
+
+What internal policies now govern use of this tool (AI usage policy, recording policy, information security policies)?
+
+What training have we provided to partners, fee‑earners and support staff on correct use and limitations?
+
+How will we monitor actual usage (e.g. adoption stats, exceptions, incident reports) and periodically re‑assess the risk profile?
+
+9. Remediation and action plan
+For every Amber or Red answer above, list:
+
+Issue / gap (short description)
+
+Related section/question
+
+Proposed remediation action
+
+Owner (role / team)
+
+Target timescale (e.g. 1–3 months, 3–6 months)
+
+Use this consolidated list as your implementation roadmap before or alongside wider rollout.

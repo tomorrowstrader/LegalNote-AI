@@ -1,0 +1,121 @@
+UK firms currently assemble meeting recording, transcription, notes and tasks from a patchwork of tools that were not designed as solicitor‑controlled, regulator‑grade workflows, leaving clear gaps a dedicated platform could own.
+​
+
+Current tool landscape
+Meeting recording
+
+Video platforms: Teams, Zoom, Google Meet with built‑in recording and sometimes live transcription.
+​
+
+Telephony/VoIP recorders and generic call‑recording add‑ons marketed for GDPR compliance rather than legal privilege.
+​
+
+Transcription
+
+Consumer/“horizontal” AI notetakers: Otter, Fireflies, Fathom and similar tools often used around Zoom/Teams.
+​
+
+Legal transcription bureaus and digital dictation (Dictalogic, Outsec, DictateNow, Taurho etc.), still heavily used for typed transcripts and dictation.
+​
+
+Attendance notes
+
+Word templates, precedent banks and secretarial typing from dictation or audio.
+​
+
+Guidance from insurers and training providers emphasising structured notes (time/date, participants, instructions, advice, risks, actions).
+​
+
+Task tracking
+
+PMS / case management (e.g. practice‑management suites, DMS‑linked task features, time‑recording plus “to‑do” lists).
+​
+
+Outlook/Google tasks, Teams Planner, or personal lists sitting outside the matter record.
+
+Where existing tools fail key requirements
+1. Solicitor‑controlled consent workflows
+Teams/Zoom/AI notetakers typically offer a generic pop‑up or join‑message, not a solicitor‑crafted lawful‑basis and consent script aligned with UK GDPR and SRA expectations.
+​
+
+Legal transcription services assume the firm has already obtained lawful consent and do not orchestrate real‑time participant notice, objections, or logging of who agreed to what.
+​
+
+Result: firms remain responsible for ad‑hoc explanations and manual records of consent, leaving inconsistency between fee‑earners and weak evidence for complaints or DSARs.
+
+2. GDPR‑compliant retention policies for audio and derivatives
+Call‑recording products often provide configurable retention but are not coupled to matter‑based retention rules or clear separation between raw audio and curated notes.
+​
+
+AI notetakers frequently retain data for product improvement, offer long default retention, and blur the line between audio, transcript and model‑training data, which commentators flag as incompatible with strict legal‑sector expectations.
+​
+
+Dictation/transcription bureaus return Word/PDF transcripts, but the firm must then manually enforce retention across recordings, transcripts and notes, with limited technical enforcement.
+​
+
+3. Reliable diarisation for legal evidential purposes
+Consumer AI notetakers advertise speaker identification but accuracy is variable and not calibrated to evidential standards; risk commentary highlights mis‑labelling and mis‑attribution of statements.
+​
+
+Traditional transcription services can diarise if instructed but rely on manual conventions, and diarisation metadata rarely flows into the PMS or structured note templates.
+​
+
+Generic meeting platforms do not understand “solicitor”, “client”, “witness”, “counsel” roles, which matter for privilege analysis and internal accountability.
+
+4. Defensible audit trails
+Many AI notetakers and recording bots are criticised for poor or opaque auditability: firms struggle to later show who invited the bot, who accessed the transcript, and whether data was used for training.
+​
+
+Standard video‑conferencing logs capture some events but do not tie them to matter IDs, lawful‑basis decisions, redactions or attendance‑note approvals, which COLPs and PI insurers increasingly want to see.
+​
+
+PMS/case‑management systems have good matter‑activity logs but typically know nothing about the recording/transcription lifecycle when those are handled in separate tools.
+​
+
+5. Attendance notes that meet regulatory and insurer expectations
+Training and insurer guidance emphasise structured, lawyer‑curated notes (context, instructions, advice, risks, actions) as essential evidence of competent service; poor or absent notes have contributed to negligence claims.
+​
+
+Horizontal AI tools generate generic summaries and bullet‑point “action items” that are not anchored to insurer‑style templates or SRA‑aligned expectations, and may omit risk warnings or misstate advice.
+​
+
+Dictation/secretarial workflows depend entirely on the individual fee‑earner; they can produce excellent notes, but there is no system‑level guarantee of minimum content, nor automatic capture of actions into the task system.
+​
+
+Gaps a dedicated, solicitor‑controlled platform could own
+End‑to‑end consent and lawful‑basis orchestration
+
+Built‑in, reusable scripts aligned with UK GDPR and SRA guidance, with explicit per‑participant consent / objection capture and immutable logging, rather than generic meeting banners.
+​
+
+Matter‑linked retention and minimisation
+
+Opinionated defaults: very short retention for audio, controlled retention for transcripts and final notes, all tied to the matter’s file‑closure rules and litigation‑hold flags, with enforced deletion and audit entries.
+​
+
+Legal‑grade diarisation and role awareness
+
+Speaker identification tuned to common law‑firm patterns (solicitor, client, counsel, expert) and surfaced explicitly in the attendance note and audit trail, improving clarity about who said what if advice is challenged.
+​
+
+Integrated audit trail spanning meeting → note → tasks
+
+Unified logs across recording, transcription, redaction, attendance‑note approval and task extraction, all keyed to a matter ID and accessible for SRA or insurer review, rather than scattered across conferencing, AI apps and PMS.
+​
+
+Attendance‑note templates embedded in the workflow
+
+Standardised structures reflecting SQE skills and insurer guidance (instructions, advice, risks, actions, deadlines) generated from the transcript but requiring solicitor edit and sign‑off before they become part of the file.
+​
+
+Structured task extraction into case‑management
+
+Automatic extraction of actions/obligations from the note directly into the PMS task system, closing the gap between “what was agreed” and “what is diarised”, which current tools leave to manual transcription or fee‑earner memory.
+​
+
+Privileged, on‑shore, no‑training data posture
+
+UK/EU hosting, strong segregation, and contractual prohibition on training across clients, directly addressing privilege and confidentiality concerns that make firms wary of consumer AI services.
+​
+
+Because today’s recording, transcription, note‑taking and task tools each solve only part of the problem—and often introduce fresh privilege or GDPR risks—a dedicated, solicitor‑controlled platform that owns this full workflow can credibly position itself as the “regulatory spine” for meeting documentation rather than just another AI utility.

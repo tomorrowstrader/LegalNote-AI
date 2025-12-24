@@ -113,9 +113,13 @@ export const actionItems = pgTable("action_items", {
   caseId: varchar("case_id").notNull().references(() => cases.id),
   transcriptId: varchar("transcript_id").notNull().references(() => transcripts.id),
   description: text("description").notNull(),
+  originalDescription: text("original_description"), // Preserves AI-generated text before edits
   assignee: text("assignee"), // "Solicitor", "Client", or specific name
   dueDate: timestamp("due_date"),
   priority: text("priority").notNull().default("medium"), // high, medium, low
+  status: text("status").notNull().default("draft"), // draft, approved, rejected
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
   completed: boolean("completed").notNull().default(false),
   completedAt: timestamp("completed_at"),
   completedBy: varchar("completed_by").references(() => users.id),

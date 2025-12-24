@@ -2698,7 +2698,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const { id } = req.params;
-      const { completed, assignee, dueDate, priority, description } = req.body;
+      const { completed, assignee, dueDate, priority, description, status } = req.body;
       
       const updates: any = {};
       if (completed !== undefined) {
@@ -2716,22 +2716,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (priority !== undefined) updates.priority = priority;
       if (description !== undefined) updates.description = description;
       
+      // Handle status/approval changes
+      if (status !== undefined) {
+        updates.status = status;
+        if (status === 'approved') {
+          updates.approvedBy = userId;
+          updates.approvedAt = new Date();
+        } else if (status === 'draft') {
+          updates.approvedBy = null;
+          updates.approvedAt = null;
+        }
+      }
+      
       const item = await storage.updateActionItem(id, updates, userId);
       if (!item) {
         return res.status(404).json({ message: "Action item not found or not authorized" });
       }
       
-      await logAuditEvent(userId, "action_item_updated", {
-        caseId: item.caseId,
+      // Log appropriate audit event based on what changed
+      if (status === 'approved') {
+        await logAuditEvent(userId, "action_item_approved", {
+          caseId: item.caseId,
+          metadata: {
+            actionItemId: id,
+            description: item.description?.substring(0, 100),
+            originalDescription: (item as any).originalDescription?.substring(0, 100),
+            wasEdited: item.description !== (item as any).originalDescription,
+            assignee: item.assignee,
+            dueDate: item.dueDate,
+          },
+          severity: "info",
+          req,
+        });
+      } else {
+        await logAuditEvent(userId, "action_item_updated", {
+          caseId: item.caseId,
+          metadata: {
+            actionItemId: id,
+            updates: Object.keys(updates),
+            completed: item.completed,
+          },
+          req,
+        });
+      }
+      
+      res.json(item);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+  
+  // Bulk approve all action items for a case
+  app.post("/api/cases/:id/action-items/approve-all", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const items = await storage.getActionItems(caseId, userId);
+      const draftItems = items.filter(item => (item as any).status === 'draft');
+      
+      let approvedCount = 0;
+      for (const item of draftItems) {
+        await storage.updateActionItem(item.id, {
+          status: 'approved',
+          approvedBy: userId,
+          approvedAt: new Date(),
+        }, userId);
+        approvedCount++;
+      }
+      
+      await logAuditEvent(userId, "action_items_bulk_approved", {
+        caseId,
         metadata: {
-          actionItemId: id,
-          updates: Object.keys(updates),
-          completed: item.completed,
+          approvedCount,
+          totalItems: items.length,
         },
+        severity: "info",
         req,
       });
       
-      res.json(item);
+      res.json({ success: true, approvedCount });
     } catch (error: any) {
       next(error);
     }
@@ -2875,16 +2944,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = await documentService.extractActionItems(transcript.content, metadata);
       
-      // Store extracted action items
+      // Store extracted action items with originalDescription for audit trail
       const createdItems = [];
       for (const item of result.items) {
         const created = await storage.createActionItem({
           caseId,
           transcriptId: transcript.id,
           description: item.description,
+          originalDescription: item.description, // Preserve AI-generated text for audit
           assignee: item.assignee || null,
           dueDate: item.dueDate ? new Date(item.dueDate) : undefined,
           priority: item.priority || "medium",
+          status: 'draft', // All AI-extracted items start as draft
         });
         createdItems.push(created);
       }
