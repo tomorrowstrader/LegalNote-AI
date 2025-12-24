@@ -1,0 +1,41 @@
+For UK firms, a recording workflow is only defensible if the logs let a COLP, PI insurer or court reconstruct who did what, when, and on what legal basis.
+​
+
+1. Lawful‑basis, consent and purpose logs
+Log the lawful basis selected for each meeting (e.g. legitimate interests, contract), the stated purpose of recording, and the version of the firm’s privacy / recording notice in force at the time.
+​
+
+Capture consent and objection events per participant: who was informed, the wording used, how they indicated agreement or refusal, any later withdrawal, and by whom that was processed.
+​
+
+2. Recording lifecycle events
+Record for every meeting: creation of the recording (timestamp, organiser, matter ID, participants, channel), start/stop times, and any pauses or restarts, so scope is clearly bounded.
+​
+
+Log downstream lifecycle actions: upload to transcription, link to a matter file, any exports or downloads of audio or transcript, and the final deletion time and method for raw audio and derived data.
+​
+
+3. Access, change and sharing history
+Maintain detailed access logs: every user or service account that accessed, streamed, or searched the audio/transcript/notes, with timestamps and IP / device metadata where proportionate.
+​
+
+Log all changes to transcripts and notes (edits, redactions, annotations, merges, splits), including the user, time, and previous version, plus any sharing events (who received what, by which channel, and under what permissions).
+​
+
+4. Governance, configuration and retention controls
+Capture configuration changes that affect risk: retention policy edits, jurisdiction / hosting changes, toggling of AI training settings, access‑role changes, and integration activations (e.g. enabling sync to a DMS or case management system).
+​
+
+Log any overrides and exceptions: manual extension of retention (e.g. litigation hold), forced deletions, restored backups, or administrator access to otherwise restricted recordings, with justification fields for later review.
+​
+
+5. DSAR, incident and supervision‑related logs
+Maintain records of data‑subject requests and responses relating to recordings and transcripts (access, restriction, erasure), including what was located, what was provided or withheld, and the legal reasoning.
+​
+
+Log security and compliance events: failed access attempts, suspected misuse, privilege or confidentiality concerns raised by fee‑earners, and subsequent investigations or remedial actions, in line with broader firm risk and AML audit‑trail expectations.
+​
+
+A platform that surfaces these logs in a searchable, exportable form—tied to matter IDs and users—will feel professionally safe because it supports SRA accountability, GDPR accountability, litigation holds, internal investigations and insurer scrutiny without relying on memory or ad‑hoc documentation.
+​
+

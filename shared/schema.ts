@@ -47,6 +47,10 @@ export const cases = pgTable("cases", {
   deadline: timestamp("deadline"), // Case deadline for calendar sync
   syncToCalendar: boolean("sync_to_calendar").notNull().default(false), // Whether to sync deadline to calendar
   deadlineIsAllDay: boolean("deadline_is_all_day").notNull().default(false), // Whether deadline is all-day or has specific time
+  litigationHold: boolean("litigation_hold").notNull().default(false), // Prevents auto-deletion of audio
+  litigationHoldAppliedAt: timestamp("litigation_hold_applied_at"),
+  litigationHoldAppliedBy: varchar("litigation_hold_applied_by").references(() => users.id),
+  litigationHoldReason: text("litigation_hold_reason"), // Justification for hold
 });
 
 export const quickNotes = pgTable("quick_notes", {
@@ -78,10 +82,17 @@ export const consentLogs = pgTable("consent_logs", {
   consentGiven: boolean("consent_given").notNull(),
   consentTimestamp: timestamp("consent_timestamp").notNull().defaultNow(),
   disclaimerScriptVersion: text("disclaimer_script_version").notNull(), // Track which disclaimer was used
+  disclaimerWordingText: text("disclaimer_wording_text"), // Actual text shown/read to client for future defensibility
   consentModality: text("consent_modality").notNull(), // verbal_recorded, verbal_attested, electronic
   ipAddress: text("ip_address"),
   deletionTimestamp: timestamp("deletion_timestamp"), // If consent declined
   deletionReason: text("deletion_reason"), // consent_declined, client_request, retention_expired
+  lawfulBasis: text("lawful_basis"), // GDPR Article 6 basis: consent, contract, legitimate_interests
+  recordingPurpose: text("recording_purpose"), // Why recording is being made
+  consentWithdrawn: boolean("consent_withdrawn").notNull().default(false),
+  withdrawalTimestamp: timestamp("withdrawal_timestamp"),
+  withdrawalReason: text("withdrawal_reason"),
+  withdrawnBy: varchar("withdrawn_by").references(() => users.id),
 });
 
 export const transcripts = pgTable("transcripts", {
@@ -183,6 +194,54 @@ export const auditTrail = pgTable("audit_trail", {
   userAgent: text("user_agent"),
   metadata: jsonb("metadata").default({}), // Additional context like { documentType, oldValue, newValue, action, recordingDuration, playbackPosition, etc }
   severity: text("severity").notNull().default("info"), // info, warning, critical
+});
+
+export const dsarRequests = pgTable("dsar_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  requestType: text("request_type").notNull(), // access, erasure, restriction, rectification, portability, objection
+  requesterName: text("requester_name").notNull(),
+  requesterEmail: text("requester_email").notNull(),
+  requesterPhone: text("requester_phone"),
+  requesterRelationship: text("requester_relationship").notNull(), // data_subject, legal_representative, third_party_authorised
+  verificationMethod: text("verification_method"), // id_check, email_confirmation, phone_verification
+  verifiedAt: timestamp("verified_at"),
+  verifiedBy: varchar("verified_by").references(() => users.id),
+  receivedAt: timestamp("received_at").notNull().defaultNow(),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  acknowledgedBy: varchar("acknowledged_by").references(() => users.id),
+  dueDate: timestamp("due_date").notNull(), // ICO 30-day deadline
+  status: text("status").notNull().default("received"), // received, acknowledged, processing, awaiting_verification, completed, rejected
+  dataLocated: jsonb("data_located").default([]), // Array of {type, location, caseId, description}
+  dataProvided: jsonb("data_provided").default([]), // Array of {type, description, providedAt, method}
+  dataWithheld: jsonb("data_withheld").default([]), // Array of {type, description, legalBasis, reasoning}
+  completedAt: timestamp("completed_at"),
+  completedBy: varchar("completed_by").references(() => users.id),
+  responseMethod: text("response_method"), // email, post, secure_download
+  notes: text("notes"), // Internal notes about the request
+  handledBy: varchar("handled_by").references(() => users.id), // Assigned handler
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+});
+
+export const securityIncidents = pgTable("security_incidents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  incidentType: text("incident_type").notNull(), // failed_access, suspicious_activity, privilege_concern, confidentiality_breach, data_breach
+  severity: text("severity").notNull().default("medium"), // low, medium, high, critical
+  status: text("status").notNull().default("open"), // open, investigating, resolved, escalated
+  reportedAt: timestamp("reported_at").notNull().defaultNow(),
+  reportedBy: varchar("reported_by").references(() => users.id),
+  affectedUserId: varchar("affected_user_id").references(() => users.id),
+  affectedCaseId: varchar("affected_case_id").references(() => cases.id),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  description: text("description").notNull(),
+  investigationNotes: text("investigation_notes"),
+  investigatedBy: varchar("investigated_by").references(() => users.id),
+  investigationStartedAt: timestamp("investigation_started_at"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by").references(() => users.id),
+  resolution: text("resolution"),
+  remedialActions: jsonb("remedial_actions").default([]), // Array of {action, takenAt, takenBy, description}
+  notifiedParties: jsonb("notified_parties").default([]), // Array of {party, notifiedAt, method} for ICO/client notifications
 });
 
 export const firmProfile = pgTable("firm_profile", {
@@ -437,6 +496,8 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   createdAt: true,
   createdBy: true, // Security: Server assigns this from authenticated session
   aiProcessingMetadata: true, // Server manages this
+  litigationHoldAppliedAt: true, // Server manages this
+  litigationHoldAppliedBy: true, // Server assigns this from session
 }).extend({
   title: z.string().min(1).max(500).transform(sanitizeString),
   clientName: z.string().min(1).max(200).transform(sanitizeString),
@@ -445,6 +506,8 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   priority: z.enum(["urgent", "deadline-soon", "normal"]).default("normal"),
   sourceType: z.enum(["audio", "text"]),
   textNotes: z.string().max(100000).optional(), // 100KB limit for text notes
+  litigationHold: z.boolean().default(false),
+  litigationHoldReason: z.string().max(2000).optional(),
 });
 
 export const insertQuickNoteSchema = createInsertSchema(quickNotes).omit({
@@ -476,15 +539,22 @@ export const insertAudioRecordingSchema = createInsertSchema(audioRecordings).om
 export const insertConsentLogSchema = createInsertSchema(consentLogs).omit({
   id: true,
   consentTimestamp: true,
+  withdrawalTimestamp: true,
 }).extend({
   caseId: z.string().uuid(),
   audioRecordingId: z.string().uuid().optional(),
   solicitorId: z.string().min(1), // Replit Auth IDs are not UUIDs, just require non-empty string
   consentGiven: z.boolean(),
   disclaimerScriptVersion: z.string().max(50),
+  disclaimerWordingText: z.string().max(5000).optional(), // Actual consent wording for defensibility
   consentModality: z.enum(["verbal_recorded", "verbal_attested", "electronic"]),
-  ipAddress: z.string().ip().optional(),
+  ipAddress: z.string().max(50).optional(), // Allow both IPv4 and IPv6
   deletionReason: z.enum(["consent_declined", "client_request", "retention_expired"]).optional(),
+  lawfulBasis: z.enum(["consent", "contract", "legitimate_interests", "legal_obligation"]).optional(),
+  recordingPurpose: z.string().max(1000).optional(),
+  consentWithdrawn: z.boolean().default(false),
+  withdrawalReason: z.string().max(1000).optional(),
+  withdrawnBy: z.string().min(1).optional(),
 });
 
 export const insertTranscriptSchema = createInsertSchema(transcripts).omit({
@@ -561,26 +631,49 @@ export const insertAuditTrailSchema = createInsertSchema(auditTrail).omit({
   id: true,
   timestamp: true,
 }).extend({
-  eventType: z.enum([
-    "case_viewed", "case_created", "case_updated", "case_email_sent", "case_link_shared", "calendar_synced", "calendar_sync_failed",
-    "calendar_connected", "calendar_disconnected",
-    "document_viewed", "document_created", "document_updated", "document_deleted", "document_downloaded", "document_sent",
-    "transcript_viewed", "transcript_redacted",
-    "audio_accessed", "audio_deleted",
-    "ai_processing_started", "ai_transcription_completed", "ai_document_generated", "ai_processing_failed",
-    "share_link_created", "share_link_accessed", "share_link_sms_sent", "share_link_sms_verified", "share_link_sms_failed",
-    "recall_connected", "recall_disconnected", "meeting_import_started", "meeting_import_completed", "meeting_import_failed",
-    "pre_consent_email_sent", "pre_consent_acknowledged"
-  ]),
-  userId: z.string().uuid(),
+  eventType: z.string().min(1).max(100), // Flexible to allow all AuditEventType values from server/auditLog.ts
+  userId: z.string().min(1), // Replit Auth IDs are not UUIDs
   caseId: z.string().uuid().optional(),
   documentId: z.string().uuid().optional(),
   transcriptId: z.string().uuid().optional(),
   audioRecordingId: z.string().uuid().optional(),
-  ipAddress: z.string().ip().optional(),
+  ipAddress: z.string().max(50).optional(), // Allow both IPv4 and IPv6
   userAgent: z.string().max(500).optional(),
   metadata: z.record(z.any()).optional(),
   severity: z.enum(["info", "warning", "critical"]).default("info"),
+});
+
+export const insertDsarRequestSchema = createInsertSchema(dsarRequests).omit({
+  id: true,
+  receivedAt: true,
+  acknowledgedAt: true,
+  completedAt: true,
+}).extend({
+  requestType: z.enum(["access", "erasure", "restriction", "rectification", "portability", "objection"]),
+  requesterName: z.string().min(1).max(200).transform(sanitizeString),
+  requesterEmail: z.string().email().max(255),
+  requesterPhone: z.string().max(50).optional(),
+  requesterRelationship: z.enum(["data_subject", "legal_representative", "third_party_authorised"]),
+  verificationMethod: z.enum(["id_check", "email_confirmation", "phone_verification"]).optional(),
+  dueDate: z.date(),
+  status: z.enum(["received", "acknowledged", "processing", "awaiting_verification", "completed", "rejected"]).default("received"),
+  responseMethod: z.enum(["email", "post", "secure_download"]).optional(),
+  notes: z.string().max(10000).optional(),
+  createdBy: z.string().min(1),
+});
+
+export const insertSecurityIncidentSchema = createInsertSchema(securityIncidents).omit({
+  id: true,
+  reportedAt: true,
+}).extend({
+  incidentType: z.enum(["failed_access", "suspicious_activity", "privilege_concern", "confidentiality_breach", "data_breach"]),
+  severity: z.enum(["low", "medium", "high", "critical"]).default("medium"),
+  status: z.enum(["open", "investigating", "resolved", "escalated"]).default("open"),
+  description: z.string().min(1).max(10000),
+  ipAddress: z.string().ip().optional(),
+  userAgent: z.string().max(500).optional(),
+  investigationNotes: z.string().max(50000).optional(),
+  resolution: z.string().max(10000).optional(),
 });
 
 export const insertFirmProfileSchema = createInsertSchema(firmProfile).omit({
@@ -792,6 +885,12 @@ export type UserPreferences = typeof userPreferences.$inferSelect;
 
 export type InsertAuditTrail = z.infer<typeof insertAuditTrailSchema>;
 export type AuditTrail = typeof auditTrail.$inferSelect;
+
+export type InsertDsarRequest = z.infer<typeof insertDsarRequestSchema>;
+export type DsarRequest = typeof dsarRequests.$inferSelect;
+
+export type InsertSecurityIncident = z.infer<typeof insertSecurityIncidentSchema>;
+export type SecurityIncident = typeof securityIncidents.$inferSelect;
 
 export type InsertFirmProfile = z.infer<typeof insertFirmProfileSchema>;
 export type FirmProfile = typeof firmProfile.$inferSelect;

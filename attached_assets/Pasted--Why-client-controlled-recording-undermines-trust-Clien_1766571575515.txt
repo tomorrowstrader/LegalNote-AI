@@ -1,0 +1,66 @@
+
+Why client‑controlled recording undermines trust
+Client‑initiated or client‑managed recording is closely associated with covert recording case law and tactical use in disputes, which signals mistrust and raises concerns about selective disclosure, editing and loss of context.
+​
+
+When clients own and distribute recordings or AI‑generated notes, lawyers cannot reliably protect privilege or confidentiality; wide internal circulation or sharing with third parties is a recognised route to privilege waiver and undermines the core trust basis of the relationship.
+​
+
+How solicitor‑controlled workflows change the risk calculus
+If the firm decides when to record, drafts the consent wording and controls access, the recording becomes another privileged, confidential component of the file, governed by existing supervision, retention and information‑security standards.
+​
+
+Solicitor‑controlled review, redaction and deletion let lawyers limit what becomes the enduring record, apply proportionate retention, and ensure recordings are not automatically circulated beyond the matter team or used to train third‑party models, which materially reduces perceived privilege and GDPR risks.
+​
+
+Why editability and final approval are critical
+Commentary on AI note‑takers repeatedly stresses accuracy problems, over‑inclusion and lack of professional discretion; solicitors therefore insist that AI outputs be treated as drafts that must be edited and validated before they count as firm records.
+​
+
+A formal “sign‑off” step, where a solicitor approves a curated attendance note (marked privileged/confidential) rather than a verbatim auto‑transcript, preserves the conception of the note as an exercise of professional judgment, which is crucial for both evidential weight and comfort around future disclosure.
+​
+
+Safeguards that make a platform feel professionally safe
+To feel safe rather than dangerous, UK solicitors look for explicit, hard‑coded safeguards that track their privilege and GDPR instincts:
+
+Tight confidentiality and privilege protection
+
+Contractual and technical guarantees that vendor staff cannot access content and that data is not used for model training or shared with third parties, preserving confidentiality required for privilege.
+​
+
+Strict scoping so recordings, transcripts and notes are visible only to those within the client team who have a genuine “need to know”, with no automatic wider circulation.
+​
+
+Explicit consent / notice and logging
+
+Standardised, plain‑language scripts and on‑screen flows that explain recording and AI use, with genuine opt‑out, and detailed logs of who was informed, what they agreed to, and when.
+​
+
+Clear treatment of third‑party attendees (family members, group employees, experts) so that lawful basis and privilege implications are considered, not assumed.
+​
+
+Data minimisation, redaction and retention control
+
+Tools to exclude or redact specific segments from transcripts and exports, allowing removal of irrelevant, highly sensitive or strategically unhelpful material while retaining a defensible core note.
+​
+
+Short, enforced retention for raw audio and configurable, policy‑aligned retention for final attendance notes and transcripts, with auditable deletion events to satisfy GDPR storage limitation and litigation‑hold needs.
+​
+
+Jurisdiction, segregation and secure architecture
+
+Hosting restricted to UK/EU with encryption in transit and at rest, strong tenant segregation, and clear documentation of sub‑processors, so data‑transfer and confidentiality concerns do not have to be re‑analysed for every matter.
+​
+
+Use of private or firm‑specific AI instances rather than public tools, reducing the perception that entering client content is a disclosure to an uncontrolled third party.
+​
+
+Human‑in‑the‑loop and auditability
+
+Mandatory human review and “mark as final” steps for attendance notes, with visible version history, so supervisors and regulators can see that AI is assistive rather than determinative.
+​
+
+Comprehensive audit logs of recording, access, edits, exports and deletions, enabling COLPs, risk teams and insurers to reconstruct events and demonstrate reasonable care over privilege and data protection.
+​
+
+Where these safeguards are visible and enforceable, recording and transcription platforms are more likely to be perceived as strengthening professional standards; without them, UK solicitors will continue to see such tools as a “silent guest” that primarily creates privilege, confidentiality and GDPR hazards.
