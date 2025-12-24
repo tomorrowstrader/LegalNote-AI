@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check, Mail, Briefcase, Cloud, HardDrive } from "lucide-react";
+import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check, Mail, Briefcase, Cloud, HardDrive, FlaskConical, Trash2, RefreshCw, Database } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -1400,6 +1400,199 @@ function NotificationSettings() {
   );
 }
 
+function DemoDataControls() {
+  const { toast } = useToast();
+  const [demoDataLoaded, setDemoDataLoaded] = useState(false);
+
+  const seedMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/demo/seed');
+      return response;
+    },
+    onSuccess: (data: any) => {
+      setDemoDataLoaded(true);
+      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
+      toast({
+        title: "Demo Data Loaded",
+        description: `Created ${data.casesCreated || 4} sample cases with transcripts, documents, and action items.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Load Demo Data",
+        description: error.message || "Could not seed demo data. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/demo/reset');
+      return response;
+    },
+    onSuccess: (data: any) => {
+      setDemoDataLoaded(true);
+      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
+      toast({
+        title: "Demo Data Reset",
+        description: `Cleared old data and created ${data.casesCreated || 4} fresh sample cases.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Reset Demo Data",
+        description: error.message || "Could not reset demo data. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('DELETE', '/api/demo/clear');
+      return response;
+    },
+    onSuccess: () => {
+      setDemoDataLoaded(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
+      toast({
+        title: "Demo Data Cleared",
+        description: "All sample cases have been removed from your account.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Clear Demo Data",
+        description: error.message || "Could not clear demo data. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const isLoading = seedMutation.isPending || resetMutation.isPending || clearMutation.isPending;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <FlaskConical className="w-5 h-5" />
+          <CardTitle>Demo Data</CardTitle>
+        </div>
+        <CardDescription>
+          Load sample UK legal cases for product demonstrations and sales presentations
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <Alert>
+          <Database className="h-4 w-4" />
+          <AlertDescription>
+            Demo data creates 4 realistic UK legal case scenarios: Property Purchase, Employment Dispute, Commercial Contract, and Family Law. Each includes full transcripts, attendance notes, summaries, and action items.
+          </AlertDescription>
+        </Alert>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="p-4 border rounded-lg space-y-3">
+            <div className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-primary" />
+              <span className="font-medium">Load Demo Data</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Create sample cases in your account for demonstrations
+            </p>
+            <Button
+              onClick={() => seedMutation.mutate()}
+              disabled={isLoading}
+              className="w-full"
+              data-testid="button-load-demo-data"
+            >
+              {seedMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <Database className="w-4 h-4 mr-2" />
+                  Load Demo Data
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="p-4 border rounded-lg space-y-3">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <span className="font-medium">Reset Demo Data</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Clear existing demo data and load fresh samples
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => resetMutation.mutate()}
+              disabled={isLoading}
+              className="w-full"
+              data-testid="button-reset-demo-data"
+            >
+              {resetMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Resetting...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Reset Demo Data
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="p-4 border rounded-lg space-y-3">
+            <div className="flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-destructive" />
+              <span className="font-medium">Clear Demo Data</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Remove all sample cases from your account
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => clearMutation.mutate()}
+              disabled={isLoading}
+              className="w-full border-destructive text-destructive hover:bg-destructive/10"
+              data-testid="button-clear-demo-data"
+            >
+              {clearMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Clearing...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Clear Demo Data
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        <div className="p-4 bg-muted rounded-lg">
+          <h4 className="font-medium mb-2">Sample Cases Include:</h4>
+          <ul className="text-sm text-muted-foreground space-y-1">
+            <li>Sarah Thompson - Property Purchase (Conveyancing)</li>
+            <li>Marcus Webb - Unfair Dismissal Claim (Employment)</li>
+            <li>Eleanor Chen - LLP Partnership Agreement (Commercial)</li>
+            <li>David Patterson - Divorce Settlement (Family Law)</li>
+          </ul>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Settings() {
   const { user } = useAuth();
   const isAdmin = (user as any)?.isAdmin === true;
@@ -1407,14 +1600,14 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
-    const validTabs = ['firm', 'notifications', 'usage', 'integrations', 'security'];
+    const validTabs = ['firm', 'notifications', 'usage', 'integrations', 'security', 'demo'];
     return validTabs.includes(tab || '') ? tab! : 'firm';
   });
   
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
-    const validTabs = ['firm', 'notifications', 'usage', 'integrations', 'security'];
+    const validTabs = ['firm', 'notifications', 'usage', 'integrations', 'security', 'demo'];
     if (tab && validTabs.includes(tab)) {
       setActiveTab(tab);
     }
@@ -1453,6 +1646,7 @@ export default function Settings() {
             <TabsTrigger value="usage" data-testid="tab-usage">Usage</TabsTrigger>
             <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
             <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
+            <TabsTrigger value="demo" data-testid="tab-demo">Demo</TabsTrigger>
           </TabsList>
 
           <TabsContent value="firm" className="space-y-6">
@@ -1472,6 +1666,10 @@ export default function Settings() {
             <VideoConferencing />
             <StorageIntegrations />
             <ClioIntegration />
+          </TabsContent>
+
+          <TabsContent value="demo" className="space-y-6">
+            <DemoDataControls />
           </TabsContent>
 
           <TabsContent value="security" className="space-y-6">

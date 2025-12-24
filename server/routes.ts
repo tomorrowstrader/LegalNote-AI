@@ -5730,7 +5730,7 @@ ${firmName}`;
   // Seed demo data for demonstrations
   app.post("/api/demo/seed", isAuthenticated, async (req: any, res, next) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const { seedDemoData } = await import("./services/demoSeedService");
       const result = await seedDemoData(userId);
       
@@ -5752,7 +5752,7 @@ ${firmName}`;
   // Reset demo data (clear and re-seed)
   app.post("/api/demo/reset", isAuthenticated, async (req: any, res, next) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const { resetDemoData } = await import("./services/demoSeedService");
       const result = await resetDemoData(userId);
       
@@ -5774,7 +5774,7 @@ ${firmName}`;
   // Clear demo data
   app.delete("/api/demo/clear", isAuthenticated, async (req: any, res, next) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const { clearDemoData } = await import("./services/demoSeedService");
       const result = await clearDemoData(userId);
       
