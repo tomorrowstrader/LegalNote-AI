@@ -51,6 +51,8 @@ export const cases = pgTable("cases", {
   litigationHoldAppliedAt: timestamp("litigation_hold_applied_at"),
   litigationHoldAppliedBy: varchar("litigation_hold_applied_by").references(() => users.id),
   litigationHoldReason: text("litigation_hold_reason"), // Justification for hold
+  litigationHoldReleasedAt: timestamp("litigation_hold_released_at"), // When hold was last released
+  litigationHoldReleasedBy: varchar("litigation_hold_released_by").references(() => users.id), // Who released the hold
 });
 
 export const quickNotes = pgTable("quick_notes", {
@@ -498,6 +500,8 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   aiProcessingMetadata: true, // Server manages this
   litigationHoldAppliedAt: true, // Server manages this
   litigationHoldAppliedBy: true, // Server assigns this from session
+  litigationHoldReleasedAt: true, // Server manages this
+  litigationHoldReleasedBy: true, // Server assigns this from session
 }).extend({
   title: z.string().min(1).max(500).transform(sanitizeString),
   clientName: z.string().min(1).max(200).transform(sanitizeString),

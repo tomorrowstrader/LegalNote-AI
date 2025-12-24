@@ -94,10 +94,12 @@ export async function cleanupExpiredShareLinks(userId: string): Promise<{
 
 /**
  * Clean up old audio files (7-day retention policy)
+ * IMPORTANT: Respects litigation holds - cases under litigation hold are exempt from auto-deletion
  */
 export async function cleanupOldAudioFiles(userId: string): Promise<{
   deleted: number;
   errors: number;
+  skippedLitigationHold: number;
 }> {
   try {
     const cases = await storage.getCases(userId);
@@ -107,11 +109,48 @@ export async function cleanupOldAudioFiles(userId: string): Promise<{
 
     let deleted = 0;
     let errors = 0;
+    let skippedLitigationHold = 0;
 
     for (const caseRecord of cases) {
       if (caseRecord.audioUrl && caseRecord.recordedAt) {
         // Check if audio is older than retention period
         if (caseRecord.recordedAt < cutoffDate) {
+          // CRITICAL: Respect litigation holds - never auto-delete data under hold
+          if ((caseRecord as any).litigationHold === true) {
+            skippedLitigationHold++;
+            console.log('[DATA-RETENTION] Skipped audio deletion - case under litigation hold:', {
+              caseId: caseRecord.id,
+              litigationHoldAppliedAt: (caseRecord as any).litigationHoldAppliedAt,
+              litigationHoldReason: (caseRecord as any).litigationHoldReason,
+            });
+            
+            // Audit the skip for compliance trail - attribute properly for defensibility
+            // Priority: 1) Hold applier (known actor), 2) Case owner (matter owner), 3) "legacy_hold" for unknown
+            const holdAppliedBy = (caseRecord as any).litigationHoldAppliedBy;
+            const auditUserId = holdAppliedBy || userId; // Fallback to matter owner if applier unknown
+            const isLegacyHold = !holdAppliedBy; // Track if this is a legacy hold without proper attribution
+            
+            await storage.createAuditLog({
+              userId: auditUserId,
+              action: 'cleanup.audio_skipped_litigation_hold',
+              resourceType: 'case',
+              resourceId: caseRecord.id,
+              details: JSON.stringify({
+                recordedAt: caseRecord.recordedAt,
+                retentionDays: AUDIO_RETENTION_DAYS,
+                litigationHold: true,
+                litigationHoldAppliedAt: (caseRecord as any).litigationHoldAppliedAt || 'unknown',
+                litigationHoldAppliedBy: holdAppliedBy || 'unknown_legacy',
+                isLegacyHold, // Flag for cases without proper hold attribution
+                reason: 'litigation_hold_prevents_deletion',
+                matterOwner: userId, // Always record the matter owner for reference
+              }),
+              ipAddress: 'system',
+              userAgent: 'data-retention-service',
+            });
+            continue;
+          }
+          
           try {
             // Delete from Backblaze B2
             const objectStorage = new ObjectStorageService();
@@ -161,10 +200,10 @@ export async function cleanupOldAudioFiles(userId: string): Promise<{
       }
     }
 
-    return { deleted, errors };
+    return { deleted, errors, skippedLitigationHold };
   } catch (error) {
     console.error('[DATA-RETENTION] Error in cleanupOldAudioFiles:', error);
-    return { deleted: 0, errors: 1 };
+    return { deleted: 0, errors: 1, skippedLitigationHold: 0 };
   }
 }
 
@@ -211,7 +250,7 @@ export async function archiveOldConsentLogs(userId: string): Promise<{
  */
 export async function runDataRetentionCleanup(userId: string): Promise<{
   shareLinks: { deleted: number; errors: number };
-  audioFiles: { deleted: number; errors: number };
+  audioFiles: { deleted: number; errors: number; skippedLitigationHold: number };
   consentLogs: { archived: number; errors: number };
   totalErrors: number;
 }> {
@@ -227,6 +266,7 @@ export async function runDataRetentionCleanup(userId: string): Promise<{
     userId,
     shareLinksDeleted: shareLinks.deleted,
     audioFilesDeleted: audioFiles.deleted,
+    audioFilesSkippedLitigationHold: audioFiles.skippedLitigationHold,
     consentLogsArchived: consentLogs.archived,
     totalErrors,
   });
@@ -240,6 +280,7 @@ export async function runDataRetentionCleanup(userId: string): Promise<{
     details: JSON.stringify({
       shareLinksDeleted: shareLinks.deleted,
       audioFilesDeleted: audioFiles.deleted,
+      audioFilesSkippedLitigationHold: audioFiles.skippedLitigationHold,
       consentLogsArchived: consentLogs.archived,
       totalErrors,
     }),

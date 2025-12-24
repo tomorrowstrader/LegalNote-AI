@@ -466,6 +466,21 @@ export default function QuickRecordButton() {
       // Dispatch event for session timeout component
       window.dispatchEvent(new CustomEvent('recording-stopped'));
       
+      // Log recording stopped event for audit trail
+      // Note: consentGiven reflects user's selection during recording (modal response)
+      // The actual consent log persistence is tracked separately in case creation
+      await logAuditEvent({
+        eventType: "recording_stopped",
+        metadata: { 
+          source: "quick_record_button",
+          durationSeconds: recordingDuration,
+          consentSelectedDuringRecording: consentGiven, // User's modal selection, not backend-confirmed
+          chunkedUpload: useChunkedUpload,
+          stoppedAt: new Date().toISOString(),
+        },
+        severity: "info",
+      });
+      
       setStopConfirmationPending(false);
       setShowMetadataModal(true);
     }
@@ -544,12 +559,18 @@ export default function QuickRecordButton() {
       // Step 4: Save consent log to backend (GDPR compliance)
       if (consentGiven !== null) {
         try {
+          // Actual disclaimer wording for UK legal defensibility
+          const disclaimerWordingText = "I am recording this meeting for legal record purposes. This recording will be used to create attendance notes and transcripts. The audio will be retained for up to 7 days or until processing completes, whichever comes first. Do you consent to this recording?";
+          
           const consentPayload = {
             caseId: caseResult.id,
             audioRecordingId: audioResult.id,
             consentGiven: consentGiven,
             consentModality: "verbal_recorded" as const,
             disclaimerScriptVersion: "v1.0",
+            disclaimerWordingText, // Store actual wording for defensibility
+            lawfulBasis: "consent" as const, // GDPR Article 6(1)(a)
+            recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
           };
           await apiRequest("POST", "/api/consent", consentPayload);
         } catch (consentError: any) {
@@ -592,6 +613,22 @@ export default function QuickRecordButton() {
           const key = query.queryKey[0] as string;
           return key?.startsWith("/api/cases");
         }
+      });
+      
+      // Log case creation with consent save outcome for audit completeness
+      // This links the recording_stopped event to the final case outcome
+      await logAuditEvent({
+        eventType: "case_created_from_recording",
+        caseId: caseResult.id,
+        metadata: {
+          source: "quick_record_button",
+          consentLoggingSaved: !consentLogFailed,
+          consentSelectedDuringRecording: consentGiven,
+          uploadSucceeded: !uploadFailed,
+          durationSeconds: recordingDuration,
+          chunkedUpload: useChunkedUpload,
+        },
+        severity: consentLogFailed ? "warning" : "info",
       });
       
       // Show single, clear status toast based on outcome

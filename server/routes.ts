@@ -966,6 +966,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Litigation Hold Management - Privileged operation for legal defensibility
+  // This endpoint allows authorized users to apply or release litigation holds on cases
+  // Litigation holds prevent automatic data deletion for cases involved in disputes
+  app.post("/api/cases/:id/litigation-hold", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const holdSchema = z.object({
+        apply: z.boolean(),
+        reason: z.string().min(10, "Reason must be at least 10 characters").max(2000).optional(),
+      });
+      
+      const validationResult = holdSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Validation error",
+          errors: validationResult.error.format()
+        });
+      }
+      
+      const { apply, reason } = validationResult.data;
+      
+      // Get current case to verify access
+      const currentCase = await storage.getCase(req.params.id, userId);
+      if (!currentCase) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      
+      // Validate reason is provided when applying hold
+      if (apply && !reason) {
+        return res.status(400).json({ 
+          message: "Reason is required when applying a litigation hold" 
+        });
+      }
+      
+      const updates: any = {
+        litigationHold: apply,
+      };
+      
+      if (apply) {
+        updates.litigationHoldAppliedAt = new Date();
+        updates.litigationHoldAppliedBy = userId;
+        updates.litigationHoldReason = reason;
+        // Clear release fields when applying a new hold
+        updates.litigationHoldReleasedAt = null;
+        updates.litigationHoldReleasedBy = null;
+      } else {
+        // When releasing, preserve who applied the hold but record who released it
+        // This creates a complete audit trail of hold lifecycle
+        updates.litigationHoldReleasedAt = new Date();
+        updates.litigationHoldReleasedBy = userId;
+        // Note: We preserve litigationHoldAppliedAt/By to maintain history
+      }
+      
+      const updatedCase = await storage.updateCase(req.params.id, updates, userId);
+      
+      // Log audit event for litigation hold change - includes acting solicitor for defensibility
+      const auditMetadata = apply 
+        ? {
+            reason: reason,
+            appliedBy: userId,
+            previousHoldStatus: (currentCase as any).litigationHold,
+            clientName: currentCase.clientName,
+            caseTitle: currentCase.title,
+            actionTimestamp: new Date().toISOString(),
+          }
+        : {
+            releasedBy: userId,
+            originalAppliedBy: (currentCase as any).litigationHoldAppliedBy,
+            originalAppliedAt: (currentCase as any).litigationHoldAppliedAt,
+            previousHoldStatus: (currentCase as any).litigationHold,
+            clientName: currentCase.clientName,
+            caseTitle: currentCase.title,
+            actionTimestamp: new Date().toISOString(),
+          };
+      
+      await logAuditEvent(userId, apply ? "litigation_hold_applied" : "litigation_hold_released", {
+        caseId: req.params.id,
+        metadata: auditMetadata,
+        severity: "critical", // Litigation holds are always critical events
+        req,
+      });
+      
+      res.json({
+        success: true,
+        litigationHold: apply,
+        message: apply 
+          ? "Litigation hold applied - automatic data deletion is now suspended for this case"
+          : "Litigation hold released - normal retention policies will apply",
+        updatedCase,
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Document Review Workflow Routes
   app.post("/api/documents/:id/approve", isAuthenticated, async (req: any, res, next) => {
     try {
