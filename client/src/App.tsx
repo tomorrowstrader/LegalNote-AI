@@ -20,6 +20,7 @@ import AuditLogs from "@/pages/AuditLogs";
 import AdminDashboard from "@/pages/AdminDashboard";
 import SecurityFeatures from "@/pages/SecurityFeatures";
 import Landing from "@/pages/Landing";
+import Pricing from "@/pages/Pricing";
 import ShareLinkView from "@/pages/ShareLinkView";
 import OAuthCallback from "@/pages/OAuthCallback";
 import CalendarSyncConfirmation from "@/pages/CalendarSyncConfirmation";
@@ -35,6 +36,7 @@ function Router() {
       <Route path="/oauth/callback" component={OAuthCallback} />
       <Route path="/calendar-sync-confirmation" component={CalendarSyncConfirmation} />
       <Route path="/landing-preview" component={Landing} />
+      <Route path="/pricing" component={Pricing} />
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
