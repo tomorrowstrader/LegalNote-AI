@@ -2386,7 +2386,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const caseId = req.params.id;
-      const { start, end, reason } = req.body;
+      const { start, end, reason, textStart, textEnd, selectedText } = req.body;
       
       if (typeof start !== 'number' || typeof end !== 'number' || !reason?.trim()) {
         return res.status(400).json({ message: "Invalid redaction data" });
@@ -2406,23 +2406,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get current redactions or initialize empty array
       const currentRedactions = (transcript.redactions || []) as any[];
       
-      // Check if this segment is already redacted
-      const alreadyRedacted = currentRedactions.some(
-        (r: any) => r.start === start && r.end === end
-      );
+      // Check if this exact redaction already exists
+      const isPartialRedaction = typeof textStart === 'number' && typeof textEnd === 'number';
+      const alreadyRedacted = currentRedactions.some((r: any) => {
+        if (isPartialRedaction) {
+          // For partial redactions, check all fields match
+          return r.start === start && r.end === end && r.textStart === textStart && r.textEnd === textEnd;
+        } else {
+          // For full redactions, check only start/end and that it's not a partial redaction
+          return r.start === start && r.end === end && r.textStart === undefined && r.textEnd === undefined;
+        }
+      });
       
       if (alreadyRedacted) {
-        return res.status(400).json({ message: "This segment is already redacted" });
+        return res.status(400).json({ message: "This text is already redacted" });
       }
       
-      // Add new redaction
-      const newRedaction = {
+      // Add new redaction with optional partial redaction fields
+      const newRedaction: any = {
         start,
         end,
         reason: reason.trim(),
         redactedBy: userId,
         timestamp: new Date().toISOString(),
       };
+      
+      // Add partial redaction fields if present
+      if (isPartialRedaction) {
+        newRedaction.textStart = textStart;
+        newRedaction.textEnd = textEnd;
+        if (selectedText) {
+          newRedaction.selectedText = selectedText;
+        }
+      }
       
       const updatedRedactions = [...currentRedactions, newRedaction];
       
@@ -2441,6 +2457,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           start,
           end,
           reason: reason.trim(),
+          isPartial: isPartialRedaction,
+          textStart: isPartialRedaction ? textStart : undefined,
+          textEnd: isPartialRedaction ? textEnd : undefined,
         },
         req,
       });
@@ -2456,7 +2475,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const caseId = req.params.id;
-      const { start, end } = req.body;
+      const { start, end, textStart, textEnd } = req.body;
       
       if (typeof start !== 'number' || typeof end !== 'number') {
         return res.status(400).json({ message: "Invalid redaction data" });
@@ -2476,10 +2495,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get current redactions
       const currentRedactions = (transcript.redactions || []) as any[];
       
-      // Find and remove the redaction
-      const updatedRedactions = currentRedactions.filter(
-        (r: any) => !(r.start === start && r.end === end)
-      );
+      // Find and remove the redaction (supporting both full and partial redactions)
+      const isPartialRemoval = typeof textStart === 'number' && typeof textEnd === 'number';
+      const updatedRedactions = currentRedactions.filter((r: any) => {
+        if (isPartialRemoval) {
+          // For partial redactions, match all fields
+          return !(r.start === start && r.end === end && r.textStart === textStart && r.textEnd === textEnd);
+        } else {
+          // For full redactions, match start/end and ensure it's not a partial redaction
+          return !(r.start === start && r.end === end && r.textStart === undefined && r.textEnd === undefined);
+        }
+      });
       
       if (updatedRedactions.length === currentRedactions.length) {
         return res.status(404).json({ message: "Redaction not found" });
@@ -2499,6 +2525,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           action: 'remove',
           start,
           end,
+          isPartial: isPartialRemoval,
+          textStart: isPartialRemoval ? textStart : undefined,
+          textEnd: isPartialRemoval ? textEnd : undefined,
         },
         req,
       });
