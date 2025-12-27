@@ -2729,6 +2729,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { completed, assignee, dueDate, priority, description, status } = req.body;
       
+      // If trying to mark as complete, enforce approval-first policy
+      // "AI-assisted, not AI-decided": items must be approved before completion
+      if (completed === true) {
+        const currentItem = await storage.getActionItem(id, userId);
+        
+        if (!currentItem) {
+          return res.status(404).json({ message: "Action item not found or not authorized" });
+        }
+        
+        if ((currentItem as any).status !== 'approved') {
+          return res.status(400).json({ 
+            message: "Action items must be approved before they can be marked as complete. This ensures solicitor oversight of all AI-generated content."
+          });
+        }
+      }
+      
       const updates: any = {};
       if (completed !== undefined) {
         updates.completed = completed;
@@ -2847,6 +2863,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.json({ success: true });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Create manual action item (without transcript)
+  app.post("/api/cases/:id/action-items/manual", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const { description, assignee, dueDate, priority } = req.body;
+      
+      if (!description?.trim()) {
+        return res.status(400).json({ message: "Description is required" });
+      }
+      
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const item = await storage.createManualActionItem({
+        caseId,
+        description: description.trim(),
+        assignee: assignee || null,
+        dueDate: dueDate ? new Date(dueDate) : undefined,
+        priority: priority || "medium",
+        isManual: true,
+      });
+      
+      await logAuditEvent(userId, "action_item_created_manual", {
+        caseId,
+        metadata: {
+          actionItemId: item.id,
+          description: item.description.substring(0, 100),
+          assignee: item.assignee,
+          priority: item.priority,
+          isManual: true,
+        },
+        req,
+      });
+      
+      res.json(item);
     } catch (error: any) {
       next(error);
     }

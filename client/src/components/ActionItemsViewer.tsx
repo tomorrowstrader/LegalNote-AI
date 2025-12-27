@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   ListTodo, 
   Sparkles, 
@@ -15,7 +18,10 @@ import {
   Clock,
   Trash2,
   ShieldCheck,
-  FileEdit
+  FileEdit,
+  Plus,
+  PenLine,
+  X
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -60,6 +66,10 @@ function getStatusBadge(status: string | null) {
 
 export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItemsViewerProps) {
   const [isExtracting, setIsExtracting] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newDescription, setNewDescription] = useState("");
+  const [newAssignee, setNewAssignee] = useState("Solicitor");
+  const [newPriority, setNewPriority] = useState("medium");
   const { toast } = useToast();
   
   const { data: items, isLoading } = useQuery<ActionItem[]>({
@@ -165,6 +175,39 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
     },
   });
 
+  const createManualMutation = useMutation({
+    mutationFn: async (data: { description: string; assignee?: string; priority?: string }) => {
+      return await apiRequest('POST', `/api/cases/${caseId}/action-items/manual`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/action-items`] });
+      setShowAddForm(false);
+      setNewDescription("");
+      setNewAssignee("Solicitor");
+      setNewPriority("medium");
+      toast({
+        title: "Action Item Created",
+        description: "The action item has been added as a draft.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Creation Failed",
+        description: error.message || "Failed to create action item",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddActionItem = () => {
+    if (!newDescription.trim()) return;
+    createManualMutation.mutate({
+      description: newDescription.trim(),
+      assignee: newAssignee || undefined,
+      priority: newPriority,
+    });
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -252,19 +295,115 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
                 )}
               </Button>
             )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAddForm(!showAddForm)}
+              data-testid="button-add-action-item"
+            >
+              {showAddForm ? (
+                <>
+                  <X className="w-4 h-4 mr-1" />
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        {(!items || items.length === 0) ? (
+        {showAddForm && (
+          <div className="p-3 rounded-lg border bg-muted/30 space-y-3 mb-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <PenLine className="w-4 h-4" />
+              Add Manual Action Item
+            </div>
+            <div className="space-y-2">
+              <div>
+                <Label htmlFor="new-description" className="text-xs text-muted-foreground">Description</Label>
+                <Input
+                  id="new-description"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  placeholder="Enter action item description..."
+                  data-testid="input-new-action-description"
+                />
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <div className="flex-1 min-w-[120px]">
+                  <Label htmlFor="new-assignee" className="text-xs text-muted-foreground">Assignee</Label>
+                  <Input
+                    id="new-assignee"
+                    value={newAssignee}
+                    onChange={(e) => setNewAssignee(e.target.value)}
+                    placeholder="Assignee name"
+                    data-testid="input-new-action-assignee"
+                  />
+                </div>
+                <div className="w-[120px]">
+                  <Label htmlFor="new-priority" className="text-xs text-muted-foreground">Priority</Label>
+                  <Select value={newPriority} onValueChange={setNewPriority}>
+                    <SelectTrigger id="new-priority" data-testid="select-new-action-priority">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setNewDescription("");
+                  }}
+                  data-testid="button-cancel-add-action"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleAddActionItem}
+                  disabled={!newDescription.trim() || createManualMutation.isPending}
+                  data-testid="button-save-action-item"
+                >
+                  {createManualMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Item
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+        {(!items || items.length === 0) && !showAddForm && (
           <div className="text-center py-6 text-muted-foreground">
             <ListTodo className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No action items found.</p>
             {hasTranscript && (
               <p className="text-xs mt-1">Click "Extract" to find action items from the transcript.</p>
             )}
+            <p className="text-xs mt-1">Or click "Add" to create one manually.</p>
           </div>
-        ) : (
+        )}
+        {items && items.length > 0 && (
           <>
             {items.map((item, idx) => (
               <div
@@ -280,8 +419,9 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
                   onCheckedChange={(checked) => {
                     toggleMutation.mutate({ id: item.id, completed: !!checked });
                   }}
-                  disabled={toggleMutation.isPending}
+                  disabled={toggleMutation.isPending || (item as any).status !== 'approved'}
                   className="mt-0.5"
+                  title={(item as any).status !== 'approved' ? "Approve this item first before marking as complete" : undefined}
                   data-testid={`checkbox-action-item-${idx}`}
                 />
                 
@@ -296,6 +436,13 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     {getStatusBadge((item as any).status)}
                     {getPriorityBadge(item.priority)}
+                    
+                    {(item as any).isManual && (
+                      <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800">
+                        <PenLine className="w-3 h-3 mr-1" />
+                        Manual
+                      </Badge>
+                    )}
                     
                     {item.assignee && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">

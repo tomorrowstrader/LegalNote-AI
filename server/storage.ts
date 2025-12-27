@@ -196,6 +196,8 @@ export interface IStorage {
   
   // Action Items methods
   createActionItem(itemData: InsertActionItem): Promise<ActionItem>;
+  createManualActionItem(itemData: { caseId: string; description: string; assignee?: string | null; dueDate?: Date; priority?: string; isManual?: boolean }): Promise<ActionItem>;
+  getActionItem(id: string, userId: string): Promise<ActionItem | undefined>;
   getActionItemsByCase(caseId: string, userId: string): Promise<ActionItem[]>;
   getActionItemsByTranscript(transcriptId: string, userId: string): Promise<ActionItem[]>;
   updateActionItem(id: string, updates: Partial<ActionItem>, userId: string): Promise<ActionItem | undefined>;
@@ -669,10 +671,46 @@ export class MemStorage implements IStorage {
       completedAt: null,
       completedBy: null,
       sourceUtteranceIndex: itemData.sourceUtteranceIndex ?? null,
+      isManual: (itemData as any).isManual ?? false,
       createdAt: new Date(),
     };
     this.actionItemsMap.set(id, actionItem);
     return actionItem;
+  }
+
+  async createManualActionItem(itemData: { caseId: string; description: string; assignee?: string | null; dueDate?: Date; priority?: string; isManual?: boolean }): Promise<ActionItem> {
+    const id = randomUUID();
+    const actionItem: ActionItem = {
+      id,
+      caseId: itemData.caseId,
+      transcriptId: null,
+      description: itemData.description,
+      originalDescription: null,
+      assignee: itemData.assignee ?? null,
+      dueDate: itemData.dueDate ?? null,
+      priority: itemData.priority ?? "medium",
+      status: "draft",
+      approvedBy: null,
+      approvedAt: null,
+      completed: false,
+      completedAt: null,
+      completedBy: null,
+      sourceUtteranceIndex: null,
+      isManual: true,
+      createdAt: new Date(),
+    };
+    this.actionItemsMap.set(id, actionItem);
+    return actionItem;
+  }
+
+  async getActionItem(id: string, userId: string): Promise<ActionItem | undefined> {
+    const item = this.actionItemsMap.get(id);
+    if (!item) return undefined;
+    
+    const caseRecord = this.cases.get(item.caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    
+    return item;
   }
 
   async getActionItemsByCase(caseId: string, userId: string): Promise<ActionItem[]> {
@@ -1603,9 +1641,38 @@ export class DbStorage implements IStorage {
         status: (itemData as any).status ?? "draft",
         completed: itemData.completed ?? false,
         sourceUtteranceIndex: itemData.sourceUtteranceIndex ?? null,
+        isManual: (itemData as any).isManual ?? false,
       })
       .returning();
     return result[0];
+  }
+
+  async createManualActionItem(itemData: { caseId: string; description: string; assignee?: string | null; dueDate?: Date; priority?: string; isManual?: boolean }): Promise<ActionItem> {
+    const result = await db
+      .insert(actionItems)
+      .values({
+        caseId: itemData.caseId,
+        transcriptId: null,
+        description: itemData.description,
+        assignee: itemData.assignee ?? null,
+        dueDate: itemData.dueDate ?? null,
+        priority: itemData.priority ?? "medium",
+        status: "draft",
+        completed: false,
+        isManual: true,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getActionItem(id: string, userId: string): Promise<ActionItem | undefined> {
+    const item = await db.select().from(actionItems).where(eq(actionItems.id, id));
+    if (!item[0]) return undefined;
+    
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, item[0].caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return undefined;
+    
+    return item[0];
   }
 
   async getActionItemsByCase(caseId: string, userId: string): Promise<ActionItem[]> {

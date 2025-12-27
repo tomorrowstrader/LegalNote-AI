@@ -79,49 +79,61 @@ SOLICITOR: My pleasure. I'll be in touch within the week with an update.`,
       ],
       speakerCount: 2
     },
-    attendanceNote: `ATTENDANCE NOTE
+    attendanceNote: `# ATTENDANCE NOTE
 
-Client: Sarah Thompson
-Matter: Property Purchase - 42 Maple Grove
-Reference: CONV/2024/0847
-Date: [Meeting Date]
-Present: [Solicitor Name], Sarah Thompson (Client)
+**Client:** Sarah Thompson
+**Matter:** Property Purchase - 42 Maple Grove
+**Reference:** CONV/2024/0847
+**Date:** ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Present:** Attending Solicitor, Sarah Thompson (Client)
 
-1. INTRODUCTION
+## 1. INTRODUCTION
+
 Client attended the office to discuss the purchase of 42 Maple Grove, Hampstead. Recording consent was obtained at the start of the meeting.
 
-2. CONTRACT REVIEW
+## 2. CONTRACT REVIEW
+
 The draft contract from the seller's solicitors has been reviewed. Key points discussed:
 - The property is freehold
 - Local authority search revealed a proposed cycle lane that may affect the front boundary (currently at consultation stage)
 
-3. RECOMMENDATIONS
-It was recommended to include a retention on completion of £5,000 pending clarification of the cycle lane proposal.
+## 3. RECOMMENDATIONS
 
-4. CHAIN AND TIMING
+I advised the client that we should include a retention on completion of £5,000 pending clarification of the cycle lane proposal.
+
+## 4. CHAIN AND TIMING
+
 - Sellers have found their onward purchase
 - Target completion: 8 weeks (15th February)
 - Client's mortgage offer valid until March - timing confirmed as workable
 
-5. FIXTURES AND FITTINGS
+## 5. FIXTURES AND FITTINGS
+
 - Current list includes curtains and carpets only
 - Client requested confirmation that garden shed is included
-- Solicitor to add this to enquiries
+- I will add this to the enquiries
 
-6. FINANCIAL MATTERS
-- Balance of deposit required: £47,500
+## 6. FINANCIAL MATTERS
+
+- **Balance of deposit required:** £47,500
 - Client confirmed transfer will be made tomorrow
 
-7. NEXT STEPS
-a) Respond to contract enquiries this week
-b) Chase management company for service charge information
-c) Send report on title once all searches returned
-d) Await deposit transfer
+## 7. NEXT STEPS
 
-8. CLIENT CONFIRMATION
+**Solicitor Actions:**
+1. Respond to contract enquiries this week
+2. Chase management company for service charge information
+3. Send report on title once all searches returned
+
+**Client Actions:**
+1. Transfer deposit balance of £47,500
+
+## 8. CLIENT CONFIRMATION
+
 Client confirmed understanding of all matters discussed and had no further questions at this stage.
 
-Fee earner to update client within the week.`,
+---
+*Fee earner to update client within the week.*`,
     summary: `Property purchase consultation for 42 Maple Grove, Hampstead. Contract reviewed - property is freehold. Local search revealed proposed cycle lane affecting boundary (at consultation stage). Recommended £5,000 retention on completion. Chain progressing well with 8-week target. Client to transfer £47,500 deposit. Action items: respond to enquiries, chase service charge info, add garden shed query.`,
     actionItems: [
       { description: "Respond to contract enquiries", assignee: "Solicitor", priority: "high" },
@@ -199,54 +211,67 @@ SOLICITOR: Perfect. I'll prepare the ACAS notification today and call you tomorr
       ],
       speakerCount: 2
     },
-    attendanceNote: `ATTENDANCE NOTE
+    attendanceNote: `# ATTENDANCE NOTE
 
-Client: Marcus Webb
-Matter: Unfair Dismissal Claim
-Reference: EMP/2024/0312
-Date: [Meeting Date]
-Present: [Solicitor Name], Marcus Webb (Client)
+**Client:** Marcus Webb
+**Matter:** Unfair Dismissal Claim
+**Reference:** EMP/2024/0312
+**Date:** ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Present:** Attending Solicitor, Marcus Webb (Client)
 
-1. INTRODUCTION
+## 1. INTRODUCTION
+
 Client attended for initial consultation regarding potential unfair dismissal claim against Hartley Technologies Ltd. Recording consent obtained.
 
-2. BACKGROUND
+## 2. BACKGROUND
+
 - Client employed for 12 years
 - Dismissed on 14th November citing "redundancy due to restructuring"
 - No prior warning or consultation provided
 - No other redundancies at the same time
 
-3. KEY EVIDENCE
+## 3. KEY EVIDENCE
+
 - Same role advertised on LinkedIn two weeks after dismissal
 - Client has excellent performance reviews
 - Recent emails from manager praising project work
 
-4. LEGAL ASSESSMENT
-The circumstances suggest this may not be a genuine redundancy:
+## 4. LEGAL ASSESSMENT
+
+I advised the client that the circumstances suggest this may not be a genuine redundancy:
 - No consultation process followed
 - No discussion of alternatives
 - Role immediately re-advertised
+
 This could constitute unfair dismissal under the Employment Rights Act 1996.
 
-5. LIMITATION PERIOD
-- Dismissal date: 14th November
-- Tribunal claim deadline: 12th February
+## 5. LIMITATION PERIOD
+
+- **Dismissal date:** 14th November
+- **Tribunal claim deadline:** 12th February
 - ACAS Early Conciliation must be completed first
 
-6. POTENTIAL REMEDIES
-- Basic Award: Approximately £25,000 (based on age, salary, length of service)
-- Compensatory Award: To be calculated based on loss of earnings
+## 6. POTENTIAL REMEDIES
+
+- **Basic Award:** Approximately £25,000 (based on age, salary, length of service)
+- **Compensatory Award:** To be calculated based on loss of earnings
 - Settlement negotiation to be explored
 
-7. CLIENT INSTRUCTIONS
-Client prefers negotiated settlement if possible but willing to proceed to tribunal if necessary.
+## 7. CLIENT INSTRUCTIONS
 
-8. NEXT STEPS
-a) Submit ACAS Early Conciliation notification immediately
-b) Client to provide: employment contract, performance reviews, dismissal letter, LinkedIn screenshots
-c) Solicitor to call client tomorrow with update
+Client prefers negotiated settlement if possible but is willing to proceed to tribunal if necessary.
 
-9. COSTS
+## 8. NEXT STEPS
+
+**Solicitor Actions:**
+1. Submit ACAS Early Conciliation notification immediately
+2. Call client tomorrow with update
+
+**Client Actions:**
+1. Provide employment contract, performance reviews, dismissal letter, LinkedIn screenshots
+
+## 9. COSTS
+
 Initial consultation fee discussed. Conditional fee arrangement to be considered if matter proceeds.`,
     summary: `Employment dispute consultation. Client dismissed after 12 years at Hartley Technologies, purportedly for redundancy. No consultation process followed. Same role advertised on LinkedIn 2 weeks later - suggests sham redundancy. Deadline for tribunal claim: 12th February. Estimated basic award ~£25,000. Client prefers settlement. Immediate action: submit ACAS notification.`,
     actionItems: [
@@ -329,52 +354,64 @@ CLIENT: Thank you. This has been incredibly helpful.`,
       ],
       speakerCount: 2
     },
-    attendanceNote: `ATTENDANCE NOTE
+    attendanceNote: `# ATTENDANCE NOTE
 
-Client: Eleanor Chen
-Matter: Partnership Agreement Review
-Reference: COMM/2024/0156
-Date: [Meeting Date]
-Present: [Solicitor Name], Eleanor Chen (Client)
+**Client:** Eleanor Chen
+**Matter:** Partnership Agreement Review
+**Reference:** COMM/2024/0156
+**Date:** ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Present:** Attending Solicitor, Eleanor Chen (Client)
 
-1. INTRODUCTION
+## 1. INTRODUCTION
+
 Client attended to discuss proposed business partnership with David Morrison for software development consultancy. Recording consent obtained.
 
-2. PROPOSED STRUCTURE
-Initial proposal: Traditional partnership
-Revised recommendation: Limited Liability Partnership (LLP)
-Reason: Limited liability protection with partnership flexibility
+## 2. PROPOSED STRUCTURE
 
-3. FINANCIAL ARRANGEMENTS
-- Capital contribution: £50,000 each
-- Profit split: 50/50
+- **Initial proposal:** Traditional partnership
+- **Revised recommendation:** Limited Liability Partnership (LLP)
+- **Reason:** Limited liability protection with partnership flexibility
 
-4. DECISION-MAKING
+## 3. FINANCIAL ARRANGEMENTS
+
+- **Capital contribution:** £50,000 each
+- **Profit split:** 50/50
+
+## 4. DECISION-MAKING
+
 - Equal voting on major decisions
 - Deadlock mechanism to be included
 - Defined areas of authority:
-  * Eleanor Chen: Technical decisions
-  * David Morrison: Commercial/client decisions
+  - Eleanor Chen: Technical decisions
+  - David Morrison: Commercial/client decisions
 
-5. EXIT PROVISIONS
+## 5. EXIT PROVISIONS
+
 - First refusal rights on departure
 - Valuation method to be defined (options: book value, earnings multiple, independent valuation)
 - 12-month non-compete clause within reasonable scope
 
-6. INTELLECTUAL PROPERTY
+## 6. INTELLECTUAL PROPERTY
+
 - LLP to own all IP developed during partnership
 - Existing IP brought by partners to be scheduled as excluded IP
 - Client and partner each have existing code libraries to retain personally
 
-7. LIABILITY
-Traditional partnership liability rejected in favour of LLP structure for limited liability protection.
+## 7. LIABILITY
 
-8. NEXT STEPS
-a) Solicitor to draft LLP members' agreement (target: 2 weeks, ideally before next Friday)
-b) Solicitor to send checklist of required information
-c) Client meeting with David Morrison scheduled for next Friday
+I advised the client that traditional partnership liability should be rejected in favour of LLP structure for limited liability protection.
 
-9. LLP REGISTRATION
+## 8. NEXT STEPS
+
+**Solicitor Actions:**
+1. Draft LLP members' agreement (target: 2 weeks, ideally before next Friday)
+2. Send checklist of required information
+
+**Client Actions:**
+1. Meet with David Morrison to discuss LLP structure (scheduled for next Friday)
+
+## 9. LLP REGISTRATION
+
 Companies House registration to be arranged once agreement finalised. Estimated registration cost: few hundred pounds.`,
     summary: `Commercial partnership consultation. Client forming software consultancy with David Morrison. Recommended LLP structure for limited liability. 50/50 capital (£50k each) and profit split. Decision-making areas defined - Chen handles technical, Morrison handles commercial. Exit provisions include first refusal and 12-month non-compete. IP developed by LLP; existing personal code libraries excluded. Draft LLP agreement needed before next Friday.`,
     actionItems: [
@@ -447,54 +484,68 @@ SOLICITOR: I should have the proposal ready by the end of the week. We'll then a
       ],
       speakerCount: 2
     },
-    attendanceNote: `ATTENDANCE NOTE
+    attendanceNote: `# ATTENDANCE NOTE
 
-Client: David Patterson
-Matter: Divorce Financial Settlement
-Reference: FAM/2024/0089
-Date: [Meeting Date]
-Present: [Solicitor Name], David Patterson (Client)
+**Client:** David Patterson
+**Matter:** Divorce Financial Settlement
+**Reference:** FAM/2024/0089
+**Date:** ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Present:** Attending Solicitor, David Patterson (Client)
 
-1. INTRODUCTION
+## 1. INTRODUCTION
+
 Meeting to discuss financial settlement in divorce proceedings. Form E disclosure from Mrs Patterson's solicitors reviewed. Recording consent obtained.
 
-2. ASSETS SUMMARY
-| Asset | Value |
+## 2. ASSETS SUMMARY
+
+| **Asset** | **Value** |
 |-------|-------|
 | Husband's Pension | £740,000 |
 | Family Home | £850,000 |
 | Mortgage | (£300,000) |
 | Net Equity in Home | £550,000 |
 
-3. WIFE'S PROPOSALS
-- Pension sharing order: 40% of husband's pension
-- Family home: Retain until youngest finishes education (approx. 6 years), then 50/50 split
-- Spousal maintenance: £2,000 per month
+## 3. WIFE'S PROPOSALS
 
-4. CLIENT'S POSITION
+- **Pension sharing order:** 40% of husband's pension
+- **Family home:** Retain until youngest finishes education (approx. 6 years), then 50/50 split
+- **Spousal maintenance:** £2,000 per month
+
+## 4. CLIENT'S POSITION
+
 - Client concerned about pension share given 15 years of accrual pre-marriage
 - Client wishes to conclude property matters promptly
 - Client willing to accept time-limited maintenance
 
-5. ADVICE PROVIDED
-a) Pension: Given 18-year marriage with 15 years pre-marital pension accrual, 25-30% share more appropriate than 40%
-b) Property: Options discussed:
-   - Immediate sale with adjusted split
-   - Client buyout (cost ~£275,000 + mortgage refinancing)
-   - Recommended: Immediate sale with 55/45 split in client's favour
-c) Maintenance: Should be time-limited to 3 years given wife's earning capacity
+## 5. ADVICE PROVIDED
 
-6. COUNTER-PROPOSAL TO BE DRAFTED
-- Pension sharing: 28%
-- Property: Immediate sale, 55% to husband / 45% to wife
-- Maintenance: £2,000/month for 3 years only
+I advised the client:
 
-7. NEXT STEPS
-a) Solicitor to draft counter-proposal by end of week
-b) Allow negotiation period before court involvement
-c) Client to review draft when received
+**a) Pension:** Given 18-year marriage with 15 years pre-marital pension accrual, 25-30% share more appropriate than 40%
 
-8. CLIENT CONFIRMATION
+**b) Property:** Options discussed:
+- Immediate sale with adjusted split
+- Client buyout (cost ~£275,000 + mortgage refinancing)
+- **Recommended:** Immediate sale with 55/45 split in client's favour
+
+**c) Maintenance:** Should be time-limited to 3 years given wife's earning capacity
+
+## 6. COUNTER-PROPOSAL TO BE DRAFTED
+
+- **Pension sharing:** 28%
+- **Property:** Immediate sale, 55% to husband / 45% to wife
+- **Maintenance:** £2,000/month for 3 years only
+
+## 7. NEXT STEPS
+
+**Solicitor Actions:**
+1. Draft counter-proposal by end of week
+
+**Client Actions:**
+1. Review draft when received
+
+## 8. CLIENT CONFIRMATION
+
 Client confirmed understanding and instructed solicitor to proceed with counter-proposal.`,
     summary: `Divorce financial settlement consultation. Key assets: pension £740k, home equity £550k. Wife seeking 40% pension share, retention of home for 6 years, and £2k/month maintenance. Advised 28% pension share is fairer given pre-marital contributions. Proposed counter: immediate property sale (55/45 in client's favour), 28% pension share, 3-year time-limited maintenance. Draft counter-proposal by end of week.`,
     actionItems: [

@@ -107,11 +107,11 @@ export const transcripts = pgTable("transcripts", {
   redactions: jsonb("redactions").default([]), // Array of {start, end, reason, redactedBy, timestamp}
 });
 
-// AI-extracted action items from transcripts
+// AI-extracted or manually created action items
 export const actionItems = pgTable("action_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
-  transcriptId: varchar("transcript_id").notNull().references(() => transcripts.id),
+  transcriptId: varchar("transcript_id").references(() => transcripts.id), // Nullable for manual items
   description: text("description").notNull(),
   originalDescription: text("original_description"), // Preserves AI-generated text before edits
   assignee: text("assignee"), // "Solicitor", "Client", or specific name
@@ -124,6 +124,7 @@ export const actionItems = pgTable("action_items", {
   completedAt: timestamp("completed_at"),
   completedBy: varchar("completed_by").references(() => users.id),
   sourceUtteranceIndex: integer("source_utterance_index"),
+  isManual: boolean("is_manual").notNull().default(false), // True if manually created by solicitor
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
