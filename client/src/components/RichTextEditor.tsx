@@ -58,15 +58,12 @@ export function RichTextEditor({ content, onChange, disabled, placeholder }: Ric
 
     isUpdatingRef.current = true;
     try {
-      // Parse markdown to ProseMirror document and convert to JSON
-      // This ensures headings, bold, lists, etc. are properly rendered
+      // Parse markdown to ProseMirror document - this properly creates heading nodes
+      // Note: Do NOT pass parseOptions when using JSON, it breaks node hydration
       const doc = editor.storage.markdown.parser
         .parse(content ?? '')
         .toJSON();
-      // setContent with JSON, emitUpdate=false, and parseOptions
-      editor.commands.setContent(doc, false, {
-        parseOptions: { preserveWhitespace: 'full' },
-      });
+      editor.commands.setContent(doc, false);
     } catch (err) {
       console.error('[RichTextEditor] Markdown hydration failed, falling back to raw:', err);
       editor.commands.setContent(content ?? '', false);
