@@ -33,7 +33,8 @@ export function RichTextEditor({ content, onChange, disabled, placeholder }: Ric
         transformPastedText: true,
       }),
     ],
-    content: content,
+    // Start with empty content - useEffect will hydrate with parsed markdown
+    content: '',
     editable: !disabled,
     onUpdate: ({ editor }) => {
       if (isUpdatingRef.current) {
@@ -52,10 +53,24 @@ export function RichTextEditor({ content, onChange, disabled, placeholder }: Ric
   useEffect(() => {
     if (!editor) return;
     
-    const currentMarkdown = editor.storage.markdown?.getMarkdown() || '';
-    if (content !== currentMarkdown) {
-      isUpdatingRef.current = true;
-      editor.commands.setContent(content);
+    const currentMarkdown = editor.storage.markdown?.getMarkdown() ?? '';
+    if (content === currentMarkdown) return;
+
+    isUpdatingRef.current = true;
+    try {
+      // Parse markdown to ProseMirror document and convert to JSON
+      // This ensures headings, bold, lists, etc. are properly rendered
+      const doc = editor.storage.markdown.parser
+        .parse(content ?? '')
+        .toJSON();
+      // setContent with JSON, emitUpdate=false, and parseOptions
+      editor.commands.setContent(doc, false, {
+        parseOptions: { preserveWhitespace: 'full' },
+      });
+    } catch (err) {
+      console.error('[RichTextEditor] Markdown hydration failed, falling back to raw:', err);
+      editor.commands.setContent(content ?? '', false);
+    } finally {
       isUpdatingRef.current = false;
     }
   }, [editor, content]);

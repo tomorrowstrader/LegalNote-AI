@@ -653,45 +653,44 @@ export default function DocumentViewer({
 
   return (
     <div className="space-y-6" data-testid="container-document-viewer">
-      <div className="sticky top-16 z-40 bg-background py-4 border-b">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-semibold">Generated Documentation</h2>
-            <p className="text-xs text-muted-foreground mt-1 sm:hidden">Export documents below</p>
-          </div>
-          {hasAnyDocument && (
-            <div className="flex flex-col gap-2">
-              <p className="text-xs text-muted-foreground hidden sm:block">Export documents:</p>
-              <div className="flex gap-2 flex-shrink-0">
-                <Button
-                  variant="outline"
-                  onClick={handleExport}
-                  className="gap-2 flex-1 sm:flex-initial"
-                  data-testid="button-export"
-                >
-                  <FileDown className="w-4 h-4" />
-                  Export Documents
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
       <Tabs defaultValue="attendance" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-auto">
-          <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
-            <span className="hidden sm:inline">Attendance Note</span>
-            <span className="sm:hidden">Att. Note</span>
-          </TabsTrigger>
-          <TabsTrigger value="summary" data-testid="tab-summary" disabled={!summary && !textNotes} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
-            Summary
-          </TabsTrigger>
-          <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
-            <span className="hidden sm:inline">Transcript</span>
-            <span className="sm:hidden">Script</span>
-          </TabsTrigger>
-        </TabsList>
+        <div className="sticky top-0 z-40 bg-background pt-4 pb-3 border-b">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-semibold">Generated Documentation</h2>
+              <p className="text-xs text-muted-foreground mt-1 sm:hidden">Export documents below</p>
+            </div>
+            {hasAnyDocument && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-muted-foreground hidden sm:block">Export documents:</p>
+                <div className="flex gap-2 flex-shrink-0">
+                  <Button
+                    variant="outline"
+                    onClick={handleExport}
+                    className="gap-2 flex-1 sm:flex-initial"
+                    data-testid="button-export"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    Export Documents
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+          <TabsList className="grid w-full grid-cols-3 h-auto">
+            <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+              <span className="hidden sm:inline">Attendance Note</span>
+              <span className="sm:hidden">Att. Note</span>
+            </TabsTrigger>
+            <TabsTrigger value="summary" data-testid="tab-summary" disabled={!summary && !textNotes} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+              Summary
+            </TabsTrigger>
+            <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+              <span className="hidden sm:inline">Transcript</span>
+              <span className="sm:hidden">Script</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="attendance" className="mt-6">
           <Card>
