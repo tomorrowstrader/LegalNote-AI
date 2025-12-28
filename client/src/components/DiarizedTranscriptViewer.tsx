@@ -312,28 +312,28 @@ export default function DiarizedTranscriptViewer({
 
   return (
     <div className="space-y-4" data-testid="container-diarized-transcript">
-      <div className="flex flex-wrap items-center gap-4 pb-4 border-b">
-        <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">
-            {speakerCount || uniqueSpeakers.length} speaker{(speakerCount || uniqueSpeakers.length) !== 1 ? 's' : ''} detected
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">
-            {formatTimestamp(totalDuration)} duration
-          </span>
-        </div>
-        {redactions.length > 0 && (
-          <div className="flex items-center gap-2">
-            <EyeOff className="w-4 h-4 text-amber-500" />
-            <span className="text-sm text-amber-600 dark:text-amber-400">
-              {redactions.length} redaction{redactions.length !== 1 ? 's' : ''}
-            </span>
+      {/* Sticky transcript controls header - responsive offset for document viewer header */}
+      <div className="sticky top-44 sm:top-20 z-30 bg-background pb-3 pt-2 border-b">
+        {/* Stats row */}
+        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground pb-2">
+          <div className="flex items-center gap-1.5">
+            <Users className="w-4 h-4" />
+            <span>{speakerCount || uniqueSpeakers.length} speaker{(speakerCount || uniqueSpeakers.length) !== 1 ? 's' : ''}</span>
           </div>
-        )}
-        <div className="flex gap-2 ml-auto flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <Clock className="w-4 h-4" />
+            <span>{formatTimestamp(totalDuration)}</span>
+          </div>
+          {redactions.length > 0 && (
+            <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+              <EyeOff className="w-4 h-4" />
+              <span>{redactions.length} redaction{redactions.length !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+        </div>
+        
+        {/* Controls row - all buttons in one horizontal line */}
+        <div className="flex flex-wrap items-center gap-2 pb-2 border-b">
           {canRedact && (
             <Button
               variant={redactionMode ? "default" : "outline"}
@@ -343,7 +343,7 @@ export default function DiarizedTranscriptViewer({
               data-testid="button-toggle-redaction-mode"
             >
               <Shield className="w-3 h-3" />
-              {redactionMode ? 'Exit Redaction Mode' : 'Redact'}
+              {redactionMode ? 'Exit Redact' : 'Redact'}
             </Button>
           )}
           <Button
@@ -354,7 +354,7 @@ export default function DiarizedTranscriptViewer({
             data-testid="button-toggle-timestamps"
           >
             <Clock className="w-3 h-3" />
-            {showTimestamps ? 'Hide' : 'Show'} Times
+            {showTimestamps ? 'Hide Times' : 'Show Times'}
           </Button>
           <Button
             variant="outline"
@@ -364,47 +364,44 @@ export default function DiarizedTranscriptViewer({
             data-testid="button-toggle-view"
           >
             {expandedView ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            {expandedView ? 'Compact' : 'Expanded'}
+            {expandedView ? 'Compact All' : 'Expand All'}
           </Button>
+          
+          {/* Speaker badges inline with controls */}
+          <div className="flex flex-wrap gap-1.5 ml-auto">
+            {uniqueSpeakers.map((speaker) => {
+              const colorIdx = getSpeakerIndex(speaker) % SPEAKER_BADGE_COLORS.length;
+              return (
+                <Badge 
+                  key={speaker} 
+                  variant="outline" 
+                  className="gap-1 text-xs"
+                  data-testid={`badge-speaker-${speaker}`}
+                >
+                  <span 
+                    className={cn(
+                      "w-2 h-2 rounded-full",
+                      SPEAKER_BADGE_COLORS[colorIdx]
+                    )} 
+                  />
+                  {speaker}
+                </Badge>
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      {redactionMode && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-          <div className="flex items-start gap-2">
-            <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium text-amber-800 dark:text-amber-200">Redaction Mode Active</p>
-              <p className="text-amber-700 dark:text-amber-300 mt-1">
-                <strong>Select specific words</strong> by clicking and dragging, or <strong>click a segment</strong> to redact the entire text.
-                Redacted content will be replaced with "[REDACTED]" in exports and shared documents.
-                Click on an already redacted segment to remove the redaction.
+        {/* Redaction mode banner - inside sticky area */}
+        {redactionMode && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2 mt-2">
+            <div className="flex items-start gap-2">
+              <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                <strong>Select text</strong> to redact specific words, or <strong>click a segment</strong> to redact entirely. Click redacted text to undo.
               </p>
             </div>
           </div>
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-2 pb-4">
-        {uniqueSpeakers.map((speaker, idx) => {
-          const colorIdx = getSpeakerIndex(speaker) % SPEAKER_BADGE_COLORS.length;
-          return (
-            <Badge 
-              key={speaker} 
-              variant="outline" 
-              className="gap-1"
-              data-testid={`badge-speaker-${speaker}`}
-            >
-              <span 
-                className={cn(
-                  "w-2 h-2 rounded-full",
-                  SPEAKER_BADGE_COLORS[colorIdx]
-                )} 
-              />
-              Speaker {speaker}
-            </Badge>
-          );
-        })}
+        )}
       </div>
 
       <div className={cn("space-y-3", !expandedView && "space-y-1")}>
