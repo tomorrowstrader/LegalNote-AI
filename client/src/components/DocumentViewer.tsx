@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload } from "lucide-react";
@@ -651,10 +651,35 @@ export default function DocumentViewer({
     );
   }
 
+  // Measure sticky header height for nested sticky elements using ResizeObserver
+  const stickyHeaderRef = useRef<HTMLDivElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(80);
+  
+  useEffect(() => {
+    const element = stickyHeaderRef.current;
+    if (!element) return;
+    
+    const observer = new ResizeObserver(() => {
+      // Use getBoundingClientRect for accurate height including padding
+      const rect = element.getBoundingClientRect();
+      setHeaderHeight(rect.height);
+    });
+    
+    observer.observe(element);
+    // Initial measurement
+    setHeaderHeight(element.getBoundingClientRect().height);
+    
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="space-y-6" data-testid="container-document-viewer">
+    <div 
+      className="space-y-6" 
+      data-testid="container-document-viewer"
+      style={{ '--doc-header-height': `${headerHeight}px` } as CSSProperties}
+    >
       <Tabs defaultValue="attendance" className="w-full">
-        <div className="sticky top-0 z-40 bg-background pt-4 pb-3 border-b">
+        <div ref={stickyHeaderRef} className="sticky top-0 z-40 bg-background pt-4 pb-3 border-b">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
             <div>
               <h2 className="text-xl sm:text-2xl font-semibold">Generated Documentation</h2>

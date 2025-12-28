@@ -233,8 +233,11 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
 
   return (
     <Card>
-      {/* Sticky action items header - responsive offset for document viewer header */}
-      <CardHeader className="pb-3 sticky top-44 sm:top-20 z-30 bg-card rounded-t-lg border-b">
+      {/* Sticky action items header - uses CSS variable from DocumentViewer */}
+      <CardHeader 
+        className="pb-3 sticky z-30 bg-card rounded-t-lg border-b"
+        style={{ top: 'var(--doc-header-height, 80px)' }}
+      >
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <ListTodo className="w-4 h-4" />

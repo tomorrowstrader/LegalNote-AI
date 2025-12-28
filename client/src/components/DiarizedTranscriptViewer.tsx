@@ -312,8 +312,11 @@ export default function DiarizedTranscriptViewer({
 
   return (
     <div className="space-y-4" data-testid="container-diarized-transcript">
-      {/* Sticky transcript controls header - responsive offset for document viewer header */}
-      <div className="sticky top-44 sm:top-20 z-30 bg-background pb-3 pt-2 border-b">
+      {/* Sticky transcript controls header - uses CSS variable from DocumentViewer */}
+      <div 
+        className="sticky z-30 bg-background pb-3 pt-2 border-b"
+        style={{ top: 'var(--doc-header-height, 80px)' }}
+      >
         {/* Stats row */}
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground pb-2">
           <div className="flex items-center gap-1.5">
