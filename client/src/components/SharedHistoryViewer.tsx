@@ -159,8 +159,8 @@ export default function SharedHistoryViewer({ caseId }: SharedHistoryViewerProps
         </div>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="max-h-[300px]">
-          <div className="space-y-3 pr-3">
+        <ScrollArea className="h-[300px]">
+          <div className="space-y-3 pr-4 pb-2">
         {displayedHistory.map((record, idx) => (
           <div 
             key={record.id}

@@ -419,8 +419,8 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
           </div>
         )}
         {items && items.length > 0 && (
-          <ScrollArea className="max-h-[350px]">
-            <div className="space-y-2 pr-3">
+          <ScrollArea className="h-[350px]">
+            <div className="space-y-2 pr-4 pb-2">
             {items.map((item, idx) => (
               <div
                 key={item.id}

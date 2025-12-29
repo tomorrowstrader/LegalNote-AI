@@ -170,8 +170,8 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
             )}
           </div>
         ) : (
-          <ScrollArea className="max-h-[300px]">
-            <div className="prose prose-sm dark:prose-invert max-w-none pr-3">
+          <ScrollArea className="h-[300px]">
+            <div className="prose prose-sm dark:prose-invert max-w-none pr-4 pb-2">
               <ReactMarkdown>{briefing.content}</ReactMarkdown>
             </div>
           </ScrollArea>
@@ -186,8 +186,8 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
               Pre-Meeting Briefing
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="flex-1 pr-4">
-            <div className="prose prose-sm dark:prose-invert max-w-none py-2">
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="prose prose-sm dark:prose-invert max-w-none py-2 pr-4">
               <ReactMarkdown>{briefing?.content || ''}</ReactMarkdown>
             </div>
           </ScrollArea>
