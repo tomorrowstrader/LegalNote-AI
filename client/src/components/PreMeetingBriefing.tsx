@@ -171,7 +171,7 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
           </div>
         ) : (
           <ScrollArea className="h-[300px]">
-            <div className="prose prose-sm dark:prose-invert max-w-none pr-4 pb-2">
+            <div className="prose prose-sm dark:prose-invert max-w-none pr-4">
               <ReactMarkdown>{briefing.content}</ReactMarkdown>
             </div>
           </ScrollArea>

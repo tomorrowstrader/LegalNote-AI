@@ -103,7 +103,7 @@ export default function DiarizedTranscriptViewer({
   canRedact = false,
 }: DiarizedTranscriptViewerProps) {
   const [showTimestamps, setShowTimestamps] = useState(true);
-  const [expandedView, setExpandedView] = useState(true);
+  const [expandedView, setExpandedView] = useState(false);
   const [redactionMode, setRedactionMode] = useState(false);
   const [pendingRedaction, setPendingRedaction] = useState<{ 
     start: number; 
