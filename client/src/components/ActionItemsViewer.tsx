@@ -7,6 +7,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   ListTodo, 
   Sparkles, 
@@ -21,7 +23,8 @@ import {
   FileEdit,
   Plus,
   PenLine,
-  X
+  X,
+  Maximize2
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -70,6 +73,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
   const [newDescription, setNewDescription] = useState("");
   const [newAssignee, setNewAssignee] = useState("Solicitor");
   const [newPriority, setNewPriority] = useState("medium");
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { toast } = useToast();
   
   const { data: items, isLoading } = useQuery<ActionItem[]>({
@@ -313,6 +317,17 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
                 </>
               )}
             </Button>
+            {items && items.length > 0 && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                onClick={() => setIsModalOpen(true)}
+                data-testid="button-expand-action-items"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -404,7 +419,8 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
           </div>
         )}
         {items && items.length > 0 && (
-          <>
+          <ScrollArea className="max-h-[350px]">
+            <div className="space-y-2 pr-3">
             {items.map((item, idx) => (
               <div
                 key={item.id}
@@ -506,9 +522,68 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
                 </div>
               </div>
             ))}
-          </>
+            </div>
+          </ScrollArea>
         )}
       </CardContent>
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col" data-testid="modal-action-items-expanded">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ListTodo className="w-4 h-4" />
+              Action Items
+              {items && items.length > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  {items.filter(i => i.completed).length}/{items.length}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="flex-1 pr-4">
+            <div className="space-y-2 py-2">
+              {items?.map((item, idx) => (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "flex items-start gap-3 p-3 rounded-lg border",
+                    item.completed && "bg-muted/50"
+                  )}
+                >
+                  <Checkbox
+                    checked={item.completed}
+                    onCheckedChange={(checked) => toggleMutation.mutate({ id: item.id, completed: !!checked })}
+                    disabled={toggleMutation.isPending || (item as any).status !== 'approved'}
+                    title={(item as any).status !== 'approved' ? "Approve this item first before marking as complete" : undefined}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className={cn(
+                      "text-sm",
+                      item.completed && "line-through text-muted-foreground"
+                    )}>
+                      {item.description}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {getPriorityBadge(item.priority)}
+                      {getStatusBadge((item as any).status)}
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <User className="w-3 h-3" />
+                        {item.assignee}
+                      </div>
+                      {item.dueDate && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Calendar className="w-3 h-3" />
+                          {format(new Date(item.dueDate), "dd MMM yyyy")}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

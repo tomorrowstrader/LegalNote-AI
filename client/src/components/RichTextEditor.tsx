@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useMemo } from "react";
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -6,6 +6,37 @@ import { Markdown } from 'tiptap-markdown';
 import { Button } from "@/components/ui/button";
 import { Bold, Italic, List, ListOrdered, Heading1, Heading2, Heading3 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+/**
+ * Pre-process content to ensure known section headings have bold markers.
+ * Only matches specific legal document section headings - idempotent.
+ */
+function ensureBoldHeadings(content: string): string {
+  if (!content) return content;
+  
+  const knownHeadings = [
+    'ATTENDANCE NOTE', 'MEETING SUMMARY', 'MATTERS DISCUSSED', 'NEXT STEPS',
+    'KEY POINTS', 'CRITICAL ISSUES IDENTIFIED', 'IMMEDIATE ACTIONS REQUIRED',
+    'CLIENT CONCERNS', 'SOLICITOR RECOMMENDATIONS', 'MATTER SUMMARY',
+    'OUTSTANDING ACTION ITEMS', 'IMPORTANT DATES', 'SUGGESTED AGENDA ITEMS',
+    'CLIENT CONFIRMATION', 'INTRODUCTION', 'BACKGROUND', 'SUMMARY',
+    'CONCLUSION', 'ASSETS SUMMARY',
+  ];
+  
+  let result = content;
+  
+  for (const heading of knownHeadings) {
+    const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Numbered: "1. HEADING" -> "1. **HEADING**" (skip if already bold)
+    const numberedPattern = new RegExp(`^(\\d+\\.)\\s+(?!\\*\\*)${escaped}(?!\\*\\*)(:?)$`, 'gm');
+    result = result.replace(numberedPattern, `$1 **${heading}**$2`);
+    // Standalone: "HEADING" -> "**HEADING**" (skip if already bold)
+    const standalonePattern = new RegExp(`^(?!\\*\\*)${escaped}(?!\\*\\*)(:?)$`, 'gm');
+    result = result.replace(standalonePattern, `**${heading}**$1`);
+  }
+  
+  return result;
+}
 
 interface RichTextEditorProps {
   content: string;
@@ -58,10 +89,13 @@ export function RichTextEditor({ content, onChange, disabled, placeholder }: Ric
 
     isUpdatingRef.current = true;
     try {
+      // Pre-process content to ensure uppercase headings have bold markers
+      const processedContent = ensureBoldHeadings(content ?? '');
+      
       // Parse markdown to ProseMirror document - this properly creates heading nodes
       // Note: Do NOT pass parseOptions when using JSON, it breaks node hydration
       const doc = editor.storage.markdown.parser
-        .parse(content ?? '')
+        .parse(processedContent)
         .toJSON();
       editor.commands.setContent(doc, false);
     } catch (err) {

@@ -3,6 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   FileText, 
   Sparkles, 
@@ -11,7 +13,8 @@ import {
   RefreshCw,
   Download,
   Copy,
-  Check
+  Check,
+  Maximize2
 } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -27,6 +30,7 @@ interface PreMeetingBriefingProps {
 export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeetingBriefingProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { toast } = useToast();
   
   const { data: briefing, isLoading } = useQuery<PreMeetingBriefingType | null>({
@@ -102,6 +106,15 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
                   {format(new Date(briefing.generatedAt), "dd MMM HH:mm")}
                 </Badge>
                 <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => setIsModalOpen(true)}
+                  data-testid="button-expand-briefing"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+                <Button
                   size="sm"
                   variant="ghost"
                   onClick={handleCopy}
@@ -157,11 +170,29 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
             )}
           </div>
         ) : (
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown>{briefing.content}</ReactMarkdown>
-          </div>
+          <ScrollArea className="max-h-[300px]">
+            <div className="prose prose-sm dark:prose-invert max-w-none pr-3">
+              <ReactMarkdown>{briefing.content}</ReactMarkdown>
+            </div>
+          </ScrollArea>
         )}
       </CardContent>
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col" data-testid="modal-premeeting-briefing-expanded">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Pre-Meeting Briefing
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="flex-1 pr-4">
+            <div className="prose prose-sm dark:prose-invert max-w-none py-2">
+              <ReactMarkdown>{briefing?.content || ''}</ReactMarkdown>
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -1,5 +1,57 @@
 import { openaiClient, MODELS, calculateGPT4oCost } from '../config/openai';
 
+/**
+ * Post-process document content to ensure known section headings are bold.
+ * Only matches specific legal document section headings to avoid false positives.
+ * Idempotent - already bold headings are not re-wrapped.
+ */
+function ensureBoldHeadings(content: string): string {
+  // Known legal document section headings (exact matches only)
+  const knownHeadings = [
+    'ATTENDANCE NOTE',
+    'MEETING SUMMARY',
+    'MATTERS DISCUSSED',
+    'NEXT STEPS',
+    'KEY POINTS',
+    'CRITICAL ISSUES IDENTIFIED',
+    'IMMEDIATE ACTIONS REQUIRED',
+    'CLIENT CONCERNS',
+    'SOLICITOR RECOMMENDATIONS',
+    'MATTER SUMMARY',
+    'OUTSTANDING ACTION ITEMS',
+    'IMPORTANT DATES',
+    'SUGGESTED AGENDA ITEMS',
+    'CLIENT CONFIRMATION',
+    'INTRODUCTION',
+    'BACKGROUND',
+    'SUMMARY',
+    'CONCLUSION',
+    'ASSETS SUMMARY',
+  ];
+  
+  let result = content;
+  
+  for (const heading of knownHeadings) {
+    // Match numbered pattern: "1. HEADING" or "1. HEADING:"
+    // But not if already bold: "1. **HEADING**"
+    const numberedPattern = new RegExp(
+      `^(\\d+\\.)\\s+(?!\\*\\*)${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?!\\*\\*)(:?)$`,
+      'gm'
+    );
+    result = result.replace(numberedPattern, `$1 **${heading}**$2`);
+    
+    // Match standalone pattern: "HEADING" or "HEADING:"
+    // But not if already bold
+    const standalonePattern = new RegExp(
+      `^(?!\\*\\*)${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?!\\*\\*)(:?)$`,
+      'gm'
+    );
+    result = result.replace(standalonePattern, `**${heading}**$1`);
+  }
+  
+  return result;
+}
+
 export interface DocumentGenerationResult {
   content: string;
   inputTokens: number;
@@ -283,10 +335,13 @@ ${transcript}`;
         max_tokens: 4000, // Allow for detailed documents
       });
 
-      const content = response.choices[0]?.message?.content || '';
+      const rawContent = response.choices[0]?.message?.content || '';
       const inputTokens = response.usage?.prompt_tokens || 0;
       const outputTokens = response.usage?.completion_tokens || 0;
       const cost = calculateGPT4oCost(inputTokens, outputTokens);
+
+      // Post-process to ensure uppercase section headings are bold
+      const content = ensureBoldHeadings(rawContent);
 
       console.log(`Document generated. Input tokens: ${inputTokens}, Output tokens: ${outputTokens}, Cost: $${cost.toFixed(4)}`);
 
