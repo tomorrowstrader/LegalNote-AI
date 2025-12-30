@@ -64,8 +64,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId, 'quick-notes'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
       
       toast({
         title: "Quick Note Saved",

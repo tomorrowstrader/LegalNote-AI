@@ -31,6 +31,8 @@ const EVENT_ICONS: Record<string, any> = {
   document_deleted: FileText,
   document_downloaded: Download,
   document_sent: Send,
+  document_edited: FileText,
+  document_unlocked: FileText,
   transcript_viewed: Eye,
   transcript_redacted: Shield,
   audit_exported_csv: Download,
@@ -38,6 +40,15 @@ const EVENT_ICONS: Record<string, any> = {
   ai_processing_started: FileText,
   ai_processing_completed: FileText,
   transcription_completed: FileText,
+  quick_note_added: FileText,
+  share_link_created: Send,
+  share_link_accessed: Eye,
+  action_item_created: FileText,
+  action_item_approved: Shield,
+  action_item_updated: FileText,
+  action_items_bulk_approved: Shield,
+  action_item_created_manual: FileText,
+  action_items_extracted: FileText,
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -58,6 +69,8 @@ const EVENT_LABELS: Record<string, string> = {
   document_deleted: "Document Deleted",
   document_downloaded: "Document Downloaded",
   document_sent: "Document Sent",
+  document_edited: "Document Edited",
+  document_unlocked: "Document Unlocked",
   transcript_viewed: "Transcript Viewed",
   transcript_redacted: "Transcript Redacted",
   audit_exported_csv: "Audit Exported (CSV)",
@@ -65,6 +78,15 @@ const EVENT_LABELS: Record<string, string> = {
   ai_processing_started: "AI Processing Started",
   ai_processing_completed: "AI Processing Completed",
   transcription_completed: "Transcription Completed",
+  quick_note_added: "Quick Note Added",
+  share_link_created: "Share Link Created",
+  share_link_accessed: "Share Link Accessed",
+  action_item_created: "Action Item Created",
+  action_item_approved: "Action Item Approved",
+  action_item_updated: "Action Item Updated",
+  action_items_bulk_approved: "Action Items Bulk Approved",
+  action_item_created_manual: "Manual Action Item Created",
+  action_items_extracted: "Action Items Extracted",
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
