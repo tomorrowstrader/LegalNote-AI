@@ -20,15 +20,64 @@ import {
   Bot,
   Send,
   Eye,
-  Download,
   ListChecks,
   CalendarClock,
   Circle,
 } from "lucide-react";
-import type { Case, Document, ActionItem, AuditTrail, ConsentLog, AudioRecording } from "@shared/schema";
 
 interface CaseTimelineProps {
   caseId: string;
+}
+
+interface CaseData {
+  id: string;
+  title: string;
+  clientName: string;
+  createdAt: string;
+  deadline?: string | null;
+  priority?: string;
+  status?: string;
+}
+
+interface DocumentData {
+  id: string;
+  type: string;
+  version: number;
+  status?: string;
+  createdAt: string;
+  isActive?: boolean;
+}
+
+interface ActionItemData {
+  id: string;
+  description: string;
+  assignee?: string | null;
+  dueDate?: string | null;
+  priority?: string;
+  status?: string;
+  completed?: boolean;
+}
+
+interface AuditLogData {
+  id: string;
+  eventType: string;
+  timestamp: string;
+  metadata?: Record<string, any>;
+}
+
+interface ConsentLogData {
+  id: string;
+  consentGiven: boolean;
+  consentTimestamp: string;
+  consentModality?: string;
+}
+
+interface AudioRecordingData {
+  id: string;
+  recordedAt: string;
+  duration?: number | null;
+  expiresAt: string;
+  deletedAt?: string | null;
 }
 
 type TimelineEventType = 
@@ -99,31 +148,31 @@ export function CaseTimeline({ caseId }: CaseTimelineProps) {
   const [filter, setFilter] = useState<TimelineEventType | "all">("all");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["upcoming", "recent"]));
 
-  const { data: caseData } = useQuery<Case>({
+  const { data: caseData } = useQuery<CaseData>({
     queryKey: [`/api/cases/${caseId}`],
   });
 
-  const { data: documents = [] } = useQuery<Document[]>({
+  const { data: documents = [] } = useQuery<DocumentData[]>({
     queryKey: [`/api/cases/${caseId}/documents`],
     enabled: !!caseId,
   });
 
-  const { data: actionItems = [] } = useQuery<ActionItem[]>({
+  const { data: actionItems = [] } = useQuery<ActionItemData[]>({
     queryKey: [`/api/cases/${caseId}/action-items`],
     enabled: !!caseId,
   });
 
-  const { data: auditLogs = [] } = useQuery<AuditTrail[]>({
+  const { data: auditLogs = [] } = useQuery<AuditLogData[]>({
     queryKey: [`/api/cases/${caseId}/audit`],
     enabled: !!caseId,
   });
 
-  const { data: consentLogs = [] } = useQuery<ConsentLog[]>({
+  const { data: consentLogs = [] } = useQuery<ConsentLogData[]>({
     queryKey: [`/api/consent/by-case/${caseId}`],
     enabled: !!caseId,
   });
 
-  const { data: audioData } = useQuery<AudioRecording>({
+  const { data: audioData } = useQuery<AudioRecordingData>({
     queryKey: [`/api/audio/by-case/${caseId}`],
     enabled: !!caseId,
   });
@@ -202,34 +251,38 @@ export function CaseTimeline({ caseId }: CaseTimelineProps) {
     }
 
     documents.forEach((doc) => {
+      const docStatus = doc.status || "draft";
+      const docVersion = doc.version ?? 1;
       events.push({
         id: `document-${doc.id}`,
         type: "document",
         title: doc.type === "attendance_note" ? "Attendance Note Created" : "Summary Created",
-        description: `Version ${doc.version}${doc.status === "approved" ? " (Approved)" : " (Draft)"}`,
+        description: `Version ${docVersion}${docStatus === "approved" ? " (Approved)" : " (Draft)"}`,
         timestamp: new Date(doc.createdAt),
-        status: doc.status === "approved" ? "completed" : "pending",
-        metadata: { documentType: doc.type, version: doc.version },
+        status: docStatus === "approved" ? "completed" : "pending",
+        metadata: { documentType: doc.type, version: docVersion },
       });
     });
 
     actionItems.forEach((item) => {
       if (item.dueDate) {
         const dueDate = new Date(item.dueDate);
-        const isOverdue = isPast(dueDate) && !item.completed;
-        const isUpcoming = isFuture(dueDate) && !item.completed;
+        const isCompleted = item.completed === true;
+        const isOverdue = isPast(dueDate) && !isCompleted;
+        const isUpcoming = isFuture(dueDate) && !isCompleted;
+        const descText = item.description || "Action item";
         
         events.push({
           id: `action-due-${item.id}`,
           type: "action_item",
-          title: item.completed ? "Action Item Completed" : "Action Item Due",
-          description: item.description.substring(0, 100) + (item.description.length > 100 ? "..." : ""),
+          title: isCompleted ? "Action Item Completed" : "Action Item Due",
+          description: descText.length > 100 ? descText.substring(0, 100) + "..." : descText,
           timestamp: dueDate,
-          isDeadline: !item.completed,
+          isDeadline: !isCompleted,
           isFuture: isUpcoming,
           isPast: isOverdue,
-          status: item.completed ? "completed" : isOverdue ? "overdue" : "upcoming",
-          metadata: { assignee: item.assignee, priority: item.priority },
+          status: isCompleted ? "completed" : isOverdue ? "overdue" : "upcoming",
+          metadata: item.assignee || item.priority ? { assignee: item.assignee, priority: item.priority } : undefined,
         });
       }
     });
@@ -347,7 +400,7 @@ export function CaseTimeline({ caseId }: CaseTimelineProps) {
                 {format(event.timestamp, "dd MMM yyyy")}
               </div>
               <div className="text-xs text-muted-foreground/70">
-                {format(event.timestamp, "HH:mm")}
+                {formatDistanceToNow(event.timestamp, { addSuffix: true })}
               </div>
             </div>
           </div>
