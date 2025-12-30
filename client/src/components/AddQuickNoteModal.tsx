@@ -60,7 +60,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
 
   const updateNoteMutation = useMutation({
     mutationFn: async (content: string) => {
-      return await apiRequest('POST', `/api/cases/${caseId}/quick-notes`, { content });
+      return await apiRequest('PATCH', `/api/cases/${caseId}`, { textNotes: content });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/cases'] });

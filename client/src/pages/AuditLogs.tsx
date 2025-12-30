@@ -253,12 +253,12 @@ export default function AuditLogs() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="eventType">Event Type</Label>
-                <Select value={eventTypeFilter} onValueChange={setEventTypeFilter}>
+                <Select value={eventTypeFilter || "all"} onValueChange={(val) => setEventTypeFilter(val === "all" ? "" : val)}>
                   <SelectTrigger id="eventType" data-testid="select-event-type-filter">
                     <SelectValue placeholder="All events" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All events</SelectItem>
+                    <SelectItem value="all">All events</SelectItem>
                     <SelectItem value="case_viewed">Case Viewed</SelectItem>
                     <SelectItem value="case_created">Case Created</SelectItem>
                     <SelectItem value="case_updated">Case Updated</SelectItem>

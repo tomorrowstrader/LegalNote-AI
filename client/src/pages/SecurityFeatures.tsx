@@ -54,14 +54,35 @@ export default function SecurityFeatures() {
   ).length;
 
   const handleExportAuditTrail = async () => {
-    try {
-      const response = await fetch('/api/audit-trail/export', {
-        method: 'POST',
+    if (!auditLogs || auditLogs.length === 0) {
+      toast({
+        title: 'No Data',
+        description: 'No audit logs available to export.',
+        variant: 'destructive',
       });
+      return;
+    }
 
-      if (!response.ok) throw new Error('Export failed');
+    try {
+      const headers = ["Timestamp", "User ID", "Action", "Resource Type", "Resource ID", "Details", "IP Address", "Severity", "Signature"];
+      const rows = auditLogs.map(log => [
+        format(new Date(log.timestamp), "yyyy-MM-dd HH:mm:ss"),
+        log.userId,
+        log.action,
+        log.resourceType,
+        log.resourceId || "",
+        log.details || "",
+        log.ipAddress || "",
+        log.severity || "info",
+        log.signature || "",
+      ]);
 
-      const blob = await response.blob();
+      const csvContent = [
+        headers.join(","),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -73,7 +94,7 @@ export default function SecurityFeatures() {
 
       toast({
         title: 'Audit Trail Exported',
-        description: 'Cryptographically signed audit trail has been downloaded.',
+        description: `Exported ${auditLogs.length} audit log entries.`,
       });
     } catch (error) {
       toast({
