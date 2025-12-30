@@ -23,6 +23,7 @@ import DocumentViewer from "@/components/DocumentViewer";
 import { AudioPlayer, type AudioPlayerHandle } from "@/components/AudioPlayer";
 import { AuditTrail } from "@/components/AuditTrail";
 import { ConsentEvidence } from "@/components/ConsentEvidence";
+import CaseTimeline from "@/components/CaseTimeline";
 import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
@@ -643,6 +644,19 @@ export default function CaseDetail() {
                 </AccordionContent>
               </AccordionItem>
             )}
+
+            {/* Case Timeline */}
+            <AccordionItem value="timeline" className="bg-card rounded-lg border border-border px-6">
+              <AccordionTrigger className="hover:no-underline" data-testid="accordion-timeline">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-accent" />
+                  <span className="font-semibold">Timeline</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <CaseTimeline caseId={caseId!} />
+              </AccordionContent>
+            </AccordionItem>
 
             {/* Sharing History */}
             <AccordionItem value="sharing-history" className="bg-card rounded-lg border border-border px-6">
