@@ -713,6 +713,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
       next(error);
     }
   });
+  
+  // Enhanced search with match details
+  app.get("/api/search/enhanced", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const query = req.query.q as string;
+      const documentType = req.query.type as 'transcript' | 'attendance_note' | 'summary' | 'all' | undefined;
+      const dateRange = req.query.dateRange as 'today' | 'week' | 'month' | 'year' | 'all' | undefined;
+      
+      if (!query || query.trim().length === 0) {
+        return res.json([]);
+      }
+      
+      const results = await storage.searchCasesWithMatches(query.trim(), userId, {
+        documentType: documentType || 'all',
+        dateRange: dateRange || 'all',
+      });
+      
+      res.json(results);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+  
+  // Search history
+  app.get("/api/search/history", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const history = await storage.getSearchHistory(userId, limit);
+      res.json(history);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+  
+  app.post("/api/search/history", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { query, resultCount } = req.body;
+      
+      if (!query || query.trim().length === 0) {
+        return res.status(400).json({ error: "Query is required" });
+      }
+      
+      const historyEntry = await storage.createSearchHistory({
+        userId,
+        query: query.trim(),
+        resultCount: resultCount || 0,
+      });
+      
+      res.json(historyEntry);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+  
+  app.delete("/api/search/history", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      await storage.clearSearchHistory(userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      next(error);
+    }
+  });
 
   app.get("/api/cases/:id", isAuthenticated, async (req: any, res, next) => {
     try {

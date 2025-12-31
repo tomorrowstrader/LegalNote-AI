@@ -20,6 +20,7 @@ import {
   type ScheduledMeeting, type InsertScheduledMeeting,
   type SharePointConnection, type InsertSharePointConnection,
   type ClientVersionTracking, type InsertClientVersionTracking,
+  type SearchHistory, type InsertSearchHistory,
   users,
   cases,
   audioRecordings,
@@ -40,12 +41,30 @@ import {
   preConsentEmails,
   scheduledMeetings,
   sharePointConnections,
-  clientVersionTracking
+  clientVersionTracking,
+  searchHistory
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, isNull, sql, count } from "drizzle-orm";
 import { generateDocumentHash } from "./utils/documentHash";
+import { expandSearchWithSynonyms } from "./services/legalSynonyms";
+
+// Enhanced search result with granular match information
+export interface SearchMatch {
+  documentType: 'transcript' | 'attendance_note' | 'summary' | 'case_field';
+  documentId?: string;
+  fieldName?: string; // For case fields: 'title', 'clientName', etc.
+  snippet: string; // Context around the match (50 chars before/after)
+  matchPosition: number; // Character position of match
+  createdAt?: Date;
+}
+
+export interface SearchResultWithMatches {
+  case: Case;
+  matches: SearchMatch[];
+  score: number;
+}
 
 // Fuzzy search helper: Calculate trigram similarity between two strings
 // Returns a value between 0 and 1, where 1 is an exact match
@@ -253,6 +272,15 @@ export interface IStorage {
   
   // Search methods
   searchCases(query: string, userId: string): Promise<Case[]>;
+  searchCasesWithMatches(query: string, userId: string, options?: {
+    documentType?: 'transcript' | 'attendance_note' | 'summary' | 'all';
+    dateRange?: 'today' | 'week' | 'month' | 'year' | 'all';
+  }): Promise<SearchResultWithMatches[]>;
+  
+  // Search History methods
+  createSearchHistory(historyData: InsertSearchHistory): Promise<SearchHistory>;
+  getSearchHistory(userId: string, limit?: number): Promise<SearchHistory[]>;
+  clearSearchHistory(userId: string): Promise<void>;
   
   // Object storage ownership verification
   findObjectByPath(objectPath: string, userId: string): Promise<{
@@ -340,6 +368,7 @@ export class MemStorage implements IStorage {
   private auditLogs: Map<string, AuditTrail>;
   private calendarIntegrations: Map<string, CalendarIntegration>;
   private clientVersionTrackingRecords: Map<string, ClientVersionTracking>;
+  private searchHistoryRecords: Map<string, SearchHistory>;
 
   constructor() {
     this.users = new Map();
@@ -354,6 +383,7 @@ export class MemStorage implements IStorage {
     this.auditLogs = new Map();
     this.calendarIntegrations = new Map();
     this.clientVersionTrackingRecords = new Map();
+    this.searchHistoryRecords = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -1132,6 +1162,47 @@ export class MemStorage implements IStorage {
       c.matterReference?.toLowerCase().includes(lowerQuery) ||
       c.textNotes?.toLowerCase().includes(lowerQuery)
     );
+  }
+  
+  async searchCasesWithMatches(query: string, userId: string, options?: {
+    documentType?: 'transcript' | 'attendance_note' | 'summary' | 'all';
+    dateRange?: 'today' | 'week' | 'month' | 'year' | 'all';
+  }): Promise<SearchResultWithMatches[]> {
+    // MemStorage: Simplified implementation without detailed matches
+    const cases = await this.searchCases(query, userId);
+    return cases.map(c => ({
+      case: c,
+      matches: [],
+      score: 100,
+    }));
+  }
+  
+  async createSearchHistory(historyData: InsertSearchHistory): Promise<SearchHistory> {
+    const id = randomUUID();
+    const entry: SearchHistory = {
+      id,
+      userId: historyData.userId,
+      query: historyData.query,
+      resultCount: historyData.resultCount ?? 0,
+      searchedAt: new Date(),
+    };
+    this.searchHistoryRecords.set(id, entry);
+    return entry;
+  }
+  
+  async getSearchHistory(userId: string, limit: number = 10): Promise<SearchHistory[]> {
+    const userHistory = Array.from(this.searchHistoryRecords.values())
+      .filter(h => h.userId === userId)
+      .sort((a, b) => new Date(b.searchedAt).getTime() - new Date(a.searchedAt).getTime());
+    return userHistory.slice(0, limit);
+  }
+  
+  async clearSearchHistory(userId: string): Promise<void> {
+    for (const [id, entry] of this.searchHistoryRecords.entries()) {
+      if (entry.userId === userId) {
+        this.searchHistoryRecords.delete(id);
+      }
+    }
   }
   
   async findObjectByPath(objectPath: string, userId: string): Promise<{
@@ -2344,6 +2415,177 @@ export class DbStorage implements IStorage {
       .map(sc => sc.case);
     
     return matchedCases;
+  }
+  
+  async searchCasesWithMatches(query: string, userId: string, options?: {
+    documentType?: 'transcript' | 'attendance_note' | 'summary' | 'all';
+    dateRange?: 'today' | 'week' | 'month' | 'year' | 'all';
+  }): Promise<SearchResultWithMatches[]> {
+    const originalQuery = removeAccents(query.toLowerCase().trim());
+    const likeQuery = `%${originalQuery}%`;
+    const documentTypeFilter = options?.documentType || 'all';
+    
+    // Expand query with synonyms
+    const expandedTerms = expandSearchWithSynonyms(originalQuery);
+    
+    // Get all user cases
+    const userCases = await db
+      .select()
+      .from(cases)
+      .where(eq(cases.createdBy, userId))
+      .orderBy(desc(cases.createdAt));
+    
+    const results: SearchResultWithMatches[] = [];
+    
+    for (const caseItem of userCases) {
+      const matches: SearchMatch[] = [];
+      let score = 0;
+      
+      // Check case fields
+      const caseFields = [
+        { name: 'title', value: caseItem.title },
+        { name: 'clientName', value: caseItem.clientName },
+        { name: 'matterReference', value: caseItem.matterReference },
+        { name: 'textNotes', value: caseItem.textNotes },
+      ];
+      
+      for (const field of caseFields) {
+        if (!field.value) continue;
+        const fieldLower = removeAccents(field.value.toLowerCase());
+        
+        for (const term of expandedTerms) {
+          const pos = fieldLower.indexOf(term);
+          if (pos !== -1) {
+            const start = Math.max(0, pos - 50);
+            const end = Math.min(field.value.length, pos + term.length + 50);
+            const snippet = (start > 0 ? '...' : '') + 
+              field.value.substring(start, end) + 
+              (end < field.value.length ? '...' : '');
+            
+            matches.push({
+              documentType: 'case_field',
+              fieldName: field.name,
+              snippet,
+              matchPosition: pos,
+            });
+            score += 100;
+            break;
+          }
+        }
+      }
+      
+      // Check transcripts
+      if (documentTypeFilter === 'all' || documentTypeFilter === 'transcript') {
+        const caseTranscripts = await db
+          .select()
+          .from(transcripts)
+          .where(eq(transcripts.caseId, caseItem.id));
+        
+        for (const transcript of caseTranscripts) {
+          if (!transcript.content) continue;
+          const contentLower = removeAccents(transcript.content.toLowerCase());
+          
+          for (const term of expandedTerms) {
+            const pos = contentLower.indexOf(term);
+            if (pos !== -1) {
+              const start = Math.max(0, pos - 50);
+              const end = Math.min(transcript.content.length, pos + term.length + 50);
+              const snippet = (start > 0 ? '...' : '') + 
+                transcript.content.substring(start, end) + 
+                (end < transcript.content.length ? '...' : '');
+              
+              matches.push({
+                documentType: 'transcript',
+                documentId: transcript.id,
+                snippet,
+                matchPosition: pos,
+                createdAt: transcript.createdAt,
+              });
+              score += 80;
+              break;
+            }
+          }
+        }
+      }
+      
+      // Check documents (attendance notes and summaries)
+      if (documentTypeFilter === 'all' || documentTypeFilter === 'attendance_note' || documentTypeFilter === 'summary') {
+        const docTypeFilter = documentTypeFilter === 'all' 
+          ? undefined 
+          : documentTypeFilter;
+        
+        let caseDocumentsQuery = db
+          .select()
+          .from(documents)
+          .where(eq(documents.caseId, caseItem.id));
+        
+        const caseDocuments = await caseDocumentsQuery;
+        
+        for (const doc of caseDocuments) {
+          if (docTypeFilter && doc.type !== docTypeFilter) continue;
+          if (!doc.content) continue;
+          
+          const contentLower = removeAccents(doc.content.toLowerCase());
+          
+          for (const term of expandedTerms) {
+            const pos = contentLower.indexOf(term);
+            if (pos !== -1) {
+              const start = Math.max(0, pos - 50);
+              const end = Math.min(doc.content.length, pos + term.length + 50);
+              const snippet = (start > 0 ? '...' : '') + 
+                doc.content.substring(start, end) + 
+                (end < doc.content.length ? '...' : '');
+              
+              matches.push({
+                documentType: doc.type === 'attendance_note' ? 'attendance_note' : 'summary',
+                documentId: doc.id,
+                snippet,
+                matchPosition: pos,
+                createdAt: doc.createdAt,
+              });
+              score += 90;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (matches.length > 0) {
+        results.push({
+          case: caseItem,
+          matches,
+          score,
+        });
+      }
+    }
+    
+    // Sort by score descending
+    results.sort((a, b) => b.score - a.score);
+    
+    return results;
+  }
+  
+  async createSearchHistory(historyData: InsertSearchHistory): Promise<SearchHistory> {
+    const result = await db
+      .insert(searchHistory)
+      .values(historyData)
+      .returning();
+    return result[0];
+  }
+  
+  async getSearchHistory(userId: string, limit: number = 10): Promise<SearchHistory[]> {
+    return await db
+      .select()
+      .from(searchHistory)
+      .where(eq(searchHistory.userId, userId))
+      .orderBy(desc(searchHistory.searchedAt))
+      .limit(limit);
+  }
+  
+  async clearSearchHistory(userId: string): Promise<void> {
+    await db
+      .delete(searchHistory)
+      .where(eq(searchHistory.userId, userId));
   }
   
   async findObjectByPath(objectPath: string, userId: string): Promise<{

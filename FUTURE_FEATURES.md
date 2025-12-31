@@ -107,7 +107,16 @@ Inspired by how Waze built a real-time traffic engine through crowdsourced data,
 - "Flag for review"
 - Hands-free control for solicitors
 
-### 4.4 Industry Data Products
+### 4.4 Voice Assistant ("Hey LegalNote")
+- **Push-to-talk voice search**: Click mic button, speak query, get results
+- **Voice case creation**: "New case for John Smith" → opens pre-filled form
+- **Navigation commands**: "Show me the Patterson case", "What's due this week"
+- **Intent recognition via OpenAI**: Parse natural language to structured actions
+- **Consent workflow preserved**: Voice-created cases still require full consent before recording
+- **Implementation approach**: Web Speech API for speech-to-text, OpenAI for intent parsing
+- **Effort estimate**: 2-3 weeks for push-to-talk; 2-3 months for always-on native app
+
+### 4.5 Industry Data Products
 - Anonymized legal workflow insights
 - Practice area trend reports
 - Compliance benchmarking data

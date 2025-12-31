@@ -933,3 +933,21 @@ export type ClioMatterLink = typeof clioMatterLinks.$inferSelect;
 
 export type InsertSharePointConnection = z.infer<typeof insertSharePointConnectionSchema>;
 export type SharePointConnection = typeof sharePointConnections.$inferSelect;
+
+// Search History for quick re-access to recent searches
+export const searchHistory = pgTable("search_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  query: text("query").notNull(),
+  filters: jsonb("filters").default({}), // { dateRange, status, documentType }
+  resultCount: integer("result_count").notNull().default(0),
+  searchedAt: timestamp("searched_at").notNull().defaultNow(),
+});
+
+export const insertSearchHistorySchema = createInsertSchema(searchHistory).omit({
+  id: true,
+  searchedAt: true,
+});
+
+export type InsertSearchHistory = z.infer<typeof insertSearchHistorySchema>;
+export type SearchHistory = typeof searchHistory.$inferSelect;
