@@ -6,7 +6,7 @@ import logoWordWhite from "@assets/LegalNote_Word-Logo_-_White_on_Black_17660712
 
 interface LogoProps {
   variant?: "icon" | "wordmark" | "full";
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   tone?: "auto" | "light" | "dark";
   animate?: boolean;
   className?: string;
@@ -28,6 +28,7 @@ export default function Logo({ variant = "icon", size = "md", tone = "auto", ani
     sm: variant === "icon" || (animate && showIcon) ? "h-6 w-6" : "h-6",
     md: variant === "icon" || (animate && showIcon) ? "h-8 w-8" : "h-8",
     lg: variant === "icon" || (animate && showIcon) ? "h-10 w-10" : "h-10",
+    xl: variant === "icon" || (animate && showIcon) ? "h-14 w-14" : "h-12",
   };
 
   const iconToneClasses = {
