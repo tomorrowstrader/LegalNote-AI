@@ -179,5 +179,106 @@ Inspired by how Waze built a real-time traffic engine through crowdsourced data,
 
 ---
 
+## Go-to-Market Playbook
+
+### Target Market Entry Point
+
+**Primary Target:** UK boutique law firms (2-5 solicitors)
+- ~8,000 addressable market of solo/small firms
+- Entry point: Managing Partner or Practice Manager
+- Internal champion: COLP (Compliance Officer for Legal Practice)
+
+**Why boutique firms first:**
+- Faster decision cycles (no procurement committee)
+- Pain point is acute (compliance burden, no admin support)
+- Word-of-mouth potential within local law societies
+- Path to referrals into mid-tier firms
+
+---
+
+### Pilot Pricing Strategy
+
+**Early Adopter Rate:**
+| Tier | Price | Standard Price |
+|------|-------|----------------|
+| Boutique Pilot (up to 3 users) | £49/month flat | ~£90/month (£30/seat) |
+| Solo Practitioner | Free evaluation, then £99/month | Same |
+
+**Pilot Terms:**
+- 2-3 month evaluation period
+- Flat rate regardless of seats (up to 3)
+- Founder discount maintained post-pilot
+- Exchange: Candid feedback, feature input, potential case study
+
+---
+
+### Sales Call Messaging
+
+**Opening positioning (to Managing Partner):**
+> "LegalNote is a compliance-first attendance record system for UK solicitors. It creates contemporaneous, evidential documentation of client meetings—the kind regulators expect to see when they audit your files."
+
+**Explaining the pilot offer:**
+> "For firms piloting with us, we offer early adopter pricing. Rather than our standard per-seat rates, we're doing a flat £49 a month for your team during the pilot—that covers all three of you.
+>
+> What we ask in return is your honest feedback. We're building the compliance dashboards and firm-wide features based on input from firms like yours. You'll shape what gets built.
+>
+> After the pilot—typically 2-3 months—we'd move you to our standard team pricing, which works out around £30 per seat. But you'd keep a founder discount for being early."
+
+**If they ask why it's discounted:**
+> "You're helping us prove the product works for boutique firms. We want real solicitors using it on real client matters, not just a demo environment. Your feedback is worth more to us than the revenue right now."
+
+**If they push on what's 'missing':**
+> "Right now, each solicitor has their own workspace. Your COLP would need their own login to see their cases. What we're building—and you'd be first to get—is the firm-wide view, where the COLP can see compliance status across everyone's matters in one dashboard. That's coming in the next few months."
+
+**Closing:**
+> "Does £49 a month for the three of you work while we're in this phase?"
+
+---
+
+### Value Propositions by Role
+
+**Managing Partner (Decision Maker):**
+- Lead with: "Never have a file note gap again"
+- Risk mitigation: PI claims often cite inadequate file notes
+- Time savings: 2-3 hours per client meeting
+- ROI: One prevented claim pays for decades of LegalNote
+
+**COLP (Internal Champion):**
+- Lead with: "Audit-ready from day one"
+- Contemporaneous records with timestamps
+- Consent documentation built into workflow
+- Exportable audit trails for SRA reviews
+
+**Fee Earners (End Users):**
+- Lead with: "Your notes, done before you leave the room"
+- No more dictation or reconstruction
+- Speaker-identified transcripts
+- Action items automatically captured
+
+---
+
+### Onboarding Process
+
+1. **Setup call** (30 mins with Practice Manager or Managing Partner)
+   - Create admin account
+   - Configure firm branding
+   - Brief walkthrough of consent workflow
+
+2. **First recording** (guided, on a real or mock matter)
+   - Demonstrate full flow: consent → record → transcript → attendance note
+   - Show export options and sharing
+
+3. **Self-serve adoption**
+   - Interactive onboarding tour for additional solicitors
+   - Contextual help and tooltips throughout
+
+4. **Check-in at Week 2**
+   - Review usage, gather feedback
+   - Address any friction points
+   - Discuss COLP dashboard requirements
+
+---
+
 *Document created: December 2024*
-*Next review: Q1 2025*
+*Last updated: January 2026*
+*Next review: Q2 2026*
