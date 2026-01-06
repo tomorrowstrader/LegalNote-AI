@@ -1,10 +1,421 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel } from "lucide-react";
+import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
 import Logo from "@/components/Logo";
+
+// Animated counter hook
+function useCounter(end: number, duration: number = 2000, startOnView: boolean = true) {
+  const [count, setCount] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true });
+  const hasAnimated = useRef(false);
+
+  useEffect(() => {
+    if (startOnView && !isInView) return;
+    if (hasAnimated.current) return;
+    hasAnimated.current = true;
+
+    let startTime: number;
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime;
+      const progress = Math.min((currentTime - startTime) / duration, 1);
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+      setCount(Math.floor(easeOutQuart * end));
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setCount(end);
+      }
+    };
+    requestAnimationFrame(animate);
+  }, [end, duration, isInView, startOnView]);
+
+  return { count, ref };
+}
+
+// Typewriter effect component
+function TypewriterText({ texts, className }: { texts: string[]; className?: string }) {
+  const [currentTextIndex, setCurrentTextIndex] = useState(0);
+  const [displayText, setDisplayText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const currentFullText = texts[currentTextIndex];
+    const typeSpeed = isDeleting ? 30 : 50;
+    
+    const timeout = setTimeout(() => {
+      if (!isDeleting) {
+        if (displayText.length < currentFullText.length) {
+          setDisplayText(currentFullText.slice(0, displayText.length + 1));
+        } else {
+          setTimeout(() => setIsDeleting(true), 2000);
+        }
+      } else {
+        if (displayText.length > 0) {
+          setDisplayText(displayText.slice(0, -1));
+        } else {
+          setIsDeleting(false);
+          setCurrentTextIndex((prev) => (prev + 1) % texts.length);
+        }
+      }
+    }, typeSpeed);
+
+    return () => clearTimeout(timeout);
+  }, [displayText, isDeleting, currentTextIndex, texts]);
+
+  return (
+    <span className={className}>
+      {displayText}
+      <span className="animate-pulse">|</span>
+    </span>
+  );
+}
+
+// Check for reduced motion preference
+function useReducedMotion() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mediaQuery.matches);
+    
+    const handler = (event: MediaQueryListEvent) => {
+      setPrefersReducedMotion(event.matches);
+    };
+    
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+  
+  return prefersReducedMotion;
+}
+
+// Animated gradient mesh background
+function GradientMesh() {
+  const prefersReducedMotion = useReducedMotion();
+  
+  if (prefersReducedMotion) {
+    return (
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div
+          className="absolute -top-1/2 -left-1/2 w-full h-full rounded-full opacity-30"
+          style={{
+            background: "radial-gradient(circle, hsl(18,60%,70%) 0%, transparent 70%)",
+          }}
+        />
+        <div
+          className="absolute -bottom-1/2 -right-1/2 w-full h-full rounded-full opacity-20"
+          style={{
+            background: "radial-gradient(circle, hsl(25,50%,75%) 0%, transparent 70%)",
+          }}
+        />
+      </div>
+    );
+  }
+  
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <motion.div
+        className="absolute -top-1/2 -left-1/2 w-full h-full rounded-full opacity-30"
+        style={{
+          background: "radial-gradient(circle, hsl(18,60%,70%) 0%, transparent 70%)",
+        }}
+        animate={{
+          x: [0, 100, 0],
+          y: [0, 50, 0],
+          scale: [1, 1.2, 1],
+        }}
+        transition={{
+          duration: 20,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
+      <motion.div
+        className="absolute -bottom-1/2 -right-1/2 w-full h-full rounded-full opacity-20"
+        style={{
+          background: "radial-gradient(circle, hsl(25,50%,75%) 0%, transparent 70%)",
+        }}
+        animate={{
+          x: [0, -80, 0],
+          y: [0, -60, 0],
+          scale: [1.2, 1, 1.2],
+        }}
+        transition={{
+          duration: 25,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
+    </div>
+  );
+}
+
+// StatCounter component to avoid hooks in loops
+function StatCounter({ value, suffix, label, index }: { value: number; suffix: string; label: string; index: number }) {
+  const counter = useCounter(value, 2000);
+  const prefersReducedMotion = useReducedMotion();
+  
+  return (
+    <motion.div
+      ref={counter.ref}
+      className="text-center"
+      initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ delay: prefersReducedMotion ? 0 : index * 0.1, duration: prefersReducedMotion ? 0 : 0.5 }}
+    >
+      <div className="text-4xl sm:text-5xl font-bold text-white mb-2" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+        {prefersReducedMotion ? value : counter.count}{suffix}
+      </div>
+      <div className="text-sm text-white/60">{label}</div>
+    </motion.div>
+  );
+}
+
+// Trust badges with floating animation (respects reduced motion)
+function TrustBadges() {
+  const prefersReducedMotion = useReducedMotion();
+  const badges = [
+    { icon: ShieldCheck, title: "GDPR Compliant", description: "Full compliance with UK GDPR including data subject rights and processing records." },
+    { icon: Gavel, title: "SRA Aligned", description: "Workflows designed to support SRA Standards and Regulations requirements." },
+    { icon: Clock, title: "Contemporaneous", description: "Timestamped records created at point of instruction, not reconstructed later." },
+    { icon: Users, title: "UK Data Centres", description: "All data stored exclusively in UK-based data centres for regulatory compliance." },
+  ];
+
+  return (
+    <div className="grid md:grid-cols-4 gap-6">
+      {badges.map((item, index) => (
+        <motion.div
+          key={item.title}
+          className="text-center p-6"
+          initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.4, delay: prefersReducedMotion ? 0 : index * 0.1 }}
+        >
+          <motion.div 
+            className="relative w-16 h-16 mx-auto mb-4"
+            animate={prefersReducedMotion ? {} : {
+              y: [0, -6, 0],
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              delay: index * 0.5,
+              ease: "easeInOut",
+            }}
+          >
+            <div className="absolute inset-0 rounded-xl bg-white border border-[hsl(30,20%,85%)] flex items-center justify-center shadow-lg">
+              <item.icon className="w-8 h-8 text-[hsl(18,65%,45%)]" />
+            </div>
+            {!prefersReducedMotion && (
+              <motion.div
+                className="absolute -inset-2 rounded-2xl bg-[hsl(18,60%,70%)]"
+                style={{ zIndex: -1 }}
+                animate={{
+                  scale: [1, 1.15, 1],
+                  opacity: [0.2, 0.05, 0.2],
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  delay: index * 0.5,
+                }}
+              />
+            )}
+          </motion.div>
+          <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{item.title}</h3>
+          <p className="text-sm text-[hsl(25,20%,40%)]">{item.description}</p>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+// Final CTA with animated background (respects reduced motion)
+function FinalCTA({ onLogin }: { onLogin: () => void }) {
+  const prefersReducedMotion = useReducedMotion();
+
+  return (
+    <div className="relative py-24 overflow-hidden bg-[hsl(20,35%,18%)]">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {prefersReducedMotion ? (
+          <>
+            <div
+              className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full"
+              style={{
+                background: "radial-gradient(circle, hsl(18,50%,30%) 0%, transparent 70%)",
+              }}
+            />
+            <div
+              className="absolute bottom-1/4 right-1/4 w-72 h-72 rounded-full"
+              style={{
+                background: "radial-gradient(circle, hsl(25,40%,25%) 0%, transparent 70%)",
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <motion.div
+              className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full"
+              style={{
+                background: "radial-gradient(circle, hsl(18,50%,30%) 0%, transparent 70%)",
+              }}
+              animate={{
+                x: [0, 50, 0],
+                y: [0, 30, 0],
+                scale: [1, 1.2, 1],
+              }}
+              transition={{
+                duration: 15,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            />
+            <motion.div
+              className="absolute bottom-1/4 right-1/4 w-72 h-72 rounded-full"
+              style={{
+                background: "radial-gradient(circle, hsl(25,40%,25%) 0%, transparent 70%)",
+              }}
+              animate={{
+                x: [0, -40, 0],
+                y: [0, -40, 0],
+                scale: [1.2, 1, 1.2],
+              }}
+              transition={{
+                duration: 18,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            />
+          </>
+        )}
+      </div>
+      
+      <div className="relative max-w-4xl mx-auto px-6 text-center">
+        <motion.div
+          initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.6 }}
+        >
+          <motion.h2 
+            className="text-4xl sm:text-5xl font-normal text-white mb-6" 
+            style={{ fontFamily: "'Lora', Georgia, serif" }}
+            initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.7 }}
+          >
+            Never have a file note gap again
+          </motion.h2>
+          <motion.p 
+            className="text-xl text-[hsl(30,30%,70%)] max-w-2xl mx-auto mb-10" 
+            style={{ fontFamily: "'Lora', Georgia, serif" }}
+            initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.6, delay: prefersReducedMotion ? 0 : 0.2 }}
+          >
+            Join solicitors across the UK who are creating contemporaneous, evidential attendance records with LegalNote.
+          </motion.p>
+          <motion.div
+            initial={prefersReducedMotion ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.3 }}
+            whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
+          >
+            <Button 
+              onClick={onLogin} 
+              size="lg"
+              className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full text-base px-10 py-6 shadow-2xl shadow-[hsl(18,60%,30%)]/30"
+              data-testid="button-cta-signup"
+            >
+              Start Your Free Evaluation
+            </Button>
+          </motion.div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+// Document flow animation component
+function DocumentFlowAnimation() {
+  const prefersReducedMotion = useReducedMotion();
+  const steps = [
+    { icon: Mic, label: "Record", color: "hsl(18,65%,45%)" },
+    { icon: Brain, label: "Process", color: "hsl(25,50%,45%)" },
+    { icon: FileOutput, label: "Document", color: "hsl(20,60%,40%)" },
+  ];
+
+  return (
+    <div className="flex items-center justify-center gap-4 py-8">
+      {steps.map((step, index) => (
+        <motion.div
+          key={step.label}
+          className="flex items-center gap-4"
+          initial={prefersReducedMotion ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: prefersReducedMotion ? 0 : index * 0.3, duration: prefersReducedMotion ? 0 : 0.5 }}
+        >
+          <motion.div
+            className="relative"
+            animate={prefersReducedMotion ? {} : {
+              y: [0, -8, 0],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              delay: index * 0.4,
+              ease: "easeInOut",
+            }}
+          >
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
+              style={{ backgroundColor: step.color }}
+            >
+              <step.icon className="w-8 h-8 text-white" />
+            </div>
+            {!prefersReducedMotion && (
+              <motion.div
+                className="absolute -inset-1 rounded-2xl opacity-30"
+                style={{ backgroundColor: step.color }}
+                animate={{
+                  scale: [1, 1.2, 1],
+                  opacity: [0.3, 0.1, 0.3],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  delay: index * 0.4,
+                }}
+              />
+            )}
+          </motion.div>
+          <span className="text-sm font-medium text-[hsl(25,25%,30%)]">{step.label}</span>
+          {index < steps.length - 1 && (
+            <motion.div
+              className="flex items-center"
+              initial={prefersReducedMotion ? { scaleX: 1 } : { scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ delay: prefersReducedMotion ? 0 : index * 0.3 + 0.5, duration: prefersReducedMotion ? 0 : 0.3 }}
+            >
+              <div className="w-12 h-0.5 bg-gradient-to-r from-[hsl(18,50%,60%)] to-[hsl(25,40%,65%)]" />
+              <ArrowRight className="w-4 h-4 text-[hsl(25,40%,55%)]" />
+            </motion.div>
+          )}
+        </motion.div>
+      ))}
+    </div>
+  );
+}
 
 interface Price {
   id: string;
@@ -130,9 +541,10 @@ export default function Landing() {
         </div>
       </nav>
 
-      {/* Hero Section - Editorial Style */}
-      <div className="relative bg-white">
-        <div className="max-w-7xl mx-auto px-6 pt-8 sm:pt-16 pb-12">
+      {/* Hero Section - Editorial Style with Animated Background */}
+      <div className="relative bg-white overflow-hidden">
+        <GradientMesh />
+        <div className="relative max-w-7xl mx-auto px-6 pt-8 sm:pt-16 pb-12">
           <motion.div 
             className="max-w-4xl"
             initial={{ opacity: 0, y: 30 }}
@@ -140,7 +552,7 @@ export default function Landing() {
             transition={{ duration: 0.7 }}
           >
             <motion.h1 
-              className="text-[2.75rem] sm:text-6xl lg:text-7xl font-normal text-[hsl(25,30%,12%)] mb-8 leading-[1.1] tracking-tight" 
+              className="text-[2.75rem] sm:text-6xl lg:text-7xl font-normal text-[hsl(25,30%,12%)] mb-4 leading-[1.1] tracking-tight" 
               style={{ fontFamily: "'Lora', Georgia, serif" }}
               data-testid="text-app-title"
               initial={{ opacity: 0, y: 20 }}
@@ -150,6 +562,35 @@ export default function Landing() {
               Meeting to matter,<br />
               built for compliance.
             </motion.h1>
+            
+            {/* Typewriter tagline */}
+            <motion.div
+              className="h-8 mb-8"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6, duration: 0.5 }}
+            >
+              <span className="text-lg text-[hsl(18,65%,45%)] font-medium">
+                <TypewriterText 
+                  texts={[
+                    "Record with consent",
+                    "Transcribe with accuracy", 
+                    "Document with confidence",
+                    "Evidence with clarity"
+                  ]} 
+                />
+              </span>
+            </motion.div>
+          </motion.div>
+          
+          {/* Animated document flow */}
+          <motion.div
+            className="hidden md:block mt-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5, duration: 0.8 }}
+          >
+            <DocumentFlowAnimation />
           </motion.div>
         </div>
 
@@ -216,6 +657,18 @@ export default function Landing() {
         </div>
       </div>
 
+      {/* Animated Statistics Section */}
+      <div className="relative bg-[hsl(20,35%,18%)] py-16 overflow-hidden">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            <StatCounter value={99} suffix="%" label="Transcription accuracy" index={0} />
+            <StatCounter value={85} suffix="%" label="Time saved on notes" index={1} />
+            <StatCounter value={500} suffix="+" label="Hours documented" index={2} />
+            <StatCounter value={100} suffix="%" label="GDPR compliant" index={3} />
+          </div>
+        </div>
+      </div>
+
       {/* What LegalNote Does - Value Proposition */}
       <div className="relative bg-[hsl(30,25%,94%)] py-20 border-y border-[hsl(30,20%,85%)]">
         <div className="max-w-4xl mx-auto px-6 text-center">
@@ -235,8 +688,8 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* How It Works Section */}
-      <div id="how-it-works" className="relative py-24 bg-white">
+      {/* How It Works Section - Enhanced with horizontal scroll on mobile */}
+      <div id="how-it-works" className="relative py-24 bg-white overflow-hidden">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
             className="text-center mb-16"
@@ -245,9 +698,15 @@ export default function Landing() {
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+            <motion.span 
+              className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block"
+              initial={{ opacity: 0, letterSpacing: "0.1em" }}
+              whileInView={{ opacity: 1, letterSpacing: "0.2em" }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8 }}
+            >
               How It Works
-            </span>
+            </motion.span>
             <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Attendance records, formed at source
             </h2>
@@ -256,7 +715,37 @@ export default function Landing() {
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-8 lg:gap-12">
+          {/* Mobile horizontal scroll */}
+          <div className="md:hidden overflow-x-auto pb-8 -mx-6 px-6 scrollbar-hide">
+            <div className="flex gap-6" style={{ width: "max-content" }}>
+              {[
+                { step: "1", title: "Capture with consent", description: "Built-in consent workflows that explain, obtain, and record client consent to recording." },
+                { step: "2", title: "Review and refine", description: "Transcribed and formed into a structured attendance note aligned with SRA expectations." },
+                { step: "3", title: "Finalise and evidence", description: "Professional judgement determines what is kept, amended, or removed before finalisation." },
+              ].map((item, index) => (
+                <motion.div 
+                  key={item.step}
+                  className="w-72 flex-shrink-0 bg-gradient-to-br from-white to-[hsl(30,20%,96%)] rounded-2xl p-6 shadow-lg border border-[hsl(30,20%,90%)]"
+                  initial={{ opacity: 0, x: 50 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: index * 0.15 }}
+                >
+                  <motion.div 
+                    className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(18,65%,45%)] to-[hsl(20,60%,40%)] flex items-center justify-center text-xl font-medium text-white mb-4 shadow-md"
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                  >
+                    {item.step}
+                  </motion.div>
+                  <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{item.title}</h3>
+                  <p className="text-sm text-[hsl(25,20%,40%)] leading-relaxed">{item.description}</p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          {/* Desktop grid */}
+          <div className="hidden md:grid md:grid-cols-3 gap-8 lg:gap-12">
             {[
               { 
                 step: "1", 
@@ -277,20 +766,33 @@ export default function Landing() {
               <motion.div 
                 key={item.step}
                 className="relative"
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.15 }}
+                transition={{ duration: 0.6, delay: index * 0.2 }}
               >
                 {index > 0 && (
-                  <div className="hidden md:block absolute top-12 -left-6 lg:-left-8">
-                    <ArrowRight className="w-6 h-6 text-[hsl(25,30%,75%)]" />
-                  </div>
+                  <motion.div 
+                    className="hidden md:block absolute top-12 -left-6 lg:-left-8"
+                    initial={{ opacity: 0, x: -20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.4, delay: index * 0.2 + 0.3 }}
+                  >
+                    <ArrowRight className="w-6 h-6 text-[hsl(18,55%,60%)]" />
+                  </motion.div>
                 )}
                 <div className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-[hsl(20,45%,38%)] flex items-center justify-center text-2xl font-medium text-white mx-auto mb-6">
+                  <motion.div 
+                    className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[hsl(18,65%,45%)] to-[hsl(20,60%,38%)] flex items-center justify-center text-2xl font-medium text-white mx-auto mb-6 shadow-lg"
+                    whileHover={{ 
+                      scale: 1.05,
+                      boxShadow: "0 20px 40px -15px rgba(160, 90, 60, 0.4)",
+                    }}
+                    transition={{ duration: 0.3 }}
+                  >
                     {item.step}
-                  </div>
+                  </motion.div>
                   <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-4">{item.title}</h3>
                   <p className="text-[hsl(25,20%,40%)] leading-relaxed">{item.description}</p>
                 </div>
@@ -356,15 +858,19 @@ export default function Landing() {
             ].map((feature, index) => (
               <motion.div
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                whileInView={{ opacity: 1, y: 0, scale: 1 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: index * 0.1 }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                whileHover={{ y: -8, transition: { duration: 0.3 } }}
               >
-                <div className="group h-full p-8 rounded-xl bg-white border border-[hsl(30,20%,85%)] hover:shadow-md transition-all duration-300">
-                  <div className="w-12 h-12 rounded-lg bg-[hsl(18,55%,88%)] flex items-center justify-center mb-5">
-                    <feature.icon className="w-6 h-6 text-[hsl(18,65%,45%)]" />
-                  </div>
+                <div className="group h-full p-8 rounded-xl bg-white/70 backdrop-blur-sm border border-white/50 shadow-lg hover:shadow-xl hover:bg-white/90 transition-all duration-300">
+                  <motion.div 
+                    className="w-14 h-14 rounded-xl bg-gradient-to-br from-[hsl(18,55%,88%)] to-[hsl(18,60%,80%)] flex items-center justify-center mb-5 shadow-sm"
+                    whileHover={{ rotate: [0, -10, 10, 0], transition: { duration: 0.5 } }}
+                  >
+                    <feature.icon className="w-7 h-7 text-[hsl(18,65%,42%)]" />
+                  </motion.div>
                   <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">{feature.title}</h3>
                   <p className="text-[hsl(25,20%,40%)] leading-relaxed">{feature.description}</p>
                 </div>
@@ -488,29 +994,7 @@ export default function Landing() {
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-4 gap-6">
-            {[
-              { icon: ShieldCheck, title: "GDPR Compliant", description: "Full compliance with UK GDPR including data subject rights and processing records." },
-              { icon: Gavel, title: "SRA Aligned", description: "Workflows designed to support SRA Standards and Regulations requirements." },
-              { icon: Clock, title: "Contemporaneous", description: "Timestamped records created at point of instruction, not reconstructed later." },
-              { icon: Users, title: "UK Data Centres", description: "All data stored exclusively in UK-based data centres for regulatory compliance." },
-            ].map((item, index) => (
-              <motion.div
-                key={item.title}
-                className="text-center p-6"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: index * 0.1 }}
-              >
-                <div className="w-16 h-16 rounded-xl bg-white border border-[hsl(30,20%,85%)] flex items-center justify-center mx-auto mb-4">
-                  <item.icon className="w-8 h-8 text-[hsl(18,65%,45%)]" />
-                </div>
-                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{item.title}</h3>
-                <p className="text-sm text-[hsl(25,20%,40%)]">{item.description}</p>
-              </motion.div>
-            ))}
-          </div>
+          <TrustBadges />
         </div>
       </div>
 
@@ -668,32 +1152,7 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Final CTA Section */}
-      <div className="relative py-24 overflow-hidden bg-[hsl(20,35%,18%)]">
-        <div className="relative max-w-4xl mx-auto px-6 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className="text-4xl sm:text-5xl font-normal text-white mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Never have a file note gap again
-            </h2>
-            <p className="text-xl text-[hsl(30,30%,70%)] max-w-2xl mx-auto mb-10" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Join solicitors across the UK who are creating contemporaneous, evidential attendance records with LegalNote.
-            </p>
-            <Button 
-              onClick={handleLogin} 
-              size="lg"
-              className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full text-base px-10 py-6"
-              data-testid="button-cta-signup"
-            >
-              Start Your Free Evaluation
-            </Button>
-          </motion.div>
-        </div>
-      </div>
+      <FinalCTA onLogin={handleLogin} />
 
       {/* Footer */}
       <footer className="relative bg-[hsl(20,30%,10%)] border-t border-[hsl(20,25%,18%)]">
