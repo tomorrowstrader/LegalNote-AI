@@ -57,7 +57,7 @@ export default function Landing() {
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 md:hidden">
         <Button 
           onClick={handleLogin}
-          className="bg-[hsl(30,8%,15%)] text-white hover:bg-[hsl(30,8%,20%)] rounded-full px-8 py-6 text-base shadow-2xl"
+          className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full px-8 py-6 text-base shadow-2xl"
           data-testid="button-floating-cta"
         >
           Book a demo
@@ -65,14 +65,14 @@ export default function Landing() {
       </div>
 
       {/* Announcement Bar */}
-      <div className="bg-[hsl(30,15%,75%)] text-[hsl(30,10%,20%)]">
+      <div className="bg-[hsl(20,40%,35%)] text-white">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-center gap-2 text-sm">
           <span className="font-medium">News</span>
-          <span className="text-[hsl(30,10%,35%)]">|</span>
+          <span className="text-white/60">|</span>
           <span>LegalNote now integrates with Clio Manage</span>
           <button 
             onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-            className="font-medium hover:underline ml-1"
+            className="font-medium hover:underline ml-1 text-white"
             data-testid="button-announcement-readmore"
           >
             Read more →
@@ -101,7 +101,7 @@ export default function Landing() {
                 variant="ghost"
                 size="sm"
                 onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-                className="text-[hsl(30,8%,25%)] hover:text-[hsl(30,8%,10%)] font-normal text-sm sm:text-base px-2 sm:px-4"
+                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-sm sm:text-base px-2 sm:px-4"
                 data-testid="button-nav-features"
               >
                 <span className="hidden sm:inline">How It Works</span>
@@ -111,7 +111,7 @@ export default function Landing() {
                 variant="ghost"
                 size="sm"
                 onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
-                className="text-[hsl(30,8%,25%)] hover:text-[hsl(30,8%,10%)] font-normal text-sm sm:text-base px-2 sm:px-4"
+                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-sm sm:text-base px-2 sm:px-4"
                 data-testid="button-nav-pricing"
               >
                 Pricing
@@ -120,7 +120,7 @@ export default function Landing() {
                 variant="ghost"
                 size="sm"
                 onClick={handleLogin}
-                className="text-[hsl(30,8%,25%)] hover:text-[hsl(30,8%,10%)] font-normal text-sm sm:text-base px-2 sm:px-4"
+                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-sm sm:text-base px-2 sm:px-4"
                 data-testid="button-nav-login"
               >
                 Log in
@@ -140,7 +140,7 @@ export default function Landing() {
             transition={{ duration: 0.7 }}
           >
             <motion.h1 
-              className="text-[2.75rem] sm:text-6xl lg:text-7xl font-normal text-[hsl(30,8%,15%)] mb-8 leading-[1.1] tracking-tight" 
+              className="text-[2.75rem] sm:text-6xl lg:text-7xl font-normal text-[hsl(25,30%,12%)] mb-8 leading-[1.1] tracking-tight" 
               style={{ fontFamily: "'Lora', Georgia, serif" }}
               data-testid="text-app-title"
               initial={{ opacity: 0, y: 20 }}
@@ -163,22 +163,22 @@ export default function Landing() {
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {/* Left panel - App preview mockup */}
-              <div className="bg-[hsl(30,15%,75%)] rounded-lg sm:rounded-xl p-6 sm:p-8 aspect-[4/3] flex items-center justify-center">
+              <div className="bg-[hsl(25,30%,70%)] rounded-lg sm:rounded-xl p-6 sm:p-8 aspect-[4/3] flex items-center justify-center">
                 <div className="bg-white rounded-lg shadow-xl p-4 sm:p-5 w-full max-w-[280px]">
-                  <div className="text-sm font-medium text-[hsl(30,8%,25%)] mb-3">Record meeting</div>
-                  <div className="text-xs text-[hsl(30,8%,50%)] mb-4 leading-relaxed">
+                  <div className="text-sm font-medium text-[hsl(25,25%,20%)] mb-3">Record meeting</div>
+                  <div className="text-xs text-[hsl(25,20%,45%)] mb-4 leading-relaxed">
                     Capture attendance notes with<br />consent-first workflows
                   </div>
-                  <div className="bg-[hsl(30,8%,15%)] text-white text-xs py-2 px-4 rounded text-center">
+                  <div className="bg-[hsl(18,65%,45%)] text-white text-xs py-2 px-4 rounded text-center">
                     Start recording
                   </div>
                 </div>
               </div>
               {/* Right panel - Abstract legal imagery */}
-              <div className="bg-[hsl(30,15%,75%)] rounded-lg sm:rounded-xl aspect-[4/3] flex items-center justify-center overflow-hidden">
-                <div className="text-[hsl(30,10%,55%)] text-center p-4">
-                  <Scale className="w-16 h-16 mx-auto mb-2 opacity-40" />
-                  <span className="text-sm opacity-60">Compliance-first documentation</span>
+              <div className="bg-[hsl(25,30%,70%)] rounded-lg sm:rounded-xl aspect-[4/3] flex items-center justify-center overflow-hidden">
+                <div className="text-[hsl(25,20%,40%)] text-center p-4">
+                  <Scale className="w-16 h-16 mx-auto mb-2 opacity-50" />
+                  <span className="text-sm opacity-70">Compliance-first documentation</span>
                 </div>
               </div>
             </div>
@@ -188,7 +188,7 @@ export default function Landing() {
         {/* Hero Description */}
         <div className="max-w-7xl mx-auto px-6 pb-20">
           <motion.p 
-            className="text-lg sm:text-xl text-[hsl(30,8%,45%)] max-w-2xl leading-relaxed" 
+            className="text-lg sm:text-xl text-[hsl(25,20%,40%)] max-w-2xl leading-relaxed" 
             style={{ fontFamily: "'Lora', Georgia, serif" }}
             data-testid="text-app-description"
             initial={{ opacity: 0, y: 20 }}
@@ -207,7 +207,7 @@ export default function Landing() {
           >
             <Button 
               onClick={handleLogin}
-              className="bg-[hsl(30,8%,15%)] text-white hover:bg-[hsl(30,8%,20%)] rounded-full px-10 py-6 text-base"
+              className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full px-10 py-6 text-base"
               data-testid="button-get-started"
             >
               Book a demo
@@ -217,7 +217,7 @@ export default function Landing() {
       </div>
 
       {/* What LegalNote Does - Value Proposition */}
-      <div className="relative bg-[hsl(30,10%,96%)] py-20 border-y border-[hsl(30,10%,90%)]">
+      <div className="relative bg-[hsl(30,25%,94%)] py-20 border-y border-[hsl(30,20%,85%)]">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -225,10 +225,10 @@ export default function Landing() {
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(30,8%,15%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Attendance records that evidence professional judgement
             </h2>
-            <p className="text-lg text-[hsl(30,8%,45%)] leading-relaxed max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-lg text-[hsl(25,20%,40%)] leading-relaxed max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               LegalNote captures what was said, what was decided, and what must happen next, then forms a reviewable attendance note that preserves reasoning, actions, and instructions for professional finalisation. Records are timestamped, contemporaneous, and aligned with how regulators expect legal work to be evidenced.
             </p>
           </motion.div>
@@ -245,13 +245,13 @@ export default function Landing() {
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <span className="text-sm font-medium text-[hsl(30,8%,50%)] uppercase tracking-wider mb-4 block">
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
               How It Works
             </span>
-            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(30,8%,15%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Attendance records, formed at source
             </h2>
-            <p className="text-xl text-[hsl(30,8%,50%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               LegalNote supports practitioners by capturing client meetings through consent-first workflows designed for UK-regulated legal environments.
             </p>
           </motion.div>
@@ -284,15 +284,15 @@ export default function Landing() {
               >
                 {index > 0 && (
                   <div className="hidden md:block absolute top-12 -left-6 lg:-left-8">
-                    <ArrowRight className="w-6 h-6 text-[hsl(30,15%,80%)]" />
+                    <ArrowRight className="w-6 h-6 text-[hsl(25,30%,75%)]" />
                   </div>
                 )}
                 <div className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-[hsl(30,15%,75%)] flex items-center justify-center text-2xl font-medium text-[hsl(30,8%,25%)] mx-auto mb-6">
+                  <div className="w-16 h-16 rounded-full bg-[hsl(20,45%,38%)] flex items-center justify-center text-2xl font-medium text-white mx-auto mb-6">
                     {item.step}
                   </div>
-                  <h3 className="text-xl font-medium text-[hsl(30,8%,15%)] mb-4">{item.title}</h3>
-                  <p className="text-[hsl(30,8%,50%)] leading-relaxed">{item.description}</p>
+                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-4">{item.title}</h3>
+                  <p className="text-[hsl(25,20%,40%)] leading-relaxed">{item.description}</p>
                 </div>
               </motion.div>
             ))}
@@ -301,7 +301,7 @@ export default function Landing() {
       </div>
 
       {/* Features Section - Compliance Focus */}
-      <div className="relative bg-[hsl(30,10%,96%)] py-24 border-y border-[hsl(30,10%,90%)]">
+      <div className="relative bg-[hsl(30,25%,94%)] py-24 border-y border-[hsl(30,20%,85%)]">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
             className="text-center mb-16"
@@ -310,13 +310,13 @@ export default function Landing() {
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <span className="text-sm font-medium text-[hsl(30,8%,50%)] uppercase tracking-wider mb-4 block">
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
               Features
             </span>
-            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(30,8%,15%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Decisions don't get lost. Actions don't drift.
             </h2>
-            <p className="text-xl text-[hsl(30,8%,50%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               LegalNote identifies decisions, next steps, and responsibilities as they arise in conversation—so they are not buried in a long transcript or forgotten notebook.
             </p>
           </motion.div>
@@ -361,12 +361,12 @@ export default function Landing() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: index * 0.1 }}
               >
-                <div className="group h-full p-8 rounded-xl bg-white border border-[hsl(30,10%,88%)] hover:shadow-md transition-all duration-300">
-                  <div className="w-12 h-12 rounded-lg bg-[hsl(30,15%,75%)] flex items-center justify-center mb-5">
-                    <feature.icon className="w-6 h-6 text-[hsl(30,8%,30%)]" />
+                <div className="group h-full p-8 rounded-xl bg-white border border-[hsl(30,20%,85%)] hover:shadow-md transition-all duration-300">
+                  <div className="w-12 h-12 rounded-lg bg-[hsl(18,55%,88%)] flex items-center justify-center mb-5">
+                    <feature.icon className="w-6 h-6 text-[hsl(18,65%,45%)]" />
                   </div>
-                  <h3 className="text-xl font-medium text-[hsl(30,8%,15%)] mb-3">{feature.title}</h3>
-                  <p className="text-[hsl(30,8%,50%)] leading-relaxed">{feature.description}</p>
+                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">{feature.title}</h3>
+                  <p className="text-[hsl(25,20%,40%)] leading-relaxed">{feature.description}</p>
                 </div>
               </motion.div>
             ))}
@@ -384,19 +384,19 @@ export default function Landing() {
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <span className="text-sm font-medium text-[hsl(30,8%,50%)] uppercase tracking-wider mb-4 block">
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
               Why LegalNote
             </span>
-            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(30,8%,15%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Not another note-taking app
             </h2>
-            <p className="text-xl text-[hsl(30,8%,50%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               LegalNote is a compliance-first attendance record system built for regulated legal practice—not a generic dictation tool or AI note-taker.
             </p>
           </motion.div>
 
           <motion.div
-            className="overflow-hidden rounded-xl border border-[hsl(30,10%,88%)] bg-white"
+            className="overflow-hidden rounded-xl border border-[hsl(30,20%,85%)] bg-white"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -405,10 +405,10 @@ export default function Landing() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[hsl(30,10%,90%)]">
-                    <th className="text-left p-6 text-[hsl(30,8%,45%)] font-medium">Dimension</th>
-                    <th className="text-left p-6 text-[hsl(30,8%,55%)] font-medium bg-[hsl(30,10%,97%)]">Typical dictation / note apps</th>
-                    <th className="text-left p-6 font-medium text-[hsl(30,8%,15%)] bg-[hsl(30,15%,75%)]/20">LegalNote</th>
+                  <tr className="border-b border-[hsl(30,20%,88%)]">
+                    <th className="text-left p-6 text-[hsl(25,20%,40%)] font-medium">Dimension</th>
+                    <th className="text-left p-6 text-[hsl(25,15%,50%)] font-medium bg-[hsl(30,15%,96%)]">Typical dictation / note apps</th>
+                    <th className="text-left p-6 font-medium text-[hsl(25,30%,12%)] bg-[hsl(18,40%,90%)]">LegalNote</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">
@@ -444,17 +444,17 @@ export default function Landing() {
                       legalnote: "Tool proposes structure; practitioner exercises judgement and signs off the attendance record" 
                     },
                   ].map((row, index) => (
-                    <tr key={index} className="border-b border-[hsl(30,10%,92%)] last:border-b-0">
-                      <td className="p-6 font-medium text-[hsl(30,8%,25%)]">{row.dimension}</td>
-                      <td className="p-6 text-[hsl(30,8%,55%)] bg-[hsl(30,10%,97%)]">
+                    <tr key={index} className="border-b border-[hsl(30,15%,90%)] last:border-b-0">
+                      <td className="p-6 font-medium text-[hsl(25,25%,20%)]">{row.dimension}</td>
+                      <td className="p-6 text-[hsl(25,15%,50%)] bg-[hsl(30,15%,96%)]">
                         <div className="flex items-start gap-2">
-                          <XCircle className="w-4 h-4 text-[hsl(0,40%,55%)] mt-0.5 flex-shrink-0" />
+                          <XCircle className="w-4 h-4 text-[hsl(0,50%,50%)] mt-0.5 flex-shrink-0" />
                           <span>{row.generic}</span>
                         </div>
                       </td>
-                      <td className="p-6 text-[hsl(30,8%,30%)] bg-[hsl(30,15%,75%)]/20">
+                      <td className="p-6 text-[hsl(25,25%,25%)] bg-[hsl(18,40%,90%)]">
                         <div className="flex items-start gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-[hsl(30,8%,35%)] mt-0.5 flex-shrink-0" />
+                          <CheckCircle2 className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
                           <span>{row.legalnote}</span>
                         </div>
                       </td>
@@ -468,7 +468,7 @@ export default function Landing() {
       </div>
 
       {/* Trust & Compliance Section */}
-      <div className="relative bg-[hsl(30,10%,96%)] py-24 border-y border-[hsl(30,10%,90%)]">
+      <div className="relative bg-[hsl(30,25%,94%)] py-24 border-y border-[hsl(30,20%,85%)]">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
             className="text-center mb-16"
@@ -477,13 +477,13 @@ export default function Landing() {
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <span className="text-sm font-medium text-[hsl(30,8%,50%)] uppercase tracking-wider mb-4 block">
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
               Security & Compliance
             </span>
-            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(30,8%,15%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Built to evidence professional judgement
             </h2>
-            <p className="text-xl text-[hsl(30,8%,50%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Designed around the reality that detailed attendance notes are a core strand of evidencing competent service and defensible decision-making.
             </p>
           </motion.div>
@@ -503,11 +503,11 @@ export default function Landing() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: index * 0.1 }}
               >
-                <div className="w-16 h-16 rounded-xl bg-white border border-[hsl(30,10%,88%)] flex items-center justify-center mx-auto mb-4">
-                  <item.icon className="w-8 h-8 text-[hsl(30,8%,35%)]" />
+                <div className="w-16 h-16 rounded-xl bg-white border border-[hsl(30,20%,85%)] flex items-center justify-center mx-auto mb-4">
+                  <item.icon className="w-8 h-8 text-[hsl(18,65%,45%)]" />
                 </div>
-                <h3 className="text-lg font-medium text-[hsl(30,8%,15%)] mb-2">{item.title}</h3>
-                <p className="text-sm text-[hsl(30,8%,50%)]">{item.description}</p>
+                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{item.title}</h3>
+                <p className="text-sm text-[hsl(25,20%,40%)]">{item.description}</p>
               </motion.div>
             ))}
           </div>
@@ -524,21 +524,21 @@ export default function Landing() {
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <span className="text-sm font-medium text-[hsl(30,8%,50%)] uppercase tracking-wider mb-4 block">
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
               Pricing
             </span>
-            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(30,8%,15%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>Simple, transparent pricing</h2>
-            <p className="text-xl text-[hsl(30,8%,50%)] max-w-2xl mx-auto mb-10" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>Simple, transparent pricing</h2>
+            <p className="text-xl text-[hsl(25,20%,40%)] max-w-2xl mx-auto mb-10" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Choose the plan that fits your practice. All plans include a 14-day professional evaluation.
             </p>
             
-            <div className="inline-flex items-center gap-1 p-1 bg-[hsl(30,10%,95%)] border border-[hsl(30,10%,88%)] rounded-xl">
+            <div className="inline-flex items-center gap-1 p-1 bg-[hsl(30,20%,93%)] border border-[hsl(30,20%,85%)] rounded-xl">
               <button
                 onClick={() => setBillingPeriod('monthly')}
                 className={`px-6 py-3 rounded-lg text-sm font-medium transition-all ${
                   billingPeriod === 'monthly' 
-                    ? 'bg-white text-[hsl(30,8%,15%)] shadow-sm' 
-                    : 'text-[hsl(30,8%,50%)] hover:text-[hsl(30,8%,30%)]'
+                    ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
+                    : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
                 }`}
                 data-testid="button-monthly-billing"
               >
@@ -548,13 +548,13 @@ export default function Landing() {
                 onClick={() => setBillingPeriod('annual')}
                 className={`px-6 py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
                   billingPeriod === 'annual' 
-                    ? 'bg-white text-[hsl(30,8%,15%)] shadow-sm' 
-                    : 'text-[hsl(30,8%,50%)] hover:text-[hsl(30,8%,30%)]'
+                    ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
+                    : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
                 }`}
                 data-testid="button-annual-billing"
               >
                 Annual
-                <span className={`text-xs px-2 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(30,15%,75%)] text-[hsl(30,8%,20%)]' : 'bg-[hsl(30,15%,75%)]/30 text-[hsl(30,8%,40%)]'}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(18,70%,42%)] text-white' : 'bg-[hsl(18,45%,88%)] text-[hsl(18,60%,30%)]'}`}>
                   Save 16%
                 </span>
               </button>
@@ -568,17 +568,17 @@ export default function Landing() {
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
             >
-              <div className="h-full p-8 rounded-xl bg-white border border-[hsl(30,10%,88%)]">
+              <div className="h-full p-8 rounded-xl bg-white border border-[hsl(30,20%,85%)]">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-[hsl(30,10%,95%)] flex items-center justify-center">
-                    <User className="w-5 h-5 text-[hsl(30,8%,45%)]" />
+                  <div className="w-10 h-10 rounded-lg bg-[hsl(30,25%,92%)] flex items-center justify-center">
+                    <User className="w-5 h-5 text-[hsl(25,25%,35%)]" />
                   </div>
-                  <h3 className="text-2xl font-medium text-[hsl(30,8%,15%)]">Solo</h3>
+                  <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)]">Solo</h3>
                 </div>
-                <p className="text-[hsl(30,8%,50%)] mb-6">Perfect for solo practitioners</p>
+                <p className="text-[hsl(25,20%,45%)] mb-6">Perfect for solo practitioners</p>
                 <div className="mb-8">
-                  <span className="text-5xl font-medium text-[hsl(30,8%,15%)]">£{getSoloPrice()}</span>
-                  <span className="text-[hsl(30,8%,50%)] ml-2">/{billingPeriod === 'monthly' ? 'month' : 'year'}</span>
+                  <span className="text-5xl font-medium text-[hsl(25,30%,12%)]">£{getSoloPrice()}</span>
+                  <span className="text-[hsl(25,20%,45%)] ml-2">/{billingPeriod === 'monthly' ? 'month' : 'year'}</span>
                 </div>
                 <ul className="space-y-4 mb-8">
                   {[
@@ -593,15 +593,15 @@ export default function Landing() {
                     'Email support',
                   ].map((feature, i) => (
                     <li key={i} className="flex items-center gap-3">
-                      <Check className="w-5 h-5 text-[hsl(30,8%,40%)] flex-shrink-0" />
-                      <span className="text-[hsl(30,8%,45%)]">{feature}</span>
+                      <Check className="w-5 h-5 text-[hsl(18,65%,45%)] flex-shrink-0" />
+                      <span className="text-[hsl(25,20%,40%)]">{feature}</span>
                     </li>
                   ))}
                 </ul>
                 <Button 
                   onClick={handleLogin} 
                   variant="outline"
-                  className="w-full h-12 border-[hsl(30,10%,80%)] text-[hsl(30,8%,30%)] hover:bg-[hsl(30,10%,95%)]" 
+                  className="w-full h-12 border-[hsl(30,20%,80%)] text-[hsl(25,25%,25%)] hover:bg-[hsl(30,20%,94%)]" 
                   data-testid="button-solo-signup"
                 >
                   Begin Evaluation
@@ -615,24 +615,24 @@ export default function Landing() {
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: 0.1 }}
             >
-              <div className="relative h-full p-8 rounded-xl bg-[hsl(30,15%,75%)]/10 border-2 border-[hsl(30,15%,75%)]/40">
+              <div className="relative h-full p-8 rounded-xl bg-[hsl(18,40%,92%)] border-2 border-[hsl(18,45%,70%)]">
                 <div className="absolute -top-3 right-8">
-                  <span className="px-4 py-1.5 rounded-full bg-[hsl(30,15%,75%)] text-[hsl(30,8%,20%)] text-sm font-medium">
+                  <span className="px-4 py-1.5 rounded-full bg-[hsl(18,65%,45%)] text-white text-sm font-medium">
                     Most Popular
                   </span>
                 </div>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-[hsl(30,15%,75%)]/30 flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-[hsl(30,8%,35%)]" />
+                  <div className="w-10 h-10 rounded-lg bg-[hsl(18,50%,82%)] flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-[hsl(18,65%,40%)]" />
                   </div>
-                  <h3 className="text-2xl font-medium text-[hsl(30,8%,15%)]">Team</h3>
+                  <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)]">Team</h3>
                 </div>
-                <p className="text-[hsl(30,8%,50%)] mb-6">For boutique law firms</p>
+                <p className="text-[hsl(25,20%,45%)] mb-6">For boutique law firms</p>
                 <div className="mb-2">
-                  <span className="text-5xl font-medium text-[hsl(30,8%,15%)]">£{getTeamPrice()}</span>
-                  <span className="text-[hsl(30,8%,50%)] ml-2">/month base</span>
+                  <span className="text-5xl font-medium text-[hsl(25,30%,12%)]">£{getTeamPrice()}</span>
+                  <span className="text-[hsl(25,20%,45%)] ml-2">/month base</span>
                 </div>
-                <p className="text-sm text-[hsl(30,8%,50%)] mb-6">+ £49/month per additional user</p>
+                <p className="text-sm text-[hsl(25,20%,45%)] mb-6">+ £49/month per additional user</p>
                 <ul className="space-y-4 mb-8">
                   {[
                     'Everything in Solo',
@@ -646,14 +646,14 @@ export default function Landing() {
                     'Custom onboarding',
                   ].map((feature, i) => (
                     <li key={i} className="flex items-center gap-3">
-                      <Check className="w-5 h-5 text-[hsl(30,8%,40%)] flex-shrink-0" />
-                      <span className="text-[hsl(30,8%,45%)]">{feature}</span>
+                      <Check className="w-5 h-5 text-[hsl(18,65%,45%)] flex-shrink-0" />
+                      <span className="text-[hsl(25,20%,35%)]">{feature}</span>
                     </li>
                   ))}
                 </ul>
                 <Button 
                   onClick={handleLogin} 
-                  className="w-full h-12 bg-[hsl(30,8%,15%)] hover:bg-[hsl(30,8%,20%)] text-white font-medium" 
+                  className="w-full h-12 bg-[hsl(18,70%,42%)] hover:bg-[hsl(18,70%,38%)] text-white font-medium" 
                   data-testid="button-team-signup"
                 >
                   Begin Evaluation
@@ -662,14 +662,14 @@ export default function Landing() {
             </motion.div>
           </div>
 
-          <p className="text-center text-sm text-[hsl(30,8%,50%)] mt-8">
+          <p className="text-center text-sm text-[hsl(25,20%,45%)] mt-8">
             All prices exclude VAT. Cancel anytime during your evaluation period.
           </p>
         </div>
       </div>
 
       {/* Final CTA Section */}
-      <div className="relative py-24 overflow-hidden bg-[hsl(30,8%,12%)]">
+      <div className="relative py-24 overflow-hidden bg-[hsl(20,35%,18%)]">
         <div className="relative max-w-4xl mx-auto px-6 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -680,13 +680,13 @@ export default function Landing() {
             <h2 className="text-4xl sm:text-5xl font-normal text-white mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Never have a file note gap again
             </h2>
-            <p className="text-xl text-white/60 max-w-2xl mx-auto mb-10" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-xl text-[hsl(30,30%,70%)] max-w-2xl mx-auto mb-10" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Join solicitors across the UK who are creating contemporaneous, evidential attendance records with LegalNote.
             </p>
             <Button 
               onClick={handleLogin} 
               size="lg"
-              className="bg-white text-[hsl(30,8%,15%)] hover:bg-white/90 rounded-full text-base px-10 py-6"
+              className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full text-base px-10 py-6"
               data-testid="button-cta-signup"
             >
               Start Your Free Evaluation
@@ -696,7 +696,7 @@ export default function Landing() {
       </div>
 
       {/* Footer */}
-      <footer className="relative bg-[hsl(30,8%,8%)] border-t border-white/5">
+      <footer className="relative bg-[hsl(20,30%,10%)] border-t border-[hsl(20,25%,18%)]">
         <div className="max-w-7xl mx-auto px-6 py-16">
           <div className="grid md:grid-cols-4 gap-12 mb-12">
             <div className="md:col-span-2">
