@@ -123,7 +123,12 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                   Restart Tour
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem data-testid="menu-item-logout">Log Out</DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => window.location.href = '/api/logout'} 
+                  data-testid="menu-item-logout"
+                >
+                  Log Out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
