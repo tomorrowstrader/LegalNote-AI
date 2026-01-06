@@ -64,22 +64,6 @@ export default function Landing() {
         </Button>
       </div>
 
-      {/* Announcement Bar */}
-      <div className="bg-[hsl(20,40%,35%)] text-white">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-center gap-2 text-sm">
-          <span className="font-medium">News</span>
-          <span className="text-white/60">|</span>
-          <span>LegalNote now integrates with Clio Manage</span>
-          <button 
-            onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-            className="font-medium hover:underline ml-1 text-white"
-            data-testid="button-announcement-readmore"
-          >
-            Read more →
-          </button>
-        </div>
-      </div>
-
       {/* Navigation */}
       <nav className="relative z-10 bg-white">
         <div className="max-w-7xl mx-auto px-6 py-5">
@@ -129,6 +113,22 @@ export default function Landing() {
           </div>
         </div>
       </nav>
+
+      {/* Announcement Bar */}
+      <div className="bg-[hsl(20,40%,35%)] text-white">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-center gap-2 text-sm">
+          <span className="font-medium">News</span>
+          <span className="text-white/60">|</span>
+          <span>LegalNote now integrates with Clio Manage</span>
+          <button 
+            onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+            className="font-medium hover:underline ml-1 text-white"
+            data-testid="button-announcement-readmore"
+          >
+            Read more →
+          </button>
+        </div>
+      </div>
 
       {/* Hero Section - Editorial Style */}
       <div className="relative bg-white">
