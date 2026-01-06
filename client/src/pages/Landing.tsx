@@ -93,6 +93,333 @@ function useReducedMotion() {
   return prefersReducedMotion;
 }
 
+// Scroll progress indicator
+function ScrollProgressBar() {
+  const { scrollYProgress } = useScroll();
+  
+  return (
+    <motion.div
+      className="fixed top-0 left-0 right-0 h-1 bg-[hsl(18,70%,42%)] origin-left z-[100]"
+      style={{ scaleX: scrollYProgress }}
+    />
+  );
+}
+
+// 3D Tilt card wrapper
+function TiltCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  const [rotateX, setRotateX] = useState(0);
+  const [rotateY, setRotateY] = useState(0);
+  const prefersReducedMotion = useReducedMotion();
+  
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (prefersReducedMotion) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateXVal = ((y - centerY) / centerY) * -5;
+    const rotateYVal = ((x - centerX) / centerX) * 5;
+    setRotateX(rotateXVal);
+    setRotateY(rotateYVal);
+  };
+  
+  const handleMouseLeave = () => {
+    setRotateX(0);
+    setRotateY(0);
+  };
+  
+  return (
+    <motion.div
+      className={className}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      animate={{ rotateX, rotateY }}
+      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      style={{ transformStyle: "preserve-3d", perspective: 1000 }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+// Trust logos marquee
+function TrustLogosMarquee() {
+  const prefersReducedMotion = useReducedMotion();
+  const firms = [
+    "Commercial Law Specialists",
+    "Family & Private Client",
+    "Property & Conveyancing",
+    "Employment Law Practice",
+    "Dispute Resolution",
+    "Corporate & M&A",
+    "Regulatory & Compliance",
+    "Litigation Boutique",
+  ];
+  
+  return (
+    <div className="bg-[hsl(30,20%,96%)] py-6 overflow-hidden border-y border-[hsl(30,15%,90%)]">
+      <div className="max-w-7xl mx-auto px-6 mb-4">
+        <p className="text-xs text-center text-[hsl(25,15%,55%)] uppercase tracking-wider font-medium">
+          Trusted by forward-thinking firms across the UK
+        </p>
+      </div>
+      <div className="relative">
+        <motion.div
+          className="flex gap-12 whitespace-nowrap"
+          animate={prefersReducedMotion ? {} : {
+            x: [0, -1920],
+          }}
+          transition={{
+            x: {
+              repeat: Infinity,
+              repeatType: "loop",
+              duration: 30,
+              ease: "linear",
+            },
+          }}
+        >
+          {[...firms, ...firms, ...firms].map((firm, index) => (
+            <div
+              key={index}
+              className="flex items-center gap-3 px-6 py-2"
+            >
+              <div className="w-8 h-8 rounded-lg bg-[hsl(25,20%,88%)] flex items-center justify-center">
+                <Building2 className="w-4 h-4 text-[hsl(25,25%,45%)]" />
+              </div>
+              <span className="text-sm font-medium text-[hsl(25,20%,40%)]">{firm}</span>
+            </div>
+          ))}
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+// Hero image with parallax effect (respects reduced motion)
+function HeroImageParallax() {
+  const ref = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = useReducedMotion();
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"]
+  });
+  const y = useTransform(scrollYProgress, [0, 1], prefersReducedMotion ? [0, 0] : [0, 100]);
+  const scale = useTransform(scrollYProgress, [0, 0.5, 1], prefersReducedMotion ? [1, 1, 1] : [1, 1.05, 1]);
+  
+  return (
+    <div ref={ref} className="relative px-6 mb-12 overflow-hidden">
+      <motion.div
+        className="max-w-7xl mx-auto"
+        initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.6, delay: prefersReducedMotion ? 0 : 0.2 }}
+        style={{ y, scale }}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          {/* Left panel - App preview mockup */}
+          <motion.div 
+            className="bg-[hsl(25,30%,70%)] rounded-lg sm:rounded-xl p-6 sm:p-8 aspect-[4/3] flex items-center justify-center"
+            whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="bg-white rounded-lg shadow-xl p-4 sm:p-5 w-full max-w-[280px]">
+              <div className="text-sm font-medium text-[hsl(25,25%,20%)] mb-3">Record meeting</div>
+              <div className="text-xs text-[hsl(25,20%,45%)] mb-4 leading-relaxed">
+                Capture attendance notes with<br />consent-first workflows
+              </div>
+              <div className="bg-[hsl(18,65%,45%)] text-white text-xs py-2 px-4 rounded text-center">
+                Start recording
+              </div>
+            </div>
+          </motion.div>
+          {/* Right panel - Abstract legal imagery */}
+          <motion.div 
+            className="bg-[hsl(25,30%,70%)] rounded-lg sm:rounded-xl aspect-[4/3] flex items-center justify-center overflow-hidden"
+            whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="text-[hsl(25,20%,40%)] text-center p-4">
+              <Scale className="w-16 h-16 mx-auto mb-2 opacity-50" />
+              <span className="text-sm opacity-70">Compliance-first documentation</span>
+            </div>
+          </motion.div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// Before/After comparison slider with keyboard accessibility
+function ComparisonSlider() {
+  const [sliderPosition, setSliderPosition] = useState(50);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  
+  const handleMove = (clientX: number) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const percentage = Math.max(5, Math.min(95, (x / rect.width) * 100));
+    setSliderPosition(percentage);
+  };
+  
+  const handleMouseDown = () => setIsDragging(true);
+  const handleMouseUp = () => setIsDragging(false);
+  
+  // Keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const step = e.shiftKey ? 10 : 5;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSliderPosition(prev => Math.max(5, prev - step));
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSliderPosition(prev => Math.min(95, prev + step));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setSliderPosition(5);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setSliderPosition(95);
+    }
+  };
+  
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) handleMove(e.clientX);
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isDragging) handleMove(e.touches[0].clientX);
+    };
+    
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleMouseUp);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [isDragging]);
+  
+  return (
+    <div className="py-16 bg-white">
+      <div className="max-w-5xl mx-auto px-6">
+        <motion.div
+          className="text-center mb-10"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+        >
+          <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+            See the Difference
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            From handwritten to evidential
+          </h2>
+          <p className="text-lg text-[hsl(25,20%,40%)]">
+            Drag the slider to compare traditional notes with LegalNote output
+          </p>
+        </motion.div>
+        
+        <motion.div
+          ref={containerRef}
+          className="relative rounded-2xl overflow-hidden shadow-2xl border border-[hsl(30,20%,85%)] cursor-ew-resize select-none"
+          initial={{ opacity: 0, scale: 0.95 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleMouseDown}
+        >
+          {/* Before - Traditional Notes */}
+          <div className="relative h-[400px] bg-[hsl(40,30%,95%)]">
+            <div className="absolute inset-0 p-8">
+              <div className="mb-4">
+                <span className="text-xs font-medium text-[hsl(0,50%,50%)] uppercase tracking-wider bg-[hsl(0,50%,95%)] px-3 py-1 rounded-full">
+                  Traditional Approach
+                </span>
+              </div>
+              <div className="font-mono text-sm text-[hsl(25,20%,35%)] space-y-3 opacity-80" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                <p className="italic">Meeting with Mrs Thompson re: house sale</p>
+                <p>- Discussed price, she wants £450k</p>
+                <p>- Mentioned something about fixtures?</p>
+                <p>- Need to check re: completion date</p>
+                <p>- Husband called during meeting</p>
+                <p>- [illegible] about solicitor fees</p>
+                <p className="text-[hsl(0,50%,50%)]">* No timestamp</p>
+                <p className="text-[hsl(0,50%,50%)]">* No consent record</p>
+                <p className="text-[hsl(0,50%,50%)]">* Actions unclear</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* After - LegalNote Output */}
+          <div 
+            className="absolute inset-0 h-[400px] bg-white overflow-hidden"
+            style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
+          >
+            <div className="absolute inset-0 p-8">
+              <div className="mb-4 flex items-center gap-3">
+                <span className="text-xs font-medium text-[hsl(130,50%,35%)] uppercase tracking-wider bg-[hsl(130,50%,95%)] px-3 py-1 rounded-full">
+                  LegalNote Output
+                </span>
+                <Badge className="bg-[hsl(18,70%,42%)] text-white text-xs">Evidential Quality</Badge>
+              </div>
+              <div className="text-sm text-[hsl(25,25%,20%)] space-y-4">
+                <div className="border-l-2 border-[hsl(18,60%,50%)] pl-4">
+                  <p className="font-medium">Attendance Note - Property Sale</p>
+                  <p className="text-xs text-[hsl(25,15%,50%)]">06 January 2026, 14:32 GMT | Duration: 47 mins</p>
+                  <p className="text-xs text-[hsl(130,50%,35%)]">Consent recorded: Verbal, witnessed</p>
+                </div>
+                <div>
+                  <p className="font-medium text-[hsl(25,30%,15%)]">Client Instructions:</p>
+                  <p>Mrs Sarah Thompson confirmed asking price of £450,000 for 14 Elm Gardens. Fixtures to include fitted wardrobes (master bedroom) and integrated kitchen appliances.</p>
+                </div>
+                <div>
+                  <p className="font-medium text-[hsl(25,30%,15%)]">Action Items:</p>
+                  <ul className="list-disc list-inside text-[hsl(18,60%,40%)]">
+                    <li>Confirm target completion: 15 March 2026</li>
+                    <li>Send fee estimate by 08 January</li>
+                    <li>Draft TA6 property form</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Slider Handle - Accessible */}
+          <div 
+            ref={sliderRef}
+            role="slider"
+            aria-label="Comparison slider - drag or use arrow keys to compare traditional notes with LegalNote output"
+            aria-valuemin={5}
+            aria-valuemax={95}
+            aria-valuenow={Math.round(sliderPosition)}
+            aria-valuetext={`${Math.round(sliderPosition)}% LegalNote view`}
+            tabIndex={0}
+            onKeyDown={handleKeyDown}
+            className="absolute top-0 bottom-0 w-1 bg-[hsl(18,70%,42%)] cursor-ew-resize z-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(18,70%,42%)] focus-visible:ring-offset-2"
+            style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
+          >
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[hsl(18,70%,42%)] shadow-lg flex items-center justify-center">
+              <div className="flex gap-0.5">
+                <div className="w-0.5 h-4 bg-white rounded-full" />
+                <div className="w-0.5 h-4 bg-white rounded-full" />
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
 // Animated gradient mesh background
 function GradientMesh() {
   const prefersReducedMotion = useReducedMotion();
@@ -435,6 +762,17 @@ interface Product {
 
 export default function Landing() {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
+  const [isScrolled, setIsScrolled] = useState(false);
+  const { scrollY } = useScroll();
+  const prefersReducedMotion = useReducedMotion();
+  
+  // Track scroll for sticky nav blur effect
+  useEffect(() => {
+    const unsubscribe = scrollY.on("change", (y) => {
+      setIsScrolled(y > 50);
+    });
+    return () => unsubscribe();
+  }, [scrollY]);
 
   const handleLogin = () => {
     window.location.href = "/api/login";
@@ -464,6 +802,9 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Scroll Progress Indicator */}
+      <ScrollProgressBar />
+      
       {/* Floating CTA - Fixed at bottom on mobile */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 md:hidden">
         <Button 
@@ -491,8 +832,14 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="relative z-10 bg-white">
+      {/* Sticky Navigation with Blur */}
+      <motion.nav 
+        className={`sticky top-0 z-50 transition-all duration-300 ${
+          isScrolled 
+            ? 'bg-white/80 backdrop-blur-lg shadow-sm border-b border-[hsl(30,20%,90%)]' 
+            : 'bg-white'
+        }`}
+      >
         <div className="max-w-7xl mx-auto px-6 py-5">
           <div className="flex items-center justify-between">
             <motion.div 
@@ -539,7 +886,7 @@ export default function Landing() {
             </motion.div>
           </div>
         </div>
-      </nav>
+      </motion.nav>
 
       {/* Hero Section - Editorial Style with Animated Background */}
       <div className="relative bg-white overflow-hidden">
@@ -594,37 +941,8 @@ export default function Landing() {
           </motion.div>
         </div>
 
-        {/* Hero Image Section */}
-        <div className="relative px-6 mb-12">
-          <motion.div
-            className="max-w-7xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {/* Left panel - App preview mockup */}
-              <div className="bg-[hsl(25,30%,70%)] rounded-lg sm:rounded-xl p-6 sm:p-8 aspect-[4/3] flex items-center justify-center">
-                <div className="bg-white rounded-lg shadow-xl p-4 sm:p-5 w-full max-w-[280px]">
-                  <div className="text-sm font-medium text-[hsl(25,25%,20%)] mb-3">Record meeting</div>
-                  <div className="text-xs text-[hsl(25,20%,45%)] mb-4 leading-relaxed">
-                    Capture attendance notes with<br />consent-first workflows
-                  </div>
-                  <div className="bg-[hsl(18,65%,45%)] text-white text-xs py-2 px-4 rounded text-center">
-                    Start recording
-                  </div>
-                </div>
-              </div>
-              {/* Right panel - Abstract legal imagery */}
-              <div className="bg-[hsl(25,30%,70%)] rounded-lg sm:rounded-xl aspect-[4/3] flex items-center justify-center overflow-hidden">
-                <div className="text-[hsl(25,20%,40%)] text-center p-4">
-                  <Scale className="w-16 h-16 mx-auto mb-2 opacity-50" />
-                  <span className="text-sm opacity-70">Compliance-first documentation</span>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
+        {/* Hero Image Section with Parallax */}
+        <HeroImageParallax />
 
         {/* Hero Description */}
         <div className="max-w-7xl mx-auto px-6 pb-20">
@@ -656,6 +974,9 @@ export default function Landing() {
           </motion.div>
         </div>
       </div>
+
+      {/* Trust Logos Marquee */}
+      <TrustLogosMarquee />
 
       {/* Animated Statistics Section */}
       <div className="relative bg-[hsl(20,35%,18%)] py-16 overflow-hidden">
@@ -744,8 +1065,8 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* Desktop grid */}
-          <div className="hidden md:grid md:grid-cols-3 gap-8 lg:gap-12">
+          {/* Desktop grid with 3D tilt cards */}
+          <div className="hidden md:grid md:grid-cols-3 gap-8 lg:gap-12" style={{ perspective: "1000px" }}>
             {[
               { 
                 step: "1", 
@@ -823,7 +1144,7 @@ export default function Landing() {
             </p>
           </motion.div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" style={{ perspective: "1000px" }}>
             {[
               { 
                 icon: FileCheck, 
@@ -856,25 +1177,25 @@ export default function Landing() {
                 description: "Reviewable, timestamped attendance notes create a coherent audit trail across the life of a matter. HMAC-SHA256 signatures ensure tamper detection." 
               },
             ].map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 30, scale: 0.95 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                whileHover={{ y: -8, transition: { duration: 0.3 } }}
-              >
-                <div className="group h-full p-8 rounded-xl bg-white/70 backdrop-blur-sm border border-white/50 shadow-lg hover:shadow-xl hover:bg-white/90 transition-all duration-300">
-                  <motion.div 
-                    className="w-14 h-14 rounded-xl bg-gradient-to-br from-[hsl(18,55%,88%)] to-[hsl(18,60%,80%)] flex items-center justify-center mb-5 shadow-sm"
-                    whileHover={{ rotate: [0, -10, 10, 0], transition: { duration: 0.5 } }}
-                  >
-                    <feature.icon className="w-7 h-7 text-[hsl(18,65%,42%)]" />
-                  </motion.div>
-                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">{feature.title}</h3>
-                  <p className="text-[hsl(25,20%,40%)] leading-relaxed">{feature.description}</p>
-                </div>
-              </motion.div>
+              <TiltCard key={feature.title}>
+                <motion.div
+                  initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                  whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                >
+                  <div className="group h-full p-8 rounded-xl bg-white/70 backdrop-blur-sm border border-white/50 shadow-lg hover:shadow-xl hover:bg-white/90 transition-all duration-300">
+                    <motion.div 
+                      className="w-14 h-14 rounded-xl bg-gradient-to-br from-[hsl(18,55%,88%)] to-[hsl(18,60%,80%)] flex items-center justify-center mb-5 shadow-sm"
+                      whileHover={{ rotate: [0, -10, 10, 0], transition: { duration: 0.5 } }}
+                    >
+                      <feature.icon className="w-7 h-7 text-[hsl(18,65%,42%)]" />
+                    </motion.div>
+                    <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">{feature.title}</h3>
+                    <p className="text-[hsl(25,20%,40%)] leading-relaxed">{feature.description}</p>
+                  </div>
+                </motion.div>
+              </TiltCard>
             ))}
           </div>
         </div>
@@ -998,6 +1319,9 @@ export default function Landing() {
         </div>
       </div>
 
+      {/* Interactive Comparison Slider */}
+      <ComparisonSlider />
+
       {/* Pricing Section */}
       <div id="pricing" className="relative bg-white py-24">
         <div className="max-w-7xl mx-auto px-6">
@@ -1060,8 +1384,24 @@ export default function Landing() {
                   <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)]">Solo</h3>
                 </div>
                 <p className="text-[hsl(25,20%,45%)] mb-6">Perfect for solo practitioners</p>
-                <div className="mb-8">
-                  <span className="text-5xl font-medium text-[hsl(25,30%,12%)]">£{getSoloPrice()}</span>
+                <div className="mb-8 h-16 flex items-baseline">
+                  <span className="text-5xl font-medium text-[hsl(25,30%,12%)]">£</span>
+                  {prefersReducedMotion ? (
+                    <span className="text-5xl font-medium text-[hsl(25,30%,12%)]">{getSoloPrice()}</span>
+                  ) : (
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={getSoloPrice()}
+                        className="text-5xl font-medium text-[hsl(25,30%,12%)]"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        {getSoloPrice()}
+                      </motion.span>
+                    </AnimatePresence>
+                  )}
                   <span className="text-[hsl(25,20%,45%)] ml-2">/{billingPeriod === 'monthly' ? 'month' : 'year'}</span>
                 </div>
                 <ul className="space-y-4 mb-8">
@@ -1112,8 +1452,24 @@ export default function Landing() {
                   <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)]">Team</h3>
                 </div>
                 <p className="text-[hsl(25,20%,45%)] mb-6">For boutique law firms</p>
-                <div className="mb-2">
-                  <span className="text-5xl font-medium text-[hsl(25,30%,12%)]">£{getTeamPrice()}</span>
+                <div className="mb-2 h-16 flex items-baseline">
+                  <span className="text-5xl font-medium text-[hsl(25,30%,12%)]">£</span>
+                  {prefersReducedMotion ? (
+                    <span className="text-5xl font-medium text-[hsl(25,30%,12%)]">{getTeamPrice()}</span>
+                  ) : (
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={getTeamPrice()}
+                        className="text-5xl font-medium text-[hsl(25,30%,12%)]"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        {getTeamPrice()}
+                      </motion.span>
+                    </AnimatePresence>
+                  )}
                   <span className="text-[hsl(25,20%,45%)] ml-2">/month base</span>
                 </div>
                 <p className="text-sm text-[hsl(25,20%,45%)] mb-6">+ £49/month per additional user</p>
