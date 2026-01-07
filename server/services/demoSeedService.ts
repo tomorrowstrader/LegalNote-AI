@@ -11,7 +11,7 @@
  */
 
 import { db } from "../db";
-import { cases, transcripts, documents, consentLogs, actionItems, auditTrail } from "@shared/schema";
+import { cases, transcripts, documents, consentLogs, actionItems, auditTrail, preMeetingBriefings, shareLinks } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
 // Fixed demo dates for consistent, reproducible demonstrations
@@ -1001,6 +1001,12 @@ export async function clearDemoData(userId: string): Promise<{ success: boolean;
       
       // Delete action items for this case
       await db.delete(actionItems).where(eq(actionItems.caseId, demoCase.id));
+      
+      // Delete pre-meeting briefings for this case
+      await db.delete(preMeetingBriefings).where(eq(preMeetingBriefings.caseId, demoCase.id));
+      
+      // Delete share links for this case
+      await db.delete(shareLinks).where(eq(shareLinks.caseId, demoCase.id));
       
       // Delete documents for this case
       await db.delete(documents).where(eq(documents.caseId, demoCase.id));
