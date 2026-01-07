@@ -1487,7 +1487,7 @@ function DemoDataControls() {
         <Alert>
           <Database className="h-4 w-4" />
           <AlertDescription>
-            Demo data creates 4 realistic UK legal case scenarios: Property Purchase, Employment Dispute, Commercial Contract, and Family Law. Each includes full transcripts, attendance notes, summaries, and action items.
+            Demo data creates 5 realistic UK legal case scenarios: Property Purchase, Employment Dispute, Commercial Contract, and Family Law. Each includes full transcripts, attendance notes, summaries, action items, and audit trail entries.
           </AlertDescription>
         </Alert>
 
@@ -1586,6 +1586,7 @@ function DemoDataControls() {
             <li>Marcus Webb - Unfair Dismissal Claim (Employment)</li>
             <li>Eleanor Chen - LLP Partnership Agreement (Commercial)</li>
             <li>David Patterson - Divorce Settlement (Family Law)</li>
+            <li>James Smith - Financial Settlement (Family Law with cost warnings)</li>
           </ul>
         </div>
       </CardContent>
