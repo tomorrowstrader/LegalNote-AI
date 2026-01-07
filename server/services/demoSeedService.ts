@@ -11,7 +11,11 @@
  */
 
 import { db } from "../db";
-import { cases, transcripts, documents, consentLogs, actionItems, auditTrail, preMeetingBriefings, shareLinks } from "@shared/schema";
+import { 
+  cases, transcripts, documents, consentLogs, actionItems, auditTrail, 
+  preMeetingBriefings, shareLinks, quickNotes, audioRecordings, 
+  calendarEvents, meetingImports, preConsentEmails, clioMatterLinks 
+} from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
 // Fixed demo dates for consistent, reproducible demonstrations
@@ -996,25 +1000,19 @@ export async function clearDemoData(userId: string): Promise<{ success: boolean;
         continue;
       }
       
-      // Delete audit trail entries for this case
+      // Delete ALL related records before deleting case (comprehensive FK cleanup)
       await db.delete(auditTrail).where(eq(auditTrail.caseId, demoCase.id));
-      
-      // Delete action items for this case
       await db.delete(actionItems).where(eq(actionItems.caseId, demoCase.id));
-      
-      // Delete pre-meeting briefings for this case
       await db.delete(preMeetingBriefings).where(eq(preMeetingBriefings.caseId, demoCase.id));
-      
-      // Delete share links for this case
       await db.delete(shareLinks).where(eq(shareLinks.caseId, demoCase.id));
-      
-      // Delete documents for this case
+      await db.delete(quickNotes).where(eq(quickNotes.caseId, demoCase.id));
+      await db.delete(audioRecordings).where(eq(audioRecordings.caseId, demoCase.id));
+      await db.delete(calendarEvents).where(eq(calendarEvents.caseId, demoCase.id));
+      await db.delete(meetingImports).where(eq(meetingImports.caseId, demoCase.id));
+      await db.delete(preConsentEmails).where(eq(preConsentEmails.caseId, demoCase.id));
+      await db.delete(clioMatterLinks).where(eq(clioMatterLinks.caseId, demoCase.id));
       await db.delete(documents).where(eq(documents.caseId, demoCase.id));
-      
-      // Delete transcripts for this case
       await db.delete(transcripts).where(eq(transcripts.caseId, demoCase.id));
-      
-      // Delete consent logs for this case
       await db.delete(consentLogs).where(eq(consentLogs.caseId, demoCase.id));
       
       // Delete the case itself - additional user check for safety
