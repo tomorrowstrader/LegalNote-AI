@@ -1,0 +1,135 @@
+The cleanest process is: capture a single “golden path” recording of the LegalNote workflow end‑to‑end in a staging environment, then wrap it in an interactive tour layer (Arcade/Navattic/Storylane) that lets visitors click through key states while the 2–3 minute narration runs. Using modern screen-recording tools (e.g. Loom, ScreenFlow, VibrantSnap, or Screen Studio), you can get cinematic-quality visuals without heavy post‑production.[1][2][3][4][5]
+
+***
+
+## 1. Practical process to produce the video
+
+**A. Plan the narrative (before recording)**  
+- Define a single story: “Simulated client call → auto transcription → AI attendance note and actions → secure sharing link.”  
+- Script 90–120 seconds of spoken narration plus 30–60 seconds of slower UI moments (hovering, highlighting data protection, etc.).  
+- Decide 2–3 practice areas you want to visually hint at (e.g. housing/family/commercial) but record one clear path for v1.
+
+**B. Capture the golden-path screen recording**  
+- Use a high-quality recorder that supports 1080p–4K, webcam bubble, and system audio, such as:  
+  - Loom desktop app (1080p/4K, very fast to iterate).[8][9][10][11][7]
+  - ScreenFlow or Camtasia if you want more precise zoom/pan and callouts.[12][4][1]
+  - VibrantSnap or similar “cinematic” tools if you want AI-assisted pacing and visual polish.[2]
+- Record on a clean staging tenant with:  
+  - Obvious fake client details.  
+  - Only the features you want to show (hide admin clutter).  
+- Structure the recording in 5 segments (easy to edit):  
+  1) Opening dashboard.  
+  2) Starting/ingesting a call recording.  
+  3) Transcription view (with diarisation and consent marker visible).  
+  4) AI-generated attendance note & summary.  
+  5) Action items + secure sharing preview.
+
+**C. Polish the edit**  
+- Use the same tool’s editor (Loom trim, ScreenFlow/Camtasia timeline, or VibrantSnap AI pacing).[4][11][1][2]
+- Add:  
+  - Subtle zoom‑ins on key compliance touches (consent banner, SRA/GDPR‑friendly wording).  
+  - On‑screen labels like “Auto‑generated from your call” or “Client‑safe share link”.  
+  - 1–2 second pauses on important screens so it doesn’t feel rushed.
+
+***
+
+## 2. Tools to use (recording + interactive tour)
+
+**Screen recording tools (pick one based on team comfort)**  
+
+| Tool        | Best for                       | Notes |
+|------------|--------------------------------|-------|
+| Loom       | Fast iterations                | Easy sharing, good enough quality, minimal editing.[1][9][11][7] |
+| ScreenFlow | Mac users needing polish       | Great zoom/pan, cursor highlights, annotations.[12][1][4] |
+| Camtasia   | Heavier editing requirements   | Strong timeline editing and callouts.[1][4] |
+| VibrantSnap / Screen Studio | “Cinematic” SaaS visuals | AI pacing, motion effects, branded templates.[2][13] |
+
+**Interactive tour / wrapper (no-code layer on top)**  
+- Tools like Navattic, Arcade, Storylane, Supademo, etc. let you capture click paths then add hotspots, branching, and lead capture, often using your recordings or HTML captures.[3][5][6][14][15]
+- For a website marketing demo, something like Navattic, Arcade, Storylane, or Supademo is ideal; they all support embedded, guided tours with CTAs and forms.[5][6][15][16][3]
+
+***
+
+## 3. How to structure the interactive tour
+
+**A. Break the 2–3 minute demo into “chapters”**  
+- Example chapters:  
+  1) “Meet LegalNote AI” – what problem it solves.  
+  2) “From call to transcript” – recording and diarisation.  
+  3) “AI attendance note” – style, structure, and compliance hints.  
+  4) “Action items & secure sharing” – how it turns into workflows.  
+- Each chapter is a short clip or screen sequence with:  
+  - A 1–2 sentence caption.  
+  - Optional audio voiceover (same voice as main video) or AI voiceover (some tour tools now support this).[15][3][5]
+
+**B. Layer interactions without exposing real product data**  
+- Use hotspots:  
+  - “Click to see how consent is captured” → jumps to the consent marker on the transcript.  
+  - “Click to see the generated tasks” → reveals the action panel.  
+- Add inline explanations:  
+  - Callout bubbles for “Speaker labels from diarisation” or “Configurable templates for COLP/COFA.”  
+- Gate advanced chapters behind a mini form (“See full note” → email capture), if desired.
+
+***
+
+## 4. Ways to add “wow factor” without complexity
+
+**A. Tight narrative tailored to solicitors**  
+- Start with a bold claim: “In under 3 minutes, see how LegalNote turns a client call into a file‑ready attendance note and action list.”  
+- Emphasise risk reduction: show how mis‑notes are avoided, how speaker labels and time stamps support auditability, and how templates align with SRA/GDPR expectations.
+
+**B. Visual emphasis on compliance**  
+- Zoom in on:  
+  - Explicit consent capture UI.  
+  - Data retention settings or a “Demo data only” tag.  
+  - Clear “No client data required for this demo” messaging.  
+- Use on-screen captions like “Designed for SRA‑regulated firms” or “Built with consent and audit trails from day one.”
+
+**C. Before/after contrast in 10 seconds**  
+- Show a messy, fictional text doc labeled “Manual note taking” vs. your structured LegalNote attendance note and task list.  
+- Use a quick split-screen moment: left = static Word doc; right = your structured note and actions populating instantly.
+
+**D. Subtle motion and branding touches**  
+- Use cursor highlights, gentle zooms, and branded colour overlays from tools like ScreenFlow, VibrantSnap, or your interactive tour platform.[2][3][4][5]
+- Keep motion purposeful: each movement should draw attention to a specific benefit (not just eye candy).
+
+**E. Optional: embedded micro‑interactions alongside the video**  
+On the page, alongside the video/tour, add:  
+- A “Choose your practice area” toggle that swaps in slightly different pre-recorded tours (e.g., housing vs family) while reusing 80% of the same footage.  
+- A one-click “Email me this example note” CTA that sends them a PDF/HTML export of the demo note, reinforcing that LegalNote can produce externally shareable documents.
+
+***
+
+## 5. Suggested concrete flow for you
+
+1. **Write a 2–3 minute script** that mirrors the actual workflow and language a senior UK solicitor would use.  
+2. **Set up a pristine demo tenant** and run a full workflow while recording using Loom or ScreenFlow at 1080p+.[9][7][1][8]
+3. **Edit for clarity and pacing**, add zooms/callouts on consent, diarisation, and AI note, keeping total runtime under 3 minutes.  
+4. **Import into an interactive demo platform** (Navattic/Arcade/Storylane/Supademo) and:  
+   - Define chapters.  
+   - Add hotspots, captions, and branching where appropriate.[6][16][3][4][5]
+5. **Embed the tour + video on your marketing page** with a strong header (“Try LegalNote in 3 minutes”) and clear next steps (book a live demo, start trial, etc.).  
+
+This gives you a high-impact, low-friction experience that feels premium and “real”, while avoiding the risk and cost profile of live voice agents for your first iteration.
+
+Sources
+[1] The best screen recording software https://zapier.com/blog/best-screen-recording-software/
+[2] Best Screen Recording Software for 2025 https://www.vibrantsnap.com/blog/best-screen-recording-software
+[3] Product Tour Software Options for SaaS Websites - Navattic https://www.navattic.com/blog/product-tour-software-saas-websites
+[4] 🏆 10 Best Screen Capture Software Reviewed: 2025 Guide https://supademo.com/blog/screen-capture-software/
+[5] 6 Best Product Tour Software: Tested & Ranked by Real Users https://www.navattic.com/blog/best-product-tour-software
+[6] Interactive Demo Platform Comparison : r/ProductMarketing - Reddit https://www.reddit.com/r/ProductMarketing/comments/16piggb/interactive_demo_platform_comparison/
+[7] Loom: Free screen recorder for Mac and PC https://www.loom.com
+[8] Free 4k Screen Recorder https://www.loom.com/products/4k-screen-recorder
+[9] Free HD Screen Recorder https://www.loom.com/products/hd-screen-recorder
+[10] Manage your video recording quality | Loom https://support.atlassian.com/loom/docs/manage-your-video-recording-quality/
+[11] Free Advanced Screen Recorder https://www.loom.com/products/advanced-screen-recorder
+[12] What screen-recording software are you guys using in ... https://www.reddit.com/r/webdev/comments/1kvtaa1/what_screenrecording_software_are_you_guys_using/
+[13] 8 Best Screen Studio Alternatives in 2025 https://dev.to/sharmamanish/8-best-screen-studio-alternatives-in-2025-3nma
+[14] Video Demo Software: Top Picks for 2025 | Arcade Blog https://www.arcade.software/post/video-demo-software
+[15] Top 5 Interactive Demo Software for Marketing Teams (Reviewed) https://www.arcade.software/post/interactive-demo-software-for-marketing
+[16] Best Arcade Alternatives You Must Consider in 2025 - Storylane https://www.storylane.io/blog/arcade-alternatives
+[17] Top 11 AI Screen Recording Tools of 2025 | Puppydog Blog https://www.puppydog.io/blog/ai-screen-recording-tools
+[18] 5 Demo Recording Software for Your SaaS https://www.howdygo.com/blog/demo-recording-software
+[19] Modern & Powerful: 9 Best Screen Recorders for Business ... https://www.shareloapp.com/blog/top-9-new-and-modern-screen-recording-softwares-in-2025-for-your-business
+[20] Top 10 SaaS Tools That Every Startup Should Use in 2025 https://timetics.ai/top-saas-tools-for-startup-business/

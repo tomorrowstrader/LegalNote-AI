@@ -1,0 +1,60 @@
+Script v2: Leading with Value, Not Features
+Total runtime: 2:30 - 3:00
+
+OPENING - THE PROBLEM (0:00 - 0:20)
+[Screen: Split view - left: messy handwritten notes/Word doc chaos; right: LegalNote dashboard]
+
+"Every solicitor knows this feeling: you've just finished a critical client meeting, and now you're staring at scribbled notes trying to reconstruct what was actually said. Was it fifteen thousand or fifty? Did they agree to proceed, or did they say they'd think about it?"
+"One misremembered detail. One missed action. That's all it takes for a complaint, a negligence claim, or a sleepless night before a tribunal."
+THE TRANSFORMATION (0:20 - 0:40)
+[Screen: Clean LegalNote dashboard with completed cases]
+
+"LegalNote eliminates that risk entirely. What you're about to see is a meeting that happened twenty minutes ago — already transformed into evidence-quality documentation that's file-ready, audit-complete, and defensible."
+"No typing. No dictation. No reconstructing from memory. Just the truth of what was said, captured and structured to the standard your PI insurer would approve of."
+CONSENT-FIRST COMPLIANCE (0:40 - 1:05)
+[Screen: Consent workflow / consent log view]
+
+"Everything starts with documented consent — not because it's a nice-to-have, but because the SRA and ICO expect it. LegalNote captures explicit, time-stamped client authorisation before any recording begins."
+[Action: Hover over consent record details]
+
+"This isn't a checkbox buried in your engagement letter. It's a standalone record: who consented, when, to what, and how. Immutable. Auditable. Exactly what a regulator would ask to see."
+FROM VOICE TO VERIFIED RECORD (1:05 - 1:35)
+[Screen: Transcript view with speaker diarization]
+
+"Here's the meeting transcript. Notice something crucial: the system knows who said what. Your voice. Your client's voice. Separated, timestamped, and attributed — creating a contemporaneous record that stands up to scrutiny."
+[Action: Scroll slowly, pause on a key exchange]
+
+"When a client later claims 'I never agreed to that', you have the exact moment, the exact words, right here. No more 'he said, she said'. Just the record."
+AI-ASSISTED, SOLICITOR-CONTROLLED (1:35 - 2:10)
+[Screen: Attendance Note view]
+
+"Now watch what happens next. From that transcript, LegalNote generates a professional attendance note — structured exactly as you'd write it, but in seconds instead of thirty minutes."
+[Action: Scroll through attendance note, pause on sections]
+
+"Matter details. Persons present. Key discussion points. Advice given. Next steps. All formatted to the standard your firm expects, ready for your file or your supervisor's review."
+"But here's what matters: this is AI-assisted, not AI-decided. You review, you edit, you approve. The AI does the heavy lifting — you retain complete control and professional responsibility."
+[Screen: Quick look at Summary + Action Items]
+
+"There's also an executive summary for quick reference, and extracted action items with suggested deadlines — so nothing falls through the cracks."
+SECURE CLIENT DELIVERY (2:10 - 2:30)
+[Screen: Share link creation with security options]
+
+"When you're ready to share with your client, LegalNote generates a secure link — optionally protected by SMS verification or password. Your client sees a clean, professionally-branded document. Your internal notes, your full transcript — those stay with you."
+[Screen: Client-facing view with firm branding visible]
+
+"What they receive looks exactly like what they'd expect from their solicitor: polished, professional, and reassuring."
+CLOSING - THE AUDIT TRAIL (2:30 - 2:50)
+[Screen: Audit log view, or return to case overview]
+
+"And throughout all of this — from consent to creation to client delivery — every action is logged in a tamper-proof audit trail. Who accessed what. When. What changed. Nothing hidden, nothing deletable."
+"This is documentation designed for the moment someone asks: 'Can you prove what happened in that meeting?' With LegalNote, the answer is always yes."
+[End card with CTA]
+
+"Book your live demonstration today, or start a free trial and experience it yourself."
+Key Differences from v1
+v1 (Dry)	v2 (Magic)
+"I'll show you how LegalNote works"	"One misremembered detail. That's all it takes for a complaint."
+"The system identifies speakers"	"When a client claims 'I never agreed to that', you have the exact moment"
+"It generates an attendance note"	"AI-assisted, not AI-decided. You retain complete control."
+"Here's the consent workflow"	"Exactly what a regulator would ask to see"
+"Secure sharing link"	"Your client sees polished, professional, reassuring"

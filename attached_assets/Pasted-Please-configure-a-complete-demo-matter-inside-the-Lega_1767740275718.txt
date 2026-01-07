@@ -1,0 +1,97 @@
+Please configure a complete demo matter inside the LegalNote demo environment that aligns with this narrative:
+> 
+> **Matter details**
+> - Matter name: “James Smith – Financial Settlement”
+> - Practice area: Family
+> - Solicitor: “Sarah Clarke, Partner – Family”
+> - Client: “James Smith”
+> - Core issue for the narrative: A dispute over whether the solicitor clearly warned the client about *worst‑case legal costs* and *potential 18‑month enforcement time*, and whether the client agreed to proceed despite those risks.
+> 
+> **1. Consent record**
+> - Create a standalone consent record linked to this matter with:
+>   - Client name: James Smith
+>   - Date/time: use a realistic recent date/time
+>   - Wording (or equivalent):  
+> - Ensure this consent object:
+>   - Is clearly visible from the matter view.
+>   - Shows as a single, auditable entry with timestamp and who captured it.
+> 
+> **2. Recorded meeting + transcript**
+> - Create one recorded meeting on this matter with a transcript that includes at some point, in this order:
+>   - Client: “So, worst‑case, what could this cost me?”
+>   - Solicitor: A clear warning, e.g.:  
+>     “Worst‑case, your total legal costs could reach around £25,000, especially if this proceeds to a fully contested final hearing.”
+>   - Solicitor: A second warning on time, e.g.:  
+>     “And enforcement could take up to 18 months if your ex‑partner does not cooperate. I need you to be comfortable with that risk before we continue.”
+>   - Client: Explicit agreement, e.g.:  
+>     “I understand the worst‑case costs and the 18‑month timeline. I still want to move forward.”
+> - Make sure the transcript:
+>   - Has clear speaker labels: “Solicitor” and “Client”.
+>   - Includes timestamps (e.g. 11:23) so we can visually reference for example “line 47, timestamp 11:23” in the video.
+>   - Contains the phrases “worst‑case costs” and “18 months” exactly, so they are searchable.
+> 
+> **3. Generated outputs (summary + attendance note)**
+> - From this meeting, generate:
+>   - A matter summary.
+>   - An attendance note in a classic UK legal format, with clear headings (e.g. “Background”, “Advice given”, “Client’s decision”, “Next steps”).
+> - Ensure both documents:
+>   - Explicitly reference the key risk explanation, e.g.:  
+>     “The solicitor explained that worst‑case costs could be around £25,000 and that enforcement could take up to 18 months if the other party does not cooperate.”  
+>   - Explicitly record the client’s agreement, e.g.:  
+>     “Client confirmed understanding of the worst‑case costs and 18‑month enforcement risk and instructed us to proceed.”
+> - That way, a search for “worst‑case costs” or “18 months” will return:
+>   - Transcript hit.
+>   - Summary hit.
+>   - Attendance note hit.
+> 
+> **4. Redaction setup for sharing**
+> - In the attendance note, add one short “internal only” paragraph, such as:  
+>   “Internal note: Client appeared very anxious and may struggle to manage expectations without regular updates.”
+> - Mark this paragraph so that:
+>   - It always remains on the full internal record.
+>   - It can be flagged as “redacted from client copy” for shared versions.
+> - Confirm that the UI supports:
+>   - A toggle or checkbox like “Redact from client copy” next to that paragraph or section.
+> 
+> **5. Sharing configuration**
+> - Enable secure sharing for this attendance note with:
+>   - A firm‑branded share link.
+>   - Optional password protection.
+>   - Optional SMS verification / 2FA.
+> - Configure a demo share so we can:
+>   - Show the “Share” panel.
+>   - Toggle password protection on.
+>   - Toggle SMS/2FA on.
+>   - Show that the redacted paragraph does *not* appear in the client copy, but does remain in the internal view.
+> 
+> **6. Audit trail entries**
+> - Populate the audit trail for this matter with realistic entries, in order:
+>   1. Consent captured – timestamp + user (e.g. “Sarah Clarke”).
+>   2. Meeting recording started – timestamp.
+>   3. Meeting recording ended – timestamp.
+>   4. Transcript created – timestamp.
+>   5. Attendance note created – timestamp + system.
+>   6. Attendance note edited – timestamp + “Sarah Clarke”.
+>   7. Attendance note approved / finalised – timestamp + “Sarah Clarke”.
+>   8. Client copy shared – timestamp + method (link + password/2FA).
+>   9. Client opened document – timestamp.
+> - Ensure the audit trail UI clearly shows:
+>   - Event type.
+>   - Who performed it.
+>   - When it happened.
+>   - Any key metadata (e.g. “redacted section present on internal copy only” if that’s supported).
+> 
+> **7. Global/matter search behaviour**
+> - Confirm that searching within LegalNote for “worst‑case costs” or “18 months”:
+>   - Returns a grouped set of results: Transcript hit, Summary hit, Attendance note hit.
+>   - Allows us to click directly from the search result into:
+>     - The attendance note at the relevant section.
+>     - The transcript at the exact timestamp where the warning and agreement occur.
+> 
+> The goal is a single, cohesive demo matter that perfectly matches this narrative:
+> - Client queries: “I was never told that.”
+> - Solicitor searches the matter for a key phrase.
+> - LegalNote surfaces the transcript + documents showing the original question, the warning, and the client’s explicit agreement.
+> - Consent, sharing (with redaction), and the audit trail all look “evidence‑ready” for a regulator, Ombudsman or insurer.
+
+Also create extractable action items that can be auto extracted for solicitor review too.

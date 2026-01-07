@@ -1,0 +1,47 @@
+Here is a much shorter, cleaner version of your prompt that keeps the core idea for Replit:
+
+***
+
+Design an **interactive instant demo** for LegalNote that lets a website visitor experience a simulated solicitor meeting without booking a real demo.  
+
+Requirements:  
+- User clicks a button/link, chooses a meeting type (e.g. housing, financial, commercial), and enters basic details (e.g. name).  
+- The system creates a demo case and runs a short 2–3 minute **AI voice** meeting.  
+- The AI:  
+  - Walks the user through the full consent workflow currently implemented in LegalNote (with yes/no style responses).  
+  - Asks a few initial interview questions appropriate to the chosen meeting type.  
+- The call audio is processed to:  
+  - Create an attendance note, summary, transcript, and action items, using the existing LegalNote pipeline.  
+- At the end, the user can:  
+  - View the generated records (note, summary, transcript, action items).  
+  - See how these would be shared securely with a client.  
+
+Please:  
+1. Assess technical feasibility and suggest the simplest architecture.  
+2. Recommend suitable voice AI services or APIs that can handle real‑time or near‑real‑time voice interaction and return structured data for LegalNote.  
+3. Outline the main components and integration points needed to plug this into the current LegalNote system.
+
+***
+
+If you tell me roughly how many characters you need to stay under, this can be tightened even further.
+
+Sources
+[1] Frequently Asked Questions (FAQ) https://docs.replit.com/additional-resources/bounties/faq
+[2] Since Replit charges a credit per prompt - can we pack ... https://www.reddit.com/r/replit/comments/1koh7y5/since_replit_charges_a_credit_per_prompt_can_we/
+[3] https://docs.replit.com/llms-full.txt https://docs.replit.com/llms-full.txt
+[4] Usage Quota & Limits https://docs.replit.com/legal-and-security-info/usage
+[5] How to Write Longer Prompts in Custom GPTs https://www.youtube.com/watch?v=MZHi-DU44cU
+[6] Building Ghostwriter Chat - Replit Blog https://blog.replit.com/ghostwriter-building
+[7] Earning with Replit Bounties https://docs.replit.com/additional-resources/bounties/bounty-hunting
+[8] AI Prompt is limited to only 3000 character? Why is that? | Community https://community.lucid.co/ideas/ai-prompt-is-limited-to-only-3000-character-why-is-that-8088
+[9] Sorry, the response hit the length limit. Please rephrase ... https://github.com/microsoft/vscode-copilot-release/issues/7210
+[10] Efficient prompting with Replit AI https://docs.replit.com/tutorials/effective-prompting
+[11] FAQ https://docs.replit.com/faq
+[12] Does anyone have a good base Replit prompt structure to share? I ... https://www.facebook.com/groups/codingwithai/posts/703670272436367/
+[13] Amjad Masad, CEO of Replit: How Bounties Will Change ... https://www.parttimetech.io/p/amjad-masad-future-of-software-bounties
+[14] replit.md https://docs.replit.com/replitai/replit-dot-md
+[15] Replit Agents Pricing Guide: Find Your Ideal Subscription ... https://www.sidetool.co/post/replit-agents-pricing-guide-find-your-ideal-subscription-level/
+[16] Usage limit on replit agent - Reddit https://www.reddit.com/r/replit/comments/1hao0ik/usage_limit_on_replit_agent/
+[17] Build from Scratch - Replit Docs https://docs.replit.com/getting-started/quickstarts/from-scratch
+[18] How to create a good app with Replit: lessons learned | Jon Cheney ... https://www.linkedin.com/posts/joncheney_ive-had-a-lot-of-people-ask-me-how-i-was-activity-7359242399006507008-SYuj
+[19] How to use Replit AI Agent to build a Micro SaaS (Vibe Coding ... https://www.youtube.com/watch?v=jOGtu3Y2yBQ
