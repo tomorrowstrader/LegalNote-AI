@@ -22,15 +22,57 @@ Inspired by how Waze built a real-time traffic engine through crowdsourced data,
 
 ---
 
-## Phase 2: Intelligence Layer (Next Priority)
+## Phase 2: COLP/COFA Compliance Layer (Highest Impact)
 
-### 2.1 Solicitor Profiles (Learning Preferences)
+### 2.1 COLP/COFA Dashboard
+
+**What it does:** A firm-wide oversight dashboard for compliance officers showing:
+- Matters with **incomplete attendance records** (no recording/transcript in last X days)
+- **High-risk matters** flagged by AI (e.g. "cost warning not clearly documented", "client instructed against advice")
+- **Compliance gaps** (matters without consent records, overdue actions)
+- **Monthly audit-ready packs** (exportable checklists for SRA inspections)
+
+**Why it fits:** COLPs/COFAs are personally liable and desperate for proactive monitoring without manual file reviews. This transforms LegalNote from "individual solicitor tool" into "firm-wide risk management system."
+
+**Demo script tie-in:** "COLPs can see at a glance which matters have solid attendance records and which need attention before an inspection."
+
+### 2.2 File Closure Attestation
+
+**What it does:** At matter closure, require a one-click attestation:
+- "I confirm this matter has complete attendance records"
+- "All key advice, risks and client decisions are documented"
+- Generates a **closure certificate** for the COLP's audit trail
+
+**Why it fits:** SRA inspections and PII renewals increasingly ask "how do you know your files are complete?" This creates provable governance without extra work.
+
+**Demo script tie-in:** "When a matter closes, one click confirms the record is complete – ready for your COLP or an SRA file review."
+
+### 2.3 Matter Health Score
+
+**What it does:** A simple 0–100 score per matter based on:
+- Has attendance record? (+20)
+- Consent captured? (+20)
+- Key risks documented? (+20)
+- Actions calendared? (+20)
+- Audit trail complete? (+20)
+
+Red/yellow/green badges on the matter list. COLPs can filter for low scores.
+
+**Why it fits:** Firms already use risk matrices for AML/clients; this extends the same logic to documentation risk, which is where most complaints originate.
+
+**Demo script tie-in:** "Each matter gets a 'documentation health score' so you know at a glance which files are audit-ready."
+
+---
+
+## Phase 3: Intelligence Layer (Next Priority)
+
+### 3.1 Solicitor Profiles (Learning Preferences)
 - Store preferred attendance note formats per solicitor
 - Remember document length preferences (brief vs. detailed)
 - Learn section ordering and tone preferences
 - Auto-apply learned preferences to new documents
 
-### 2.2 Compliance Checklist Automation
+### 3.2 Compliance Checklist Automation
 - Auto-detect when key elements are discussed:
   - Fee estimate mentioned?
   - Consent documented?
@@ -39,19 +81,19 @@ Inspired by how Waze built a real-time traffic engine through crowdsourced data,
 - Flag missing compliance elements before document generation
 - Generate compliance reports for SRA audits
 
-### 2.3 Action Item Extraction
+### 3.3 Action Item Extraction
 - AI identifies commitments: "I'll send you the draft by Friday"
 - Creates structured task list from meeting content
 - Optional calendar integration for deadlines
 - Track action item completion status
 
-### 2.4 Time Saved Dashboard
+### 3.4 Time Saved Dashboard
 - Calculate and display: "This month: 47 hours saved"
 - Per-meeting time savings estimate
 - Firm-wide productivity metrics
 - ROI calculator for partnership reporting
 
-### 2.5 Transcript Correction Learning
+### 3.5 Transcript Correction Learning
 - Track which corrections solicitors make most often
 - Feed patterns back into transcription accuracy
 - Per-client vocabulary learning (names, company terms)
@@ -59,27 +101,27 @@ Inspired by how Waze built a real-time traffic engine through crowdsourced data,
 
 ---
 
-## Phase 3: Network Effects (Growth)
+## Phase 4: Network Effects (Growth)
 
-### 3.1 Anonymized Template Sharing
+### 4.1 Anonymized Template Sharing
 - "94% of solicitors in family law use this structure"
 - Best practice library from aggregated, anonymized usage
 - Opt-in template contributions with anonymization
 - Practice area benchmarks
 
-### 3.2 Industry Benchmarks
+### 4.2 Industry Benchmarks
 - "Your average note completion: 12 mins. Industry: 18 mins"
 - Compliance score comparisons
 - Document quality metrics
 - Firm performance insights (premium tier)
 
-### 3.3 Vocabulary Contribution System
+### 4.3 Vocabulary Contribution System
 - Firms add custom legal terms
 - If used by 10+ firms, added to global vocabulary
 - Crowdsourced UK legal terminology database
 - Regional dialect and accent improvements
 
-### 3.4 Gamification & Engagement
+### 4.4 Gamification & Engagement
 - Accuracy streaks: "5 meetings with zero corrections"
 - Compliance badges for high consent documentation rates
 - Usage stats and personal bests
@@ -87,27 +129,27 @@ Inspired by how Waze built a real-time traffic engine through crowdsourced data,
 
 ---
 
-## Phase 4: Platform (Scale)
+## Phase 5: Platform (Scale)
 
-### 4.1 API for Practice Management Integration
+### 5.1 API for Practice Management Integration
 - RESTful API for third-party integrations
 - Webhook notifications for document completion
 - Bulk import/export capabilities
 - White-label options for legal software vendors
 
-### 4.2 Advanced Context Capture
+### 5.2 Advanced Context Capture
 - Auto-extract client names and matter refs from speech
 - Detect legal citations ("Smith v Jones") → format correctly
 - Timestamp key topics for easy navigation
 - Risk flag detection for PI review
 
-### 4.3 Voice Commands During Recording
+### 5.3 Voice Commands During Recording
 - "Mark this as privileged"
 - "Create action item"
 - "Flag for review"
 - Hands-free control for solicitors
 
-### 4.4 Voice Assistant ("Hey LegalNote")
+### 5.4 Voice Assistant ("Hey LegalNote")
 - **Push-to-talk voice search**: Click mic button, speak query, get results
 - **Voice case creation**: "New case for John Smith" → opens pre-filled form
 - **Navigation commands**: "Show me the Patterson case", "What's due this week"
@@ -116,7 +158,7 @@ Inspired by how Waze built a real-time traffic engine through crowdsourced data,
 - **Implementation approach**: Web Speech API for speech-to-text, OpenAI for intent parsing
 - **Effort estimate**: 2-3 weeks for push-to-talk; 2-3 months for always-on native app
 
-### 4.5 Industry Data Products
+### 5.5 Industry Data Products
 - Anonymized legal workflow insights
 - Practice area trend reports
 - Compliance benchmarking data
@@ -158,12 +200,15 @@ Inspired by how Waze built a real-time traffic engine through crowdsourced data,
 
 | Feature | Impact | Effort | Priority |
 |---------|--------|--------|----------|
-| Time Saved Dashboard | High | Low | 1 |
-| Solicitor Profiles | High | Medium | 2 |
-| Compliance Checklist | High | Medium | 3 |
-| Action Item Extraction | Medium | Medium | 4 |
-| Transcript Correction Learning | High | High | 5 |
-| Anonymized Benchmarks | Medium | High | 6 |
+| COLP/COFA Dashboard | Very High | Medium | 1 |
+| Matter Health Score | High | Low | 2 |
+| File Closure Attestation | High | Low | 3 |
+| Time Saved Dashboard | High | Low | 4 |
+| Solicitor Profiles | High | Medium | 5 |
+| Compliance Checklist Automation | High | Medium | 6 |
+| Action Item Extraction | Medium | Medium | 7 |
+| Transcript Correction Learning | High | High | 8 |
+| Anonymized Benchmarks | Medium | High | 9 |
 
 ---
 

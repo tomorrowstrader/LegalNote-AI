@@ -7,11 +7,22 @@
  * 2. Marcus Webb - Employment Dispute (unfair dismissal)
  * 3. Eleanor Chen - Commercial Contract (business partnership)
  * 4. David Patterson - Family Law (divorce settlement)
+ * 5. James Smith - Family Law (financial settlement with cost/timeline warning narrative)
  */
 
 import { db } from "../db";
-import { cases, transcripts, documents, consentLogs, actionItems } from "@shared/schema";
+import { cases, transcripts, documents, consentLogs, actionItems, auditTrail } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+
+// Fixed demo dates for consistent, reproducible demonstrations
+// These represent historical meeting dates to support the evidentiary narrative
+const DEMO_DATES = {
+  sarahThompson: new Date("2024-12-10T10:30:00Z"),
+  marcusWebb: new Date("2024-11-20T14:00:00Z"),
+  eleanorChen: new Date("2024-12-05T11:00:00Z"),
+  davidPatterson: new Date("2024-12-15T15:30:00Z"),
+  jamesSmith: new Date("2025-01-03T10:15:00Z"), // Most recent - for demo showcase
+};
 
 // Demo case data with realistic UK legal scenarios
 const DEMO_CASES = [
@@ -79,12 +90,13 @@ SOLICITOR: My pleasure. I'll be in touch within the week with an update.`,
       ],
       speakerCount: 2
     },
+    demoDate: DEMO_DATES.sarahThompson,
     attendanceNote: `# ATTENDANCE NOTE
 
 **Client:** Sarah Thompson
 **Matter:** Property Purchase - 42 Maple Grove
 **Reference:** CONV/2024/0847
-**Date:** ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Date:** 10 December 2024
 **Present:** Attending Solicitor, Sarah Thompson (Client)
 
 ## 1. INTRODUCTION
@@ -211,12 +223,13 @@ SOLICITOR: Perfect. I'll prepare the ACAS notification today and call you tomorr
       ],
       speakerCount: 2
     },
+    demoDate: DEMO_DATES.marcusWebb,
     attendanceNote: `# ATTENDANCE NOTE
 
 **Client:** Marcus Webb
 **Matter:** Unfair Dismissal Claim
 **Reference:** EMP/2024/0312
-**Date:** ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Date:** 20 November 2024
 **Present:** Attending Solicitor, Marcus Webb (Client)
 
 ## 1. INTRODUCTION
@@ -354,12 +367,13 @@ CLIENT: Thank you. This has been incredibly helpful.`,
       ],
       speakerCount: 2
     },
+    demoDate: DEMO_DATES.eleanorChen,
     attendanceNote: `# ATTENDANCE NOTE
 
 **Client:** Eleanor Chen
 **Matter:** Partnership Agreement Review
 **Reference:** COMM/2024/0156
-**Date:** ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Date:** 5 December 2024
 **Present:** Attending Solicitor, Eleanor Chen (Client)
 
 ## 1. INTRODUCTION
@@ -484,12 +498,13 @@ SOLICITOR: I should have the proposal ready by the end of the week. We'll then a
       ],
       speakerCount: 2
     },
+    demoDate: DEMO_DATES.davidPatterson,
     attendanceNote: `# ATTENDANCE NOTE
 
 **Client:** David Patterson
 **Matter:** Divorce Financial Settlement
 **Reference:** FAM/2024/0089
-**Date:** ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Date:** 15 December 2024
 **Present:** Attending Solicitor, David Patterson (Client)
 
 ## 1. INTRODUCTION
@@ -552,6 +567,167 @@ Client confirmed understanding and instructed solicitor to proceed with counter-
       { description: "Draft counter-proposal for financial settlement", assignee: "Solicitor", priority: "high" },
       { description: "Calculate exact pension values for pre/during marriage periods", assignee: "Solicitor", priority: "medium" },
       { description: "Review draft counter-proposal when received", assignee: "Client", priority: "medium" }
+    ]
+  },
+  {
+    title: "Financial Settlement",
+    clientName: "James Smith",
+    matterReference: "FAM/2025/0023",
+    status: "completed" as const,
+    priority: "urgent" as const,
+    sourceType: "audio" as const,
+    transcript: {
+      content: `Meeting transcript - Financial Settlement consultation
+
+[00:00:12] SOLICITOR: Good morning, Mr Smith. Thank you for coming in today. Before we begin, I need to inform you that this meeting is being recorded for accuracy and compliance purposes. Do you consent to this recording?
+
+[00:00:24] CLIENT: Yes, I consent to the recording.
+
+[00:00:28] SOLICITOR: Thank you. I've reviewed the current position with your financial settlement matter. Your ex-wife's solicitors have responded to our latest proposal. I need to take you through some important points and explain the realistic costs and timelines involved.
+
+[00:00:48] CLIENT: Right, yes. I've been quite anxious about how this is all going to play out.
+
+[00:00:54] SOLICITOR: I understand completely. Let me be very clear about what we're potentially facing here. First, I want to discuss the financial implications if this matter proceeds through the court system.
+
+[00:01:08] CLIENT: So, worst-case, what could this cost me?
+
+[00:01:14] SOLICITOR: Worst-case, your total legal costs could reach around twenty-five thousand pounds, especially if this proceeds to a fully contested final hearing. That includes counsel fees, court fees, expert valuations if needed, and our ongoing representation. I need you to understand that clearly before we proceed.
+
+[00:01:42] CLIENT: Twenty-five thousand pounds? That's... that's significant.
+
+[00:01:48] SOLICITOR: It is. And I must be equally honest about the timeline. Your ex-wife has indicated through her solicitors that she may not cooperate with a straightforward settlement. If she continues to obstruct matters or refuses to comply with court orders...
+
+[00:02:08] CLIENT: What does that mean in terms of time?
+
+[00:02:12] SOLICITOR: Enforcement could take up to 18 months if your ex-partner does not cooperate. I need you to be comfortable with that risk before we continue. We're talking about potential delays through non-compliance, possible contempt proceedings, and the general backlog in the family courts.
+
+[00:02:38] CLIENT: Eighteen months. I had hoped this would be resolved much sooner.
+
+[00:02:44] SOLICITOR: I know this isn't what you hoped to hear, but my duty is to give you a realistic picture. The family court system is under significant pressure. If the other side isn't cooperative, these matters can become protracted.
+
+[00:03:02] CLIENT: I understand. But what's the alternative? If I don't pursue this, I'll lose what I'm entitled to.
+
+[00:03:12] SOLICITOR: That's the difficult balance. You have a strong case for the asset division we've proposed. The question is whether the potential costs and time investment are proportionate to what's at stake.
+
+[00:03:28] CLIENT: The pension share alone is worth over eighty thousand to me. Even with worst-case costs of twenty-five thousand, I'd still be ahead.
+
+[00:03:40] SOLICITOR: That's a reasonable analysis. And there may be costs orders in your favour if the other side is found to be unreasonable. But I cannot guarantee that.
+
+[00:03:52] CLIENT: I understand the worst-case costs and the 18-month timeline. I still want to move forward.
+
+[00:04:02] SOLICITOR: Are you absolutely certain? I want to be sure you've had time to consider this fully.
+
+[00:04:10] CLIENT: Yes. I've thought about it. The alternative is accepting a settlement that's significantly below what I should receive. I'd rather face the costs and the delay than give up what's rightfully mine.
+
+[00:04:26] SOLICITOR: Understood. I'll note your instructions to proceed. We'll continue with the enforcement application. I'll prepare the necessary court documents this week.
+
+[00:04:40] CLIENT: Thank you for being so direct about all this. I appreciate knowing what I'm facing.
+
+[00:04:48] SOLICITOR: That's my job. I'd rather you go in with realistic expectations than be surprised later. Now, let's discuss the specific next steps...`,
+      utterances: [
+        { speaker: "A", text: "Good morning, Mr Smith. Thank you for coming in today. Before we begin, I need to inform you that this meeting is being recorded for accuracy and compliance purposes. Do you consent to this recording?", start: 12000, end: 24000, confidence: 0.96 },
+        { speaker: "B", text: "Yes, I consent to the recording.", start: 24000, end: 28000, confidence: 0.98 },
+        { speaker: "A", text: "Thank you. I've reviewed the current position with your financial settlement matter. Your ex-wife's solicitors have responded to our latest proposal. I need to take you through some important points and explain the realistic costs and timelines involved.", start: 28000, end: 48000, confidence: 0.95 },
+        { speaker: "B", text: "Right, yes. I've been quite anxious about how this is all going to play out.", start: 48000, end: 54000, confidence: 0.94 },
+        { speaker: "A", text: "I understand completely. Let me be very clear about what we're potentially facing here. First, I want to discuss the financial implications if this matter proceeds through the court system.", start: 54000, end: 68000, confidence: 0.95 },
+        { speaker: "B", text: "So, worst-case, what could this cost me?", start: 68000, end: 74000, confidence: 0.97 },
+        { speaker: "A", text: "Worst-case, your total legal costs could reach around twenty-five thousand pounds, especially if this proceeds to a fully contested final hearing. That includes counsel fees, court fees, expert valuations if needed, and our ongoing representation. I need you to understand that clearly before we proceed.", start: 74000, end: 102000, confidence: 0.94 },
+        { speaker: "B", text: "Twenty-five thousand pounds? That's... that's significant.", start: 102000, end: 108000, confidence: 0.96 },
+        { speaker: "A", text: "It is. And I must be equally honest about the timeline. Your ex-wife has indicated through her solicitors that she may not cooperate with a straightforward settlement. If she continues to obstruct matters or refuses to comply with court orders...", start: 108000, end: 128000, confidence: 0.93 },
+        { speaker: "B", text: "What does that mean in terms of time?", start: 128000, end: 132000, confidence: 0.97 },
+        { speaker: "A", text: "Enforcement could take up to 18 months if your ex-partner does not cooperate. I need you to be comfortable with that risk before we continue. We're talking about potential delays through non-compliance, possible contempt proceedings, and the general backlog in the family courts.", start: 132000, end: 158000, confidence: 0.94 },
+        { speaker: "B", text: "Eighteen months. I had hoped this would be resolved much sooner.", start: 158000, end: 164000, confidence: 0.95 },
+        { speaker: "A", text: "I know this isn't what you hoped to hear, but my duty is to give you a realistic picture. The family court system is under significant pressure. If the other side isn't cooperative, these matters can become protracted.", start: 164000, end: 182000, confidence: 0.94 },
+        { speaker: "B", text: "I understand. But what's the alternative? If I don't pursue this, I'll lose what I'm entitled to.", start: 182000, end: 192000, confidence: 0.96 },
+        { speaker: "A", text: "That's the difficult balance. You have a strong case for the asset division we've proposed. The question is whether the potential costs and time investment are proportionate to what's at stake.", start: 192000, end: 208000, confidence: 0.95 },
+        { speaker: "B", text: "The pension share alone is worth over eighty thousand to me. Even with worst-case costs of twenty-five thousand, I'd still be ahead.", start: 208000, end: 220000, confidence: 0.94 },
+        { speaker: "A", text: "That's a reasonable analysis. And there may be costs orders in your favour if the other side is found to be unreasonable. But I cannot guarantee that.", start: 220000, end: 232000, confidence: 0.95 },
+        { speaker: "B", text: "I understand the worst-case costs and the 18-month timeline. I still want to move forward.", start: 232000, end: 242000, confidence: 0.97 },
+        { speaker: "A", text: "Are you absolutely certain? I want to be sure you've had time to consider this fully.", start: 242000, end: 250000, confidence: 0.96 },
+        { speaker: "B", text: "Yes. I've thought about it. The alternative is accepting a settlement that's significantly below what I should receive. I'd rather face the costs and the delay than give up what's rightfully mine.", start: 250000, end: 266000, confidence: 0.95 },
+        { speaker: "A", text: "Understood. I'll note your instructions to proceed. We'll continue with the enforcement application. I'll prepare the necessary court documents this week.", start: 266000, end: 280000, confidence: 0.94 },
+        { speaker: "B", text: "Thank you for being so direct about all this. I appreciate knowing what I'm facing.", start: 280000, end: 288000, confidence: 0.96 },
+        { speaker: "A", text: "That's my job. I'd rather you go in with realistic expectations than be surprised later. Now, let's discuss the specific next steps...", start: 288000, end: 300000, confidence: 0.95 }
+      ],
+      speakerCount: 2
+    },
+    demoDate: DEMO_DATES.jamesSmith,
+    attendanceNote: `# ATTENDANCE NOTE
+
+**Client:** James Smith
+**Matter:** Financial Settlement
+**Reference:** FAM/2025/0023
+**Date:** 3 January 2025
+**Solicitor:** Sarah Clarke, Partner - Family
+**Present:** Sarah Clarke (Solicitor), James Smith (Client)
+
+## 1. INTRODUCTION
+
+Client attended the office to discuss progression of his financial settlement matter following divorce. Recording consent was obtained at the start of the meeting.
+
+## 2. BACKGROUND
+
+The opposing party's solicitors have responded to our latest settlement proposal. The ex-wife has indicated through her solicitors that she may not cooperate with a straightforward resolution.
+
+## 3. COSTS WARNING
+
+**I explained to the client that worst-case, his total legal costs could reach around £25,000, especially if this proceeds to a fully contested final hearing.** This estimate includes:
+- Counsel fees for any hearings
+- Court fees
+- Expert valuations if required
+- Our ongoing representation
+
+The client confirmed his understanding of the worst-case costs estimate.
+
+## 4. TIMELINE WARNING
+
+**I explained to the client that enforcement could take up to 18 months if his ex-partner does not cooperate.** Potential causes for delay include:
+- Non-compliance with court orders
+- Possible contempt proceedings
+- General family court backlog
+
+The client acknowledged that this timeline was longer than he had hoped.
+
+## 5. CLIENT'S DECISION
+
+The client considered the financial implications against the potential outcome. He noted that the pension share alone is worth over £80,000 to him, and even with worst-case costs of £25,000, he would still benefit from proceeding.
+
+**Client confirmed understanding of the worst-case costs and 18-month enforcement risk and instructed us to proceed.**
+
+## 6. INTERNAL NOTE
+
+*[INTERNAL ONLY - REDACT FROM CLIENT COPY]*
+
+Client appeared very anxious during the meeting and may struggle to manage expectations without regular updates. Recommend scheduling proactive check-in calls every two weeks to provide reassurance and maintain client confidence in the process. Consider emotional sensitivity in all communications.
+
+## 7. NEXT STEPS
+
+**Solicitor Actions:**
+1. Prepare enforcement application and court documents this week
+2. File Form A if not already submitted
+3. Schedule proactive client update call for two weeks' time
+4. Obtain counsel's availability for any forthcoming hearings
+
+**Client Actions:**
+1. Provide any additional financial documentation if requested
+2. Remain patient during court process timeline
+
+## 8. CLIENT CONFIRMATION
+
+Client expressly confirmed:
+- He understands the worst-case costs could reach approximately £25,000
+- He understands enforcement could take up to 18 months
+- He instructs us to proceed despite these risks
+
+---
+*Attendance note prepared contemporaneously. Recording available for reference.*`,
+    summary: `Financial settlement consultation for James Smith. Client instructed on worst-case costs (approximately £25,000) and potential enforcement timeline (up to 18 months if ex-wife does not cooperate). Client weighed costs against pension share value of £80,000+ and confirmed instruction to proceed despite risks. Next steps: prepare enforcement application and court documents this week.`,
+    actionItems: [
+      { description: "Prepare enforcement application and court documents", assignee: "Solicitor", priority: "high" },
+      { description: "File Form A if not already submitted", assignee: "Solicitor", priority: "high" },
+      { description: "Schedule proactive client update call for two weeks' time", assignee: "Solicitor", priority: "medium" },
+      { description: "Obtain counsel's availability for forthcoming hearings", assignee: "Solicitor", priority: "medium" },
+      { description: "Provide any additional financial documentation if requested", assignee: "Client", priority: "low" }
     ]
   }
 ];
@@ -639,6 +815,145 @@ export async function seedDemoData(userId: string): Promise<{ success: boolean; 
         });
       }
 
+      // Create comprehensive audit trail entries for demo cases
+      // Use the fixed demo date for the case to ensure reproducible, consistent audit trails
+      const baseDate = new Date(demoCase.demoDate.getTime());
+      
+      // 1. Consent captured
+      await db.insert(auditTrail).values({
+        eventType: "consent_given",
+        userId: userId,
+        caseId: newCase.id,
+        timestamp: new Date(baseDate.getTime()),
+        severity: "info",
+        metadata: { 
+          consentModality: "verbal_recorded",
+          clientName: demoCase.clientName
+        }
+      });
+
+      // 2. Recording started (5 minutes after consent)
+      await db.insert(auditTrail).values({
+        eventType: "recording_started",
+        userId: userId,
+        caseId: newCase.id,
+        timestamp: new Date(baseDate.getTime() + 5 * 60 * 1000),
+        severity: "info",
+        metadata: { action: "Meeting recording initiated" }
+      });
+
+      // 3. Recording ended (35 minutes after start)
+      await db.insert(auditTrail).values({
+        eventType: "audio_uploaded",
+        userId: userId,
+        caseId: newCase.id,
+        timestamp: new Date(baseDate.getTime() + 40 * 60 * 1000),
+        severity: "info",
+        metadata: { 
+          recordingDuration: "00:35:00",
+          action: "Recording completed and uploaded"
+        }
+      });
+
+      // 4. Transcript generated (2 minutes after upload)
+      await db.insert(auditTrail).values({
+        eventType: "transcript_generated",
+        userId: userId,
+        caseId: newCase.id,
+        transcriptId: newTranscript.id,
+        timestamp: new Date(baseDate.getTime() + 42 * 60 * 1000),
+        severity: "info",
+        metadata: { 
+          speakerCount: demoCase.transcript.speakerCount,
+          action: "AI transcription completed with speaker diarization"
+        }
+      });
+
+      // 5. Documents generated (5 minutes after transcript)
+      await db.insert(auditTrail).values({
+        eventType: "document_generated",
+        userId: userId,
+        caseId: newCase.id,
+        timestamp: new Date(baseDate.getTime() + 47 * 60 * 1000),
+        severity: "info",
+        metadata: { 
+          documentType: "attendance_note",
+          action: "Attendance note generated from transcript"
+        }
+      });
+
+      await db.insert(auditTrail).values({
+        eventType: "document_generated",
+        userId: userId,
+        caseId: newCase.id,
+        timestamp: new Date(baseDate.getTime() + 48 * 60 * 1000),
+        severity: "info",
+        metadata: { 
+          documentType: "summary",
+          action: "Summary generated from transcript"
+        }
+      });
+
+      // 6. Document edited (15 minutes later - solicitor review)
+      await db.insert(auditTrail).values({
+        eventType: "document_edited",
+        userId: userId,
+        caseId: newCase.id,
+        timestamp: new Date(baseDate.getTime() + 63 * 60 * 1000),
+        severity: "info",
+        metadata: { 
+          documentType: "attendance_note",
+          action: "Solicitor reviewed and made minor corrections"
+        }
+      });
+
+      // 7. Document approved (10 minutes after edit)
+      await db.insert(auditTrail).values({
+        eventType: "document_approved",
+        userId: userId,
+        caseId: newCase.id,
+        timestamp: new Date(baseDate.getTime() + 73 * 60 * 1000),
+        severity: "info",
+        metadata: { 
+          documentType: "attendance_note",
+          action: "Attendance note approved and finalised"
+        }
+      });
+
+      // For James Smith case specifically, add sharing and client access entries
+      if (demoCase.matterReference === "FAM/2025/0023") {
+        // 8. Document shared with password and 2FA
+        await db.insert(auditTrail).values({
+          eventType: "document_exported_pdf",
+          userId: userId,
+          caseId: newCase.id,
+          timestamp: new Date(baseDate.getTime() + 90 * 60 * 1000),
+          severity: "info",
+          metadata: { 
+            documentType: "attendance_note",
+            shareMethod: "secure_link",
+            passwordProtected: true,
+            sms2faEnabled: true,
+            redactedSections: ["INTERNAL NOTE"],
+            action: "Client copy shared via secure link with password and SMS 2FA"
+          }
+        });
+
+        // 9. Client accessed document (30 minutes after sharing)
+        await db.insert(auditTrail).values({
+          eventType: "case_viewed",
+          userId: userId,
+          caseId: newCase.id,
+          timestamp: new Date(baseDate.getTime() + 120 * 60 * 1000),
+          severity: "info",
+          metadata: { 
+            viewerType: "client",
+            accessMethod: "share_link",
+            action: "Client accessed and viewed attendance note via secure link"
+          }
+        });
+      }
+
       casesCreated++;
     }
 
@@ -680,6 +995,9 @@ export async function clearDemoData(userId: string): Promise<{ success: boolean;
         console.warn(`[DEMO] Skipping case ${demoCase.id} - ownership mismatch`);
         continue;
       }
+      
+      // Delete audit trail entries for this case
+      await db.delete(auditTrail).where(eq(auditTrail.caseId, demoCase.id));
       
       // Delete action items for this case
       await db.delete(actionItems).where(eq(actionItems.caseId, demoCase.id));
