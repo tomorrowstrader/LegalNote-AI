@@ -601,15 +601,15 @@ Client confirmed understanding and instructed solicitor to proceed with counter-
 
 [00:01:48] SOLICITOR: It is. And I must be equally honest about the timeline. Your ex-wife has indicated through her solicitors that she may not cooperate with a straightforward settlement. If she continues to obstruct matters or refuses to comply with court orders...
 
-[00:02:08] CLIENT: What does that mean in terms of time?
+[00:02:08] CLIENT: What does that mean in terms of time? And what are the risks if we go ahead?
 
-[00:02:12] SOLICITOR: Enforcement could take up to 18 months if your ex-partner does not cooperate. I need you to be comfortable with that risk before we continue. We're talking about potential delays through non-compliance, possible contempt proceedings, and the general backlog in the family courts.
+[00:02:12] SOLICITOR: The risks include significant financial exposure and a prolonged timeline. Enforcement could take up to 18 months if your ex-partner does not cooperate. I need you to be comfortable with those risks before we continue. We're talking about potential delays through non-compliance, possible contempt proceedings, and the general backlog in the family courts.
 
 [00:02:38] CLIENT: Eighteen months. I had hoped this would be resolved much sooner.
 
-[00:02:44] SOLICITOR: I know this isn't what you hoped to hear, but my duty is to give you a realistic picture. The family court system is under significant pressure. If the other side isn't cooperative, these matters can become protracted.
+[00:02:44] SOLICITOR: I know this isn't what you hoped to hear, but my duty is to give you a realistic picture of the risks. The family court system is under significant pressure. If the other side isn't cooperative, these matters can become protracted.
 
-[00:03:02] CLIENT: I understand. But what's the alternative? If I don't pursue this, I'll lose what I'm entitled to.
+[00:03:02] CLIENT: I understand the risks. But what's the alternative? If I don't pursue this, I'll lose what I'm entitled to.
 
 [00:03:12] SOLICITOR: That's the difficult balance. You have a strong case for the asset division we've proposed. The question is whether the potential costs and time investment are proportionate to what's at stake.
 
@@ -638,11 +638,11 @@ Client confirmed understanding and instructed solicitor to proceed with counter-
         { speaker: "A", text: "Worst-case, your total legal costs could reach around twenty-five thousand pounds, especially if this proceeds to a fully contested final hearing. That includes counsel fees, court fees, expert valuations if needed, and our ongoing representation. I need you to understand that clearly before we proceed.", start: 74000, end: 102000, confidence: 0.94 },
         { speaker: "B", text: "Twenty-five thousand pounds? That's... that's significant.", start: 102000, end: 108000, confidence: 0.96 },
         { speaker: "A", text: "It is. And I must be equally honest about the timeline. Your ex-wife has indicated through her solicitors that she may not cooperate with a straightforward settlement. If she continues to obstruct matters or refuses to comply with court orders...", start: 108000, end: 128000, confidence: 0.93 },
-        { speaker: "B", text: "What does that mean in terms of time?", start: 128000, end: 132000, confidence: 0.97 },
-        { speaker: "A", text: "Enforcement could take up to 18 months if your ex-partner does not cooperate. I need you to be comfortable with that risk before we continue. We're talking about potential delays through non-compliance, possible contempt proceedings, and the general backlog in the family courts.", start: 132000, end: 158000, confidence: 0.94 },
+        { speaker: "B", text: "What does that mean in terms of time? And what are the risks if we go ahead?", start: 128000, end: 132000, confidence: 0.97 },
+        { speaker: "A", text: "The risks include significant financial exposure and a prolonged timeline. Enforcement could take up to 18 months if your ex-partner does not cooperate. I need you to be comfortable with those risks before we continue. We're talking about potential delays through non-compliance, possible contempt proceedings, and the general backlog in the family courts.", start: 132000, end: 158000, confidence: 0.94 },
         { speaker: "B", text: "Eighteen months. I had hoped this would be resolved much sooner.", start: 158000, end: 164000, confidence: 0.95 },
-        { speaker: "A", text: "I know this isn't what you hoped to hear, but my duty is to give you a realistic picture. The family court system is under significant pressure. If the other side isn't cooperative, these matters can become protracted.", start: 164000, end: 182000, confidence: 0.94 },
-        { speaker: "B", text: "I understand. But what's the alternative? If I don't pursue this, I'll lose what I'm entitled to.", start: 182000, end: 192000, confidence: 0.96 },
+        { speaker: "A", text: "I know this isn't what you hoped to hear, but my duty is to give you a realistic picture of the risks. The family court system is under significant pressure. If the other side isn't cooperative, these matters can become protracted.", start: 164000, end: 182000, confidence: 0.94 },
+        { speaker: "B", text: "I understand the risks. But what's the alternative? If I don't pursue this, I'll lose what I'm entitled to.", start: 182000, end: 192000, confidence: 0.96 },
         { speaker: "A", text: "That's the difficult balance. You have a strong case for the asset division we've proposed. The question is whether the potential costs and time investment are proportionate to what's at stake.", start: 192000, end: 208000, confidence: 0.95 },
         { speaker: "B", text: "The pension share alone is worth over eighty thousand to me. Even with worst-case costs of twenty-five thousand, I'd still be ahead.", start: 208000, end: 220000, confidence: 0.94 },
         { speaker: "A", text: "That's a reasonable analysis. And there may be costs orders in your favour if the other side is found to be unreasonable. But I cannot guarantee that.", start: 220000, end: 232000, confidence: 0.95 },
@@ -683,20 +683,22 @@ The opposing party's solicitors have responded to our latest settlement proposal
 
 The client confirmed his understanding of the worst-case costs estimate.
 
-## 4. TIMELINE WARNING
+## 4. RISKS WARNING
 
-**I explained to the client that enforcement could take up to 18 months if his ex-partner does not cooperate.** Potential causes for delay include:
-- Non-compliance with court orders
+**When the client asked "What are the risks?", I explained that the risks include:**
+- Significant financial exposure (up to £25,000 worst-case)
+- Prolonged timeline of up to 18 months if his ex-partner does not cooperate
+- Potential delays through non-compliance with court orders
 - Possible contempt proceedings
 - General family court backlog
 
-The client acknowledged that this timeline was longer than he had hoped.
+**The client confirmed: "I understand the risks."**
 
 ## 5. CLIENT'S DECISION
 
 The client considered the financial implications against the potential outcome. He noted that the pension share alone is worth over £80,000 to him, and even with worst-case costs of £25,000, he would still benefit from proceeding.
 
-**Client confirmed understanding of the worst-case costs and 18-month enforcement risk and instructed us to proceed.**
+**Client expressly stated "I understand the risks" and confirmed instruction to proceed despite the risks outlined above.**
 
 ## 6. INTERNAL NOTE
 
@@ -725,7 +727,7 @@ Client expressly confirmed:
 
 ---
 *Attendance note prepared contemporaneously. Recording available for reference.*`,
-    summary: `Financial settlement consultation for James Smith. Client instructed on worst-case costs (approximately £25,000) and potential enforcement timeline (up to 18 months if ex-wife does not cooperate). Client weighed costs against pension share value of £80,000+ and confirmed instruction to proceed despite risks. Next steps: prepare enforcement application and court documents this week.`,
+    summary: `Financial settlement consultation for James Smith. Client asked "What are the risks?" - solicitor explained the risks include significant financial exposure (up to £25,000) and prolonged timeline (up to 18 months if ex-wife does not cooperate). Client confirmed "I understand the risks" and instructed to proceed. Pension share value of £80,000+ justifies risk exposure. Next steps: prepare enforcement application and court documents this week.`,
     actionItems: [
       { description: "Prepare enforcement application and court documents", assignee: "Solicitor", priority: "high" },
       { description: "File Form A if not already submitted", assignee: "Solicitor", priority: "high" },
