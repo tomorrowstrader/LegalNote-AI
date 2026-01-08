@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Input } from "@/components/ui/input";
-import { Search, FolderOpen, FileText, MessageSquare, ClipboardList } from "lucide-react";
+import { Search, FolderOpen, FileText, MessageSquare, ClipboardList, Clock, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import CaseCard from "@/components/CaseCard";
 import EmptyState from "@/components/EmptyState";
@@ -23,6 +23,15 @@ interface SearchMatch {
   snippet: string;
   matchPosition: number;
   createdAt?: string;
+  timestampMs?: number;
+  speaker?: string;
+}
+
+function formatTimestamp(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
 interface SearchResultWithMatches {
@@ -108,6 +117,24 @@ export default function SavedCases() {
         return <FileText className="w-3 h-3" />;
     }
   };
+
+  const handleMatchClick = useCallback((caseId: string, match: SearchMatch) => {
+    const params = new URLSearchParams();
+    
+    if (match.documentType === 'transcript') {
+      params.set('tab', 'transcript');
+      if (match.timestampMs !== undefined) {
+        params.set('timestamp', match.timestampMs.toString());
+      }
+    } else if (match.documentType === 'attendance_note') {
+      params.set('tab', 'attendance');
+    } else if (match.documentType === 'summary') {
+      params.set('tab', 'summary');
+    }
+    
+    const url = `/case/${caseId}${params.toString() ? '?' + params.toString() : ''}`;
+    setLocation(url);
+  }, [setLocation]);
 
   const getMatchLabel = (type: string, fieldName?: string) => {
     switch (type) {
@@ -211,23 +238,38 @@ export default function SavedCases() {
                       reviewed={result.case.reviewed}
                     />
                     {result.matches.length > 0 && (
-                      <div className="bg-muted/50 rounded-md p-3 space-y-2">
-                        <div className="text-xs font-medium text-muted-foreground">
+                      <div className="bg-muted/50 rounded-md p-2 space-y-1">
+                        <div className="text-xs font-medium text-muted-foreground px-2 py-1">
                           {result.matches.length} match{result.matches.length !== 1 ? 'es' : ''} found
                         </div>
                         {result.matches.slice(0, 3).map((match, idx) => (
-                          <div key={idx} className="text-sm">
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                          <button
+                            key={idx}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMatchClick(result.case.id, match);
+                            }}
+                            className="w-full text-left px-2 py-1.5 rounded hover-elevate group cursor-pointer"
+                            data-testid={`match-result-${result.case.id}-${idx}`}
+                          >
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5">
                               {getMatchIcon(match.documentType)}
                               <span>{getMatchLabel(match.documentType, match.fieldName)}</span>
+                              {match.timestampMs !== undefined && (
+                                <Badge variant="secondary" className="text-[10px] py-0 px-1 flex items-center gap-0.5">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  {formatTimestamp(match.timestampMs)}
+                                </Badge>
+                              )}
+                              <ChevronRight className="w-3 h-3 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
                             <p className="text-foreground/80 text-xs leading-relaxed line-clamp-2">
                               {highlightMatch(match.snippet, searchQuery)}
                             </p>
-                          </div>
+                          </button>
                         ))}
                         {result.matches.length > 3 && (
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-muted-foreground px-2 py-1">
                             +{result.matches.length - 3} more matches
                           </div>
                         )}

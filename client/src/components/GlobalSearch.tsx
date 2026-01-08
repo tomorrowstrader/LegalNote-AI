@@ -463,10 +463,8 @@ export default function GlobalSearch() {
               />
             </div>
             
-            <div className="flex-1 min-h-0 border rounded-md overflow-hidden">
-              <ScrollArea className="h-full max-h-64">
-                <ResultsContent />
-              </ScrollArea>
+            <div className="flex-1 min-h-0 border rounded-md overflow-auto max-h-[40vh]">
+              <ResultsContent />
             </div>
             
             <div className="pt-2 border-t">
