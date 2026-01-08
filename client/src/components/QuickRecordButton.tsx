@@ -764,12 +764,8 @@ export default function QuickRecordButton() {
   };
 
   const handleCancelClick = () => {
-    if (caseTitle.trim() || clientName.trim() || matterRef.trim()) {
-      setShowCancelConfirmation(true);
-    } else {
-      setShowMetadataModal(false);
-      setRecordingDuration(0);
-    }
+    // Always show confirmation since canceling will discard the recording
+    setShowCancelConfirmation(true);
   };
 
   const confirmCancel = () => {
