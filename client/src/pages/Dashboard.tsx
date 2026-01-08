@@ -423,11 +423,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Upcoming Meetings Section */}
-        <div className="mb-6">
-          <ScheduledMeetingsViewer />
-        </div>
-
         <div className="bg-card border border-border rounded-lg p-4 sm:p-6 mb-6">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as StatusTab)} className="w-full">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -549,6 +544,11 @@ export default function Dashboard() {
               )}
             </div>
           </Tabs>
+        </div>
+
+        {/* Upcoming Meetings Section */}
+        <div className="mb-6">
+          <ScheduledMeetingsViewer />
         </div>
       </div>
     </div>
