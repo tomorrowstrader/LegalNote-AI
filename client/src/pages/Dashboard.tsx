@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, CircleCheck, Keyboard, Shield, Video, Timer, Zap } from "lucide-react";
+import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, CircleCheck, Keyboard, Shield, ClipboardCheck } from "lucide-react";
 import { ScheduledMeetingsViewer } from "@/components/ScheduledMeetingsViewer";
 import StatsCard from "@/components/StatsCard";
 import CaseListView from "@/components/CaseListView";
@@ -302,7 +302,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="grid gap-4 sm:gap-5 grid-cols-2 lg:grid-cols-4 mb-8 sm:mb-10">
+        <div className="grid gap-4 sm:gap-5 grid-cols-2 lg:grid-cols-4 mb-6">
           <StatsCard
             title="Total Cases"
             value={totalCases}
@@ -312,11 +312,13 @@ export default function Dashboard() {
             trendValue={productivityStats?.monthlyChange ? `${productivityStats.monthlyChange}%` : undefined}
           />
           <StatsCard
-            title="Time Saved"
-            value={productivityStats?.timeSavedHours || 0}
-            icon={Timer}
-            suffix="hrs"
-            description="vs manual note-taking"
+            title="Documentation"
+            value={successRate}
+            icon={ClipboardCheck}
+            suffix="%"
+            description="cases fully documented"
+            variant="ring"
+            ringColor="blue"
           />
           <StatsCard
             title="Compliance"
@@ -324,6 +326,8 @@ export default function Dashboard() {
             icon={Shield}
             suffix="%"
             description="cases with consent"
+            variant="ring"
+            ringColor="emerald"
           />
           <StatsCard
             title="Actioned"
@@ -333,99 +337,85 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Needs Attention Section */}
-        <div className="mb-6">
-          {needsAttention.allClear ? (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4 flex items-center gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <CircleCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div>
-                <p className="font-medium text-emerald-700 dark:text-emerald-300">All caught up</p>
-                <p className="text-sm text-emerald-600/80 dark:text-emerald-400/80">No urgent items need your attention right now</p>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-card border border-border rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <AlertCircle className="w-5 h-5 text-amber-500" />
-                <h2 className="font-semibold text-foreground">Needs Attention</h2>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {needsAttention.overdue.length > 0 && (
-                  <button
-                    onClick={() => {
-                      setActiveTab("active");
-                      setSortBy("deadline");
-                    }}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 hover-elevate text-left"
-                    data-testid="attention-overdue"
-                  >
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
-                      <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-red-700 dark:text-red-300">
-                        {needsAttention.overdue.length} Overdue
-                      </p>
-                      <p className="text-sm text-red-600/80 dark:text-red-400/80 truncate">
-                        {needsAttention.overdue.length === 1 
-                          ? needsAttention.overdue[0].clientName 
-                          : `${needsAttention.overdue[0].clientName} + ${needsAttention.overdue.length - 1} more`}
-                      </p>
-                    </div>
-                  </button>
-                )}
-                
-                {needsAttention.awaitingReviewLong.length > 0 && (
-                  <button
-                    onClick={() => {
-                      setActiveTab("review");
-                      setSortBy("created");
-                    }}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 hover-elevate text-left"
-                    data-testid="attention-review"
-                  >
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                      <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-amber-700 dark:text-amber-300">
-                        {needsAttention.awaitingReviewLong.length} Awaiting Review
-                      </p>
-                      <p className="text-sm text-amber-600/80 dark:text-amber-400/80">
-                        Pending for 2+ days
-                      </p>
-                    </div>
-                  </button>
-                )}
-                
-                {needsAttention.audioExpiring > 0 && (
-                  <div
-                    className="flex items-center gap-3 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20"
-                    data-testid="attention-audio"
-                  >
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
-                      <Mic className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-orange-700 dark:text-orange-300">
-                        {needsAttention.audioExpiring} Audio Expiring
-                      </p>
-                      <p className="text-sm text-orange-600/80 dark:text-orange-400/80">
-                        Within 24 hours (GDPR)
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Needs Attention Notification Bar */}
+        {!needsAttention.allClear && (
+          <div className="mb-6 flex items-center gap-2 flex-wrap text-sm">
+            <span className="text-muted-foreground flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4 text-amber-500" />
+              Needs attention:
+            </span>
+            {needsAttention.overdue.length > 0 && (
+              <button
+                onClick={() => {
+                  setActiveTab("active");
+                  setSortBy("deadline");
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-300 hover-elevate"
+                data-testid="attention-overdue"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span className="font-medium">{needsAttention.overdue.length} overdue</span>
+              </button>
+            )}
+            {needsAttention.awaitingReviewLong.length > 0 && (
+              <button
+                onClick={() => {
+                  setActiveTab("review");
+                  setSortBy("created");
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 hover-elevate"
+                data-testid="attention-review"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span className="font-medium">{needsAttention.awaitingReviewLong.length} awaiting review</span>
+              </button>
+            )}
+            {needsAttention.audioExpiring > 0 && (
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-orange-500/10 border border-orange-500/20 text-orange-700 dark:text-orange-300"
+                data-testid="attention-audio"
+              >
+                <Mic className="w-3.5 h-3.5" />
+                <span className="font-medium">{needsAttention.audioExpiring} audio expiring</span>
+              </span>
+            )}
+          </div>
+        )}
 
-        <div className="bg-card border border-border rounded-lg p-4 sm:p-6 mb-6">
+        <div className="bg-card border border-border rounded-lg overflow-hidden mb-6">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as StatusTab)} className="w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            {/* Sticky Header with Title, Tabs, Search */}
+            <div className="sticky top-0 z-10 bg-card border-b border-border p-4 sm:p-6 pb-4">
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <FolderOpen className="w-5 h-5 text-muted-foreground" />
+                  Case Files
+                </h2>
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search cases..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9 bg-background"
+                      data-testid="input-search-cases"
+                    />
+                  </div>
+                  <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+                    <SelectTrigger className="w-[140px] bg-background" data-testid="select-sort">
+                      <SortAsc className="w-4 h-4 mr-2 text-muted-foreground" />
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="deadline">Deadline</SelectItem>
+                      <SelectItem value="created">Date Created</SelectItem>
+                      <SelectItem value="client">Client Name</SelectItem>
+                      <SelectItem value="priority">Priority</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <TabsList className="bg-muted/50 p-1 h-auto flex-wrap justify-start">
                 <TabsTrigger 
                   value="active" 
@@ -481,37 +471,13 @@ export default function Dashboard() {
                   )}
                 </TabsTrigger>
               </TabsList>
-
-              <div className="flex items-center gap-3">
-                <div className="relative flex-1 sm:w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search cases..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 bg-background"
-                    data-testid="input-search-cases"
-                  />
-                </div>
-                <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-                  <SelectTrigger className="w-[140px] bg-background" data-testid="select-sort">
-                    <SortAsc className="w-4 h-4 mr-2 text-muted-foreground" />
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="deadline">Deadline</SelectItem>
-                    <SelectItem value="created">Date Created</SelectItem>
-                    <SelectItem value="client">Client Name</SelectItem>
-                    <SelectItem value="priority">Priority</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
 
-            <div className="min-h-[200px]">
+            {/* Scrollable Case List */}
+            <div className="max-h-[400px] overflow-y-auto p-4 sm:px-6">
               {filteredAndSortedCases.length > 0 ? (
                 <>
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-3">
                     <p className="text-sm text-muted-foreground">
                       Showing {filteredAndSortedCases.length} {filteredAndSortedCases.length === 1 ? 'case' : 'cases'}
                       {searchQuery && ` matching "${searchQuery}"`}

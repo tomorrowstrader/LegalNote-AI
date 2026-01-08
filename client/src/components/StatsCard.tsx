@@ -11,6 +11,8 @@ interface StatsCardProps {
   trendValue?: string;
   suffix?: string;
   animate?: boolean;
+  variant?: "default" | "ring";
+  ringColor?: "emerald" | "blue" | "amber" | "primary";
 }
 
 function useCountUp(end: number, duration: number = 1000, enabled: boolean = true, decimals: number = 0) {
@@ -51,6 +53,55 @@ function useCountUp(end: number, duration: number = 1000, enabled: boolean = tru
   return count;
 }
 
+function ProgressRing({ 
+  value, 
+  size = 48, 
+  strokeWidth = 4,
+  color = "emerald"
+}: { 
+  value: number; 
+  size?: number; 
+  strokeWidth?: number;
+  color?: "emerald" | "blue" | "amber" | "primary";
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - (value / 100) * circumference;
+  
+  const colorClasses = {
+    emerald: "stroke-emerald-500",
+    blue: "stroke-blue-500",
+    amber: "stroke-amber-500",
+    primary: "stroke-primary",
+  };
+
+  return (
+    <svg width={size} height={size} className="transform -rotate-90">
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        strokeWidth={strokeWidth}
+        fill="none"
+        className="stroke-muted/30"
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        strokeWidth={strokeWidth}
+        fill="none"
+        strokeLinecap="round"
+        className={`${colorClasses[color]} transition-all duration-1000 ease-out`}
+        style={{
+          strokeDasharray: circumference,
+          strokeDashoffset: offset,
+        }}
+      />
+    </svg>
+  );
+}
+
 export default function StatsCard({ 
   title, 
   value, 
@@ -59,7 +110,9 @@ export default function StatsCard({
   trend,
   trendValue,
   suffix,
-  animate = true 
+  animate = true,
+  variant = "default",
+  ringColor = "emerald"
 }: StatsCardProps) {
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -78,6 +131,43 @@ export default function StatsCard({
 
   const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
   const trendColor = trend === 'up' ? 'text-emerald-500' : trend === 'down' ? 'text-red-500' : 'text-muted-foreground';
+
+  if (variant === "ring") {
+    return (
+      <Card 
+        ref={cardRef}
+        className={`group relative overflow-visible transition-all duration-500 hover:-translate-y-0.5 hover:shadow-lg dark:border-[hsl(45,85%,55%,0.15)] dark:shadow-[0_4px_20px_rgba(0,0,20,0.4),inset_0_1px_0_rgba(216,172,74,0.08)] ${
+          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+        }`}
+        data-testid={`card-stat-${title.toLowerCase().replace(/\s+/g, '-')}`}
+      >
+        <CardContent className="p-5 sm:p-6">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-shrink-0">
+              <ProgressRing value={isNumeric ? animatedValue : 0} size={56} strokeWidth={5} color={ringColor} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Icon className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-muted-foreground mb-1">{title}</p>
+              <div className="flex items-baseline gap-1">
+                <p className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+                  {displayValue}
+                </p>
+                {suffix && (
+                  <span className="text-base font-medium text-muted-foreground">{suffix}</span>
+                )}
+              </div>
+              {description && (
+                <p className="text-xs text-muted-foreground mt-1">{description}</p>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card 
