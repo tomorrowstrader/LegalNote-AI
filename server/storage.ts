@@ -207,13 +207,11 @@ export interface IStorage {
   getExpiredAudioRecordings(): Promise<AudioRecording[]>;
   getExpiringAudioCount(userId: string, withinHours: number): Promise<number>;
   getProductivityStats(userId: string): Promise<{
-    totalRecordingMinutes: number;
-    timeSavedHours: number;
-    avgProcessingHours: number;
-    complianceScore: number;
     totalCases: number;
-    completedCases: number;
-    casesWithConsent: number;
+    awaitingReview: number;
+    evidenceCompletePercent: number;
+    documentationRate: number;
+    thisMonthCases: number;
     monthlyTrend: "up" | "down" | "neutral";
     monthlyChange: number;
   }>;
@@ -562,43 +560,54 @@ export class MemStorage implements IStorage {
   }
 
   async getProductivityStats(userId: string): Promise<{
-    totalRecordingMinutes: number;
-    timeSavedHours: number;
-    avgProcessingHours: number;
-    complianceScore: number;
     totalCases: number;
-    completedCases: number;
-    casesWithConsent: number;
+    awaitingReview: number;
+    evidenceCompletePercent: number;
+    documentationRate: number;
+    thisMonthCases: number;
     monthlyTrend: "up" | "down" | "neutral";
     monthlyChange: number;
   }> {
-    const userCases = Array.from(this.cases.values()).filter(c => c.createdBy === userId);
+    const userCases = Array.from(this.cases.values()).filter(c => c.createdBy === userId && !c.archived);
     const userCaseIds = new Set(userCases.map(c => c.id));
-    
-    const totalRecordingSeconds = Array.from(this.audioRecordings.values())
-      .filter(r => userCaseIds.has(r.caseId) && r.duration)
-      .reduce((sum, r) => sum + (r.duration || 0), 0);
-    
-    const totalRecordingMinutes = Math.round(totalRecordingSeconds / 60);
-    const timeSavedHours = Math.round((totalRecordingSeconds * 2.5) / 3600 * 10) / 10;
-    
-    const completedCases = userCases.filter(c => c.status === "completed" || c.reviewed).length;
     const totalCases = userCases.length;
     
-    const casesWithConsent = Array.from(this.consentLogs.values())
-      .filter(cl => userCaseIds.has(cl.caseId) && cl.consentGiven)
-      .map(cl => cl.caseId)
-      .filter((v, i, a) => a.indexOf(v) === i).length;
+    // Awaiting Review: cases completed but not yet reviewed by solicitor
+    const awaitingReview = userCases.filter(c => c.status === "completed" && !c.reviewed).length;
     
-    const complianceScore = totalCases > 0 ? Math.round((casesWithConsent / totalCases) * 100) : 100;
+    // Evidence Complete: % of cases with full defensibility bundle
+    // (recording + transcript + attendance note/document + consent log)
+    let evidenceCompleteCount = 0;
+    for (const caseItem of userCases) {
+      const hasRecording = Array.from(this.audioRecordings.values())
+        .some(r => r.caseId === caseItem.id && !r.deletedAt);
+      const hasTranscript = Array.from(this.transcripts.values())
+        .some(t => t.caseId === caseItem.id);
+      const hasDocument = Array.from(this.documents.values())
+        .some(d => d.caseId === caseItem.id);
+      const hasConsent = Array.from(this.consentLogs.values())
+        .some(cl => cl.caseId === caseItem.id);
+      
+      if (hasRecording && hasTranscript && hasDocument && hasConsent) {
+        evidenceCompleteCount++;
+      }
+    }
+    const evidenceCompletePercent = totalCases > 0 ? Math.round((evidenceCompleteCount / totalCases) * 100) : 100;
     
+    // Documentation Rate: % of cases with at least one document (attendance note or summary)
+    const casesWithDocs = userCases.filter(c => 
+      Array.from(this.documents.values()).some(d => d.caseId === c.id)
+    ).length;
+    const documentationRate = totalCases > 0 ? Math.round((casesWithDocs / totalCases) * 100) : 100;
+    
+    // Monthly stats
     const now = new Date();
-    const thisMonth = userCases.filter(c => {
+    const thisMonthCases = userCases.filter(c => {
       const d = new Date(c.createdAt);
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).length;
     
-    const lastMonth = userCases.filter(c => {
+    const lastMonthCases = userCases.filter(c => {
       const d = new Date(c.createdAt);
       const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();
@@ -607,11 +616,11 @@ export class MemStorage implements IStorage {
     let monthlyChange: number;
     let monthlyTrend: "up" | "down" | "neutral";
     
-    if (lastMonth === 0 && thisMonth > 0) {
+    if (lastMonthCases === 0 && thisMonthCases > 0) {
       monthlyChange = 100;
       monthlyTrend = "up";
-    } else if (lastMonth > 0) {
-      monthlyChange = Math.round(((thisMonth - lastMonth) / lastMonth) * 100);
+    } else if (lastMonthCases > 0) {
+      monthlyChange = Math.round(((thisMonthCases - lastMonthCases) / lastMonthCases) * 100);
       monthlyTrend = monthlyChange > 0 ? "up" : monthlyChange < 0 ? "down" : "neutral";
     } else {
       monthlyChange = 0;
@@ -619,13 +628,11 @@ export class MemStorage implements IStorage {
     }
     
     return {
-      totalRecordingMinutes,
-      timeSavedHours,
-      avgProcessingHours: 0.5,
-      complianceScore,
       totalCases,
-      completedCases,
-      casesWithConsent,
+      awaitingReview,
+      evidenceCompletePercent,
+      documentationRate,
+      thisMonthCases,
       monthlyTrend,
       monthlyChange: Math.abs(monthlyChange),
     };
@@ -1707,53 +1714,71 @@ export class DbStorage implements IStorage {
   }
 
   async getProductivityStats(userId: string): Promise<{
-    totalRecordingMinutes: number;
-    timeSavedHours: number;
-    avgProcessingHours: number;
-    complianceScore: number;
     totalCases: number;
-    completedCases: number;
-    casesWithConsent: number;
+    awaitingReview: number;
+    evidenceCompletePercent: number;
+    documentationRate: number;
+    thisMonthCases: number;
     monthlyTrend: "up" | "down" | "neutral";
     monthlyChange: number;
   }> {
-    const userCases = await db.select().from(cases).where(eq(cases.createdBy, userId));
+    const userCases = await db.select().from(cases).where(and(
+      eq(cases.createdBy, userId),
+      eq(cases.archived, false)
+    ));
     const userCaseIds = userCases.map(c => c.id);
-    
-    const audioResults = userCaseIds.length > 0 
-      ? await db.select({ duration: audioRecordings.duration })
-          .from(audioRecordings)
-          .where(inArray(audioRecordings.caseId, userCaseIds))
-      : [];
-    
-    const totalRecordingSeconds = audioResults
-      .filter(r => r.duration)
-      .reduce((sum, r) => sum + (r.duration || 0), 0);
-    
-    const totalRecordingMinutes = Math.round(totalRecordingSeconds / 60);
-    const timeSavedHours = Math.round((totalRecordingSeconds * 2.5) / 3600 * 10) / 10;
-    
-    const completedCases = userCases.filter(c => c.status === "completed" || c.reviewed).length;
     const totalCases = userCases.length;
     
-    const consentResults = userCaseIds.length > 0
-      ? await db.select({ caseId: consentLogs.caseId })
-          .from(consentLogs)
-          .where(and(
-            inArray(consentLogs.caseId, userCaseIds),
-            eq(consentLogs.consentGiven, true)
-          ))
-      : [];
+    // Awaiting Review: cases completed but not yet reviewed by solicitor
+    const awaitingReview = userCases.filter(c => c.status === "completed" && !c.reviewed).length;
     
-    const casesWithConsent = [...new Set(consentResults.map(c => c.caseId))].length;
-    const complianceScore = totalCases > 0 ? Math.round((casesWithConsent / totalCases) * 100) : 100;
+    // Evidence Complete: % of cases with full defensibility bundle
+    let evidenceCompleteCount = 0;
+    if (userCaseIds.length > 0) {
+      const audioResults = await db.select({ caseId: audioRecordings.caseId })
+        .from(audioRecordings)
+        .where(and(inArray(audioRecordings.caseId, userCaseIds), isNull(audioRecordings.deletedAt)));
+      const transcriptResults = await db.select({ caseId: transcripts.caseId })
+        .from(transcripts)
+        .where(inArray(transcripts.caseId, userCaseIds));
+      const documentResults = await db.select({ caseId: documents.caseId })
+        .from(documents)
+        .where(inArray(documents.caseId, userCaseIds));
+      const consentResults = await db.select({ caseId: consentLogs.caseId })
+        .from(consentLogs)
+        .where(inArray(consentLogs.caseId, userCaseIds));
+      
+      const casesWithAudio = new Set(audioResults.map(r => r.caseId));
+      const casesWithTranscript = new Set(transcriptResults.map(r => r.caseId));
+      const casesWithDoc = new Set(documentResults.map(r => r.caseId));
+      const casesWithConsent = new Set(consentResults.map(r => r.caseId));
+      
+      for (const caseItem of userCases) {
+        if (casesWithAudio.has(caseItem.id) && casesWithTranscript.has(caseItem.id) && 
+            casesWithDoc.has(caseItem.id) && casesWithConsent.has(caseItem.id)) {
+          evidenceCompleteCount++;
+        }
+      }
+    }
+    const evidenceCompletePercent = totalCases > 0 ? Math.round((evidenceCompleteCount / totalCases) * 100) : 100;
     
+    // Documentation Rate: % of cases with at least one document
+    let casesWithDocs = 0;
+    if (userCaseIds.length > 0) {
+      const docResults = await db.select({ caseId: documents.caseId })
+        .from(documents)
+        .where(inArray(documents.caseId, userCaseIds));
+      casesWithDocs = new Set(docResults.map(r => r.caseId)).size;
+    }
+    const documentationRate = totalCases > 0 ? Math.round((casesWithDocs / totalCases) * 100) : 100;
+    
+    // Monthly stats
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     
-    const thisMonth = userCases.filter(c => new Date(c.createdAt) >= startOfMonth).length;
-    const lastMonth = userCases.filter(c => {
+    const thisMonthCases = userCases.filter(c => new Date(c.createdAt) >= startOfMonth).length;
+    const lastMonthCases = userCases.filter(c => {
       const d = new Date(c.createdAt);
       return d >= startOfLastMonth && d < startOfMonth;
     }).length;
@@ -1761,11 +1786,11 @@ export class DbStorage implements IStorage {
     let monthlyChange: number;
     let monthlyTrend: "up" | "down" | "neutral";
     
-    if (lastMonth === 0 && thisMonth > 0) {
+    if (lastMonthCases === 0 && thisMonthCases > 0) {
       monthlyChange = 100;
       monthlyTrend = "up";
-    } else if (lastMonth > 0) {
-      monthlyChange = Math.round(((thisMonth - lastMonth) / lastMonth) * 100);
+    } else if (lastMonthCases > 0) {
+      monthlyChange = Math.round(((thisMonthCases - lastMonthCases) / lastMonthCases) * 100);
       monthlyTrend = monthlyChange > 0 ? "up" : monthlyChange < 0 ? "down" : "neutral";
     } else {
       monthlyChange = 0;
@@ -1773,13 +1798,11 @@ export class DbStorage implements IStorage {
     }
     
     return {
-      totalRecordingMinutes,
-      timeSavedHours,
-      avgProcessingHours: 0.5,
-      complianceScore,
       totalCases,
-      completedCases,
-      casesWithConsent,
+      awaitingReview,
+      evidenceCompletePercent,
+      documentationRate,
+      thisMonthCases,
       monthlyTrend,
       monthlyChange: Math.abs(monthlyChange),
     };

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, CircleCheck, Keyboard, Shield, ClipboardCheck } from "lucide-react";
+import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck } from "lucide-react";
 import { ScheduledMeetingsViewer } from "@/components/ScheduledMeetingsViewer";
 import StatsCard from "@/components/StatsCard";
 import CaseListView from "@/components/CaseListView";
@@ -27,13 +27,11 @@ interface AttentionStats {
 }
 
 interface ProductivityStats {
-  totalRecordingMinutes: number;
-  timeSavedHours: number;
-  avgProcessingHours: number;
-  complianceScore: number;
   totalCases: number;
-  completedCases: number;
-  casesWithConsent: number;
+  awaitingReview: number;
+  evidenceCompletePercent: number;
+  documentationRate: number;
+  thisMonthCases: number;
   monthlyTrend: "up" | "down" | "neutral";
   monthlyChange: number;
 }
@@ -71,17 +69,21 @@ export default function Dashboard() {
   const firstName = user?.firstName || user?.email?.split('@')[0] || 'there';
 
   const productivityInsight = useMemo(() => {
-    if (!cases) return null;
-    const reviewCount = cases.filter(c => c.status === "completed" && !c.reviewed && !c.archived).length;
-    if (reviewCount > 0) {
-      return `You have ${reviewCount} case${reviewCount === 1 ? '' : 's'} ready for review`;
+    if (!productivityStats) return null;
+    const awaitingReview = productivityStats.awaitingReview ?? 0;
+    if (awaitingReview > 0) {
+      return `You have ${awaitingReview} case${awaitingReview === 1 ? '' : 's'} ready for review`;
     }
-    const activeCount = cases.filter(c => c.status !== "completed" && !c.reviewed && !c.archived).length;
-    if (activeCount > 0) {
-      return `${activeCount} case${activeCount === 1 ? '' : 's'} in progress`;
+    const audioExpiring = attentionStats?.audioExpiringCount ?? 0;
+    if (audioExpiring > 0) {
+      return `${audioExpiring} recording${audioExpiring === 1 ? '' : 's'} expiring soon`;
+    }
+    const evidenceComplete = productivityStats.evidenceCompletePercent ?? 100;
+    if (evidenceComplete < 100) {
+      return `${evidenceComplete}% of cases have complete evidence bundles`;
     }
     return "All caught up today";
-  }, [cases]);
+  }, [productivityStats, attentionStats]);
 
   const needsAttention = useMemo(() => {
     if (!cases) return { overdue: [], awaitingReviewLong: [], allClear: true };
@@ -190,19 +192,6 @@ export default function Dashboard() {
     archived: categorizedCases.archived.length,
   }), [categorizedCases]);
 
-  const totalCases = cases?.length || 0;
-  const actionedCases = cases?.filter(c => c.status === "completed" || c.reviewed === true).length || 0;
-  const thisMonthCases = cases?.filter(c => {
-    const caseDate = new Date(c.createdAt);
-    const now = new Date();
-    return caseDate.getMonth() === now.getMonth() && 
-           caseDate.getFullYear() === now.getFullYear();
-  }).length || 0;
-  
-  const successRate = totalCases > 0 
-    ? Math.round((actionedCases / totalCases) * 100) 
-    : 0;
-
   const priorityCasesCount = cases?.filter(c => 
     c.priority === "urgent" || c.priority === "deadline-soon"
   ).length || 0;
@@ -305,37 +294,37 @@ export default function Dashboard() {
         <div className="grid gap-4 sm:gap-5 grid-cols-2 lg:grid-cols-4 mb-6">
           <StatsCard
             title="Total Cases"
-            value={totalCases}
+            value={productivityStats?.totalCases ?? 0}
             icon={FileText}
-            description={`${thisMonthCases} this month`}
+            description={`${productivityStats?.thisMonthCases ?? 0} this month`}
             variant="ring"
             ringColor="primary"
           />
           <StatsCard
-            title="Documentation"
-            value={successRate}
-            icon={ClipboardCheck}
-            suffix="%"
-            description="cases fully documented"
+            title="Awaiting Review"
+            value={productivityStats?.awaitingReview ?? 0}
+            icon={Eye}
+            description="ready for sign-off"
             variant="ring"
-            ringColor="blue"
+            ringColor="amber"
           />
           <StatsCard
-            title="Compliance"
-            value={productivityStats?.complianceScore ?? 100}
-            icon={Shield}
+            title="Evidence Complete"
+            value={productivityStats?.evidenceCompletePercent ?? 0}
+            icon={ShieldCheck}
             suffix="%"
-            description="cases with consent"
+            description="recording + transcript + note + consent"
             variant="ring"
             ringColor="emerald"
           />
           <StatsCard
-            title="Actioned"
-            value={actionedCases}
-            icon={CheckCircle2}
-            description={`${successRate}% of cases reviewed`}
+            title="Documentation"
+            value={productivityStats?.documentationRate ?? 0}
+            icon={ClipboardCheck}
+            suffix="%"
+            description="cases with attendance notes"
             variant="ring"
-            ringColor="amber"
+            ringColor="blue"
           />
         </div>
 
