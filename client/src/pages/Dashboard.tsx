@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, CircleCheck, Keyboard, Shield, Video, Timer, Zap } from "lucide-react";
 import { ScheduledMeetingsViewer } from "@/components/ScheduledMeetingsViewer";
 import StatsCard from "@/components/StatsCard";
-import CaseCard from "@/components/CaseCard";
+import CaseListView from "@/components/CaseListView";
 import EmptyState from "@/components/EmptyState";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -517,11 +517,7 @@ export default function Dashboard() {
                       {searchQuery && ` matching "${searchQuery}"`}
                     </p>
                   </div>
-                  <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                    {filteredAndSortedCases.map((caseItem) => (
-                      <CaseCard key={caseItem.id} {...transformCase(caseItem)} />
-                    ))}
-                  </div>
+                  <CaseListView cases={filteredAndSortedCases} />
                 </>
               ) : searchQuery ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
