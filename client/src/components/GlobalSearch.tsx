@@ -509,7 +509,7 @@ export default function GlobalSearch() {
                 placeholder="Search cases, clients, or content..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-10 text-left"
                 data-testid="input-mobile-search"
                 autoFocus
               />

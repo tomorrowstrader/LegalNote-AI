@@ -20,7 +20,7 @@ export default function ConsentModal({
   onConsentGiven, 
   onConsentDeclined 
 }: ConsentModalProps) {
-  const disclaimerScript = `I am recording this meeting for legal record purposes. This recording will be used to create attendance notes and transcripts. The audio will be retained for up to 7 days or until processing completes, whichever comes first. Do you consent to this recording?`;
+  const disclaimerScript = `I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?`;
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>

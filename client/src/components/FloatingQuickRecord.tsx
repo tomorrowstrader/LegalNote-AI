@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Mic, Square, X } from "lucide-react";
+import { Mic, Square, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,6 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 export default function FloatingQuickRecord() {
   const [isRecording, setIsRecording] = useState(false);
   const [showMetadataModal, setShowMetadataModal] = useState(false);
+  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [caseTitle, setCaseTitle] = useState("");
   const [clientName, setClientName] = useState("");
@@ -38,6 +49,24 @@ export default function FloatingQuickRecord() {
 
   const saveCase = () => {
     console.log('Saving case:', { caseTitle, clientName, matterRef });
+    setShowMetadataModal(false);
+    setRecordingDuration(0);
+    setCaseTitle("");
+    setClientName("");
+    setMatterRef("");
+  };
+
+  const handleCancelClick = () => {
+    if (caseTitle.trim() || clientName.trim() || matterRef.trim()) {
+      setShowCancelConfirmation(true);
+    } else {
+      setShowMetadataModal(false);
+      setRecordingDuration(0);
+    }
+  };
+
+  const confirmCancel = () => {
+    setShowCancelConfirmation(false);
     setShowMetadataModal(false);
     setRecordingDuration(0);
     setCaseTitle("");
@@ -134,7 +163,7 @@ export default function FloatingQuickRecord() {
           <div className="flex justify-end gap-2">
             <Button
               variant="outline"
-              onClick={() => setShowMetadataModal(false)}
+              onClick={handleCancelClick}
               data-testid="button-cancel-metadata"
             >
               Cancel
@@ -150,6 +179,32 @@ export default function FloatingQuickRecord() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showCancelConfirmation} onOpenChange={setShowCancelConfirmation}>
+        <AlertDialogContent data-testid="dialog-cancel-confirmation">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Discard Recording?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You have entered case details that will be lost if you cancel. The recording will not be saved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-keep-editing">
+              Keep Editing
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCancel}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-discard"
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
