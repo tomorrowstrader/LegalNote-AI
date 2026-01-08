@@ -58,6 +58,8 @@ export interface SearchMatch {
   snippet: string; // Context around the match (50 chars before/after)
   matchPosition: number; // Character position of match
   createdAt?: Date;
+  timestampMs?: number; // For transcript matches: timestamp in milliseconds
+  speaker?: string; // For transcript matches: speaker identifier
 }
 
 export interface SearchResultWithMatches {
@@ -2474,7 +2476,7 @@ export class DbStorage implements IStorage {
         }
       }
       
-      // Check transcripts
+      // Check transcripts - search utterances for timestamp-level matches
       if (documentTypeFilter === 'all' || documentTypeFilter === 'transcript') {
         const caseTranscripts = await db
           .select()
@@ -2482,6 +2484,54 @@ export class DbStorage implements IStorage {
           .where(eq(transcripts.caseId, caseItem.id));
         
         for (const transcript of caseTranscripts) {
+          // First, try to search through utterances for timestamp-level matches
+          if (transcript.utterances && Array.isArray(transcript.utterances)) {
+            const utterances = transcript.utterances as Array<{
+              speaker: string;
+              text: string;
+              start: number;
+              end: number;
+            }>;
+            
+            let foundInUtterances = false;
+            for (const utterance of utterances) {
+              if (!utterance.text) continue;
+              const textLower = removeAccents(utterance.text.toLowerCase());
+              
+              for (const term of expandedTerms) {
+                const pos = textLower.indexOf(term);
+                if (pos !== -1) {
+                  // Found match in utterance - include timestamp
+                  const start = Math.max(0, pos - 30);
+                  const end = Math.min(utterance.text.length, pos + term.length + 30);
+                  const snippet = (start > 0 ? '...' : '') + 
+                    utterance.text.substring(start, end) + 
+                    (end < utterance.text.length ? '...' : '');
+                  
+                  matches.push({
+                    documentType: 'transcript',
+                    documentId: transcript.id,
+                    snippet,
+                    matchPosition: pos,
+                    createdAt: transcript.createdAt,
+                    timestampMs: utterance.start,
+                    speaker: utterance.speaker,
+                  });
+                  score += 80;
+                  foundInUtterances = true;
+                  break; // Only one match per utterance
+                }
+              }
+              // Limit to first 3 utterance matches per transcript
+              if (matches.filter(m => m.documentId === transcript.id && m.timestampMs !== undefined).length >= 3) {
+                break;
+              }
+            }
+            
+            if (foundInUtterances) continue; // Skip fallback content search
+          }
+          
+          // Fallback: search plain content if no utterances or no match found
           if (!transcript.content) continue;
           const contentLower = removeAccents(transcript.content.toLowerCase());
           

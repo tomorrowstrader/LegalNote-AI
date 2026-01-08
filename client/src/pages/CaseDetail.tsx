@@ -32,7 +32,7 @@ import ImportRecordingModal from "@/components/ImportRecordingModal";
 import SharedHistoryViewer from "@/components/SharedHistoryViewer";
 import ActionItemsViewer from "@/components/ActionItemsViewer";
 import PreMeetingBriefing from "@/components/PreMeetingBriefing";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +44,7 @@ import type { Case, AudioRecording, ConsentLog } from "@shared/schema";
 export default function CaseDetail() {
   const [, setLocation] = useLocation();
   const params = useParams();
+  const search = useSearch();
   const caseId = params.id;
   const { toast } = useToast();
   const { isFocusMode, toggleFocusMode, exitFocusMode } = useFocusMode();
@@ -53,10 +54,30 @@ export default function CaseDetail() {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const audioPlayerRef = useRef<AudioPlayerHandle>(null);
+  const [hasAutoSeeked, setHasAutoSeeked] = useState(false);
+  
+  // Parse URL search parameters for deep linking from search results
+  const searchParams = new URLSearchParams(search);
+  const urlTab = searchParams.get('tab') as 'attendance' | 'summary' | 'transcript' | null;
+  const urlTimestamp = searchParams.get('timestamp');
 
   const handleTranscriptTimestampClick = (timeMs: number) => {
     audioPlayerRef.current?.seekTo(timeMs);
   };
+  
+  // Auto-seek to timestamp when coming from search results
+  useEffect(() => {
+    if (urlTimestamp && !hasAutoSeeked && audioPlayerRef.current) {
+      const timestampMs = parseInt(urlTimestamp, 10);
+      if (!isNaN(timestampMs)) {
+        // Small delay to ensure audio player is ready
+        setTimeout(() => {
+          audioPlayerRef.current?.seekTo(timestampMs);
+          setHasAutoSeeked(true);
+        }, 500);
+      }
+    }
+  }, [urlTimestamp, hasAutoSeeked]);
 
   const { data: caseData, isLoading, error } = useQuery<Case>({
     queryKey: [`/api/cases/${caseId}`],
@@ -562,6 +583,7 @@ export default function CaseDetail() {
           matterReference={caseData.matterReference}
           createdAt={caseData.createdAt}
           onTranscriptTimestampClick={handleTranscriptTimestampClick}
+          initialTab={urlTab || undefined}
         />
 
         {/* Briefing Stack - Collapsible Sections */}

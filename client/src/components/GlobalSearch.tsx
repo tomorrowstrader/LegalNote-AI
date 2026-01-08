@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Search, History, X, FileText, MessageSquare, ClipboardList } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Search, History, FileText, MessageSquare, ClipboardList, Clock, User, Loader2, ChevronRight } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -24,21 +24,99 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { SearchHistory } from "@shared/schema";
+import type { SearchHistory, Case } from "@shared/schema";
+
+interface SearchMatch {
+  documentType: 'transcript' | 'attendance_note' | 'summary' | 'case_field';
+  documentId?: string;
+  fieldName?: string;
+  snippet: string;
+  matchPosition: number;
+  createdAt?: string;
+  timestampMs?: number;
+  speaker?: string;
+}
+
+interface SearchResult {
+  case: Case;
+  matches: SearchMatch[];
+  score: number;
+}
+
+function formatTimestamp(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function getDocumentIcon(type: string) {
+  switch (type) {
+    case 'transcript':
+      return <MessageSquare className="w-4 h-4 text-blue-500" />;
+    case 'attendance_note':
+      return <ClipboardList className="w-4 h-4 text-green-500" />;
+    case 'summary':
+      return <FileText className="w-4 h-4 text-purple-500" />;
+    default:
+      return <FileText className="w-4 h-4 text-muted-foreground" />;
+  }
+}
+
+function getDocumentLabel(type: string) {
+  switch (type) {
+    case 'transcript':
+      return 'Transcript';
+    case 'attendance_note':
+      return 'Attendance Note';
+    case 'summary':
+      return 'Summary';
+    case 'case_field':
+      return 'Case';
+    default:
+      return type;
+  }
+}
 
 export default function GlobalSearch() {
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [documentType, setDocumentType] = useState("all");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [resultsOpen, setResultsOpen] = useState(false);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const { data: searchHistory } = useQuery<SearchHistory[]>({
     queryKey: ["/api/search/history"],
-    enabled: historyOpen,
+    enabled: resultsOpen && !debouncedQuery,
+  });
+
+  const { data: searchResults, isLoading: searchLoading } = useQuery<SearchResult[]>({
+    queryKey: ["/api/search/enhanced", debouncedQuery, documentType],
+    queryFn: async () => {
+      if (!debouncedQuery.trim()) return [];
+      const params = new URLSearchParams({ q: debouncedQuery.trim() });
+      if (documentType !== 'all') params.set('type', documentType);
+      const response = await fetch(`/api/search/enhanced?${params.toString()}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Search failed');
+      return response.json();
+    },
+    enabled: debouncedQuery.length >= 2,
   });
 
   const clearHistoryMutation = useMutation({
@@ -48,40 +126,70 @@ export default function GlobalSearch() {
     },
   });
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!searchQuery.trim()) {
-      return;
-    }
-    
+  const saveSearchMutation = useMutation({
+    mutationFn: (data: { query: string; resultCount: number }) => 
+      apiRequest("POST", "/api/search/history", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/search/history"] });
+    },
+  });
+
+  const handleResultClick = useCallback((caseId: string, match: SearchMatch) => {
+    // Build URL with appropriate parameters
     const params = new URLSearchParams();
-    params.set('q', searchQuery.trim());
     
-    if (dateFilter && dateFilter !== 'all') {
-      params.set('date', dateFilter);
+    // Set the tab based on document type
+    // Note: DocumentViewer uses 'attendance' not 'attendance_note' for tab value
+    if (match.documentType === 'transcript') {
+      params.set('tab', 'transcript');
+      if (match.timestampMs !== undefined) {
+        params.set('timestamp', match.timestampMs.toString());
+      }
+    } else if (match.documentType === 'attendance_note') {
+      params.set('tab', 'attendance');
+    } else if (match.documentType === 'summary') {
+      params.set('tab', 'summary');
     }
     
-    if (statusFilter && statusFilter !== 'all') {
-      params.set('status', statusFilter);
-    }
-    
-    if (documentType && documentType !== 'all') {
-      params.set('type', documentType);
-    }
-    
-    setLocation(`/cases?${params.toString()}`);
+    // Navigate to case detail
+    const url = `/case/${caseId}${params.toString() ? '?' + params.toString() : ''}`;
+    setLocation(url);
+    setResultsOpen(false);
     setMobileOpen(false);
-    setHistoryOpen(false);
     setSearchQuery("");
-  };
+    
+    // Save search to history
+    if (debouncedQuery) {
+      saveSearchMutation.mutate({
+        query: debouncedQuery,
+        resultCount: searchResults?.length || 0,
+      });
+    }
+  }, [setLocation, debouncedQuery, searchResults, saveSearchMutation]);
 
   const handleHistoryClick = (query: string) => {
     setSearchQuery(query);
-    setHistoryOpen(false);
+  };
+
+  const handleViewAllResults = () => {
+    if (!searchQuery.trim()) return;
+    
     const params = new URLSearchParams();
-    params.set('q', query);
+    params.set('q', searchQuery.trim());
+    if (dateFilter !== 'all') params.set('date', dateFilter);
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (documentType !== 'all') params.set('type', documentType);
+    
     setLocation(`/cases?${params.toString()}`);
+    setResultsOpen(false);
+    setMobileOpen(false);
+    setSearchQuery("");
+    
+    // Save search to history
+    saveSearchMutation.mutate({
+      query: searchQuery.trim(),
+      resultCount: searchResults?.length || 0,
+    });
   };
 
   const SearchFilters = () => (
@@ -132,11 +240,160 @@ export default function GlobalSearch() {
     </div>
   );
 
+  const ResultsContent = () => {
+    // Show search history when no query
+    if (!debouncedQuery) {
+      if (searchHistory && searchHistory.length > 0) {
+        return (
+          <div className="py-2">
+            <div className="flex items-center justify-between px-3 pb-2 border-b">
+              <span className="text-sm font-medium flex items-center gap-2">
+                <History className="w-4 h-4" />
+                Recent Searches
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => clearHistoryMutation.mutate()}
+                className="text-xs text-muted-foreground hover:text-foreground"
+                data-testid="button-clear-history"
+              >
+                Clear
+              </Button>
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              {searchHistory.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleHistoryClick(item.query)}
+                  className="w-full px-3 py-2 text-left text-sm hover-elevate flex items-center justify-between group"
+                  data-testid={`history-item-${item.id}`}
+                >
+                  <span className="truncate">{item.query}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {item.resultCount} results
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      return (
+        <div className="p-4 text-sm text-muted-foreground text-center">
+          Type to search cases, transcripts, and documents...
+        </div>
+      );
+    }
+
+    // Show loading state
+    if (searchLoading) {
+      return (
+        <div className="p-6 flex items-center justify-center gap-2 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-sm">Searching...</span>
+        </div>
+      );
+    }
+
+    // Show results
+    if (searchResults && searchResults.length > 0) {
+      return (
+        <div className="py-2">
+          <div className="px-3 pb-2 border-b">
+            <span className="text-sm font-medium">
+              {searchResults.length} case{searchResults.length !== 1 ? 's' : ''} found
+            </span>
+          </div>
+          <ScrollArea className="max-h-80">
+            {searchResults.slice(0, 5).map((result) => (
+              <div key={result.case.id} className="border-b last:border-b-0">
+                <div className="px-3 py-2 bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm truncate flex-1">
+                      {result.case.clientName}
+                    </span>
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      {result.case.matterReference || 'No ref'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {result.case.title}
+                  </p>
+                </div>
+                <div className="divide-y">
+                  {result.matches.slice(0, 3).map((match, idx) => (
+                    <button
+                      key={`${match.documentType}-${match.documentId || idx}-${match.matchPosition}`}
+                      type="button"
+                      onClick={() => handleResultClick(result.case.id, match)}
+                      className="w-full px-3 py-2 text-left hover-elevate group"
+                      data-testid={`search-result-${result.case.id}-${idx}`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        {getDocumentIcon(match.documentType)}
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {getDocumentLabel(match.documentType)}
+                        </span>
+                        {match.timestampMs !== undefined && (
+                          <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatTimestamp(match.timestampMs)}
+                          </Badge>
+                        )}
+                        {match.speaker && (
+                          <Badge variant="outline" className="text-xs flex items-center gap-1">
+                            <User className="w-3 h-3" />
+                            {match.speaker}
+                          </Badge>
+                        )}
+                        <ChevronRight className="w-4 h-4 ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      <p className="text-sm text-foreground/90 line-clamp-2">
+                        {match.snippet}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </ScrollArea>
+          {searchResults.length > 5 && (
+            <div className="px-3 py-2 border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-xs"
+                onClick={handleViewAllResults}
+                data-testid="button-view-all-results"
+              >
+                View all {searchResults.length} results
+              </Button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // No results
+    return (
+      <div className="p-6 text-center">
+        <p className="text-sm text-muted-foreground">
+          No results found for "{debouncedQuery}"
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Try different keywords or check spelling
+        </p>
+      </div>
+    );
+  };
+
   return (
     <>
       {/* Desktop search bar - visible on xl screens */}
-      <form onSubmit={handleSearch} className="hidden xl:flex items-center gap-2">
-        <Popover open={historyOpen} onOpenChange={setHistoryOpen}>
+      <div className="hidden xl:flex items-center gap-2">
+        <Popover open={resultsOpen} onOpenChange={setResultsOpen}>
           <PopoverTrigger asChild>
             <div className="relative w-[clamp(200px,20vw,320px)]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/70 z-10 pointer-events-none" />
@@ -145,52 +402,14 @@ export default function GlobalSearch() {
                 placeholder="Search cases, clients, or content..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setHistoryOpen(true)}
+                onFocus={() => setResultsOpen(true)}
                 className="pl-10 bg-white/90 border-white/50 text-foreground placeholder:text-muted-foreground"
                 data-testid="input-global-search"
               />
             </div>
           </PopoverTrigger>
-          <PopoverContent className="w-80 p-0" align="start">
-            {searchHistory && searchHistory.length > 0 ? (
-              <div className="py-2">
-                <div className="flex items-center justify-between px-3 pb-2 border-b">
-                  <span className="text-sm font-medium flex items-center gap-2">
-                    <History className="w-4 h-4" />
-                    Recent Searches
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => clearHistoryMutation.mutate()}
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                    data-testid="button-clear-history"
-                  >
-                    Clear
-                  </Button>
-                </div>
-                <div className="max-h-60 overflow-y-auto">
-                  {searchHistory.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handleHistoryClick(item.query)}
-                      className="w-full px-3 py-2 text-left text-sm hover-elevate flex items-center justify-between group"
-                      data-testid={`history-item-${item.id}`}
-                    >
-                      <span className="truncate">{item.query}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {item.resultCount} results
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 text-sm text-muted-foreground text-center">
-                No recent searches
-              </div>
-            )}
+          <PopoverContent className="w-96 p-0" align="start">
+            <ResultsContent />
           </PopoverContent>
         </Popover>
         
@@ -212,7 +431,7 @@ export default function GlobalSearch() {
             </div>
           </PopoverContent>
         </Popover>
-      </form>
+      </div>
 
       {/* Mobile/Tablet search - dialog triggered by icon button */}
       <Dialog open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -226,11 +445,11 @@ export default function GlobalSearch() {
             <Search className="w-5 h-5" />
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Search</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSearch} className="space-y-4">
+          <div className="flex flex-col flex-1 min-h-0 space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -244,45 +463,15 @@ export default function GlobalSearch() {
               />
             </div>
             
-            {searchHistory && searchHistory.length > 0 && (
-              <div className="border rounded-md">
-                <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/50">
-                  <span className="text-sm font-medium flex items-center gap-2">
-                    <History className="w-4 h-4" />
-                    Recent Searches
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => clearHistoryMutation.mutate()}
-                    className="text-xs"
-                    data-testid="button-clear-history-mobile"
-                  >
-                    Clear
-                  </Button>
-                </div>
-                <div className="max-h-32 overflow-y-auto">
-                  {searchHistory.slice(0, 5).map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery(item.query);
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm hover-elevate flex items-center justify-between"
-                      data-testid={`history-item-mobile-${item.id}`}
-                    >
-                      <span className="truncate">{item.query}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {item.resultCount} results
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="flex-1 min-h-0 border rounded-md overflow-hidden">
+              <ScrollArea className="h-full max-h-64">
+                <ResultsContent />
+              </ScrollArea>
+            </div>
             
-            <SearchFilters />
+            <div className="pt-2 border-t">
+              <SearchFilters />
+            </div>
             
             <div className="flex justify-end gap-2">
               <Button
@@ -293,11 +482,15 @@ export default function GlobalSearch() {
               >
                 Cancel
               </Button>
-              <Button type="submit" data-testid="button-submit-search">
-                Search
+              <Button 
+                onClick={handleViewAllResults}
+                disabled={!searchQuery.trim()}
+                data-testid="button-submit-search"
+              >
+                View All Results
               </Button>
             </div>
-          </form>
+          </div>
         </DialogContent>
       </Dialog>
     </>

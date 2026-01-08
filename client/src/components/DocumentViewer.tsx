@@ -43,6 +43,7 @@ interface DocumentViewerProps {
   matterReference?: string;
   createdAt: string;
   onTranscriptTimestampClick?: (timestampMs: number) => void;
+  initialTab?: 'attendance' | 'summary' | 'transcript';
 }
 
 // Helper component for editable document content - single panel with inline editing
@@ -154,6 +155,7 @@ export default function DocumentViewer({
   matterReference,
   createdAt,
   onTranscriptTimestampClick,
+  initialTab,
 }: DocumentViewerProps) {
   const { toast } = useToast();
   const [showDownloadModal, setShowDownloadModal] = useState(false);
@@ -163,6 +165,16 @@ export default function DocumentViewer({
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
+  
+  // Controlled tab state with support for initial tab from URL
+  const [activeTab, setActiveTab] = useState<string>(initialTab || 'attendance');
+  
+  // Update tab when initialTab changes (e.g., from search navigation)
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Fetch firm profile for exports
   const { data: firmProfile } = useQuery<FirmProfile>({
@@ -678,7 +690,7 @@ export default function DocumentViewer({
       data-testid="container-document-viewer"
       style={{ '--doc-header-height': `${headerHeight}px` } as CSSProperties}
     >
-      <Tabs defaultValue="attendance" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div ref={stickyHeaderRef} className="sticky top-0 z-40 bg-background pt-4 pb-3 border-b">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
             <div>
