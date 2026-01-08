@@ -10,6 +10,16 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -101,6 +111,7 @@ export default function QuickRecordButton() {
   const [interruptedDuration, setInterruptedDuration] = useState(0);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
   const [showLowBatteryWarning, setShowLowBatteryWarning] = useState(false);
+  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [useChunkedUpload, setUseChunkedUpload] = useState(true);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -752,6 +763,24 @@ export default function QuickRecordButton() {
     }
   };
 
+  const handleCancelClick = () => {
+    if (caseTitle.trim() || clientName.trim() || matterRef.trim()) {
+      setShowCancelConfirmation(true);
+    } else {
+      setShowMetadataModal(false);
+      setRecordingDuration(0);
+    }
+  };
+
+  const confirmCancel = () => {
+    setShowCancelConfirmation(false);
+    setShowMetadataModal(false);
+    setRecordingDuration(0);
+    setCaseTitle("");
+    setClientName("");
+    setMatterRef("");
+  };
+
   const saveTextNotes = (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
     if (!user?.id) {
       toast({
@@ -1053,7 +1082,7 @@ export default function QuickRecordButton() {
               <div className="flex justify-end gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => setShowMetadataModal(false)}
+                  onClick={handleCancelClick}
                   data-testid="button-cancel-metadata"
                 >
                   Cancel
@@ -1071,6 +1100,32 @@ export default function QuickRecordButton() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showCancelConfirmation} onOpenChange={setShowCancelConfirmation}>
+        <AlertDialogContent data-testid="dialog-cancel-confirmation">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Discard Recording?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You have entered case details that will be lost if you cancel. The recording will not be saved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-keep-editing">
+              Keep Editing
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCancel}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-discard"
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <TextNotesModal
         open={showTextNotesModal}
