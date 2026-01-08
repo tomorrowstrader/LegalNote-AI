@@ -584,6 +584,7 @@ export default function CaseDetail() {
           createdAt={caseData.createdAt}
           onTranscriptTimestampClick={handleTranscriptTimestampClick}
           initialTab={urlTab || undefined}
+          initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
         />
 
         {/* Briefing Stack - Collapsible Sections */}

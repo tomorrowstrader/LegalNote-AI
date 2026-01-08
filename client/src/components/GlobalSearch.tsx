@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Search, History, FileText, MessageSquare, ClipboardList, Clock, User, Loader2, ChevronRight } from "lucide-react";
+import { Search, History, FileText, MessageSquare, ClipboardList, Clock, User, Loader2, ChevronRight, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -90,6 +95,8 @@ export default function GlobalSearch() {
   const [documentType, setDocumentType] = useState("all");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [resultsOpen, setResultsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [expandedCases, setExpandedCases] = useState<Set<string>>(new Set());
 
   // Debounce search query
   useEffect(() => {
@@ -170,6 +177,18 @@ export default function GlobalSearch() {
   const handleHistoryClick = (query: string) => {
     setSearchQuery(query);
   };
+
+  const toggleExpandedCase = useCallback((caseId: string) => {
+    setExpandedCases(prev => {
+      const next = new Set(prev);
+      if (next.has(caseId)) {
+        next.delete(caseId);
+      } else {
+        next.add(caseId);
+      }
+      return next;
+    });
+  }, []);
 
   const handleViewAllResults = () => {
     if (!searchQuery.trim()) return;
@@ -323,38 +342,71 @@ export default function GlobalSearch() {
                   </p>
                 </div>
                 <div className="divide-y">
-                  {result.matches.slice(0, 3).map((match, idx) => (
-                    <button
-                      key={`${match.documentType}-${match.documentId || idx}-${match.matchPosition}`}
-                      type="button"
-                      onClick={() => handleResultClick(result.case.id, match)}
-                      className="w-full px-3 py-2 text-left hover-elevate group"
-                      data-testid={`search-result-${result.case.id}-${idx}`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        {getDocumentIcon(match.documentType)}
-                        <span className="text-xs font-medium text-muted-foreground">
-                          {getDocumentLabel(match.documentType)}
-                        </span>
-                        {match.timestampMs !== undefined && (
-                          <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {formatTimestamp(match.timestampMs)}
-                          </Badge>
+                  {(() => {
+                    const isExpanded = expandedCases.has(result.case.id);
+                    const visibleMatches = isExpanded ? result.matches : result.matches.slice(0, 3);
+                    const hiddenCount = result.matches.length - 3;
+                    
+                    return (
+                      <>
+                        {visibleMatches.map((match, idx) => (
+                          <button
+                            key={`${match.documentType}-${match.documentId || idx}-${match.matchPosition}`}
+                            type="button"
+                            onClick={() => handleResultClick(result.case.id, match)}
+                            className="w-full px-3 py-2 text-left hover-elevate group"
+                            data-testid={`search-result-${result.case.id}-${idx}`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              {getDocumentIcon(match.documentType)}
+                              <span className="text-xs font-medium text-muted-foreground">
+                                {getDocumentLabel(match.documentType)}
+                              </span>
+                              {match.timestampMs !== undefined && (
+                                <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {formatTimestamp(match.timestampMs)}
+                                </Badge>
+                              )}
+                              {match.speaker && (
+                                <Badge variant="outline" className="text-xs flex items-center gap-1">
+                                  <User className="w-3 h-3" />
+                                  {match.speaker}
+                                </Badge>
+                              )}
+                              <ChevronRight className="w-4 h-4 ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                            <p className="text-sm text-foreground/90 line-clamp-2">
+                              {match.snippet}
+                            </p>
+                          </button>
+                        ))}
+                        {hiddenCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpandedCase(result.case.id);
+                            }}
+                            className="w-full px-3 py-2 text-left text-xs text-muted-foreground hover:text-foreground hover-elevate flex items-center gap-1"
+                            data-testid={`toggle-matches-${result.case.id}`}
+                          >
+                            {isExpanded ? (
+                              <>
+                                <ChevronUp className="w-3 h-3" />
+                                Show fewer matches
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="w-3 h-3" />
+                                +{hiddenCount} more match{hiddenCount !== 1 ? 'es' : ''}
+                              </>
+                            )}
+                          </button>
                         )}
-                        {match.speaker && (
-                          <Badge variant="outline" className="text-xs flex items-center gap-1">
-                            <User className="w-3 h-3" />
-                            {match.speaker}
-                          </Badge>
-                        )}
-                        <ChevronRight className="w-4 h-4 ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                      <p className="text-sm text-foreground/90 line-clamp-2">
-                        {match.snippet}
-                      </p>
-                    </button>
-                  ))}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
@@ -467,9 +519,29 @@ export default function GlobalSearch() {
               <ResultsContent />
             </div>
             
-            <div className="pt-2 border-t">
-              <SearchFilters />
-            </div>
+            <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-between text-muted-foreground hover:text-foreground"
+                  data-testid="button-toggle-filters"
+                >
+                  <span className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4" />
+                    Advanced Filters
+                  </span>
+                  {filtersOpen ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-3">
+                <SearchFilters />
+              </CollapsibleContent>
+            </Collapsible>
             
             <div className="flex justify-end gap-2">
               <Button

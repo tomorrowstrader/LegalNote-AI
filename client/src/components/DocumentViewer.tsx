@@ -44,6 +44,7 @@ interface DocumentViewerProps {
   createdAt: string;
   onTranscriptTimestampClick?: (timestampMs: number) => void;
   initialTab?: 'attendance' | 'summary' | 'transcript';
+  initialTimestamp?: number;
 }
 
 // Helper component for editable document content - single panel with inline editing
@@ -156,6 +157,7 @@ export default function DocumentViewer({
   createdAt,
   onTranscriptTimestampClick,
   initialTab,
+  initialTimestamp,
 }: DocumentViewerProps) {
   const { toast } = useToast();
   const [showDownloadModal, setShowDownloadModal] = useState(false);
@@ -822,6 +824,7 @@ export default function DocumentViewer({
                   onRedact={handleRedact}
                   onRemoveRedaction={handleRemoveRedaction}
                   canRedact={true}
+                  initialTimestamp={initialTimestamp}
                 />
               ) : transcriptContent ? (
                 <p className="text-foreground whitespace-pre-wrap">{transcriptContent}</p>

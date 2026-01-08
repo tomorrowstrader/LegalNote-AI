@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Input } from "@/components/ui/input";
-import { Search, FolderOpen, FileText, MessageSquare, ClipboardList, Clock, ChevronRight } from "lucide-react";
+import { Search, FolderOpen, FileText, MessageSquare, ClipboardList, Clock, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import CaseCard from "@/components/CaseCard";
 import EmptyState from "@/components/EmptyState";
@@ -45,6 +45,7 @@ export default function SavedCases() {
   const [searchQuery, setSearchQuery] = useState("");
   const [documentType, setDocumentType] = useState("all");
   const lastSavedQuery = useRef<string>("");
+  const [expandedCases, setExpandedCases] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -135,6 +136,18 @@ export default function SavedCases() {
     const url = `/case/${caseId}${params.toString() ? '?' + params.toString() : ''}`;
     setLocation(url);
   }, [setLocation]);
+
+  const toggleExpandedCase = useCallback((caseId: string) => {
+    setExpandedCases(prev => {
+      const next = new Set(prev);
+      if (next.has(caseId)) {
+        next.delete(caseId);
+      } else {
+        next.add(caseId);
+      }
+      return next;
+    });
+  }, []);
 
   const getMatchLabel = (type: string, fieldName?: string) => {
     switch (type) {
@@ -242,37 +255,65 @@ export default function SavedCases() {
                         <div className="text-xs font-medium text-muted-foreground px-2 py-1">
                           {result.matches.length} match{result.matches.length !== 1 ? 'es' : ''} found
                         </div>
-                        {result.matches.slice(0, 3).map((match, idx) => (
-                          <button
-                            key={idx}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleMatchClick(result.case.id, match);
-                            }}
-                            className="w-full text-left px-2 py-1.5 rounded hover-elevate group cursor-pointer"
-                            data-testid={`match-result-${result.case.id}-${idx}`}
-                          >
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5">
-                              {getMatchIcon(match.documentType)}
-                              <span>{getMatchLabel(match.documentType, match.fieldName)}</span>
-                              {match.timestampMs !== undefined && (
-                                <Badge variant="secondary" className="text-[10px] py-0 px-1 flex items-center gap-0.5">
-                                  <Clock className="w-2.5 h-2.5" />
-                                  {formatTimestamp(match.timestampMs)}
-                                </Badge>
+                        {(() => {
+                          const isExpanded = expandedCases.has(result.case.id);
+                          const visibleMatches = isExpanded ? result.matches : result.matches.slice(0, 3);
+                          const hiddenCount = result.matches.length - 3;
+                          
+                          return (
+                            <>
+                              {visibleMatches.map((match, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMatchClick(result.case.id, match);
+                                  }}
+                                  className="w-full text-left px-2 py-1.5 rounded hover-elevate group cursor-pointer"
+                                  data-testid={`match-result-${result.case.id}-${idx}`}
+                                >
+                                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5">
+                                    {getMatchIcon(match.documentType)}
+                                    <span>{getMatchLabel(match.documentType, match.fieldName)}</span>
+                                    {match.timestampMs !== undefined && (
+                                      <Badge variant="secondary" className="text-[10px] py-0 px-1 flex items-center gap-0.5">
+                                        <Clock className="w-2.5 h-2.5" />
+                                        {formatTimestamp(match.timestampMs)}
+                                      </Badge>
+                                    )}
+                                    <ChevronRight className="w-3 h-3 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                  <p className="text-foreground/80 text-xs leading-relaxed line-clamp-2">
+                                    {highlightMatch(match.snippet, searchQuery)}
+                                  </p>
+                                </button>
+                              ))}
+                              {hiddenCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleExpandedCase(result.case.id);
+                                  }}
+                                  className="w-full px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground hover-elevate flex items-center gap-1"
+                                  data-testid={`toggle-matches-${result.case.id}`}
+                                >
+                                  {isExpanded ? (
+                                    <>
+                                      <ChevronUp className="w-3 h-3" />
+                                      Show fewer matches
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronDown className="w-3 h-3" />
+                                      +{hiddenCount} more match{hiddenCount !== 1 ? 'es' : ''}
+                                    </>
+                                  )}
+                                </button>
                               )}
-                              <ChevronRight className="w-3 h-3 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </div>
-                            <p className="text-foreground/80 text-xs leading-relaxed line-clamp-2">
-                              {highlightMatch(match.snippet, searchQuery)}
-                            </p>
-                          </button>
-                        ))}
-                        {result.matches.length > 3 && (
-                          <div className="text-xs text-muted-foreground px-2 py-1">
-                            +{result.matches.length - 3} more matches
-                          </div>
-                        )}
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, Clock, ChevronDown, ChevronUp, EyeOff, Eye, Shield, X, AlertTriangle } from "lucide-react";
@@ -47,6 +47,7 @@ interface DiarizedTranscriptViewerProps {
   onRedact?: (redaction: { start: number; end: number; reason: string; textStart?: number; textEnd?: number; selectedText?: string }) => void;
   onRemoveRedaction?: (start: number, end: number, textStart?: number, textEnd?: number) => void;
   canRedact?: boolean;
+  initialTimestamp?: number;
 }
 
 const SPEAKER_COLORS = [
@@ -101,6 +102,7 @@ export default function DiarizedTranscriptViewer({
   onRedact,
   onRemoveRedaction,
   canRedact = false,
+  initialTimestamp,
 }: DiarizedTranscriptViewerProps) {
   const [showTimestamps, setShowTimestamps] = useState(true);
   const [expandedView, setExpandedView] = useState(false);
@@ -114,6 +116,33 @@ export default function DiarizedTranscriptViewer({
     isPartial?: boolean;
   } | null>(null);
   const [redactionReason, setRedactionReason] = useState("");
+  const [highlightedTimestamp, setHighlightedTimestamp] = useState<number | null>(null);
+  const lastScrolledTimestamp = useRef<number | undefined>(undefined);
+  const utteranceRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  useEffect(() => {
+    if (initialTimestamp !== undefined && initialTimestamp !== lastScrolledTimestamp.current && utterances.length > 0) {
+      const targetUtterance = utterances.find(u => u.start <= initialTimestamp && u.end >= initialTimestamp);
+      if (targetUtterance) {
+        const attemptScroll = (retries = 0) => {
+          const targetEl = utteranceRefs.current.get(targetUtterance.start);
+          if (targetEl) {
+            requestAnimationFrame(() => {
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              setHighlightedTimestamp(targetUtterance.start);
+              lastScrolledTimestamp.current = initialTimestamp;
+              setTimeout(() => {
+                setHighlightedTimestamp(null);
+              }, 2000);
+            });
+          } else if (retries < 5) {
+            setTimeout(() => attemptScroll(retries + 1), 100);
+          }
+        };
+        setTimeout(() => attemptScroll(), 100);
+      }
+    }
+  }, [initialTimestamp, utterances]);
 
   if (!utterances || utterances.length === 0) {
     if (fallbackContent) {
@@ -417,13 +446,19 @@ export default function DiarizedTranscriptViewer({
           return (
             <div 
               key={idx}
+              ref={(el) => {
+                if (el) {
+                  utteranceRefs.current.set(utterance.start, el);
+                }
+              }}
               className={cn(
-                "rounded-lg border p-3 transition-colors",
+                "rounded-lg border p-3 transition-all",
                 fullRedaction 
                   ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800" 
                   : SPEAKER_COLORS[colorIdx],
                 !expandedView && "p-2",
-                redactionMode && canRedact && "cursor-text hover:ring-2 hover:ring-primary/50"
+                redactionMode && canRedact && "cursor-text hover:ring-2 hover:ring-primary/50",
+                highlightedTimestamp === utterance.start && "ring-2 ring-primary ring-offset-2"
               )}
               onMouseUp={() => {
                 const selection = window.getSelection();
