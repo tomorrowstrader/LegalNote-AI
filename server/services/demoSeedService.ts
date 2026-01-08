@@ -14,7 +14,8 @@ import { db } from "../db";
 import { 
   cases, transcripts, documents, consentLogs, actionItems, auditTrail, 
   preMeetingBriefings, shareLinks, quickNotes, audioRecordings, 
-  calendarEvents, meetingImports, preConsentEmails, clioMatterLinks 
+  calendarEvents, meetingImports, preConsentEmails, clioMatterLinks,
+  clientVersionTracking
 } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -1003,6 +1004,17 @@ export async function clearDemoData(userId: string): Promise<{ success: boolean;
       }
       
       // Delete ALL related records before deleting case (comprehensive FK cleanup)
+      // First, get documents for this case to delete their child records
+      const caseDocuments = await db.select({ id: documents.id })
+        .from(documents)
+        .where(eq(documents.caseId, demoCase.id));
+      
+      // Delete clientVersionTracking records that reference these documents
+      for (const doc of caseDocuments) {
+        await db.delete(clientVersionTracking).where(eq(clientVersionTracking.documentId, doc.id));
+      }
+      
+      // Now delete all case-level records
       await db.delete(auditTrail).where(eq(auditTrail.caseId, demoCase.id));
       await db.delete(actionItems).where(eq(actionItems.caseId, demoCase.id));
       await db.delete(preMeetingBriefings).where(eq(preMeetingBriefings.caseId, demoCase.id));
