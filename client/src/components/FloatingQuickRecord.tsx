@@ -184,7 +184,7 @@ export default function FloatingQuickRecord() {
               Discard Recording?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              To save your recording, complete the case details and click "Save & Process". If you discard, your recording will be permanently deleted.
+              Complete the case details to save, or discard to permanently delete this recording.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
