@@ -46,7 +46,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, gte, lte, desc, isNull, sql, count } from "drizzle-orm";
+import { eq, and, gte, lte, desc, isNull, sql, count, inArray } from "drizzle-orm";
 import { generateDocumentHash } from "./utils/documentHash";
 import { expandSearchWithSynonyms } from "./services/legalSynonyms";
 
@@ -206,6 +206,17 @@ export interface IStorage {
   updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined>;
   getExpiredAudioRecordings(): Promise<AudioRecording[]>;
   getExpiringAudioCount(userId: string, withinHours: number): Promise<number>;
+  getProductivityStats(userId: string): Promise<{
+    totalRecordingMinutes: number;
+    timeSavedHours: number;
+    avgProcessingHours: number;
+    complianceScore: number;
+    totalCases: number;
+    completedCases: number;
+    casesWithConsent: number;
+    monthlyTrend: "up" | "down" | "neutral";
+    monthlyChange: number;
+  }>;
   
   createConsentLog(consentData: InsertConsentLog, userId: string): Promise<ConsentLog>;
   getConsentLogsByCase(caseId: string, userId: string): Promise<ConsentLog[]>;
@@ -548,6 +559,76 @@ export class MemStorage implements IStorage {
         recording.expiresAt <= threshold &&
         !recording.deletedAt
     ).length;
+  }
+
+  async getProductivityStats(userId: string): Promise<{
+    totalRecordingMinutes: number;
+    timeSavedHours: number;
+    avgProcessingHours: number;
+    complianceScore: number;
+    totalCases: number;
+    completedCases: number;
+    casesWithConsent: number;
+    monthlyTrend: "up" | "down" | "neutral";
+    monthlyChange: number;
+  }> {
+    const userCases = Array.from(this.cases.values()).filter(c => c.createdBy === userId);
+    const userCaseIds = new Set(userCases.map(c => c.id));
+    
+    const totalRecordingSeconds = Array.from(this.audioRecordings.values())
+      .filter(r => userCaseIds.has(r.caseId) && r.duration)
+      .reduce((sum, r) => sum + (r.duration || 0), 0);
+    
+    const totalRecordingMinutes = Math.round(totalRecordingSeconds / 60);
+    const timeSavedHours = Math.round((totalRecordingSeconds * 2.5) / 3600 * 10) / 10;
+    
+    const completedCases = userCases.filter(c => c.status === "completed" || c.reviewed).length;
+    const totalCases = userCases.length;
+    
+    const casesWithConsent = Array.from(this.consentLogs.values())
+      .filter(cl => userCaseIds.has(cl.caseId) && cl.consentGiven)
+      .map(cl => cl.caseId)
+      .filter((v, i, a) => a.indexOf(v) === i).length;
+    
+    const complianceScore = totalCases > 0 ? Math.round((casesWithConsent / totalCases) * 100) : 100;
+    
+    const now = new Date();
+    const thisMonth = userCases.filter(c => {
+      const d = new Date(c.createdAt);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
+    
+    const lastMonth = userCases.filter(c => {
+      const d = new Date(c.createdAt);
+      const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();
+    }).length;
+    
+    let monthlyChange: number;
+    let monthlyTrend: "up" | "down" | "neutral";
+    
+    if (lastMonth === 0 && thisMonth > 0) {
+      monthlyChange = 100;
+      monthlyTrend = "up";
+    } else if (lastMonth > 0) {
+      monthlyChange = Math.round(((thisMonth - lastMonth) / lastMonth) * 100);
+      monthlyTrend = monthlyChange > 0 ? "up" : monthlyChange < 0 ? "down" : "neutral";
+    } else {
+      monthlyChange = 0;
+      monthlyTrend = "neutral";
+    }
+    
+    return {
+      totalRecordingMinutes,
+      timeSavedHours,
+      avgProcessingHours: 0.5,
+      complianceScore,
+      totalCases,
+      completedCases,
+      casesWithConsent,
+      monthlyTrend,
+      monthlyChange: Math.abs(monthlyChange),
+    };
   }
 
   async createAuditLog(insertAuditLog: InsertAuditTrail): Promise<AuditTrail> {
@@ -1623,6 +1704,85 @@ export class DbStorage implements IStorage {
       ));
     
     return result[0]?.count || 0;
+  }
+
+  async getProductivityStats(userId: string): Promise<{
+    totalRecordingMinutes: number;
+    timeSavedHours: number;
+    avgProcessingHours: number;
+    complianceScore: number;
+    totalCases: number;
+    completedCases: number;
+    casesWithConsent: number;
+    monthlyTrend: "up" | "down" | "neutral";
+    monthlyChange: number;
+  }> {
+    const userCases = await db.select().from(cases).where(eq(cases.createdBy, userId));
+    const userCaseIds = userCases.map(c => c.id);
+    
+    const audioResults = userCaseIds.length > 0 
+      ? await db.select({ duration: audioRecordings.duration })
+          .from(audioRecordings)
+          .where(inArray(audioRecordings.caseId, userCaseIds))
+      : [];
+    
+    const totalRecordingSeconds = audioResults
+      .filter(r => r.duration)
+      .reduce((sum, r) => sum + (r.duration || 0), 0);
+    
+    const totalRecordingMinutes = Math.round(totalRecordingSeconds / 60);
+    const timeSavedHours = Math.round((totalRecordingSeconds * 2.5) / 3600 * 10) / 10;
+    
+    const completedCases = userCases.filter(c => c.status === "completed" || c.reviewed).length;
+    const totalCases = userCases.length;
+    
+    const consentResults = userCaseIds.length > 0
+      ? await db.select({ caseId: consentLogs.caseId })
+          .from(consentLogs)
+          .where(and(
+            inArray(consentLogs.caseId, userCaseIds),
+            eq(consentLogs.consentGiven, true)
+          ))
+      : [];
+    
+    const casesWithConsent = [...new Set(consentResults.map(c => c.caseId))].length;
+    const complianceScore = totalCases > 0 ? Math.round((casesWithConsent / totalCases) * 100) : 100;
+    
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    
+    const thisMonth = userCases.filter(c => new Date(c.createdAt) >= startOfMonth).length;
+    const lastMonth = userCases.filter(c => {
+      const d = new Date(c.createdAt);
+      return d >= startOfLastMonth && d < startOfMonth;
+    }).length;
+    
+    let monthlyChange: number;
+    let monthlyTrend: "up" | "down" | "neutral";
+    
+    if (lastMonth === 0 && thisMonth > 0) {
+      monthlyChange = 100;
+      monthlyTrend = "up";
+    } else if (lastMonth > 0) {
+      monthlyChange = Math.round(((thisMonth - lastMonth) / lastMonth) * 100);
+      monthlyTrend = monthlyChange > 0 ? "up" : monthlyChange < 0 ? "down" : "neutral";
+    } else {
+      monthlyChange = 0;
+      monthlyTrend = "neutral";
+    }
+    
+    return {
+      totalRecordingMinutes,
+      timeSavedHours,
+      avgProcessingHours: 0.5,
+      complianceScore,
+      totalCases,
+      completedCases,
+      casesWithConsent,
+      monthlyTrend,
+      monthlyChange: Math.abs(monthlyChange),
+    };
   }
 
   async createConsentLog(consentData: InsertConsentLog, userId: string): Promise<ConsentLog> {

@@ -697,6 +697,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dashboard enhanced stats - productivity metrics
+  app.get("/api/dashboard/productivity-stats", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const stats = await storage.getProductivityStats(userId);
+      res.json(stats);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Search cases
   app.get("/api/search", isAuthenticated, async (req: any, res, next) => {
     try {

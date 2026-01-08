@@ -324,6 +324,50 @@ Red/yellow/green badges on the matter list. COLPs can filter for low scores.
 
 ---
 
+## Phase 6: Dashboard UX Enhancements
+
+### 6.1 Activity Timeline/Feed
+**What it does:** A compact "Recent Activity" section on the dashboard showing:
+- Latest actions: "Transcript ready for Thompson case", "Document approved 2h ago"
+- Real-time updates as processing completes
+- Clickable entries to jump directly to relevant cases
+
+**Why it fits:** Reduces cognitive load by surfacing what's new without manual checking.
+
+### 6.2 Quick Actions Row
+**What it does:** Large touch-friendly buttons for common workflows:
+- "Start Recording" - opens quick record immediately
+- "Import from Zoom" - launches video conferencing import
+- "Schedule Meeting" - creates a calendar-linked case
+
+**Why it fits:** Reduces clicks to most common actions, especially valuable on tablet/mobile.
+
+### 6.3 Weekly Summary Card
+**What it does:** A small visual chart showing:
+- Cases created vs. completed this week
+- Trend indicator (up/down vs. last week)
+- Processing time improvements
+
+**Why it fits:** Gives solicitors a sense of progress and productivity at a glance.
+
+### 6.4 Smart Suggestions Panel
+**What it does:** AI-driven prompts based on user behavior:
+- "3 cases haven't been reviewed in 5+ days"
+- "You typically record on Tuesdays - schedule a reminder?"
+- "Complete your first case to see your compliance score"
+
+**Why it fits:** Proactive nudges improve platform stickiness and user success.
+
+### 6.5 Keyboard Shortcuts Overlay
+**What it does:** A discoverable help overlay showing all keyboard shortcuts:
+- "LL" to start recording
+- "CMD+K" for global search
+- Quick navigation between cases
+
+**Why it fits:** Power users love keyboard shortcuts; discovery is the main barrier.
+
+---
+
 *Document created: December 2024*
 *Last updated: January 2026*
 *Next review: Q2 2026*

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, CircleCheck, Keyboard, Shield, Video } from "lucide-react";
+import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, CircleCheck, Keyboard, Shield, Video, Timer, Zap } from "lucide-react";
 import { ScheduledMeetingsViewer } from "@/components/ScheduledMeetingsViewer";
 import StatsCard from "@/components/StatsCard";
 import CaseCard from "@/components/CaseCard";
@@ -26,6 +26,25 @@ interface AttentionStats {
   audioExpiringCount: number;
 }
 
+interface ProductivityStats {
+  totalRecordingMinutes: number;
+  timeSavedHours: number;
+  avgProcessingHours: number;
+  complianceScore: number;
+  totalCases: number;
+  completedCases: number;
+  casesWithConsent: number;
+  monthlyTrend: "up" | "down" | "neutral";
+  monthlyChange: number;
+}
+
+function getTimeBasedGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 type StatusTab = "active" | "review" | "completed" | "archived";
 type SortOption = "deadline" | "created" | "client" | "priority";
 
@@ -43,6 +62,26 @@ export default function Dashboard() {
   const { data: attentionStats } = useQuery<AttentionStats>({
     queryKey: ["/api/dashboard/attention-stats"],
   });
+
+  const { data: productivityStats } = useQuery<ProductivityStats>({
+    queryKey: ["/api/dashboard/productivity-stats"],
+  });
+
+  const greeting = getTimeBasedGreeting();
+  const firstName = user?.firstName || user?.email?.split('@')[0] || 'there';
+
+  const productivityInsight = useMemo(() => {
+    if (!cases) return null;
+    const reviewCount = cases.filter(c => c.status === "completed" && !c.reviewed && !c.archived).length;
+    if (reviewCount > 0) {
+      return `You have ${reviewCount} case${reviewCount === 1 ? '' : 's'} ready for review`;
+    }
+    const activeCount = cases.filter(c => c.status !== "completed" && !c.reviewed && !c.archived).length;
+    if (activeCount > 0) {
+      return `${activeCount} case${activeCount === 1 ? '' : 's'} in progress`;
+    }
+    return "All caught up today";
+  }, [cases]);
 
   const needsAttention = useMemo(() => {
     if (!cases) return { overdue: [], awaitingReviewLong: [], allClear: true };
@@ -205,10 +244,8 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
           <div className="flex items-center justify-between gap-4 mb-8">
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Dashboard</h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Premium, modern Legal Compliance AI Dashboard
-              </p>
+              <Skeleton className="h-9 w-64 mb-2" />
+              <Skeleton className="h-5 w-48" />
             </div>
             <Skeleton className="h-10 w-28" />
           </div>
@@ -236,10 +273,14 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
         <div className="flex items-center justify-between gap-4 mb-8">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Premium, modern Legal Compliance AI Dashboard
-            </p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+              {greeting}, {firstName}
+            </h1>
+            {productivityInsight && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {productivityInsight}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             <div className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2.5 py-1.5 rounded-md border border-border/50">
@@ -267,22 +308,28 @@ export default function Dashboard() {
             value={totalCases}
             icon={FileText}
             description={`${thisMonthCases} this month`}
+            trend={productivityStats?.monthlyTrend}
+            trendValue={productivityStats?.monthlyChange ? `${productivityStats.monthlyChange}%` : undefined}
           />
           <StatsCard
-            title="This Month"
-            value={thisMonthCases}
-            icon={Clock}
+            title="Time Saved"
+            value={productivityStats?.timeSavedHours || 0}
+            icon={Timer}
+            suffix="hrs"
+            description="vs manual note-taking"
+          />
+          <StatsCard
+            title="Compliance"
+            value={productivityStats?.complianceScore ?? 100}
+            icon={Shield}
+            suffix="%"
+            description="cases with consent"
           />
           <StatsCard
             title="Actioned"
             value={actionedCases}
             icon={CheckCircle2}
-            description={`${successRate}% of total cases`}
-          />
-          <StatsCard
-            title="Priority Cases"
-            value={priorityCasesCount > 0 ? priorityCasesCount : "—"}
-            icon={AlertTriangle}
+            description={`${successRate}% completion rate`}
           />
         </div>
 
