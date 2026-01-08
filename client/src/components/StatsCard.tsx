@@ -13,6 +13,7 @@ interface StatsCardProps {
   animate?: boolean;
   variant?: "default" | "ring";
   ringColor?: "emerald" | "blue" | "amber" | "primary";
+  ringMax?: number;
 }
 
 function useCountUp(end: number, duration: number = 1000, enabled: boolean = true, decimals: number = 0) {
@@ -112,7 +113,8 @@ export default function StatsCard({
   suffix,
   animate = true,
   variant = "default",
-  ringColor = "emerald"
+  ringColor = "emerald",
+  ringMax
 }: StatsCardProps) {
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -133,6 +135,16 @@ export default function StatsCard({
   const trendColor = trend === 'up' ? 'text-emerald-500' : trend === 'down' ? 'text-red-500' : 'text-muted-foreground';
 
   if (variant === "ring") {
+    const isPercentage = suffix === "%";
+    let ringPercentage: number;
+    if (isPercentage) {
+      ringPercentage = isNumeric ? Math.min(animatedValue, 100) : 0;
+    } else if (ringMax && isNumeric) {
+      ringPercentage = Math.min((animatedValue / ringMax) * 100, 100);
+    } else {
+      ringPercentage = isNumeric && numericValue > 0 ? 100 : 0;
+    }
+    
     return (
       <Card 
         ref={cardRef}
@@ -144,7 +156,7 @@ export default function StatsCard({
         <CardContent className="p-5 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="relative flex-shrink-0">
-              <ProgressRing value={isNumeric ? animatedValue : 0} size={56} strokeWidth={5} color={ringColor} />
+              <ProgressRing value={ringPercentage} size={56} strokeWidth={5} color={ringColor} />
               <div className="absolute inset-0 flex items-center justify-center">
                 <Icon className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
               </div>

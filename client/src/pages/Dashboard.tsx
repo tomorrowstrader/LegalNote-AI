@@ -308,8 +308,8 @@ export default function Dashboard() {
             value={totalCases}
             icon={FileText}
             description={`${thisMonthCases} this month`}
-            trend={productivityStats?.monthlyTrend}
-            trendValue={productivityStats?.monthlyChange ? `${productivityStats.monthlyChange}%` : undefined}
+            variant="ring"
+            ringColor="primary"
           />
           <StatsCard
             title="Documentation"
@@ -333,7 +333,9 @@ export default function Dashboard() {
             title="Actioned"
             value={actionedCases}
             icon={CheckCircle2}
-            description={`${successRate}% completion rate`}
+            description={`${successRate}% of cases reviewed`}
+            variant="ring"
+            ringColor="amber"
           />
         </div>
 
