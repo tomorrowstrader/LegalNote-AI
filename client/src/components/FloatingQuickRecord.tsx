@@ -184,7 +184,7 @@ export default function FloatingQuickRecord() {
               Discard Recording?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              You have entered case details that will be lost if you cancel. The recording will not be saved.
+              If you cancel now, your recording will be discarded and nothing will be saved.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
