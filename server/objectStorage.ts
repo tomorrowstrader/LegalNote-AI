@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Response } from "express";
 import { randomUUID } from "crypto";
@@ -238,5 +238,100 @@ export class ObjectStorageService {
     }
     // Fallback: remove leading slash and use as-is
     return dbPath.startsWith("/") ? dbPath.substring(1) : dbPath;
+  }
+
+  // Get file contents as Buffer (for recovery operations)
+  async getFile(fileKey: string): Promise<Buffer> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: fileKey,
+      });
+
+      const data = await s3Client.send(command);
+      
+      if (!data.Body) {
+        throw new ObjectNotFoundError();
+      }
+
+      // Convert stream to buffer
+      if (data.Body instanceof Readable) {
+        return new Promise((resolve, reject) => {
+          const chunks: Buffer[] = [];
+          (data.Body as Readable).on("data", (chunk) => chunks.push(chunk));
+          (data.Body as Readable).on("end", () => resolve(Buffer.concat(chunks)));
+          (data.Body as Readable).on("error", reject);
+        });
+      } else {
+        return Buffer.from(data.Body as any);
+      }
+    } catch (error) {
+      console.error(`[S3] Error getting file ${fileKey}:`, error);
+      throw new ObjectNotFoundError();
+    }
+  }
+
+  // List all chunk keys for a session from durable storage
+  async listChunks(sessionId: string): Promise<{ key: string; index: number; size: number }[]> {
+    const prefix = `chunks/${sessionId}/`;
+    const chunks: { key: string; index: number; size: number }[] = [];
+    
+    try {
+      let continuationToken: string | undefined;
+      
+      do {
+        const command = new ListObjectsV2Command({
+          Bucket: BUCKET_NAME,
+          Prefix: prefix,
+          ContinuationToken: continuationToken,
+        });
+        
+        const response = await s3Client.send(command);
+        
+        if (response.Contents) {
+          for (const obj of response.Contents) {
+            if (obj.Key) {
+              // Extract chunk number from key: chunks/{sessionId}/chunk_000001.webm -> 1
+              const match = obj.Key.match(/chunk_(\d{6})\.\w+$/);
+              if (match) {
+                const index = parseInt(match[1], 10);
+                chunks.push({
+                  key: obj.Key,
+                  index,
+                  size: obj.Size || 0,
+                });
+              }
+            }
+          }
+        }
+        
+        continuationToken = response.NextContinuationToken;
+      } while (continuationToken);
+      
+      // Sort by index
+      chunks.sort((a, b) => a.index - b.index);
+      console.log(`[S3] Listed ${chunks.length} chunks for session ${sessionId}`);
+      return chunks;
+    } catch (error) {
+      console.error(`[S3] Error listing chunks for session ${sessionId}:`, error);
+      return [];
+    }
+  }
+
+  // Delete multiple chunks for a session (cleanup) - uses raw S3 key directly
+  async deleteChunks(sessionId: string, extension: string, chunkCount: number): Promise<void> {
+    for (let i = 0; i < chunkCount; i++) {
+      const chunkKey = `chunks/${sessionId}/chunk_${i.toString().padStart(6, '0')}${extension}`;
+      try {
+        const command = new DeleteObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: chunkKey,
+        });
+        await s3Client.send(command);
+      } catch (e) {
+        // Continue with other chunks even if one fails
+      }
+    }
+    console.log(`[S3] Cleaned up ${chunkCount} chunks for session ${sessionId}`);
   }
 }

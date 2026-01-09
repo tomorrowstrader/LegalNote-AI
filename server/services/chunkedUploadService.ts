@@ -120,6 +120,18 @@ export class ChunkedUploadService {
     const chunksReceived = session.chunks.size;
     const totalBytes = Array.from(session.chunks.values()).reduce((sum, chunk) => sum + chunk.length, 0);
 
+    // Persist chunk to durable storage for recovery (in case server restarts)
+    try {
+      const extension = session.mimeType.includes('webm') ? '.webm' : 
+                       session.mimeType.includes('mp4') ? '.mp4' :
+                       session.mimeType.includes('ogg') ? '.ogg' : '.webm';
+      const chunkKey = `chunks/${sessionId}/chunk_${chunkNumber.toString().padStart(6, '0')}${extension}`;
+      await this.objectStorage.uploadFile(chunkKey, chunkData, session.mimeType);
+    } catch (error) {
+      console.error(`[ChunkedUpload] Failed to persist chunk to storage:`, error);
+      // Continue anyway - in-memory chunk still works for normal flow
+    }
+
     // Update database with progress (for cross-device recovery)
     try {
       await db.update(recordingSessions)
@@ -133,7 +145,7 @@ export class ChunkedUploadService {
       console.error(`[ChunkedUpload] Failed to update session in DB:`, error);
     }
 
-    console.log(`[ChunkedUpload] Received chunk ${chunkNumber} for session ${sessionId} (${chunkData.length} bytes)`);
+    console.log(`[ChunkedUpload] Received chunk ${chunkNumber} for session ${sessionId} (${chunkData.length} bytes, persisted)`);
 
     return {
       received: chunksReceived,
@@ -457,6 +469,282 @@ export class ChunkedUploadService {
       return true;
     } catch (error) {
       console.error(`[ChunkedUpload] Failed to link session to case:`, error);
+      return false;
+    }
+  }
+
+  // Recover an interrupted session - assemble chunks and create a case
+  async recoverSession(sessionId: string, userId: string): Promise<{
+    success: boolean;
+    caseId?: string;
+    audioRecordingId?: string;
+    durationSeconds?: number;
+    hasConsent?: boolean;
+    message: string;
+  }> {
+    try {
+      // Get session metadata from database
+      const sessions = await db.select()
+        .from(recordingSessions)
+        .where(
+          and(
+            eq(recordingSessions.id, sessionId),
+            eq(recordingSessions.userId, userId)
+          )
+        );
+
+      if (sessions.length === 0) {
+        return { success: false, message: "Session not found" };
+      }
+
+      const sessionMeta = sessions[0];
+
+      // Check if session is recoverable
+      if (sessionMeta.status === "completed") {
+        return { success: false, message: "Session already completed" };
+      }
+
+      if (sessionMeta.status === "cancelled") {
+        return { success: false, message: "Session was cancelled" };
+      }
+
+      // Try to get chunks from in-memory session first
+      let activeSession = activeSessions.get(sessionId);
+      let chunks: Buffer[] = [];
+      
+      if (activeSession && activeSession.chunks.size > 0) {
+        // We have chunks in memory - use them
+        const sortedChunkNumbers = Array.from(activeSession.chunks.keys()).sort((a, b) => a - b);
+        for (const chunkNum of sortedChunkNumbers) {
+          const chunk = activeSession.chunks.get(chunkNum);
+          if (chunk) {
+            chunks.push(chunk);
+          }
+        }
+        console.log(`[ChunkedUpload] Found ${chunks.length} chunks in memory for session ${sessionId}`);
+      }
+      
+      // If no in-memory chunks, try to recover from durable storage
+      if (chunks.length === 0) {
+        console.log(`[ChunkedUpload] No in-memory chunks, attempting recovery from durable storage for session ${sessionId}`);
+        
+        try {
+          // List actual chunks from storage (authoritative source)
+          const storedChunks = await this.objectStorage.listChunks(sessionId);
+          
+          if (storedChunks.length === 0) {
+            console.log(`[ChunkedUpload] No chunks found in durable storage for session ${sessionId}`);
+          } else {
+            // Verify contiguous chunk indices (0, 1, 2, ..., N-1)
+            const maxIndex = storedChunks[storedChunks.length - 1].index;
+            const missingIndices: number[] = [];
+            
+            for (let i = 0; i <= maxIndex; i++) {
+              if (!storedChunks.some(c => c.index === i)) {
+                missingIndices.push(i);
+              }
+            }
+            
+            if (missingIndices.length > 0) {
+              console.warn(`[ChunkedUpload] Missing chunk indices for session ${sessionId}: ${missingIndices.join(', ')}`);
+              return {
+                success: false,
+                message: `Missing audio chunks (${missingIndices.length} gaps detected). Some audio data may still be uploading. Please try again in a moment.`,
+              };
+            }
+            
+            // Retrieve chunks in order
+            for (const chunkInfo of storedChunks) {
+              try {
+                const chunkData = await this.objectStorage.getFile(chunkInfo.key);
+                if (chunkData) {
+                  chunks.push(chunkData);
+                }
+              } catch (e) {
+                console.warn(`[ChunkedUpload] Could not retrieve chunk ${chunkInfo.index} from storage:`, e);
+                return {
+                  success: false,
+                  message: `Failed to retrieve chunk ${chunkInfo.index}. Please try again.`,
+                };
+              }
+            }
+            console.log(`[ChunkedUpload] Retrieved ${chunks.length} chunks from durable storage for session ${sessionId}`);
+          }
+        } catch (error) {
+          console.error(`[ChunkedUpload] Failed to retrieve chunks from storage:`, error);
+        }
+      }
+
+      if (chunks.length === 0) {
+        // DON'T mark as recovered - keep session active so user can retry after chunks arrive
+        // Update lastActivityAt to prevent premature cleanup
+        await db.update(recordingSessions)
+          .set({
+            lastActivityAt: new Date(),
+          })
+          .where(eq(recordingSessions.id, sessionId));
+
+        return { 
+          success: false, 
+          message: "No audio chunks found yet. Please wait a moment for data to sync and try again." 
+        };
+      }
+
+      const combinedAudio = Buffer.concat(chunks);
+      const totalBytes = combinedAudio.length;
+      const durationSeconds = chunks.length * CHUNK_INTERVAL_SECONDS;
+      const hasConsent = sessionMeta.consentChunkNumber !== null;
+
+      console.log(`[ChunkedUpload] Recovering session ${sessionId}: ${chunks.length} chunks, ${totalBytes} bytes, ~${durationSeconds}s`);
+
+      // Upload the recovered audio
+      const objectInfo = this.objectStorage.createPrivateObjectId();
+      const extension = sessionMeta.mimeType.includes('webm') ? '.webm' : 
+                       sessionMeta.mimeType.includes('mp4') ? '.mp4' :
+                       sessionMeta.mimeType.includes('ogg') ? '.ogg' : '.webm';
+      
+      const fileKey = `recovered/${objectInfo.key}${extension}`;
+      await this.objectStorage.uploadFile(fileKey, combinedAudio, sessionMeta.mimeType);
+      const dbPath = `recovered/${objectInfo.dbPath}${extension}`;
+
+      // Create a draft case for this recovered recording
+      const caseData = await storage.createCase({
+        userId,
+        title: `Recovered Recording - ${new Date().toLocaleDateString('en-GB')}`,
+        clientName: "Unknown Client",
+        matterReference: `REC-${sessionId.slice(0, 8).toUpperCase()}`,
+        status: "pending",
+        priority: "normal",
+        sourceType: "audio",
+      });
+
+      // Create audio recording record
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 7); // 7 day retention
+
+      const audioRecord = await storage.createAudioRecording({
+        caseId: caseData.id,
+        filePath: dbPath,
+        mimeType: sessionMeta.mimeType,
+        duration: durationSeconds,
+        expiresAt: expiryDate,
+      });
+
+      // Mark session as recovered
+      await db.update(recordingSessions)
+        .set({
+          status: "recovered",
+          recoveredAt: new Date(),
+          caseId: caseData.id,
+          chunksReceived: chunks.length,
+          totalBytes,
+        })
+        .where(eq(recordingSessions.id, sessionId));
+
+      // Clean up in-memory session and durable chunks
+      activeSessions.delete(sessionId);
+      
+      // Clean up chunk files from durable storage (async, non-blocking)
+      this.objectStorage.deleteChunks(sessionId, extension, chunks.length).catch(e => {
+        console.warn(`[ChunkedUpload] Failed to clean up chunks for session ${sessionId}:`, e);
+      });
+
+      console.log(`[ChunkedUpload] Session ${sessionId} recovered successfully. Case: ${caseData.id}`);
+
+      return {
+        success: true,
+        caseId: caseData.id,
+        audioRecordingId: audioRecord.id,
+        durationSeconds,
+        hasConsent,
+        message: hasConsent 
+          ? "Recording recovered successfully with consent segment preserved"
+          : "Recording recovered but consent confirmation was not captured. Please verify consent before sharing.",
+      };
+    } catch (error) {
+      console.error(`[ChunkedUpload] Failed to recover session ${sessionId}:`, error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : "Failed to recover recording" 
+      };
+    }
+  }
+
+  // Upload a recovery chunk directly to durable storage (for sessions that have expired from memory)
+  async uploadRecoveryChunk(
+    sessionId: string, 
+    userId: string, 
+    chunkNumber: number, 
+    chunkData: Buffer
+  ): Promise<{ success: boolean; bytesStored: number }> {
+    // Verify session exists in database and belongs to user
+    const sessions = await db.select()
+      .from(recordingSessions)
+      .where(
+        and(
+          eq(recordingSessions.id, sessionId),
+          eq(recordingSessions.userId, userId)
+        )
+      );
+
+    if (sessions.length === 0) {
+      throw new Error("Recording session not found");
+    }
+
+    const sessionMeta = sessions[0];
+
+    if (sessionMeta.status === "completed" || sessionMeta.status === "cancelled") {
+      throw new Error("Session already finalized");
+    }
+
+    // Upload directly to durable storage
+    const extension = sessionMeta.mimeType.includes('webm') ? '.webm' : 
+                     sessionMeta.mimeType.includes('mp4') ? '.mp4' :
+                     sessionMeta.mimeType.includes('ogg') ? '.ogg' : '.webm';
+    const chunkKey = `chunks/${sessionId}/chunk_${chunkNumber.toString().padStart(6, '0')}${extension}`;
+    
+    await this.objectStorage.uploadFile(chunkKey, chunkData, sessionMeta.mimeType);
+
+    // Update database with new chunk count if this chunk is new
+    const newChunkCount = Math.max(sessionMeta.chunksReceived, chunkNumber + 1);
+    const newTotalBytes = sessionMeta.totalBytes + chunkData.length;
+
+    await db.update(recordingSessions)
+      .set({
+        chunksReceived: newChunkCount,
+        totalBytes: newTotalBytes,
+        lastActivityAt: new Date(),
+      })
+      .where(eq(recordingSessions.id, sessionId));
+
+    console.log(`[ChunkedUpload] Recovery chunk ${chunkNumber} uploaded for session ${sessionId} (${chunkData.length} bytes)`);
+
+    return {
+      success: true,
+      bytesStored: chunkData.length,
+    };
+  }
+
+  // Discard an interrupted session (user chose not to recover)
+  async discardSession(sessionId: string, userId: string): Promise<boolean> {
+    try {
+      // Remove from memory
+      activeSessions.delete(sessionId);
+
+      // Mark as cancelled in database
+      await db.update(recordingSessions)
+        .set({ status: "cancelled" })
+        .where(
+          and(
+            eq(recordingSessions.id, sessionId),
+            eq(recordingSessions.userId, userId)
+          )
+        );
+
+      console.log(`[ChunkedUpload] Discarded session ${sessionId}`);
+      return true;
+    } catch (error) {
+      console.error(`[ChunkedUpload] Failed to discard session:`, error);
       return false;
     }
   }

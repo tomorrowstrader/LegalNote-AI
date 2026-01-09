@@ -1992,22 +1992,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Recover a chunked upload session (for resuming after connection issues)
+  // Get recovery status for a chunked upload session (for resuming after connection issues)
   app.get("/api/audio/chunk-session/:sessionId/recover", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const { sessionId } = req.params;
 
-      const recovery = chunkedUploadService.recoverSession(sessionId, userId);
+      const status = chunkedUploadService.getSessionStatus(sessionId, userId);
       
-      if (!recovery) {
+      if (!status) {
         return res.status(404).json({ 
           canRecover: false,
           message: "Session not found, expired, or already finalized" 
         });
       }
 
-      res.json(recovery);
+      res.json({
+        canRecover: true,
+        ...status,
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Upload a recovery chunk directly to durable storage (for sessions expired from memory after server restart)
+  app.post("/api/audio/recovery-chunk/:sessionId",
+    isAuthenticated,
+    audioUploadLimiter,
+    upload.single('chunk'),
+    handleMulterError,
+    async (req: any, res, next) => {
+      try {
+        const userId = req.user.claims.sub;
+        const { sessionId } = req.params;
+        const chunkNumber = parseInt(req.body.chunkNumber, 10);
+
+        if (!req.file) {
+          return res.status(400).json({ message: "Chunk data is required" });
+        }
+
+        if (isNaN(chunkNumber) || chunkNumber < 0) {
+          return res.status(400).json({ message: "Valid chunkNumber is required" });
+        }
+
+        const result = await chunkedUploadService.uploadRecoveryChunk(
+          sessionId,
+          userId,
+          chunkNumber,
+          req.file.buffer
+        );
+
+        res.json({
+          success: true,
+          chunkNumber,
+          bytesStored: result.bytesStored,
+        });
+      } catch (error: any) {
+        console.error('Recovery chunk upload error:', error);
+        next(error);
+      }
+    }
+  );
+
+  // Recover an interrupted recording session - creates a case from saved chunks
+  app.post("/api/audio/recover-session/:sessionId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+
+      const result = await chunkedUploadService.recoverSession(sessionId, userId);
+      
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      await logAuditEvent(userId, "recording_recovered", {
+        caseId: result.caseId,
+        metadata: {
+          sessionId,
+          audioRecordingId: result.audioRecordingId,
+          durationSeconds: result.durationSeconds,
+          hasConsent: result.hasConsent,
+        },
+        severity: "medium",
+        req,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error('Recovery error:', error);
+      next(error);
+    }
+  });
+
+  // Discard an interrupted recording session
+  app.delete("/api/audio/recover-session/:sessionId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+
+      const discarded = await chunkedUploadService.discardSession(sessionId, userId);
+      
+      if (!discarded) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      res.json({ success: true, message: "Session discarded" });
     } catch (error: any) {
       next(error);
     }

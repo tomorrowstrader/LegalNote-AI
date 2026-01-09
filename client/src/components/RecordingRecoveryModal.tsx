@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Clock, FileAudio, Loader2, Trash2, CheckCircle } from "lucide-react";
+import { AlertTriangle, Clock, FileAudio, Loader2, Trash2, CheckCircle, AlertCircle, FolderOpen } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { indexedDBBackup, StoredSession } from "@/lib/indexedDBBackup";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 
 interface IncompleteSession {
@@ -20,17 +23,27 @@ interface IncompleteSession {
   durationSeconds: number;
 }
 
+interface RecoveryResult {
+  success: boolean;
+  caseId?: string;
+  audioRecordingId?: string;
+  durationSeconds?: number;
+  hasConsent?: boolean;
+  message: string;
+}
+
 interface RecordingRecoveryModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onRecover?: (sessionId: string) => void;
 }
 
-export function RecordingRecoveryModal({ open, onOpenChange, onRecover }: RecordingRecoveryModalProps) {
+export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecoveryModalProps) {
   const [localSessions, setLocalSessions] = useState<StoredSession[]>([]);
   const [recovering, setRecovering] = useState<string | null>(null);
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
-  const { data: serverSessions = [], isLoading } = useQuery<IncompleteSession[]>({
+  const { data: serverSessions = [], isLoading, refetch } = useQuery<IncompleteSession[]>({
     queryKey: ["/api/audio/incomplete-sessions"],
     enabled: open,
   });
@@ -46,7 +59,7 @@ export function RecordingRecoveryModal({ open, onOpenChange, onRecover }: Record
   const discardMutation = useMutation({
     mutationFn: async (sessionId: string) => {
       await indexedDBBackup.clearSession(sessionId);
-      await fetch(`/api/audio/chunk-session/${sessionId}`, {
+      await fetch(`/api/audio/recover-session/${sessionId}`, {
         method: 'DELETE',
         credentials: 'include',
       }).catch(() => {});
@@ -54,24 +67,115 @@ export function RecordingRecoveryModal({ open, onOpenChange, onRecover }: Record
     onSuccess: (_, sessionId) => {
       setLocalSessions(prev => prev.filter(s => s.id !== sessionId));
       queryClient.invalidateQueries({ queryKey: ["/api/audio/incomplete-sessions"] });
+      toast({
+        title: "Session discarded",
+        description: "The interrupted recording has been removed.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to discard",
+        description: "Could not remove the session. Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
-  const handleRecover = async (session: IncompleteSession | StoredSession) => {
-    setRecovering(session.id);
-    
-    try {
-      if (onRecover) {
-        onRecover(session.id);
+  const recoverMutation = useMutation({
+    mutationFn: async (sessionId: string) => {
+      // First, try to upload any local chunks that weren't synced to cloud
+      try {
+        const localChunks = await indexedDBBackup.getChunks(sessionId);
+        if (localChunks.length > 0) {
+          console.log(`[Recovery] Uploading ${localChunks.length} local chunks for session ${sessionId}`);
+          
+          for (const chunk of localChunks) {
+            try {
+              const formData = new FormData();
+              formData.append('chunk', chunk.data, `chunk_${chunk.chunkNumber}.webm`);
+              formData.append('chunkNumber', chunk.chunkNumber.toString());
+              
+              // Use the recovery-chunk endpoint which bypasses in-memory session requirement
+              const response = await fetch(`/api/audio/recovery-chunk/${sessionId}`, {
+                method: 'POST',
+                credentials: 'include',
+                body: formData,
+              });
+              
+              if (response.ok) {
+                console.log(`[Recovery] Uploaded local chunk ${chunk.chunkNumber}`);
+              } else {
+                console.warn(`[Recovery] Failed to upload chunk ${chunk.chunkNumber}:`, await response.text());
+              }
+            } catch (e) {
+              console.warn(`[Recovery] Failed to upload local chunk ${chunk.chunkNumber}:`, e);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[Recovery] Failed to upload local chunks:', e);
       }
-      
-      await indexedDBBackup.markSessionRecovered(session.id);
-      onOpenChange(false);
-    } catch (error) {
-      console.error('Recovery failed:', error);
+
+      // Now trigger server-side recovery
+      return await apiRequest<RecoveryResult>("POST", `/api/audio/recover-session/${sessionId}`, {});
+    },
+    onSuccess: async (result, sessionId) => {
+      // Clean up local storage
+      await indexedDBBackup.clearSession(sessionId);
+      setLocalSessions(prev => prev.filter(s => s.id !== sessionId));
+      queryClient.invalidateQueries({ queryKey: ["/api/audio/incomplete-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+
+      if (result.success && result.caseId) {
+        toast({
+          title: "Recording recovered",
+          description: result.hasConsent 
+            ? `Your ${Math.floor((result.durationSeconds || 0) / 60)} minute recording has been saved.`
+            : "Recording saved. Note: Consent was not confirmed during this recording.",
+          action: (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setLocation(`/case/${result.caseId}`)}
+              className="gap-1"
+            >
+              <FolderOpen className="w-4 h-4" />
+              View Case
+            </Button>
+          ),
+        });
+        
+        // Close modal and redirect to the recovered case
+        onOpenChange(false);
+        setLocation(`/case/${result.caseId}`);
+      } else {
+        toast({
+          title: "Partial recovery",
+          description: result.message,
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Recovery failed",
+        description: error.message || "Could not recover the recording. The audio data may be lost.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleRecover = async (sessionId: string) => {
+    setRecovering(sessionId);
+    try {
+      await recoverMutation.mutateAsync(sessionId);
     } finally {
       setRecovering(null);
     }
+  };
+
+  const handleDiscard = async (sessionId: string) => {
+    discardMutation.mutate(sessionId);
   };
 
   const formatDuration = (seconds: number) => {
@@ -117,7 +221,7 @@ export function RecordingRecoveryModal({ open, onOpenChange, onRecover }: Record
           </DialogTitle>
           <DialogDescription>
             We detected incomplete recording sessions that were interrupted unexpectedly. 
-            You can recover these recordings or discard them.
+            Click "Recover" to create a case from the saved audio chunks.
           </DialogDescription>
         </DialogHeader>
 
@@ -149,7 +253,7 @@ export function RecordingRecoveryModal({ open, onOpenChange, onRecover }: Record
                         <Clock className="w-3.5 h-3.5" />
                         {formatDuration(session.durationSeconds)}
                       </span>
-                      <span>{session.chunksReceived} chunks</span>
+                      <span>{session.chunksReceived} chunks saved</span>
                       {session.totalBytes > 0 && (
                         <span>{formatBytes(session.totalBytes)}</span>
                       )}
@@ -157,6 +261,12 @@ export function RecordingRecoveryModal({ open, onOpenChange, onRecover }: Record
                     <p className="text-xs text-muted-foreground mt-1">
                       Last activity: {formatDistanceToNow(new Date(session.lastActivityAt), { addSuffix: true })}
                     </p>
+                    {session.source === 'local' && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        Saved locally on this device
+                      </p>
+                    )}
                   </div>
                 </div>
                 
@@ -164,7 +274,7 @@ export function RecordingRecoveryModal({ open, onOpenChange, onRecover }: Record
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => discardMutation.mutate(session.id)}
+                    onClick={() => handleDiscard(session.id)}
                     disabled={discardMutation.isPending || recovering === session.id}
                     data-testid={`discard-session-${session.id}`}
                   >
@@ -172,20 +282,31 @@ export function RecordingRecoveryModal({ open, onOpenChange, onRecover }: Record
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => handleRecover(session)}
+                    onClick={() => handleRecover(session.id)}
                     disabled={recovering !== null}
                     data-testid={`recover-session-${session.id}`}
                   >
                     {recovering === session.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                    ) : null}
-                    Recover
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                        Recovering...
+                      </>
+                    ) : (
+                      'Recover'
+                    )}
                   </Button>
                 </div>
               </div>
             ))}
           </div>
         )}
+
+        <Alert className="bg-muted/50">
+          <AlertDescription className="text-xs text-muted-foreground">
+            Recovered recordings are saved as draft cases. You can add client details and process them normally.
+            Audio is protected by our 7-day retention policy after recovery.
+          </AlertDescription>
+        </Alert>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
