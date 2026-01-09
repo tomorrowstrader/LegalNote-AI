@@ -693,7 +693,7 @@ export default function DocumentViewer({
       style={{ '--doc-header-height': `${headerHeight}px` } as CSSProperties}
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div ref={stickyHeaderRef} className="sticky top-0 z-40 bg-background pt-4 pb-3 border-b">
+        <div ref={stickyHeaderRef} className="sticky top-0 z-40 bg-card pt-4 pb-3 border-b">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
             <div>
               <h2 className="text-xl sm:text-2xl font-semibold">Generated Documentation</h2>
