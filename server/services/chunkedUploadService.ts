@@ -1,6 +1,9 @@
 import { randomUUID } from "crypto";
 import { ObjectStorageService } from "../objectStorage";
 import { storage } from "../storage";
+import { db } from "../db";
+import { recordingSessions } from "@shared/schema";
+import { eq, and, lt, or } from "drizzle-orm";
 
 interface ChunkMetadata {
   sessionId: string;
@@ -54,7 +57,7 @@ export class ChunkedUploadService {
     }, CLEANUP_INTERVAL_MS);
   }
 
-  createSession(userId: string, mimeType: string, caseId?: string): string {
+  async createSession(userId: string, mimeType: string, caseId?: string): Promise<string> {
     const sessionId = randomUUID();
     
     const session: RecordingSession = {
@@ -70,7 +73,23 @@ export class ChunkedUploadService {
     };
 
     activeSessions.set(sessionId, session);
-    console.log(`[ChunkedUpload] Created session ${sessionId} for user ${userId}`);
+    
+    // Save to database for cross-device recovery
+    try {
+      await db.insert(recordingSessions).values({
+        id: sessionId,
+        userId,
+        caseId: caseId || null,
+        status: "active",
+        mimeType,
+        chunksReceived: 0,
+        totalBytes: 0,
+      });
+      console.log(`[ChunkedUpload] Created session ${sessionId} for user ${userId} (saved to DB)`);
+    } catch (error) {
+      console.error(`[ChunkedUpload] Failed to save session to DB:`, error);
+      // Continue anyway - in-memory session still works
+    }
     
     return sessionId;
   }
@@ -98,19 +117,35 @@ export class ChunkedUploadService {
     session.chunks.set(chunkNumber, chunkData);
     session.lastActivityAt = new Date();
 
+    const chunksReceived = session.chunks.size;
+    const totalBytes = Array.from(session.chunks.values()).reduce((sum, chunk) => sum + chunk.length, 0);
+
+    // Update database with progress (for cross-device recovery)
+    try {
+      await db.update(recordingSessions)
+        .set({
+          chunksReceived,
+          totalBytes,
+          lastActivityAt: new Date(),
+        })
+        .where(eq(recordingSessions.id, sessionId));
+    } catch (error) {
+      console.error(`[ChunkedUpload] Failed to update session in DB:`, error);
+    }
+
     console.log(`[ChunkedUpload] Received chunk ${chunkNumber} for session ${sessionId} (${chunkData.length} bytes)`);
 
     return {
-      received: session.chunks.size,
+      received: chunksReceived,
       bytesStored: chunkData.length,
     };
   }
 
-  markConsentConfirmed(sessionId: string, userId: string): { 
+  async markConsentConfirmed(sessionId: string, userId: string): Promise<{ 
     success: boolean; 
     consentChunk: number;
     elapsedSeconds: number;
-  } {
+  }> {
     const session = activeSessions.get(sessionId);
     
     if (!session) {
@@ -129,6 +164,19 @@ export class ChunkedUploadService {
     session.consentConfirmedAt = now;
     session.consentConfirmedChunk = consentChunk;
     session.consentElapsedSeconds = elapsedSeconds;
+
+    // Update database with consent info
+    try {
+      await db.update(recordingSessions)
+        .set({
+          consentChunkNumber: consentChunk,
+          consentElapsedSeconds: elapsedSeconds,
+          lastActivityAt: now,
+        })
+        .where(eq(recordingSessions.id, sessionId));
+    } catch (error) {
+      console.error(`[ChunkedUpload] Failed to update consent in DB:`, error);
+    }
 
     console.log(`[ChunkedUpload] Consent confirmed for session ${sessionId} at chunk ${consentChunk} (${elapsedSeconds}s elapsed)`);
 
@@ -234,6 +282,20 @@ export class ChunkedUploadService {
 
     session.finalized = true;
 
+    // Mark session as completed in database
+    try {
+      await db.update(recordingSessions)
+        .set({
+          status: "completed",
+          completedAt: new Date(),
+          chunksReceived: totalChunks,
+          totalBytes,
+        })
+        .where(eq(recordingSessions.id, sessionId));
+    } catch (error) {
+      console.error(`[ChunkedUpload] Failed to mark session completed in DB:`, error);
+    }
+
     setTimeout(() => {
       activeSessions.delete(sessionId);
       console.log(`[ChunkedUpload] Cleaned up finalized session ${sessionId}`);
@@ -295,7 +357,7 @@ export class ChunkedUploadService {
     };
   }
 
-  cancelSession(sessionId: string, userId: string): boolean {
+  async cancelSession(sessionId: string, userId: string): Promise<boolean> {
     const session = activeSessions.get(sessionId);
     
     if (!session || session.userId !== userId) {
@@ -303,8 +365,100 @@ export class ChunkedUploadService {
     }
 
     activeSessions.delete(sessionId);
+    
+    // Mark session as cancelled in database
+    try {
+      await db.update(recordingSessions)
+        .set({ status: "cancelled" })
+        .where(eq(recordingSessions.id, sessionId));
+    } catch (error) {
+      console.error(`[ChunkedUpload] Failed to mark session cancelled in DB:`, error);
+    }
+    
     console.log(`[ChunkedUpload] Cancelled session ${sessionId}`);
     return true;
+  }
+
+  // Get incomplete sessions for a user (for recovery across devices/browsers)
+  async getIncompleteSessions(userId: string): Promise<{
+    id: string;
+    caseId: string | null;
+    status: string;
+    chunksReceived: number;
+    totalBytes: number;
+    startedAt: Date;
+    lastActivityAt: Date;
+    durationSeconds: number;
+  }[]> {
+    try {
+      const sessions = await db.select()
+        .from(recordingSessions)
+        .where(
+          and(
+            eq(recordingSessions.userId, userId),
+            or(
+              eq(recordingSessions.status, "active"),
+              eq(recordingSessions.status, "interrupted")
+            )
+          )
+        );
+
+      return sessions.map(session => ({
+        id: session.id,
+        caseId: session.caseId,
+        status: session.status,
+        chunksReceived: session.chunksReceived,
+        totalBytes: session.totalBytes,
+        startedAt: session.startedAt,
+        lastActivityAt: session.lastActivityAt,
+        durationSeconds: session.chunksReceived * 10, // Each chunk is ~10 seconds
+      }));
+    } catch (error) {
+      console.error(`[ChunkedUpload] Failed to get incomplete sessions:`, error);
+      return [];
+    }
+  }
+
+  // Mark stale sessions as interrupted (for cleanup task)
+  async markStaleSessions(): Promise<number> {
+    const staleThreshold = new Date(Date.now() - SESSION_EXPIRY_MS);
+    
+    try {
+      const result = await db.update(recordingSessions)
+        .set({ 
+          status: "interrupted",
+          interruptedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(recordingSessions.status, "active"),
+            lt(recordingSessions.lastActivityAt, staleThreshold)
+          )
+        );
+      
+      return 0; // Drizzle doesn't return count by default
+    } catch (error) {
+      console.error(`[ChunkedUpload] Failed to mark stale sessions:`, error);
+      return 0;
+    }
+  }
+
+  // Link a session to a case (when case is created after recording)
+  async linkSessionToCase(sessionId: string, caseId: string, userId: string): Promise<boolean> {
+    try {
+      await db.update(recordingSessions)
+        .set({ caseId })
+        .where(
+          and(
+            eq(recordingSessions.id, sessionId),
+            eq(recordingSessions.userId, userId)
+          )
+        );
+      return true;
+    } catch (error) {
+      console.error(`[ChunkedUpload] Failed to link session to case:`, error);
+      return false;
+    }
   }
 }
 

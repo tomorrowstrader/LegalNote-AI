@@ -10,6 +10,7 @@ import { useDoubleTapL } from "@/hooks/useDoubleTapL";
 import TopNavigation from "@/components/TopNavigation";
 import FirmSetupPrompt from "@/components/FirmSetupPrompt";
 import OnboardingTour from "@/components/OnboardingTour";
+import { RecordingRecoveryModal, useRecordingRecovery } from "@/components/RecordingRecoveryModal";
 import Dashboard from "@/pages/Dashboard";
 import NewNote from "@/pages/NewNote";
 import CaseDetail from "@/pages/CaseDetail";
@@ -63,6 +64,7 @@ function AuthenticatedAppContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const { isFocusMode } = useFocusMode();
   const [restartTourTrigger, setRestartTourTrigger] = useState(0);
+  const { showRecoveryModal, setShowRecoveryModal } = useRecordingRecovery();
 
   useDoubleTapL();
 
@@ -75,6 +77,12 @@ function AuthenticatedAppContent() {
       {!isLoading && isAuthenticated && !isFocusMode && <TopNavigation onRestartTour={handleRestartTour} />}
       {!isLoading && isAuthenticated && !isFocusMode && <FirmSetupPrompt />}
       {!isLoading && isAuthenticated && !isFocusMode && <OnboardingTour restartTrigger={restartTourTrigger} />}
+      {!isLoading && isAuthenticated && (
+        <RecordingRecoveryModal
+          open={showRecoveryModal}
+          onOpenChange={setShowRecoveryModal}
+        />
+      )}
       <Router />
     </div>
   );

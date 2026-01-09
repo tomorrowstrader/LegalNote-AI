@@ -1769,12 +1769,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "mimeType is required" });
       }
 
-      const sessionId = chunkedUploadService.createSession(userId, mimeType, caseId);
+      const sessionId = await chunkedUploadService.createSession(userId, mimeType, caseId);
       
       res.json({ 
         sessionId,
         message: "Chunked upload session created",
       });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Get incomplete recording sessions for recovery
+  app.get("/api/audio/incomplete-sessions", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const sessions = await chunkedUploadService.getIncompleteSessions(userId);
+      
+      // Enrich with case info if available
+      const enrichedSessions = await Promise.all(
+        sessions.map(async (session) => {
+          let caseName = null;
+          let clientName = null;
+          if (session.caseId) {
+            const caseData = await storage.getCase(session.caseId, userId);
+            if (caseData) {
+              caseName = caseData.title;
+              clientName = caseData.clientName;
+            }
+          }
+          return {
+            ...session,
+            caseName,
+            clientName,
+          };
+        })
+      );
+      
+      res.json(enrichedSessions);
     } catch (error: any) {
       next(error);
     }
@@ -1948,7 +1980,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const { sessionId } = req.params;
 
-      const cancelled = chunkedUploadService.cancelSession(sessionId, userId);
+      const cancelled = await chunkedUploadService.cancelSession(sessionId, userId);
       
       if (!cancelled) {
         return res.status(404).json({ message: "Session not found or already finalized" });
@@ -1987,7 +2019,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const { sessionId } = req.params;
 
-      const result = chunkedUploadService.markConsentConfirmed(sessionId, userId);
+      const result = await chunkedUploadService.markConsentConfirmed(sessionId, userId);
       
       await logAuditEvent(userId, "consent_timestamp_marked", {
         metadata: {

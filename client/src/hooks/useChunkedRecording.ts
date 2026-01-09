@@ -1,8 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
+import { indexedDBBackup } from "@/lib/indexedDBBackup";
 
 const CHUNK_INTERVAL_MS = 10000;
 const RECORDING_SESSION_KEY = 'legalnote_recording_session';
+const SILENCE_THRESHOLD_MS = 30000;
 
 interface ChunkSession {
   sessionId: string;
@@ -44,6 +46,10 @@ interface UseChunkedRecordingReturn {
   mimeType: string;
   chunkSessionId: string | null;
   isUploading: boolean;
+  lastSyncTime: Date | null;
+  pendingChunksCount: number;
+  batteryLevel: number | null;
+  isSilent: boolean;
 }
 
 /**
@@ -116,6 +122,10 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
   const [networkStatus, setNetworkStatus] = useState<NetworkStatus>({
     online: typeof navigator !== 'undefined' ? navigator.onLine : true,
   });
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [pendingChunksCount, setPendingChunksCount] = useState(0);
+  const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
+  const [isSilent, setIsSilent] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -125,6 +135,10 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
   const audioFormatRef = useRef(getSupportedMimeType());
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pendingChunksRef = useRef<Map<number, Blob>>(new Map());
+  const lastAudioActivityRef = useRef<number>(Date.now());
+  const silenceCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -162,6 +176,33 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     };
   }, [onNetworkStatusChange]);
 
+  // Battery monitoring
+  useEffect(() => {
+    if (!('getBattery' in navigator)) return;
+    
+    let battery: any = null;
+    
+    const updateBatteryLevel = () => {
+      if (battery) {
+        setBatteryLevel(Math.round(battery.level * 100));
+      }
+    };
+    
+    (navigator as any).getBattery().then((b: any) => {
+      battery = b;
+      updateBatteryLevel();
+      battery.addEventListener('levelchange', updateBatteryLevel);
+    }).catch(() => {
+      // Battery API not available
+    });
+    
+    return () => {
+      if (battery) {
+        battery.removeEventListener('levelchange', updateBatteryLevel);
+      }
+    };
+  }, []);
+
   const updateLocalSession = useCallback((duration: number, chunkSessionId?: string, chunksUploaded?: number) => {
     try {
       const session: RecordingSession = {
@@ -183,12 +224,21 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
   const uploadChunk = useCallback(async (chunkNumber: number, chunkBlob: Blob): Promise<boolean> => {
     if (!chunkSessionRef.current) return false;
 
+    const sessionId = chunkSessionRef.current.sessionId;
+
+    // Store chunk locally first (IndexedDB backup)
+    try {
+      await indexedDBBackup.storeChunk(sessionId, chunkNumber, chunkBlob);
+    } catch (e) {
+      console.warn('[IndexedDB] Failed to backup chunk locally:', e);
+    }
+
     const formData = new FormData();
     formData.append('chunk', chunkBlob, `chunk_${chunkNumber}`);
     formData.append('chunkNumber', chunkNumber.toString());
 
     try {
-      const response = await fetch(`/api/audio/chunk-session/${chunkSessionRef.current.sessionId}/chunk`, {
+      const response = await fetch(`/api/audio/chunk-session/${sessionId}/chunk`, {
         method: 'POST',
         credentials: 'include',
         body: formData,
@@ -205,13 +255,23 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       chunkSessionRef.current.lastUploadTime = new Date();
       
       setChunksUploaded(result.chunksReceived);
+      setLastSyncTime(new Date());
       pendingChunksRef.current.delete(chunkNumber);
+      setPendingChunksCount(pendingChunksRef.current.size);
       onChunkUploaded?.(chunkNumber, result.chunksReceived);
+      
+      // Mark chunk as uploaded in IndexedDB
+      try {
+        await indexedDBBackup.markChunkUploaded(sessionId, chunkNumber);
+      } catch (e) {
+        console.warn('[IndexedDB] Failed to mark chunk uploaded:', e);
+      }
       
       return true;
     } catch (error) {
       console.error(`Failed to upload chunk ${chunkNumber}:`, error);
       pendingChunksRef.current.set(chunkNumber, chunkBlob);
+      setPendingChunksCount(pendingChunksRef.current.size);
       return false;
     }
   }, [onChunkUploaded]);
@@ -238,6 +298,13 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
         lastUploadTime: new Date(),
         totalBytesUploaded: 0,
       };
+      
+      // Create IndexedDB session for local backup
+      try {
+        await indexedDBBackup.createSession(response.sessionId, audioFormatRef.current.mimeType);
+      } catch (e) {
+        console.warn('[IndexedDB] Failed to create local session:', e);
+      }
       
       return response.sessionId;
     } catch (error) {
@@ -284,6 +351,41 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       setIsRecording(true);
       setDuration(0);
       setChunksUploaded(0);
+      setIsSilent(false);
+      lastAudioActivityRef.current = Date.now();
+
+      // Set up audio analysis for silence detection
+      try {
+        const audioContext = new AudioContext();
+        const analyser = audioContext.createAnalyser();
+        const source = audioContext.createMediaStreamSource(stream);
+        source.connect(analyser);
+        analyser.fftSize = 256;
+        
+        audioContextRef.current = audioContext;
+        analyserRef.current = analyser;
+        
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        
+        silenceCheckIntervalRef.current = setInterval(() => {
+          if (!analyserRef.current) return;
+          
+          analyserRef.current.getByteFrequencyData(dataArray);
+          const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+          
+          if (average > 5) {
+            lastAudioActivityRef.current = Date.now();
+            setIsSilent(false);
+          } else {
+            const silenceDuration = Date.now() - lastAudioActivityRef.current;
+            if (silenceDuration > SILENCE_THRESHOLD_MS) {
+              setIsSilent(true);
+            }
+          }
+        }, 1000);
+      } catch (e) {
+        console.warn('[Audio] Failed to set up silence detection:', e);
+      }
 
       durationIntervalRef.current = setInterval(() => {
         setDuration(prev => {
@@ -301,6 +403,19 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     }
   }, [createChunkSession, networkStatus.online, uploadChunk, updateLocalSession, onError]);
 
+  const cleanupAudioAnalysis = useCallback(() => {
+    if (silenceCheckIntervalRef.current) {
+      clearInterval(silenceCheckIntervalRef.current);
+      silenceCheckIntervalRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    setIsSilent(false);
+  }, []);
+
   const stopRecording = useCallback(async (): Promise<Blob | null> => {
     return new Promise((resolve) => {
       if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
@@ -312,6 +427,8 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
         clearInterval(durationIntervalRef.current);
         durationIntervalRef.current = null;
       }
+
+      cleanupAudioAnalysis();
 
       mediaRecorderRef.current.onstop = async () => {
         const { mimeType } = audioFormatRef.current;
@@ -331,13 +448,15 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
 
       mediaRecorderRef.current.stop();
     });
-  }, [networkStatus.online, retryPendingChunks]);
+  }, [networkStatus.online, retryPendingChunks, cleanupAudioAnalysis]);
 
   const cancelRecording = useCallback(() => {
     if (durationIntervalRef.current) {
       clearInterval(durationIntervalRef.current);
       durationIntervalRef.current = null;
     }
+
+    cleanupAudioAnalysis();
 
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
@@ -361,7 +480,7 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     setDuration(0);
     setChunksUploaded(0);
     clearLocalSession();
-  }, [clearLocalSession]);
+  }, [clearLocalSession, cleanupAudioAnalysis]);
 
   const markConsentConfirmed = useCallback(async (): Promise<{ success: boolean; consentChunk: number; elapsedSeconds: number } | null> => {
     if (!chunkSessionRef.current) {
@@ -389,19 +508,29 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       throw new Error('No active chunk session');
     }
 
+    const sessionId = chunkSessionRef.current.sessionId;
+
     try {
       const response = await apiRequest<{
         success: boolean;
         totalChunks: number;
         totalBytes: number;
         consentSegmentPreserved: boolean;
-      }>("POST", `/api/audio/chunk-session/${chunkSessionRef.current.sessionId}/finalize`, {
+      }>("POST", `/api/audio/chunk-session/${sessionId}/finalize`, {
         audioRecordingId,
         duration,
       });
 
       clearLocalSession();
       chunkSessionRef.current = null;
+      
+      // Mark IndexedDB session as completed and clean up
+      try {
+        await indexedDBBackup.markSessionCompleted(sessionId);
+        await indexedDBBackup.clearSession(sessionId);
+      } catch (e) {
+        console.warn('[IndexedDB] Failed to clean up local session:', e);
+      }
 
       return {
         success: response.success,
@@ -420,6 +549,12 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current);
       }
+      if (silenceCheckIntervalRef.current) {
+        clearInterval(silenceCheckIntervalRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
       streamRef.current?.getTracks().forEach(track => track.stop());
     };
   }, []);
@@ -437,5 +572,9 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     mimeType: audioFormatRef.current.mimeType,
     chunkSessionId: chunkSessionRef.current?.sessionId || null,
     isUploading,
+    lastSyncTime,
+    pendingChunksCount,
+    batteryLevel,
+    isSilent,
   };
 }

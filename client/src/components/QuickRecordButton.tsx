@@ -866,6 +866,38 @@ export default function QuickRecordButton() {
             </Tooltip>
           )}
           
+          {chunkedRecording.isSilent && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1 text-amber-400 animate-pulse">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline text-xs">Silence</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-sm max-w-[220px]">
+                  No audio detected for 30+ seconds. Check your microphone is working.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          
+          {chunkedRecording.batteryLevel !== null && chunkedRecording.batteryLevel < 20 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1 text-amber-400">
+                  <BatteryLow className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline text-xs">{chunkedRecording.batteryLevel}%</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-sm max-w-[220px]">
+                  Low battery! Your recording is protected - chunks save every 10 seconds. Consider plugging in.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="hidden sm:flex items-center gap-1 text-green-400">
@@ -879,8 +911,11 @@ export default function QuickRecordButton() {
                 <ul className="text-xs space-y-0.5">
                   <li>• Tab close warning enabled</li>
                   {useChunkedUpload && <li>• Chunks saved every 10 seconds</li>}
-                  {useChunkedUpload && chunkedRecording.networkStatus.online && <li>• Network connection stable</li>}
+                  {useChunkedUpload && <li>• Local backup via IndexedDB</li>}
+                  {useChunkedUpload && chunkedRecording.networkStatus.online && <li>• Cloud sync active</li>}
+                  {useChunkedUpload && <li>• Silence detection monitoring</li>}
                   <li>• Consent segment preserved</li>
+                  <li>• Cross-device recovery available</li>
                 </ul>
               </div>
             </TooltipContent>

@@ -934,6 +934,32 @@ export type ClioMatterLink = typeof clioMatterLinks.$inferSelect;
 export type InsertSharePointConnection = z.infer<typeof insertSharePointConnectionSchema>;
 export type SharePointConnection = typeof sharePointConnections.$inferSelect;
 
+// Recording Sessions - Server-side tracking for recovery across devices/browsers
+export const recordingSessions = pgTable("recording_sessions", {
+  id: varchar("id").primaryKey(), // Same as chunk session ID
+  userId: varchar("user_id").notNull().references(() => users.id),
+  caseId: varchar("case_id").references(() => cases.id), // Linked when case is created
+  status: text("status").notNull().default("active"), // active, interrupted, recovered, completed, cancelled
+  mimeType: text("mime_type").notNull(),
+  chunksReceived: integer("chunks_received").notNull().default(0),
+  totalBytes: integer("total_bytes").notNull().default(0),
+  consentChunkNumber: integer("consent_chunk_number"), // Which chunk contains consent confirmation
+  consentElapsedSeconds: integer("consent_elapsed_seconds"), // Time in recording when consent given
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  lastActivityAt: timestamp("last_activity_at").notNull().defaultNow(),
+  interruptedAt: timestamp("interrupted_at"), // When session was detected as interrupted
+  recoveredAt: timestamp("recovered_at"), // When user recovered the session
+  completedAt: timestamp("completed_at"), // When recording was finalized successfully
+});
+
+export const insertRecordingSessionSchema = createInsertSchema(recordingSessions).omit({
+  startedAt: true,
+  lastActivityAt: true,
+});
+
+export type InsertRecordingSession = z.infer<typeof insertRecordingSessionSchema>;
+export type RecordingSession = typeof recordingSessions.$inferSelect;
+
 // Search History for quick re-access to recent searches
 export const searchHistory = pgTable("search_history", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
