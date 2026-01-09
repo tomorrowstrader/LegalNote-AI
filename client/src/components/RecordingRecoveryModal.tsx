@@ -116,17 +116,25 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
         console.warn('[Recovery] Failed to upload local chunks:', e);
       }
 
-      // Now trigger server-side recovery
-      return await apiRequest<RecoveryResult>("POST", `/api/audio/recover-session/${sessionId}`, {});
+      // Now trigger server-side recovery - use fetch directly to handle 400 responses gracefully
+      const response = await fetch(`/api/audio/recover-session/${sessionId}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      
+      const result: RecoveryResult = await response.json();
+      return result;
     },
     onSuccess: async (result, sessionId) => {
-      // Clean up local storage
-      await indexedDBBackup.clearSession(sessionId);
-      setLocalSessions(prev => prev.filter(s => s.id !== sessionId));
-      queryClient.invalidateQueries({ queryKey: ["/api/audio/incomplete-sessions"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
-
       if (result.success && result.caseId) {
+        // Clean up local storage only on successful recovery
+        await indexedDBBackup.clearSession(sessionId);
+        setLocalSessions(prev => prev.filter(s => s.id !== sessionId));
+        queryClient.invalidateQueries({ queryKey: ["/api/audio/incomplete-sessions"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+
         toast({
           title: "Recording recovered",
           description: result.hasConsent 
@@ -149,17 +157,19 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
         onOpenChange(false);
         setLocation(`/case/${result.caseId}`);
       } else {
+        // Recovery not complete yet - show informative message, don't clear session
         toast({
-          title: "Partial recovery",
-          description: result.message,
-          variant: "destructive",
+          title: "Recovery pending",
+          description: result.message || "Some audio data is still syncing. Please try again in a moment.",
         });
+        // Refresh the session list
+        refetch();
       }
     },
     onError: (error: Error) => {
       toast({
         title: "Recovery failed",
-        description: error.message || "Could not recover the recording. The audio data may be lost.",
+        description: error.message || "Could not recover the recording. Please try again.",
         variant: "destructive",
       });
     },
