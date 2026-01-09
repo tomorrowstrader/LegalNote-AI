@@ -80,7 +80,7 @@ export default function Dashboard() {
     }
     const evidenceComplete = productivityStats.evidenceCompletePercent ?? 100;
     if (evidenceComplete < 100) {
-      return `${evidenceComplete}% of cases have complete evidence bundles`;
+      return `${evidenceComplete}% of cases are fully protected`;
     }
     return "All caught up today";
   }, [productivityStats, attentionStats]);
@@ -309,11 +309,11 @@ export default function Dashboard() {
             ringColor="amber"
           />
           <StatsCard
-            title="Evidence Complete"
+            title="Defensibility Ready"
             value={productivityStats?.evidenceCompletePercent ?? 0}
             icon={ShieldCheck}
             suffix="%"
-            description="recording + transcript + note + consent"
+            description="protected & audit-ready"
             variant="ring"
             ringColor="emerald"
           />

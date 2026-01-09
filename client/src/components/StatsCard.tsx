@@ -158,7 +158,7 @@ export default function StatsCard({
             <div className="relative flex-shrink-0">
               <ProgressRing value={ringPercentage} size={56} strokeWidth={5} color={ringColor} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <Icon className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
+                <Icon className="w-5 h-5 text-foreground/70 dark:text-foreground/80" strokeWidth={1.5} />
               </div>
             </div>
             <div className="flex-1 min-w-0">

@@ -831,7 +831,7 @@ export default function QuickRecordButton() {
   if (isRecording) {
     return (
       <>
-        <div className="flex items-center gap-1 sm:gap-3 bg-card/50 rounded-lg px-2 sm:px-3 py-1">
+        <div className="flex items-center gap-1 sm:gap-3 bg-background/30 backdrop-blur-sm rounded-lg px-2 sm:px-3 py-1.5 border border-white/10">
           <Badge className="bg-destructive animate-pulse hidden sm:flex" data-testid="badge-quick-recording">
             Recording
           </Badge>

@@ -575,12 +575,11 @@ export class MemStorage implements IStorage {
     // Awaiting Review: cases completed but not yet reviewed by solicitor
     const awaitingReview = userCases.filter(c => c.status === "completed" && !c.reviewed).length;
     
-    // Evidence Complete: % of cases with full defensibility bundle
-    // (recording + transcript + attendance note/document + consent log)
+    // Defensibility Ready: % of cases with full audit-ready bundle
+    // (transcript + attendance note/document + consent log)
+    // Note: Audio is excluded since it's deleted after 7 days per GDPR policy
     let evidenceCompleteCount = 0;
     for (const caseItem of userCases) {
-      const hasRecording = Array.from(this.audioRecordings.values())
-        .some(r => r.caseId === caseItem.id && !r.deletedAt);
       const hasTranscript = Array.from(this.transcripts.values())
         .some(t => t.caseId === caseItem.id);
       const hasDocument = Array.from(this.documents.values())
@@ -588,7 +587,7 @@ export class MemStorage implements IStorage {
       const hasConsent = Array.from(this.consentLogs.values())
         .some(cl => cl.caseId === caseItem.id);
       
-      if (hasRecording && hasTranscript && hasDocument && hasConsent) {
+      if (hasTranscript && hasDocument && hasConsent) {
         evidenceCompleteCount++;
       }
     }
@@ -1732,12 +1731,11 @@ export class DbStorage implements IStorage {
     // Awaiting Review: cases completed but not yet reviewed by solicitor
     const awaitingReview = userCases.filter(c => c.status === "completed" && !c.reviewed).length;
     
-    // Evidence Complete: % of cases with full defensibility bundle
+    // Defensibility Ready: % of cases with full audit-ready bundle
+    // (transcript + attendance note/document + consent log)
+    // Note: Audio is excluded since it's deleted after 7 days per GDPR policy
     let evidenceCompleteCount = 0;
     if (userCaseIds.length > 0) {
-      const audioResults = await db.select({ caseId: audioRecordings.caseId })
-        .from(audioRecordings)
-        .where(and(inArray(audioRecordings.caseId, userCaseIds), isNull(audioRecordings.deletedAt)));
       const transcriptResults = await db.select({ caseId: transcripts.caseId })
         .from(transcripts)
         .where(inArray(transcripts.caseId, userCaseIds));
@@ -1748,13 +1746,12 @@ export class DbStorage implements IStorage {
         .from(consentLogs)
         .where(inArray(consentLogs.caseId, userCaseIds));
       
-      const casesWithAudio = new Set(audioResults.map(r => r.caseId));
       const casesWithTranscript = new Set(transcriptResults.map(r => r.caseId));
       const casesWithDoc = new Set(documentResults.map(r => r.caseId));
       const casesWithConsent = new Set(consentResults.map(r => r.caseId));
       
       for (const caseItem of userCases) {
-        if (casesWithAudio.has(caseItem.id) && casesWithTranscript.has(caseItem.id) && 
+        if (casesWithTranscript.has(caseItem.id) && 
             casesWithDoc.has(caseItem.id) && casesWithConsent.has(caseItem.id)) {
           evidenceCompleteCount++;
         }

@@ -1,10 +1,29 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { format, isPast, differenceInDays } from "date-fns";
 import { Clock, CheckCircle2, AlertCircle, Loader2, Eye, ChevronRight } from "lucide-react";
+import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Case } from "@shared/schema";
 import CaseDetailDrawer from "./CaseDetailDrawer";
+
+// Hook for reduced motion preference
+function useReducedMotion(): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
+  return prefersReducedMotion;
+}
 
 interface CaseListViewProps {
   cases: Case[];
@@ -91,6 +110,7 @@ export default function CaseListView({ cases }: CaseListViewProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const prefersReducedMotion = useReducedMotion();
 
   const handleRowClick = useCallback((caseItem: Case, index: number) => {
     setSelectedCase(caseItem);
@@ -177,12 +197,19 @@ export default function CaseListView({ cases }: CaseListViewProps) {
           const isFocused = focusedIndex === index;
 
           return (
-            <button
+            <motion.button
               key={caseItem.id}
               ref={el => rowRefs.current[index] = el}
               onClick={() => handleRowClick(caseItem, index)}
+              initial={prefersReducedMotion ? false : { opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ 
+                duration: 0.2, 
+                delay: prefersReducedMotion ? 0 : index * 0.03,
+                ease: "easeOut"
+              }}
               className={cn(
-                "w-full text-left transition-all duration-150",
+                "w-full text-left transition-colors duration-150",
                 "hover:bg-muted/50 focus:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/50",
                 "grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_1fr_120px_100px_32px] gap-3 sm:gap-4 px-4 py-3",
                 isSelected && "bg-primary/5 border-l-2 border-l-primary",
@@ -248,7 +275,7 @@ export default function CaseListView({ cases }: CaseListViewProps) {
                   isSelected && "text-primary transform translate-x-0.5"
                 )} />
               </div>
-            </button>
+            </motion.button>
           );
         })}
       </div>
