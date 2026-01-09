@@ -447,7 +447,10 @@ export default function GlobalSearch() {
       <div className="hidden xl:flex items-center gap-2">
         <Popover open={resultsOpen} onOpenChange={setResultsOpen}>
           <PopoverTrigger asChild>
-            <div className="relative w-[clamp(200px,20vw,320px)]">
+            <div 
+              className="relative w-[clamp(200px,20vw,320px)] cursor-text"
+              onClick={() => setResultsOpen(true)}
+            >
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/70 z-10 pointer-events-none" />
               <Input
                 type="search"
@@ -455,6 +458,10 @@ export default function GlobalSearch() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setResultsOpen(true)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setResultsOpen(true);
+                }}
                 className="pl-10 bg-white/90 border-white/50 text-foreground placeholder:text-muted-foreground"
                 data-testid="input-global-search"
               />

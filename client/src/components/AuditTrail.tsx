@@ -17,9 +17,15 @@ const EVENT_ICONS: Record<string, any> = {
   case_viewed: Eye,
   case_created: FileText,
   case_updated: FileText,
+  case_archived: FileText,
+  case_unarchived: FileText,
+  case_email_sent: Send,
+  case_link_shared: Send,
   recording_started: FileText,
   consent_given: Shield,
   consent_declined: Shield,
+  consent_timestamp_marked: Shield,
+  consent_segment_accessed: Shield,
   audio_uploaded: Download,
   audio_playback_started: Eye,
   audio_playback_paused: Eye,
@@ -33,6 +39,12 @@ const EVENT_ICONS: Record<string, any> = {
   document_sent: Send,
   document_edited: FileText,
   document_unlocked: FileText,
+  document_approved: Shield,
+  document_generated: FileText,
+  document_exported_pdf: Download,
+  document_exported_word: Download,
+  document_shared_with_client: Send,
+  documents_exported: Download,
   transcript_viewed: Eye,
   transcript_redacted: Shield,
   audit_exported_csv: Download,
@@ -49,15 +61,27 @@ const EVENT_ICONS: Record<string, any> = {
   action_items_bulk_approved: Shield,
   action_item_created_manual: FileText,
   action_items_extracted: FileText,
+  deadline_changed: Clock,
+  priority_changed: FileText,
+  litigation_hold_applied: Shield,
+  litigation_hold_released: Shield,
+  calendar_synced: FileText,
+  calendar_sync_failed: FileText,
 };
 
 const EVENT_LABELS: Record<string, string> = {
   case_viewed: "Case Viewed",
   case_created: "Case Created",
   case_updated: "Case Updated",
+  case_archived: "Case Archived",
+  case_unarchived: "Case Unarchived",
+  case_email_sent: "Email Sent",
+  case_link_shared: "Link Shared",
   recording_started: "Recording Started",
   consent_given: "Consent Given",
   consent_declined: "Consent Declined",
+  consent_timestamp_marked: "Consent Timestamp Marked",
+  consent_segment_accessed: "Consent Segment Accessed",
   audio_uploaded: "Audio Uploaded",
   audio_playback_started: "Audio Playback Started",
   audio_playback_paused: "Audio Playback Paused",
@@ -71,6 +95,12 @@ const EVENT_LABELS: Record<string, string> = {
   document_sent: "Document Sent",
   document_edited: "Document Edited",
   document_unlocked: "Document Unlocked",
+  document_approved: "Document Approved",
+  document_generated: "Document Generated",
+  document_exported_pdf: "Document Exported (PDF)",
+  document_exported_word: "Document Exported (Word)",
+  document_shared_with_client: "Document Shared with Client",
+  documents_exported: "Documents Exported",
   transcript_viewed: "Transcript Viewed",
   transcript_redacted: "Transcript Redacted",
   audit_exported_csv: "Audit Exported (CSV)",
@@ -87,7 +117,23 @@ const EVENT_LABELS: Record<string, string> = {
   action_items_bulk_approved: "Action Items Bulk Approved",
   action_item_created_manual: "Manual Action Item Created",
   action_items_extracted: "Action Items Extracted",
+  deadline_changed: "Deadline Changed",
+  priority_changed: "Priority Changed",
+  litigation_hold_applied: "Litigation Hold Applied",
+  litigation_hold_released: "Litigation Hold Released",
+  calendar_synced: "Calendar Synced",
+  calendar_sync_failed: "Calendar Sync Failed",
 };
+
+// Helper function to format event type if not in labels
+function formatEventType(eventType: string): string {
+  if (EVENT_LABELS[eventType]) return EVENT_LABELS[eventType];
+  // Convert snake_case to Title Case
+  return eventType
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
 
 const SEVERITY_COLORS: Record<string, string> = {
   info: "bg-blue-500/10 text-blue-500 border-blue-500/20",
@@ -330,15 +376,17 @@ export function AuditTrail({ caseId, limit = 20 }: AuditTrailProps) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-medium">
-                          {EVENT_LABELS[log.eventType] || log.eventType}
+                          {formatEventType(log.eventType)}
                         </span>
-                        <Badge
-                          variant="outline"
-                          className={SEVERITY_COLORS[log.severity]}
-                          data-testid={`badge-severity-${log.severity}`}
-                        >
-                          {log.severity}
-                        </Badge>
+                        {log.severity !== 'info' && (
+                          <Badge
+                            variant="outline"
+                            className={SEVERITY_COLORS[log.severity]}
+                            data-testid={`badge-severity-${log.severity}`}
+                          >
+                            {log.severity}
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">

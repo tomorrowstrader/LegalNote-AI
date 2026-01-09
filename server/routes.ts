@@ -679,7 +679,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/cases", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const cases = await storage.getCases(userId);
+      // Include archived cases so the dashboard can show them in the Archived tab
+      const includeArchived = req.query.includeArchived !== 'false';
+      const cases = await storage.getCases(userId, includeArchived);
       res.json(cases);
     } catch (error: any) {
       next(error);
