@@ -103,6 +103,10 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
+    // Block login in preview mode (for Stripe review)
+    if (process.env.PREVIEW_MODE === 'true') {
+      return res.redirect('/?preview_blocked=true');
+    }
     passport.authenticate(`replitauth:${req.hostname}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
@@ -129,6 +133,11 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // Block all authenticated access in preview mode
+  if (process.env.PREVIEW_MODE === 'true') {
+    return res.status(401).json({ message: "Preview mode - authentication disabled" });
+  }
+
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {
