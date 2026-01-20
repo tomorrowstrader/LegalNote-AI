@@ -1,10 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain } from "lucide-react";
+import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
 import Logo from "@/components/Logo";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+const isPreviewMode = import.meta.env.VITE_PREVIEW_MODE === 'true';
 
 // Animated counter hook
 function useCounter(end: number, duration: number = 2000, startOnView: boolean = true) {
@@ -763,6 +772,7 @@ interface Product {
 export default function Landing() {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
   const [isScrolled, setIsScrolled] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const { scrollY } = useScroll();
   const prefersReducedMotion = useReducedMotion();
   
@@ -775,6 +785,10 @@ export default function Landing() {
   }, [scrollY]);
 
   const handleLogin = () => {
+    if (isPreviewMode) {
+      setShowPreviewModal(true);
+      return;
+    }
     window.location.href = "/api/login";
   };
 
@@ -1601,6 +1615,34 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+
+      <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="w-5 h-5 text-[hsl(18,70%,42%)]" />
+              Preview Environment
+            </DialogTitle>
+            <DialogDescription className="text-left pt-2">
+              This is a preview environment for demonstration purposes. Login functionality is disabled.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-[hsl(30,30%,96%)] rounded-lg p-4 mt-2">
+            <p className="text-sm text-[hsl(25,20%,35%)]">
+              To access the full LegalNote platform with all features enabled, please visit our production environment or contact us for a live demonstration.
+            </p>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button 
+              onClick={() => setShowPreviewModal(false)}
+              className="bg-[hsl(18,70%,42%)] hover:bg-[hsl(18,70%,38%)] text-white"
+              data-testid="button-preview-close"
+            >
+              Got it
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
