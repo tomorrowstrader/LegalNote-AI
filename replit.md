@@ -106,3 +106,16 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **Security**: All data is user-scoped; does not modify shared/global data (e.g., firm profile)
 - **Usage**: For client demonstrations and sales presentations
 - **Roadmap**: See `FUTURE_FEATURES.md` for Waze-inspired product roadmap
+
+### Revenue Model & Stripe Configuration
+- **Business Description**: See `docs/STRIPE_BUSINESS_DESCRIPTION.md` for complete payment processor documentation
+- **Revenue Streams**:
+  1. **Cloud subscriptions** (recurring): Solo £99/month, Team £199/month + £49/seat
+  2. **Implementation packages** (one-time): £1,000-£2,500 for guided onboarding
+  3. **Consulting services** (one-time): £500-£1,500 per engagement
+  4. **Training workshops** (one-time): £250-£1,500 per session
+  5. **Advisory retainers** (recurring): £500-£1,000/month
+- **Stripe Products**: 
+  - Subscription products: `server/seed-stripe-products.ts`
+  - Service products: `server/seed-stripe-services.ts`
+- **Preview Mode**: Set `PREVIEW_MODE=true` (server) and `VITE_PREVIEW_MODE=true` (client) in production to disable login for payment processor review
