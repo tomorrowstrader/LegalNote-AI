@@ -1590,7 +1590,7 @@ export default function Landing() {
                 </li>
                 <li>
                   <a 
-                    href="https://linkedin.com/company/legalnote-ai" 
+                    href="https://www.linkedin.com/company/legalnotehq/" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-white/50 hover:text-white transition-colors"
