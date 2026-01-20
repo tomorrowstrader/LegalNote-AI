@@ -1,8 +1,12 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, FileText, DollarSign, CheckCircle2, AlertCircle, TrendingUp, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Users, FileText, DollarSign, CheckCircle2, AlertCircle, TrendingUp, Clock, FileDown, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { exportMarkdownToPDF } from "@/lib/documentExport";
+import { apiRequest } from "@/lib/queryClient";
 
 interface AdminStatistics {
   totalCases: number;
@@ -33,7 +37,16 @@ interface UserStatistics {
   joinedDate: string;
 }
 
+interface StrategyDoc {
+  filename: string;
+  title: string;
+  size: number;
+  modifiedAt: string;
+}
+
 export default function AdminDashboard() {
+  const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null);
+  
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<AdminStatistics>({
     queryKey: ["/api/admin/statistics"],
   });
@@ -41,6 +54,29 @@ export default function AdminDashboard() {
   const { data: userStats, isLoading: usersLoading, error: usersError } = useQuery<UserStatistics[]>({
     queryKey: ["/api/admin/users"],
   });
+
+  const { data: docs } = useQuery<StrategyDoc[]>({
+    queryKey: ["/api/admin/docs"],
+  });
+
+  const handleDownloadPDF = async (filename: string, title: string) => {
+    setDownloadingDoc(filename);
+    try {
+      const response = await apiRequest("GET", `/api/admin/docs/${filename}`);
+      const { content } = await response.json();
+      await exportMarkdownToPDF(content, title);
+    } catch (error) {
+      console.error("Failed to download PDF:", error);
+    } finally {
+      setDownloadingDoc(null);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-GB', {
@@ -295,6 +331,53 @@ export default function AdminDashboard() {
               </tbody>
             </table>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Strategy Documents Export */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileDown className="h-5 w-5" />
+            Strategy Documents
+          </CardTitle>
+          <CardDescription>Export business strategy and planning documents as PDF</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {docs && docs.length > 0 ? (
+            <div className="space-y-2">
+              {docs.map((doc) => (
+                <div 
+                  key={doc.filename} 
+                  className="flex items-center justify-between p-3 rounded-lg border bg-card hover-elevate"
+                  data-testid={`row-doc-${doc.filename}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate" data-testid={`text-doc-title-${doc.filename}`}>{doc.title}</div>
+                    <div className="text-xs text-muted-foreground flex items-center gap-3 mt-1">
+                      <span data-testid={`text-doc-size-${doc.filename}`}>{formatFileSize(doc.size)}</span>
+                      <span data-testid={`text-doc-updated-${doc.filename}`}>Updated {format(new Date(doc.modifiedAt), "dd MMM yyyy")}</span>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDownloadPDF(doc.filename, doc.title)}
+                    disabled={downloadingDoc === doc.filename}
+                    data-testid={`button-download-${doc.filename}`}
+                  >
+                    {downloadingDoc === doc.filename ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <FileDown className="h-4 w-4 mr-2" />
+                    )}
+                    PDF
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8" data-testid="text-no-docs">No documents found</p>
+          )}
         </CardContent>
       </Card>
     </div>

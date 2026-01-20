@@ -3536,6 +3536,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const filePath = path.join(process.cwd(), 'docs', filename);
+      
+      // Check file size before reading (limit to 1MB to prevent blocking)
+      const stats = await fs.stat(filePath);
+      const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+      if (stats.size > MAX_FILE_SIZE) {
+        return res.status(413).json({ message: "File too large for PDF export" });
+      }
+      
       const content = await fs.readFile(filePath, 'utf-8');
       
       res.json({ filename, content });
