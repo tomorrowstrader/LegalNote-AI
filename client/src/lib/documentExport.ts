@@ -445,3 +445,183 @@ export async function exportToWord(content: DocumentContent) {
   const blob = await Packer.toBlob(doc);
   saveAs(blob, filename);
 }
+
+// Export markdown document to PDF
+export async function exportMarkdownToPDF(markdown: string, title: string) {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 20;
+  const maxWidth = pageWidth - (margin * 2);
+  let yPosition = margin;
+
+  // Helper function to check and add new page if needed
+  const checkNewPage = (lineHeight: number) => {
+    if (yPosition + lineHeight > pageHeight - margin) {
+      doc.addPage();
+      yPosition = margin;
+    }
+  };
+
+  // Helper function to add wrapped text
+  const addWrappedText = (text: string, fontSize: number, isBold: boolean = false, isItalic: boolean = false, indent: number = 0) => {
+    doc.setFontSize(fontSize);
+    const fontStyle = isBold && isItalic ? 'bolditalic' : isBold ? 'bold' : isItalic ? 'italic' : 'normal';
+    doc.setFont('helvetica', fontStyle);
+    
+    const effectiveWidth = maxWidth - indent;
+    const lines = doc.splitTextToSize(text, effectiveWidth);
+    const lineHeight = fontSize * 0.5;
+    
+    lines.forEach((line: string) => {
+      checkNewPage(lineHeight);
+      doc.text(line, margin + indent, yPosition);
+      yPosition += lineHeight;
+    });
+  };
+
+  // Parse markdown and render
+  const lines = markdown.split('\n');
+  let inCodeBlock = false;
+  let inTable = false;
+  let tableRows: string[][] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Code block handling
+    if (line.startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      if (!inCodeBlock && i < lines.length - 1) {
+        yPosition += 5;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      doc.setFontSize(9);
+      doc.setFont('courier', 'normal');
+      checkNewPage(5);
+      doc.text(line, margin + 5, yPosition);
+      yPosition += 5;
+      continue;
+    }
+
+    // Empty lines
+    if (line.trim() === '') {
+      yPosition += 5;
+      continue;
+    }
+
+    // Horizontal rule
+    if (line.match(/^-{3,}$/) || line.match(/^\*{3,}$/) || line.match(/^_{3,}$/)) {
+      checkNewPage(10);
+      doc.setDrawColor(200);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 10;
+      continue;
+    }
+
+    // Headers
+    if (line.startsWith('#')) {
+      const match = line.match(/^(#{1,6})\s+(.+)/);
+      if (match) {
+        const level = match[1].length;
+        const text = match[2].replace(/\*\*/g, '').replace(/\*/g, '');
+        const fontSize = level === 1 ? 18 : level === 2 ? 14 : level === 3 ? 12 : 11;
+        
+        yPosition += level <= 2 ? 8 : 5;
+        checkNewPage(fontSize);
+        addWrappedText(text, fontSize, true);
+        yPosition += 3;
+        continue;
+      }
+    }
+
+    // Table handling
+    if (line.startsWith('|')) {
+      if (!inTable) {
+        inTable = true;
+        tableRows = [];
+      }
+      
+      // Skip separator row
+      if (line.match(/^\|[\s-:|]+\|$/)) {
+        continue;
+      }
+      
+      const cells = line.split('|').slice(1, -1).map(c => c.trim());
+      tableRows.push(cells);
+      continue;
+    } else if (inTable && tableRows.length > 0) {
+      // Render table
+      const colWidth = (maxWidth - 10) / Math.max(tableRows[0].length, 1);
+      const startY = yPosition;
+      
+      doc.setFontSize(9);
+      tableRows.forEach((row, rowIndex) => {
+        checkNewPage(12);
+        row.forEach((cell, colIndex) => {
+          const x = margin + 5 + (colIndex * colWidth);
+          doc.setFont('helvetica', rowIndex === 0 ? 'bold' : 'normal');
+          const truncated = cell.length > 25 ? cell.substring(0, 22) + '...' : cell;
+          doc.text(truncated, x, yPosition);
+        });
+        yPosition += 6;
+      });
+      
+      yPosition += 5;
+      inTable = false;
+      tableRows = [];
+    }
+
+    // Blockquote
+    if (line.startsWith('>')) {
+      const text = line.replace(/^>\s*/, '');
+      doc.setDrawColor(150);
+      checkNewPage(10);
+      doc.line(margin, yPosition - 3, margin, yPosition + 5);
+      addWrappedText(text, 10, false, true, 10);
+      continue;
+    }
+
+    // Bullet points
+    if (line.match(/^\s*[-*+]\s+/)) {
+      const indent = (line.match(/^(\s*)/)?.[1]?.length || 0) / 2;
+      const text = line.replace(/^\s*[-*+]\s+/, '');
+      const cleanText = text.replace(/\*\*/g, '').replace(/\*/g, '');
+      checkNewPage(6);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('•', margin + (indent * 10), yPosition);
+      addWrappedText(cleanText, 10, false, false, 8 + (indent * 10));
+      continue;
+    }
+
+    // Numbered lists
+    if (line.match(/^\s*\d+\.\s+/)) {
+      const match = line.match(/^(\s*)(\d+)\.\s+(.+)/);
+      if (match) {
+        const indent = (match[1]?.length || 0) / 2;
+        const number = match[2];
+        const text = match[3].replace(/\*\*/g, '').replace(/\*/g, '');
+        checkNewPage(6);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${number}.`, margin + (indent * 10), yPosition);
+        addWrappedText(text, 10, false, false, 12 + (indent * 10));
+        continue;
+      }
+    }
+
+    // Regular paragraph
+    const cleanLine = line.replace(/\*\*/g, '').replace(/\*/g, '').replace(/`/g, '');
+    addWrappedText(cleanLine, 10);
+  }
+
+  // Generate filename from title
+  const sanitizedTitle = title.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  const filename = `${sanitizedTitle}_${new Date().toISOString().split('T')[0]}.pdf`;
+  
+  doc.save(filename);
+}
