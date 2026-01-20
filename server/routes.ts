@@ -3494,6 +3494,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Strategy documents API (admin only)
+  app.get("/api/admin/docs", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const docsDir = path.join(process.cwd(), 'docs');
+      
+      const files = await fs.readdir(docsDir);
+      const mdFiles = files.filter(f => f.endsWith('.md'));
+      
+      const docs = await Promise.all(mdFiles.map(async (filename) => {
+        const filePath = path.join(docsDir, filename);
+        const stats = await fs.stat(filePath);
+        const content = await fs.readFile(filePath, 'utf-8');
+        const firstLine = content.split('\n')[0].replace(/^#\s*/, '').trim();
+        
+        return {
+          filename,
+          title: firstLine || filename.replace('.md', '').replace(/_/g, ' '),
+          size: stats.size,
+          modifiedAt: stats.mtime.toISOString(),
+        };
+      }));
+      
+      res.json(docs);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/admin/docs/:filename", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const { filename } = req.params;
+      
+      // Security: prevent directory traversal
+      if (filename.includes('..') || filename.includes('/') || !filename.endsWith('.md')) {
+        return res.status(400).json({ message: "Invalid filename" });
+      }
+      
+      const filePath = path.join(process.cwd(), 'docs', filename);
+      const content = await fs.readFile(filePath, 'utf-8');
+      
+      res.json({ filename, content });
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      next(error);
+    }
+  });
+
   // Firm profile routes (accessible to all authenticated users - public branding info)
   app.get("/api/firm-profile", isAuthenticated, async (req: any, res, next) => {
     try {
