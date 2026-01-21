@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EarlyAccessForm } from "@/components/EarlyAccessForm";
 
 const isPreviewMode = import.meta.env.VITE_PREVIEW_MODE === 'true';
 
@@ -573,7 +574,7 @@ function TrustBadges() {
 }
 
 // Final CTA with animated background (respects reduced motion)
-function FinalCTA({ onLogin }: { onLogin: () => void }) {
+function FinalCTA({ onRequestAccess }: { onRequestAccess: () => void }) {
   const prefersReducedMotion = useReducedMotion();
 
   return (
@@ -668,12 +669,12 @@ function FinalCTA({ onLogin }: { onLogin: () => void }) {
             whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
           >
             <Button 
-              onClick={onLogin} 
+              onClick={onRequestAccess} 
               size="lg"
               className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full text-base px-10 py-6 shadow-2xl shadow-[hsl(18,60%,30%)]/30"
               data-testid="button-cta-signup"
             >
-              Start Your Free Evaluation
+              Request Early Access
             </Button>
           </motion.div>
         </motion.div>
@@ -773,6 +774,7 @@ export default function Landing() {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
   const [isScrolled, setIsScrolled] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showEarlyAccessForm, setShowEarlyAccessForm] = useState(false);
   const { scrollY } = useScroll();
   const prefersReducedMotion = useReducedMotion();
   
@@ -790,6 +792,10 @@ export default function Landing() {
       return;
     }
     window.location.href = "/api/login";
+  };
+
+  const handleRequestAccess = () => {
+    setShowEarlyAccessForm(true);
   };
 
   const { data: productsData } = useQuery<{ products: Product[] }>({
@@ -822,11 +828,11 @@ export default function Landing() {
       {/* Floating CTA - Fixed at bottom on mobile */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 md:hidden">
         <Button 
-          onClick={handleLogin}
+          onClick={handleRequestAccess}
           className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full px-8 py-6 text-base shadow-2xl"
           data-testid="button-floating-cta"
         >
-          Book a demo
+          Request Early Access
         </Button>
       </div>
 
@@ -979,11 +985,11 @@ export default function Landing() {
             transition={{ duration: 0.5, delay: 0.4 }}
           >
             <Button 
-              onClick={handleLogin}
+              onClick={handleRequestAccess}
               className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full px-10 py-6 text-base"
               data-testid="button-get-started"
             >
-              Book a demo
+              Request Early Access
             </Button>
           </motion.div>
         </div>
@@ -1437,12 +1443,12 @@ export default function Landing() {
                   ))}
                 </ul>
                 <Button 
-                  onClick={handleLogin} 
+                  onClick={handleRequestAccess} 
                   variant="outline"
                   className="w-full h-12 border-[hsl(30,20%,80%)] text-[hsl(25,25%,25%)] hover:bg-[hsl(30,20%,94%)]" 
                   data-testid="button-solo-signup"
                 >
-                  Begin Evaluation
+                  Request Access
                 </Button>
               </div>
             </motion.div>
@@ -1506,11 +1512,11 @@ export default function Landing() {
                   ))}
                 </ul>
                 <Button 
-                  onClick={handleLogin} 
+                  onClick={handleRequestAccess} 
                   className="w-full h-12 bg-[hsl(18,70%,42%)] hover:bg-[hsl(18,70%,38%)] text-white font-medium" 
                   data-testid="button-team-signup"
                 >
-                  Begin Evaluation
+                  Request Access
                 </Button>
               </div>
             </motion.div>
@@ -1522,7 +1528,7 @@ export default function Landing() {
         </div>
       </div>
 
-      <FinalCTA onLogin={handleLogin} />
+      <FinalCTA onRequestAccess={handleRequestAccess} />
 
       {/* Footer */}
       <footer className="relative bg-[hsl(20,30%,10%)] border-t border-[hsl(20,25%,18%)]">
@@ -1643,6 +1649,12 @@ export default function Landing() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <EarlyAccessForm 
+        open={showEarlyAccessForm} 
+        onOpenChange={setShowEarlyAccessForm}
+        source="landing_page"
+      />
     </div>
   );
 }
