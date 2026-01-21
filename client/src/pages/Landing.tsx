@@ -1389,7 +1389,8 @@ export default function Landing() {
             </div>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          {/* Cloud Subscriptions */}
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto mb-16">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -1445,7 +1446,8 @@ export default function Landing() {
                 <Button 
                   onClick={handleRequestAccess} 
                   variant="outline"
-                  className="w-full h-12 border-[hsl(30,20%,80%)] text-[hsl(25,25%,25%)] hover:bg-[hsl(30,20%,94%)]" 
+                  size="lg"
+                  className="w-full border-[hsl(30,20%,80%)] text-[hsl(25,25%,25%)]" 
                   data-testid="button-solo-signup"
                 >
                   Request Access
@@ -1513,7 +1515,8 @@ export default function Landing() {
                 </ul>
                 <Button 
                   onClick={handleRequestAccess} 
-                  className="w-full h-12 bg-[hsl(18,70%,42%)] hover:bg-[hsl(18,70%,38%)] text-white font-medium" 
+                  size="lg"
+                  className="w-full bg-[hsl(18,70%,42%)] text-white font-medium" 
                   data-testid="button-team-signup"
                 >
                   Request Access
@@ -1522,9 +1525,176 @@ export default function Landing() {
             </motion.div>
           </div>
 
-          <p className="text-center text-sm text-[hsl(25,20%,45%)] mt-8">
+          <p className="text-center text-sm text-[hsl(25,20%,45%)] mb-16">
             All prices exclude VAT. Cancel anytime during your evaluation period.
           </p>
+
+          {/* Professional Services Section */}
+          <motion.div
+            className="border-t border-[hsl(30,20%,88%)] pt-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="text-center mb-12">
+              <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+                Professional Services
+              </span>
+              <h3 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+                Expert support for successful adoption
+              </h3>
+              <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+                Optional services to help your firm get the most from LegalNote, from guided implementation to ongoing advisory support.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Implementation Packages */}
+              <motion.div
+                className="p-6 rounded-xl bg-[hsl(30,25%,96%)] border border-[hsl(30,20%,88%)]"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4 }}
+                data-testid="card-service-implementation"
+              >
+                <div className="w-12 h-12 rounded-xl bg-[hsl(25,30%,88%)] flex items-center justify-center mb-4">
+                  <FileText className="w-6 h-6 text-[hsl(25,40%,35%)]" />
+                </div>
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">Implementation</h4>
+                <p className="text-2xl font-medium text-[hsl(25,30%,12%)] mb-1" data-testid="text-price-implementation">£1,000 - £2,500</p>
+                <p className="text-sm text-[hsl(25,20%,45%)] mb-4">One-time</p>
+                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Guided onboarding sessions</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Workflow configuration</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Team setup & permissions</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Integration assistance</span>
+                  </li>
+                </ul>
+              </motion.div>
+
+              {/* Consulting Services */}
+              <motion.div
+                className="p-6 rounded-xl bg-[hsl(30,25%,96%)] border border-[hsl(30,20%,88%)]"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: 0.1 }}
+                data-testid="card-service-consulting"
+              >
+                <div className="w-12 h-12 rounded-xl bg-[hsl(25,30%,88%)] flex items-center justify-center mb-4">
+                  <Users className="w-6 h-6 text-[hsl(25,40%,35%)]" />
+                </div>
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">Consulting</h4>
+                <p className="text-2xl font-medium text-[hsl(25,30%,12%)] mb-1" data-testid="text-price-consulting">£500 - £1,500</p>
+                <p className="text-sm text-[hsl(25,20%,45%)] mb-4">Per engagement</p>
+                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Workflow optimisation</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Compliance review</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Best practice guidance</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Custom reporting</span>
+                  </li>
+                </ul>
+              </motion.div>
+
+              {/* Training Workshops */}
+              <motion.div
+                className="p-6 rounded-xl bg-[hsl(30,25%,96%)] border border-[hsl(30,20%,88%)]"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: 0.2 }}
+                data-testid="card-service-training"
+              >
+                <div className="w-12 h-12 rounded-xl bg-[hsl(25,30%,88%)] flex items-center justify-center mb-4">
+                  <ClipboardCheck className="w-6 h-6 text-[hsl(25,40%,35%)]" />
+                </div>
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">Training</h4>
+                <p className="text-2xl font-medium text-[hsl(25,30%,12%)] mb-1" data-testid="text-price-training">£250 - £1,500</p>
+                <p className="text-sm text-[hsl(25,20%,45%)] mb-4">Per session</p>
+                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Live team workshops</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Role-specific training</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Admin & COLP sessions</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Recorded for reference</span>
+                  </li>
+                </ul>
+              </motion.div>
+
+              {/* Advisory Retainers */}
+              <motion.div
+                className="p-6 rounded-xl bg-[hsl(18,35%,94%)] border border-[hsl(18,30%,82%)]"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: 0.3 }}
+                data-testid="card-service-advisory"
+              >
+                <div className="w-12 h-12 rounded-xl bg-[hsl(18,40%,82%)] flex items-center justify-center mb-4">
+                  <Calendar className="w-6 h-6 text-[hsl(18,50%,35%)]" />
+                </div>
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">Advisory Retainer</h4>
+                <p className="text-2xl font-medium text-[hsl(25,30%,12%)] mb-1" data-testid="text-price-advisory">£500 - £1,000</p>
+                <p className="text-sm text-[hsl(25,20%,45%)] mb-4">Per month</p>
+                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Dedicated success manager</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Monthly strategy calls</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Priority feature requests</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>Quarterly business reviews</span>
+                  </li>
+                </ul>
+              </motion.div>
+            </div>
+
+            <p className="text-center text-sm text-[hsl(25,20%,45%)] mt-8">
+              Professional services can be added to any subscription. Contact us to discuss your requirements.
+            </p>
+          </motion.div>
         </div>
       </div>
 
