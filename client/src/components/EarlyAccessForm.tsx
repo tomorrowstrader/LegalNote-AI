@@ -119,7 +119,7 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
             <DialogHeader>
               <DialogTitle data-testid="text-form-title">Request Early Access</DialogTitle>
               <DialogDescription data-testid="text-form-description">
-                We're currently in private beta. Join our waitlist to be among the first to experience LegalNote AI.
+                We're currently in private beta. Join our waitlist to be among the first to experience LegalNote™.
               </DialogDescription>
             </DialogHeader>
 
@@ -228,6 +228,7 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
                           <SelectContent>
                             <SelectItem value="solicitor">Solicitor</SelectItem>
                             <SelectItem value="partner">Partner</SelectItem>
+                            <SelectItem value="compliance_colp">Compliance/COLP</SelectItem>
                             <SelectItem value="it_admin">IT/Operations</SelectItem>
                             <SelectItem value="other">Other</SelectItem>
                           </SelectContent>
@@ -253,7 +254,7 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
                         </FormControl>
                         <div className="space-y-1 leading-none">
                           <FormLabel className="text-sm font-normal">
-                            I consent to LegalNote AI processing my data to manage my waitlist registration and send me updates about early access. *
+                            I consent to LegalNote™ processing my data to manage my waitlist registration and send me updates about early access. *
                           </FormLabel>
                           <FormMessage />
                         </div>
