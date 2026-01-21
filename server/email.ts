@@ -583,3 +583,121 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
     return { success: false, error: error.message || 'Unknown error' };
   }
 }
+
+export async function sendWaitlistConfirmationEmail(to: string, firstName: string): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[EMAIL] RESEND_API_KEY not configured, skipping waitlist confirmation email');
+    return { success: false, error: 'Email service not configured' };
+  }
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          line-height: 1.6;
+          color: #1a1a1a;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background-color: #f5f5f5;
+        }
+        .container {
+          background: white;
+          border-radius: 8px;
+          padding: 32px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .header {
+          border-bottom: 2px solid #000;
+          padding-bottom: 16px;
+          margin-bottom: 24px;
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 24px;
+          font-weight: 600;
+        }
+        .content {
+          margin-bottom: 24px;
+        }
+        .highlight {
+          background: linear-gradient(135deg, #1a1a1a 0%, #333 100%);
+          color: white;
+          padding: 20px;
+          border-radius: 8px;
+          margin: 24px 0;
+        }
+        .footer {
+          margin-top: 32px;
+          padding-top: 16px;
+          border-top: 1px solid #e5e5e5;
+          font-size: 12px;
+          color: #666;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>LegalNote AI</h1>
+        </div>
+        
+        <div class="content">
+          <p>Hi ${firstName},</p>
+          
+          <p>Thank you for your interest in LegalNote AI. You're now on our early access waitlist.</p>
+          
+          <div class="highlight">
+            <strong>What happens next?</strong><br>
+            We're currently in private beta, carefully onboarding firms to ensure the best possible experience. We'll notify you as soon as early access becomes available.
+          </div>
+          
+          <p>In the meantime, here's what LegalNote AI will help you achieve:</p>
+          <ul>
+            <li>Create attendance notes in minutes, not hours</li>
+            <li>AI-powered transcription with legal vocabulary understanding</li>
+            <li>GDPR-compliant consent management and audit trails</li>
+            <li>Professional document exports with your firm branding</li>
+          </ul>
+          
+          <p>We're excited to have you join us on this journey to transform legal documentation.</p>
+          
+          <p>Best regards,<br>The LegalNote AI Team</p>
+        </div>
+        
+        <div class="footer">
+          <p>This email was sent because you signed up for early access to LegalNote AI.</p>
+          <p>LegalNote AI - Compliance-first legal documentation</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'LegalNote AI <notifications@legalnote.co.uk>',
+      to: [to],
+      subject: 'Welcome to the LegalNote AI Waitlist',
+      html: emailHtml,
+    });
+
+    if (error) {
+      console.error('[EMAIL] Error sending waitlist confirmation via Resend:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[EMAIL] Waitlist confirmation sent successfully:', data?.id);
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending waitlist confirmation:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
