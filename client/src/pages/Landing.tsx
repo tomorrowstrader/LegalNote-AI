@@ -771,7 +771,7 @@ interface Product {
 }
 
 export default function Landing() {
-  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'quarterly' | 'annual'>('quarterly');
   const [isScrolled, setIsScrolled] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEarlyAccessForm, setShowEarlyAccessForm] = useState(false);
@@ -807,17 +807,51 @@ export default function Landing() {
   const teamProduct = products.find(p => p.metadata?.plan === 'team');
 
   const getSoloPrice = () => {
-    if (!soloProduct) return billingPeriod === 'monthly' ? 99 : 999;
-    const price = soloProduct.prices.find(p => 
-      p.recurring?.interval === (billingPeriod === 'monthly' ? 'month' : 'year')
-    );
-    return price ? price.unit_amount / 100 : (billingPeriod === 'monthly' ? 99 : 999);
+    switch (billingPeriod) {
+      case 'monthly': return 149;
+      case 'quarterly': return 399;
+      case 'annual': return 1428;
+    }
   };
 
   const getTeamPrice = () => {
-    if (!teamProduct) return 199;
-    const price = teamProduct.prices.find(p => p.recurring?.interval === 'month');
-    return price ? price.unit_amount / 100 : 199;
+    switch (billingPeriod) {
+      case 'monthly': return 299;
+      case 'quarterly': return 799;
+      case 'annual': return 2868;
+    }
+  };
+
+  const getSeatPrice = () => {
+    switch (billingPeriod) {
+      case 'monthly': return 69;
+      case 'quarterly': return 179;
+      case 'annual': return 690;
+    }
+  };
+
+  const getBillingLabel = () => {
+    switch (billingPeriod) {
+      case 'monthly': return 'month';
+      case 'quarterly': return 'quarter';
+      case 'annual': return 'year';
+    }
+  };
+
+  const getSoloEffectiveMonthly = () => {
+    switch (billingPeriod) {
+      case 'monthly': return null;
+      case 'quarterly': return '£133/month effective';
+      case 'annual': return '£119/month effective';
+    }
+  };
+
+  const getTeamEffectiveMonthly = () => {
+    switch (billingPeriod) {
+      case 'monthly': return null;
+      case 'quarterly': return '£266/month effective';
+      case 'annual': return '£239/month effective';
+    }
   };
 
   return (
@@ -1363,7 +1397,7 @@ export default function Landing() {
             <div className="inline-flex items-center gap-1 p-1 bg-[hsl(30,20%,93%)] border border-[hsl(30,20%,85%)] rounded-xl">
               <button
                 onClick={() => setBillingPeriod('monthly')}
-                className={`px-6 py-3 rounded-lg text-sm font-medium transition-all ${
+                className={`px-5 py-3 rounded-lg text-sm font-medium transition-all ${
                   billingPeriod === 'monthly' 
                     ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
                     : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
@@ -1373,8 +1407,22 @@ export default function Landing() {
                 Monthly
               </button>
               <button
+                onClick={() => setBillingPeriod('quarterly')}
+                className={`px-5 py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                  billingPeriod === 'quarterly' 
+                    ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
+                    : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
+                }`}
+                data-testid="button-quarterly-billing"
+              >
+                Quarterly
+                <span className={`text-xs px-2 py-0.5 rounded-full ${billingPeriod === 'quarterly' ? 'bg-[hsl(18,70%,42%)] text-white' : 'bg-[hsl(18,45%,88%)] text-[hsl(18,60%,30%)]'}`}>
+                  Save 11%
+                </span>
+              </button>
+              <button
                 onClick={() => setBillingPeriod('annual')}
-                className={`px-6 py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                className={`px-5 py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
                   billingPeriod === 'annual' 
                     ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
                     : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
@@ -1383,7 +1431,7 @@ export default function Landing() {
               >
                 Annual
                 <span className={`text-xs px-2 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(18,70%,42%)] text-white' : 'bg-[hsl(18,45%,88%)] text-[hsl(18,60%,30%)]'}`}>
-                  Save 16%
+                  Save 20%
                 </span>
               </button>
             </div>
@@ -1423,9 +1471,12 @@ export default function Landing() {
                       </motion.span>
                     </AnimatePresence>
                   )}
-                  <span className="text-[hsl(25,20%,45%)] ml-2">/{billingPeriod === 'monthly' ? 'month' : 'year'}</span>
+                  <span className="text-[hsl(25,20%,45%)] ml-2">/{getBillingLabel()}</span>
                 </div>
-                <ul className="space-y-4 mb-8">
+                {getSoloEffectiveMonthly() && (
+                  <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-6">{getSoloEffectiveMonthly()}</p>
+                )}
+                <ul className={`space-y-4 mb-8 ${!getSoloEffectiveMonthly() ? 'mt-6' : ''}`}>
                   {[
                     'Unlimited recordings',
                     'AI transcription with speaker ID',
@@ -1492,13 +1543,16 @@ export default function Landing() {
                       </motion.span>
                     </AnimatePresence>
                   )}
-                  <span className="text-[hsl(25,20%,45%)] ml-2">/month base</span>
+                  <span className="text-[hsl(25,20%,45%)] ml-2">/{getBillingLabel()}</span>
                 </div>
-                <p className="text-sm text-[hsl(25,20%,45%)] mb-6">+ £49/month per additional user</p>
+                {getTeamEffectiveMonthly() && (
+                  <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-2">{getTeamEffectiveMonthly()}</p>
+                )}
+                <p className={`text-sm text-[hsl(25,20%,45%)] mb-6 ${!getTeamEffectiveMonthly() ? 'mt-0' : ''}`}>2 users included, + £{getSeatPrice()}/{getBillingLabel()} per additional user</p>
                 <ul className="space-y-4 mb-8">
                   {[
                     'Everything in Solo',
-                    'Multi-user access',
+                    '2 users included',
                     'Team collaboration',
                     'Case assignment',
                     'Admin dashboard',
