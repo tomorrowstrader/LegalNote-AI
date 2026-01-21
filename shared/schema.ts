@@ -977,3 +977,33 @@ export const insertSearchHistorySchema = createInsertSchema(searchHistory).omit(
 
 export type InsertSearchHistory = z.infer<typeof insertSearchHistorySchema>;
 export type SearchHistory = typeof searchHistory.$inferSelect;
+
+// Early Access Waitlist - Pre-launch interest capture
+export const waitlist = pgTable("waitlist", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").notNull().unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  firmName: varchar("firm_name"),
+  firmSize: varchar("firm_size"), // solo, 2-5, 6-10, 10+
+  role: varchar("role"), // solicitor, partner, it_admin, other
+  source: varchar("source").notNull().default("landing_page"), // landing_page, linkedin, referral, etc.
+  status: varchar("status").notNull().default("pending"), // pending, invited, active, declined
+  gdprConsent: boolean("gdpr_consent").notNull().default(false),
+  marketingConsent: boolean("marketing_consent").notNull().default(false),
+  notes: text("notes"), // Admin notes
+  invitedAt: timestamp("invited_at"),
+  invitedBy: varchar("invited_by").references(() => users.id),
+  signupAt: timestamp("signup_at").notNull().defaultNow(),
+  ipAddress: varchar("ip_address"),
+});
+
+export const insertWaitlistSchema = createInsertSchema(waitlist).omit({
+  id: true,
+  signupAt: true,
+  invitedAt: true,
+  invitedBy: true,
+});
+
+export type InsertWaitlist = z.infer<typeof insertWaitlistSchema>;
+export type Waitlist = typeof waitlist.$inferSelect;
