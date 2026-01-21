@@ -21,6 +21,6 @@ export function useAuth() {
     isLoading,
     isAuthenticated: !!user,
     isAdmin: user?.isAdmin ?? false,
-    isWaitlisted: !user?.isAdmin && user?.waitlistStatus !== "approved",
+    isWaitlisted: !user?.isAdmin && user?.waitlistStatus === "pending",
   };
 }

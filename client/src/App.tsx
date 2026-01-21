@@ -45,7 +45,7 @@ function Router() {
       ) : isWaitlisted && !isAdmin ? (
         <>
           <Route path="/waitlist" component={WaitlistPage} />
-          <Route path="/" component={WaitlistPage} />
+          <Route component={WaitlistPage} />
         </>
       ) : (
         <>

@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, FileText, DollarSign, CheckCircle2, AlertCircle, TrendingUp, Clock, FileDown, Loader2 } from "lucide-react";
+import { Users, FileText, DollarSign, CheckCircle2, TrendingUp, Clock, FileDown, Loader2, UserPlus, Mail, Building2, Calendar, Check, X } from "lucide-react";
 import { format } from "date-fns";
 import { exportMarkdownToPDF } from "@/lib/documentExport";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface AdminStatistics {
   totalCases: number;
@@ -44,8 +45,24 @@ interface StrategyDoc {
   modifiedAt: string;
 }
 
+interface WaitlistEntry {
+  id: number;
+  email: string;
+  name: string | null;
+  firmName: string | null;
+  firmSize: string | null;
+  role: string | null;
+  phone: string | null;
+  source: string | null;
+  status: string;
+  gdprConsent: boolean;
+  marketingConsent: boolean;
+  createdAt: string;
+}
+
 export default function AdminDashboard() {
   const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null);
+  const { toast } = useToast();
   
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<AdminStatistics>({
     queryKey: ["/api/admin/statistics"],
@@ -57,6 +74,31 @@ export default function AdminDashboard() {
 
   const { data: docs } = useQuery<StrategyDoc[]>({
     queryKey: ["/api/admin/docs"],
+  });
+
+  const { data: waitlist, isLoading: waitlistLoading } = useQuery<WaitlistEntry[]>({
+    queryKey: ["/api/admin/waitlist"],
+  });
+
+  const updateWaitlistStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      const response = await apiRequest("PATCH", `/api/admin/waitlist/${id}`, { status });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/waitlist"] });
+      toast({
+        title: "Status updated",
+        description: "Waitlist entry status has been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update waitlist status.",
+        variant: "destructive",
+      });
+    },
   });
 
   const handleDownloadPDF = async (filename: string, title: string) => {
@@ -331,6 +373,142 @@ export default function AdminDashboard() {
               </tbody>
             </table>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Waitlist Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5" />
+            Early Access Waitlist
+          </CardTitle>
+          <CardDescription>
+            Manage early access requests
+            {waitlist && waitlist.length > 0 && (
+              <span className="ml-2">
+                ({waitlist.filter(w => w.status === "pending").length} pending)
+              </span>
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {waitlistLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : waitlist && waitlist.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-2">Contact</th>
+                    <th className="text-left py-2 px-2">Firm</th>
+                    <th className="text-left py-2 px-2">Source</th>
+                    <th className="text-center py-2 px-2">Consent</th>
+                    <th className="text-left py-2 px-2">Status</th>
+                    <th className="text-left py-2 px-2">Requested</th>
+                    <th className="text-right py-2 px-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {waitlist.map((entry) => (
+                    <tr key={entry.id} className="border-b hover-elevate" data-testid={`row-waitlist-${entry.id}`}>
+                      <td className="py-3 px-2">
+                        <div className="font-medium flex items-center gap-2">
+                          <Mail className="h-3 w-3 text-muted-foreground" />
+                          {entry.email}
+                        </div>
+                        {entry.name && (
+                          <div className="text-xs text-muted-foreground mt-1">{entry.name}</div>
+                        )}
+                      </td>
+                      <td className="py-3 px-2">
+                        {entry.firmName ? (
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-3 w-3 text-muted-foreground" />
+                            <div>
+                              <div>{entry.firmName}</div>
+                              {entry.firmSize && (
+                                <div className="text-xs text-muted-foreground">{entry.firmSize}</div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2">
+                        <Badge variant="outline" className="text-xs">
+                          {entry.source || "direct"}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          {entry.gdprConsent && (
+                            <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-700">
+                              GDPR
+                            </Badge>
+                          )}
+                          {entry.marketingConsent && (
+                            <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-700">
+                              MKT
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-2">
+                        <Badge 
+                          variant={entry.status === "approved" ? "default" : entry.status === "rejected" ? "destructive" : "secondary"}
+                          className={entry.status === "pending" ? "bg-yellow-500/10 text-yellow-700" : ""}
+                        >
+                          {entry.status}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-2 text-muted-foreground text-xs">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {format(new Date(entry.createdAt), "dd MMM yyyy")}
+                        </div>
+                      </td>
+                      <td className="py-3 px-2">
+                        <div className="flex items-center justify-end gap-1">
+                          {entry.status === "pending" && (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={() => updateWaitlistStatus.mutate({ id: entry.id, status: "approved" })}
+                                disabled={updateWaitlistStatus.isPending}
+                                data-testid={`button-approve-${entry.id}`}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => updateWaitlistStatus.mutate({ id: entry.id, status: "rejected" })}
+                                disabled={updateWaitlistStatus.isPending}
+                                data-testid={`button-reject-${entry.id}`}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8" data-testid="text-no-waitlist">
+              No waitlist entries yet
+            </p>
+          )}
         </CardContent>
       </Card>
 
