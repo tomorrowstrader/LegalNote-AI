@@ -59,6 +59,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // PUBLIC ROUTES (no authentication required)
   
+  // Waitlist signup (public - no auth required)
+  app.post('/api/waitlist', generalApiLimiter, async (req, res, next) => {
+    try {
+      const { email, firstName, lastName, firmName, firmSize, role, source, gdprConsent, marketingConsent } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+      
+      if (!gdprConsent) {
+        return res.status(400).json({ message: "GDPR consent is required to join the waitlist" });
+      }
+      
+      // Check if email already exists
+      const existing = await storage.getWaitlistEntryByEmail(email.toLowerCase());
+      if (existing) {
+        return res.status(409).json({ message: "This email is already on our waitlist" });
+      }
+      
+      // Create waitlist entry
+      const entry = await storage.createWaitlistEntry({
+        email: email.toLowerCase(),
+        firstName: firstName || null,
+        lastName: lastName || null,
+        firmName: firmName || null,
+        firmSize: firmSize || null,
+        role: role || null,
+        source: source || 'landing_page',
+        status: 'pending',
+        gdprConsent: true,
+        marketingConsent: marketingConsent || false,
+        ipAddress: req.ip || null,
+      });
+      
+      // Send confirmation email
+      try {
+        const { sendWaitlistConfirmationEmail } = await import('./email');
+        await sendWaitlistConfirmationEmail(email, firstName || 'there');
+      } catch (emailError) {
+        console.error('[WAITLIST] Failed to send confirmation email:', emailError);
+        // Don't fail the request if email fails
+      }
+      
+      res.status(201).json({ 
+        message: "You've been added to our early access waitlist",
+        id: entry.id 
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+  
   // Get share link data (public access for clients)
   app.get('/api/share/:linkId', generalApiLimiter, async (req, res, next) => {
     try {
@@ -3551,6 +3603,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error.code === 'ENOENT') {
         return res.status(404).json({ message: "Document not found" });
       }
+      next(error);
+    }
+  });
+
+  // Waitlist admin endpoints
+  app.get("/api/admin/waitlist", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const entries = await storage.getAllWaitlistEntries();
+      res.json(entries);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/admin/waitlist/stats", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const stats = await storage.getWaitlistStats();
+      res.json(stats);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/admin/waitlist/:id", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const { id } = req.params;
+      const { status, notes } = req.body;
+      
+      const updates: any = {};
+      if (status) updates.status = status;
+      if (notes !== undefined) updates.notes = notes;
+      
+      if (status === 'invited') {
+        updates.invitedAt = new Date();
+        updates.invitedBy = req.user.claims.sub;
+      }
+      
+      const entry = await storage.updateWaitlistEntry(id, updates);
+      if (!entry) {
+        return res.status(404).json({ message: "Waitlist entry not found" });
+      }
+      
+      res.json(entry);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/admin/waitlist/:id", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteWaitlistEntry(id);
+      res.status(204).send();
+    } catch (error) {
       next(error);
     }
   });

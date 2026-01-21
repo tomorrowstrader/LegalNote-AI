@@ -21,6 +21,7 @@ import {
   type SharePointConnection, type InsertSharePointConnection,
   type ClientVersionTracking, type InsertClientVersionTracking,
   type SearchHistory, type InsertSearchHistory,
+  type Waitlist, type InsertWaitlist,
   users,
   cases,
   audioRecordings,
@@ -42,7 +43,8 @@ import {
   scheduledMeetings,
   sharePointConnections,
   clientVersionTracking,
-  searchHistory
+  searchHistory,
+  waitlist
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -364,6 +366,15 @@ export interface IStorage {
   saveSharePointConnection(connectionData: InsertSharePointConnection): Promise<SharePointConnection>;
   updateSharePointConnection(userId: string, provider: 'sharepoint' | 'onedrive', updates: Partial<SharePointConnection>): Promise<SharePointConnection | undefined>;
   deleteSharePointConnection(userId: string, provider: 'sharepoint' | 'onedrive'): Promise<void>;
+  
+  // Waitlist methods
+  createWaitlistEntry(entryData: InsertWaitlist): Promise<Waitlist>;
+  getWaitlistEntry(id: string): Promise<Waitlist | undefined>;
+  getWaitlistEntryByEmail(email: string): Promise<Waitlist | undefined>;
+  getAllWaitlistEntries(): Promise<Waitlist[]>;
+  updateWaitlistEntry(id: string, updates: Partial<Waitlist>): Promise<Waitlist | undefined>;
+  deleteWaitlistEntry(id: string): Promise<void>;
+  getWaitlistStats(): Promise<{ total: number; pending: number; invited: number; active: number }>;
 }
 
 export class MemStorage implements IStorage {
@@ -1532,6 +1543,35 @@ export class MemStorage implements IStorage {
   
   async deleteSharePointConnection(_userId: string, _provider: 'sharepoint' | 'onedrive'): Promise<void> {
     // No-op for MemStorage
+  }
+  
+  // Waitlist methods (MemStorage stubs)
+  async createWaitlistEntry(_entryData: InsertWaitlist): Promise<Waitlist> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  
+  async getWaitlistEntry(_id: string): Promise<Waitlist | undefined> {
+    return undefined;
+  }
+  
+  async getWaitlistEntryByEmail(_email: string): Promise<Waitlist | undefined> {
+    return undefined;
+  }
+  
+  async getAllWaitlistEntries(): Promise<Waitlist[]> {
+    return [];
+  }
+  
+  async updateWaitlistEntry(_id: string, _updates: Partial<Waitlist>): Promise<Waitlist | undefined> {
+    return undefined;
+  }
+  
+  async deleteWaitlistEntry(_id: string): Promise<void> {
+    // No-op for MemStorage
+  }
+  
+  async getWaitlistStats(): Promise<{ total: number; pending: number; invited: number; active: number }> {
+    return { total: 0, pending: 0, invited: 0, active: 0 };
   }
 }
 
@@ -3487,6 +3527,45 @@ export class DbStorage implements IStorage {
           eq(sharePointConnections.provider, provider)
         )
       );
+  }
+  
+  // Waitlist methods
+  async createWaitlistEntry(entryData: InsertWaitlist): Promise<Waitlist> {
+    const result = await db.insert(waitlist).values(entryData).returning();
+    return result[0];
+  }
+  
+  async getWaitlistEntry(id: string): Promise<Waitlist | undefined> {
+    const result = await db.select().from(waitlist).where(eq(waitlist.id, id));
+    return result[0];
+  }
+  
+  async getWaitlistEntryByEmail(email: string): Promise<Waitlist | undefined> {
+    const result = await db.select().from(waitlist).where(eq(waitlist.email, email.toLowerCase()));
+    return result[0];
+  }
+  
+  async getAllWaitlistEntries(): Promise<Waitlist[]> {
+    return await db.select().from(waitlist).orderBy(desc(waitlist.signupAt));
+  }
+  
+  async updateWaitlistEntry(id: string, updates: Partial<Waitlist>): Promise<Waitlist | undefined> {
+    const result = await db.update(waitlist).set(updates).where(eq(waitlist.id, id)).returning();
+    return result[0];
+  }
+  
+  async deleteWaitlistEntry(id: string): Promise<void> {
+    await db.delete(waitlist).where(eq(waitlist.id, id));
+  }
+  
+  async getWaitlistStats(): Promise<{ total: number; pending: number; invited: number; active: number }> {
+    const allEntries = await db.select().from(waitlist);
+    return {
+      total: allEntries.length,
+      pending: allEntries.filter(e => e.status === 'pending').length,
+      invited: allEntries.filter(e => e.status === 'invited').length,
+      active: allEntries.filter(e => e.status === 'active').length,
+    };
   }
 }
 
