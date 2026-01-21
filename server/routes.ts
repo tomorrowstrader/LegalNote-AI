@@ -552,12 +552,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Add admin flag to user object (MVP: configurable via env)
       const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
-      const userWithAdminFlag = {
+      const isAdmin = userId === ADMIN_USER_ID;
+      
+      // Check waitlist status for non-admin users
+      let waitlistStatus: string | null = null;
+      if (!isAdmin && user?.email) {
+        const waitlistEntry = await storage.getWaitlistEntryByEmail(user.email);
+        waitlistStatus = waitlistEntry?.status ?? null;
+      }
+      
+      const userWithFlags = {
         ...user,
-        isAdmin: userId === ADMIN_USER_ID,
+        isAdmin,
+        waitlistStatus,
       };
       
-      res.json(userWithAdminFlag);
+      res.json(userWithFlags);
     } catch (error) {
       next(error);
     }

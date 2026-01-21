@@ -6,6 +6,8 @@ export interface User {
   firstName?: string;
   lastName?: string;
   profileImageUrl?: string;
+  isAdmin?: boolean;
+  waitlistStatus?: "pending" | "approved" | null;
 }
 
 export function useAuth() {
@@ -18,5 +20,7 @@ export function useAuth() {
     user,
     isLoading,
     isAuthenticated: !!user,
+    isAdmin: user?.isAdmin ?? false,
+    isWaitlisted: !user?.isAdmin && user?.waitlistStatus !== "approved",
   };
 }

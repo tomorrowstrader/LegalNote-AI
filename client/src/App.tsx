@@ -25,10 +25,11 @@ import Pricing from "@/pages/Pricing";
 import ShareLinkView from "@/pages/ShareLinkView";
 import OAuthCallback from "@/pages/OAuthCallback";
 import CalendarSyncConfirmation from "@/pages/CalendarSyncConfirmation";
+import WaitlistPage from "@/pages/WaitlistPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isAdmin, isWaitlisted } = useAuth();
 
   return (
     <Switch>
@@ -41,6 +42,11 @@ function Router() {
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
+      ) : isWaitlisted && !isAdmin ? (
+        <>
+          <Route path="/waitlist" component={WaitlistPage} />
+          <Route path="/" component={WaitlistPage} />
+        </>
       ) : (
         <>
           <Route path="/" component={Dashboard} />
@@ -52,6 +58,7 @@ function Router() {
           <Route path="/audit-logs" component={AuditLogs} />
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/security" component={SecurityFeatures} />
+          <Route path="/waitlist" component={WaitlistPage} />
         </>
       )}
       {/* Only show 404 after auth is resolved to prevent flash during OAuth callback */}
