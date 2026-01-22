@@ -1349,8 +1349,11 @@ export default function Landing() {
             <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Attendance records that evidence professional judgement
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)] leading-relaxed max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-lg text-[hsl(25,20%,40%)] leading-relaxed max-w-3xl mx-auto mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               LegalNote captures what was said, what was decided, and what must happen next, then forms a reviewable attendance note that preserves reasoning, actions, and instructions for professional finalisation. Records are timestamped, contemporaneous, and aligned with how regulators expect legal work to be evidenced.
+            </p>
+            <p className="text-base text-[hsl(25,20%,50%)] leading-relaxed max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              Fee-earners spend less time reconstructing conversations and more time advising clients. A thoughtful investment in your team's wellbeing and your firm's defensibility.
             </p>
           </motion.div>
         </div>
@@ -1358,9 +1361,6 @@ export default function Landing() {
 
       {/* Interactive Comparison Slider - moved up for impact */}
       <ComparisonSlider />
-      
-      {/* Audit Trail Comparison Slider */}
-      <AuditTrailComparisonSlider />
 
       {/* Trust Logos Marquee */}
       <TrustLogosMarquee />
@@ -1370,8 +1370,8 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <StatCounter value={99} suffix="%" label="Transcription accuracy" index={0} />
-            <StatCounter value={85} suffix="%" label="Time saved on notes" index={1} />
-            <StatCounter value={500} suffix="+" label="Hours documented" index={2} />
+            <StatCounter value={100} suffix="%" label="Audit-ready" index={1} />
+            <StatCounter value={100} suffix="+" label="Hours documented" index={2} />
             <StatCounter value={100} suffix="%" label="GDPR compliant" index={3} />
           </div>
         </div>
@@ -1508,7 +1508,7 @@ export default function Landing() {
               Decisions don't get lost. Actions don't drift.
             </h2>
             <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              LegalNote identifies decisions, next steps, and responsibilities as they arise in conversation—so they are not buried in a long transcript or forgotten notebook.
+              LegalNote identifies decisions, next steps, and responsibilities as they arise in conversation so they are not buried in a long transcript or forgotten notebook.
             </p>
           </motion.div>
           
@@ -1532,7 +1532,7 @@ export default function Landing() {
               { 
                 icon: Calendar, 
                 title: "Actions Surfaced & Diarised", 
-                description: "Decisions and next steps are identified, surfaced, and synced to your calendar while remaining linked to the attendance record and matter history." 
+                description: "Follow-ups surface automatically and sync to your calendar, remaining linked to the matter record so nothing falls through the cracks." 
               },
               { 
                 icon: FileText, 
@@ -1782,47 +1782,45 @@ export default function Landing() {
               Choose the plan that fits your practice. All plans include a 14-day professional evaluation.
             </p>
             
-            {/* Billing Period Tabs - centered and scrollable on mobile */}
+            {/* Billing Period Tabs - text links with blue dividers */}
             <div className="flex justify-center">
-              <div className="inline-flex items-center gap-1 p-1 bg-[hsl(30,20%,93%)] border border-[hsl(30,20%,85%)] rounded-xl overflow-x-auto max-w-full">
+              <div className="inline-flex items-center gap-0">
                 <button
                   onClick={() => setBillingPeriod('monthly')}
-                  className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                  className={`px-4 py-2 text-sm font-medium transition-all whitespace-nowrap ${
                     billingPeriod === 'monthly' 
-                      ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
+                      ? 'text-[hsl(210,80%,45%)]' 
                       : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
                   }`}
                   data-testid="button-monthly-billing"
                 >
                   Monthly
                 </button>
+                <span className="text-[hsl(210,70%,50%)] font-light">|</span>
                 <button
                   onClick={() => setBillingPeriod('quarterly')}
-                  className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-1 sm:gap-2 whitespace-nowrap ${
+                  className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
                     billingPeriod === 'quarterly' 
-                      ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
+                      ? 'text-[hsl(210,80%,45%)]' 
                       : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
                   }`}
                   data-testid="button-quarterly-billing"
                 >
                   Quarterly
-                  <span className={`text-xs px-1.5 sm:px-2 py-0.5 rounded-full ${billingPeriod === 'quarterly' ? 'bg-[hsl(18,70%,42%)] text-white' : 'bg-[hsl(18,45%,88%)] text-[hsl(18,60%,30%)]'}`}>
-                    Save 11%
-                  </span>
+                  <span className="text-xs text-[hsl(130,50%,35%)] font-medium">Save 11%</span>
                 </button>
+                <span className="text-[hsl(210,70%,50%)] font-light">|</span>
                 <button
                   onClick={() => setBillingPeriod('annual')}
-                  className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-1 sm:gap-2 whitespace-nowrap ${
+                  className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
                     billingPeriod === 'annual' 
-                      ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
+                      ? 'text-[hsl(210,80%,45%)]' 
                       : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
                   }`}
                   data-testid="button-annual-billing"
                 >
                   Annual
-                  <span className={`text-xs px-1.5 sm:px-2 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(18,70%,42%)] text-white' : 'bg-[hsl(18,45%,88%)] text-[hsl(18,60%,30%)]'}`}>
-                    Save 20%
-                  </span>
+                  <span className="text-xs text-[hsl(130,50%,35%)] font-medium">Save 20%</span>
                 </button>
               </div>
             </div>
@@ -1830,14 +1828,40 @@ export default function Landing() {
 
           {/* Cloud Subscriptions - Mobile Carousel */}
           <div className="md:hidden relative mb-16">
+            {/* Side Navigation Arrows */}
+            <button
+              onClick={() => setActivePricingCard(0)}
+              className={`absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${
+                activePricingCard === 0 
+                  ? 'bg-[hsl(30,20%,90%)] text-[hsl(25,25%,60%)]' 
+                  : 'bg-white text-[hsl(25,25%,35%)] hover:bg-[hsl(30,20%,95%)]'
+              }`}
+              disabled={activePricingCard === 0}
+              data-testid="button-pricing-prev"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setActivePricingCard(1)}
+              className={`absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${
+                activePricingCard === 1 
+                  ? 'bg-[hsl(30,20%,90%)] text-[hsl(25,25%,60%)]' 
+                  : 'bg-white text-[hsl(25,25%,35%)] hover:bg-[hsl(30,20%,95%)]'
+              }`}
+              disabled={activePricingCard === 1}
+              data-testid="button-pricing-next"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+            
             {/* Cards Container */}
-            <div className="overflow-hidden">
+            <div className="overflow-hidden mx-8">
               <div 
                 className="flex transition-transform duration-300 ease-out"
                 style={{ transform: `translateX(-${activePricingCard * 100}%)` }}
               >
                 {/* Solo Card */}
-                <div className="w-full flex-shrink-0 px-4">
+                <div className="w-full flex-shrink-0 px-2">
                   <div className="h-full p-6 rounded-xl bg-white border border-[hsl(30,20%,85%)]">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-lg bg-[hsl(30,25%,92%)] flex items-center justify-center">
@@ -1868,14 +1892,14 @@ export default function Landing() {
                 </div>
                 
                 {/* Team Card */}
-                <div className="w-full flex-shrink-0 px-4">
+                <div className="w-full flex-shrink-0 px-2">
                   <div className="relative h-full p-6 rounded-xl bg-[hsl(18,40%,92%)] border-2 border-[hsl(18,45%,70%)]">
-                    <div className="absolute -top-3 right-6">
-                      <span className="px-3 py-1 rounded-full bg-[hsl(18,65%,45%)] text-white text-xs font-medium">
+                    <div className="mb-4">
+                      <span className="inline-block px-3 py-1 rounded-full bg-[hsl(18,65%,45%)] text-white text-xs font-medium">
                         Most Popular
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 mb-4 mt-2">
+                    <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-lg bg-[hsl(18,50%,82%)] flex items-center justify-center">
                         <Building2 className="w-5 h-5 text-[hsl(18,65%,40%)]" />
                       </div>
@@ -1906,44 +1930,41 @@ export default function Landing() {
               </div>
             </div>
             
-            {/* Carousel Navigation - Below Cards */}
-            <div className="flex items-center justify-center gap-4 mt-6">
+            {/* Dot Indicators */}
+            <div className="flex items-center justify-center gap-2 mt-6">
               <button
                 onClick={() => setActivePricingCard(0)}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                  activePricingCard === 0 
-                    ? 'bg-[hsl(30,20%,85%)] text-[hsl(25,25%,35%)]' 
-                    : 'bg-[hsl(30,20%,93%)] text-[hsl(25,20%,55%)] hover:bg-[hsl(30,20%,88%)]'
-                }`}
-                data-testid="button-pricing-prev"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setActivePricingCard(0)}
-                  className={`w-2.5 h-2.5 rounded-full transition-all ${activePricingCard === 0 ? 'bg-[hsl(18,65%,45%)]' : 'bg-[hsl(30,20%,80%)]'}`}
-                  data-testid="button-pricing-dot-0"
-                />
-                <button
-                  onClick={() => setActivePricingCard(1)}
-                  className={`w-2.5 h-2.5 rounded-full transition-all ${activePricingCard === 1 ? 'bg-[hsl(18,65%,45%)]' : 'bg-[hsl(30,20%,80%)]'}`}
-                  data-testid="button-pricing-dot-1"
-                />
-              </div>
+                className={`w-2.5 h-2.5 rounded-full transition-all ${activePricingCard === 0 ? 'bg-[hsl(18,65%,45%)]' : 'bg-[hsl(30,20%,80%)]'}`}
+                data-testid="button-pricing-dot-0"
+              />
               <button
                 onClick={() => setActivePricingCard(1)}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                  activePricingCard === 1 
-                    ? 'bg-[hsl(30,20%,85%)] text-[hsl(25,25%,35%)]' 
-                    : 'bg-[hsl(30,20%,93%)] text-[hsl(25,20%,55%)] hover:bg-[hsl(30,20%,88%)]'
-                }`}
-                data-testid="button-pricing-next"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
+                className={`w-2.5 h-2.5 rounded-full transition-all ${activePricingCard === 1 ? 'bg-[hsl(18,65%,45%)]' : 'bg-[hsl(30,20%,80%)]'}`}
+                data-testid="button-pricing-dot-1"
+              />
             </div>
-            <p className="text-center text-xs text-[hsl(25,20%,55%)] mt-3">Swipe or tap arrows to see more plans</p>
+            
+            {/* Animated Swipe Hint */}
+            <motion.div 
+              className="flex items-center justify-center gap-1.5 mt-3 text-xs text-[hsl(25,20%,55%)]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0.4, 0.8, 0.4] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <motion.span
+                animate={{ x: [0, -4, 0, 4, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <ChevronLeft className="w-3 h-3" />
+              </motion.span>
+              <span>Swipe</span>
+              <motion.span
+                animate={{ x: [0, 4, 0, -4, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <ChevronRight className="w-3 h-3" />
+              </motion.span>
+            </motion.div>
           </div>
 
           {/* Cloud Subscriptions - Desktop Grid */}
