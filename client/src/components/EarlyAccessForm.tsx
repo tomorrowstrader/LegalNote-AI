@@ -98,7 +98,7 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-[90vw] sm:max-w-md max-h-[85vh] overflow-y-auto mx-4">
         {success ? (
           <div className="text-center py-6">
             <div className="mx-auto w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mb-4">

@@ -992,13 +992,23 @@ export default function Landing() {
   const [showEarlyAccessForm, setShowEarlyAccessForm] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activePricingCard, setActivePricingCard] = useState(0);
+  const [isInPricingSection, setIsInPricingSection] = useState(false);
   const { scrollY } = useScroll();
   const prefersReducedMotion = useReducedMotion();
+  const pricingRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLElement>(null);
   
-  // Track scroll for sticky nav blur effect
+  // Track scroll for sticky nav blur effect and pricing section visibility
   useEffect(() => {
     const unsubscribe = scrollY.on("change", (y) => {
       setIsScrolled(y > 50);
+      
+      // Check if we're in the pricing section (hide floating CTA)
+      if (pricingRef.current && footerRef.current) {
+        const pricingTop = pricingRef.current.offsetTop - 100;
+        const footerTop = footerRef.current.offsetTop - 100;
+        setIsInPricingSection(y >= pricingTop && y < footerTop);
+      }
     });
     return () => unsubscribe();
   }, [scrollY]);
@@ -1076,8 +1086,13 @@ export default function Landing() {
       {/* Scroll Progress Indicator */}
       <ScrollProgressBar />
       
-      {/* Floating CTA - Fixed at bottom on mobile */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 md:hidden">
+      {/* Floating CTA - Fixed at bottom on mobile, fades out in pricing section */}
+      <motion.div 
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 md:hidden"
+        initial={{ opacity: 1 }}
+        animate={{ opacity: isInPricingSection ? 0 : 1, pointerEvents: isInPricingSection ? 'none' : 'auto' }}
+        transition={{ duration: 0.3 }}
+      >
         <Button 
           onClick={handleRequestAccess}
           className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full px-8 py-6 text-base shadow-2xl"
@@ -1085,7 +1100,7 @@ export default function Landing() {
         >
           Request Early Access
         </Button>
-      </div>
+      </motion.div>
 
       {/* Announcement Bar */}
       <div className="bg-[hsl(20,40%,35%)] text-white">
@@ -1765,7 +1780,7 @@ export default function Landing() {
       </div>
 
       {/* Pricing Section */}
-      <div id="pricing" className="relative bg-white py-24">
+      <div id="pricing" ref={pricingRef} className="relative bg-white py-24">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
             className="text-center mb-12"
@@ -1782,45 +1797,47 @@ export default function Landing() {
               Choose the plan that fits your practice. All plans include a 14-day professional evaluation.
             </p>
             
-            {/* Billing Period Tabs - text links with blue dividers */}
+            {/* Billing Period Tabs - pill style with background */}
             <div className="flex justify-center">
-              <div className="inline-flex items-center gap-0">
+              <div className="inline-flex items-center gap-1 p-1 bg-[hsl(30,20%,93%)] border border-[hsl(30,20%,85%)] rounded-xl">
                 <button
                   onClick={() => setBillingPeriod('monthly')}
-                  className={`px-4 py-2 text-sm font-medium transition-all whitespace-nowrap ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                     billingPeriod === 'monthly' 
-                      ? 'text-[hsl(210,80%,45%)]' 
+                      ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
                       : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
                   }`}
                   data-testid="button-monthly-billing"
                 >
                   Monthly
                 </button>
-                <span className="text-[hsl(210,70%,50%)] font-light">|</span>
                 <button
                   onClick={() => setBillingPeriod('quarterly')}
-                  className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
                     billingPeriod === 'quarterly' 
-                      ? 'text-[hsl(210,80%,45%)]' 
+                      ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
                       : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
                   }`}
                   data-testid="button-quarterly-billing"
                 >
                   Quarterly
-                  <span className="text-xs text-[hsl(130,50%,35%)] font-medium">Save 11%</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'quarterly' ? 'bg-[hsl(130,40%,45%)] text-white' : 'bg-[hsl(130,30%,90%)] text-[hsl(130,50%,30%)]'}`}>
+                    Save 11%
+                  </span>
                 </button>
-                <span className="text-[hsl(210,70%,50%)] font-light">|</span>
                 <button
                   onClick={() => setBillingPeriod('annual')}
-                  className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
                     billingPeriod === 'annual' 
-                      ? 'text-[hsl(210,80%,45%)]' 
+                      ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
                       : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
                   }`}
                   data-testid="button-annual-billing"
                 >
                   Annual
-                  <span className="text-xs text-[hsl(130,50%,35%)] font-medium">Save 20%</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(130,40%,45%)] text-white' : 'bg-[hsl(130,30%,90%)] text-[hsl(130,50%,30%)]'}`}>
+                    Save 20%
+                  </span>
                 </button>
               </div>
             </div>
@@ -1831,7 +1848,7 @@ export default function Landing() {
             {/* Side Navigation Arrows */}
             <button
               onClick={() => setActivePricingCard(0)}
-              className={`absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${
+              className={`absolute -left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${
                 activePricingCard === 0 
                   ? 'bg-[hsl(30,20%,90%)] text-[hsl(25,25%,60%)]' 
                   : 'bg-white text-[hsl(25,25%,35%)] hover:bg-[hsl(30,20%,95%)]'
@@ -1843,7 +1860,7 @@ export default function Landing() {
             </button>
             <button
               onClick={() => setActivePricingCard(1)}
-              className={`absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${
+              className={`absolute -right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${
                 activePricingCard === 1 
                   ? 'bg-[hsl(30,20%,90%)] text-[hsl(25,25%,60%)]' 
                   : 'bg-white text-[hsl(25,25%,35%)] hover:bg-[hsl(30,20%,95%)]'
@@ -1855,14 +1872,21 @@ export default function Landing() {
             </button>
             
             {/* Cards Container */}
-            <div className="overflow-hidden mx-8">
+            <div className="overflow-hidden mx-10">
               <div 
                 className="flex transition-transform duration-300 ease-out"
                 style={{ transform: `translateX(-${activePricingCard * 100}%)` }}
               >
                 {/* Solo Card */}
                 <div className="w-full flex-shrink-0 px-2">
-                  <div className="h-full p-6 rounded-xl bg-white border border-[hsl(30,20%,85%)]">
+                  <div className="h-full p-6 rounded-xl bg-white border border-[hsl(30,20%,85%)] flex flex-col">
+                    {billingPeriod === 'quarterly' && (
+                      <div className="mb-3">
+                        <span className="inline-block px-3 py-1 rounded-full bg-[hsl(130,40%,45%)] text-white text-xs font-medium">
+                          Most Popular
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-lg bg-[hsl(30,25%,92%)] flex items-center justify-center">
                         <User className="w-5 h-5 text-[hsl(25,25%,35%)]" />
@@ -1877,15 +1901,15 @@ export default function Landing() {
                     {getSoloEffectiveMonthly() && (
                       <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-4">{getSoloEffectiveMonthly()}</p>
                     )}
-                    <ul className="space-y-3 mb-6">
-                      {['Unlimited recordings', 'AI transcription', 'Attendance notes', 'GDPR tools'].map((feature, i) => (
+                    <ul className="space-y-3 mb-6 flex-grow">
+                      {['Unlimited recordings', 'AI transcription', 'Attendance notes', 'Black Box security', 'GDPR tools'].map((feature, i) => (
                         <li key={i} className="flex items-center gap-2 text-sm">
                           <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
                           <span className="text-[hsl(25,20%,40%)]">{feature}</span>
                         </li>
                       ))}
                     </ul>
-                    <Button onClick={handleRequestAccess} variant="outline" className="w-full" data-testid="button-solo-signup-mobile">
+                    <Button onClick={handleRequestAccess} variant="outline" className="w-full mt-auto" data-testid="button-solo-signup-mobile">
                       Request Access
                     </Button>
                   </div>
@@ -1893,12 +1917,14 @@ export default function Landing() {
                 
                 {/* Team Card */}
                 <div className="w-full flex-shrink-0 px-2">
-                  <div className="relative h-full p-6 rounded-xl bg-[hsl(18,40%,92%)] border-2 border-[hsl(18,45%,70%)]">
-                    <div className="mb-4">
-                      <span className="inline-block px-3 py-1 rounded-full bg-[hsl(18,65%,45%)] text-white text-xs font-medium">
-                        Most Popular
-                      </span>
-                    </div>
+                  <div className="relative h-full p-6 rounded-xl bg-[hsl(18,40%,92%)] border-2 border-[hsl(18,45%,70%)] flex flex-col">
+                    {billingPeriod === 'quarterly' && (
+                      <div className="mb-3">
+                        <span className="inline-block px-3 py-1 rounded-full bg-[hsl(130,40%,45%)] text-white text-xs font-medium">
+                          Most Popular
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-lg bg-[hsl(18,50%,82%)] flex items-center justify-center">
                         <Building2 className="w-5 h-5 text-[hsl(18,65%,40%)]" />
@@ -1914,7 +1940,7 @@ export default function Landing() {
                       <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-2">{getTeamEffectiveMonthly()}</p>
                     )}
                     <p className="text-xs text-[hsl(25,20%,45%)] mb-4">2 users included, + £{getSeatPrice()}/{getBillingLabel()} per user</p>
-                    <ul className="space-y-3 mb-6">
+                    <ul className="space-y-3 mb-6 flex-grow">
                       {['Everything in Solo', 'Team collaboration', 'Admin dashboard', 'Priority support'].map((feature, i) => (
                         <li key={i} className="flex items-center gap-2 text-sm">
                           <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
@@ -1922,7 +1948,7 @@ export default function Landing() {
                         </li>
                       ))}
                     </ul>
-                    <Button onClick={handleRequestAccess} className="w-full bg-[hsl(18,70%,42%)] text-white" data-testid="button-team-signup-mobile">
+                    <Button onClick={handleRequestAccess} className="w-full bg-[hsl(18,70%,42%)] text-white mt-auto" data-testid="button-team-signup-mobile">
                       Request Access
                     </Button>
                   </div>
@@ -1975,7 +2001,14 @@ export default function Landing() {
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
             >
-              <div className="h-full p-8 rounded-xl bg-white border border-[hsl(30,20%,85%)]">
+              <div className="h-full p-8 rounded-xl bg-white border border-[hsl(30,20%,85%)] flex flex-col">
+                {billingPeriod === 'quarterly' && (
+                  <div className="mb-4">
+                    <span className="inline-block px-4 py-1.5 rounded-full bg-[hsl(130,40%,45%)] text-white text-sm font-medium">
+                      Most Popular
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-lg bg-[hsl(30,25%,92%)] flex items-center justify-center">
                     <User className="w-5 h-5 text-[hsl(25,25%,35%)]" />
@@ -2006,12 +2039,13 @@ export default function Landing() {
                 {getSoloEffectiveMonthly() && (
                   <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-6">{getSoloEffectiveMonthly()}</p>
                 )}
-                <ul className={`space-y-4 mb-8 ${!getSoloEffectiveMonthly() ? 'mt-6' : ''}`}>
+                <ul className={`space-y-4 mb-8 flex-grow ${!getSoloEffectiveMonthly() ? 'mt-6' : ''}`}>
                   {[
                     'Unlimited recordings',
                     'AI transcription with speaker ID',
                     'Attendance note generation',
                     'AI summaries & action items',
+                    'Black Box triple-layer security',
                     'Secure document sharing',
                     'Firm branding on exports',
                     'Google & Outlook calendar sync',
@@ -2028,7 +2062,7 @@ export default function Landing() {
                   onClick={handleRequestAccess} 
                   variant="outline"
                   size="lg"
-                  className="w-full border-[hsl(30,20%,80%)] text-[hsl(25,25%,25%)]" 
+                  className="w-full border-[hsl(30,20%,80%)] text-[hsl(25,25%,25%)] mt-auto" 
                   data-testid="button-solo-signup"
                 >
                   Request Access
@@ -2042,12 +2076,14 @@ export default function Landing() {
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: 0.1 }}
             >
-              <div className="relative h-full p-8 rounded-xl bg-[hsl(18,40%,92%)] border-2 border-[hsl(18,45%,70%)]">
-                <div className="absolute -top-3 right-8">
-                  <span className="px-4 py-1.5 rounded-full bg-[hsl(18,65%,45%)] text-white text-sm font-medium">
-                    Most Popular
-                  </span>
-                </div>
+              <div className="relative h-full p-8 rounded-xl bg-[hsl(18,40%,92%)] border-2 border-[hsl(18,45%,70%)] flex flex-col">
+                {billingPeriod === 'quarterly' && (
+                  <div className="mb-4">
+                    <span className="inline-block px-4 py-1.5 rounded-full bg-[hsl(130,40%,45%)] text-white text-sm font-medium">
+                      Most Popular
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-lg bg-[hsl(18,50%,82%)] flex items-center justify-center">
                     <Building2 className="w-5 h-5 text-[hsl(18,65%,40%)]" />
@@ -2079,7 +2115,7 @@ export default function Landing() {
                   <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-2">{getTeamEffectiveMonthly()}</p>
                 )}
                 <p className={`text-sm text-[hsl(25,20%,45%)] mb-6 ${!getTeamEffectiveMonthly() ? 'mt-0' : ''}`}>2 users included, + £{getSeatPrice()}/{getBillingLabel()} per additional user</p>
-                <ul className="space-y-4 mb-8">
+                <ul className="space-y-4 mb-8 flex-grow">
                   {[
                     'Everything in Solo',
                     '2 users included',
@@ -2100,7 +2136,7 @@ export default function Landing() {
                 <Button 
                   onClick={handleRequestAccess} 
                   size="lg"
-                  className="w-full bg-[hsl(18,70%,42%)] text-white font-medium" 
+                  className="w-full bg-[hsl(18,70%,42%)] text-white font-medium mt-auto" 
                   data-testid="button-team-signup"
                 >
                   Request Access
@@ -2285,7 +2321,7 @@ export default function Landing() {
       <FinalCTA onRequestAccess={handleRequestAccess} />
 
       {/* Footer */}
-      <footer className="relative bg-[hsl(20,30%,10%)] border-t border-[hsl(20,25%,18%)]">
+      <footer ref={footerRef} className="relative bg-[hsl(20,30%,10%)] border-t border-[hsl(20,25%,18%)]">
         <div className="max-w-7xl mx-auto px-6 py-16">
           <div className="grid md:grid-cols-4 gap-12 mb-12">
             <div className="md:col-span-2">
