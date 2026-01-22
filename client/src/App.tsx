@@ -27,6 +27,7 @@ import OAuthCallback from "@/pages/OAuthCallback";
 import CalendarSyncConfirmation from "@/pages/CalendarSyncConfirmation";
 import WaitlistPage from "@/pages/WaitlistPage";
 import NotFound from "@/pages/not-found";
+import SecurityPage from "@/pages/SecurityPage";
 
 function Router() {
   const { isAuthenticated, isLoading, isAdmin, isWaitlisted } = useAuth();
@@ -39,6 +40,7 @@ function Router() {
       <Route path="/calendar-sync-confirmation" component={CalendarSyncConfirmation} />
       <Route path="/landing-preview" component={Landing} />
       <Route path="/pricing" component={Pricing} />
+      <Route path="/security" component={SecurityPage} />
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
@@ -57,7 +59,7 @@ function Router() {
           <Route path="/profile" component={MyProfile} />
           <Route path="/audit-logs" component={AuditLogs} />
           <Route path="/admin" component={AdminDashboard} />
-          <Route path="/security" component={SecurityFeatures} />
+          <Route path="/app/security" component={SecurityFeatures} />
           <Route path="/waitlist" component={WaitlistPage} />
         </>
       )}

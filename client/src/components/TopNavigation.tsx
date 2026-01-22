@@ -104,7 +104,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                   <Link href="/audit-logs">Audit Logs</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild data-testid="menu-item-security">
-                  <Link href="/security">
+                  <Link href="/app/security">
                     <Shield className="w-4 h-4 mr-2" />
                     Security & Compliance
                   </Link>

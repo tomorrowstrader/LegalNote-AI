@@ -931,6 +931,17 @@ export default function Landing() {
               <Button 
                 variant="ghost"
                 size="sm"
+                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-sm sm:text-base px-2 sm:px-4"
+                data-testid="button-nav-security"
+                asChild
+              >
+                <Link href="/security">
+                  Security
+                </Link>
+              </Button>
+              <Button 
+                variant="ghost"
+                size="sm"
                 onClick={handleLogin}
                 className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-sm sm:text-base px-2 sm:px-4"
                 data-testid="button-nav-login"
@@ -1800,7 +1811,13 @@ export default function Landing() {
                   </button>
                 </li>
                 <li>
-                  <span className="text-white/30">Documentation (Coming Soon)</span>
+                  <Link 
+                    href="/security"
+                    className="text-white/50 hover:text-white transition-colors"
+                    data-testid="link-footer-security"
+                  >
+                    Security
+                  </Link>
                 </li>
               </ul>
             </div>
