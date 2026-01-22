@@ -1542,44 +1542,6 @@ export default function Landing() {
 
           {/* Cloud Subscriptions - Mobile Carousel */}
           <div className="md:hidden relative mb-16">
-            {/* Carousel Navigation */}
-            <div className="flex items-center justify-center gap-4 mb-4">
-              <button
-                onClick={() => setActivePricingCard(0)}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                  activePricingCard === 0 
-                    ? 'bg-[hsl(30,20%,85%)] text-[hsl(25,25%,35%)]' 
-                    : 'bg-[hsl(30,20%,93%)] text-[hsl(25,20%,55%)] hover:bg-[hsl(30,20%,88%)]'
-                }`}
-                data-testid="button-pricing-prev"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setActivePricingCard(0)}
-                  className={`w-2.5 h-2.5 rounded-full transition-all ${activePricingCard === 0 ? 'bg-[hsl(18,65%,45%)]' : 'bg-[hsl(30,20%,80%)]'}`}
-                  data-testid="button-pricing-dot-0"
-                />
-                <button
-                  onClick={() => setActivePricingCard(1)}
-                  className={`w-2.5 h-2.5 rounded-full transition-all ${activePricingCard === 1 ? 'bg-[hsl(18,65%,45%)]' : 'bg-[hsl(30,20%,80%)]'}`}
-                  data-testid="button-pricing-dot-1"
-                />
-              </div>
-              <button
-                onClick={() => setActivePricingCard(1)}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                  activePricingCard === 1 
-                    ? 'bg-[hsl(30,20%,85%)] text-[hsl(25,25%,35%)]' 
-                    : 'bg-[hsl(30,20%,93%)] text-[hsl(25,20%,55%)] hover:bg-[hsl(30,20%,88%)]'
-                }`}
-                data-testid="button-pricing-next"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-            
             {/* Cards Container */}
             <div className="overflow-hidden">
               <div 
@@ -1655,7 +1617,45 @@ export default function Landing() {
                 </div>
               </div>
             </div>
-            <p className="text-center text-xs text-[hsl(25,20%,55%)] mt-4">Swipe or tap arrows to see more plans</p>
+            
+            {/* Carousel Navigation - Below Cards */}
+            <div className="flex items-center justify-center gap-4 mt-6">
+              <button
+                onClick={() => setActivePricingCard(0)}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                  activePricingCard === 0 
+                    ? 'bg-[hsl(30,20%,85%)] text-[hsl(25,25%,35%)]' 
+                    : 'bg-[hsl(30,20%,93%)] text-[hsl(25,20%,55%)] hover:bg-[hsl(30,20%,88%)]'
+                }`}
+                data-testid="button-pricing-prev"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setActivePricingCard(0)}
+                  className={`w-2.5 h-2.5 rounded-full transition-all ${activePricingCard === 0 ? 'bg-[hsl(18,65%,45%)]' : 'bg-[hsl(30,20%,80%)]'}`}
+                  data-testid="button-pricing-dot-0"
+                />
+                <button
+                  onClick={() => setActivePricingCard(1)}
+                  className={`w-2.5 h-2.5 rounded-full transition-all ${activePricingCard === 1 ? 'bg-[hsl(18,65%,45%)]' : 'bg-[hsl(30,20%,80%)]'}`}
+                  data-testid="button-pricing-dot-1"
+                />
+              </div>
+              <button
+                onClick={() => setActivePricingCard(1)}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                  activePricingCard === 1 
+                    ? 'bg-[hsl(30,20%,85%)] text-[hsl(25,25%,35%)]' 
+                    : 'bg-[hsl(30,20%,93%)] text-[hsl(25,20%,55%)] hover:bg-[hsl(30,20%,88%)]'
+                }`}
+                data-testid="button-pricing-next"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-center text-xs text-[hsl(25,20%,55%)] mt-3">Swipe or tap arrows to see more plans</p>
           </div>
 
           {/* Cloud Subscriptions - Desktop Grid */}
