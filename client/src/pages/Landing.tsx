@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info } from "lucide-react";
+import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
 import Logo from "@/components/Logo";
@@ -776,6 +776,7 @@ export default function Landing() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEarlyAccessForm, setShowEarlyAccessForm] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { scrollY } = useScroll();
   const prefersReducedMotion = useReducedMotion();
   
@@ -904,27 +905,28 @@ export default function Landing() {
             >
               <Logo variant="wordmark" size="xl" tone="light" />
             </motion.div>
+            
+            {/* Desktop Navigation - visible on lg and above */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
-              className="flex items-center gap-2 sm:gap-6"
+              className="hidden lg:flex items-center gap-6"
             >
               <Button 
                 variant="ghost"
                 size="sm"
                 onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-sm sm:text-base px-2 sm:px-4"
+                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
                 data-testid="button-nav-features"
               >
-                <span className="hidden sm:inline">How It Works</span>
-                <span className="sm:hidden">Features</span>
+                How It Works
               </Button>
               <Button 
                 variant="ghost"
                 size="sm"
                 onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
-                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-sm sm:text-base px-2 sm:px-4"
+                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
                 data-testid="button-nav-pricing"
               >
                 Pricing
@@ -932,7 +934,7 @@ export default function Landing() {
               <Button 
                 variant="ghost"
                 size="sm"
-                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-sm sm:text-base px-2 sm:px-4"
+                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
                 data-testid="button-nav-security"
                 asChild
               >
@@ -944,14 +946,93 @@ export default function Landing() {
                 variant="ghost"
                 size="sm"
                 onClick={handleLogin}
-                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-sm sm:text-base px-2 sm:px-4"
+                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
                 data-testid="button-nav-login"
               >
                 Log in
               </Button>
             </motion.div>
+
+            {/* Mobile/Tablet Navigation - visible below lg */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5 }}
+              className="flex lg:hidden items-center gap-3"
+            >
+              <Button 
+                variant="ghost"
+                size="sm"
+                onClick={handleLogin}
+                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-sm px-3"
+                data-testid="button-nav-login-mobile"
+              >
+                Log in
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)]"
+                data-testid="button-nav-burger"
+              >
+                {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </Button>
+            </motion.div>
           </div>
         </div>
+
+        {/* Mobile Menu Dropdown */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="lg:hidden border-t border-[hsl(30,20%,90%)] bg-white"
+            >
+              <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col gap-2">
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' });
+                    setMobileMenuOpen(false);
+                  }}
+                  className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
+                  data-testid="button-nav-features-mobile"
+                >
+                  How It Works
+                </Button>
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
+                    setMobileMenuOpen(false);
+                  }}
+                  className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
+                  data-testid="button-nav-pricing-mobile"
+                >
+                  Pricing
+                </Button>
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                  className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
+                  data-testid="button-nav-security-mobile"
+                  asChild
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Link href="/security">
+                    Security
+                  </Link>
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.nav>
 
       {/* Hero Section - Editorial Style with Animated Background */}
