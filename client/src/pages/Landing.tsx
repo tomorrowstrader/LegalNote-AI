@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X } from "lucide-react";
+import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
 import Logo from "@/components/Logo";
@@ -783,6 +783,7 @@ export default function Landing() {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEarlyAccessForm, setShowEarlyAccessForm] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activePricingCard, setActivePricingCard] = useState(0);
   const { scrollY } = useScroll();
   const prefersReducedMotion = useReducedMotion();
   
@@ -1107,7 +1108,7 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            Spend less time on admin, and more time on the work only lawyers can do. LegalNote frees you from manual note-taking so you can move faster, and deliver more for your clients.
+            The UK's first consent-first legal documentation platform. Audit-ready attendance records, contemporaneous evidence, and SRA-aligned workflows that reduce cognitive load and protect your practice.
           </motion.p>
           
           {/* Desktop CTA */}
@@ -1146,6 +1147,9 @@ export default function Landing() {
           </motion.div>
         </div>
       </div>
+
+      {/* Interactive Comparison Slider - moved up for impact */}
+      <ComparisonSlider />
 
       {/* Trust Logos Marquee */}
       <TrustLogosMarquee />
@@ -1472,9 +1476,6 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Interactive Comparison Slider */}
-      <ComparisonSlider />
-
       {/* Pricing Section */}
       <div id="pricing" className="relative bg-white py-24">
         <div className="max-w-7xl mx-auto px-6">
@@ -1493,51 +1494,172 @@ export default function Landing() {
               Choose the plan that fits your practice. All plans include a 14-day professional evaluation.
             </p>
             
-            <div className="inline-flex items-center gap-1 p-1 bg-[hsl(30,20%,93%)] border border-[hsl(30,20%,85%)] rounded-xl">
-              <button
-                onClick={() => setBillingPeriod('monthly')}
-                className={`px-5 py-3 rounded-lg text-sm font-medium transition-all ${
-                  billingPeriod === 'monthly' 
-                    ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
-                    : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
-                }`}
-                data-testid="button-monthly-billing"
-              >
-                Monthly
-              </button>
-              <button
-                onClick={() => setBillingPeriod('quarterly')}
-                className={`px-5 py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
-                  billingPeriod === 'quarterly' 
-                    ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
-                    : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
-                }`}
-                data-testid="button-quarterly-billing"
-              >
-                Quarterly
-                <span className={`text-xs px-2 py-0.5 rounded-full ${billingPeriod === 'quarterly' ? 'bg-[hsl(18,70%,42%)] text-white' : 'bg-[hsl(18,45%,88%)] text-[hsl(18,60%,30%)]'}`}>
-                  Save 11%
-                </span>
-              </button>
-              <button
-                onClick={() => setBillingPeriod('annual')}
-                className={`px-5 py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
-                  billingPeriod === 'annual' 
-                    ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
-                    : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
-                }`}
-                data-testid="button-annual-billing"
-              >
-                Annual
-                <span className={`text-xs px-2 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(18,70%,42%)] text-white' : 'bg-[hsl(18,45%,88%)] text-[hsl(18,60%,30%)]'}`}>
-                  Save 20%
-                </span>
-              </button>
+            {/* Billing Period Tabs - centered and scrollable on mobile */}
+            <div className="flex justify-center">
+              <div className="inline-flex items-center gap-1 p-1 bg-[hsl(30,20%,93%)] border border-[hsl(30,20%,85%)] rounded-xl overflow-x-auto max-w-full">
+                <button
+                  onClick={() => setBillingPeriod('monthly')}
+                  className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                    billingPeriod === 'monthly' 
+                      ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
+                      : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
+                  }`}
+                  data-testid="button-monthly-billing"
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setBillingPeriod('quarterly')}
+                  className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-1 sm:gap-2 whitespace-nowrap ${
+                    billingPeriod === 'quarterly' 
+                      ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
+                      : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
+                  }`}
+                  data-testid="button-quarterly-billing"
+                >
+                  Quarterly
+                  <span className={`text-xs px-1.5 sm:px-2 py-0.5 rounded-full ${billingPeriod === 'quarterly' ? 'bg-[hsl(18,70%,42%)] text-white' : 'bg-[hsl(18,45%,88%)] text-[hsl(18,60%,30%)]'}`}>
+                    Save 11%
+                  </span>
+                </button>
+                <button
+                  onClick={() => setBillingPeriod('annual')}
+                  className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-1 sm:gap-2 whitespace-nowrap ${
+                    billingPeriod === 'annual' 
+                      ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
+                      : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
+                  }`}
+                  data-testid="button-annual-billing"
+                >
+                  Annual
+                  <span className={`text-xs px-1.5 sm:px-2 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(18,70%,42%)] text-white' : 'bg-[hsl(18,45%,88%)] text-[hsl(18,60%,30%)]'}`}>
+                    Save 20%
+                  </span>
+                </button>
+              </div>
             </div>
           </motion.div>
 
-          {/* Cloud Subscriptions */}
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto mb-16">
+          {/* Cloud Subscriptions - Mobile Carousel */}
+          <div className="md:hidden relative mb-16">
+            {/* Carousel Navigation */}
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <button
+                onClick={() => setActivePricingCard(0)}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                  activePricingCard === 0 
+                    ? 'bg-[hsl(30,20%,85%)] text-[hsl(25,25%,35%)]' 
+                    : 'bg-[hsl(30,20%,93%)] text-[hsl(25,20%,55%)] hover:bg-[hsl(30,20%,88%)]'
+                }`}
+                data-testid="button-pricing-prev"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setActivePricingCard(0)}
+                  className={`w-2.5 h-2.5 rounded-full transition-all ${activePricingCard === 0 ? 'bg-[hsl(18,65%,45%)]' : 'bg-[hsl(30,20%,80%)]'}`}
+                  data-testid="button-pricing-dot-0"
+                />
+                <button
+                  onClick={() => setActivePricingCard(1)}
+                  className={`w-2.5 h-2.5 rounded-full transition-all ${activePricingCard === 1 ? 'bg-[hsl(18,65%,45%)]' : 'bg-[hsl(30,20%,80%)]'}`}
+                  data-testid="button-pricing-dot-1"
+                />
+              </div>
+              <button
+                onClick={() => setActivePricingCard(1)}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                  activePricingCard === 1 
+                    ? 'bg-[hsl(30,20%,85%)] text-[hsl(25,25%,35%)]' 
+                    : 'bg-[hsl(30,20%,93%)] text-[hsl(25,20%,55%)] hover:bg-[hsl(30,20%,88%)]'
+                }`}
+                data-testid="button-pricing-next"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Cards Container */}
+            <div className="overflow-hidden">
+              <div 
+                className="flex transition-transform duration-300 ease-out"
+                style={{ transform: `translateX(-${activePricingCard * 100}%)` }}
+              >
+                {/* Solo Card */}
+                <div className="w-full flex-shrink-0 px-4">
+                  <div className="h-full p-6 rounded-xl bg-white border border-[hsl(30,20%,85%)]">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-lg bg-[hsl(30,25%,92%)] flex items-center justify-center">
+                        <User className="w-5 h-5 text-[hsl(25,25%,35%)]" />
+                      </div>
+                      <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)]">Solo</h3>
+                    </div>
+                    <p className="text-[hsl(25,20%,45%)] mb-4">Perfect for solo practitioners</p>
+                    <div className="mb-4 flex items-baseline">
+                      <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">£{getSoloPrice()}</span>
+                      <span className="text-[hsl(25,20%,45%)] ml-2">/{getBillingLabel()}</span>
+                    </div>
+                    {getSoloEffectiveMonthly() && (
+                      <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-4">{getSoloEffectiveMonthly()}</p>
+                    )}
+                    <ul className="space-y-3 mb-6">
+                      {['Unlimited recordings', 'AI transcription', 'Attendance notes', 'GDPR tools'].map((feature, i) => (
+                        <li key={i} className="flex items-center gap-2 text-sm">
+                          <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
+                          <span className="text-[hsl(25,20%,40%)]">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <Button onClick={handleRequestAccess} variant="outline" className="w-full" data-testid="button-solo-signup-mobile">
+                      Request Access
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Team Card */}
+                <div className="w-full flex-shrink-0 px-4">
+                  <div className="relative h-full p-6 rounded-xl bg-[hsl(18,40%,92%)] border-2 border-[hsl(18,45%,70%)]">
+                    <div className="absolute -top-3 right-6">
+                      <span className="px-3 py-1 rounded-full bg-[hsl(18,65%,45%)] text-white text-xs font-medium">
+                        Most Popular
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 mb-4 mt-2">
+                      <div className="w-10 h-10 rounded-lg bg-[hsl(18,50%,82%)] flex items-center justify-center">
+                        <Building2 className="w-5 h-5 text-[hsl(18,65%,40%)]" />
+                      </div>
+                      <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)]">Team</h3>
+                    </div>
+                    <p className="text-[hsl(25,20%,45%)] mb-4">For boutique law firms</p>
+                    <div className="mb-2 flex items-baseline">
+                      <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">£{getTeamPrice()}</span>
+                      <span className="text-[hsl(25,20%,45%)] ml-2">/{getBillingLabel()}</span>
+                    </div>
+                    {getTeamEffectiveMonthly() && (
+                      <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-2">{getTeamEffectiveMonthly()}</p>
+                    )}
+                    <p className="text-xs text-[hsl(25,20%,45%)] mb-4">2 users included, + £{getSeatPrice()}/{getBillingLabel()} per user</p>
+                    <ul className="space-y-3 mb-6">
+                      {['Everything in Solo', 'Team collaboration', 'Admin dashboard', 'Priority support'].map((feature, i) => (
+                        <li key={i} className="flex items-center gap-2 text-sm">
+                          <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
+                          <span className="text-[hsl(25,20%,35%)]">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <Button onClick={handleRequestAccess} className="w-full bg-[hsl(18,70%,42%)] text-white" data-testid="button-team-signup-mobile">
+                      Request Access
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="text-center text-xs text-[hsl(25,20%,55%)] mt-4">Swipe or tap arrows to see more plans</p>
+          </div>
+
+          {/* Cloud Subscriptions - Desktop Grid */}
+          <div className="hidden md:grid md:grid-cols-2 gap-8 max-w-4xl mx-auto mb-16">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
