@@ -340,13 +340,11 @@ function ComparisonSlider() {
         
         <motion.div
           ref={containerRef}
-          className="relative rounded-2xl overflow-hidden shadow-2xl border border-[hsl(30,20%,85%)] cursor-ew-resize select-none"
+          className="relative rounded-2xl overflow-hidden shadow-2xl border border-[hsl(30,20%,85%)] select-none"
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleMouseDown}
         >
           {/* Before - Traditional Notes */}
           <div className="relative h-[400px] bg-[hsl(40,30%,95%)]">
@@ -357,7 +355,7 @@ function ComparisonSlider() {
                 </span>
               </div>
               <div 
-                className="text-[15px] text-[hsl(220,10%,25%)] space-y-2 leading-relaxed"
+                className="text-lg sm:text-xl text-[hsl(220,10%,25%)] space-y-2 sm:space-y-3 leading-relaxed"
                 style={{ 
                   fontFamily: "'Caveat', 'Segoe Script', cursive",
                   transform: 'rotate(-0.5deg)'
@@ -421,10 +419,12 @@ function ComparisonSlider() {
             aria-valuetext={`${Math.round(sliderPosition)}% LegalNote view`}
             tabIndex={0}
             onKeyDown={handleKeyDown}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleMouseDown}
             className="absolute top-0 bottom-0 w-1 bg-[hsl(18,70%,42%)] cursor-ew-resize z-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(18,70%,42%)] focus-visible:ring-offset-2"
             style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
           >
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[hsl(18,70%,42%)] shadow-lg flex items-center justify-center">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-[hsl(18,70%,42%)] shadow-lg flex items-center justify-center touch-none">
               <div className="flex gap-0.5">
                 <div className="w-0.5 h-4 bg-white rounded-full" />
                 <div className="w-0.5 h-4 bg-white rounded-full" />
@@ -1094,8 +1094,8 @@ export default function Landing() {
           </motion.div>
         </div>
 
-        {/* Hero Image Section with Parallax */}
-        <HeroImageParallax />
+        {/* Hero Image Section with Parallax - temporarily hidden until real images are ready */}
+        {/* <HeroImageParallax /> */}
 
         {/* Hero Description */}
         <div className="max-w-7xl mx-auto px-6 pb-20">
@@ -1128,22 +1128,7 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Trust Logos Marquee */}
-      <TrustLogosMarquee />
-
-      {/* Animated Statistics Section */}
-      <div className="relative bg-[hsl(20,35%,18%)] py-16 overflow-hidden">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <StatCounter value={99} suffix="%" label="Transcription accuracy" index={0} />
-            <StatCounter value={85} suffix="%" label="Time saved on notes" index={1} />
-            <StatCounter value={500} suffix="+" label="Hours documented" index={2} />
-            <StatCounter value={100} suffix="%" label="GDPR compliant" index={3} />
-          </div>
-        </div>
-      </div>
-
-      {/* What LegalNote Does - Value Proposition */}
+      {/* What LegalNote Does - Value Proposition (moved to top) */}
       <div className="relative bg-[hsl(30,25%,94%)] py-20 border-y border-[hsl(30,20%,85%)]">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <motion.div
@@ -1159,6 +1144,21 @@ export default function Landing() {
               LegalNote captures what was said, what was decided, and what must happen next, then forms a reviewable attendance note that preserves reasoning, actions, and instructions for professional finalisation. Records are timestamped, contemporaneous, and aligned with how regulators expect legal work to be evidenced.
             </p>
           </motion.div>
+        </div>
+      </div>
+
+      {/* Trust Logos Marquee */}
+      <TrustLogosMarquee />
+
+      {/* Animated Statistics Section */}
+      <div className="relative bg-[hsl(20,35%,18%)] py-16 overflow-hidden">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            <StatCounter value={99} suffix="%" label="Transcription accuracy" index={0} />
+            <StatCounter value={85} suffix="%" label="Time saved on notes" index={1} />
+            <StatCounter value={500} suffix="+" label="Hours documented" index={2} />
+            <StatCounter value={100} suffix="%" label="GDPR compliant" index={3} />
+          </div>
         </div>
       </div>
 
