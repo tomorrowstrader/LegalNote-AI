@@ -1855,9 +1855,21 @@ export default function Landing() {
             <div className="text-sm text-white/40">
               © {new Date().getFullYear()} LegalNote AI. All rights reserved.
             </div>
-            <div className="flex items-center gap-6 text-sm text-white/30">
-              <span>Privacy Policy (Coming Soon)</span>
-              <span>Terms of Service (Coming Soon)</span>
+            <div className="flex items-center gap-6 text-sm">
+              <Link 
+                href="/privacy"
+                className="text-white/50 hover:text-white transition-colors"
+                data-testid="link-footer-privacy"
+              >
+                Privacy Policy
+              </Link>
+              <Link 
+                href="/terms"
+                className="text-white/50 hover:text-white transition-colors"
+                data-testid="link-footer-terms"
+              >
+                Terms of Service
+              </Link>
             </div>
           </div>
         </div>

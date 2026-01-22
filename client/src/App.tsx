@@ -28,6 +28,8 @@ import CalendarSyncConfirmation from "@/pages/CalendarSyncConfirmation";
 import WaitlistPage from "@/pages/WaitlistPage";
 import NotFound from "@/pages/not-found";
 import SecurityPage from "@/pages/SecurityPage";
+import PrivacyPage from "@/pages/PrivacyPage";
+import TermsPage from "@/pages/TermsPage";
 
 function Router() {
   const { isAuthenticated, isLoading, isAdmin, isWaitlisted } = useAuth();
@@ -41,6 +43,8 @@ function Router() {
       <Route path="/landing-preview" component={Landing} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/security" component={SecurityPage} />
+      <Route path="/privacy" component={PrivacyPage} />
+      <Route path="/terms" component={TermsPage} />
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />

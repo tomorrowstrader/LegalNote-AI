@@ -12,46 +12,13 @@ import {
   Database, 
   Key,
   CheckCircle,
-  ChevronDown,
   Mail,
-  Linkedin,
-  ArrowLeft
+  ArrowLeft,
+  Clock,
+  Trash2
 } from "lucide-react";
-import { useState, useEffect } from "react";
-
-interface FAQItemProps {
-  question: string;
-  answer: string;
-}
-
-function FAQItem({ question, answer }: FAQItemProps) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div className="border-b border-[hsl(30,20%,88%)]">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full py-6 flex items-center justify-between text-left"
-        data-testid={`faq-toggle-${question.slice(0, 20).replace(/\s+/g, '-').toLowerCase()}`}
-      >
-        <span className="text-lg font-medium text-[hsl(25,30%,15%)] pr-8">{question}</span>
-        <ChevronDown 
-          className={`w-5 h-5 text-[hsl(25,20%,45%)] transition-transform ${isOpen ? 'rotate-180' : ''}`} 
-        />
-      </button>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          exit={{ opacity: 0, height: 0 }}
-          className="pb-6"
-        >
-          <p className="text-[hsl(25,20%,40%)] leading-relaxed">{answer}</p>
-        </motion.div>
-      )}
-    </div>
-  );
-}
+// Removed unused: Linkedin, ChevronDown
+import { useEffect } from "react";
 
 export default function SecurityPage() {
   useEffect(() => {
@@ -88,8 +55,8 @@ export default function SecurityPage() {
     },
     {
       icon: Server,
-      title: "UK Data Residency",
-      description: "All data is processed and stored exclusively in UK data centres. Your client information never leaves UK jurisdiction, ensuring compliance with domestic regulations."
+      title: "UK Jurisdiction Only",
+      description: "Processing and infrastructure entirely within UK borders. No data crosses international boundaries—full alignment with UK data protection law from capture to deletion."
     },
     {
       icon: Eye,
@@ -128,42 +95,6 @@ export default function SecurityPage() {
       name: "ICO Registered",
       description: "Registered with the Information Commissioner's Office",
       details: "https://ico.org.uk/"
-    },
-    {
-      name: "UK CYBER ESSENTIALS",
-      description: "Government-backed scheme for cyber security best practices",
-      details: "https://www.ncsc.gov.uk/cyberessentials/overview"
-    }
-  ];
-
-  const faqs = [
-    {
-      question: "How does LegalNote protect my client data?",
-      answer: "LegalNote employs multiple layers of protection: TLS 1.3 encryption for all data in transit, AES-256 encryption for data at rest, UK-only data residency, role-based access controls, and comprehensive audit logging with cryptographic signatures. We treat every piece of client information as privileged and confidential."
-    },
-    {
-      question: "Where is my data stored and processed?",
-      answer: "All data is stored and processed exclusively in UK data centres. We use Neon's UK region for database hosting and UK-based object storage for audio files. Your client data never leaves UK jurisdiction."
-    },
-    {
-      question: "Does LegalNote use my data to train AI models?",
-      answer: "Absolutely not. We contractually guarantee that your data is never used to train AI models. We use OpenAI and AssemblyAI for transcription and document generation, but with data processing agreements that prohibit any training on your data. Your confidential information remains yours alone."
-    },
-    {
-      question: "How does the audit trail work?",
-      answer: "Every significant action in LegalNote—document creation, sharing, viewing, editing—is logged with a timestamp, user identifier, and action details. Each log entry is signed with HMAC-SHA256, creating a tamper-evident chain of evidence. You can export the complete audit trail as CSV for regulatory submissions or internal review."
-    },
-    {
-      question: "What happens to recordings after the retention period?",
-      answer: "Audio recordings are automatically deleted after your configured retention period (default 7 days). Before deletion, transcripts and documents are preserved as the permanent record of the meeting. This approach balances storage efficiency with comprehensive documentation."
-    },
-    {
-      question: "How does LegalNote handle client consent?",
-      answer: "LegalNote includes a built-in consent capture workflow. Before any recording begins, you capture client consent with timestamp verification. This consent record is permanently linked to the case file and appears in the audit trail, providing defensible documentation of proper procedure."
-    },
-    {
-      question: "Can I control who accesses what within my firm?",
-      answer: "Yes. LegalNote provides role-based access control with user-level permissions. Administrators can manage team access, monitor activity, and control which users can perform specific actions. All access is logged and auditable."
     }
   ];
 
@@ -239,9 +170,9 @@ export default function SecurityPage() {
                 data-testid="button-security-contact"
                 asChild
               >
-                <a href="mailto:security@legalnote.ai">
+                <a href="mailto:support@legalnote.ai">
                   <Mail className="w-4 h-4 mr-2" />
-                  Contact Security Team
+                  Contact Us
                 </a>
               </Button>
             </div>
@@ -372,28 +303,37 @@ export default function SecurityPage() {
               viewport={{ once: true }}
               className="relative"
             >
-              <div className="p-8 rounded-2xl bg-gradient-to-br from-[hsl(18,40%,92%)] to-[hsl(30,30%,95%)] border border-[hsl(30,20%,85%)]">
+              <div className="p-8 rounded-2xl bg-gradient-to-br from-[hsl(20,35%,12%)] to-[hsl(25,30%,8%)] border border-[hsl(20,25%,20%)]">
                 <div className="text-center mb-6">
-                  <Shield className="w-16 h-16 text-[hsl(18,65%,45%)] mx-auto mb-4" />
-                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)]">Black Box Protection</h3>
+                  <div className="w-20 h-20 rounded-full bg-[hsl(18,70%,50%)] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[hsl(18,70%,30%)/30]">
+                    <Lock className="w-10 h-10 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-medium text-white" data-testid="heading-black-box">The Black Box</h3>
+                  <p className="text-white/50 text-sm mt-2">Indestructible. Immutable. Irrefutable.</p>
                 </div>
-                <p className="text-[hsl(25,20%,40%)] text-center mb-6">
-                  Triple-layer redundancy ensures your documentation is protected against any single point of failure:
+                <p className="text-white/70 text-center mb-8">
+                  Like an aircraft's flight recorder, your documentation survives everything. Three independent systems. One unbreakable chain of evidence.
                 </p>
                 <div className="space-y-3">
                   {[
-                    "Primary database with automated backups",
-                    "Encrypted object storage for audio files",
-                    "Cryptographically signed audit trail"
-                  ].map((layer, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-white/60">
-                      <div className="w-8 h-8 rounded-full bg-[hsl(18,60%,88%)] flex items-center justify-center text-sm font-medium text-[hsl(18,65%,40%)]">
+                    { layer: "Primary Database", desc: "Continuous replication with point-in-time recovery" },
+                    { layer: "Encrypted Storage", desc: "Audio files with AES-256 encryption at rest" },
+                    { layer: "Signed Audit Trail", desc: "HMAC-SHA256 cryptographic verification" }
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
+                      <div className="w-10 h-10 rounded-full bg-[hsl(18,70%,50%)] flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
                         {i + 1}
                       </div>
-                      <span className="text-[hsl(25,20%,30%)] font-medium">{layer}</span>
+                      <div>
+                        <span className="text-white font-medium block">{item.layer}</span>
+                        <span className="text-white/50 text-sm">{item.desc}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
+                <p className="text-center text-white/40 text-sm mt-6 italic">
+                  When the regulator asks, you'll have the answer.
+                </p>
               </div>
             </motion.div>
           </div>
@@ -401,34 +341,77 @@ export default function SecurityPage() {
       </section>
 
       <section className="py-20 bg-[hsl(30,25%,97%)]">
-        <div className="max-w-3xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center mb-12"
+            className="text-center mb-16"
           >
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[hsl(0,50%,95%)] text-[hsl(0,60%,40%)] text-sm font-medium mb-6">
+              <Trash2 className="w-4 h-4" />
+              Data Minimisation
+            </div>
             <h2 
               className="text-3xl sm:text-4xl font-medium text-[hsl(25,30%,12%)] mb-4"
-              data-testid="heading-security-faq"
+              data-testid="heading-audio-deletion"
             >
-              Frequently Asked Questions
+              Audio Deleted Within 7 Days
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)]">
-              Common questions about LegalNote's security practices.
+            <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
+              We don't just protect your data—we eliminate it. Audio recordings are automatically purged within 7 days, leaving only the documentation that matters.
             </p>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="bg-white rounded-xl border border-[hsl(30,20%,88%)] overflow-hidden"
-          >
-            {faqs.map((faq, index) => (
-              <FAQItem key={index} question={faq.question} answer={faq.answer} />
-            ))}
-          </motion.div>
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="text-center p-8 rounded-xl bg-white border border-[hsl(30,20%,88%)]"
+            >
+              <div className="w-16 h-16 rounded-full bg-[hsl(18,50%,92%)] flex items-center justify-center mx-auto mb-6">
+                <Clock className="w-8 h-8 text-[hsl(18,65%,40%)]" />
+              </div>
+              <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">Automatic Purge</h3>
+              <p className="text-[hsl(25,20%,40%)]">
+                Audio files are automatically and irreversibly deleted after your retention period. No manual intervention required.
+              </p>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              className="text-center p-8 rounded-xl bg-white border border-[hsl(30,20%,88%)]"
+            >
+              <div className="w-16 h-16 rounded-full bg-[hsl(18,50%,92%)] flex items-center justify-center mx-auto mb-6">
+                <FileCheck className="w-8 h-8 text-[hsl(18,65%,40%)]" />
+              </div>
+              <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">Documentation Preserved</h3>
+              <p className="text-[hsl(25,20%,40%)]">
+                Transcripts, attendance notes, and AI summaries remain as permanent records. The evidence of your work persists.
+              </p>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.3 }}
+              className="text-center p-8 rounded-xl bg-white border border-[hsl(30,20%,88%)]"
+            >
+              <div className="w-16 h-16 rounded-full bg-[hsl(18,50%,92%)] flex items-center justify-center mx-auto mb-6">
+                <Shield className="w-8 h-8 text-[hsl(18,65%,40%)]" />
+              </div>
+              <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">GDPR Article 5(1)(e)</h3>
+              <p className="text-[hsl(25,20%,40%)]">
+                Storage limitation principle in action. We keep data only as long as necessary—no longer.
+              </p>
+            </motion.div>
+          </div>
         </div>
       </section>
 
@@ -443,7 +426,7 @@ export default function SecurityPage() {
               className="text-3xl sm:text-4xl font-medium text-white mb-6"
               data-testid="heading-security-questions"
             >
-              Questions About Our Security?
+              Questions About Security?
             </h2>
             <p className="text-lg text-white/60 mb-10 max-w-2xl mx-auto">
               Our team is available to discuss your specific security and compliance requirements. We're happy to provide additional documentation for your due diligence process.
@@ -455,9 +438,9 @@ export default function SecurityPage() {
                 data-testid="button-contact-security"
                 asChild
               >
-                <a href="mailto:security@legalnote.ai">
+                <a href="mailto:support@legalnote.ai">
                   <Mail className="w-4 h-4 mr-2" />
-                  security@legalnote.ai
+                  Contact Us
                 </a>
               </Button>
               <Button 
@@ -545,18 +528,6 @@ export default function SecurityPage() {
                     hello@legalnote.ai
                   </a>
                 </li>
-                <li>
-                  <a 
-                    href="https://www.linkedin.com/company/legalnotehq/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-white/50 hover:text-white transition-colors"
-                    data-testid="link-footer-linkedin"
-                  >
-                    <Linkedin className="w-4 h-4" />
-                    LinkedIn
-                  </a>
-                </li>
               </ul>
             </div>
           </div>
@@ -565,9 +536,21 @@ export default function SecurityPage() {
             <div className="text-sm text-white/40">
               © {new Date().getFullYear()} LegalNote AI. All rights reserved.
             </div>
-            <div className="flex items-center gap-6 text-sm text-white/30">
-              <span>Privacy Policy (Coming Soon)</span>
-              <span>Terms of Service (Coming Soon)</span>
+            <div className="flex items-center gap-6 text-sm">
+              <Link 
+                href="/privacy"
+                className="text-white/50 hover:text-white transition-colors"
+                data-testid="link-footer-privacy"
+              >
+                Privacy Policy
+              </Link>
+              <Link 
+                href="/terms"
+                className="text-white/50 hover:text-white transition-colors"
+                data-testid="link-footer-terms"
+              >
+                Terms of Service
+              </Link>
             </div>
           </div>
         </div>
