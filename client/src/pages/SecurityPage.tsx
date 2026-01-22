@@ -520,12 +520,12 @@ export default function SecurityPage() {
               <ul className="space-y-3 text-sm">
                 <li>
                   <a 
-                    href="mailto:hello@legalnote.ai" 
+                    href="mailto:support@legalnote.ai" 
                     className="flex items-center gap-2 text-white/50 hover:text-white transition-colors"
                     data-testid="link-footer-email"
                   >
                     <Mail className="w-4 h-4" />
-                    hello@legalnote.ai
+                    support@legalnote.ai
                   </a>
                 </li>
               </ul>
