@@ -19,14 +19,21 @@ import {
 } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
-// Fixed demo dates for consistent, reproducible demonstrations
-// These represent historical meeting dates to support the evidentiary narrative
+// Dynamic demo dates - relative to current date for realistic demonstrations
+// Dates spread across the last 6 weeks to show active, ongoing usage
+const now = new Date();
+const daysAgo = (days: number) => {
+  const date = new Date(now);
+  date.setDate(date.getDate() - days);
+  return date;
+};
+
 const DEMO_DATES = {
-  sarahThompson: new Date("2024-12-10T10:30:00Z"),
-  marcusWebb: new Date("2024-11-20T14:00:00Z"),
-  eleanorChen: new Date("2024-12-05T11:00:00Z"),
-  davidPatterson: new Date("2024-12-15T15:30:00Z"),
-  jamesSmith: new Date("2025-01-03T10:15:00Z"), // Most recent - for demo showcase
+  sarahThompson: daysAgo(12),   // ~2 weeks ago
+  marcusWebb: daysAgo(28),      // ~4 weeks ago
+  eleanorChen: daysAgo(21),     // ~3 weeks ago
+  davidPatterson: daysAgo(7),   // ~1 week ago
+  jamesSmith: daysAgo(3),       // ~3 days ago - most recent
 };
 
 // Demo case data with realistic UK legal scenarios
