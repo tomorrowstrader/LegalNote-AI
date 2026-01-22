@@ -119,3 +119,98 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
   - Subscription products: `server/seed-stripe-products.ts`
   - Service products: `server/seed-stripe-services.ts`
 - **Preview Mode**: Set `PREVIEW_MODE=true` (server) and `VITE_PREVIEW_MODE=true` (client) in production to disable login for payment processor review
+
+## LinkedIn Content Strategy (Lara Acosta Frameworks)
+
+Reference frameworks for founder personal brand building on LinkedIn. All content should be generated through YOUR voice to build an authoritative personal brand for LegalNote AI.
+
+### Core Principles
+- **Quality over volume**: 4 posts per week is optimal
+- **Decision makers**: LinkedIn audience = buyers who can say yes
+- **First posts get boosted**: LinkedIn natively pushes new creators' early posts
+- **First 30 minutes critical**: Engage immediately after posting
+
+### SLAY Framework (Primary Writing Structure)
+- **S**tory: Start with a story to get attention
+- **L**esson: Lead with a lesson for retention  
+- **A**ctionable advice: Give tactical, actionable steps for conversion
+- **Y**ou: End by pointing it back to them (question/CTA)
+
+*Example flow: "Last night I delivered my first ever project..." → Context → Steps → Feel-good conclusion → PS question*
+
+### Broad → Narrow → Niche Framework
+Use within each post to maximize reach while qualifying audience:
+1. **Broad hook** (8 words or less) - Universal appeal, reaches many
+2. **Narrow problem** - Specific to your target audience
+3. **Niche solution** - Your unique expertise/methodology
+
+*Example: "My one-person business crossed £200K/month" (broad) → "with zero cold emails" (narrow) → "here's the exact LinkedIn strategy" (niche)*
+
+### 8-Word Hook Rule
+- First line: 8 words maximum (mobile cut-off optimization)
+- Second line (rehook): Equally compelling, adds specificity/numbers
+- "How I" > "How to" (personal credibility beats generic advice)
+
+### 4-3-2-1 Content Calendar
+- **4** posts per week, every week, consistently
+- **3** content pillars:
+  1. **Growth content**: Broad appeal, discovery mechanism
+  2. **TAM content**: Total addressable market (your niche)
+  3. **Sales content**: Direct offers, lead magnets
+- Combine pillars (e.g., educational + storytelling in same post)
+
+### Three Pillars of Attention
+1. **High-level educational content**: Share your actual blueprints/processes
+2. **Elite tier storytelling**: Personal stories through professional lens
+3. **Authority jacking**: Photos/associations with known figures (halo effect)
+
+### PAS Framework (Problem-Agitate-Solution)
+Quick format for direct posts:
+- **Problem**: State it plainly ("Founders, your LinkedIn content sucks")
+- **Agitate**: Make it worse ("It's costing you thousands daily")
+- **Solution**: Provide the answer with steps
+
+### Key Concepts
+
+**Monetizable Expertise**
+Knowledge that directly changes someone's outcome in a way they'll pay for. Lead with specific outcomes and numbers, not generic advice.
+
+**Strategic Arbitrage**
+Take trending topics/news and apply your unique story or skill. LinkedIn gets news ~1 week after Twitter - use this advantage.
+
+**Authority Jacking**
+Borrowed credibility through association. Use photos with industry figures but only tag if they'll actually engage (no-response = spam signal).
+
+**Art of the Humble Brag**
+Announce achievements through the lens of others (family, clients, team). Never "I'm so excited to announce..." - make it about THEM.
+
+### Post Structure Best Practices
+- Varied sentence lengths (avoid walls of text)
+- "TikTok-ification": Short, skimmable, high-value density
+- End with cliche/feel-good quote (people remember endings)
+- Always include CTA: "Repost ♻️" / "Drop your X below" / "Tag someone"
+- Stories are never about you, always about THEM
+
+### Content Mining for LegalNote
+Pull content from:
+- Client calls (problems solved = content ideas)
+- Industry news (SRA updates, GDPR changes, PI insurance trends)
+- Weekly reflection (wins, lessons, behind-the-scenes)
+- Take photos at events/meetings for story posts
+
+### LegalNote-Specific Topic Categories
+1. **Risk/Compliance**: PI claim prevention, SRA alignment, evidence quality
+2. **Technology**: AI in legal, documentation workflows, audit trails
+3. **Business**: Solo practitioner growth, boutique firm efficiency
+4. **Stories**: Client wins, founder journey, product development
+5. **Trend jacking**: Legal tech news, regulatory changes, AI developments
+
+### Engagement Strategy
+- Post live (don't schedule) so you can engage in first 30 mins
+- Reply to every comment in first hour
+- Daily 15-min engagement on others' posts
+- Build relationships, not just broadcast
+
+### Reference Files
+- Example posts: `attached_assets/Pasted-Lara-Post-Examples-*.txt`
+- Full podcast transcript: `attached_assets/Pasted--00-00-00-Studies-show-*.txt`
