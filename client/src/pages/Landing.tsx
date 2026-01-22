@@ -356,16 +356,22 @@ function ComparisonSlider() {
                   Traditional Approach
                 </span>
               </div>
-              <div className="font-mono text-sm text-[hsl(25,20%,35%)] space-y-3 opacity-80" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                <p className="italic">Meeting with Mrs Thompson re: house sale</p>
-                <p>- Discussed price, she wants £450k</p>
-                <p>- Mentioned something about fixtures?</p>
-                <p>- Need to check re: completion date</p>
-                <p>- Husband called during meeting</p>
-                <p>- [illegible] about solicitor fees</p>
-                <p className="text-[hsl(0,50%,50%)]">* No timestamp</p>
-                <p className="text-[hsl(0,50%,50%)]">* No consent record</p>
-                <p className="text-[hsl(0,50%,50%)]">* Actions unclear</p>
+              <div 
+                className="text-[15px] text-[hsl(220,10%,25%)] space-y-2 leading-relaxed"
+                style={{ 
+                  fontFamily: "'Caveat', 'Segoe Script', cursive",
+                  transform: 'rotate(-0.5deg)'
+                }}
+              >
+                <p className="ml-2" style={{ transform: 'rotate(0.3deg)' }}>Meeting w/ Mrs Thompson - house sale</p>
+                <p style={{ transform: 'rotate(-0.4deg)' }}>- price discussed → £450k (ish?)</p>
+                <p className="ml-1" style={{ transform: 'rotate(0.2deg)' }}>- fixtures - wardrobes? kitchen??</p>
+                <p style={{ transform: 'rotate(-0.3deg)' }}>- completion date - need to check!</p>
+                <p className="ml-3" style={{ transform: 'rotate(0.5deg)' }}>- husband phoned mid-meeting</p>
+                <p style={{ transform: 'rotate(-0.2deg)' }}>- fees - <span className="line-through opacity-60">£2,500</span> discuss later</p>
+                <p className="mt-4 text-[hsl(0,50%,45%)]" style={{ transform: 'rotate(0.4deg)' }}>* no time recorded</p>
+                <p className="text-[hsl(0,50%,45%)]" style={{ transform: 'rotate(-0.3deg)' }}>* consent?? forgot to ask</p>
+                <p className="text-[hsl(0,50%,45%)] ml-1" style={{ transform: 'rotate(0.2deg)' }}>* actions unclear...</p>
               </div>
             </div>
           </div>
@@ -857,7 +863,7 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       {/* Scroll Progress Indicator */}
       <ScrollProgressBar />
       
