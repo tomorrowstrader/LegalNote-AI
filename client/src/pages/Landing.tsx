@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EarlyAccessForm } from "@/components/EarlyAccessForm";
+import { WorkflowInfographic } from "@/components/WorkflowInfographic";
 
 const isPreviewMode = import.meta.env.VITE_PREVIEW_MODE === 'true';
 
@@ -264,7 +265,7 @@ function HeroImageParallax() {
 
 // Before/After comparison slider with keyboard accessibility
 function ComparisonSlider() {
-  const [sliderPosition, setSliderPosition] = useState(50);
+  const [sliderPosition, setSliderPosition] = useState(15);
   const containerRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -440,7 +441,7 @@ function ComparisonSlider() {
 
 // Audit Trail comparison slider - Nothing vs Everything documented
 function AuditTrailComparisonSlider() {
-  const [sliderPosition, setSliderPosition] = useState(50);
+  const [sliderPosition, setSliderPosition] = useState(15);
   const containerRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -1095,7 +1096,8 @@ export default function Landing() {
       >
         <Button 
           onClick={handleRequestAccess}
-          className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full px-8 py-6 text-base shadow-2xl"
+          size="sm"
+          className="bg-[hsl(18,70%,42%)] text-white rounded-full px-6 text-sm shadow-2xl"
           data-testid="button-floating-cta"
         >
           Request Early Access
@@ -1331,7 +1333,7 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            The UK's first consent-first legal documentation platform. Audit-ready attendance records, contemporaneous evidence, and SRA-aligned workflows that reduce cognitive load and protect your practice.
+            A disputed instruction. A complaint investigation. The record that proves exactly what was discussed, who said it, and when consent was given. Consent-first. Contemporaneous. SRA-aligned. The documentation infrastructure your practice deserves.
           </motion.p>
           
           {/* Desktop CTA */}
@@ -1392,11 +1394,11 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* How It Works Section - Enhanced with horizontal scroll on mobile */}
+      {/* How It Works Section - Enhanced with workflow infographic */}
       <div id="how-it-works" className="relative py-24 bg-white overflow-hidden">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
-            className="text-center mb-16"
+            className="text-center mb-12"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -1411,98 +1413,29 @@ export default function Landing() {
             >
               How It Works
             </motion.span>
-            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Attendance records, formed at source
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              Consent documented before anyone speaks.<br className="hidden sm:block" />
+              Audit-ready records sealed before anyone leaves.
             </h2>
-            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              LegalNote supports practitioners by capturing client meetings through consent-first workflows designed for UK-regulated legal environments.
+            <p className="text-lg sm:text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              This is infrastructure, not software. A methodology that captures your expertise while you focus on your client.
             </p>
           </motion.div>
 
-          {/* Mobile horizontal scroll */}
-          <div className="md:hidden overflow-x-auto pb-8 -mx-6 px-6 scrollbar-hide">
-            <div className="flex gap-6" style={{ width: "max-content" }}>
-              {[
-                { step: "1", title: "Capture with consent", description: "Built-in consent workflows that explain, obtain, and record client consent to recording." },
-                { step: "2", title: "Review and refine", description: "Transcribed and formed into a structured attendance note aligned with SRA expectations." },
-                { step: "3", title: "Finalise and evidence", description: "Professional judgement determines what is kept, amended, or removed before finalisation." },
-              ].map((item, index) => (
-                <motion.div 
-                  key={item.step}
-                  className="w-72 flex-shrink-0 bg-gradient-to-br from-white to-[hsl(30,20%,96%)] rounded-2xl p-6 shadow-lg border border-[hsl(30,20%,90%)]"
-                  initial={{ opacity: 0, x: 50 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: index * 0.15 }}
-                >
-                  <motion.div 
-                    className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(18,65%,45%)] to-[hsl(20,60%,40%)] flex items-center justify-center text-xl font-medium text-white mb-4 shadow-md"
-                    whileHover={{ scale: 1.1, rotate: 5 }}
-                  >
-                    {item.step}
-                  </motion.div>
-                  <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{item.title}</h3>
-                  <p className="text-sm text-[hsl(25,20%,40%)] leading-relaxed">{item.description}</p>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-
-          {/* Desktop grid with 3D tilt cards */}
-          <div className="hidden md:grid md:grid-cols-3 gap-8 lg:gap-12" style={{ perspective: "1000px" }}>
-            {[
-              { 
-                step: "1", 
-                title: "Capture with consent", 
-                description: "Start with built-in consent workflows that explain, obtain, and record client consent to recording. Works with in-person meetings or import from Zoom, Teams, and Google Meet." 
-              },
-              { 
-                step: "2", 
-                title: "Review and refine", 
-                description: "Conversations are securely transcribed and formed into a structured attendance note reflecting instructions, advice, decisions, and follow-up actions aligned with SRA expectations." 
-              },
-              { 
-                step: "3", 
-                title: "Finalise and evidence", 
-                description: "The practitioner remains in control: LegalNote proposes the structure and content, but professional judgement determines what is kept, amended, or removed before the record is finalised." 
-              },
-            ].map((item, index) => (
-              <motion.div 
-                key={item.step}
-                className="relative"
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: index * 0.2 }}
-              >
-                {index > 0 && (
-                  <motion.div 
-                    className="hidden md:block absolute top-12 -left-6 lg:-left-8"
-                    initial={{ opacity: 0, x: -20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.4, delay: index * 0.2 + 0.3 }}
-                  >
-                    <ArrowRight className="w-6 h-6 text-[hsl(18,55%,60%)]" />
-                  </motion.div>
-                )}
-                <div className="text-center">
-                  <motion.div 
-                    className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[hsl(18,65%,45%)] to-[hsl(20,60%,38%)] flex items-center justify-center text-2xl font-medium text-white mx-auto mb-6 shadow-lg"
-                    whileHover={{ 
-                      scale: 1.05,
-                      boxShadow: "0 20px 40px -15px rgba(160, 90, 60, 0.4)",
-                    }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    {item.step}
-                  </motion.div>
-                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-4">{item.title}</h3>
-                  <p className="text-[hsl(25,20%,40%)] leading-relaxed">{item.description}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+          {/* Workflow Infographic */}
+          <WorkflowInfographic />
+          
+          {/* Closing statement */}
+          <motion.p 
+            className="text-center mt-12 text-lg text-[hsl(25,30%,20%)] max-w-2xl mx-auto" 
+            style={{ fontFamily: "'Lora', Georgia, serif" }}
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+          >
+            Your conversation becomes your evidence. Your judgment shapes the final record.
+          </motion.p>
         </div>
       </div>
 
@@ -2159,13 +2092,13 @@ export default function Landing() {
           >
             <div className="text-center mb-12">
               <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
-                Professional Services
+                Also Available
               </span>
               <h3 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-                Expert support for successful adoption
+                Expert support when you need it
               </h3>
               <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-                Optional services to help your firm get the most from LegalNote, from guided implementation to ongoing advisory support.
+                Optional services to help your firm get the most from LegalNote. Contact us for details.
               </p>
             </div>
 
@@ -2182,9 +2115,7 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-xl bg-[hsl(25,30%,88%)] flex items-center justify-center mb-4">
                   <FileText className="w-6 h-6 text-[hsl(25,40%,35%)]" />
                 </div>
-                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">Implementation</h4>
-                <p className="text-2xl font-medium text-[hsl(25,30%,12%)] mb-1" data-testid="text-price-implementation">£1,000 - £2,500</p>
-                <p className="text-sm text-[hsl(25,20%,45%)] mb-4">One-time</p>
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-3">Implementation</h4>
                 <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
@@ -2217,9 +2148,7 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-xl bg-[hsl(25,30%,88%)] flex items-center justify-center mb-4">
                   <Users className="w-6 h-6 text-[hsl(25,40%,35%)]" />
                 </div>
-                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">Consulting</h4>
-                <p className="text-2xl font-medium text-[hsl(25,30%,12%)] mb-1" data-testid="text-price-consulting">£500 - £1,500</p>
-                <p className="text-sm text-[hsl(25,20%,45%)] mb-4">Per engagement</p>
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-3">Consulting</h4>
                 <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
@@ -2252,9 +2181,7 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-xl bg-[hsl(25,30%,88%)] flex items-center justify-center mb-4">
                   <ClipboardCheck className="w-6 h-6 text-[hsl(25,40%,35%)]" />
                 </div>
-                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">Training</h4>
-                <p className="text-2xl font-medium text-[hsl(25,30%,12%)] mb-1" data-testid="text-price-training">£250 - £1,500</p>
-                <p className="text-sm text-[hsl(25,20%,45%)] mb-4">Per session</p>
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-3">Training</h4>
                 <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
@@ -2287,9 +2214,7 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-xl bg-[hsl(18,40%,82%)] flex items-center justify-center mb-4">
                   <Calendar className="w-6 h-6 text-[hsl(18,50%,35%)]" />
                 </div>
-                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">Advisory Retainer</h4>
-                <p className="text-2xl font-medium text-[hsl(25,30%,12%)] mb-1" data-testid="text-price-advisory">£500 - £1,000</p>
-                <p className="text-sm text-[hsl(25,20%,45%)] mb-4">Per month</p>
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-3">Advisory Retainer</h4>
                 <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
