@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X, ChevronLeft, ChevronRight, FileQuestion, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
 import Logo from "@/components/Logo";
@@ -413,6 +413,213 @@ function ComparisonSlider() {
             ref={sliderRef}
             role="slider"
             aria-label="Comparison slider - drag or use arrow keys to compare traditional notes with LegalNote output"
+            aria-valuemin={5}
+            aria-valuemax={95}
+            aria-valuenow={Math.round(sliderPosition)}
+            aria-valuetext={`${Math.round(sliderPosition)}% LegalNote view`}
+            tabIndex={0}
+            onKeyDown={handleKeyDown}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleMouseDown}
+            className="absolute top-0 bottom-0 w-1 bg-[hsl(18,70%,42%)] cursor-ew-resize z-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(18,70%,42%)] focus-visible:ring-offset-2"
+            style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
+          >
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-[hsl(18,70%,42%)] shadow-lg flex items-center justify-center touch-none">
+              <div className="flex gap-0.5">
+                <div className="w-0.5 h-4 bg-white rounded-full" />
+                <div className="w-0.5 h-4 bg-white rounded-full" />
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+// Audit Trail comparison slider - Nothing vs Everything documented
+function AuditTrailComparisonSlider() {
+  const [sliderPosition, setSliderPosition] = useState(50);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  
+  const handleMove = (clientX: number) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const percentage = Math.max(5, Math.min(95, (x / rect.width) * 100));
+    setSliderPosition(percentage);
+  };
+  
+  const handleMouseDown = () => setIsDragging(true);
+  const handleMouseUp = () => setIsDragging(false);
+  
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const step = e.shiftKey ? 10 : 5;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSliderPosition(prev => Math.max(5, prev - step));
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSliderPosition(prev => Math.min(95, prev + step));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setSliderPosition(5);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setSliderPosition(95);
+    }
+  };
+  
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) handleMove(e.clientX);
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isDragging) handleMove(e.touches[0].clientX);
+    };
+    
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleMouseUp);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [isDragging]);
+  
+  return (
+    <div className="py-16 bg-[hsl(30,25%,97%)]">
+      <div className="max-w-5xl mx-auto px-6">
+        <motion.div
+          className="text-center mb-10"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+        >
+          <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+            Black Box Protection
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            From nothing to everything documented
+          </h2>
+          <p className="text-lg text-[hsl(25,20%,40%)]">
+            Compare traditional record-keeping with LegalNote's cryptographic audit trail
+          </p>
+        </motion.div>
+        
+        <motion.div
+          ref={containerRef}
+          className="relative rounded-2xl overflow-hidden shadow-2xl border border-[hsl(30,20%,85%)] select-none"
+          initial={{ opacity: 0, scale: 0.95 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+        >
+          {/* Before - Traditional: Nothing */}
+          <div className="relative h-[420px] bg-[hsl(40,30%,95%)]">
+            <div className="absolute inset-0 p-8 flex flex-col">
+              <div className="mb-6">
+                <span className="text-xs font-medium text-[hsl(0,50%,50%)] uppercase tracking-wider bg-[hsl(0,50%,95%)] px-3 py-1 rounded-full">
+                  Traditional Approach
+                </span>
+              </div>
+              <div className="flex-1 flex flex-col items-center justify-center">
+                <div className="text-center opacity-40">
+                  <FileQuestion className="w-16 h-16 mx-auto mb-4 text-[hsl(25,15%,50%)]" />
+                  <p className="text-lg text-[hsl(25,15%,40%)] font-medium mb-2">No Audit Trail</p>
+                </div>
+                <div 
+                  className="mt-8 text-base text-[hsl(25,15%,45%)] text-center max-w-sm space-y-2"
+                  style={{ fontFamily: "'Caveat', cursive" }}
+                >
+                  <p>"When exactly did we discuss that?"</p>
+                  <p>"Who made this change and why?"</p>
+                  <p>"Did the client actually consent?"</p>
+                </div>
+              </div>
+              <div className="mt-auto pt-4 border-t border-dashed border-[hsl(25,15%,75%)]">
+                <div className="flex items-center gap-2 text-sm text-[hsl(0,50%,45%)]">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>If challenged, you're relying on memory</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* After - LegalNote: Everything Documented */}
+          <div 
+            className="absolute inset-0 h-[420px] bg-white overflow-hidden"
+            style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
+          >
+            <div className="absolute inset-0 p-6 sm:p-8">
+              <div className="mb-4 flex items-center gap-3">
+                <span className="text-xs font-medium text-[hsl(130,50%,35%)] uppercase tracking-wider bg-[hsl(130,50%,95%)] px-3 py-1 rounded-full">
+                  LegalNote Audit Trail
+                </span>
+                <Badge className="bg-[hsl(18,70%,42%)] text-white text-xs">Cryptographically Signed</Badge>
+              </div>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-start gap-3 p-3 bg-[hsl(130,40%,97%)] rounded-lg border border-[hsl(130,30%,90%)]">
+                  <div className="w-2 h-2 rounded-full bg-[hsl(130,50%,45%)] mt-1.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-mono text-xs text-[hsl(25,15%,45%)]">14:32:07</span>
+                      <span className="text-[hsl(25,30%,20%)]">Recording started</span>
+                    </div>
+                    <p className="text-xs text-[hsl(130,50%,35%)]">Verbal consent obtained from Mrs Thompson</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-[hsl(30,30%,98%)] rounded-lg border border-[hsl(30,20%,90%)]">
+                  <div className="w-2 h-2 rounded-full bg-[hsl(18,60%,50%)] mt-1.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-mono text-xs text-[hsl(25,15%,45%)]">15:19:23</span>
+                      <span className="text-[hsl(25,30%,20%)]">Transcript generated</span>
+                    </div>
+                    <p className="text-xs text-[hsl(25,15%,50%)]">AI transcription with speaker diarization</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-[hsl(30,30%,98%)] rounded-lg border border-[hsl(30,20%,90%)]">
+                  <div className="w-2 h-2 rounded-full bg-[hsl(18,60%,50%)] mt-1.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-mono text-xs text-[hsl(25,15%,45%)]">15:22:45</span>
+                      <span className="text-[hsl(25,30%,20%)]">Document reviewed</span>
+                    </div>
+                    <p className="text-xs text-[hsl(25,15%,50%)]">J. Williams viewed attendance note</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-[hsl(220,40%,97%)] rounded-lg border border-[hsl(220,30%,90%)]">
+                  <div className="w-2 h-2 rounded-full bg-[hsl(220,60%,50%)] mt-1.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-mono text-xs text-[hsl(25,15%,45%)]">15:24:12</span>
+                      <span className="text-[hsl(25,30%,20%)]">Client version shared</span>
+                    </div>
+                    <p className="text-xs text-[hsl(220,50%,45%)] font-mono break-all">SHA-256: a3f8b2c1...e9d4</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-[hsl(30,20%,90%)]">
+                <div className="flex items-center gap-2 text-xs text-[hsl(130,50%,35%)]">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Every action timestamped, hashed, and tamper-evident</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Slider Handle */}
+          <div 
+            ref={sliderRef}
+            role="slider"
+            aria-label="Comparison slider - drag or use arrow keys to compare traditional record-keeping with LegalNote audit trail"
             aria-valuemin={5}
             aria-valuemax={95}
             aria-valuenow={Math.round(sliderPosition)}
@@ -1150,6 +1357,9 @@ export default function Landing() {
 
       {/* Interactive Comparison Slider - moved up for impact */}
       <ComparisonSlider />
+      
+      {/* Audit Trail Comparison Slider */}
+      <AuditTrailComparisonSlider />
 
       {/* Trust Logos Marquee */}
       <TrustLogosMarquee />
