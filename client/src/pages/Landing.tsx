@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X, ChevronLeft, ChevronRight, FileQuestion, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
@@ -1589,8 +1590,9 @@ export default function Landing() {
             </p>
           </motion.div>
 
+          {/* Desktop Table View */}
           <motion.div
-            className="overflow-hidden rounded-xl border border-[hsl(30,20%,85%)] bg-white"
+            className="hidden md:block overflow-hidden rounded-xl border border-[hsl(30,20%,85%)] bg-white"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -1657,6 +1659,82 @@ export default function Landing() {
                 </tbody>
               </table>
             </div>
+          </motion.div>
+          
+          {/* Mobile Accordion View */}
+          <motion.div
+            className="md:hidden"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <Accordion type="single" collapsible className="space-y-3">
+              {[
+                { 
+                  dimension: "Primary output", 
+                  generic: "Audio file, raw transcript, or generic summary focused on convenience", 
+                  legalnote: "Structured attendance record aligned with legal training and regulatory expectations" 
+                },
+                { 
+                  dimension: "Legal domain awareness", 
+                  generic: "Little or no awareness of legal duties, SRA guidance, or evidential standards", 
+                  legalnote: "Built around the role of attendance notes in evidencing competent service and defensible decision-making" 
+                },
+                { 
+                  dimension: "Point in workflow", 
+                  generic: "Used after the fact to \"type up\" notes or dictate for later transcription", 
+                  legalnote: "Operates at the point of instruction, forming the attendance record as the matter unfolds" 
+                },
+                { 
+                  dimension: "Treatment of actions", 
+                  generic: "Actions are buried in text or left to the user to extract manually", 
+                  legalnote: "Decisions and next steps are identified, surfaced, and diarised while remaining tied to the matter record" 
+                },
+                { 
+                  dimension: "Consent and client care", 
+                  generic: "Recording and consent left to firm-by-firm improvisation", 
+                  legalnote: "Consent-first capture workflows designed for regulated professional environments" 
+                },
+                { 
+                  dimension: "Role of practitioner", 
+                  generic: "Tool is effectively an audio/typing assistant", 
+                  legalnote: "Tool proposes structure; practitioner exercises judgement and signs off the attendance record" 
+                },
+              ].map((row, index) => (
+                <AccordionItem 
+                  key={index} 
+                  value={`item-${index}`}
+                  className="rounded-xl border border-[hsl(30,20%,85%)] bg-white overflow-hidden"
+                >
+                  <AccordionTrigger className="px-4 py-4 [&:hover]:no-underline">
+                    <span className="font-medium text-[hsl(25,25%,20%)] text-left">{row.dimension}</span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4">
+                    <div className="space-y-4 pt-2">
+                      <div className="p-3 bg-[hsl(30,15%,96%)] rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <XCircle className="w-4 h-4 text-[hsl(0,50%,50%)] mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs font-medium text-[hsl(0,50%,45%)] uppercase tracking-wide mb-1">Typical Apps</p>
+                            <p className="text-sm text-[hsl(25,15%,45%)]">{row.generic}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-[hsl(18,40%,92%)] rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs font-medium text-[hsl(18,65%,40%)] uppercase tracking-wide mb-1">LegalNote</p>
+                            <p className="text-sm text-[hsl(25,25%,25%)]">{row.legalnote}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
           </motion.div>
         </div>
       </div>
