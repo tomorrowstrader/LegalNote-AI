@@ -1575,7 +1575,7 @@ export default function Landing() {
                   data-testid="button-lead-magnet"
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  Download the Briefing
+                  See What's Missing
                 </Button>
                 <p className="text-xs text-center text-[hsl(25,15%,55%)] mt-4">
                   We'll also add you to our early access list for product updates.
