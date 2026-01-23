@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X, ChevronLeft, ChevronRight, FileQuestion, AlertTriangle } from "lucide-react";
+import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X, ChevronLeft, ChevronRight, FileQuestion, AlertTriangle, Download } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
 import Logo from "@/components/Logo";
@@ -1507,6 +1507,82 @@ export default function Landing() {
           </motion.div>
 
           <TrustBadges />
+        </div>
+      </div>
+
+      {/* Lead Magnet Section */}
+      <div className="relative bg-white py-24 border-b border-[hsl(30,20%,88%)]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            {/* Left - Content */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+            >
+              <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block" data-testid="text-lead-magnet-label">
+                Free Guide
+              </span>
+              <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }} data-testid="text-lead-magnet-title">
+                The Defensible Record
+              </h2>
+              <p className="text-lg text-[hsl(25,20%,40%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }} data-testid="text-lead-magnet-subtitle">
+                A Solicitor's Guide to Creating Contemporaneous Evidence
+              </p>
+              <ul className="space-y-4 mb-8">
+                {[
+                  'What makes a file note "defensible" in an SRA complaint',
+                  'The 3 elements every attendance note needs',
+                  'Common documentation gaps that expose firms to PI claims',
+                  'Sample attendance note template you can use today'
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-[hsl(18,50%,92%)] flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Check className="w-3.5 h-3.5 text-[hsl(18,65%,45%)]" />
+                    </div>
+                    <span className="text-[hsl(25,20%,35%)]">{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-[hsl(25,15%,50%)] italic">
+                Practical frameworks to strengthen your documentation - whether you use LegalNote or not.
+              </p>
+            </motion.div>
+
+            {/* Right - Form Card */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="relative"
+            >
+              <div className="bg-[hsl(30,25%,96%)] rounded-2xl p-8 border border-[hsl(30,20%,88%)]">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(18,55%,88%)] to-[hsl(18,60%,78%)] flex items-center justify-center">
+                    <FileText className="w-6 h-6 text-[hsl(18,65%,40%)]" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-[hsl(25,30%,12%)]" data-testid="text-lead-magnet-format">5-page PDF Guide</p>
+                    <p className="text-sm text-[hsl(25,20%,45%)]" data-testid="text-lead-magnet-delivery">Sent to your inbox</p>
+                  </div>
+                </div>
+                <Button 
+                  onClick={() => handleRequestAccess("lead_magnet")}
+                  size="lg"
+                  className="w-full bg-[hsl(18,70%,42%)] text-white"
+                  data-testid="button-lead-magnet"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Get the Free Guide
+                </Button>
+                <p className="text-xs text-center text-[hsl(25,15%,55%)] mt-4">
+                  We'll also add you to our early access list for product updates.
+                </p>
+              </div>
+            </motion.div>
+          </div>
         </div>
       </div>
 

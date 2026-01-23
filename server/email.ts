@@ -701,3 +701,167 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
     return { success: false, error: error.message || 'Unknown error' };
   }
 }
+
+/**
+ * Sends a lead magnet email with "The Defensible Record" PDF guide
+ */
+export async function sendLeadMagnetEmail(
+  to: string, 
+  firstName: string = 'there',
+  pdfBuffer: Buffer
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body {
+          font-family: 'Georgia', serif;
+          line-height: 1.7;
+          color: #2a1f17;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background-color: #faf7f4;
+        }
+        .header {
+          background: linear-gradient(135deg, #b4523b 0%, #8b3d2b 100%);
+          padding: 30px;
+          border-radius: 8px 8px 0 0;
+          margin: -20px -20px 30px -20px;
+        }
+        .header h1 {
+          color: #ffffff;
+          margin: 0;
+          font-size: 24px;
+          font-weight: normal;
+        }
+        .header p {
+          color: rgba(255,255,255,0.85);
+          margin: 8px 0 0 0;
+          font-size: 14px;
+        }
+        .content {
+          background: #ffffff;
+          padding: 30px;
+          border-radius: 8px;
+          border: 1px solid #e8e2dc;
+          margin-bottom: 20px;
+        }
+        h2 {
+          color: #2a1f17;
+          font-size: 22px;
+          margin-top: 0;
+          font-weight: normal;
+        }
+        .guide-box {
+          background: #faf7f4;
+          border-left: 4px solid #b4523b;
+          padding: 20px;
+          margin: 25px 0;
+        }
+        .guide-box h3 {
+          color: #b4523b;
+          margin: 0 0 10px 0;
+          font-size: 16px;
+        }
+        .guide-box ul {
+          margin: 0;
+          padding-left: 20px;
+          color: #5a4a3f;
+        }
+        .guide-box li {
+          margin-bottom: 8px;
+        }
+        .cta-button {
+          display: inline-block;
+          background: #b4523b;
+          color: #ffffff !important;
+          padding: 14px 32px;
+          text-decoration: none;
+          border-radius: 6px;
+          font-weight: 500;
+          margin: 20px 0;
+        }
+        .footer {
+          text-align: center;
+          color: #8a7a6f;
+          font-size: 12px;
+          margin-top: 30px;
+          padding-top: 20px;
+          border-top: 1px solid #e8e2dc;
+        }
+        .footer a {
+          color: #b4523b;
+          text-decoration: none;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>LegalNote</h1>
+        <p>Professional Legal Documentation</p>
+      </div>
+      
+      <div class="content">
+        <h2>Hello ${firstName},</h2>
+        
+        <p>Thank you for your interest in creating better legal documentation. Your guide is attached to this email.</p>
+        
+        <div class="guide-box">
+          <h3>The Defensible Record</h3>
+          <p style="margin: 0 0 12px 0; color: #5a4a3f;">A Solicitor's Guide to Creating Contemporaneous Evidence</p>
+          <ul>
+            <li>What makes a file note "defensible" in an SRA complaint</li>
+            <li>The 3 elements every attendance note needs</li>
+            <li>Common documentation gaps that expose firms to PI claims</li>
+            <li>Sample attendance note template</li>
+          </ul>
+        </div>
+        
+        <p>This guide covers the practical frameworks solicitors need to create documentation that protects both the firm and its clients.</p>
+        
+        <p>When you're ready to automate this process, LegalNote captures consent, transcribes meetings with speaker identification, and generates professional attendance notes automatically.</p>
+        
+        <a href="https://legalnote.ai" class="cta-button">Learn More About LegalNote</a>
+        
+        <p style="margin-top: 30px;">Best regards,<br>The LegalNote Team</p>
+      </div>
+      
+      <div class="footer">
+        <p>LegalNote | Professional Legal Documentation<br>
+        <a href="https://legalnote.ai">legalnote.ai</a></p>
+        <p style="margin-top: 15px; font-size: 11px;">You received this email because you requested our free guide. We won't send marketing emails unless you opted in.</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'LegalNote <guides@legalnote.co.uk>',
+      to: [to],
+      subject: 'Your Guide: The Defensible Record',
+      html: emailHtml,
+      attachments: [
+        {
+          filename: 'The-Defensible-Record-LegalNote.pdf',
+          content: pdfBuffer,
+        },
+      ],
+    });
+
+    if (error) {
+      console.error('[EMAIL] Error sending lead magnet via Resend:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[EMAIL] Lead magnet sent successfully:', data?.id);
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending lead magnet:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}

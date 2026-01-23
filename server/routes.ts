@@ -93,10 +93,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ipAddress: req.ip || null,
       });
       
-      // Send confirmation email
+      // Send confirmation email (or lead magnet if that's the source)
       try {
-        const { sendWaitlistConfirmationEmail } = await import('./email');
-        await sendWaitlistConfirmationEmail(email, firstName || 'there');
+        if (source === 'lead_magnet') {
+          const { sendLeadMagnetEmail } = await import('./email');
+          const { generateDefensibleRecordPDF } = await import('./services/leadMagnetPdf');
+          const pdfBuffer = generateDefensibleRecordPDF({ recipientName: firstName || undefined });
+          await sendLeadMagnetEmail(email, firstName || 'there', pdfBuffer);
+        } else {
+          const { sendWaitlistConfirmationEmail } = await import('./email');
+          await sendWaitlistConfirmationEmail(email, firstName || 'there');
+        }
       } catch (emailError) {
         console.error('[WAITLIST] Failed to send confirmation email:', emailError);
         // Don't fail the request if email fails
