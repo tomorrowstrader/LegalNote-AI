@@ -107,6 +107,13 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **Usage**: For client demonstrations and sales presentations
 - **Roadmap**: See `FUTURE_FEATURES.md` for Waze-inspired product roadmap
 
+### Future Features (Planned)
+- **Chatwoot Integration**: Self-hosted live chat for visitor support
+  - Rationale: Aligns with compliance-first positioning (full data control), white-label from day one
+  - Features: AI-first responses via OpenAI integration, human escalation, GDPR-compliant
+  - Alternative considered: Crisp (easier setup but SaaS-hosted)
+- **Community Platform**: "LegalNote Founders Circle" via Slack or Circle.so for early adopter engagement
+
 ### Revenue Model & Stripe Configuration
 - **Business Description**: See `docs/STRIPE_BUSINESS_DESCRIPTION.md` for complete payment processor documentation
 - **Revenue Streams**:

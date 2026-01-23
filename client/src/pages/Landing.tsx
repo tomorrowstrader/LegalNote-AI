@@ -832,7 +832,7 @@ function TrustBadges() {
 }
 
 // Final CTA with animated background (respects reduced motion)
-function FinalCTA({ onRequestAccess }: { onRequestAccess: () => void }) {
+function FinalCTA({ onRequestAccess }: { onRequestAccess: (source: string) => void }) {
   const prefersReducedMotion = useReducedMotion();
 
   return (
@@ -927,7 +927,7 @@ function FinalCTA({ onRequestAccess }: { onRequestAccess: () => void }) {
             whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
           >
             <Button 
-              onClick={onRequestAccess} 
+              onClick={() => onRequestAccess("final_cta")} 
               size="lg"
               className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full text-base px-10 py-6 shadow-2xl shadow-[hsl(18,60%,30%)]/30"
               data-testid="button-cta-signup"
@@ -1033,6 +1033,7 @@ export default function Landing() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEarlyAccessForm, setShowEarlyAccessForm] = useState(false);
+  const [earlyAccessSource, setEarlyAccessSource] = useState("landing_page");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activePricingCard, setActivePricingCard] = useState(0);
   const [isInPricingSection, setIsInPricingSection] = useState(false);
@@ -1066,7 +1067,8 @@ export default function Landing() {
     window.location.href = "/api/login";
   };
 
-  const handleRequestAccess = () => {
+  const handleRequestAccess = (source: string = "hero") => {
+    setEarlyAccessSource(source);
     setShowEarlyAccessForm(true);
   };
 
@@ -1139,7 +1141,7 @@ export default function Landing() {
         transition={{ duration: 0.3 }}
       >
         <Button 
-          onClick={handleRequestAccess}
+          onClick={() => handleRequestAccess("floating_cta")}
           size="lg"
           className="bg-[hsl(18,70%,42%)] text-white rounded-full shadow-2xl"
           data-testid="button-floating-cta"
@@ -1377,7 +1379,7 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            A disputed instruction. A complaint investigation. The record that proves exactly what was discussed, who said it, and when consent was given. Consent-first. Contemporaneous. SRA-aligned. The documentation infrastructure your practice deserves.
+            A complaint arrives about advice you gave two years ago. Your notes are sparse, the client remembers differently, and it's your word against theirs. With LegalNote, it doesn't have to be—every meeting captured, consent documented, fully searchable. When the question is "what was said?", you'll have the answer.
           </motion.p>
           
           {/* Desktop CTA */}
@@ -1388,7 +1390,7 @@ export default function Landing() {
             transition={{ duration: 0.5, delay: 0.4 }}
           >
             <Button 
-              onClick={handleRequestAccess}
+              onClick={() => handleRequestAccess("hero")}
               className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full px-10 py-6 text-base"
               data-testid="button-get-started"
             >
@@ -1638,7 +1640,7 @@ export default function Landing() {
                         </li>
                       ))}
                     </ul>
-                    <Button onClick={handleRequestAccess} variant="outline" className="w-full mt-auto" data-testid="button-solo-signup-mobile">
+                    <Button onClick={() => handleRequestAccess("pricing_solo")} variant="outline" className="w-full mt-auto" data-testid="button-solo-signup-mobile">
                       Request Access
                     </Button>
                   </div>
@@ -1677,7 +1679,7 @@ export default function Landing() {
                         </li>
                       ))}
                     </ul>
-                    <Button onClick={handleRequestAccess} className="w-full bg-[hsl(18,70%,42%)] text-white mt-auto" data-testid="button-team-signup-mobile">
+                    <Button onClick={() => handleRequestAccess("pricing_team")} className="w-full bg-[hsl(18,70%,42%)] text-white mt-auto" data-testid="button-team-signup-mobile">
                       Request Access
                     </Button>
                   </div>
@@ -1788,7 +1790,7 @@ export default function Landing() {
                   ))}
                 </ul>
                 <Button 
-                  onClick={handleRequestAccess} 
+                  onClick={() => handleRequestAccess("pricing_solo")} 
                   variant="outline"
                   size="lg"
                   className="w-full border-[hsl(30,20%,80%)] text-[hsl(25,25%,25%)] mt-auto" 
@@ -1863,7 +1865,7 @@ export default function Landing() {
                   ))}
                 </ul>
                 <Button 
-                  onClick={handleRequestAccess} 
+                  onClick={() => handleRequestAccess("pricing_team")} 
                   size="lg"
                   className="w-full bg-[hsl(18,70%,42%)] text-white font-medium mt-auto" 
                   data-testid="button-team-signup"
@@ -2430,7 +2432,7 @@ export default function Landing() {
       <EarlyAccessForm 
         open={showEarlyAccessForm} 
         onOpenChange={setShowEarlyAccessForm}
-        source="landing_page"
+        source={earlyAccessSource}
       />
 
       <ExploreModal
@@ -2438,7 +2440,7 @@ export default function Landing() {
         onDismiss={exploreModal.dismiss}
         onExplore={() => {
           exploreModal.dismiss();
-          setShowEarlyAccessForm(true);
+          handleRequestAccess("scroll_popup");
         }}
       />
     </div>
