@@ -12,8 +12,7 @@ const workflowSteps = [
     id: "recording",
     icon: Mic,
     title: "Meeting Recorded",
-    description: "UK servers only",
-    badge: "UK",
+    description: "GDPR-compliant capture",
   },
   {
     id: "attribution",
@@ -191,7 +190,7 @@ export function WorkflowInfographic() {
         </span>
         <span className="flex items-center gap-1.5" data-testid="text-compliance-audio-deletion">
           <span className="w-1.5 h-1.5 rounded-full bg-[hsl(130,40%,45%)]" />
-          7-Day Audio Deletion
+          GDPR-Compliant Auto-Deletion
         </span>
         <span className="flex items-center gap-1.5" data-testid="text-compliance-gdpr">
           <span className="w-1.5 h-1.5 rounded-full bg-[hsl(130,40%,45%)]" />

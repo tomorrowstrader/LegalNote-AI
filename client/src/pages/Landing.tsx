@@ -1754,7 +1754,7 @@ export default function Landing() {
                   data-testid="button-quarterly-billing"
                 >
                   Quarterly
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'quarterly' ? 'bg-[hsl(130,40%,45%)] text-white' : 'bg-[hsl(130,30%,90%)] text-[hsl(130,50%,30%)]'}`}>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'quarterly' ? 'bg-[hsl(18,55%,40%)] text-white' : 'bg-[hsl(25,30%,88%)] text-[hsl(25,40%,35%)]'}`}>
                     Save 11%
                   </span>
                 </button>
@@ -1768,7 +1768,7 @@ export default function Landing() {
                   data-testid="button-annual-billing"
                 >
                   Annual
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(130,40%,45%)] text-white' : 'bg-[hsl(130,30%,90%)] text-[hsl(130,50%,30%)]'}`}>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(18,55%,40%)] text-white' : 'bg-[hsl(25,30%,88%)] text-[hsl(25,40%,35%)]'}`}>
                     Save 20%
                   </span>
                 </button>
@@ -1815,7 +1815,7 @@ export default function Landing() {
                   <div className="h-full p-6 rounded-xl bg-white border border-[hsl(30,20%,85%)] flex flex-col">
                     {billingPeriod === 'quarterly' && (
                       <div className="mb-3">
-                        <span className="inline-block px-3 py-1 rounded-full bg-[hsl(130,40%,45%)] text-white text-xs font-medium">
+                        <span className="inline-block px-3 py-1 rounded-full bg-[hsl(18,55%,40%)] text-white text-xs font-medium">
                           Most Popular
                         </span>
                       </div>
@@ -1853,7 +1853,7 @@ export default function Landing() {
                   <div className="relative h-full p-6 rounded-xl bg-[hsl(18,40%,92%)] border-2 border-[hsl(18,45%,70%)] flex flex-col">
                     {billingPeriod === 'quarterly' && (
                       <div className="mb-3">
-                        <span className="inline-block px-3 py-1 rounded-full bg-[hsl(130,40%,45%)] text-white text-xs font-medium">
+                        <span className="inline-block px-3 py-1 rounded-full bg-[hsl(18,55%,40%)] text-white text-xs font-medium">
                           Most Popular
                         </span>
                       </div>
@@ -1937,7 +1937,7 @@ export default function Landing() {
               <div className="h-full p-8 rounded-xl bg-white border border-[hsl(30,20%,85%)] flex flex-col">
                 {billingPeriod === 'quarterly' && (
                   <div className="mb-4">
-                    <span className="inline-block px-4 py-1.5 rounded-full bg-[hsl(130,40%,45%)] text-white text-sm font-medium">
+                    <span className="inline-block px-4 py-1.5 rounded-full bg-[hsl(18,55%,40%)] text-white text-sm font-medium">
                       Most Popular
                     </span>
                   </div>
@@ -2012,7 +2012,7 @@ export default function Landing() {
               <div className="relative h-full p-8 rounded-xl bg-[hsl(18,40%,92%)] border-2 border-[hsl(18,45%,70%)] flex flex-col">
                 {billingPeriod === 'quarterly' && (
                   <div className="mb-4">
-                    <span className="inline-block px-4 py-1.5 rounded-full bg-[hsl(130,40%,45%)] text-white text-sm font-medium">
+                    <span className="inline-block px-4 py-1.5 rounded-full bg-[hsl(18,55%,40%)] text-white text-sm font-medium">
                       Most Popular
                     </span>
                   </div>
