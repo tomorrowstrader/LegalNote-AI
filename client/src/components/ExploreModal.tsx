@@ -59,30 +59,31 @@ export function ExploreModal({ isVisible, onDismiss, onExplore }: ExploreModalPr
             <div className="relative bg-white rounded-2xl shadow-2xl border border-[hsl(30,20%,88%)] overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-[hsl(18,45%,96%)] to-white opacity-60" />
               
-              <Button
-                onClick={onDismiss}
-                size="icon"
-                variant="ghost"
-                className="absolute top-3 right-3 z-10 w-8 h-8"
-                aria-label="Dismiss"
-                data-testid="button-modal-dismiss"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-              
               <div className="relative p-6 md:p-8">
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(18,55%,88%)] to-[hsl(18,60%,78%)] flex items-center justify-center flex-shrink-0 shadow-sm">
-                    <Sparkles className="w-6 h-6 text-[hsl(18,65%,40%)]" />
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(18,55%,88%)] to-[hsl(18,60%,78%)] flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Sparkles className="w-6 h-6 text-[hsl(18,65%,40%)]" />
+                    </div>
+                    <div className="flex-1 min-w-0 pr-2">
+                      <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-1" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+                        Ready to streamline your practice?
+                      </h3>
+                      <p className="text-sm text-[hsl(25,20%,45%)]">
+                        Join our founding cohort of forward-thinking firms
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-1" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-                      Ready to streamline your practice?
-                    </h3>
-                    <p className="text-sm text-[hsl(25,20%,45%)]">
-                      Join 5 London boutique firms already using LegalNote
-                    </p>
-                  </div>
+                  <Button
+                    onClick={onDismiss}
+                    size="icon"
+                    variant="ghost"
+                    className="flex-shrink-0"
+                    aria-label="Dismiss"
+                    data-testid="button-modal-dismiss"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
                 
                 <p className="text-[hsl(25,20%,35%)] mb-6 leading-relaxed">
@@ -107,10 +108,6 @@ export function ExploreModal({ isVisible, onDismiss, onExplore }: ExploreModalPr
                     Maybe later
                   </Button>
                 </div>
-                
-                <p className="text-xs text-center text-[hsl(25,20%,55%)] mt-4">
-                  No credit card required. 14-day professional evaluation.
-                </p>
               </div>
             </div>
           </motion.div>

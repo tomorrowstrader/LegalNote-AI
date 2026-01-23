@@ -1483,176 +1483,6 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Differentiation Section - Why LegalNote */}
-      <div className="relative bg-[hsl(30,25%,94%)] py-24 border-y border-[hsl(30,20%,85%)]">
-        <div className="max-w-6xl mx-auto px-6">
-          <motion.div 
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
-              Why LegalNote
-            </span>
-            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Not another note-taking app
-            </h2>
-            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              LegalNote is a compliance-first attendance record system built for regulated legal practice—not a generic dictation tool or AI note-taker.
-            </p>
-          </motion.div>
-
-          {/* Desktop Table View */}
-          <motion.div
-            className="hidden md:block overflow-hidden rounded-xl border border-[hsl(30,20%,85%)] bg-white"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[hsl(30,20%,88%)]">
-                    <th className="text-left p-6 text-[hsl(25,20%,40%)] font-medium">Dimension</th>
-                    <th className="text-left p-6 text-[hsl(25,15%,50%)] font-medium bg-[hsl(30,15%,96%)]">Typical dictation / note apps</th>
-                    <th className="text-left p-6 font-medium text-[hsl(25,30%,12%)] bg-[hsl(18,40%,90%)]">LegalNote</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm">
-                  {[
-                    { 
-                      dimension: "Primary output", 
-                      generic: "Audio file, raw transcript, or generic summary focused on convenience", 
-                      legalnote: "Structured attendance record aligned with legal training and regulatory expectations" 
-                    },
-                    { 
-                      dimension: "Legal domain awareness", 
-                      generic: "Little or no awareness of legal duties, SRA guidance, or evidential standards", 
-                      legalnote: "Built around the role of attendance notes in evidencing competent service and defensible decision-making" 
-                    },
-                    { 
-                      dimension: "Point in workflow", 
-                      generic: "Used after the fact to \"type up\" notes or dictate for later transcription", 
-                      legalnote: "Operates at the point of instruction, forming the attendance record as the matter unfolds" 
-                    },
-                    { 
-                      dimension: "Treatment of actions", 
-                      generic: "Actions are buried in text or left to the user to extract manually", 
-                      legalnote: "Decisions and next steps are identified, surfaced, and diarised while remaining tied to the matter record" 
-                    },
-                    { 
-                      dimension: "Consent and client care", 
-                      generic: "Recording and consent left to firm-by-firm improvisation", 
-                      legalnote: "Consent-first capture workflows designed for regulated professional environments" 
-                    },
-                    { 
-                      dimension: "Role of practitioner", 
-                      generic: "Tool is effectively an audio/typing assistant", 
-                      legalnote: "Tool proposes structure; practitioner exercises judgement and signs off the attendance record" 
-                    },
-                  ].map((row, index) => (
-                    <tr key={index} className="border-b border-[hsl(30,15%,90%)] last:border-b-0">
-                      <td className="p-6 font-medium text-[hsl(25,25%,20%)]">{row.dimension}</td>
-                      <td className="p-6 text-[hsl(25,15%,50%)] bg-[hsl(30,15%,96%)]">
-                        <div className="flex items-start gap-2">
-                          <XCircle className="w-4 h-4 text-[hsl(0,50%,50%)] mt-0.5 flex-shrink-0" />
-                          <span>{row.generic}</span>
-                        </div>
-                      </td>
-                      <td className="p-6 text-[hsl(25,25%,25%)] bg-[hsl(18,40%,90%)]">
-                        <div className="flex items-start gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
-                          <span>{row.legalnote}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
-          
-          {/* Mobile Accordion View */}
-          <motion.div
-            className="md:hidden"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <Accordion type="single" collapsible className="space-y-3">
-              {[
-                { 
-                  dimension: "Primary output", 
-                  generic: "Audio file, raw transcript, or generic summary focused on convenience", 
-                  legalnote: "Structured attendance record aligned with legal training and regulatory expectations" 
-                },
-                { 
-                  dimension: "Legal domain awareness", 
-                  generic: "Little or no awareness of legal duties, SRA guidance, or evidential standards", 
-                  legalnote: "Built around the role of attendance notes in evidencing competent service and defensible decision-making" 
-                },
-                { 
-                  dimension: "Point in workflow", 
-                  generic: "Used after the fact to \"type up\" notes or dictate for later transcription", 
-                  legalnote: "Operates at the point of instruction, forming the attendance record as the matter unfolds" 
-                },
-                { 
-                  dimension: "Treatment of actions", 
-                  generic: "Actions are buried in text or left to the user to extract manually", 
-                  legalnote: "Decisions and next steps are identified, surfaced, and diarised while remaining tied to the matter record" 
-                },
-                { 
-                  dimension: "Consent and client care", 
-                  generic: "Recording and consent left to firm-by-firm improvisation", 
-                  legalnote: "Consent-first capture workflows designed for regulated professional environments" 
-                },
-                { 
-                  dimension: "Role of practitioner", 
-                  generic: "Tool is effectively an audio/typing assistant", 
-                  legalnote: "Tool proposes structure; practitioner exercises judgement and signs off the attendance record" 
-                },
-              ].map((row, index) => (
-                <AccordionItem 
-                  key={index} 
-                  value={`item-${index}`}
-                  className="rounded-xl border border-[hsl(30,20%,85%)] bg-white overflow-hidden"
-                >
-                  <AccordionTrigger className="px-4 py-4 [&:hover]:no-underline">
-                    <span className="font-medium text-[hsl(25,25%,20%)] text-left">{row.dimension}</span>
-                  </AccordionTrigger>
-                  <AccordionContent className="px-4">
-                    <div className="space-y-4 pt-2">
-                      <div className="p-3 bg-[hsl(30,15%,96%)] rounded-lg">
-                        <div className="flex items-start gap-2">
-                          <XCircle className="w-4 h-4 text-[hsl(0,50%,50%)] mt-0.5 flex-shrink-0" />
-                          <div>
-                            <p className="text-xs font-medium text-[hsl(0,50%,45%)] uppercase tracking-wide mb-1">Typical Apps</p>
-                            <p className="text-sm text-[hsl(25,15%,45%)]">{row.generic}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="p-3 bg-[hsl(18,40%,92%)] rounded-lg">
-                        <div className="flex items-start gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
-                          <div>
-                            <p className="text-xs font-medium text-[hsl(18,65%,40%)] uppercase tracking-wide mb-1">LegalNote</p>
-                            <p className="text-sm text-[hsl(25,25%,25%)]">{row.legalnote}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-          </motion.div>
-        </div>
-      </div>
-
       {/* Trust & Compliance Section */}
       <div id="security-compliance" className="relative bg-[hsl(30,25%,94%)] py-24 border-y border-[hsl(30,20%,85%)]">
         <div className="max-w-7xl mx-auto px-6">
@@ -2205,6 +2035,176 @@ export default function Landing() {
             <p className="text-center text-sm text-[hsl(25,20%,45%)] mt-8">
               Professional services can be added to any subscription. Contact us to discuss your requirements.
             </p>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Differentiation Section - Why LegalNote */}
+      <div className="relative bg-[hsl(30,25%,94%)] py-24 border-y border-[hsl(30,20%,85%)]">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div 
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+              Why LegalNote
+            </span>
+            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              Not another note-taking app
+            </h2>
+            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              LegalNote is a compliance-first attendance record system built for regulated legal practice—not a generic dictation tool or AI note-taker.
+            </p>
+          </motion.div>
+
+          {/* Desktop Table View */}
+          <motion.div
+            className="hidden md:block overflow-hidden rounded-xl border border-[hsl(30,20%,85%)] bg-white"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[hsl(30,20%,88%)]">
+                    <th className="text-left p-6 text-[hsl(25,20%,40%)] font-medium">Dimension</th>
+                    <th className="text-left p-6 text-[hsl(25,15%,50%)] font-medium bg-[hsl(30,15%,96%)]">Typical dictation / note apps</th>
+                    <th className="text-left p-6 font-medium text-[hsl(25,30%,12%)] bg-[hsl(18,40%,90%)]">LegalNote</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  {[
+                    { 
+                      dimension: "Primary output", 
+                      generic: "Audio file, raw transcript, or generic summary focused on convenience", 
+                      legalnote: "Structured attendance record aligned with legal training and regulatory expectations" 
+                    },
+                    { 
+                      dimension: "Legal domain awareness", 
+                      generic: "Little or no awareness of legal duties, SRA guidance, or evidential standards", 
+                      legalnote: "Built around the role of attendance notes in evidencing competent service and defensible decision-making" 
+                    },
+                    { 
+                      dimension: "Point in workflow", 
+                      generic: "Used after the fact to \"type up\" notes or dictate for later transcription", 
+                      legalnote: "Operates at the point of instruction, forming the attendance record as the matter unfolds" 
+                    },
+                    { 
+                      dimension: "Treatment of actions", 
+                      generic: "Actions are buried in text or left to the user to extract manually", 
+                      legalnote: "Decisions and next steps are identified, surfaced, and diarised while remaining tied to the matter record" 
+                    },
+                    { 
+                      dimension: "Consent and client care", 
+                      generic: "Recording and consent left to firm-by-firm improvisation", 
+                      legalnote: "Consent-first capture workflows designed for regulated professional environments" 
+                    },
+                    { 
+                      dimension: "Role of practitioner", 
+                      generic: "Tool is effectively an audio/typing assistant", 
+                      legalnote: "Tool proposes structure; practitioner exercises judgement and signs off the attendance record" 
+                    },
+                  ].map((row, index) => (
+                    <tr key={index} className="border-b border-[hsl(30,15%,90%)] last:border-b-0">
+                      <td className="p-6 font-medium text-[hsl(25,25%,20%)]">{row.dimension}</td>
+                      <td className="p-6 text-[hsl(25,15%,50%)] bg-[hsl(30,15%,96%)]">
+                        <div className="flex items-start gap-2">
+                          <XCircle className="w-4 h-4 text-[hsl(0,50%,50%)] mt-0.5 flex-shrink-0" />
+                          <span>{row.generic}</span>
+                        </div>
+                      </td>
+                      <td className="p-6 text-[hsl(25,25%,25%)] bg-[hsl(18,40%,90%)]">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                          <span>{row.legalnote}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+          
+          {/* Mobile Accordion View */}
+          <motion.div
+            className="md:hidden"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <Accordion type="single" collapsible className="space-y-3">
+              {[
+                { 
+                  dimension: "Primary output", 
+                  generic: "Audio file, raw transcript, or generic summary focused on convenience", 
+                  legalnote: "Structured attendance record aligned with legal training and regulatory expectations" 
+                },
+                { 
+                  dimension: "Legal domain awareness", 
+                  generic: "Little or no awareness of legal duties, SRA guidance, or evidential standards", 
+                  legalnote: "Built around the role of attendance notes in evidencing competent service and defensible decision-making" 
+                },
+                { 
+                  dimension: "Point in workflow", 
+                  generic: "Used after the fact to \"type up\" notes or dictate for later transcription", 
+                  legalnote: "Operates at the point of instruction, forming the attendance record as the matter unfolds" 
+                },
+                { 
+                  dimension: "Treatment of actions", 
+                  generic: "Actions are buried in text or left to the user to extract manually", 
+                  legalnote: "Decisions and next steps are identified, surfaced, and diarised while remaining tied to the matter record" 
+                },
+                { 
+                  dimension: "Consent and client care", 
+                  generic: "Recording and consent left to firm-by-firm improvisation", 
+                  legalnote: "Consent-first capture workflows designed for regulated professional environments" 
+                },
+                { 
+                  dimension: "Role of practitioner", 
+                  generic: "Tool is effectively an audio/typing assistant", 
+                  legalnote: "Tool proposes structure; practitioner exercises judgement and signs off the attendance record" 
+                },
+              ].map((row, index) => (
+                <AccordionItem 
+                  key={index} 
+                  value={`item-${index}`}
+                  className="rounded-xl border border-[hsl(30,20%,85%)] bg-white overflow-hidden"
+                >
+                  <AccordionTrigger className="px-4 py-4 [&:hover]:no-underline">
+                    <span className="font-medium text-[hsl(25,25%,20%)] text-left">{row.dimension}</span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4">
+                    <div className="space-y-4 pt-2">
+                      <div className="p-3 bg-[hsl(30,15%,96%)] rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <XCircle className="w-4 h-4 text-[hsl(0,50%,50%)] mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs font-medium text-[hsl(0,50%,45%)] uppercase tracking-wide mb-1">Typical Apps</p>
+                            <p className="text-sm text-[hsl(25,15%,45%)]">{row.generic}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-[hsl(18,40%,92%)] rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs font-medium text-[hsl(18,65%,40%)] uppercase tracking-wide mb-1">LegalNote</p>
+                            <p className="text-sm text-[hsl(25,25%,25%)]">{row.legalnote}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
           </motion.div>
         </div>
       </div>
