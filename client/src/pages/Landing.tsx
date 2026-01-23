@@ -1042,7 +1042,7 @@ export default function Landing() {
   const pricingRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   
-  const exploreModal = useExploreModal("export-support");
+  const exploreModal = useExploreModal("pricing-end");
   
   // Track scroll for sticky nav blur effect and pricing section visibility
   useEffect(() => {
@@ -1876,13 +1876,12 @@ export default function Landing() {
             </motion.div>
           </div>
 
-          <p className="text-center text-sm text-[hsl(25,20%,45%)] mb-16">
+          <p id="pricing-end" className="text-center text-sm text-[hsl(25,20%,45%)] mb-16">
             All prices exclude VAT. Cancel anytime during your evaluation period.
           </p>
 
           {/* Professional Services Section */}
           <motion.div
-            id="export-support"
             className="border-t border-[hsl(30,20%,88%)] pt-16"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
