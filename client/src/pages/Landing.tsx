@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { EarlyAccessForm } from "@/components/EarlyAccessForm";
 import { WorkflowInfographic } from "@/components/WorkflowInfographic";
+import { ExploreModal, useExploreModal } from "@/components/ExploreModal";
 
 const isPreviewMode = import.meta.env.VITE_PREVIEW_MODE === 'true';
 
@@ -1040,6 +1041,8 @@ export default function Landing() {
   const pricingRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   
+  const exploreModal = useExploreModal("security-compliance");
+  
   // Track scroll for sticky nav blur effect and pricing section visibility
   useEffect(() => {
     const unsubscribe = scrollY.on("change", (y) => {
@@ -1650,86 +1653,8 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Features Section - Compliance Focus */}
-      <div className="relative bg-white py-24">
-        <div className="max-w-7xl mx-auto px-6">
-          <motion.div 
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
-              Features
-            </span>
-            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Decisions don't get lost. Actions don't drift.
-            </h2>
-            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              LegalNote identifies decisions, next steps, and responsibilities as they arise in conversation so they are not buried in a long transcript or forgotten notebook.
-            </p>
-          </motion.div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" style={{ perspective: "1000px" }}>
-            {[
-              { 
-                icon: FileCheck, 
-                title: "Contemporaneous Records", 
-                description: "Attendance records formed at source, not days later. Timestamped and evidential, aligned with SRA expectations for detailed, contemporaneous file notes." 
-              },
-              { 
-                icon: ClipboardCheck, 
-                title: "Consent-First Capture", 
-                description: "Workflows make it straightforward to explain, obtain, and record client consent to recording—meeting expectations of confidentiality and transparency." 
-              },
-              { 
-                icon: Scale, 
-                title: "Professional Control", 
-                description: "LegalNote proposes structure and content; the practitioner exercises judgement and signs off the attendance record. AI-assisted, not AI-decided." 
-              },
-              { 
-                icon: Calendar, 
-                title: "Actions Surfaced & Diarised", 
-                description: "Follow-ups surface automatically and sync to your calendar, remaining linked to the matter record so nothing falls through the cracks." 
-              },
-              { 
-                icon: FileText, 
-                title: "Living Matter Record", 
-                description: "Instead of static files, LegalNote helps create a living record: what was known, what was agreed, and why specific actions were taken at each stage." 
-              },
-              { 
-                icon: ShieldCheck, 
-                title: "Audit-Ready Trail", 
-                description: "Reviewable, timestamped attendance notes create a coherent audit trail across the life of a matter. HMAC-SHA256 signatures ensure tamper detection." 
-              },
-            ].map((feature, index) => (
-              <TiltCard key={feature.title}>
-                <motion.div
-                  initial={{ opacity: 0, y: 30, scale: 0.95 }}
-                  whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                >
-                  <div className="group h-full p-8 rounded-xl bg-white/70 backdrop-blur-sm border border-white/50 shadow-lg hover:shadow-xl hover:bg-white/90 transition-all duration-300">
-                    <motion.div 
-                      className="w-14 h-14 rounded-xl bg-gradient-to-br from-[hsl(18,55%,88%)] to-[hsl(18,60%,80%)] flex items-center justify-center mb-5 shadow-sm"
-                      whileHover={{ rotate: [0, -10, 10, 0], transition: { duration: 0.5 } }}
-                    >
-                      <feature.icon className="w-7 h-7 text-[hsl(18,65%,42%)]" />
-                    </motion.div>
-                    <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">{feature.title}</h3>
-                    <p className="text-[hsl(25,20%,40%)] leading-relaxed">{feature.description}</p>
-                  </div>
-                </motion.div>
-              </TiltCard>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* Trust & Compliance Section */}
-      <div className="relative bg-[hsl(30,25%,94%)] py-24 border-y border-[hsl(30,20%,85%)]">
+      <div id="security-compliance" className="relative bg-[hsl(30,25%,94%)] py-24 border-y border-[hsl(30,20%,85%)]">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
             className="text-center mb-16"
@@ -2284,6 +2209,84 @@ export default function Landing() {
         </div>
       </div>
 
+      {/* Features Section - Compliance Focus */}
+      <div className="relative bg-white py-24">
+        <div className="max-w-7xl mx-auto px-6">
+          <motion.div 
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+              Features
+            </span>
+            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              Decisions don't get lost. Actions don't drift.
+            </h2>
+            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              LegalNote identifies decisions, next steps, and responsibilities as they arise in conversation so they are not buried in a long transcript or forgotten notebook.
+            </p>
+          </motion.div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" style={{ perspective: "1000px" }}>
+            {[
+              { 
+                icon: FileCheck, 
+                title: "Contemporaneous Records", 
+                description: "Attendance records formed at source, not days later. Timestamped and evidential, aligned with SRA expectations for detailed, contemporaneous file notes." 
+              },
+              { 
+                icon: ClipboardCheck, 
+                title: "Consent-First Capture", 
+                description: "Workflows make it straightforward to explain, obtain, and record client consent to recording—meeting expectations of confidentiality and transparency." 
+              },
+              { 
+                icon: Scale, 
+                title: "Professional Control", 
+                description: "LegalNote proposes structure and content; the practitioner exercises judgement and signs off the attendance record. AI-assisted, not AI-decided." 
+              },
+              { 
+                icon: Calendar, 
+                title: "Actions Surfaced & Diarised", 
+                description: "Follow-ups surface automatically and sync to your calendar, remaining linked to the matter record so nothing falls through the cracks." 
+              },
+              { 
+                icon: FileText, 
+                title: "Living Matter Record", 
+                description: "Instead of static files, LegalNote helps create a living record: what was known, what was agreed, and why specific actions were taken at each stage." 
+              },
+              { 
+                icon: ShieldCheck, 
+                title: "Audit-Ready Trail", 
+                description: "Reviewable, timestamped attendance notes create a coherent audit trail across the life of a matter. HMAC-SHA256 signatures ensure tamper detection." 
+              },
+            ].map((feature, index) => (
+              <TiltCard key={feature.title}>
+                <motion.div
+                  initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                  whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                >
+                  <div className="group h-full p-8 rounded-xl bg-white/70 backdrop-blur-sm border border-white/50 shadow-lg hover:shadow-xl hover:bg-white/90 transition-all duration-300">
+                    <motion.div 
+                      className="w-14 h-14 rounded-xl bg-gradient-to-br from-[hsl(18,55%,88%)] to-[hsl(18,60%,80%)] flex items-center justify-center mb-5 shadow-sm"
+                      whileHover={{ rotate: [0, -10, 10, 0], transition: { duration: 0.5 } }}
+                    >
+                      <feature.icon className="w-7 h-7 text-[hsl(18,65%,42%)]" />
+                    </motion.div>
+                    <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">{feature.title}</h3>
+                    <p className="text-[hsl(25,20%,40%)] leading-relaxed">{feature.description}</p>
+                  </div>
+                </motion.div>
+              </TiltCard>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <FinalCTA onRequestAccess={handleRequestAccess} />
 
       {/* Footer */}
@@ -2428,6 +2431,15 @@ export default function Landing() {
         open={showEarlyAccessForm} 
         onOpenChange={setShowEarlyAccessForm}
         source="landing_page"
+      />
+
+      <ExploreModal
+        isVisible={exploreModal.isVisible}
+        onDismiss={exploreModal.dismiss}
+        onExplore={() => {
+          exploreModal.dismiss();
+          setShowEarlyAccessForm(true);
+        }}
       />
     </div>
   );
