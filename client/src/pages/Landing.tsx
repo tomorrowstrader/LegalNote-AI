@@ -732,59 +732,100 @@ function StatCounter({ value, suffix, label, index }: { value: number; suffix: s
 // Trust badges with floating animation (respects reduced motion)
 function TrustBadges() {
   const prefersReducedMotion = useReducedMotion();
-  const badges = [
-    { icon: ShieldCheck, title: "GDPR Compliant", description: "Full compliance with UK GDPR including data subject rights and processing records." },
-    { icon: Gavel, title: "SRA Aligned", description: "Workflows designed to support SRA Standards and Regulations requirements." },
-    { icon: Clock, title: "Contemporaneous", description: "Timestamped records created at point of instruction, not reconstructed later." },
-    { icon: Users, title: "UK Data Centres", description: "All data stored exclusively in UK-based data centres for regulatory compliance." },
+  
+  const complianceItems = [
+    {
+      obligation: "SRA Code of Conduct",
+      reference: "Paragraph 3.3",
+      requirement: "Keep records of decisions and actions relating to client matters",
+      howLegalNoteHelps: "Automated attendance notes capture decisions and actions in real-time, linked to the matter record with timestamps.",
+      icon: FileText,
+    },
+    {
+      obligation: "COLP Expectations",
+      reference: "Compliance Officer Role",
+      requirement: "Evidence that file management policies are followed across the firm",
+      howLegalNoteHelps: "Audit trail with cryptographic signatures provides reviewable evidence of consistent documentation practices.",
+      icon: ClipboardCheck,
+    },
+    {
+      obligation: "UK GDPR",
+      reference: "Articles 5, 17 & 32",
+      requirement: "Data minimisation, right to erasure, and appropriate security measures",
+      howLegalNoteHelps: "GDPR-compliant auto-deletion, UK data residency, encryption at rest and in transit, consent documentation.",
+      icon: ShieldCheck,
+    },
+    {
+      obligation: "PI Insurance Defensibility",
+      reference: "Claims Investigation",
+      requirement: "Contemporaneous evidence of advice given and instructions received",
+      howLegalNoteHelps: "Timestamped, speaker-attributed records created at point of instruction, not reconstructed weeks later.",
+      icon: Scale,
+    },
   ];
 
   return (
-    <div className="grid md:grid-cols-4 gap-6">
-      {badges.map((item, index) => (
+    <div className="space-y-6" data-testid="trust-compliance-grid">
+      {complianceItems.map((item, index) => (
         <motion.div
-          key={item.title}
-          className="text-center p-6"
-          initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
+          key={item.obligation}
+          className="p-6 rounded-xl bg-white border border-[hsl(30,20%,85%)] shadow-sm"
+          initial={prefersReducedMotion ? { opacity: 1, x: 0 } : { opacity: 0, x: index % 2 === 0 ? -20 : 20 }}
+          whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
           transition={{ duration: prefersReducedMotion ? 0 : 0.4, delay: prefersReducedMotion ? 0 : index * 0.1 }}
+          data-testid={`compliance-item-${index}`}
         >
-          <motion.div 
-            className="relative w-16 h-16 mx-auto mb-4"
-            animate={prefersReducedMotion ? {} : {
-              y: [0, -6, 0],
-            }}
-            transition={{
-              duration: 3,
-              repeat: Infinity,
-              delay: index * 0.5,
-              ease: "easeInOut",
-            }}
-          >
-            <div className="absolute inset-0 rounded-xl bg-white border border-[hsl(30,20%,85%)] flex items-center justify-center shadow-lg">
-              <item.icon className="w-8 h-8 text-[hsl(18,65%,45%)]" />
+          <div className="flex flex-col md:flex-row md:items-start gap-4">
+            <div className="flex-shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(18,55%,88%)] to-[hsl(18,60%,80%)] flex items-center justify-center">
+                <item.icon className="w-6 h-6 text-[hsl(18,65%,42%)]" />
+              </div>
             </div>
-            {!prefersReducedMotion && (
-              <motion.div
-                className="absolute -inset-2 rounded-2xl bg-[hsl(18,60%,70%)]"
-                style={{ zIndex: -1 }}
-                animate={{
-                  scale: [1, 1.15, 1],
-                  opacity: [0.2, 0.05, 0.2],
-                }}
-                transition={{
-                  duration: 3,
-                  repeat: Infinity,
-                  delay: index * 0.5,
-                }}
-              />
-            )}
-          </motion.div>
-          <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{item.title}</h3>
-          <p className="text-sm text-[hsl(25,20%,40%)]">{item.description}</p>
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)]" data-testid={`text-obligation-${index}`}>{item.obligation}</h3>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(25,30%,92%)] text-[hsl(25,30%,40%)]" data-testid={`text-reference-${index}`}>
+                  {item.reference}
+                </span>
+              </div>
+              <p className="text-sm text-[hsl(25,20%,50%)] mb-3 italic" data-testid={`text-requirement-${index}`}>
+                "{item.requirement}"
+              </p>
+              <p className="text-sm text-[hsl(25,20%,35%)]" data-testid={`text-how-helps-${index}`}>
+                <span className="font-medium text-[hsl(18,55%,40%)]">How LegalNote helps:</span> {item.howLegalNoteHelps}
+              </p>
+            </div>
+          </div>
         </motion.div>
       ))}
+      
+      {/* Summary badges */}
+      <motion.div 
+        className="flex flex-wrap items-center justify-center gap-4 pt-6 text-sm text-[hsl(25,20%,45%)]"
+        initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.5 }}
+        data-testid="compliance-summary-badges"
+      >
+        <span className="flex items-center gap-1.5" data-testid="text-badge-uk-datacentres">
+          <span className="w-2 h-2 rounded-full bg-[hsl(130,40%,45%)]" />
+          UK Data Centres
+        </span>
+        <span className="flex items-center gap-1.5" data-testid="text-badge-encryption">
+          <span className="w-2 h-2 rounded-full bg-[hsl(130,40%,45%)]" />
+          Encryption at Rest & Transit
+        </span>
+        <span className="flex items-center gap-1.5" data-testid="text-badge-gdpr-deletion">
+          <span className="w-2 h-2 rounded-full bg-[hsl(130,40%,45%)]" />
+          GDPR-Compliant Auto-Deletion
+        </span>
+        <span className="flex items-center gap-1.5" data-testid="text-badge-tamper-detection">
+          <span className="w-2 h-2 rounded-full bg-[hsl(130,40%,45%)]" />
+          Tamper-Detection Signatures
+        </span>
+      </motion.div>
     </div>
   );
 }
@@ -1754,7 +1795,7 @@ export default function Landing() {
                   data-testid="button-quarterly-billing"
                 >
                   Quarterly
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'quarterly' ? 'bg-[hsl(18,55%,40%)] text-white' : 'bg-[hsl(25,30%,88%)] text-[hsl(25,40%,35%)]'}`}>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'quarterly' ? 'bg-[hsl(18,55%,40%)] text-white' : 'bg-[hsl(25,30%,88%)] text-[hsl(25,40%,35%)]'}`} data-testid="badge-save-quarterly">
                     Save 11%
                   </span>
                 </button>
@@ -1768,7 +1809,7 @@ export default function Landing() {
                   data-testid="button-annual-billing"
                 >
                   Annual
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(18,55%,40%)] text-white' : 'bg-[hsl(25,30%,88%)] text-[hsl(25,40%,35%)]'}`}>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(18,55%,40%)] text-white' : 'bg-[hsl(25,30%,88%)] text-[hsl(25,40%,35%)]'}`} data-testid="badge-save-annual">
                     Save 20%
                   </span>
                 </button>
@@ -1815,7 +1856,7 @@ export default function Landing() {
                   <div className="h-full p-6 rounded-xl bg-white border border-[hsl(30,20%,85%)] flex flex-col">
                     {billingPeriod === 'quarterly' && (
                       <div className="mb-3">
-                        <span className="inline-block px-3 py-1 rounded-full bg-[hsl(18,55%,40%)] text-white text-xs font-medium">
+                        <span className="inline-block px-3 py-1 rounded-full bg-[hsl(18,55%,40%)] text-white text-xs font-medium" data-testid="badge-popular-solo-mobile">
                           Most Popular
                         </span>
                       </div>
@@ -1853,7 +1894,7 @@ export default function Landing() {
                   <div className="relative h-full p-6 rounded-xl bg-[hsl(18,40%,92%)] border-2 border-[hsl(18,45%,70%)] flex flex-col">
                     {billingPeriod === 'quarterly' && (
                       <div className="mb-3">
-                        <span className="inline-block px-3 py-1 rounded-full bg-[hsl(18,55%,40%)] text-white text-xs font-medium">
+                        <span className="inline-block px-3 py-1 rounded-full bg-[hsl(18,55%,40%)] text-white text-xs font-medium" data-testid="badge-popular-team-mobile">
                           Most Popular
                         </span>
                       </div>
@@ -1937,7 +1978,7 @@ export default function Landing() {
               <div className="h-full p-8 rounded-xl bg-white border border-[hsl(30,20%,85%)] flex flex-col">
                 {billingPeriod === 'quarterly' && (
                   <div className="mb-4">
-                    <span className="inline-block px-4 py-1.5 rounded-full bg-[hsl(18,55%,40%)] text-white text-sm font-medium">
+                    <span className="inline-block px-4 py-1.5 rounded-full bg-[hsl(18,55%,40%)] text-white text-sm font-medium" data-testid="badge-popular-solo-desktop">
                       Most Popular
                     </span>
                   </div>
@@ -2012,7 +2053,7 @@ export default function Landing() {
               <div className="relative h-full p-8 rounded-xl bg-[hsl(18,40%,92%)] border-2 border-[hsl(18,45%,70%)] flex flex-col">
                 {billingPeriod === 'quarterly' && (
                   <div className="mb-4">
-                    <span className="inline-block px-4 py-1.5 rounded-full bg-[hsl(18,55%,40%)] text-white text-sm font-medium">
+                    <span className="inline-block px-4 py-1.5 rounded-full bg-[hsl(18,55%,40%)] text-white text-sm font-medium" data-testid="badge-popular-team-desktop">
                       Most Popular
                     </span>
                   </div>
