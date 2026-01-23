@@ -1522,7 +1522,7 @@ export default function Landing() {
               transition={{ duration: 0.5 }}
             >
               <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block" data-testid="text-lead-magnet-label">
-                Free Guide
+                Practice Briefing
               </span>
               <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }} data-testid="text-lead-magnet-title">
                 The Defensible Record
@@ -1575,7 +1575,7 @@ export default function Landing() {
                   data-testid="button-lead-magnet"
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  Get the Free Guide
+                  Download the Briefing
                 </Button>
                 <p className="text-xs text-center text-[hsl(25,15%,55%)] mt-4">
                   We'll also add you to our early access list for product updates.
