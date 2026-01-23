@@ -131,7 +131,7 @@ export function WorkflowInfographic() {
       </div>
 
       {/* Mobile horizontal scroll */}
-      <div className="md:hidden overflow-x-auto pb-4 -mx-6 px-6 scrollbar-hide">
+      <div className="md:hidden overflow-x-auto pb-4 pt-3 -mx-6 px-6 scrollbar-hide">
         <div className="flex gap-4" style={{ width: "max-content" }}>
           {workflowSteps.map((step, index) => (
             <motion.div
@@ -144,7 +144,7 @@ export function WorkflowInfographic() {
               data-testid={`workflow-step-mobile-${step.id}`}
             >
               {/* Step number */}
-              <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-[hsl(18,65%,45%)] text-white text-[10px] font-medium flex items-center justify-center z-20">
+              <span className="absolute -top-2 left-0 w-5 h-5 rounded-full bg-[hsl(18,65%,45%)] text-white text-[10px] font-medium flex items-center justify-center z-20">
                 {index + 1}
               </span>
               
