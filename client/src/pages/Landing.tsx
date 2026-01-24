@@ -1182,8 +1182,8 @@ export default function Landing() {
         </Button>
       </motion.div>
 
-      {/* Announcement Bar - sticky, scrolls out naturally above the fixed nav */}
-      <div ref={bannerRef} className="sticky top-0 z-[101] bg-[hsl(20,40%,35%)] text-white">
+      {/* Announcement Bar - scrolls away naturally */}
+      <div ref={bannerRef} className="bg-[hsl(20,40%,35%)] text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-center gap-2 text-xs sm:text-sm">
           <span className="font-medium">News</span>
           <span className="text-white/60">|</span>
@@ -1199,18 +1199,15 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Spacer for fixed nav */}
-      <div className="h-[52px]" />
-
-      {/* Fixed Navigation with Blur */}
+      {/* Sticky Navigation with Blur - sticks to top after banner scrolls away */}
       <nav 
-        className={`fixed top-0 left-0 right-0 z-[100] transition-colors duration-300 ${
+        className={`sticky top-0 z-[100] transition-colors duration-300 ${
           isScrolled 
             ? 'bg-white/80 backdrop-blur-lg shadow-sm border-b border-[hsl(30,20%,90%)]' 
-            : 'bg-white/95 backdrop-blur-sm'
+            : 'bg-white border-b border-[hsl(30,20%,90%)]'
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2">
           <div className="flex items-center justify-between">
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
