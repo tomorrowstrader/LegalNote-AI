@@ -1217,13 +1217,16 @@ export default function Landing() {
       <div className="h-[52px]" />
 
       {/* Fixed Navigation with Blur - positioned below banner initially, moves to top as banner scrolls out */}
-      <motion.nav 
-        className={`fixed left-0 right-0 z-[100] transition-colors duration-300 ${
+      <nav 
+        className={`fixed top-0 left-0 right-0 z-[100] transition-colors duration-300 ${
           isScrolled 
             ? 'bg-white/80 backdrop-blur-lg shadow-sm border-b border-[hsl(30,20%,90%)]' 
             : 'bg-white/95 backdrop-blur-sm'
         }`}
-        style={{ top: navTop }}
+        style={{ 
+          transform: `translateY(${navTop}px)`,
+          willChange: 'transform'
+        }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between">
@@ -1385,7 +1388,7 @@ export default function Landing() {
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.nav>
+      </nav>
 
       {/* Hero Section - Editorial Style with Image */}
       <div className="relative bg-white overflow-hidden">
@@ -1430,7 +1433,17 @@ export default function Landing() {
                 </span>
               </motion.div>
               
-              {/* Mobile/Tablet Hero Image - widescreen version shown above document flow on mobile */}
+              {/* Document flow animation - Record → Process → Document */}
+              <motion.div
+                className="mb-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5, duration: 0.8 }}
+              >
+                <DocumentFlowAnimation />
+              </motion.div>
+              
+              {/* Mobile/Tablet Hero Image - widescreen version shown below document flow on mobile */}
               <motion.div
                 className="lg:hidden mb-6 flex justify-center"
                 initial={{ opacity: 0, y: 20 }}
@@ -1446,16 +1459,6 @@ export default function Landing() {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                 </div>
-              </motion.div>
-              
-              {/* Document flow animation - Record → Process → Document */}
-              <motion.div
-                className="mb-6"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5, duration: 0.8 }}
-              >
-                <DocumentFlowAnimation />
               </motion.div>
               
               <motion.p 
