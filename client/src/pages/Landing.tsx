@@ -741,10 +741,10 @@ function StatCounter({ value, prefix, suffix, label, index }: { value: number; p
       viewport={{ once: true }}
       transition={{ delay: prefersReducedMotion ? 0 : index * 0.1, duration: prefersReducedMotion ? 0 : 0.5 }}
     >
-      <div className="text-4xl sm:text-5xl font-bold text-white mb-2" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+      <div className="text-xl sm:text-4xl md:text-5xl font-bold text-white mb-1 sm:mb-2" style={{ fontFamily: "'Lora', Georgia, serif" }}>
         {prefix}{prefersReducedMotion ? value : counter.count}{suffix}
       </div>
-      <div className="text-sm text-white/60">{label}</div>
+      <div className="text-[10px] sm:text-sm text-white/60 leading-tight">{label}</div>
     </motion.div>
   );
 }
@@ -1056,17 +1056,25 @@ export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activePricingCard, setActivePricingCard] = useState(0);
   const [isInPricingSection, setIsInPricingSection] = useState(false);
+  const [showFloatingCTA, setShowFloatingCTA] = useState(false);
   const { scrollY } = useScroll();
   const prefersReducedMotion = useReducedMotion();
   const pricingRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLElement>(null);
+  const attendanceRecordsRef = useRef<HTMLDivElement>(null);
   
   const exploreModal = useExploreModal("pricing-end");
   
-  // Track scroll for sticky nav blur effect and pricing section visibility
+  // Track scroll for sticky nav blur effect, pricing section visibility, and floating CTA
   useEffect(() => {
     const unsubscribe = scrollY.on("change", (y) => {
       setIsScrolled(y > 50);
+      
+      // Show floating CTA only after scrolling past "Attendance records" section
+      if (attendanceRecordsRef.current) {
+        const attendanceBottom = attendanceRecordsRef.current.offsetTop + attendanceRecordsRef.current.offsetHeight;
+        setShowFloatingCTA(y >= attendanceBottom);
+      }
       
       // Check if we're in the pricing section (hide floating CTA)
       if (pricingRef.current && footerRef.current) {
@@ -1148,15 +1156,18 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       {/* Scroll Progress Indicator */}
       <ScrollProgressBar />
       
-      {/* Floating CTA - Fixed at bottom on mobile, fades out in pricing section */}
+      {/* Floating CTA - Fixed at bottom on mobile, only shows after scrolling past attendance records section */}
       <motion.div 
         className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 md:hidden"
-        initial={{ opacity: 1 }}
-        animate={{ opacity: isInPricingSection ? 0 : 1, pointerEvents: isInPricingSection ? 'none' : 'auto' }}
+        initial={{ opacity: 0 }}
+        animate={{ 
+          opacity: showFloatingCTA && !isInPricingSection ? 1 : 0, 
+          pointerEvents: showFloatingCTA && !isInPricingSection ? 'auto' : 'none' 
+        }}
         transition={{ duration: 0.3 }}
       >
         <Button 
@@ -1169,15 +1180,13 @@ export default function Landing() {
         </Button>
       </motion.div>
 
-      {/* Spacer for fixed nav */}
-      <div className="h-[72px]" />
-
-      {/* Announcement Bar */}
+      {/* Announcement Bar - scrolls out of view */}
       <div className="bg-[hsl(20,40%,35%)] text-white">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-center gap-2 text-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-center gap-2 text-xs sm:text-sm">
           <span className="font-medium">News</span>
           <span className="text-white/60">|</span>
-          <span>LegalNote now integrates with Clio Manage</span>
+          <span className="hidden sm:inline">LegalNote now integrates with Clio Manage</span>
+          <span className="sm:hidden">Clio integration live</span>
           <button 
             onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
             className="font-medium hover:underline ml-1 text-white"
@@ -1188,15 +1197,18 @@ export default function Landing() {
         </div>
       </div>
 
+      {/* Spacer for fixed nav */}
+      <div className="h-[52px]" />
+
       {/* Fixed Navigation with Blur */}
       <motion.nav 
         className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-300 ${
           isScrolled 
-            ? 'bg-white/90 backdrop-blur-lg shadow-sm border-b border-[hsl(30,20%,90%)]' 
-            : 'bg-white'
+            ? 'bg-white/80 backdrop-blur-lg shadow-sm border-b border-[hsl(30,20%,90%)]' 
+            : 'bg-white/95 backdrop-blur-sm'
         }`}
       >
-        <div className="max-w-7xl mx-auto px-6 py-5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between">
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
@@ -1403,7 +1415,7 @@ export default function Landing() {
               
               {/* Document flow animation - Record → Process → Document */}
               <motion.div
-                className="mb-8"
+                className="mb-6"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5, duration: 0.8 }}
@@ -1411,8 +1423,26 @@ export default function Landing() {
                 <DocumentFlowAnimation />
               </motion.div>
               
+              {/* Mobile Hero Image - shown between document flow and paragraph */}
+              <motion.div
+                className="lg:hidden mb-6 flex justify-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+              >
+                <div className="relative rounded-xl overflow-hidden shadow-lg w-48 sm:w-56">
+                  <img 
+                    src={heroSolicitorImage} 
+                    alt="Professional solicitor in client meeting"
+                    className="w-full h-auto object-cover aspect-[3/4]"
+                    data-testid="img-hero-solicitor-mobile"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                </div>
+              </motion.div>
+              
               <motion.p 
-                className="text-lg text-[hsl(25,20%,40%)] leading-relaxed mb-6" 
+                className="text-base sm:text-lg text-[hsl(25,20%,40%)] leading-relaxed mb-6" 
                 style={{ fontFamily: "'Lora', Georgia, serif" }}
                 data-testid="text-app-description"
                 initial={{ opacity: 0, y: 20 }}
@@ -1463,7 +1493,7 @@ export default function Landing() {
       </div>
 
       {/* What LegalNote Does - Value Proposition (moved to top) */}
-      <div className="relative bg-[hsl(30,25%,94%)] py-20 border-y border-[hsl(30,20%,85%)]">
+      <div ref={attendanceRecordsRef} className="relative bg-[hsl(30,25%,94%)] py-20 border-y border-[hsl(30,20%,85%)]">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1491,9 +1521,9 @@ export default function Landing() {
       <TrustLogosMarquee />
 
       {/* Animated Statistics Section */}
-      <div className="relative bg-[hsl(20,35%,18%)] py-16 overflow-hidden">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+      <div className="relative bg-[hsl(20,35%,18%)] py-8 sm:py-16 overflow-hidden">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-4 gap-2 sm:gap-8">
             <StatCounter value={2} prefix="<" suffix=" min" label="Meeting-to-Matter" index={0} />
             <StatCounter value={100} suffix="%" label="Audit-ready" index={1} />
             <StatCounter value={500} suffix="+" label="Hours documented" index={2} />
