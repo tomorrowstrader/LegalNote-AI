@@ -115,9 +115,86 @@ function ScrollProgressBar() {
   
   return (
     <motion.div
-      className="fixed top-0 left-0 right-0 h-1 bg-[hsl(18,70%,42%)] origin-left z-[100]"
+      className="fixed top-0 left-0 right-0 h-1 bg-[hsl(18,70%,42%)] origin-left z-[102]"
       style={{ scaleX: scrollYProgress }}
     />
+  );
+}
+
+// Section navigation indicator - shows current section with dots
+function SectionIndicator() {
+  const [activeSection, setActiveSection] = useState(0);
+  const sections = [
+    { id: 'hero', label: 'Home' },
+    { id: 'how-it-works', label: 'How It Works' },
+    { id: 'pricing', label: 'Pricing' },
+  ];
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      const windowHeight = window.innerHeight;
+      
+      // Default to first section if at very top
+      if (scrollY < 100) {
+        setActiveSection(0);
+        return;
+      }
+      
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const element = document.getElementById(sections[i].id);
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          if (rect.top <= windowHeight * 0.5) {
+            setActiveSection(i);
+            break;
+          }
+        }
+      }
+    };
+
+    // Set initial state on mount
+    handleScroll();
+    
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  return (
+    <div className="fixed right-4 top-1/2 -translate-y-1/2 z-50 hidden lg:flex flex-col gap-3" data-testid="section-indicator">
+      {sections.map((section, index) => (
+        <button
+          key={section.id}
+          onClick={() => scrollToSection(section.id)}
+          className="group relative flex items-center justify-end"
+          aria-label={`Go to ${section.label}`}
+          data-testid={`button-section-${section.id}`}
+        >
+          <span 
+            className="absolute right-6 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-[hsl(25,20%,40%)] bg-white/90 backdrop-blur-sm px-2 py-1 rounded shadow-sm whitespace-nowrap"
+            data-testid={`label-section-${section.id}`}
+          >
+            {section.label}
+          </span>
+          <motion.div
+            className={`w-2 h-2 rounded-full transition-colors ${
+              activeSection === index
+                ? 'bg-[hsl(18,70%,42%)] scale-125'
+                : 'bg-[hsl(30,20%,75%)]'
+            }`}
+            whileHover={{ scale: 1.3 }}
+            whileTap={{ scale: 0.9 }}
+          />
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -670,6 +747,8 @@ function AuditTrailComparisonSlider() {
 // Animated gradient mesh background
 function GradientMesh() {
   const prefersReducedMotion = useReducedMotion();
+  const { scrollYProgress } = useScroll();
+  const parallaxY = useTransform(scrollYProgress, [0, 0.3], [0, 100]);
   
   if (prefersReducedMotion) {
     return (
@@ -696,10 +775,10 @@ function GradientMesh() {
         className="absolute -top-1/2 -left-1/2 w-full h-full rounded-full opacity-30"
         style={{
           background: "radial-gradient(circle, hsl(18,60%,70%) 0%, transparent 70%)",
+          y: parallaxY,
         }}
         animate={{
           x: [0, 100, 0],
-          y: [0, 50, 0],
           scale: [1, 1.2, 1],
         }}
         transition={{
@@ -712,10 +791,10 @@ function GradientMesh() {
         className="absolute -bottom-1/2 -right-1/2 w-full h-full rounded-full opacity-20"
         style={{
           background: "radial-gradient(circle, hsl(25,50%,75%) 0%, transparent 70%)",
+          y: parallaxY,
         }}
         animate={{
           x: [0, -80, 0],
-          y: [0, -60, 0],
           scale: [1.2, 1, 1.2],
         }}
         transition={{
@@ -1161,6 +1240,7 @@ export default function Landing() {
     <div className="min-h-screen bg-white overflow-x-hidden">
       {/* Scroll Progress Indicator */}
       <ScrollProgressBar />
+      <SectionIndicator />
       
       {/* Floating CTA - Fixed at bottom on mobile, only shows after scrolling past attendance records section */}
       <motion.div 
@@ -1370,7 +1450,7 @@ export default function Landing() {
       </nav>
 
       {/* Hero Section - Editorial Style with Image */}
-      <div className="relative bg-white overflow-hidden">
+      <div id="hero" className="relative bg-white overflow-hidden">
         <GradientMesh />
         <div className="relative max-w-7xl mx-auto px-6 pt-8 sm:pt-12 pb-12">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between lg:gap-8">
@@ -1434,6 +1514,7 @@ export default function Landing() {
                     src={heroSolicitorImageWide} 
                     alt="Professional solicitor in client meeting"
                     className="w-full h-auto object-cover aspect-[16/9]"
+                    loading="lazy"
                     data-testid="img-hero-solicitor-mobile"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
@@ -1481,6 +1562,7 @@ export default function Landing() {
                   src={heroSolicitorImage} 
                   alt="Professional solicitor in client meeting"
                   className="w-full h-auto object-cover aspect-[3/4]"
+                  loading="lazy"
                   data-testid="img-hero-solicitor"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
