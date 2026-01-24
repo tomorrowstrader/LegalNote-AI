@@ -1050,7 +1050,7 @@ function DocumentFlowAnimation() {
   ];
 
   return (
-    <div className="flex items-center justify-start sm:justify-center gap-2 sm:gap-4 py-4 sm:py-8">
+    <div className="flex items-center justify-start sm:justify-center gap-2 sm:gap-4 py-4 sm:py-8 pl-12 sm:pl-0">
       {steps.map((step, index) => (
         <motion.div
           key={step.label}
@@ -1453,10 +1453,10 @@ export default function Landing() {
       <div id="hero" className="relative bg-white overflow-hidden">
         <GradientMesh />
         <div className="relative max-w-7xl mx-auto px-6 pt-8 sm:pt-12 pb-12">
-          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between lg:gap-12">
             {/* Left - Text Content */}
             <motion.div 
-              className="lg:flex-shrink-0 lg:w-[55%] max-w-2xl"
+              className="lg:flex-shrink-0 lg:w-[50%] max-w-2xl text-center lg:text-left mx-auto lg:mx-0"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7 }}
@@ -1470,7 +1470,7 @@ export default function Landing() {
                 transition={{ duration: 0.6, delay: 0.1 }}
               >
                 Meeting to matter,<br />
-                built for compliance.
+                <span className="text-[hsl(18,70%,42%)]">contemporaneously</span>.
               </motion.h1>
               
               {/* Typewriter tagline */}
@@ -1551,13 +1551,13 @@ export default function Landing() {
             
             {/* Right - Hero Image */}
             <motion.div
-              className="hidden lg:flex lg:flex-1 lg:justify-center lg:items-start"
+              className="hidden lg:flex lg:flex-1 lg:justify-center lg:items-center"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
               data-testid="container-hero-image"
             >
-              <div className="relative rounded-xl overflow-hidden shadow-xl w-72">
+              <div className="relative rounded-xl overflow-hidden shadow-xl w-[22rem] lg:w-[26rem] transform lg:translate-x-8">
                 <img 
                   src={heroSolicitorImage} 
                   alt="Professional solicitor in client meeting"
