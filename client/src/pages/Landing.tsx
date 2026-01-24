@@ -1064,27 +1064,13 @@ export default function Landing() {
   const footerRef = useRef<HTMLElement>(null);
   const attendanceRecordsRef = useRef<HTMLDivElement>(null);
   const bannerRef = useRef<HTMLDivElement>(null);
-  const [bannerHeight, setBannerHeight] = useState(36); // Default banner height
-  const [navTop, setNavTop] = useState(36); // Nav position below banner initially
   
   const exploreModal = useExploreModal("pricing-end");
   
-  // Measure banner height on mount
-  useEffect(() => {
-    if (bannerRef.current) {
-      setBannerHeight(bannerRef.current.offsetHeight);
-      setNavTop(bannerRef.current.offsetHeight);
-    }
-  }, []);
-
   // Track scroll for sticky nav blur effect, pricing section visibility, and floating CTA
   useEffect(() => {
     const unsubscribe = scrollY.on("change", (y) => {
       setIsScrolled(y > 50);
-      
-      // Calculate nav top position - starts below banner, moves to top as banner scrolls out
-      const newNavTop = Math.max(0, bannerHeight - y);
-      setNavTop(newNavTop);
       
       // Show floating CTA only after scrolling past "Attendance records" section
       if (attendanceRecordsRef.current) {
@@ -1100,7 +1086,7 @@ export default function Landing() {
       }
     });
     return () => unsubscribe();
-  }, [scrollY, bannerHeight]);
+  }, [scrollY]);
 
   const handleLogin = () => {
     if (isPreviewMode) {
@@ -1196,8 +1182,8 @@ export default function Landing() {
         </Button>
       </motion.div>
 
-      {/* Announcement Bar - scrolls out of view */}
-      <div ref={bannerRef} className="bg-[hsl(20,40%,35%)] text-white">
+      {/* Announcement Bar - sticky, scrolls out naturally above the fixed nav */}
+      <div ref={bannerRef} className="sticky top-0 z-[101] bg-[hsl(20,40%,35%)] text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-center gap-2 text-xs sm:text-sm">
           <span className="font-medium">News</span>
           <span className="text-white/60">|</span>
@@ -1216,17 +1202,13 @@ export default function Landing() {
       {/* Spacer for fixed nav */}
       <div className="h-[52px]" />
 
-      {/* Fixed Navigation with Blur - positioned below banner initially, moves to top as banner scrolls out */}
+      {/* Fixed Navigation with Blur */}
       <nav 
         className={`fixed top-0 left-0 right-0 z-[100] transition-colors duration-300 ${
           isScrolled 
             ? 'bg-white/80 backdrop-blur-lg shadow-sm border-b border-[hsl(30,20%,90%)]' 
             : 'bg-white/95 backdrop-blur-sm'
         }`}
-        style={{ 
-          transform: `translateY(${navTop}px)`,
-          willChange: 'transform'
-        }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between">
