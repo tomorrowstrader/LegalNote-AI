@@ -17,7 +17,7 @@ import {
 import { EarlyAccessForm } from "@/components/EarlyAccessForm";
 import { WorkflowInfographic } from "@/components/WorkflowInfographic";
 import { ExploreModal, useExploreModal } from "@/components/ExploreModal";
-import heroSolicitorImage from "@/assets/images/hero-solicitor.jpg";
+import heroSolicitorImage from "@assets/openart-subject-female-professional-early-40s-british-exotic-l_1769257060192.jpg";
 
 const isPreviewMode = import.meta.env.VITE_PREVIEW_MODE === 'true';
 
