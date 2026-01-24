@@ -1430,17 +1430,7 @@ export default function Landing() {
                 </span>
               </motion.div>
               
-              {/* Document flow animation - Record → Process → Document */}
-              <motion.div
-                className="mb-6"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5, duration: 0.8 }}
-              >
-                <DocumentFlowAnimation />
-              </motion.div>
-              
-              {/* Mobile/Tablet Hero Image - widescreen version shown between document flow and paragraph */}
+              {/* Mobile/Tablet Hero Image - widescreen version shown above document flow on mobile */}
               <motion.div
                 className="lg:hidden mb-6 flex justify-center"
                 initial={{ opacity: 0, y: 20 }}
@@ -1456,6 +1446,16 @@ export default function Landing() {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                 </div>
+              </motion.div>
+              
+              {/* Document flow animation - Record → Process → Document */}
+              <motion.div
+                className="mb-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5, duration: 0.8 }}
+              >
+                <DocumentFlowAnimation />
               </motion.div>
               
               <motion.p 
