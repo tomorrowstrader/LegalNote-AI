@@ -970,11 +970,11 @@ function DocumentFlowAnimation() {
   ];
 
   return (
-    <div className="flex items-center justify-center gap-4 py-8">
+    <div className="flex items-center justify-start sm:justify-center gap-2 sm:gap-4 py-4 sm:py-8">
       {steps.map((step, index) => (
         <motion.div
           key={step.label}
-          className="flex items-center gap-4"
+          className="flex items-center gap-1.5 sm:gap-4"
           initial={prefersReducedMotion ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: prefersReducedMotion ? 0 : index * 0.3, duration: prefersReducedMotion ? 0 : 0.5 }}
@@ -982,7 +982,7 @@ function DocumentFlowAnimation() {
           <motion.div
             className="relative"
             animate={prefersReducedMotion ? {} : {
-              y: [0, -8, 0],
+              y: [0, -4, 0],
             }}
             transition={{
               duration: 2,
@@ -992,14 +992,14 @@ function DocumentFlowAnimation() {
             }}
           >
             <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
+              className="w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-md sm:shadow-lg"
               style={{ backgroundColor: step.color }}
             >
-              <step.icon className="w-8 h-8 text-white" />
+              <step.icon className="w-5 h-5 sm:w-8 sm:h-8 text-white" />
             </div>
             {!prefersReducedMotion && (
               <motion.div
-                className="absolute -inset-1 rounded-2xl opacity-30"
+                className="absolute -inset-0.5 sm:-inset-1 rounded-xl sm:rounded-2xl opacity-30"
                 style={{ backgroundColor: step.color }}
                 animate={{
                   scale: [1, 1.2, 1],
@@ -1013,7 +1013,7 @@ function DocumentFlowAnimation() {
               />
             )}
           </motion.div>
-          <span className="text-sm font-medium text-[hsl(25,25%,30%)]">{step.label}</span>
+          <span className="text-xs sm:text-sm font-medium text-[hsl(25,25%,30%)]">{step.label}</span>
           {index < steps.length - 1 && (
             <motion.div
               className="flex items-center"
@@ -1021,8 +1021,8 @@ function DocumentFlowAnimation() {
               animate={{ scaleX: 1 }}
               transition={{ delay: prefersReducedMotion ? 0 : index * 0.3 + 0.5, duration: prefersReducedMotion ? 0 : 0.3 }}
             >
-              <div className="w-12 h-0.5 bg-gradient-to-r from-[hsl(18,50%,60%)] to-[hsl(25,40%,65%)]" />
-              <ArrowRight className="w-4 h-4 text-[hsl(25,40%,55%)]" />
+              <div className="w-4 sm:w-12 h-0.5 bg-gradient-to-r from-[hsl(18,50%,60%)] to-[hsl(25,40%,65%)]" />
+              <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-[hsl(25,40%,55%)]" />
             </motion.div>
           )}
         </motion.div>
