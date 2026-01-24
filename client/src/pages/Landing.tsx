@@ -206,6 +206,41 @@ function TrustLogosMarquee() {
           ))}
         </motion.div>
       </div>
+      {/* Integration logos */}
+      <div className="max-w-7xl mx-auto px-6 mt-6 pt-4 border-t border-[hsl(30,15%,88%)]">
+        <div className="flex items-center justify-center gap-8 flex-wrap">
+          <span className="text-xs text-[hsl(25,15%,55%)] uppercase tracking-wider">Integrates with</span>
+          <div className="flex items-center gap-6">
+            {/* Microsoft */}
+            <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+              <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
+                <rect width="11" height="11" fill="hsl(25,20%,50%)" />
+                <rect x="12" width="11" height="11" fill="hsl(25,20%,50%)" />
+                <rect y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
+                <rect x="12" y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
+              </svg>
+              <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Microsoft</span>
+            </div>
+            {/* Google */}
+            <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="hsl(25,20%,50%)"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="hsl(25,20%,50%)"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="hsl(25,20%,50%)"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="hsl(25,20%,50%)"/>
+              </svg>
+              <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Google</span>
+            </div>
+            {/* Clio */}
+            <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+              <div className="w-5 h-5 rounded bg-[hsl(25,20%,50%)] flex items-center justify-center">
+                <span className="text-white text-xs font-bold">C</span>
+              </div>
+              <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Clio</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -323,7 +358,7 @@ function ComparisonSlider() {
   
   return (
     <div className="py-16 bg-white">
-      <div className="max-w-5xl mx-auto px-6">
+      <div className="max-w-4xl mx-auto px-6">
         <motion.div
           className="text-center mb-10"
           initial={{ opacity: 0, y: 20 }}
@@ -351,28 +386,28 @@ function ComparisonSlider() {
         >
           {/* Before - Traditional Notes (Competent Solicitor's Best Effort) */}
           <div className="relative h-[400px] bg-[hsl(40,30%,95%)]">
-            <div className="absolute inset-0 p-8">
+            <div className="absolute inset-0 p-6 sm:p-8 pl-[12%] sm:pl-[10%]">
               <div className="mb-4">
                 <span className="text-xs font-medium text-[hsl(25,40%,45%)] uppercase tracking-wider bg-[hsl(25,30%,90%)] px-3 py-1 rounded-full">
                   Your Best Effort
                 </span>
               </div>
               <div 
-                className="text-base sm:text-lg text-[hsl(220,10%,25%)] space-y-2 leading-relaxed"
+                className="text-sm sm:text-base text-[hsl(220,10%,25%)] space-y-1.5 leading-relaxed"
                 style={{ 
                   fontFamily: "'Caveat', 'Segoe Script', cursive",
                   transform: 'rotate(-0.3deg)'
                 }}
               >
-                <p className="font-medium" style={{ transform: 'rotate(0.2deg)' }}>Thompson - 14 Elm Gardens sale</p>
-                <p style={{ transform: 'rotate(-0.2deg)' }}>Asking £450,000, fixtures inc wardrobes + kitchen</p>
-                <p className="ml-1" style={{ transform: 'rotate(0.1deg)' }}>Target completion 15 March - buyer chain TBC</p>
-                <p style={{ transform: 'rotate(-0.3deg)' }}>Husband called re: survey concerns - reassured</p>
-                <p className="ml-2" style={{ transform: 'rotate(0.2deg)' }}>Fee estimate to follow by Friday</p>
-                <p style={{ transform: 'rotate(-0.1deg)' }}>TA6 needed - chase HM Land Registry</p>
-                <p className="mt-4 text-sm text-[hsl(25,30%,50%)] italic" style={{ transform: 'rotate(0.2deg)' }}>Good notes. But what exactly did the husband say?</p>
-                <p className="text-sm text-[hsl(25,30%,50%)] italic" style={{ transform: 'rotate(-0.2deg)' }}>When did this happen? Who said what first?</p>
-                <p className="text-sm text-[hsl(25,30%,50%)] italic ml-1" style={{ transform: 'rotate(0.1deg)' }}>Two years later, will this be enough?</p>
+                <p className="font-medium" style={{ transform: 'rotate(0.2deg)' }}>Emma Richards - Divorce financial settlement</p>
+                <p style={{ transform: 'rotate(-0.2deg)' }}>Family home approx £850k, valued last month</p>
+                <p className="ml-1" style={{ transform: 'rotate(0.1deg)' }}>Husband's pension - needs CETV</p>
+                <p style={{ transform: 'rotate(-0.3deg)' }}>Client wants to stay in property until kids finish school (6 yrs)</p>
+                <p className="ml-2" style={{ transform: 'rotate(0.2deg)' }}>Husband offered to pay school fees - client doesn't trust</p>
+                <p style={{ transform: 'rotate(-0.1deg)' }}>Discussed 60/40 split, Form E needed</p>
+                <p className="mt-3 text-xs sm:text-sm text-[hsl(25,30%,50%)] italic" style={{ transform: 'rotate(0.2deg)' }}>Good notes. But what exactly did she say about trust?</p>
+                <p className="text-xs sm:text-sm text-[hsl(25,30%,50%)] italic" style={{ transform: 'rotate(-0.2deg)' }}>What advice was given about the Mesher order?</p>
+                <p className="text-xs sm:text-sm text-[hsl(25,30%,50%)] italic ml-1" style={{ transform: 'rotate(0.1deg)' }}>When disputes arise, will this be enough?</p>
               </div>
             </div>
           </div>
@@ -382,28 +417,34 @@ function ComparisonSlider() {
             className="absolute inset-0 h-[400px] bg-white overflow-hidden"
             style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
           >
-            <div className="absolute inset-0 p-6 sm:p-8 overflow-y-auto">
-              <div className="mb-3 flex items-center gap-3">
-                <span className="text-xs font-medium text-[hsl(130,50%,35%)] uppercase tracking-wider bg-[hsl(130,50%,95%)] px-3 py-1 rounded-full">
+            <div className="absolute inset-0 p-5 sm:p-6 pr-[10%] overflow-y-auto">
+              <div className="mb-2 flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-medium text-[hsl(130,50%,35%)] uppercase tracking-wider bg-[hsl(130,50%,95%)] px-2 py-0.5 rounded-full">
                   LegalNote Output
                 </span>
                 <Badge className="bg-[hsl(18,70%,42%)] text-white text-xs">Evidential Quality</Badge>
               </div>
-              <div className="text-xs sm:text-sm text-[hsl(25,25%,20%)] space-y-3">
-                <div className="border-l-2 border-[hsl(18,60%,50%)] pl-3">
-                  <p className="font-medium">Attendance Note - Property Sale</p>
-                  <p className="text-xs text-[hsl(25,15%,50%)]">06 Jan 2026, 14:32 GMT | 47 mins | Consent: Verbal, recorded</p>
+              <div className="text-xs text-[hsl(25,25%,20%)] space-y-2">
+                <div className="border-l-2 border-[hsl(18,60%,50%)] pl-2">
+                  <p className="font-medium text-sm">Attendance Note - Financial Settlement</p>
+                  <p className="text-[10px] text-[hsl(25,15%,50%)]">12 Mar 2025 | 52 mins | Consent: Recorded [00:00:22]</p>
                 </div>
-                <div className="bg-[hsl(30,20%,97%)] rounded p-2 text-xs">
-                  <p className="text-[hsl(25,15%,50%)] mb-1">14:47 - Husband (Mr Thompson) called during meeting:</p>
-                  <p className="italic text-[hsl(25,25%,30%)]">"I've had the survey back and there's mention of subsidence. Should we be worried?"</p>
-                  <p className="text-[hsl(25,15%,50%)] mt-1">Solicitor response: Explained survey terminology, advised that "watching brief" notation is common in properties of this age, recommended obtaining specialist report if buyer pursues.</p>
+                <div className="bg-[hsl(30,20%,97%)] rounded p-2">
+                  <p className="text-[hsl(25,15%,50%)] mb-1 text-[10px]">[00:08:22] Client statement:</p>
+                  <p className="italic text-[hsl(25,25%,30%)] text-xs">"The house is worth about £850,000—we had it valued last month. I need to stay there until the children finish school, that's another six years."</p>
+                </div>
+                <div className="bg-[hsl(30,20%,97%)] rounded p-2">
+                  <p className="text-[hsl(25,15%,50%)] mb-1 text-[10px]">[00:11:03] Client statement:</p>
+                  <p className="italic text-[hsl(25,25%,30%)] text-xs">"He said he'd cover the school fees, but I don't trust him to keep paying once everything's final."</p>
+                </div>
+                <div className="bg-[hsl(18,30%,96%)] rounded p-2 border-l-2 border-[hsl(18,50%,50%)]">
+                  <p className="text-[10px] text-[hsl(25,15%,50%)]">[00:15:44] Advice given:</p>
+                  <p className="text-xs">Solicitor advised documenting school fees commitment in consent order with enforcement mechanism.</p>
                 </div>
                 <div>
-                  <p className="font-medium text-[hsl(25,30%,15%)]">Key Instructions (timestamped):</p>
-                  <p className="text-xs">14:33 - Asking price confirmed: £450,000</p>
-                  <p className="text-xs">14:38 - Fixtures: fitted wardrobes, integrated appliances</p>
-                  <p className="text-xs">14:52 - Target completion: 15 March 2026</p>
+                  <p className="font-medium text-[hsl(25,30%,15%)] text-xs mb-1">Action Items:</p>
+                  <p className="text-[10px]">Request Form E from husband's solicitor — Due: 19 Mar</p>
+                  <p className="text-[10px]">Obtain pension CETV — Client — Due: 17 Mar</p>
                 </div>
               </div>
             </div>
@@ -707,7 +748,7 @@ function GradientMesh() {
 }
 
 // StatCounter component to avoid hooks in loops
-function StatCounter({ value, suffix, label, index }: { value: number; suffix: string; label: string; index: number }) {
+function StatCounter({ value, prefix, suffix, label, index }: { value: number; prefix?: string; suffix: string; label: string; index: number }) {
   const counter = useCounter(value, 2000);
   const prefersReducedMotion = useReducedMotion();
   
@@ -721,7 +762,7 @@ function StatCounter({ value, suffix, label, index }: { value: number; suffix: s
       transition={{ delay: prefersReducedMotion ? 0 : index * 0.1, duration: prefersReducedMotion ? 0 : 0.5 }}
     >
       <div className="text-4xl sm:text-5xl font-bold text-white mb-2" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-        {prefersReducedMotion ? value : counter.count}{suffix}
+        {prefix}{prefersReducedMotion ? value : counter.count}{suffix}
       </div>
       <div className="text-sm text-white/60">{label}</div>
     </motion.div>
@@ -816,9 +857,9 @@ function TrustBadges() {
           <span className="w-2 h-2 rounded-full bg-[hsl(130,40%,45%)]" />
           Encryption at Rest & Transit
         </span>
-        <span className="flex items-center gap-1.5" data-testid="text-badge-gdpr-deletion">
+        <span className="flex items-center gap-1.5" data-testid="text-badge-privilege-protected">
           <span className="w-2 h-2 rounded-full bg-[hsl(130,40%,45%)]" />
-          GDPR-Compliant Auto-Deletion
+          Privilege Protected
         </span>
         <span className="flex items-center gap-1.5" data-testid="text-badge-tamper-detection">
           <span className="w-2 h-2 rounded-full bg-[hsl(130,40%,45%)]" />
@@ -1378,7 +1419,7 @@ export default function Landing() {
           
           {/* Animated document flow */}
           <motion.div
-            className="hidden md:block mt-4"
+            className="mt-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5, duration: 0.8 }}
@@ -1387,37 +1428,62 @@ export default function Landing() {
           </motion.div>
         </div>
 
-        {/* Hero Image Section with Parallax - temporarily hidden until real images are ready */}
-        {/* <HeroImageParallax /> */}
-
-        {/* Hero Description */}
+        {/* Hero Description with Image */}
         <div className="max-w-7xl mx-auto px-6 pb-20">
-          <motion.p 
-            className="text-lg sm:text-xl text-[hsl(25,20%,40%)] max-w-2xl leading-relaxed" 
-            style={{ fontFamily: "'Lora', Georgia, serif" }}
-            data-testid="text-app-description"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
-            A complaint arrives about advice you gave two years ago. Your notes are sparse, the client remembers differently, and it's your word against theirs. With LegalNote, it doesn't have to be—every meeting captured, consent documented, timestamped and audit-ready. When the question is "what was said?", you'll have the answer.
-          </motion.p>
-          
-          {/* Desktop CTA */}
-          <motion.div 
-            className="hidden md:block mt-8"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-          >
-            <Button 
-              onClick={() => handleRequestAccess("hero")}
-              className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full px-10 py-6 text-base"
-              data-testid="button-get-started"
+          <div className="flex flex-col lg:flex-row lg:items-start lg:gap-12">
+            <div className="flex-1">
+              <motion.p 
+                className="text-lg sm:text-xl text-[hsl(25,20%,40%)] max-w-2xl leading-relaxed" 
+                style={{ fontFamily: "'Lora', Georgia, serif" }}
+                data-testid="text-app-description"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+              >
+                A complaint arrives about advice you gave two years ago. Your notes are sparse, the client remembers differently, and it's your word against theirs. With LegalNote, it doesn't have to be—every meeting captured, consent documented, timestamped and audit-ready. When the question is "what was said?", you'll have the answer.
+              </motion.p>
+              
+              {/* Desktop CTA */}
+              <motion.div 
+                className="hidden md:block mt-8"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+              >
+                <Button 
+                  onClick={() => handleRequestAccess("hero")}
+                  className="bg-[hsl(18,70%,42%)] text-white hover:bg-[hsl(18,70%,38%)] rounded-full px-10 py-6 text-base"
+                  data-testid="button-get-started"
+                >
+                  Request Early Access
+                </Button>
+              </motion.div>
+            </div>
+            
+            {/* Hero Image - Professional solicitor */}
+            <motion.div
+              className="hidden lg:block flex-shrink-0 w-80"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
             >
-              Request Early Access
-            </Button>
-          </motion.div>
+              <div className="relative rounded-xl overflow-hidden shadow-lg">
+                <div 
+                  className="aspect-[3/4] bg-gradient-to-br from-[hsl(25,30%,70%)] to-[hsl(25,25%,60%)]"
+                  style={{
+                    backgroundImage: 'linear-gradient(135deg, hsl(25,30%,75%) 0%, hsl(25,20%,65%) 100%)'
+                  }}
+                >
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
+                    <Scale className="w-16 h-16 text-[hsl(25,20%,45%)] mb-4" />
+                    <p className="text-[hsl(25,25%,35%)] font-medium" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+                      Professional documentation<br />for every client meeting
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         </div>
       </div>
 
@@ -1453,7 +1519,7 @@ export default function Landing() {
       <div className="relative bg-[hsl(20,35%,18%)] py-16 overflow-hidden">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <StatCounter value={93} suffix="%" label="Transcription accuracy" index={0} />
+            <StatCounter value={2} prefix="<" suffix=" min" label="Meeting-to-Matter" index={0} />
             <StatCounter value={100} suffix="%" label="Audit-ready" index={1} />
             <StatCounter value={500} suffix="+" label="Hours documented" index={2} />
             <StatCounter value={100} suffix="%" label="GDPR compliant" index={3} />
@@ -1507,22 +1573,22 @@ export default function Landing() {
       </div>
 
       {/* Trust & Compliance Section */}
-      <div id="security-compliance" className="relative bg-[hsl(30,25%,94%)] py-24 border-y border-[hsl(30,20%,85%)]">
+      <div id="security-compliance" className="relative bg-[hsl(30,25%,94%)] py-16 border-y border-[hsl(30,20%,85%)]">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
-            className="text-center mb-16"
+            className="text-center mb-10"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-3 block">
               Security & Compliance
             </span>
-            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Built to evidence professional judgement
             </h2>
-            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-lg text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Designed around the reality that detailed attendance notes are a core strand of evidencing competent service and defensible decision-making.
             </p>
           </motion.div>
@@ -2181,9 +2247,9 @@ export default function Landing() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[hsl(30,20%,88%)]">
-                    <th className="text-left p-6 text-[hsl(25,20%,40%)] font-medium">Dimension</th>
-                    <th className="text-left p-6 text-[hsl(25,15%,50%)] font-medium bg-[hsl(30,15%,96%)]">Typical dictation / note apps</th>
-                    <th className="text-left p-6 font-medium text-[hsl(25,30%,12%)] bg-[hsl(18,40%,90%)]">LegalNote</th>
+                    <th className="text-left p-4 text-[hsl(25,20%,40%)] font-medium text-sm">Dimension</th>
+                    <th className="text-left p-4 text-[hsl(25,15%,50%)] font-medium text-sm bg-[hsl(30,15%,96%)]">Typical dictation / note apps</th>
+                    <th className="text-left p-4 font-medium text-sm text-[hsl(25,30%,12%)] bg-[hsl(18,40%,90%)]">LegalNote</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">
@@ -2220,14 +2286,14 @@ export default function Landing() {
                     },
                   ].map((row, index) => (
                     <tr key={index} className="border-b border-[hsl(30,15%,90%)] last:border-b-0">
-                      <td className="p-6 font-medium text-[hsl(25,25%,20%)]">{row.dimension}</td>
-                      <td className="p-6 text-[hsl(25,15%,50%)] bg-[hsl(30,15%,96%)]">
+                      <td className="p-4 font-medium text-[hsl(25,25%,20%)] text-sm">{row.dimension}</td>
+                      <td className="p-4 text-[hsl(25,15%,50%)] bg-[hsl(30,15%,96%)] text-sm">
                         <div className="flex items-start gap-2">
                           <XCircle className="w-4 h-4 text-[hsl(0,50%,50%)] mt-0.5 flex-shrink-0" />
                           <span>{row.generic}</span>
                         </div>
                       </td>
-                      <td className="p-6 text-[hsl(25,25%,25%)] bg-[hsl(18,40%,90%)]">
+                      <td className="p-4 text-[hsl(25,25%,25%)] bg-[hsl(18,40%,90%)] text-sm">
                         <div className="flex items-start gap-2">
                           <CheckCircle2 className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
                           <span>{row.legalnote}</span>
