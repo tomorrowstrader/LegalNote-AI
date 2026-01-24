@@ -1400,7 +1400,7 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            A complaint arrives about advice you gave two years ago. Your notes are sparse, the client remembers differently, and it's your word against theirs. With LegalNote, it doesn't have to be—every meeting captured, consent documented, fully searchable. When the question is "what was said?", you'll have the answer.
+            A complaint arrives about advice you gave two years ago. Your notes are sparse, the client remembers differently, and it's your word against theirs. With LegalNote, it doesn't have to be—every meeting captured, consent documented, timestamped and audit-ready. When the question is "what was said?", you'll have the answer.
           </motion.p>
           
           {/* Desktop CTA */}
