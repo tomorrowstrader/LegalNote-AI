@@ -1401,6 +1401,16 @@ export default function Landing() {
                 </span>
               </motion.div>
               
+              {/* Document flow animation - Record → Process → Document */}
+              <motion.div
+                className="mb-8"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5, duration: 0.8 }}
+              >
+                <DocumentFlowAnimation />
+              </motion.div>
+              
               <motion.p 
                 className="text-lg text-[hsl(25,20%,40%)] leading-relaxed mb-6" 
                 style={{ fontFamily: "'Lora', Georgia, serif" }}
@@ -1448,16 +1458,6 @@ export default function Landing() {
               </div>
             </motion.div>
           </div>
-          
-          {/* Animated document flow */}
-          <motion.div
-            className="mt-8"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5, duration: 0.8 }}
-          >
-            <DocumentFlowAnimation />
-          </motion.div>
         </div>
 
       </div>
