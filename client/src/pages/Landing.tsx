@@ -1362,10 +1362,10 @@ export default function Landing() {
       <div className="relative bg-white overflow-hidden">
         <GradientMesh />
         <div className="relative max-w-7xl mx-auto px-6 pt-8 sm:pt-12 pb-12">
-          <div className="flex flex-col lg:flex-row lg:items-start lg:gap-12">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between lg:gap-8">
             {/* Left - Text Content */}
             <motion.div 
-              className="flex-1 max-w-2xl"
+              className="lg:flex-shrink-0 lg:w-[55%] max-w-2xl"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7 }}
@@ -1431,13 +1431,13 @@ export default function Landing() {
             
             {/* Right - Hero Image */}
             <motion.div
-              className="hidden lg:block flex-shrink-0 w-72"
+              className="hidden lg:flex lg:flex-1 lg:justify-center lg:items-start"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
               data-testid="container-hero-image"
             >
-              <div className="relative rounded-xl overflow-hidden shadow-xl">
+              <div className="relative rounded-xl overflow-hidden shadow-xl w-72">
                 <img 
                   src={heroSolicitorImage} 
                   alt="Professional solicitor in client meeting"
