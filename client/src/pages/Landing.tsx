@@ -161,14 +161,14 @@ function TiltCard({ children, className }: { children: React.ReactNode; classNam
 function TrustLogosMarquee() {
   const prefersReducedMotion = useReducedMotion();
   const firms = [
-    "Commercial Law Specialists",
-    "Family & Private Client",
-    "Property & Conveyancing",
-    "Employment Law Practice",
-    "Dispute Resolution",
+    "Family Law",
+    "Criminal Defence",
+    "Conveyancing",
+    "Commercial Litigation",
+    "Employment Law",
+    "Personal Injury",
+    "Private Client",
     "Corporate & M&A",
-    "Regulatory & Compliance",
-    "Litigation Boutique",
   ];
   
   return (
@@ -182,13 +182,13 @@ function TrustLogosMarquee() {
         <motion.div
           className="flex gap-12 whitespace-nowrap"
           animate={prefersReducedMotion ? {} : {
-            x: [0, -1920],
+            x: ["0%", "-50%"],
           }}
           transition={{
             x: {
               repeat: Infinity,
               repeatType: "loop",
-              duration: 30,
+              duration: 25,
               ease: "linear",
             },
           }}
@@ -349,30 +349,30 @@ function ComparisonSlider() {
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          {/* Before - Traditional Notes */}
+          {/* Before - Traditional Notes (Competent Solicitor's Best Effort) */}
           <div className="relative h-[400px] bg-[hsl(40,30%,95%)]">
             <div className="absolute inset-0 p-8">
               <div className="mb-4">
-                <span className="text-xs font-medium text-[hsl(0,50%,50%)] uppercase tracking-wider bg-[hsl(0,50%,95%)] px-3 py-1 rounded-full">
-                  Traditional Approach
+                <span className="text-xs font-medium text-[hsl(25,40%,45%)] uppercase tracking-wider bg-[hsl(25,30%,90%)] px-3 py-1 rounded-full">
+                  Your Best Effort
                 </span>
               </div>
               <div 
-                className="text-lg sm:text-xl text-[hsl(220,10%,25%)] space-y-2 sm:space-y-3 leading-relaxed"
+                className="text-base sm:text-lg text-[hsl(220,10%,25%)] space-y-2 leading-relaxed"
                 style={{ 
                   fontFamily: "'Caveat', 'Segoe Script', cursive",
-                  transform: 'rotate(-0.5deg)'
+                  transform: 'rotate(-0.3deg)'
                 }}
               >
-                <p className="ml-2" style={{ transform: 'rotate(0.3deg)' }}>Meeting w/ Mrs Thompson - house sale</p>
-                <p style={{ transform: 'rotate(-0.4deg)' }}>- price discussed → £450k (ish?)</p>
-                <p className="ml-1" style={{ transform: 'rotate(0.2deg)' }}>- fixtures - wardrobes? kitchen??</p>
-                <p style={{ transform: 'rotate(-0.3deg)' }}>- completion date - need to check!</p>
-                <p className="ml-3" style={{ transform: 'rotate(0.5deg)' }}>- husband phoned mid-meeting</p>
-                <p style={{ transform: 'rotate(-0.2deg)' }}>- fees - <span className="line-through opacity-60">£2,500</span> discuss later</p>
-                <p className="mt-4 text-[hsl(0,50%,45%)]" style={{ transform: 'rotate(0.4deg)' }}>* no time recorded</p>
-                <p className="text-[hsl(0,50%,45%)]" style={{ transform: 'rotate(-0.3deg)' }}>* consent?? forgot to ask</p>
-                <p className="text-[hsl(0,50%,45%)] ml-1" style={{ transform: 'rotate(0.2deg)' }}>* actions unclear...</p>
+                <p className="font-medium" style={{ transform: 'rotate(0.2deg)' }}>Thompson - 14 Elm Gardens sale</p>
+                <p style={{ transform: 'rotate(-0.2deg)' }}>Asking £450,000, fixtures inc wardrobes + kitchen</p>
+                <p className="ml-1" style={{ transform: 'rotate(0.1deg)' }}>Target completion 15 March - buyer chain TBC</p>
+                <p style={{ transform: 'rotate(-0.3deg)' }}>Husband called re: survey concerns - reassured</p>
+                <p className="ml-2" style={{ transform: 'rotate(0.2deg)' }}>Fee estimate to follow by Friday</p>
+                <p style={{ transform: 'rotate(-0.1deg)' }}>TA6 needed - chase HM Land Registry</p>
+                <p className="mt-4 text-sm text-[hsl(25,30%,50%)] italic" style={{ transform: 'rotate(0.2deg)' }}>Good notes. But what exactly did the husband say?</p>
+                <p className="text-sm text-[hsl(25,30%,50%)] italic" style={{ transform: 'rotate(-0.2deg)' }}>When did this happen? Who said what first?</p>
+                <p className="text-sm text-[hsl(25,30%,50%)] italic ml-1" style={{ transform: 'rotate(0.1deg)' }}>Two years later, will this be enough?</p>
               </div>
             </div>
           </div>
@@ -382,30 +382,28 @@ function ComparisonSlider() {
             className="absolute inset-0 h-[400px] bg-white overflow-hidden"
             style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
           >
-            <div className="absolute inset-0 p-8">
-              <div className="mb-4 flex items-center gap-3">
+            <div className="absolute inset-0 p-6 sm:p-8 overflow-y-auto">
+              <div className="mb-3 flex items-center gap-3">
                 <span className="text-xs font-medium text-[hsl(130,50%,35%)] uppercase tracking-wider bg-[hsl(130,50%,95%)] px-3 py-1 rounded-full">
                   LegalNote Output
                 </span>
                 <Badge className="bg-[hsl(18,70%,42%)] text-white text-xs">Evidential Quality</Badge>
               </div>
-              <div className="text-sm text-[hsl(25,25%,20%)] space-y-4">
-                <div className="border-l-2 border-[hsl(18,60%,50%)] pl-4">
+              <div className="text-xs sm:text-sm text-[hsl(25,25%,20%)] space-y-3">
+                <div className="border-l-2 border-[hsl(18,60%,50%)] pl-3">
                   <p className="font-medium">Attendance Note - Property Sale</p>
-                  <p className="text-xs text-[hsl(25,15%,50%)]">06 January 2026, 14:32 GMT | Duration: 47 mins</p>
-                  <p className="text-xs text-[hsl(130,50%,35%)]">Consent recorded: Verbal, witnessed</p>
+                  <p className="text-xs text-[hsl(25,15%,50%)]">06 Jan 2026, 14:32 GMT | 47 mins | Consent: Verbal, recorded</p>
+                </div>
+                <div className="bg-[hsl(30,20%,97%)] rounded p-2 text-xs">
+                  <p className="text-[hsl(25,15%,50%)] mb-1">14:47 - Husband (Mr Thompson) called during meeting:</p>
+                  <p className="italic text-[hsl(25,25%,30%)]">"I've had the survey back and there's mention of subsidence. Should we be worried?"</p>
+                  <p className="text-[hsl(25,15%,50%)] mt-1">Solicitor response: Explained survey terminology, advised that "watching brief" notation is common in properties of this age, recommended obtaining specialist report if buyer pursues.</p>
                 </div>
                 <div>
-                  <p className="font-medium text-[hsl(25,30%,15%)]">Client Instructions:</p>
-                  <p>Mrs Sarah Thompson confirmed asking price of £450,000 for 14 Elm Gardens. Fixtures to include fitted wardrobes (master bedroom) and integrated kitchen appliances.</p>
-                </div>
-                <div>
-                  <p className="font-medium text-[hsl(25,30%,15%)]">Action Items:</p>
-                  <ul className="list-disc list-inside text-[hsl(18,60%,40%)]">
-                    <li>Confirm target completion: 15 March 2026</li>
-                    <li>Send fee estimate by 08 January</li>
-                    <li>Draft TA6 property form</li>
-                  </ul>
+                  <p className="font-medium text-[hsl(25,30%,15%)]">Key Instructions (timestamped):</p>
+                  <p className="text-xs">14:33 - Asking price confirmed: £450,000</p>
+                  <p className="text-xs">14:38 - Fixtures: fitted wardrobes, integrated appliances</p>
+                  <p className="text-xs">14:52 - Target completion: 15 March 2026</p>
                 </div>
               </div>
             </div>
@@ -1196,9 +1194,20 @@ export default function Landing() {
                 size="sm"
                 onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
                 className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
-                data-testid="button-nav-features"
+                data-testid="button-nav-how-it-works"
               >
                 How It Works
+              </Button>
+              <Button 
+                variant="ghost"
+                size="sm"
+                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
+                data-testid="button-nav-features"
+                asChild
+              >
+                <Link href="/features">
+                  Features
+                </Link>
               </Button>
               <Button 
                 variant="ghost"
@@ -1279,9 +1288,21 @@ export default function Landing() {
                     setMobileMenuOpen(false);
                   }}
                   className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
-                  data-testid="button-nav-features-mobile"
+                  data-testid="button-nav-how-it-works-mobile"
                 >
                   How It Works
+                </Button>
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                  className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
+                  data-testid="button-nav-features-mobile"
+                  asChild
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Link href="/features">
+                    Features
+                  </Link>
                 </Button>
                 <Button 
                   variant="ghost"
@@ -1432,9 +1453,9 @@ export default function Landing() {
       <div className="relative bg-[hsl(20,35%,18%)] py-16 overflow-hidden">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <StatCounter value={99} suffix="%" label="Transcription accuracy" index={0} />
+            <StatCounter value={93} suffix="%" label="Transcription accuracy" index={0} />
             <StatCounter value={100} suffix="%" label="Audit-ready" index={1} />
-            <StatCounter value={100} suffix="+" label="Hours documented" index={2} />
+            <StatCounter value={500} suffix="+" label="Hours documented" index={2} />
             <StatCounter value={100} suffix="%" label="GDPR compliant" index={3} />
           </div>
         </div>
@@ -1528,7 +1549,7 @@ export default function Landing() {
                 The Defensible Record
               </h2>
               <p className="text-lg text-[hsl(25,20%,40%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }} data-testid="text-lead-magnet-subtitle">
-                A Solicitor's Guide to Creating Contemporaneous Evidence
+                The Evidence-First Documentation Methodology
               </p>
               <ul className="space-y-4 mb-8">
                 {[
@@ -2110,9 +2131,19 @@ export default function Landing() {
               </motion.div>
             </div>
 
-            <p className="text-center text-sm text-[hsl(25,20%,45%)] mt-8">
-              Professional services can be added to any subscription. Contact us to discuss your requirements.
-            </p>
+            <div className="text-center mt-12">
+              <Button 
+                onClick={() => handleRequestAccess("also_available")}
+                size="lg"
+                className="bg-[hsl(18,70%,42%)] text-white"
+                data-testid="button-also-available-cta"
+              >
+                Request Early Access
+              </Button>
+              <p className="text-sm text-[hsl(25,20%,45%)] mt-4">
+                Professional services can be added to any subscription.
+              </p>
+            </div>
           </motion.div>
         </div>
       </div>
@@ -2287,84 +2318,6 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Features Section - Compliance Focus */}
-      <div className="relative bg-white py-24">
-        <div className="max-w-7xl mx-auto px-6">
-          <motion.div 
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
-              Features
-            </span>
-            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Decisions don't get lost. Actions don't drift.
-            </h2>
-            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              LegalNote identifies decisions, next steps, and responsibilities as they arise in conversation so they are not buried in a long transcript or forgotten notebook.
-            </p>
-          </motion.div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" style={{ perspective: "1000px" }}>
-            {[
-              { 
-                icon: FileCheck, 
-                title: "Contemporaneous Records", 
-                description: "Attendance records formed at source, not days later. Timestamped and evidential, aligned with SRA expectations for detailed, contemporaneous file notes." 
-              },
-              { 
-                icon: ClipboardCheck, 
-                title: "Consent-First Capture", 
-                description: "Workflows make it straightforward to explain, obtain, and record client consent to recording—meeting expectations of confidentiality and transparency." 
-              },
-              { 
-                icon: Scale, 
-                title: "Professional Control", 
-                description: "LegalNote proposes structure and content; the practitioner exercises judgement and signs off the attendance record. AI-assisted, not AI-decided." 
-              },
-              { 
-                icon: Calendar, 
-                title: "Actions Surfaced & Diarised", 
-                description: "Follow-ups surface automatically and sync to your calendar, remaining linked to the matter record so nothing falls through the cracks." 
-              },
-              { 
-                icon: FileText, 
-                title: "Living Matter Record", 
-                description: "Instead of static files, LegalNote helps create a living record: what was known, what was agreed, and why specific actions were taken at each stage." 
-              },
-              { 
-                icon: ShieldCheck, 
-                title: "Audit-Ready Trail", 
-                description: "Reviewable, timestamped attendance notes create a coherent audit trail across the life of a matter. HMAC-SHA256 signatures ensure tamper detection." 
-              },
-            ].map((feature, index) => (
-              <TiltCard key={feature.title}>
-                <motion.div
-                  initial={{ opacity: 0, y: 30, scale: 0.95 }}
-                  whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                >
-                  <div className="group h-full p-8 rounded-xl bg-white/70 backdrop-blur-sm border border-white/50 shadow-lg hover:shadow-xl hover:bg-white/90 transition-all duration-300">
-                    <motion.div 
-                      className="w-14 h-14 rounded-xl bg-gradient-to-br from-[hsl(18,55%,88%)] to-[hsl(18,60%,80%)] flex items-center justify-center mb-5 shadow-sm"
-                      whileHover={{ rotate: [0, -10, 10, 0], transition: { duration: 0.5 } }}
-                    >
-                      <feature.icon className="w-7 h-7 text-[hsl(18,65%,42%)]" />
-                    </motion.div>
-                    <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">{feature.title}</h3>
-                    <p className="text-[hsl(25,20%,40%)] leading-relaxed">{feature.description}</p>
-                  </div>
-                </motion.div>
-              </TiltCard>
-            ))}
-          </div>
-        </div>
-      </div>
-
       <FinalCTA onRequestAccess={handleRequestAccess} />
 
       {/* Footer */}
@@ -2398,10 +2351,19 @@ export default function Landing() {
                   <button 
                     onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
                     className="text-white/50 hover:text-white transition-colors"
-                    data-testid="link-footer-features"
+                    data-testid="link-footer-how-it-works"
                   >
                     How It Works
                   </button>
+                </li>
+                <li>
+                  <Link 
+                    href="/features"
+                    className="text-white/50 hover:text-white transition-colors"
+                    data-testid="link-footer-features"
+                  >
+                    Features
+                  </Link>
                 </li>
                 <li>
                   <button 
