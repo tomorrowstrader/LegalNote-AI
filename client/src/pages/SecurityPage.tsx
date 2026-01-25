@@ -26,7 +26,7 @@ export default function SecurityPage() {
     
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute('content', 'LegalNote keeps your client data safe with world-class security and data privacy measures. UK data residency, GDPR compliance, encryption, and comprehensive audit trails.');
+      metaDescription.setAttribute('content', 'LegalNote keeps your client data safe with world-class security and data privacy measures. UK/EU data residency, GDPR compliance, encryption, and comprehensive audit trails.');
     }
     
     const setOrCreateMeta = (property: string, content: string) => {
@@ -40,7 +40,7 @@ export default function SecurityPage() {
     };
     
     setOrCreateMeta('og:title', 'Security - LegalNote AI | Enterprise-Grade Data Protection');
-    setOrCreateMeta('og:description', 'World-class security for UK legal practice. UK data residency, GDPR compliance, encryption, and comprehensive audit trails.');
+    setOrCreateMeta('og:description', 'World-class security for UK/EU legal practice. UK/EU data residency, GDPR compliance, encryption, and comprehensive audit trails.');
     setOrCreateMeta('og:type', 'website');
     setOrCreateMeta('og:url', window.location.href);
     setOrCreateMeta('og:site_name', 'LegalNote AI');
@@ -55,8 +55,8 @@ export default function SecurityPage() {
     },
     {
       icon: Server,
-      title: "UK Jurisdiction Only",
-      description: "Processing and infrastructure entirely within UK borders. No data crosses international boundaries—full alignment with UK data protection law from capture to deletion."
+      title: "UK/EU Data Residency",
+      description: "Processing and infrastructure entirely within UK/EU borders. No data crosses international boundaries—full alignment with UK/EU data protection law from capture to deletion."
     },
     {
       icon: Eye,
@@ -304,7 +304,7 @@ export default function SecurityPage() {
                 obligation: "UK GDPR",
                 reference: "Articles 5, 17 & 32",
                 requirement: "Data minimisation, right to erasure, and appropriate security measures",
-                howLegalNoteHelps: "GDPR-compliant auto-deletion, UK data residency, encryption at rest and in transit, consent documentation.",
+                howLegalNoteHelps: "GDPR-compliant auto-deletion, UK/EU data residency, encryption at rest and in transit, consent documentation.",
                 icon: Shield,
               },
               {

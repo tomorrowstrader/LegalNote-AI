@@ -141,7 +141,7 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">7. Data Location and Security</h2>
               <p className="leading-relaxed mb-4">
-                All personal data is processed and stored exclusively within the United Kingdom. Your data never leaves UK jurisdiction.
+                All personal data is processed and stored exclusively within the UK/EU. Your data never leaves UK/EU jurisdiction, ensuring full GDPR compliance.
               </p>
               <p className="leading-relaxed">
                 We implement appropriate technical and organisational measures to protect your personal data, including encryption in transit (TLS 1.3) and at rest (AES-256), access controls, and regular security assessments.
@@ -155,7 +155,7 @@ export default function PrivacyPage() {
               </p>
               <ul className="list-disc pl-6 space-y-2">
                 <li>Transcription services (with contractual guarantees against AI training)</li>
-                <li>Cloud infrastructure providers (UK-based data centres only)</li>
+                <li>Cloud infrastructure providers (UK/EU-based data centres)</li>
                 <li>Email communication services</li>
                 <li>Payment processors</li>
               </ul>

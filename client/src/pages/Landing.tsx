@@ -350,10 +350,10 @@ function ComparisonSlider() {
   const containerRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [activePreview, setActivePreview] = useState<'transcript' | 'summary' | 'actions' | 'calendar' | 'audit' | null>(null);
+  const [activePreview, setActivePreview] = useState<'transcript' | 'summary' | 'actions' | 'calendar' | 'audit' | 'client' | null>(null);
   
-  // Show explore buttons when slider is mostly on LegalNote side
-  const showExploreButtons = sliderPosition > 75;
+  // Show explore buttons when slider is 40% across (2/5ths of the way)
+  const showExploreButtons = sliderPosition > 40;
   
   // Close preview panel when slider moves back to handwritten side
   useEffect(() => {
@@ -363,7 +363,7 @@ function ComparisonSlider() {
   }, [showExploreButtons]);
   
   // Handle preview button clicks
-  const handlePreviewClick = (preview: 'transcript' | 'summary' | 'actions' | 'calendar' | 'audit') => {
+  const handlePreviewClick = (preview: 'transcript' | 'summary' | 'actions' | 'calendar' | 'audit' | 'client') => {
     setActivePreview(activePreview === preview ? null : preview);
   };
   
@@ -507,6 +507,16 @@ function ComparisonSlider() {
                   <ShieldCheck className="w-4 h-4 mr-1.5" />
                   Audit
                 </Button>
+                <Button
+                  variant={activePreview === 'client' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handlePreviewClick('client')}
+                  className={activePreview === 'client' ? 'bg-[hsl(18,70%,42%)]' : ''}
+                  data-testid="button-explore-client-mobile"
+                >
+                  <Users className="w-4 h-4 mr-1.5" />
+                  Client Version
+                </Button>
               </div>
               
               {/* Time Comparison Badge - Mobile */}
@@ -588,7 +598,7 @@ function ComparisonSlider() {
                   <div>
                     <div className="flex items-center gap-2 mb-3 sm:mb-4">
                       <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">AI-Generated Summary</h4>
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Meeting Summary</h4>
                     </div>
                     <div className="bg-white rounded-lg p-3 sm:p-4 text-xs sm:text-sm space-y-3 sm:space-y-4">
                       <div>
@@ -778,6 +788,67 @@ function ComparisonSlider() {
                       <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-[hsl(220,15%,90%)] flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-[hsl(130,50%,40%)]">
                         <Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                         <span>Cryptographically signed • Tamper-evident • GDPR compliant</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Client Version Preview */}
+                {activePreview === 'client' && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                      <Users className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Client-Facing Version</h4>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 sm:p-4 text-xs sm:text-sm">
+                      {/* Solicitor Approval Stamp */}
+                      <div className="flex items-center gap-2 mb-3 sm:mb-4 p-2 sm:p-3 bg-[hsl(130,40%,95%)] rounded-lg border border-[hsl(130,40%,85%)]">
+                        <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(130,50%,40%)]" />
+                        <div>
+                          <p className="font-medium text-[hsl(130,50%,30%)] text-xs sm:text-sm">Reviewed and Approved</p>
+                          <p className="text-[10px] sm:text-xs text-[hsl(130,40%,45%)]">by Sarah Mitchell, Solicitor • 12 Mar 2025 at 11:14</p>
+                        </div>
+                      </div>
+                      
+                      {/* Client Summary */}
+                      <div className="space-y-3 sm:space-y-4">
+                        <div>
+                          <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Summary of Our Meeting</p>
+                          <p className="text-[hsl(25,20%,35%)]">We discussed your priorities for the financial settlement, focusing on remaining in the family home until Lily finishes school. I explained how a Mesher order could achieve this.</p>
+                        </div>
+                        
+                        <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
+                          <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">What We Agreed</p>
+                          <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)]">
+                            <li className="flex items-start gap-1.5 sm:gap-2">
+                              <span className="text-[hsl(130,50%,40%)] mt-0.5 sm:mt-1">✓</span>
+                              <span>I will pursue a Mesher order approach for the family home</span>
+                            </li>
+                            <li className="flex items-start gap-1.5 sm:gap-2">
+                              <span className="text-[hsl(130,50%,40%)] mt-0.5 sm:mt-1">✓</span>
+                              <span>School fees will be documented with an enforcement mechanism</span>
+                            </li>
+                          </ul>
+                        </div>
+                        
+                        <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
+                          <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Your Next Steps</p>
+                          <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)]">
+                            <li className="flex items-start gap-1.5 sm:gap-2">
+                              <span className="text-[hsl(220,60%,50%)] mt-0.5 sm:mt-1">→</span>
+                              <span>Obtain your pension CETV statement by <strong>17 March</strong></span>
+                            </li>
+                            <li className="flex items-start gap-1.5 sm:gap-2">
+                              <span className="text-[hsl(220,60%,50%)] mt-0.5 sm:mt-1">→</span>
+                              <span>Gather school fee payment history (last 24 months) by <strong>19 March</strong></span>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-3 sm:mt-4 pt-2 sm:pt-3 border-t border-[hsl(220,15%,90%)] flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-[hsl(25,15%,50%)]">
+                        <FileCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        <span>Simplified for client understanding • Strategic advice retained in solicitor file</span>
                       </div>
                     </div>
                   </div>
@@ -1216,7 +1287,7 @@ function TrustBadges() {
       obligation: "UK GDPR",
       reference: "Articles 5, 17 & 32",
       requirement: "Data minimisation, right to erasure, and appropriate security measures",
-      howLegalNoteHelps: "GDPR-compliant auto-deletion, UK data residency, encryption at rest and in transit, consent documentation.",
+      howLegalNoteHelps: "GDPR-compliant auto-deletion, UK/EU data residency, encryption at rest and in transit, consent documentation.",
       icon: ShieldCheck,
     },
     {
@@ -1838,7 +1909,7 @@ export default function Landing() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.1 }}
               >
-                Meeting-to-Matter™,<br />
+                Meeting to Matter,<br />
                 <span className="text-[hsl(18,70%,42%)]">Contemporaneously</span>.
               </motion.h1>
               
@@ -1964,7 +2035,45 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Interactive Comparison Slider - moved up for impact */}
+      {/* Integration Logos Section - moved above comparison */}
+      <div className="bg-[hsl(30,20%,97%)] py-6 border-b border-[hsl(30,15%,90%)]" data-testid="section-integrations">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center justify-center gap-8 flex-wrap">
+            <span className="text-xs text-[hsl(25,15%,55%)] uppercase tracking-wider" data-testid="text-integrates-with">Integrates with</span>
+            <div className="flex items-center gap-6">
+              {/* Microsoft */}
+              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+                <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
+                  <rect width="11" height="11" fill="hsl(25,20%,50%)" />
+                  <rect x="12" width="11" height="11" fill="hsl(25,20%,50%)" />
+                  <rect y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
+                  <rect x="12" y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
+                </svg>
+                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Microsoft</span>
+              </div>
+              {/* Google */}
+              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="hsl(25,20%,50%)"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="hsl(25,20%,50%)"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="hsl(25,20%,50%)"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="hsl(25,20%,50%)"/>
+                </svg>
+                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Google</span>
+              </div>
+              {/* Clio */}
+              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+                <div className="w-5 h-5 rounded bg-[hsl(25,20%,50%)] flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">C</span>
+                </div>
+                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Clio</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Interactive Comparison Slider */}
       <ComparisonSlider />
 
       {/* Trust Logos Marquee */}
@@ -2067,8 +2176,8 @@ export default function Landing() {
               },
               {
                 icon: Server,
-                title: "UK Jurisdiction Only",
-                description: "Processing infrastructure entirely within UK borders. No data crosses international boundaries—full alignment with UK data protection law."
+                title: "UK/EU Data Residency",
+                description: "Processing infrastructure entirely within UK/EU borders. No data crosses international boundaries—full alignment with UK/EU data protection law."
               },
               {
                 icon: RefreshCw,
@@ -2113,7 +2222,7 @@ export default function Landing() {
             </span>
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[hsl(130,50%,45%)]" />
-              Zero Data Loss Guarantee
+              Triple-Layer Data Protection
             </span>
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[hsl(130,50%,45%)]" />
@@ -2732,44 +2841,6 @@ export default function Landing() {
               </p>
             </div>
           </motion.div>
-        </div>
-      </div>
-
-      {/* Integration Logos Section */}
-      <div className="bg-[hsl(30,20%,97%)] py-6 border-b border-[hsl(30,15%,90%)]" data-testid="section-integrations">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-center gap-8 flex-wrap">
-            <span className="text-xs text-[hsl(25,15%,55%)] uppercase tracking-wider" data-testid="text-integrates-with">Integrates with</span>
-            <div className="flex items-center gap-6">
-              {/* Microsoft */}
-              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
-                <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
-                  <rect width="11" height="11" fill="hsl(25,20%,50%)" />
-                  <rect x="12" width="11" height="11" fill="hsl(25,20%,50%)" />
-                  <rect y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
-                  <rect x="12" y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
-                </svg>
-                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Microsoft</span>
-              </div>
-              {/* Google */}
-              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="hsl(25,20%,50%)"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="hsl(25,20%,50%)"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="hsl(25,20%,50%)"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="hsl(25,20%,50%)"/>
-                </svg>
-                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Google</span>
-              </div>
-              {/* Clio */}
-              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
-                <div className="w-5 h-5 rounded bg-[hsl(25,20%,50%)] flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">C</span>
-                </div>
-                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Clio</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
