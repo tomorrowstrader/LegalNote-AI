@@ -1243,7 +1243,7 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-white overflow-x-hidden">
+    <div className="min-h-screen bg-white" style={{ overflowX: 'clip' }}>
       {/* Scroll Progress Indicator */}
       <ScrollProgressBar />
       <SectionIndicator />
