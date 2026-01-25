@@ -60,12 +60,19 @@ export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
         firmSize: "",
         role: "",
         marketingConsent: true,
-        source: "lead_magnet_pdf",
+        source: "lead_magnet",
       });
       return response.json();
     },
     onSuccess: () => {
       setSuccess(true);
+    },
+    onError: (error: Error) => {
+      if (error.message?.includes("already")) {
+        setSuccess(true);
+      } else {
+        console.error("Lead magnet submission error:", error);
+      }
     },
   });
 
