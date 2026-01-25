@@ -3154,7 +3154,7 @@ export default function Landing() {
 
           <div className="border-t border-white/5 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="text-sm text-white/40">
-              © {new Date().getFullYear()} LegalNote AI. All rights reserved.
+              © {new Date().getFullYear()} LegalNote. All rights reserved.
             </div>
             <div className="flex items-center gap-6 text-sm">
               <Link 

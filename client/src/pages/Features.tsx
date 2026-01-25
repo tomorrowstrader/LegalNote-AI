@@ -392,7 +392,7 @@ export default function Features() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="text-sm text-white/40" data-testid="text-features-copyright">
-              © {new Date().getFullYear()} LegalNote AI. All rights reserved.
+              © {new Date().getFullYear()} LegalNote. All rights reserved.
             </div>
             <div className="flex items-center gap-6 text-sm">
               <Link href="/privacy" className="text-white/50 hover:text-white transition-colors" data-testid="link-features-privacy">
