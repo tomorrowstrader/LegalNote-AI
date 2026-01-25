@@ -1673,7 +1673,7 @@ export default function Landing() {
     switch (billingPeriod) {
       case 'monthly': return 149;
       case 'quarterly': return 399;
-      case 'annual': return 1428;
+      case 'annual': return 1399;
     }
   };
 
@@ -1681,7 +1681,7 @@ export default function Landing() {
     switch (billingPeriod) {
       case 'monthly': return 299;
       case 'quarterly': return 799;
-      case 'annual': return 2868;
+      case 'annual': return 2799;
     }
   };
 
@@ -1705,7 +1705,7 @@ export default function Landing() {
     switch (billingPeriod) {
       case 'monthly': return null;
       case 'quarterly': return '£133/month effective';
-      case 'annual': return '£119/month effective';
+      case 'annual': return '£117/month effective';
     }
   };
 
@@ -1713,7 +1713,7 @@ export default function Landing() {
     switch (billingPeriod) {
       case 'monthly': return null;
       case 'quarterly': return '£266/month effective';
-      case 'annual': return '£239/month effective';
+      case 'annual': return '£233/month effective';
     }
   };
 
