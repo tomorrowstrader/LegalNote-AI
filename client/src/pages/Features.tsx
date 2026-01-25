@@ -1,8 +1,11 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { FileCheck, ClipboardCheck, Scale, Calendar, FileText, ShieldCheck, ArrowLeft, Mic, Brain, FileOutput, Users, Lock, Search, Bell } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { FileCheck, ClipboardCheck, Scale, Calendar, FileText, ShieldCheck, ArrowLeft, Mic, Brain, FileOutput, Users, Lock, Search, Bell, AlertTriangle, PoundSterling, Link2, Database, Cloud, CalendarClock, Building2, Briefcase } from "lucide-react";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
+import { SiMicrosoftoutlook } from "react-icons/si";
+import { FcGoogle } from "react-icons/fc";
 
 export default function Features() {
   const coreFeatures = [
@@ -49,6 +52,50 @@ export default function Features() {
     { icon: Lock, title: "Black Box Security", description: "Triple-layer redundancy ensures your records are protected and recoverable." },
     { icon: Search, title: "Full-Text Search", description: "Search across all your transcripts and documents to find exactly what was said." },
     { icon: Bell, title: "Smart Reminders", description: "Automatic follow-up reminders linked to action items extracted from meetings." },
+  ];
+
+  const practiceSafeguards = [
+    { 
+      icon: AlertTriangle, 
+      title: "Scope Creep Detection", 
+      description: "Flags when conversation moves outside the agreed matter scope. Helps prevent write-offs and protects against work done without proper instruction.",
+      badge: "Coming Soon",
+      example: "Client discussing employment dispute starts asking about property division—LegalNote surfaces a prompt before you document advice on an unrelated matter."
+    },
+    { 
+      icon: PoundSterling, 
+      title: "Cost Warning Prompts", 
+      description: "Notifies when estimated billable time approaches the client's agreed budget. Prevents fee disputes before they arise.",
+      badge: "Coming Soon",
+      example: "As the meeting approaches the 1-hour mark on a fixed-fee matter, a gentle indicator appears so you can manage client expectations in real-time."
+    },
+  ];
+
+  const integrations = [
+    { 
+      icon: Briefcase, 
+      title: "Clio Manage", 
+      description: "Import matters directly from Clio. Link LegalNote cases to your existing matters for seamless workflow.",
+      logo: "clio"
+    },
+    { 
+      icon: CalendarClock, 
+      title: "Google Calendar", 
+      description: "Bidirectional sync. Action items from meetings appear as calendar events. See upcoming client meetings in LegalNote.",
+      logo: "google"
+    },
+    { 
+      icon: CalendarClock, 
+      title: "Outlook Calendar", 
+      description: "Full Microsoft 365 integration. Meeting reminders, follow-up scheduling, and calendar sync.",
+      logo: "outlook"
+    },
+    { 
+      icon: Cloud, 
+      title: "SharePoint / OneDrive", 
+      description: "Automatic document sync to your firm's Microsoft cloud. Organised folder structure by client and matter.",
+      logo: "microsoft"
+    },
   ];
 
   return (
@@ -209,6 +256,104 @@ export default function Features() {
         </div>
       </div>
 
+      {/* Practice Safeguards */}
+      <div className="py-20 bg-white" data-testid="section-practice-safeguards">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div 
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+              Practice Safeguards
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              Protect your practice, protect your fees
+            </h2>
+            <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
+              Intelligent guardrails that surface during documentation—helping you catch issues before they become problems.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            {practiceSafeguards.map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                className="p-8 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+                data-testid={`card-safeguard-${index}`}
+              >
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="w-14 h-14 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                    <feature.icon className="w-7 h-7 text-amber-600" />
+                  </div>
+                  <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 text-xs">
+                    {feature.badge}
+                  </Badge>
+                </div>
+                <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">{feature.title}</h3>
+                <p className="text-[hsl(25,20%,40%)] mb-4 leading-relaxed">{feature.description}</p>
+                <div className="bg-white/60 rounded-lg p-4 border border-amber-200/50">
+                  <p className="text-sm text-[hsl(25,20%,35%)] italic">
+                    <span className="font-medium not-italic text-amber-700">Example: </span>
+                    {feature.example}
+                  </p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Integrations */}
+      <div className="py-20 bg-[hsl(30,25%,94%)] border-y border-[hsl(30,20%,85%)]" data-testid="section-integrations">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div 
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+              Integrations
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              Works with your existing tools
+            </h2>
+            <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
+              Connect LegalNote to your practice management system, calendar, and cloud storage. No duplicate data entry.
+            </p>
+          </motion.div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {integrations.map((integration, index) => (
+              <motion.div
+                key={integration.title}
+                className="p-6 rounded-xl bg-white border border-[hsl(30,20%,88%)] shadow-sm"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.05 }}
+                data-testid={`card-integration-${index}`}
+              >
+                <div className="w-12 h-12 rounded-xl bg-[hsl(30,25%,96%)] flex items-center justify-center mb-4">
+                  {integration.logo === "google" && <FcGoogle className="w-6 h-6" />}
+                  {integration.logo === "outlook" && <SiMicrosoftoutlook className="w-6 h-6 text-[#0078D4]" />}
+                  {integration.logo === "microsoft" && <Cloud className="w-6 h-6 text-[#0078D4]" />}
+                  {integration.logo === "clio" && <Briefcase className="w-6 h-6 text-[hsl(18,65%,45%)]" />}
+                </div>
+                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{integration.title}</h3>
+                <p className="text-sm text-[hsl(25,20%,45%)] leading-relaxed">{integration.description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* CTA */}
       <div className="bg-[hsl(20,35%,18%)] py-20">
         <div className="max-w-4xl mx-auto px-6 text-center">
@@ -221,7 +366,7 @@ export default function Features() {
               Ready to see it in action?
             </h2>
             <p className="text-lg text-[hsl(30,30%,70%)] mb-8">
-              Join solicitors across the UK creating contemporaneous, evidential attendance records.
+              Join solicitors across the UK and EU creating contemporaneous, evidential attendance records.
             </p>
             <Button 
               size="lg"
