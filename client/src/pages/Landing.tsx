@@ -350,7 +350,7 @@ function ComparisonSlider() {
   const containerRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [activePreview, setActivePreview] = useState<'transcript' | 'actions' | 'calendar' | 'audit' | null>(null);
+  const [activePreview, setActivePreview] = useState<'transcript' | 'summary' | 'actions' | 'calendar' | 'audit' | null>(null);
   
   // Show explore buttons when slider is mostly on LegalNote side
   const showExploreButtons = sliderPosition > 75;
@@ -363,7 +363,7 @@ function ComparisonSlider() {
   }, [showExploreButtons]);
   
   // Handle preview button clicks
-  const handlePreviewClick = (preview: 'transcript' | 'actions' | 'calendar' | 'audit') => {
+  const handlePreviewClick = (preview: 'transcript' | 'summary' | 'actions' | 'calendar' | 'audit') => {
     setActivePreview(activePreview === preview ? null : preview);
   };
   
@@ -438,17 +438,20 @@ function ComparisonSlider() {
           <p className="text-base text-[hsl(25,15%,50%)]">
             Drag the slider to compare your best effort with LegalNote output
           </p>
+          <p className="text-sm text-[hsl(18,60%,50%)] mt-2 md:hidden">
+            Swipe to reveal our 6-step methodology in action
+          </p>
         </motion.div>
         
-        {/* Mobile: Explore Buttons ABOVE slider */}
+        {/* Explore Buttons ABOVE slider - all screen sizes */}
         <AnimatePresence>
           {showExploreButtons && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ duration: 0.3 }}
-              className="mb-6 md:hidden"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="mb-6 overflow-hidden"
             >
               <p className="text-center text-sm text-[hsl(25,20%,50%)] mb-3">
                 Explore what's behind this attendance note
@@ -463,6 +466,16 @@ function ComparisonSlider() {
                 >
                   <FileText className="w-4 h-4 mr-1.5" />
                   Transcript
+                </Button>
+                <Button
+                  variant={activePreview === 'summary' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handlePreviewClick('summary')}
+                  className={activePreview === 'summary' ? 'bg-[hsl(18,70%,42%)]' : ''}
+                  data-testid="button-explore-summary-mobile"
+                >
+                  <Brain className="w-4 h-4 mr-1.5" />
+                  Summary
                 </Button>
                 <Button
                   variant={activePreview === 'actions' ? 'default' : 'outline'}
@@ -499,9 +512,9 @@ function ComparisonSlider() {
               {/* Time Comparison Badge - Mobile */}
               <div className="flex justify-center mt-4">
                 <div className="inline-flex items-center gap-3 bg-[hsl(220,15%,95%)] rounded-full px-4 py-2 text-sm">
-                  <span className="text-[hsl(0,50%,45%)] line-through">Manual: ~45 mins</span>
+                  <span className="text-[hsl(0,50%,45%)] line-through">Manual: ~2-3 hours</span>
                   <span className="text-[hsl(25,20%,40%)]">|</span>
-                  <span className="text-[hsl(130,50%,35%)] font-semibold">LegalNote: 2 mins</span>
+                  <span className="text-[hsl(130,50%,35%)] font-semibold">LegalNote: &lt;2 mins</span>
                 </div>
               </div>
             </motion.div>
@@ -517,163 +530,254 @@ function ComparisonSlider() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.25 }}
-              className="mb-6 scroll-mt-4 md:hidden"
+              className="mb-6 scroll-mt-4"
             >
-              <div className="bg-[hsl(220,15%,97%)] rounded-xl border border-[hsl(220,15%,90%)] p-4">
-                {/* Transcript Preview - Mobile */}
+              <div className="bg-[hsl(220,15%,97%)] rounded-xl border border-[hsl(220,15%,90%)] p-4 sm:p-6">
+                {/* Transcript Preview */}
                 {activePreview === 'transcript' && (
                   <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <FileText className="w-4 h-4 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm text-[hsl(25,30%,15%)]">Full Transcript</h4>
+                    <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                      <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Full Transcript with Speaker Labels</h4>
                     </div>
-                    <div className="bg-white rounded-lg p-3 space-y-2 text-xs max-h-[250px] overflow-y-auto">
-                      <div className="flex gap-2">
-                        <span className="text-[9px] text-[hsl(25,15%,50%)] w-10 shrink-0">00:00:15</span>
+                    <div className="bg-white rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3 text-xs sm:text-sm max-h-[250px] sm:max-h-[300px] overflow-y-auto">
+                      <div className="flex gap-2 sm:gap-3">
+                        <span className="text-[9px] sm:text-[10px] text-[hsl(25,15%,50%)] w-10 sm:w-12 shrink-0">00:00:15</span>
                         <div>
-                          <span className="text-[hsl(18,60%,45%)] font-medium text-[10px]">SOLICITOR</span>
-                          <p className="text-[hsl(25,20%,30%)]">Good morning Emma. This meeting will be recorded. Do I have your consent?</p>
+                          <span className="text-[hsl(18,60%,45%)] font-medium text-[10px] sm:text-xs">SOLICITOR</span>
+                          <p className="text-[hsl(25,20%,30%)]">I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?</p>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <span className="text-[9px] text-[hsl(25,15%,50%)] w-10 shrink-0">00:00:22</span>
+                      <div className="flex gap-2 sm:gap-3">
+                        <span className="text-[9px] sm:text-[10px] text-[hsl(25,15%,50%)] w-10 sm:w-12 shrink-0">00:00:32</span>
                         <div>
-                          <span className="text-[hsl(220,60%,45%)] font-medium text-[10px]">CLIENT</span>
+                          <span className="text-[hsl(220,60%,45%)] font-medium text-[10px] sm:text-xs">CLIENT</span>
                           <p className="text-[hsl(25,20%,30%)]">Yes, that's fine.</p>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <span className="text-[9px] text-[hsl(25,15%,50%)] w-10 shrink-0">00:00:28</span>
+                      <div className="flex gap-2 sm:gap-3">
+                        <span className="text-[9px] sm:text-[10px] text-[hsl(25,15%,50%)] w-10 sm:w-12 shrink-0">00:00:38</span>
                         <div>
-                          <span className="text-[hsl(18,60%,45%)] font-medium text-[10px]">SOLICITOR</span>
-                          <p className="text-[hsl(25,20%,30%)]">The family home is valued at £850,000 with £150,000 outstanding.</p>
+                          <span className="text-[hsl(18,60%,45%)] font-medium text-[10px] sm:text-xs">SOLICITOR</span>
+                          <p className="text-[hsl(25,20%,30%)]">Thank you. Now, we're here to discuss the financial settlement. I've reviewed Mark's Form E disclosure. The family home is valued at approximately £850,000 with £150,000 outstanding on the mortgage.</p>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <span className="text-[9px] text-[hsl(25,15%,50%)] w-10 shrink-0">00:01:45</span>
+                      <div className="flex gap-2 sm:gap-3">
+                        <span className="text-[9px] sm:text-[10px] text-[hsl(25,15%,50%)] w-10 sm:w-12 shrink-0">00:01:45</span>
                         <div>
-                          <span className="text-[hsl(220,60%,45%)] font-medium text-[10px]">CLIENT</span>
-                          <p className="text-[hsl(25,20%,30%)]">My main priority is staying in the house until Lily finishes school.</p>
+                          <span className="text-[hsl(220,60%,45%)] font-medium text-[10px] sm:text-xs">CLIENT</span>
+                          <p className="text-[hsl(25,20%,30%)]">My priority is staying in the house until Lily finishes school. She's 12 now, so that's another 6 years. I'm worried about the school fees though - Mark has been unreliable about payments.</p>
                         </div>
+                      </div>
+                      <div className="flex gap-2 sm:gap-3">
+                        <span className="text-[9px] sm:text-[10px] text-[hsl(25,15%,50%)] w-10 sm:w-12 shrink-0">00:02:30</span>
+                        <div>
+                          <span className="text-[hsl(18,60%,45%)] font-medium text-[10px] sm:text-xs">SOLICITOR</span>
+                          <p className="text-[hsl(25,20%,30%)]">I understand. A Mesher order might be appropriate here - it would allow you to remain in the property until Lily turns 18 or completes full-time education. Regarding school fees, we should document his commitment in the consent order with an enforcement mechanism.</p>
+                        </div>
+                      </div>
+                      <div className="text-center text-[10px] sm:text-xs text-[hsl(25,15%,50%)] pt-2 border-t border-[hsl(220,15%,90%)]">
+                        ... transcript continues for 52 minutes ...
                       </div>
                     </div>
                   </div>
                 )}
                 
-                {/* Actions Preview - Mobile */}
+                {/* Summary Preview */}
+                {activePreview === 'summary' && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                      <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">AI-Generated Summary</h4>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 sm:p-4 text-xs sm:text-sm space-y-3 sm:space-y-4">
+                      <div>
+                        <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Key Points</p>
+                        <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)]">
+                          <li className="flex items-start gap-1.5 sm:gap-2">
+                            <span className="text-[hsl(18,60%,45%)] mt-0.5 sm:mt-1">•</span>
+                            <span>Family home valued at £850,000 with £150,000 mortgage outstanding, representing approximately £700,000 equity</span>
+                          </li>
+                          <li className="flex items-start gap-1.5 sm:gap-2">
+                            <span className="text-[hsl(18,60%,45%)] mt-0.5 sm:mt-1">•</span>
+                            <span>Client's primary objective: remain in property until daughter Lily (age 12) completes full-time education</span>
+                          </li>
+                          <li className="flex items-start gap-1.5 sm:gap-2">
+                            <span className="text-[hsl(18,60%,45%)] mt-0.5 sm:mt-1">•</span>
+                            <span>Mesher order recommended as preferred approach - allows deferred sale upon specified trigger events</span>
+                          </li>
+                          <li className="flex items-start gap-1.5 sm:gap-2">
+                            <span className="text-[hsl(18,60%,45%)] mt-0.5 sm:mt-1">•</span>
+                            <span>School fees concern raised - husband has been unreliable with payments; enforcement mechanism to be included in consent order</span>
+                          </li>
+                        </ul>
+                      </div>
+                      <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
+                        <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Advice Given</p>
+                        <p className="text-[hsl(25,20%,35%)]">Explained implications of Mesher order including deferred sale trigger events (daughter reaching 18, completing education, client remarrying/cohabiting). Discussed pension offsetting options and recommended obtaining CETV statement. Advised documenting school fee commitment with enforcement mechanism in consent order.</p>
+                      </div>
+                      <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
+                        <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Client Instructions</p>
+                        <p className="text-[hsl(25,20%,35%)]">Client confirmed she wishes to pursue Mesher order approach. Instructed to prioritise remaining in family home until daughter completes education over immediate capital release.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Actions Preview */}
                 {activePreview === 'actions' && (
                   <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <ClipboardCheck className="w-4 h-4 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm text-[hsl(25,30%,15%)]">Action Items</h4>
+                    <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                      <ClipboardCheck className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Action Items - Auto-Extracted & Diarised</h4>
                     </div>
-                    <div className="bg-white rounded-lg p-3 space-y-2">
-                      <div className="flex items-start gap-2 p-2 bg-[hsl(18,30%,97%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
-                        <div className="w-5 h-5 rounded-full bg-[hsl(18,70%,42%)] text-white text-[10px] flex items-center justify-center shrink-0">1</div>
+                    <div className="bg-white rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
+                      <div className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-[hsl(18,30%,97%)] rounded-lg border-l-2 border-[hsl(18,60%,50%)]">
+                        <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[hsl(18,70%,42%)] text-white text-[10px] sm:text-xs flex items-center justify-center shrink-0">1</div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-xs text-[hsl(25,30%,20%)]">Request Form E</p>
-                          <p className="text-[10px] text-[hsl(25,15%,50%)]">Due: 19 Mar</p>
+                          <p className="font-medium text-xs sm:text-sm text-[hsl(25,30%,20%)]">Request Form E from husband's solicitor</p>
+                          <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-1 sm:mt-1.5">
+                            <Badge variant="outline" className="text-[9px] sm:text-[10px]">Solicitor</Badge>
+                            <Badge className="bg-[hsl(18,60%,92%)] text-[hsl(18,60%,35%)] text-[9px] sm:text-[10px]">Due: 19 Mar 2025</Badge>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-start gap-2 p-2 bg-[hsl(220,30%,97%)] rounded border-l-2 border-[hsl(220,60%,50%)]">
-                        <div className="w-5 h-5 rounded-full bg-[hsl(220,60%,50%)] text-white text-[10px] flex items-center justify-center shrink-0">2</div>
+                      <div className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-[hsl(220,30%,97%)] rounded-lg border-l-2 border-[hsl(220,60%,50%)]">
+                        <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[hsl(220,60%,50%)] text-white text-[10px] sm:text-xs flex items-center justify-center shrink-0">2</div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-xs text-[hsl(25,30%,20%)]">Obtain pension CETV</p>
-                          <p className="text-[10px] text-[hsl(25,15%,50%)]">Due: 17 Mar</p>
+                          <p className="font-medium text-xs sm:text-sm text-[hsl(25,30%,20%)]">Obtain pension CETV statement</p>
+                          <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-1 sm:mt-1.5">
+                            <Badge variant="outline" className="text-[9px] sm:text-[10px]">Client</Badge>
+                            <Badge className="bg-[hsl(220,60%,92%)] text-[hsl(220,60%,35%)] text-[9px] sm:text-[10px]">Due: 17 Mar 2025</Badge>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-start gap-2 p-2 bg-[hsl(18,30%,97%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
-                        <div className="w-5 h-5 rounded-full bg-[hsl(18,70%,42%)] text-white text-[10px] flex items-center justify-center shrink-0">3</div>
+                      <div className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-[hsl(18,30%,97%)] rounded-lg border-l-2 border-[hsl(18,60%,50%)]">
+                        <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[hsl(18,70%,42%)] text-white text-[10px] sm:text-xs flex items-center justify-center shrink-0">3</div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-xs text-[hsl(25,30%,20%)]">Draft Mesher order</p>
-                          <p className="text-[10px] text-[hsl(25,15%,50%)]">Due: 21 Mar</p>
+                          <p className="font-medium text-xs sm:text-sm text-[hsl(25,30%,20%)]">Draft Mesher order terms for client review</p>
+                          <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-1 sm:mt-1.5">
+                            <Badge variant="outline" className="text-[9px] sm:text-[10px]">Solicitor</Badge>
+                            <Badge className="bg-[hsl(18,60%,92%)] text-[hsl(18,60%,35%)] text-[9px] sm:text-[10px]">Due: 21 Mar 2025</Badge>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-[hsl(220,30%,97%)] rounded-lg border-l-2 border-[hsl(220,60%,50%)]">
+                        <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[hsl(220,60%,50%)] text-white text-[10px] sm:text-xs flex items-center justify-center shrink-0">4</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-xs sm:text-sm text-[hsl(25,30%,20%)]">Gather school fee payment history (last 24 months)</p>
+                          <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-1 sm:mt-1.5">
+                            <Badge variant="outline" className="text-[9px] sm:text-[10px]">Client</Badge>
+                            <Badge className="bg-[hsl(220,60%,92%)] text-[hsl(220,60%,35%)] text-[9px] sm:text-[10px]">Due: 19 Mar 2025</Badge>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
                 
-                {/* Calendar Preview - Mobile */}
+                {/* Calendar Preview */}
                 {activePreview === 'calendar' && (
                   <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Calendar className="w-4 h-4 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm text-[hsl(25,30%,15%)]">Calendar Sync</h4>
+                    <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                      <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Calendar Sync - Auto-Added Deadlines</h4>
                     </div>
-                    <div className="bg-white rounded-lg p-3 space-y-2">
-                      <div className="flex items-center gap-2 p-2 bg-[hsl(220,60%,95%)] rounded border-l-2 border-[hsl(220,60%,50%)]">
-                        <div className="text-center shrink-0">
-                          <p className="text-[10px] text-[hsl(220,50%,40%)]">MAR</p>
-                          <p className="text-sm font-bold text-[hsl(220,60%,40%)]">17</p>
+                    <div className="bg-white rounded-lg p-3 sm:p-4">
+                      <div className="border border-[hsl(220,15%,85%)] rounded-lg overflow-hidden">
+                        <div className="bg-[hsl(220,15%,97%)] px-3 sm:px-4 py-2 flex items-center justify-between border-b border-[hsl(220,15%,85%)]">
+                          <span className="font-medium text-sm sm:text-base text-[hsl(25,30%,20%)]">March 2025</span>
+                          <span className="text-[10px] sm:text-xs text-[hsl(130,50%,40%)] flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Synced with Google Calendar
+                          </span>
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-[hsl(25,30%,20%)]">Obtain pension CETV</p>
+                        <div className="p-2 sm:p-3 space-y-2">
+                          <div className="flex items-center gap-2 sm:gap-3 p-2 bg-[hsl(220,60%,95%)] rounded border-l-2 border-[hsl(220,60%,50%)]">
+                            <div className="text-center shrink-0">
+                              <p className="text-[9px] sm:text-xs text-[hsl(220,50%,45%)]">MON</p>
+                              <p className="text-base sm:text-lg font-semibold text-[hsl(220,60%,40%)]">17</p>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs sm:text-sm font-medium text-[hsl(25,30%,20%)]">Client: Pension CETV Due</p>
+                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)]">Richards v Richards</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 sm:gap-3 p-2 bg-[hsl(18,60%,95%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
+                            <div className="text-center shrink-0">
+                              <p className="text-[9px] sm:text-xs text-[hsl(18,50%,45%)]">WED</p>
+                              <p className="text-base sm:text-lg font-semibold text-[hsl(18,60%,40%)]">19</p>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs sm:text-sm font-medium text-[hsl(25,30%,20%)]">Request Form E from opposing solicitor</p>
+                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)]">Richards v Richards</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 sm:gap-3 p-2 bg-[hsl(18,60%,95%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
+                            <div className="text-center shrink-0">
+                              <p className="text-[9px] sm:text-xs text-[hsl(18,50%,45%)]">FRI</p>
+                              <p className="text-base sm:text-lg font-semibold text-[hsl(18,60%,40%)]">21</p>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs sm:text-sm font-medium text-[hsl(25,30%,20%)]">Draft Mesher order terms</p>
+                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)]">Richards v Richards</p>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 p-2 bg-[hsl(18,60%,95%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
-                        <div className="text-center shrink-0">
-                          <p className="text-[10px] text-[hsl(18,50%,40%)]">MAR</p>
-                          <p className="text-sm font-bold text-[hsl(18,60%,40%)]">19</p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-[hsl(25,30%,20%)]">Request Form E</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 p-2 bg-[hsl(18,60%,95%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
-                        <div className="text-center shrink-0">
-                          <p className="text-[10px] text-[hsl(18,50%,40%)]">MAR</p>
-                          <p className="text-sm font-bold text-[hsl(18,60%,40%)]">21</p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-[hsl(25,30%,20%)]">Draft Mesher order</p>
-                        </div>
-                      </div>
+                      <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)] text-center mt-2 sm:mt-3">
+                        Deadlines automatically synced to your Google or Outlook calendar
+                      </p>
                     </div>
                   </div>
                 )}
                 
-                {/* Audit Preview - Mobile */}
+                {/* Audit Preview */}
                 {activePreview === 'audit' && (
                   <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <ShieldCheck className="w-4 h-4 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm text-[hsl(25,30%,15%)]">Audit Trail</h4>
+                    <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                      <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Complete Audit Trail - Chain of Custody</h4>
                     </div>
-                    <div className="bg-white rounded-lg p-3">
+                    <div className="bg-white rounded-lg p-3 sm:p-4">
                       <div className="space-y-0">
                         {[
-                          { time: '10:02', event: 'Consent obtained', type: 'consent' },
-                          { time: '10:02', event: 'Recording started', type: 'recording' },
-                          { time: '10:54', event: 'Recording ended', type: 'recording' },
-                          { time: '10:55', event: 'Transcript generated', type: 'ai' },
-                          { time: '10:56', event: 'Documents created', type: 'document' },
-                          { time: '11:14', event: 'Solicitor review confirmed', type: 'approved' },
-                          { time: '11:15', event: 'Shared with client', type: 'share' },
+                          { time: '10:02:15', event: 'Recording consent obtained', type: 'consent', detail: 'Verbal consent captured at 00:00:22' },
+                          { time: '10:02:18', event: 'Audio recording started', type: 'recording', detail: 'Device: iPhone 14 Pro' },
+                          { time: '10:54:33', event: 'Recording ended', type: 'recording', detail: 'Duration: 52m 15s' },
+                          { time: '10:55:01', event: 'Transcript generated', type: 'ai', detail: 'Speaker diarization: 2 speakers identified' },
+                          { time: '10:55:45', event: 'Attendance note created', type: 'document', detail: 'Auto-generated from transcript' },
+                          { time: '10:56:02', event: 'Summary created', type: 'document', detail: 'Key points extracted' },
+                          { time: '10:56:30', event: 'Action items extracted', type: 'actions', detail: '4 items with due dates' },
+                          { time: '11:14:08', event: 'Solicitor review confirmed', type: 'approved', detail: 'Documents reviewed and approved by solicitor' },
+                          { time: '11:15:22', event: 'Client version sent', type: 'share', detail: 'emma.richards@email.com' },
+                          { time: '11:15:22', event: 'Share link created', type: 'share', detail: 'SMS 2FA enabled' },
                         ].map((entry, i) => (
-                          <div key={i} className="flex gap-2 group">
+                          <div key={i} className="flex gap-2 sm:gap-3 group">
                             <div className="flex flex-col items-center">
-                              <div className={`w-2 h-2 rounded-full ${
+                              <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${
                                 entry.type === 'consent' ? 'bg-[hsl(130,50%,45%)]' :
                                 entry.type === 'recording' ? 'bg-[hsl(18,70%,50%)]' :
                                 entry.type === 'ai' ? 'bg-[hsl(280,60%,50%)]' :
                                 entry.type === 'document' ? 'bg-[hsl(220,60%,50%)]' :
+                                entry.type === 'actions' ? 'bg-[hsl(45,80%,45%)]' :
                                 entry.type === 'approved' ? 'bg-[hsl(130,60%,40%)]' :
                                 'bg-[hsl(180,50%,45%)]'
                               }`} />
-                              {i < 6 && <div className="w-0.5 h-5 bg-[hsl(220,15%,85%)]" />}
+                              {i < 9 && <div className="w-0.5 h-5 sm:h-8 bg-[hsl(220,15%,85%)]" />}
                             </div>
-                            <div className="pb-1 -mt-0.5">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[9px] font-mono text-[hsl(25,15%,50%)]">{entry.time}</span>
-                                <span className="text-[11px] font-medium text-[hsl(25,30%,20%)]">{entry.event}</span>
+                            <div className="pb-1 sm:pb-3 -mt-0.5">
+                              <div className="flex items-center gap-1.5 sm:gap-2">
+                                <span className="text-[9px] sm:text-[10px] font-mono text-[hsl(25,15%,50%)]">{entry.time}</span>
+                                <span className="text-[11px] sm:text-sm font-medium text-[hsl(25,30%,20%)]">{entry.event}</span>
                               </div>
+                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)] hidden sm:block">{entry.detail}</p>
                             </div>
                           </div>
                         ))}
                       </div>
-                      <div className="mt-2 pt-2 border-t border-[hsl(220,15%,90%)] flex items-center gap-1.5 text-[10px] text-[hsl(130,50%,40%)]">
-                        <Lock className="w-3 h-3" />
-                        <span>Cryptographically signed</span>
+                      <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-[hsl(220,15%,90%)] flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-[hsl(130,50%,40%)]">
+                        <Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        <span>Cryptographically signed • Tamper-evident • GDPR compliant</span>
                       </div>
                     </div>
                   </div>
@@ -735,8 +839,8 @@ function ComparisonSlider() {
                 {/* Header */}
                 <div className="border-l-2 border-[hsl(18,60%,50%)] pl-2 pb-1">
                   <p className="font-semibold text-sm text-[hsl(25,30%,15%)]">Attendance Note</p>
-                  <p className="text-[10px] text-[hsl(25,15%,50%)]">Richards v Richards | 12 Mar 2025 | 52 mins</p>
-                  <p className="text-[10px] text-[hsl(130,50%,40%)]">Consent: Verbal [00:00:22]</p>
+                  <p className="text-[10px] text-[hsl(25,15%,50%)]">Richards v Richards | Ref: RIC-2025-0047 | 12 Mar 2025 | 52 mins</p>
+                  <p className="text-[10px] text-[hsl(130,50%,40%)]">Consent: Verbal [00:00:32]</p>
                 </div>
                 
                 {/* Instructions Received */}
@@ -792,300 +896,6 @@ function ComparisonSlider() {
             </div>
           </div>
         </motion.div>
-        
-        {/* Desktop: Interactive Explore Buttons - appear when slider is on LegalNote side */}
-        <AnimatePresence>
-          {showExploreButtons && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ duration: 0.3 }}
-              className="mt-6 hidden md:block"
-            >
-              <p className="text-center text-sm text-[hsl(25,20%,50%)] mb-3">
-                Explore what's behind this attendance note
-              </p>
-              <div className="flex flex-wrap justify-center gap-2">
-                <Button
-                  variant={activePreview === 'transcript' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => handlePreviewClick('transcript')}
-                  className={activePreview === 'transcript' ? 'bg-[hsl(18,70%,42%)]' : ''}
-                  data-testid="button-explore-transcript"
-                >
-                  <FileText className="w-4 h-4 mr-1.5" />
-                  Full Transcript
-                </Button>
-                <Button
-                  variant={activePreview === 'actions' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => handlePreviewClick('actions')}
-                  className={activePreview === 'actions' ? 'bg-[hsl(18,70%,42%)]' : ''}
-                  data-testid="button-explore-actions"
-                >
-                  <ClipboardCheck className="w-4 h-4 mr-1.5" />
-                  Action Items
-                </Button>
-                <Button
-                  variant={activePreview === 'calendar' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => handlePreviewClick('calendar')}
-                  className={activePreview === 'calendar' ? 'bg-[hsl(18,70%,42%)]' : ''}
-                  data-testid="button-explore-calendar"
-                >
-                  <Calendar className="w-4 h-4 mr-1.5" />
-                  Calendar Sync
-                </Button>
-                <Button
-                  variant={activePreview === 'audit' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => handlePreviewClick('audit')}
-                  className={activePreview === 'audit' ? 'bg-[hsl(18,70%,42%)]' : ''}
-                  data-testid="button-explore-audit"
-                >
-                  <ShieldCheck className="w-4 h-4 mr-1.5" />
-                  Audit Trail
-                </Button>
-              </div>
-              
-              {/* Time Comparison Badge */}
-              <div className="flex justify-center mt-4">
-                <div className="inline-flex items-center gap-3 bg-[hsl(220,15%,95%)] rounded-full px-4 py-2 text-sm">
-                  <span className="text-[hsl(0,50%,45%)] line-through">Manual: ~45 mins</span>
-                  <span className="text-[hsl(25,20%,40%)]">|</span>
-                  <span className="text-[hsl(130,50%,35%)] font-semibold">LegalNote: 2 mins</span>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        
-        {/* Desktop: Preview Panels */}
-        <AnimatePresence mode="wait">
-          {activePreview && (
-            <motion.div
-              key={`desktop-${activePreview}`}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-              className="mt-6 scroll-mt-4 hidden md:block"
-            >
-              <div className="bg-[hsl(220,15%,97%)] rounded-xl border border-[hsl(220,15%,90%)] p-4 sm:p-6">
-                {/* Transcript Preview */}
-                {activePreview === 'transcript' && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <FileText className="w-5 h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-[hsl(25,30%,15%)]">Full Transcript with Speaker Labels</h4>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 space-y-3 text-sm max-h-[300px] overflow-y-auto">
-                      <div className="flex gap-3">
-                        <span className="text-[10px] text-[hsl(25,15%,50%)] w-12 shrink-0">00:00:15</span>
-                        <div>
-                          <span className="text-[hsl(18,60%,45%)] font-medium text-xs">SOLICITOR</span>
-                          <p className="text-[hsl(25,20%,30%)]">Good morning Emma, thank you for coming in. Before we begin, I need to let you know this meeting will be recorded for accuracy. Do I have your consent to proceed?</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <span className="text-[10px] text-[hsl(25,15%,50%)] w-12 shrink-0">00:00:22</span>
-                        <div>
-                          <span className="text-[hsl(220,60%,45%)] font-medium text-xs">CLIENT</span>
-                          <p className="text-[hsl(25,20%,30%)]">Yes, that's fine.</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <span className="text-[10px] text-[hsl(25,15%,50%)] w-12 shrink-0">00:00:28</span>
-                        <div>
-                          <span className="text-[hsl(18,60%,45%)] font-medium text-xs">SOLICITOR</span>
-                          <p className="text-[hsl(25,20%,30%)]">Thank you. Now, we're here to discuss the financial settlement. I've reviewed Mark's Form E disclosure. The family home is valued at approximately £850,000 with £150,000 outstanding on the mortgage.</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <span className="text-[10px] text-[hsl(25,15%,50%)] w-12 shrink-0">00:01:45</span>
-                        <div>
-                          <span className="text-[hsl(220,60%,45%)] font-medium text-xs">CLIENT</span>
-                          <p className="text-[hsl(25,20%,30%)]">My priority is staying in the house until Sophie finishes school. She's 12 now, so that's another 6 years. I'm worried about the school fees though - Mark has been unreliable about payments.</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <span className="text-[10px] text-[hsl(25,15%,50%)] w-12 shrink-0">00:02:30</span>
-                        <div>
-                          <span className="text-[hsl(18,60%,45%)] font-medium text-xs">SOLICITOR</span>
-                          <p className="text-[hsl(25,20%,30%)]">I understand. A Mesher order might be appropriate here - it would allow you to remain in the property until Sophie turns 18 or completes full-time education. Regarding school fees, we should document his commitment in the consent order with an enforcement mechanism.</p>
-                        </div>
-                      </div>
-                      <div className="text-center text-xs text-[hsl(25,15%,50%)] pt-2 border-t border-[hsl(220,15%,90%)]">
-                        ... transcript continues for 52 minutes ...
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Actions Preview */}
-                {activePreview === 'actions' && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <ClipboardCheck className="w-5 h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-[hsl(25,30%,15%)]">Action Items - Auto-Extracted & Diarised</h4>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 space-y-3">
-                      <div className="flex items-start gap-3 p-3 bg-[hsl(18,30%,97%)] rounded-lg border-l-2 border-[hsl(18,60%,50%)]">
-                        <div className="w-6 h-6 rounded-full bg-[hsl(18,70%,42%)] text-white text-xs flex items-center justify-center shrink-0">1</div>
-                        <div className="flex-1">
-                          <p className="font-medium text-[hsl(25,30%,20%)]">Request Form E from husband's solicitor</p>
-                          <div className="flex flex-wrap gap-2 mt-1.5">
-                            <Badge variant="outline" className="text-[10px]">Solicitor</Badge>
-                            <Badge className="bg-[hsl(18,60%,92%)] text-[hsl(18,60%,35%)] text-[10px]">Due: 19 Mar 2025</Badge>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3 p-3 bg-[hsl(220,30%,97%)] rounded-lg border-l-2 border-[hsl(220,60%,50%)]">
-                        <div className="w-6 h-6 rounded-full bg-[hsl(220,60%,50%)] text-white text-xs flex items-center justify-center shrink-0">2</div>
-                        <div className="flex-1">
-                          <p className="font-medium text-[hsl(25,30%,20%)]">Obtain pension CETV statement</p>
-                          <div className="flex flex-wrap gap-2 mt-1.5">
-                            <Badge variant="outline" className="text-[10px]">Client</Badge>
-                            <Badge className="bg-[hsl(220,60%,92%)] text-[hsl(220,60%,35%)] text-[10px]">Due: 17 Mar 2025</Badge>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3 p-3 bg-[hsl(18,30%,97%)] rounded-lg border-l-2 border-[hsl(18,60%,50%)]">
-                        <div className="w-6 h-6 rounded-full bg-[hsl(18,70%,42%)] text-white text-xs flex items-center justify-center shrink-0">3</div>
-                        <div className="flex-1">
-                          <p className="font-medium text-[hsl(25,30%,20%)]">Draft Mesher order terms for client review</p>
-                          <div className="flex flex-wrap gap-2 mt-1.5">
-                            <Badge variant="outline" className="text-[10px]">Solicitor</Badge>
-                            <Badge className="bg-[hsl(18,60%,92%)] text-[hsl(18,60%,35%)] text-[10px]">Due: 21 Mar 2025</Badge>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3 p-3 bg-[hsl(220,30%,97%)] rounded-lg border-l-2 border-[hsl(220,60%,50%)]">
-                        <div className="w-6 h-6 rounded-full bg-[hsl(220,60%,50%)] text-white text-xs flex items-center justify-center shrink-0">4</div>
-                        <div className="flex-1">
-                          <p className="font-medium text-[hsl(25,30%,20%)]">Gather school fee payment history (last 24 months)</p>
-                          <div className="flex flex-wrap gap-2 mt-1.5">
-                            <Badge variant="outline" className="text-[10px]">Client</Badge>
-                            <Badge className="bg-[hsl(220,60%,92%)] text-[hsl(220,60%,35%)] text-[10px]">Due: 19 Mar 2025</Badge>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Calendar Preview */}
-                {activePreview === 'calendar' && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <Calendar className="w-5 h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-[hsl(25,30%,15%)]">Calendar Sync - Auto-Added Deadlines</h4>
-                    </div>
-                    <div className="bg-white rounded-lg p-4">
-                      {/* Mini calendar mockup */}
-                      <div className="border border-[hsl(220,15%,85%)] rounded-lg overflow-hidden">
-                        <div className="bg-[hsl(220,15%,97%)] px-4 py-2 flex items-center justify-between border-b border-[hsl(220,15%,85%)]">
-                          <span className="font-medium text-[hsl(25,30%,20%)]">March 2025</span>
-                          <span className="text-xs text-[hsl(130,50%,40%)] flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Synced with Google Calendar
-                          </span>
-                        </div>
-                        <div className="p-3 space-y-2">
-                          <div className="flex items-center gap-3 p-2 bg-[hsl(220,60%,95%)] rounded border-l-2 border-[hsl(220,60%,50%)]">
-                            <div className="text-center">
-                              <div className="text-xs text-[hsl(220,60%,45%)]">MON</div>
-                              <div className="text-lg font-semibold text-[hsl(220,60%,40%)]">17</div>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-[hsl(25,30%,20%)]">Client: Pension CETV Due</p>
-                              <p className="text-xs text-[hsl(25,15%,50%)]">Richards v Richards</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3 p-2 bg-[hsl(18,60%,95%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
-                            <div className="text-center">
-                              <div className="text-xs text-[hsl(18,60%,45%)]">WED</div>
-                              <div className="text-lg font-semibold text-[hsl(18,60%,40%)]">19</div>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-[hsl(25,30%,20%)]">Request Form E from opposing solicitor</p>
-                              <p className="text-xs text-[hsl(25,15%,50%)]">Richards v Richards</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3 p-2 bg-[hsl(18,60%,95%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
-                            <div className="text-center">
-                              <div className="text-xs text-[hsl(18,60%,45%)]">FRI</div>
-                              <div className="text-lg font-semibold text-[hsl(18,60%,40%)]">21</div>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-[hsl(25,30%,20%)]">Draft Mesher order terms</p>
-                              <p className="text-xs text-[hsl(25,15%,50%)]">Richards v Richards</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-xs text-[hsl(25,15%,50%)] text-center mt-3">
-                        Deadlines automatically synced to your Google or Outlook calendar
-                      </p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Audit Trail Preview */}
-                {activePreview === 'audit' && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <ShieldCheck className="w-5 h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-[hsl(25,30%,15%)]">Complete Audit Trail - Chain of Custody</h4>
-                    </div>
-                    <div className="bg-white rounded-lg p-4">
-                      <div className="space-y-0">
-                        {[
-                          { time: '10:02:15', event: 'Recording consent obtained', type: 'consent', detail: 'Verbal consent captured at 00:00:22' },
-                          { time: '10:02:18', event: 'Audio recording started', type: 'recording', detail: 'Device: iPhone 14 Pro' },
-                          { time: '10:54:33', event: 'Recording ended', type: 'recording', detail: 'Duration: 52m 15s' },
-                          { time: '10:55:01', event: 'Transcript generated', type: 'ai', detail: 'Speaker diarization: 2 speakers identified' },
-                          { time: '10:55:45', event: 'Attendance note created', type: 'document', detail: 'Auto-generated from transcript' },
-                          { time: '10:56:02', event: 'Summary created', type: 'document', detail: 'Key points extracted' },
-                          { time: '10:56:30', event: 'Action items extracted', type: 'actions', detail: '4 items with due dates' },
-                          { time: '11:14:08', event: 'Solicitor review confirmed', type: 'approved', detail: 'Documents reviewed and approved by solicitor' },
-                          { time: '11:15:22', event: 'Client version sent', type: 'share', detail: 'emma.richards@email.com' },
-                          { time: '11:15:22', event: 'Share link created', type: 'share', detail: 'SMS 2FA enabled' },
-                        ].map((entry, i) => (
-                          <div key={i} className="flex gap-3 group">
-                            <div className="flex flex-col items-center">
-                              <div className={`w-2.5 h-2.5 rounded-full ${
-                                entry.type === 'consent' ? 'bg-[hsl(130,50%,45%)]' :
-                                entry.type === 'recording' ? 'bg-[hsl(18,70%,50%)]' :
-                                entry.type === 'ai' ? 'bg-[hsl(280,60%,50%)]' :
-                                entry.type === 'document' ? 'bg-[hsl(220,60%,50%)]' :
-                                entry.type === 'actions' ? 'bg-[hsl(45,80%,45%)]' :
-                                entry.type === 'approved' ? 'bg-[hsl(130,60%,40%)]' :
-                                'bg-[hsl(180,50%,45%)]'
-                              }`} />
-                              {i < 9 && <div className="w-0.5 h-8 bg-[hsl(220,15%,85%)]" />}
-                            </div>
-                            <div className="pb-3 -mt-0.5">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-mono text-[hsl(25,15%,50%)]">{entry.time}</span>
-                                <span className="text-sm font-medium text-[hsl(25,30%,20%)]">{entry.event}</span>
-                              </div>
-                              <p className="text-xs text-[hsl(25,15%,50%)]">{entry.detail}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-[hsl(220,15%,90%)] flex items-center gap-2 text-xs text-[hsl(130,50%,40%)]">
-                        <Lock className="w-3.5 h-3.5" />
-                        <span>Cryptographically signed • Tamper-evident • GDPR compliant</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </div>
   );
@@ -2028,8 +1838,8 @@ export default function Landing() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.1 }}
               >
-                Meeting to matter,<br />
-                <span className="text-[hsl(18,70%,42%)]">contemporaneously</span>.
+                Meeting-to-Matter™,<br />
+                <span className="text-[hsl(18,70%,42%)]">Contemporaneously</span>.
               </motion.h1>
               
               {/* Typewriter tagline */}
@@ -2161,10 +1971,10 @@ export default function Landing() {
       <TrustLogosMarquee />
 
       {/* Animated Statistics Section */}
-      <div className="relative bg-[hsl(20,35%,18%)] py-8 sm:py-16 overflow-hidden">
+      <div className="relative bg-[hsl(20,35%,18%)] py-4 sm:py-8 overflow-hidden">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-4 gap-2 sm:gap-8">
-            <StatCounter value={2} prefix="<" suffix=" min" label="Meeting-to-Matter" index={0} />
+            <StatCounter value={2} prefix="<" suffix=" min" label="Meeting-to-Matter™" index={0} />
             <StatCounter value={100} suffix="%" label="Audit-ready" index={1} />
             <StatCounter value={500} suffix="+" label="Hours documented" index={2} />
             <StatCounter value={100} suffix="%" label="GDPR compliant" index={3} />

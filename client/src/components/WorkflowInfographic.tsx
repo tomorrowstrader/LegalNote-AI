@@ -96,20 +96,19 @@ export function WorkflowInfographic() {
           {workflowSteps.map((step, index) => (
             <motion.div
               key={step.id}
-              className="relative flex flex-col items-center text-center"
+              className="relative flex flex-col items-center text-center pt-3 pl-3"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: index * 0.08 }}
               data-testid={`workflow-step-tablet-${step.id}`}
             >
-              {/* Step number */}
-              <span className="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-[hsl(18,65%,45%)] text-white text-xs font-medium flex items-center justify-center z-20">
-                {index + 1}
-              </span>
-              
-              {/* Icon container */}
+              {/* Icon container with step number attached to top-left */}
               <div className="relative w-20 h-20 rounded-xl bg-gradient-to-br from-white to-[hsl(30,20%,96%)] border border-[hsl(30,20%,85%)] flex items-center justify-center shadow-sm">
+                {/* Step number */}
+                <span className="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-[hsl(18,65%,45%)] text-white text-xs font-medium flex items-center justify-center z-20">
+                  {index + 1}
+                </span>
                 <step.icon className="w-8 h-8 text-[hsl(18,65%,45%)]" />
                 {step.badge && (
                   <span className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-[hsl(18,65%,45%)] text-white text-xs font-medium">
