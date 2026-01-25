@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EarlyAccessForm } from "@/components/EarlyAccessForm";
+import { LeadMagnetForm } from "@/components/LeadMagnetForm";
 import { WorkflowInfographic } from "@/components/WorkflowInfographic";
 import { ExploreModal, useExploreModal } from "@/components/ExploreModal";
 import heroSolicitorImage from "@assets/openart-subject-female-professional-early-40s-british-exotic-l_1769257060192.jpg";
@@ -267,7 +268,7 @@ function TrustLogosMarquee() {
             x: {
               repeat: Infinity,
               repeatType: "loop",
-              duration: 25,
+              duration: 12,
               ease: "linear",
             },
           }}
@@ -1132,6 +1133,7 @@ export default function Landing() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEarlyAccessForm, setShowEarlyAccessForm] = useState(false);
+  const [showLeadMagnetForm, setShowLeadMagnetForm] = useState(false);
   const [earlyAccessSource, setEarlyAccessSource] = useState("landing_page");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activePricingCard, setActivePricingCard] = useState(0);
@@ -1176,8 +1178,12 @@ export default function Landing() {
   };
 
   const handleRequestAccess = (source: string = "hero") => {
-    setEarlyAccessSource(source);
-    setShowEarlyAccessForm(true);
+    if (source === "lead_magnet") {
+      setShowLeadMagnetForm(true);
+    } else {
+      setEarlyAccessSource(source);
+      setShowEarlyAccessForm(true);
+    }
   };
 
   const { data: productsData } = useQuery<{ products: Product[] }>({
@@ -1504,12 +1510,12 @@ export default function Landing() {
               
               {/* Mobile/Tablet Hero Image - widescreen version shown below document flow on mobile */}
               <motion.div
-                className="lg:hidden mb-6 flex justify-center"
+                className="lg:hidden mb-6 flex justify-center mx-auto w-full"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.4 }}
               >
-                <div className="relative rounded-xl overflow-hidden shadow-lg w-full max-w-md">
+                <div className="relative rounded-xl overflow-hidden shadow-lg w-full max-w-md mx-auto">
                   <img 
                     src={heroSolicitorImageWide} 
                     alt="Professional solicitor in client meeting"
@@ -1609,44 +1615,6 @@ export default function Landing() {
             <StatCounter value={100} suffix="%" label="Audit-ready" index={1} />
             <StatCounter value={500} suffix="+" label="Hours documented" index={2} />
             <StatCounter value={100} suffix="%" label="GDPR compliant" index={3} />
-          </div>
-        </div>
-      </div>
-
-      {/* Integration Logos Section */}
-      <div className="bg-[hsl(30,20%,97%)] py-6 border-b border-[hsl(30,15%,90%)]" data-testid="section-integrations">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-center gap-8 flex-wrap">
-            <span className="text-xs text-[hsl(25,15%,55%)] uppercase tracking-wider" data-testid="text-integrates-with">Integrates with</span>
-            <div className="flex items-center gap-6">
-              {/* Microsoft */}
-              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
-                <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
-                  <rect width="11" height="11" fill="hsl(25,20%,50%)" />
-                  <rect x="12" width="11" height="11" fill="hsl(25,20%,50%)" />
-                  <rect y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
-                  <rect x="12" y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
-                </svg>
-                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Microsoft</span>
-              </div>
-              {/* Google */}
-              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="hsl(25,20%,50%)"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="hsl(25,20%,50%)"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="hsl(25,20%,50%)"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="hsl(25,20%,50%)"/>
-                </svg>
-                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Google</span>
-              </div>
-              {/* Clio */}
-              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
-                <div className="w-5 h-5 rounded bg-[hsl(25,20%,50%)] flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">C</span>
-                </div>
-                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Clio</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -2333,6 +2301,44 @@ export default function Landing() {
         </div>
       </div>
 
+      {/* Integration Logos Section */}
+      <div className="bg-[hsl(30,20%,97%)] py-6 border-b border-[hsl(30,15%,90%)]" data-testid="section-integrations">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center justify-center gap-8 flex-wrap">
+            <span className="text-xs text-[hsl(25,15%,55%)] uppercase tracking-wider" data-testid="text-integrates-with">Integrates with</span>
+            <div className="flex items-center gap-6">
+              {/* Microsoft */}
+              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+                <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
+                  <rect width="11" height="11" fill="hsl(25,20%,50%)" />
+                  <rect x="12" width="11" height="11" fill="hsl(25,20%,50%)" />
+                  <rect y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
+                  <rect x="12" y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
+                </svg>
+                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Microsoft</span>
+              </div>
+              {/* Google */}
+              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="hsl(25,20%,50%)"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="hsl(25,20%,50%)"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="hsl(25,20%,50%)"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="hsl(25,20%,50%)"/>
+                </svg>
+                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Google</span>
+              </div>
+              {/* Clio */}
+              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+                <div className="w-5 h-5 rounded bg-[hsl(25,20%,50%)] flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">C</span>
+                </div>
+                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Clio</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Differentiation Section - Why LegalNote */}
       <div className="relative bg-[hsl(30,25%,94%)] py-24 border-y border-[hsl(30,20%,85%)]">
         <div className="max-w-6xl mx-auto px-6">
@@ -2656,6 +2662,11 @@ export default function Landing() {
         open={showEarlyAccessForm} 
         onOpenChange={setShowEarlyAccessForm}
         source={earlyAccessSource}
+      />
+
+      <LeadMagnetForm
+        open={showLeadMagnetForm}
+        onOpenChange={setShowLeadMagnetForm}
       />
 
       <ExploreModal
