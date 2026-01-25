@@ -110,24 +110,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Send confirmation email (or lead magnet if that's the source)
+      let emailSent = false;
+      let emailError: string | null = null;
       try {
         if (source === 'lead_magnet') {
           const { sendLeadMagnetEmail } = await import('./email');
           const { generateDefensibleRecordPDF } = await import('./services/leadMagnetPdf');
           const pdfBuffer = generateDefensibleRecordPDF({ recipientName: firstName || undefined });
-          await sendLeadMagnetEmail(email, firstName || 'there', pdfBuffer);
+          const result = await sendLeadMagnetEmail(email, firstName || 'there', pdfBuffer);
+          emailSent = result.success;
+          if (!result.success) {
+            emailError = result.error || 'Email delivery failed';
+          }
         } else {
           const { sendWaitlistConfirmationEmail } = await import('./email');
-          await sendWaitlistConfirmationEmail(email, firstName || 'there');
+          const result = await sendWaitlistConfirmationEmail(email, firstName || 'there');
+          emailSent = result.success;
+          if (!result.success) {
+            emailError = result.error || 'Email delivery failed';
+          }
         }
-      } catch (emailError) {
-        console.error('[WAITLIST] Failed to send confirmation email:', emailError);
+      } catch (err: any) {
+        console.error('[WAITLIST] Failed to send confirmation email:', err);
+        emailError = err.message || 'Email delivery failed';
         // Don't fail the request if email fails
       }
       
       res.status(201).json({ 
         message: "You've been added to our early access waitlist",
-        id: entry.id 
+        id: entry.id,
+        emailSent,
+        emailError
       });
     } catch (error) {
       next(error);

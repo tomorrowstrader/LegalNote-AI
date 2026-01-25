@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,6 +41,12 @@ interface LeadMagnetFormProps {
 
 export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
   const [success, setSuccess] = useState(false);
+  const [emailSent, setEmailSent] = useState<boolean | null>(null);
+  const [popupBlocked, setPopupBlocked] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  
+  // Store reference to pre-opened tab for PDF delivery (persists across renders)
+  const pdfTabRef = useRef<Window | null>(null);
 
   const form = useForm<LeadMagnetFormData>({
     resolver: zodResolver(leadMagnetSchema),
@@ -50,16 +56,6 @@ export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
       gdprConsent: false,
     },
   });
-
-  const triggerPdfDownload = (firstName: string) => {
-    const downloadUrl = `/api/lead-magnet/download?name=${encodeURIComponent(firstName)}`;
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = 'LegalNote-Defensible-Record-Guide.pdf';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   const submitMutation = useMutation({
     mutationFn: async (data: LeadMagnetFormData) => {
@@ -76,19 +72,45 @@ export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
     },
     onSuccess: (data) => {
       setSuccess(true);
-      triggerPdfDownload(data.firstName || '');
+      setEmailSent(data.emailSent === true);
+      // Navigate the pre-opened tab to the PDF
+      const url = `/api/lead-magnet/download?name=${encodeURIComponent(data.firstName || '')}`;
+      setPdfUrl(url);
+      if (pdfTabRef.current && !pdfTabRef.current.closed) {
+        pdfTabRef.current.location.href = url;
+        setPopupBlocked(false);
+      } else {
+        // Popup was blocked - show download link instead
+        setPopupBlocked(true);
+      }
     },
     onError: (error: Error) => {
       if (error.message?.includes("already")) {
+        // User already on waitlist - still give them the PDF
         setSuccess(true);
-        triggerPdfDownload(form.getValues('firstName') || '');
+        setEmailSent(true); // They already got emails before
+        const url = `/api/lead-magnet/download?name=${encodeURIComponent(form.getValues('firstName') || '')}`;
+        setPdfUrl(url);
+        if (pdfTabRef.current && !pdfTabRef.current.closed) {
+          pdfTabRef.current.location.href = url;
+          setPopupBlocked(false);
+        } else {
+          setPopupBlocked(true);
+        }
       } else {
+        // Close the pre-opened tab if submission failed
+        if (pdfTabRef.current && !pdfTabRef.current.closed) {
+          pdfTabRef.current.close();
+        }
+        pdfTabRef.current = null;
         console.error("Lead magnet submission error:", error);
       }
     },
   });
 
   const onSubmit = (data: LeadMagnetFormData) => {
+    // Open tab synchronously on user click to avoid popup blockers
+    pdfTabRef.current = window.open('about:blank', '_blank');
     submitMutation.mutate(data);
   };
 
@@ -97,6 +119,9 @@ export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
     if (success) {
       setTimeout(() => {
         setSuccess(false);
+        setEmailSent(null);
+        setPopupBlocked(false);
+        setPdfUrl(null);
         form.reset();
       }, 300);
     }
@@ -108,15 +133,37 @@ export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
         {success ? (
           <div className="text-center py-6">
             <div className="mx-auto w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mb-4">
-              <Download className="h-6 w-6 text-green-600 dark:text-green-400" />
+              <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <DialogHeader>
-              <DialogTitle data-testid="text-pdf-success-title">Your Guide is Downloading</DialogTitle>
-              <DialogDescription data-testid="text-pdf-success-description">
-                Your 5-page compliance guide should be downloading now. We've also sent a copy to your inbox.
+              <DialogTitle data-testid="text-pdf-success-title">Your Guide is Ready</DialogTitle>
+              <DialogDescription data-testid="text-pdf-success-description" className="space-y-2">
+                {popupBlocked ? (
+                  <span>Click below to download your guide.</span>
+                ) : (
+                  <span>Your guide has opened in a new tab.</span>
+                )}
+                {emailSent === true && (
+                  <span className="block text-green-600 dark:text-green-400">We've also sent a copy to your inbox.</span>
+                )}
+                {emailSent === false && (
+                  <span className="block text-muted-foreground text-xs">(Email delivery temporarily unavailable)</span>
+                )}
               </DialogDescription>
             </DialogHeader>
-            <Button onClick={handleClose} className="mt-6" data-testid="button-close-pdf-success">
+            {popupBlocked && pdfUrl && (
+              <a 
+                href={pdfUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-[hsl(18,70%,42%)] text-white rounded-md"
+                data-testid="link-download-pdf"
+              >
+                <Download className="h-4 w-4" />
+                Download PDF
+              </a>
+            )}
+            <Button onClick={handleClose} className="mt-4" variant={popupBlocked ? "outline" : "default"} data-testid="button-close-pdf-success">
               Close
             </Button>
           </div>
