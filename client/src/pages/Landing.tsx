@@ -351,9 +351,30 @@ function ComparisonSlider() {
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [activePreview, setActivePreview] = useState<'transcript' | 'actions' | 'calendar' | 'audit' | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
   
   // Show explore buttons when slider is mostly on LegalNote side
   const showExploreButtons = sliderPosition > 75;
+  
+  // Close preview panel when slider moves back to handwritten side
+  useEffect(() => {
+    if (!showExploreButtons && activePreview) {
+      setActivePreview(null);
+    }
+  }, [showExploreButtons]);
+  
+  // Auto-scroll to preview panel on mobile when opened
+  const handlePreviewClick = (preview: 'transcript' | 'actions' | 'calendar' | 'audit') => {
+    const newValue = activePreview === preview ? null : preview;
+    setActivePreview(newValue);
+    
+    // On mobile, scroll to preview panel after a brief delay
+    if (newValue && window.innerWidth < 768) {
+      setTimeout(() => {
+        previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  };
   
   const handleMove = (clientX: number) => {
     if (!containerRef.current) return;
@@ -555,7 +576,7 @@ function ComparisonSlider() {
                 <Button
                   variant={activePreview === 'transcript' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setActivePreview(activePreview === 'transcript' ? null : 'transcript')}
+                  onClick={() => handlePreviewClick('transcript')}
                   className={activePreview === 'transcript' ? 'bg-[hsl(18,70%,42%)]' : ''}
                   data-testid="button-explore-transcript"
                 >
@@ -565,7 +586,7 @@ function ComparisonSlider() {
                 <Button
                   variant={activePreview === 'actions' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setActivePreview(activePreview === 'actions' ? null : 'actions')}
+                  onClick={() => handlePreviewClick('actions')}
                   className={activePreview === 'actions' ? 'bg-[hsl(18,70%,42%)]' : ''}
                   data-testid="button-explore-actions"
                 >
@@ -575,7 +596,7 @@ function ComparisonSlider() {
                 <Button
                   variant={activePreview === 'calendar' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setActivePreview(activePreview === 'calendar' ? null : 'calendar')}
+                  onClick={() => handlePreviewClick('calendar')}
                   className={activePreview === 'calendar' ? 'bg-[hsl(18,70%,42%)]' : ''}
                   data-testid="button-explore-calendar"
                 >
@@ -585,7 +606,7 @@ function ComparisonSlider() {
                 <Button
                   variant={activePreview === 'audit' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setActivePreview(activePreview === 'audit' ? null : 'audit')}
+                  onClick={() => handlePreviewClick('audit')}
                   className={activePreview === 'audit' ? 'bg-[hsl(18,70%,42%)]' : ''}
                   data-testid="button-explore-audit"
                 >
@@ -610,12 +631,13 @@ function ComparisonSlider() {
         <AnimatePresence mode="wait">
           {activePreview && (
             <motion.div
+              ref={previewRef}
               key={activePreview}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.25 }}
-              className="mt-6"
+              className="mt-6 scroll-mt-4"
             >
               <div className="bg-[hsl(220,15%,97%)] rounded-xl border border-[hsl(220,15%,90%)] p-4 sm:p-6">
                 {/* Transcript Preview */}
@@ -793,8 +815,9 @@ function ComparisonSlider() {
                           { time: '10:55:45', event: 'Attendance note created', type: 'document', detail: 'Auto-generated from transcript' },
                           { time: '10:56:02', event: 'Summary created', type: 'document', detail: 'Key points extracted' },
                           { time: '10:56:30', event: 'Action items extracted', type: 'actions', detail: '4 items with due dates' },
-                          { time: '10:57:12', event: 'Client version sent', type: 'share', detail: 'emma.richards@email.com' },
-                          { time: '10:57:12', event: 'Share link created', type: 'share', detail: 'SMS 2FA enabled' },
+                          { time: '11:14:08', event: 'Solicitor review confirmed', type: 'approved', detail: 'Documents reviewed and approved by solicitor' },
+                          { time: '11:15:22', event: 'Client version sent', type: 'share', detail: 'emma.richards@email.com' },
+                          { time: '11:15:22', event: 'Share link created', type: 'share', detail: 'SMS 2FA enabled' },
                         ].map((entry, i) => (
                           <div key={i} className="flex gap-3 group">
                             <div className="flex flex-col items-center">
@@ -804,9 +827,10 @@ function ComparisonSlider() {
                                 entry.type === 'ai' ? 'bg-[hsl(280,60%,50%)]' :
                                 entry.type === 'document' ? 'bg-[hsl(220,60%,50%)]' :
                                 entry.type === 'actions' ? 'bg-[hsl(45,80%,45%)]' :
+                                entry.type === 'approved' ? 'bg-[hsl(130,60%,40%)]' :
                                 'bg-[hsl(180,50%,45%)]'
                               }`} />
-                              {i < 8 && <div className="w-0.5 h-8 bg-[hsl(220,15%,85%)]" />}
+                              {i < 9 && <div className="w-0.5 h-8 bg-[hsl(220,15%,85%)]" />}
                             </div>
                             <div className="pb-3 -mt-0.5">
                               <div className="flex items-center gap-2">
