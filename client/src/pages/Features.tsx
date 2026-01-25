@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileCheck, ClipboardCheck, Scale, Calendar, FileText, ShieldCheck, ArrowLeft, Mic, Brain, FileOutput, Users, Lock, Search, Bell, AlertTriangle, PoundSterling, Link2, Database, Cloud, CalendarClock, Building2, Briefcase } from "lucide-react";
+import { FileCheck, ClipboardCheck, Scale, Calendar, FileText, ShieldCheck, ArrowLeft, Mic, Brain, FileOutput, Users, Lock, Search, Bell, AlertTriangle, PoundSterling, Cloud, CalendarClock, Briefcase } from "lucide-react";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { SiMicrosoftoutlook } from "react-icons/si";
@@ -291,7 +291,7 @@ export default function Features() {
                   <div className="w-14 h-14 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
                     <feature.icon className="w-7 h-7 text-amber-600" />
                   </div>
-                  <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 text-xs">
+                  <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 text-xs" data-testid={`badge-safeguard-status-${index}`}>
                     {feature.badge}
                   </Badge>
                 </div>
@@ -340,7 +340,7 @@ export default function Features() {
                 transition={{ delay: index * 0.05 }}
                 data-testid={`card-integration-${index}`}
               >
-                <div className="w-12 h-12 rounded-xl bg-[hsl(30,25%,96%)] flex items-center justify-center mb-4">
+                <div className="w-12 h-12 rounded-xl bg-[hsl(30,25%,96%)] flex items-center justify-center mb-4" data-testid={`icon-integration-${index}`}>
                   {integration.logo === "google" && <FcGoogle className="w-6 h-6" />}
                   {integration.logo === "outlook" && <SiMicrosoftoutlook className="w-6 h-6 text-[#0078D4]" />}
                   {integration.logo === "microsoft" && <Cloud className="w-6 h-6 text-[#0078D4]" />}
