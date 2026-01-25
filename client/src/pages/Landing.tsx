@@ -1050,7 +1050,7 @@ function DocumentFlowAnimation() {
   ];
 
   return (
-    <div className="flex items-center justify-start sm:justify-center gap-2 sm:gap-4 py-4 sm:py-8 pl-12 sm:pl-0">
+    <div className="flex items-center justify-center gap-2 sm:gap-4 py-4 sm:py-8">
       {steps.map((step, index) => (
         <motion.div
           key={step.label}
