@@ -4,9 +4,16 @@ import { Badge } from "@/components/ui/badge";
 import { FileCheck, ClipboardCheck, Scale, Calendar, FileText, ShieldCheck, ArrowLeft, Mic, Brain, FileOutput, Users, Lock, Search, Bell, AlertTriangle, PoundSterling, Cloud, CalendarClock, Briefcase } from "lucide-react";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
+import { LeadMagnetForm } from "@/components/LeadMagnetForm";
+import { useState, useRef, useEffect } from "react";
 
 export default function Features() {
   const [, setLocation] = useLocation();
+  const [showLeadMagnetForm, setShowLeadMagnetForm] = useState(false);
+  const [showFloatingCTA, setShowFloatingCTA] = useState(false);
+  
+  const coreCapabilitiesRef = useRef<HTMLElement>(null);
+  const readyToSeeRef = useRef<HTMLDivElement>(null);
 
   const handleViewPricing = () => {
     setLocation("/");
@@ -14,6 +21,25 @@ export default function Features() {
       document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
   };
+
+  const handleRequestAccess = () => {
+    setShowLeadMagnetForm(true);
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (coreCapabilitiesRef.current && readyToSeeRef.current) {
+        const y = window.scrollY + window.innerHeight / 2;
+        const coreTop = coreCapabilitiesRef.current.offsetTop;
+        const readyTop = readyToSeeRef.current.offsetTop - 100;
+        setShowFloatingCTA(y >= coreTop && y < readyTop);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const coreFeatures = [
     { 
@@ -193,7 +219,7 @@ export default function Features() {
       </div>
 
       {/* Core Features Grid */}
-      <div className="py-20">
+      <section ref={coreCapabilitiesRef} className="py-20">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
             className="text-center mb-16"
@@ -228,7 +254,7 @@ export default function Features() {
             ))}
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Additional Features */}
       <div className="bg-[hsl(30,25%,96%)] py-20 border-t border-[hsl(30,20%,88%)]">
@@ -362,7 +388,7 @@ export default function Features() {
       </div>
 
       {/* CTA */}
-      <div className="bg-[hsl(20,35%,18%)] py-20">
+      <div ref={readyToSeeRef} className="bg-[hsl(20,35%,18%)] py-20">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -405,6 +431,31 @@ export default function Features() {
           </div>
         </div>
       </footer>
+
+      {/* Floating CTA - Fixed at bottom on mobile */}
+      <motion.div 
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 md:hidden"
+        initial={{ opacity: 0 }}
+        animate={{ 
+          opacity: showFloatingCTA ? 1 : 0, 
+          pointerEvents: showFloatingCTA ? 'auto' : 'none' 
+        }}
+        transition={{ duration: 0.3 }}
+      >
+        <Button 
+          onClick={handleRequestAccess}
+          size="lg"
+          className="bg-[hsl(18,70%,42%)] text-white rounded-full shadow-2xl"
+          data-testid="button-features-floating-cta"
+        >
+          Request Early Access
+        </Button>
+      </motion.div>
+
+      <LeadMagnetForm
+        open={showLeadMagnetForm}
+        onOpenChange={setShowLeadMagnetForm}
+      />
     </div>
   );
 }

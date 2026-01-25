@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import Logo from "@/components/Logo";
+import { LeadMagnetForm } from "@/components/LeadMagnetForm";
 import { 
   Shield, 
   Lock, 
@@ -17,8 +18,7 @@ import {
   Clock,
   Trash2
 } from "lucide-react";
-// Removed unused: Linkedin, ChevronDown
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 
 export default function SecurityPage() {
   useEffect(() => {
@@ -98,6 +98,31 @@ export default function SecurityPage() {
     }
   ];
 
+  const [showLeadMagnetForm, setShowLeadMagnetForm] = useState(false);
+  const [showFloatingCTA, setShowFloatingCTA] = useState(false);
+  
+  const enterpriseProtectionRef = useRef<HTMLElement>(null);
+  const questionsRef = useRef<HTMLElement>(null);
+
+  const handleRequestAccess = () => {
+    setShowLeadMagnetForm(true);
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (enterpriseProtectionRef.current && questionsRef.current) {
+        const y = window.scrollY + window.innerHeight / 2;
+        const enterpriseTop = enterpriseProtectionRef.current.offsetTop;
+        const questionsTop = questionsRef.current.offsetTop - 100;
+        setShowFloatingCTA(y >= enterpriseTop && y < questionsTop);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   return (
     <div className="min-h-screen bg-[hsl(30,25%,97%)]">
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg shadow-sm border-b border-[hsl(30,20%,90%)]">
@@ -157,11 +182,9 @@ export default function SecurityPage() {
                 size="lg"
                 className="bg-[hsl(18,70%,42%)] text-white font-medium"
                 data-testid="button-security-request-access"
-                asChild
+                onClick={handleRequestAccess}
               >
-                <Link href="/#pricing">
-                  Request Access
-                </Link>
+                Request Access
               </Button>
               <Button 
                 variant="outline"
@@ -180,7 +203,7 @@ export default function SecurityPage() {
         </div>
       </section>
 
-      <section className="py-20 bg-white">
+      <section ref={enterpriseProtectionRef} className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -501,7 +524,7 @@ export default function SecurityPage() {
         </div>
       </section>
 
-      <section className="py-20 bg-[hsl(20,30%,10%)]">
+      <section ref={questionsRef} className="py-20 bg-[hsl(20,30%,10%)]">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -530,15 +553,12 @@ export default function SecurityPage() {
                 </a>
               </Button>
               <Button 
-                variant="outline"
                 size="lg"
-                className="border-white/30 text-white"
+                className="bg-[hsl(18,70%,42%)] text-white font-medium"
                 data-testid="button-security-cta"
-                asChild
+                onClick={handleRequestAccess}
               >
-                <Link href="/#pricing">
-                  Request Access
-                </Link>
+                Request Access
               </Button>
             </div>
           </motion.div>
@@ -641,6 +661,31 @@ export default function SecurityPage() {
           </div>
         </div>
       </footer>
+
+      {/* Floating CTA - Fixed at bottom on mobile */}
+      <motion.div 
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 md:hidden"
+        initial={{ opacity: 0 }}
+        animate={{ 
+          opacity: showFloatingCTA ? 1 : 0, 
+          pointerEvents: showFloatingCTA ? 'auto' : 'none' 
+        }}
+        transition={{ duration: 0.3 }}
+      >
+        <Button 
+          onClick={handleRequestAccess}
+          size="lg"
+          className="bg-[hsl(18,70%,42%)] text-white rounded-full shadow-2xl"
+          data-testid="button-security-floating-cta"
+        >
+          Request Early Access
+        </Button>
+      </motion.div>
+
+      <LeadMagnetForm
+        open={showLeadMagnetForm}
+        onOpenChange={setShowLeadMagnetForm}
+      />
     </div>
   );
 }
