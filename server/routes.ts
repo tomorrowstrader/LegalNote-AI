@@ -59,6 +59,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // PUBLIC ROUTES (no authentication required)
   
+  // Lead magnet PDF download (public - accessed after form submission)
+  app.get('/api/lead-magnet/download', generalApiLimiter, async (req, res, next) => {
+    try {
+      const firstName = req.query.name as string | undefined;
+      const { generateDefensibleRecordPDF } = await import('./services/leadMagnetPdf');
+      const pdfBuffer = generateDefensibleRecordPDF({ recipientName: firstName || undefined });
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="LegalNote-Defensible-Record-Guide.pdf"');
+      res.setHeader('Content-Length', pdfBuffer.length);
+      res.send(pdfBuffer);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
   // Waitlist signup (public - no auth required)
   app.post('/api/waitlist', generalApiLimiter, async (req, res, next) => {
     try {

@@ -51,6 +51,16 @@ export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
     },
   });
 
+  const triggerPdfDownload = (firstName: string) => {
+    const downloadUrl = `/api/lead-magnet/download?name=${encodeURIComponent(firstName)}`;
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = 'LegalNote-Defensible-Record-Guide.pdf';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const submitMutation = useMutation({
     mutationFn: async (data: LeadMagnetFormData) => {
       const response = await apiRequest("POST", "/api/waitlist", {
@@ -62,14 +72,16 @@ export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
         marketingConsent: true,
         source: "lead_magnet",
       });
-      return response.json();
+      return { ...await response.json(), firstName: data.firstName };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setSuccess(true);
+      triggerPdfDownload(data.firstName || '');
     },
     onError: (error: Error) => {
       if (error.message?.includes("already")) {
         setSuccess(true);
+        triggerPdfDownload(form.getValues('firstName') || '');
       } else {
         console.error("Lead magnet submission error:", error);
       }
@@ -96,12 +108,12 @@ export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
         {success ? (
           <div className="text-center py-6">
             <div className="mx-auto w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mb-4">
-              <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
+              <Download className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <DialogHeader>
-              <DialogTitle data-testid="text-pdf-success-title">Your Guide is On Its Way</DialogTitle>
+              <DialogTitle data-testid="text-pdf-success-title">Your Guide is Downloading</DialogTitle>
               <DialogDescription data-testid="text-pdf-success-description">
-                Check your inbox - your 5-page compliance guide will arrive within the next few minutes.
+                Your 5-page compliance guide should be downloading now. We've also sent a copy to your inbox.
               </DialogDescription>
             </DialogHeader>
             <Button onClick={handleClose} className="mt-6" data-testid="button-close-pdf-success">

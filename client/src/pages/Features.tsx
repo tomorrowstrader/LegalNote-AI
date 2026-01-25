@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FileCheck, ClipboardCheck, Scale, Calendar, FileText, ShieldCheck, ArrowLeft, Mic, Brain, FileOutput, Users, Lock, Search, Bell, AlertTriangle, PoundSterling, Cloud, CalendarClock, Briefcase } from "lucide-react";
@@ -6,6 +6,15 @@ import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 
 export default function Features() {
+  const [, setLocation] = useLocation();
+
+  const handleViewPricing = () => {
+    setLocation("/");
+    setTimeout(() => {
+      document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
   const coreFeatures = [
     { 
       icon: FileCheck, 
@@ -369,12 +378,10 @@ export default function Features() {
             <Button 
               size="lg"
               className="bg-[hsl(18,70%,42%)] text-white"
-              asChild
+              onClick={handleViewPricing}
               data-testid="button-features-pricing"
             >
-              <Link href="/#pricing">
-                View Pricing
-              </Link>
+              View Pricing
             </Button>
           </motion.div>
         </div>
