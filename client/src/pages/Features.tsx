@@ -4,8 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { FileCheck, ClipboardCheck, Scale, Calendar, FileText, ShieldCheck, ArrowLeft, Mic, Brain, FileOutput, Users, Lock, Search, Bell, AlertTriangle, PoundSterling, Cloud, CalendarClock, Briefcase } from "lucide-react";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
-import { SiMicrosoftoutlook } from "react-icons/si";
-import { FcGoogle } from "react-icons/fc";
 
 export default function Features() {
   const coreFeatures = [
@@ -341,8 +339,8 @@ export default function Features() {
                 data-testid={`card-integration-${index}`}
               >
                 <div className="w-12 h-12 rounded-xl bg-[hsl(30,25%,96%)] flex items-center justify-center mb-4" data-testid={`icon-integration-${index}`}>
-                  {integration.logo === "google" && <FcGoogle className="w-6 h-6" />}
-                  {integration.logo === "outlook" && <SiMicrosoftoutlook className="w-6 h-6 text-[#0078D4]" />}
+                  {integration.logo === "google" && <Calendar className="w-6 h-6 text-[#4285F4]" />}
+                  {integration.logo === "outlook" && <CalendarClock className="w-6 h-6 text-[#0078D4]" />}
                   {integration.logo === "microsoft" && <Cloud className="w-6 h-6 text-[#0078D4]" />}
                   {integration.logo === "clio" && <Briefcase className="w-6 h-6 text-[hsl(18,65%,45%)]" />}
                 </div>
