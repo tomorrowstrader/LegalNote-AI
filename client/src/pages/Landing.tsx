@@ -545,47 +545,88 @@ function ComparisonSlider() {
               <div className="bg-[hsl(220,15%,97%)] rounded-xl border border-[hsl(220,15%,90%)] p-4 sm:p-6">
                 {/* Transcript Preview */}
                 {activePreview === 'transcript' && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                      <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Full Transcript with Speaker Labels</h4>
+                  <div data-testid="panel-transcript">
+                    <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
+                        <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]" data-testid="heading-transcript">Full Transcript with Speaker Labels</h4>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] sm:text-[10px] bg-purple-100 text-purple-700 border-purple-300" data-testid="badge-speakers-auto-identified">
+                        <Users className="w-3 h-3 mr-1" />
+                        2 speakers auto-identified
+                      </Badge>
                     </div>
-                    <div className="bg-white rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3 text-xs sm:text-sm max-h-[250px] sm:max-h-[300px] overflow-y-auto">
-                      <div className="flex gap-2 sm:gap-3">
-                        <span className="text-[9px] sm:text-[10px] text-[hsl(25,15%,50%)] w-10 sm:w-12 shrink-0">00:00:15</span>
-                        <div>
-                          <span className="text-[hsl(18,60%,45%)] font-medium text-[10px] sm:text-xs">SOLICITOR</span>
-                          <p className="text-[hsl(25,20%,30%)]">I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?</p>
+                    <div className="bg-white rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3 text-xs sm:text-sm max-h-[280px] sm:max-h-[320px] overflow-y-auto">
+                      {/* Utterance 1 - Solicitor (Speaker A - Blue) */}
+                      <div className="rounded-lg border p-2 sm:p-3 bg-blue-100 border-blue-300" data-testid="utterance-0">
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <Badge className="bg-blue-500 text-white text-[9px] sm:text-[10px] shrink-0" data-testid="badge-speaker-0">Speaker A</Badge>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-3 h-3 text-blue-400" />
+                              <span className="text-[9px] sm:text-[10px] font-mono text-blue-600" data-testid="timestamp-0">00:15</span>
+                            </div>
+                            <p className="text-[hsl(25,20%,25%)] text-[11px] sm:text-xs leading-relaxed" data-testid="text-utterance-0">I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-2 sm:gap-3">
-                        <span className="text-[9px] sm:text-[10px] text-[hsl(25,15%,50%)] w-10 sm:w-12 shrink-0">00:00:32</span>
-                        <div>
-                          <span className="text-[hsl(220,60%,45%)] font-medium text-[10px] sm:text-xs">CLIENT</span>
-                          <p className="text-[hsl(25,20%,30%)]">Yes, that's fine.</p>
+                      
+                      {/* Utterance 2 - Client (Speaker B - Emerald) */}
+                      <div className="rounded-lg border p-2 sm:p-3 bg-emerald-100 border-emerald-300" data-testid="utterance-1">
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <Badge className="bg-emerald-500 text-white text-[9px] sm:text-[10px] shrink-0" data-testid="badge-speaker-1">Speaker B</Badge>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-3 h-3 text-emerald-400" />
+                              <span className="text-[9px] sm:text-[10px] font-mono text-emerald-600" data-testid="timestamp-1">00:32</span>
+                            </div>
+                            <p className="text-[hsl(25,20%,25%)] text-[11px] sm:text-xs leading-relaxed" data-testid="text-utterance-1">Yes, that's fine.</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-2 sm:gap-3">
-                        <span className="text-[9px] sm:text-[10px] text-[hsl(25,15%,50%)] w-10 sm:w-12 shrink-0">00:00:38</span>
-                        <div>
-                          <span className="text-[hsl(18,60%,45%)] font-medium text-[10px] sm:text-xs">SOLICITOR</span>
-                          <p className="text-[hsl(25,20%,30%)]">Thank you. Now, we're here to discuss the financial settlement. I've reviewed Mark's Form E disclosure. The family home is valued at approximately £850,000 with £150,000 outstanding on the mortgage.</p>
+                      
+                      {/* Utterance 3 - Solicitor */}
+                      <div className="rounded-lg border p-2 sm:p-3 bg-blue-100 border-blue-300" data-testid="utterance-2">
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <Badge className="bg-blue-500 text-white text-[9px] sm:text-[10px] shrink-0" data-testid="badge-speaker-2">Speaker A</Badge>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-3 h-3 text-blue-400" />
+                              <span className="text-[9px] sm:text-[10px] font-mono text-blue-600" data-testid="timestamp-2">00:38</span>
+                            </div>
+                            <p className="text-[hsl(25,20%,25%)] text-[11px] sm:text-xs leading-relaxed" data-testid="text-utterance-2">Thank you. Now, we're here to discuss the financial settlement. I've reviewed Mark's Form E disclosure. The family home is valued at approximately £850,000 with £150,000 outstanding on the mortgage.</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-2 sm:gap-3">
-                        <span className="text-[9px] sm:text-[10px] text-[hsl(25,15%,50%)] w-10 sm:w-12 shrink-0">00:01:45</span>
-                        <div>
-                          <span className="text-[hsl(220,60%,45%)] font-medium text-[10px] sm:text-xs">CLIENT</span>
-                          <p className="text-[hsl(25,20%,30%)]">My priority is staying in the house until Lily finishes school. She's 12 now, so that's another 6 years. I'm worried about the school fees though - Mark has been unreliable about payments.</p>
+                      
+                      {/* Utterance 4 - Client */}
+                      <div className="rounded-lg border p-2 sm:p-3 bg-emerald-100 border-emerald-300" data-testid="utterance-3">
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <Badge className="bg-emerald-500 text-white text-[9px] sm:text-[10px] shrink-0" data-testid="badge-speaker-3">Speaker B</Badge>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-3 h-3 text-emerald-400" />
+                              <span className="text-[9px] sm:text-[10px] font-mono text-emerald-600" data-testid="timestamp-3">01:45</span>
+                            </div>
+                            <p className="text-[hsl(25,20%,25%)] text-[11px] sm:text-xs leading-relaxed" data-testid="text-utterance-3">My priority is staying in the house until Lily finishes school. She's 12 now, so that's another 6 years. I'm worried about the school fees though - Mark has been unreliable about payments.</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-2 sm:gap-3">
-                        <span className="text-[9px] sm:text-[10px] text-[hsl(25,15%,50%)] w-10 sm:w-12 shrink-0">00:02:30</span>
-                        <div>
-                          <span className="text-[hsl(18,60%,45%)] font-medium text-[10px] sm:text-xs">SOLICITOR</span>
-                          <p className="text-[hsl(25,20%,30%)]">I understand. A Mesher order might be appropriate here - it would allow you to remain in the property until Lily turns 18 or completes full-time education. Regarding school fees, we should document his commitment in the consent order with an enforcement mechanism.</p>
+                      
+                      {/* Utterance 5 - Solicitor */}
+                      <div className="rounded-lg border p-2 sm:p-3 bg-blue-100 border-blue-300" data-testid="utterance-4">
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <Badge className="bg-blue-500 text-white text-[9px] sm:text-[10px] shrink-0" data-testid="badge-speaker-4">Speaker A</Badge>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-3 h-3 text-blue-400" />
+                              <span className="text-[9px] sm:text-[10px] font-mono text-blue-600" data-testid="timestamp-4">02:30</span>
+                            </div>
+                            <p className="text-[hsl(25,20%,25%)] text-[11px] sm:text-xs leading-relaxed" data-testid="text-utterance-4">I understand. A Mesher order might be appropriate here - it would allow you to remain in the property until Lily turns 18 or completes full-time education. Regarding school fees, we should document his commitment in the consent order with an enforcement mechanism.</p>
+                          </div>
                         </div>
                       </div>
+                      
                       <div className="text-center text-[10px] sm:text-xs text-[hsl(25,15%,50%)] pt-2 border-t border-[hsl(220,15%,90%)]">
                         ... transcript continues for 52 minutes ...
                       </div>
