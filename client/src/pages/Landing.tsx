@@ -351,7 +351,6 @@ function ComparisonSlider() {
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [activePreview, setActivePreview] = useState<'transcript' | 'actions' | 'calendar' | 'audit' | null>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
   
   // Show explore buttons when slider is mostly on LegalNote side
   const showExploreButtons = sliderPosition > 75;
@@ -363,17 +362,9 @@ function ComparisonSlider() {
     }
   }, [showExploreButtons]);
   
-  // Auto-scroll to preview panel on mobile when opened
+  // Handle preview button clicks
   const handlePreviewClick = (preview: 'transcript' | 'actions' | 'calendar' | 'audit') => {
-    const newValue = activePreview === preview ? null : preview;
-    setActivePreview(newValue);
-    
-    // On mobile, scroll to preview panel after a brief delay
-    if (newValue && window.innerWidth < 768) {
-      setTimeout(() => {
-        previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
-    }
+    setActivePreview(activePreview === preview ? null : preview);
   };
   
   const handleMove = (clientX: number) => {
@@ -448,6 +439,249 @@ function ComparisonSlider() {
             Drag the slider to compare your best effort with LegalNote output
           </p>
         </motion.div>
+        
+        {/* Mobile: Explore Buttons ABOVE slider */}
+        <AnimatePresence>
+          {showExploreButtons && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6 md:hidden"
+            >
+              <p className="text-center text-sm text-[hsl(25,20%,50%)] mb-3">
+                Explore what's behind this attendance note
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button
+                  variant={activePreview === 'transcript' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handlePreviewClick('transcript')}
+                  className={activePreview === 'transcript' ? 'bg-[hsl(18,70%,42%)]' : ''}
+                  data-testid="button-explore-transcript-mobile"
+                >
+                  <FileText className="w-4 h-4 mr-1.5" />
+                  Transcript
+                </Button>
+                <Button
+                  variant={activePreview === 'actions' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handlePreviewClick('actions')}
+                  className={activePreview === 'actions' ? 'bg-[hsl(18,70%,42%)]' : ''}
+                  data-testid="button-explore-actions-mobile"
+                >
+                  <ClipboardCheck className="w-4 h-4 mr-1.5" />
+                  Actions
+                </Button>
+                <Button
+                  variant={activePreview === 'calendar' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handlePreviewClick('calendar')}
+                  className={activePreview === 'calendar' ? 'bg-[hsl(18,70%,42%)]' : ''}
+                  data-testid="button-explore-calendar-mobile"
+                >
+                  <Calendar className="w-4 h-4 mr-1.5" />
+                  Calendar
+                </Button>
+                <Button
+                  variant={activePreview === 'audit' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handlePreviewClick('audit')}
+                  className={activePreview === 'audit' ? 'bg-[hsl(18,70%,42%)]' : ''}
+                  data-testid="button-explore-audit-mobile"
+                >
+                  <ShieldCheck className="w-4 h-4 mr-1.5" />
+                  Audit
+                </Button>
+              </div>
+              
+              {/* Time Comparison Badge - Mobile */}
+              <div className="flex justify-center mt-4">
+                <div className="inline-flex items-center gap-3 bg-[hsl(220,15%,95%)] rounded-full px-4 py-2 text-sm">
+                  <span className="text-[hsl(0,50%,45%)] line-through">Manual: ~45 mins</span>
+                  <span className="text-[hsl(25,20%,40%)]">|</span>
+                  <span className="text-[hsl(130,50%,35%)] font-semibold">LegalNote: 2 mins</span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {/* Mobile: Preview Panels ABOVE slider */}
+        <AnimatePresence mode="wait">
+          {activePreview && (
+            <motion.div
+              key={`mobile-${activePreview}`}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25 }}
+              className="mb-6 scroll-mt-4 md:hidden"
+            >
+              <div className="bg-[hsl(220,15%,97%)] rounded-xl border border-[hsl(220,15%,90%)] p-4">
+                {/* Transcript Preview - Mobile */}
+                {activePreview === 'transcript' && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText className="w-4 h-4 text-[hsl(18,70%,42%)]" />
+                      <h4 className="font-semibold text-sm text-[hsl(25,30%,15%)]">Full Transcript</h4>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 space-y-2 text-xs max-h-[250px] overflow-y-auto">
+                      <div className="flex gap-2">
+                        <span className="text-[9px] text-[hsl(25,15%,50%)] w-10 shrink-0">00:00:15</span>
+                        <div>
+                          <span className="text-[hsl(18,60%,45%)] font-medium text-[10px]">SOLICITOR</span>
+                          <p className="text-[hsl(25,20%,30%)]">Good morning Emma. This meeting will be recorded. Do I have your consent?</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-[9px] text-[hsl(25,15%,50%)] w-10 shrink-0">00:00:22</span>
+                        <div>
+                          <span className="text-[hsl(220,60%,45%)] font-medium text-[10px]">CLIENT</span>
+                          <p className="text-[hsl(25,20%,30%)]">Yes, that's fine.</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-[9px] text-[hsl(25,15%,50%)] w-10 shrink-0">00:00:28</span>
+                        <div>
+                          <span className="text-[hsl(18,60%,45%)] font-medium text-[10px]">SOLICITOR</span>
+                          <p className="text-[hsl(25,20%,30%)]">The family home is valued at £850,000 with £150,000 outstanding.</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-[9px] text-[hsl(25,15%,50%)] w-10 shrink-0">00:01:45</span>
+                        <div>
+                          <span className="text-[hsl(220,60%,45%)] font-medium text-[10px]">CLIENT</span>
+                          <p className="text-[hsl(25,20%,30%)]">My main priority is staying in the house until Lily finishes school.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Actions Preview - Mobile */}
+                {activePreview === 'actions' && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <ClipboardCheck className="w-4 h-4 text-[hsl(18,70%,42%)]" />
+                      <h4 className="font-semibold text-sm text-[hsl(25,30%,15%)]">Action Items</h4>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 space-y-2">
+                      <div className="flex items-start gap-2 p-2 bg-[hsl(18,30%,97%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
+                        <div className="w-5 h-5 rounded-full bg-[hsl(18,70%,42%)] text-white text-[10px] flex items-center justify-center shrink-0">1</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-xs text-[hsl(25,30%,20%)]">Request Form E</p>
+                          <p className="text-[10px] text-[hsl(25,15%,50%)]">Due: 19 Mar</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2 p-2 bg-[hsl(220,30%,97%)] rounded border-l-2 border-[hsl(220,60%,50%)]">
+                        <div className="w-5 h-5 rounded-full bg-[hsl(220,60%,50%)] text-white text-[10px] flex items-center justify-center shrink-0">2</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-xs text-[hsl(25,30%,20%)]">Obtain pension CETV</p>
+                          <p className="text-[10px] text-[hsl(25,15%,50%)]">Due: 17 Mar</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2 p-2 bg-[hsl(18,30%,97%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
+                        <div className="w-5 h-5 rounded-full bg-[hsl(18,70%,42%)] text-white text-[10px] flex items-center justify-center shrink-0">3</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-xs text-[hsl(25,30%,20%)]">Draft Mesher order</p>
+                          <p className="text-[10px] text-[hsl(25,15%,50%)]">Due: 21 Mar</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Calendar Preview - Mobile */}
+                {activePreview === 'calendar' && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Calendar className="w-4 h-4 text-[hsl(18,70%,42%)]" />
+                      <h4 className="font-semibold text-sm text-[hsl(25,30%,15%)]">Calendar Sync</h4>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 space-y-2">
+                      <div className="flex items-center gap-2 p-2 bg-[hsl(220,60%,95%)] rounded border-l-2 border-[hsl(220,60%,50%)]">
+                        <div className="text-center shrink-0">
+                          <p className="text-[10px] text-[hsl(220,50%,40%)]">MAR</p>
+                          <p className="text-sm font-bold text-[hsl(220,60%,40%)]">17</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-[hsl(25,30%,20%)]">Obtain pension CETV</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 p-2 bg-[hsl(18,60%,95%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
+                        <div className="text-center shrink-0">
+                          <p className="text-[10px] text-[hsl(18,50%,40%)]">MAR</p>
+                          <p className="text-sm font-bold text-[hsl(18,60%,40%)]">19</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-[hsl(25,30%,20%)]">Request Form E</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 p-2 bg-[hsl(18,60%,95%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
+                        <div className="text-center shrink-0">
+                          <p className="text-[10px] text-[hsl(18,50%,40%)]">MAR</p>
+                          <p className="text-sm font-bold text-[hsl(18,60%,40%)]">21</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-[hsl(25,30%,20%)]">Draft Mesher order</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Audit Preview - Mobile */}
+                {activePreview === 'audit' && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <ShieldCheck className="w-4 h-4 text-[hsl(18,70%,42%)]" />
+                      <h4 className="font-semibold text-sm text-[hsl(25,30%,15%)]">Audit Trail</h4>
+                    </div>
+                    <div className="bg-white rounded-lg p-3">
+                      <div className="space-y-0">
+                        {[
+                          { time: '10:02', event: 'Consent obtained', type: 'consent' },
+                          { time: '10:02', event: 'Recording started', type: 'recording' },
+                          { time: '10:54', event: 'Recording ended', type: 'recording' },
+                          { time: '10:55', event: 'Transcript generated', type: 'ai' },
+                          { time: '10:56', event: 'Documents created', type: 'document' },
+                          { time: '11:14', event: 'Solicitor review confirmed', type: 'approved' },
+                          { time: '11:15', event: 'Shared with client', type: 'share' },
+                        ].map((entry, i) => (
+                          <div key={i} className="flex gap-2 group">
+                            <div className="flex flex-col items-center">
+                              <div className={`w-2 h-2 rounded-full ${
+                                entry.type === 'consent' ? 'bg-[hsl(130,50%,45%)]' :
+                                entry.type === 'recording' ? 'bg-[hsl(18,70%,50%)]' :
+                                entry.type === 'ai' ? 'bg-[hsl(280,60%,50%)]' :
+                                entry.type === 'document' ? 'bg-[hsl(220,60%,50%)]' :
+                                entry.type === 'approved' ? 'bg-[hsl(130,60%,40%)]' :
+                                'bg-[hsl(180,50%,45%)]'
+                              }`} />
+                              {i < 6 && <div className="w-0.5 h-5 bg-[hsl(220,15%,85%)]" />}
+                            </div>
+                            <div className="pb-1 -mt-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-mono text-[hsl(25,15%,50%)]">{entry.time}</span>
+                                <span className="text-[11px] font-medium text-[hsl(25,30%,20%)]">{entry.event}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-[hsl(220,15%,90%)] flex items-center gap-1.5 text-[10px] text-[hsl(130,50%,40%)]">
+                        <Lock className="w-3 h-3" />
+                        <span>Cryptographically signed</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         
         <motion.div
           ref={containerRef}
@@ -559,7 +793,7 @@ function ComparisonSlider() {
           </div>
         </motion.div>
         
-        {/* Interactive Explore Buttons - appear when slider is on LegalNote side */}
+        {/* Desktop: Interactive Explore Buttons - appear when slider is on LegalNote side */}
         <AnimatePresence>
           {showExploreButtons && (
             <motion.div
@@ -567,7 +801,7 @@ function ComparisonSlider() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
               transition={{ duration: 0.3 }}
-              className="mt-6"
+              className="mt-6 hidden md:block"
             >
               <p className="text-center text-sm text-[hsl(25,20%,50%)] mb-3">
                 Explore what's behind this attendance note
@@ -627,17 +861,16 @@ function ComparisonSlider() {
           )}
         </AnimatePresence>
         
-        {/* Preview Panels */}
+        {/* Desktop: Preview Panels */}
         <AnimatePresence mode="wait">
           {activePreview && (
             <motion.div
-              ref={previewRef}
-              key={activePreview}
+              key={`desktop-${activePreview}`}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.25 }}
-              className="mt-6 scroll-mt-4"
+              className="mt-6 scroll-mt-4 hidden md:block"
             >
               <div className="bg-[hsl(220,15%,97%)] rounded-xl border border-[hsl(220,15%,90%)] p-4 sm:p-6">
                 {/* Transcript Preview */}
