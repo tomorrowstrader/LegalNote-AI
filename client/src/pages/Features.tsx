@@ -20,7 +20,7 @@ export default function Features() {
     { 
       icon: Scale, 
       title: "Professional Control", 
-      description: "LegalNote proposes structure and content; the practitioner exercises judgement and signs off the attendance record. AI-assisted, not AI-decided." 
+      description: "LegalNote proposes structure and content; the practitioner exercises judgement and signs off the attendance record. Professional control at every step." 
     },
     { 
       icon: Calendar, 
@@ -41,14 +41,14 @@ export default function Features() {
 
   const workflowSteps = [
     { icon: Mic, title: "Record", description: "Capture client meetings with consent-first workflows. One click to start, automatic pause detection." },
-    { icon: Brain, title: "Process", description: "AI transcription with speaker diarization, legal vocabulary recognition, and intelligent structuring." },
-    { icon: FileOutput, title: "Document", description: "Professional attendance notes, summaries, and action items—ready for your review and sign-off." },
+    { icon: Brain, title: "Process", description: "Transcription with speaker diarization, legal vocabulary recognition, and intelligent structuring." },
+    { icon: FileOutput, title: "Document", description: "Professional attendance notes, summaries, and action items—ready for your sign-off." },
   ];
 
   const additionalFeatures = [
     { icon: Users, title: "Speaker Identification", description: "Automatically identify and label speakers throughout the meeting for clear attribution." },
     { icon: Lock, title: "Black Box Security", description: "Triple-layer redundancy ensures your records are protected and recoverable." },
-    { icon: Search, title: "Full-Text Search", description: "Search across all your transcripts and documents to find exactly what was said." },
+    { icon: Search, title: "Matter-Wide Search", description: "Find anything across transcripts, attendance notes, summaries, and action items—from a single search bar. No more hunting through paper notes, emails, and Word documents." },
     { icon: Bell, title: "Smart Reminders", description: "Automatic follow-up reminders linked to action items extracted from meetings." },
   ];
 
@@ -56,9 +56,9 @@ export default function Features() {
     { 
       icon: AlertTriangle, 
       title: "Scope Creep Detection", 
-      description: "Flags when conversation moves outside the agreed matter scope. Helps prevent write-offs and protects against work done without proper instruction.",
+      description: "During your post-meeting review, flags when conversation moved outside the agreed matter scope. Helps prevent write-offs and protects against documenting advice given without proper instruction.",
       badge: "Coming Soon",
-      example: "Client discussing employment dispute starts asking about property division—LegalNote surfaces a prompt before you document advice on an unrelated matter."
+      example: "Before you sign off on the attendance note, LegalNote highlights: 'This conversation touched on property matters, but this case is filed under Employment Law. Review before finalising.'"
     },
     { 
       icon: PoundSterling, 

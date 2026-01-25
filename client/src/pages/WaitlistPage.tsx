@@ -130,11 +130,11 @@ export default function WaitlistPage() {
           <p className="text-sm text-[hsl(25,20%,45%)]">
             Questions? Reach out to us at{" "}
             <a 
-              href="mailto:hello@legalnote.ai" 
+              href="mailto:support@legalnote.ai" 
               className="text-[hsl(18,70%,42%)] hover:underline"
               data-testid="link-contact-email"
             >
-              hello@legalnote.ai
+              support@legalnote.ai
             </a>
           </p>
           <Button 
