@@ -34,7 +34,7 @@ export default function TermsPage() {
   return (
     <div className="min-h-screen bg-[hsl(30,25%,97%)]">
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg shadow-sm border-b border-[hsl(30,20%,90%)]">
-        <div className="max-w-7xl mx-auto px-6 py-5">
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <Link href="/" data-testid="link-logo-home">
               <span className="cursor-pointer">

@@ -31,6 +31,7 @@ import SecurityPage from "@/pages/SecurityPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
 import Features from "@/pages/Features";
+import ScrollToTop from "@/components/ScrollToTop";
 
 function Router() {
   const { isAuthenticated, isLoading, isAdmin, isWaitlisted } = useAuth();
@@ -98,6 +99,7 @@ function AuthenticatedAppContent() {
           onOpenChange={setShowRecoveryModal}
         />
       )}
+      <ScrollToTop />
       <Router />
     </div>
   );

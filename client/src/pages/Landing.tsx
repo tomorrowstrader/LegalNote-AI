@@ -1768,7 +1768,7 @@ export default function Landing() {
             : 'bg-white border-b border-[hsl(30,20%,90%)]'
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
