@@ -264,7 +264,93 @@ export default function SecurityPage() {
         </div>
       </section>
 
+      {/* Regulatory Compliance Section - Moved from homepage */}
       <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <h2 
+              className="text-3xl sm:text-4xl font-medium text-[hsl(25,30%,12%)] mb-4"
+              data-testid="heading-regulatory-compliance"
+            >
+              Built to Evidence Professional Judgement
+            </h2>
+            <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
+              Detailed attendance notes as a core strand of evidencing competent service.
+            </p>
+          </motion.div>
+
+          <div className="space-y-6">
+            {[
+              {
+                obligation: "SRA Code of Conduct",
+                reference: "Paragraph 3.3",
+                requirement: "Keep records of decisions and actions relating to client matters",
+                howLegalNoteHelps: "Automated attendance notes capture decisions and actions in real-time, linked to the matter record with timestamps.",
+                icon: FileCheck,
+              },
+              {
+                obligation: "COLP Expectations",
+                reference: "Compliance Officer Role",
+                requirement: "Evidence that file management policies are followed across the firm",
+                howLegalNoteHelps: "Audit trail with cryptographic signatures provides reviewable evidence of consistent documentation practices.",
+                icon: Users,
+              },
+              {
+                obligation: "UK GDPR",
+                reference: "Articles 5, 17 & 32",
+                requirement: "Data minimisation, right to erasure, and appropriate security measures",
+                howLegalNoteHelps: "GDPR-compliant auto-deletion, UK data residency, encryption at rest and in transit, consent documentation.",
+                icon: Shield,
+              },
+              {
+                obligation: "PI Insurance Defensibility",
+                reference: "Claims Investigation",
+                requirement: "Contemporaneous evidence of advice given and instructions received",
+                howLegalNoteHelps: "Timestamped, speaker-attributed records created at point of instruction, not reconstructed weeks later.",
+                icon: Key,
+              },
+            ].map((item, index) => (
+              <motion.div
+                key={item.obligation}
+                className="p-6 rounded-xl bg-[hsl(30,25%,97%)] border border-[hsl(30,20%,90%)]"
+                initial={{ opacity: 0, x: index % 2 === 0 ? -20 : 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: index * 0.1 }}
+              >
+                <div className="flex flex-col md:flex-row md:items-start gap-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(18,55%,88%)] to-[hsl(18,60%,80%)] flex items-center justify-center">
+                      <item.icon className="w-6 h-6 text-[hsl(18,65%,42%)]" />
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <h3 className="text-lg font-medium text-[hsl(25,30%,12%)]">{item.obligation}</h3>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(25,30%,92%)] text-[hsl(25,30%,40%)]">
+                        {item.reference}
+                      </span>
+                    </div>
+                    <p className="text-sm text-[hsl(25,20%,50%)] mb-3 italic">
+                      "{item.requirement}"
+                    </p>
+                    <p className="text-sm text-[hsl(25,20%,35%)]">
+                      <span className="font-medium text-[hsl(18,55%,40%)]">How LegalNote helps:</span> {item.howLegalNoteHelps}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-20 bg-[hsl(30,25%,97%)]">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <motion.div

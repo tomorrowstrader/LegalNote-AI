@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X, ChevronLeft, ChevronRight, FileQuestion, AlertTriangle, Download } from "lucide-react";
+import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X, ChevronLeft, ChevronRight, FileQuestion, AlertTriangle, Download, Wifi, HardDrive, RefreshCw, Server, Lock, Shield } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
 import Logo from "@/components/Logo";
@@ -441,21 +441,21 @@ function ComparisonSlider() {
                 </span>
               </div>
               <div 
-                className="text-sm sm:text-base text-[hsl(220,10%,25%)] space-y-1.5 leading-relaxed"
+                className="text-base sm:text-lg text-[hsl(25,25%,20%)] space-y-2 leading-relaxed"
                 style={{ 
                   fontFamily: "'Caveat', 'Segoe Script', cursive",
                   transform: 'rotate(-0.3deg)'
                 }}
               >
-                <p className="font-medium" style={{ transform: 'rotate(0.2deg)' }}>Emma Richards - Divorce financial settlement</p>
+                <p className="font-semibold text-[hsl(25,30%,15%)]" style={{ transform: 'rotate(0.2deg)' }}>Emma Richards - Divorce financial settlement</p>
                 <p style={{ transform: 'rotate(-0.2deg)' }}>Family home approx £850k, valued last month</p>
                 <p className="ml-1" style={{ transform: 'rotate(0.1deg)' }}>Husband's pension - needs CETV</p>
                 <p style={{ transform: 'rotate(-0.3deg)' }}>Client wants to stay in property until kids finish school (6 yrs)</p>
                 <p className="ml-2" style={{ transform: 'rotate(0.2deg)' }}>Husband offered to pay school fees - client doesn't trust</p>
                 <p style={{ transform: 'rotate(-0.1deg)' }}>Discussed 60/40 split, Form E needed</p>
-                <p className="mt-3 text-xs sm:text-sm text-[hsl(25,30%,50%)] italic" style={{ transform: 'rotate(0.2deg)' }}>Good notes. But what exactly did she say about trust?</p>
-                <p className="text-xs sm:text-sm text-[hsl(25,30%,50%)] italic" style={{ transform: 'rotate(-0.2deg)' }}>What advice was given about the Mesher order?</p>
-                <p className="text-xs sm:text-sm text-[hsl(25,30%,50%)] italic ml-1" style={{ transform: 'rotate(0.1deg)' }}>When disputes arise, will this be enough?</p>
+                <p className="mt-4 text-sm sm:text-base text-[hsl(0,45%,40%)] italic font-medium" style={{ transform: 'rotate(0.2deg)' }}>Good notes. But what exactly did she say about trust?</p>
+                <p className="text-sm sm:text-base text-[hsl(0,45%,40%)] italic font-medium" style={{ transform: 'rotate(-0.2deg)' }}>What advice was given about the Mesher order?</p>
+                <p className="text-sm sm:text-base text-[hsl(0,45%,40%)] italic font-medium ml-1" style={{ transform: 'rotate(0.1deg)' }}>When disputes arise, will this be enough?</p>
               </div>
             </div>
           </div>
@@ -1664,28 +1664,99 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Trust & Compliance Section - Compact */}
-      <div id="security-compliance" className="relative bg-[hsl(30,25%,94%)] py-10 border-y border-[hsl(30,20%,85%)]">
+      {/* LegalNote BlackBox Section */}
+      <div id="blackbox" className="relative bg-gradient-to-br from-[hsl(220,15%,12%)] via-[hsl(220,12%,15%)] to-[hsl(220,10%,18%)] py-16 border-y border-[hsl(220,10%,25%)]">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
-            className="text-center mb-6"
+            className="text-center mb-10"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <span className="text-xs font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-2 block">
-              Security & Compliance
+            <span className="text-xs font-medium text-[hsl(18,70%,55%)] uppercase tracking-wider mb-3 block">
+              Data Integrity
             </span>
-            <h2 className="text-2xl sm:text-3xl font-normal text-[hsl(25,30%,12%)] mb-2" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Built to evidence professional judgement
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-normal text-white mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              LegalNote BlackBox
             </h2>
-            <p className="text-base text-[hsl(25,20%,40%)] max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Detailed attendance notes as a core strand of evidencing competent service.
+            <p className="text-base sm:text-lg text-[hsl(220,10%,70%)] max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              Your data survives anything. Battery death, device loss, network dropouts, crashes—recordings continue uploading the moment connectivity returns.
             </p>
           </motion.div>
 
-          <TrustBadges />
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              {
+                icon: Wifi,
+                title: "Resilient Streaming",
+                description: "Chunked uploads with automatic retry. No single point of failure—if your connection drops mid-meeting, we resume exactly where you left off."
+              },
+              {
+                icon: HardDrive,
+                title: "Triple-Layer Redundancy",
+                description: "Local device cache, regional cloud buffer, and geo-replicated permanent storage. Your recording exists in three places before we confirm receipt."
+              },
+              {
+                icon: Shield,
+                title: "Tamper-Evident Audit",
+                description: "Every record cryptographically signed with HMAC-SHA256. Timestamps can't be forged, deletions can't be hidden, modifications leave evidence."
+              },
+              {
+                icon: Server,
+                title: "UK Jurisdiction Only",
+                description: "Processing infrastructure entirely within UK borders. No data crosses international boundaries—full alignment with UK data protection law."
+              },
+              {
+                icon: RefreshCw,
+                title: "Graceful Degradation",
+                description: "Lost power? Device stolen? App crashed? Local cache persists through restarts, syncs automatically when you're back online."
+              },
+              {
+                icon: Lock,
+                title: "End-to-End Encryption",
+                description: "TLS 1.3 in transit, AES-256 at rest. Client communications remain confidential from capture to deletion—even we can't read your content."
+              }
+            ].map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                className="p-6 rounded-xl bg-[hsl(220,12%,20%)] border border-[hsl(220,10%,28%)] hover:border-[hsl(18,50%,45%)] transition-colors"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: index * 0.08 }}
+                data-testid={`blackbox-feature-${index}`}
+              >
+                <div className="w-10 h-10 rounded-lg bg-[hsl(18,50%,35%)] flex items-center justify-center mb-4">
+                  <feature.icon className="w-5 h-5 text-[hsl(18,70%,70%)]" />
+                </div>
+                <h3 className="text-lg font-medium text-white mb-2">{feature.title}</h3>
+                <p className="text-sm text-[hsl(220,10%,60%)] leading-relaxed">{feature.description}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div 
+            className="flex flex-wrap items-center justify-center gap-6 pt-10 text-sm text-[hsl(220,10%,55%)]"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+            data-testid="blackbox-summary-badges"
+          >
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[hsl(130,50%,45%)]" />
+              99.99% Uptime SLA
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[hsl(130,50%,45%)]" />
+              Zero Data Loss Guarantee
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[hsl(130,50%,45%)]" />
+              Automatic Backup & Recovery
+            </span>
+          </motion.div>
         </div>
       </div>
 
