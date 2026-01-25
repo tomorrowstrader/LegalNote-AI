@@ -795,51 +795,51 @@ function ComparisonSlider() {
                 
                 {/* Client Version Preview */}
                 {activePreview === 'client' && (
-                  <div>
+                  <div data-testid="panel-client-version">
                     <div className="flex items-center gap-2 mb-3 sm:mb-4">
                       <Users className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Client-Facing Version</h4>
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]" data-testid="heading-client-version">Client-Facing Version</h4>
                     </div>
                     <div className="bg-white rounded-lg p-3 sm:p-4 text-xs sm:text-sm">
                       {/* Solicitor Approval Stamp */}
-                      <div className="flex items-center gap-2 mb-3 sm:mb-4 p-2 sm:p-3 bg-[hsl(130,40%,95%)] rounded-lg border border-[hsl(130,40%,85%)]">
+                      <div className="flex items-center gap-2 mb-3 sm:mb-4 p-2 sm:p-3 bg-[hsl(130,40%,95%)] rounded-lg border border-[hsl(130,40%,85%)]" data-testid="stamp-solicitor-approval">
                         <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(130,50%,40%)]" />
                         <div>
-                          <p className="font-medium text-[hsl(130,50%,30%)] text-xs sm:text-sm">Reviewed and Approved</p>
-                          <p className="text-[10px] sm:text-xs text-[hsl(130,40%,45%)]">by Sarah Mitchell, Solicitor • 12 Mar 2025 at 11:14</p>
+                          <p className="font-medium text-[hsl(130,50%,30%)] text-xs sm:text-sm" data-testid="text-approval-status">Reviewed and Approved</p>
+                          <p className="text-[10px] sm:text-xs text-[hsl(130,40%,45%)]" data-testid="text-approval-details">by Sarah Mitchell, Solicitor • 12 Mar 2025 at 11:14</p>
                         </div>
                       </div>
                       
                       {/* Client Summary */}
                       <div className="space-y-3 sm:space-y-4">
                         <div>
-                          <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Summary of Our Meeting</p>
+                          <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2" data-testid="heading-client-summary">Summary of Our Meeting</p>
                           <p className="text-[hsl(25,20%,35%)]">We discussed your priorities for the financial settlement, focusing on remaining in the family home until Lily finishes school. I explained how a Mesher order could achieve this.</p>
                         </div>
                         
                         <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
-                          <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">What We Agreed</p>
+                          <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2" data-testid="heading-what-we-agreed">What We Agreed</p>
                           <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)]">
                             <li className="flex items-start gap-1.5 sm:gap-2">
-                              <span className="text-[hsl(130,50%,40%)] mt-0.5 sm:mt-1">✓</span>
+                              <Check className="w-3 h-3 sm:w-4 sm:h-4 text-[hsl(130,50%,40%)] mt-0.5 sm:mt-1 shrink-0" />
                               <span>I will pursue a Mesher order approach for the family home</span>
                             </li>
                             <li className="flex items-start gap-1.5 sm:gap-2">
-                              <span className="text-[hsl(130,50%,40%)] mt-0.5 sm:mt-1">✓</span>
+                              <Check className="w-3 h-3 sm:w-4 sm:h-4 text-[hsl(130,50%,40%)] mt-0.5 sm:mt-1 shrink-0" />
                               <span>School fees will be documented with an enforcement mechanism</span>
                             </li>
                           </ul>
                         </div>
                         
                         <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
-                          <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Your Next Steps</p>
+                          <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2" data-testid="heading-client-next-steps">Your Next Steps</p>
                           <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)]">
                             <li className="flex items-start gap-1.5 sm:gap-2">
-                              <span className="text-[hsl(220,60%,50%)] mt-0.5 sm:mt-1">→</span>
+                              <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-[hsl(220,60%,50%)] mt-0.5 sm:mt-1 shrink-0" />
                               <span>Obtain your pension CETV statement by <strong>17 March</strong></span>
                             </li>
                             <li className="flex items-start gap-1.5 sm:gap-2">
-                              <span className="text-[hsl(220,60%,50%)] mt-0.5 sm:mt-1">→</span>
+                              <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-[hsl(220,60%,50%)] mt-0.5 sm:mt-1 shrink-0" />
                               <span>Gather school fee payment history (last 24 months) by <strong>19 March</strong></span>
                             </li>
                           </ul>
