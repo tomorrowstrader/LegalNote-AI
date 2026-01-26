@@ -31,6 +31,8 @@ export function configureSecurityHeaders(app: Express) {
       const allowedOrigins = [
         /\.replit\.dev$/,
         /\.replit\.app$/,
+        /^https:\/\/legalnote\.ai$/,
+        /^https:\/\/www\.legalnote\.ai$/,
       ];
 
       // Add production domains
@@ -85,6 +87,8 @@ export function configureSecurityHeaders(app: Express) {
       : [
           "'self'",
           "https://*.replit.app",
+          "https://legalnote.ai",
+          "https://www.legalnote.ai",
           "https://api.openai.com",
         ],
     objectSrc: ["'none'"],
