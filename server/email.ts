@@ -163,7 +163,7 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <jazz.dennis@legalnote.ai>', // Use verified domain in production
+      from: 'LegalNote AI <support@legalnote.ai>', // Use verified domain in production
       to: [to],
       subject: `Case Documents - ${clientName}${matterReference ? ` (${matterReference})` : ''}`,
       html: emailHtml,
@@ -437,7 +437,7 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <jazz.dennis@legalnote.ai>',
+      from: 'LegalNote AI <support@legalnote.ai>',
       to: [to],
       subject: `Recording Saved - ${clientName}${matterReference ? ` (${matterReference})` : ''} - ${formattedDate}`,
       html: emailHtml,
@@ -565,7 +565,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <jazz.dennis@legalnote.ai>',
+      from: 'LegalNote AI <support@legalnote.ai>',
       to: [to],
       subject,
       html: emailHtml,
@@ -683,9 +683,9 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <jazz.dennis@legalnote.ai>',
+      from: 'LegalNote AI <support@legalnote.ai>',
       to: [to],
-      reply_to: 'jazz.dennis@legalnote.ai',
+      reply_to: 'support@legalnote.ai',
       headers: {
         'Precedence': 'bulk',
         'X-Entity-Ref-ID': Date.now().toString(),
@@ -846,9 +846,9 @@ export async function sendLeadMagnetEmail(
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <jazz.dennis@legalnote.ai>',
+      from: 'LegalNote AI <support@legalnote.ai>',
       to: [to],
-      reply_to: 'jazz.dennis@legalnote.ai',
+      reply_to: 'support@legalnote.ai',
       headers: {
         'Precedence': 'bulk',
         'X-Entity-Ref-ID': Date.now().toString(),
