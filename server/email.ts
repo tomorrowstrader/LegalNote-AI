@@ -163,7 +163,7 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <onboarding@resend.dev>', // Use verified domain in production
+      from: 'LegalNote AI <jazz.dennis@legalnote.ai>', // Use verified domain in production
       to: [to],
       subject: `Case Documents - ${clientName}${matterReference ? ` (${matterReference})` : ''}`,
       html: emailHtml,
@@ -437,7 +437,7 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <onboarding@resend.dev>',
+      from: 'LegalNote AI <jazz.dennis@legalnote.ai>',
       to: [to],
       subject: `Recording Saved - ${clientName}${matterReference ? ` (${matterReference})` : ''} - ${formattedDate}`,
       html: emailHtml,
@@ -565,7 +565,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <onboarding@resend.dev>',
+      from: 'LegalNote AI <jazz.dennis@legalnote.ai>',
       to: [to],
       subject,
       html: emailHtml,
@@ -683,7 +683,7 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <onboarding@resend.dev>',
+      from: 'LegalNote AI <jazz.dennis@legalnote.ai>',
       to: [to],
       subject: 'Welcome to the LegalNote AI Waitlist',
       html: emailHtml,
@@ -841,7 +841,7 @@ export async function sendLeadMagnetEmail(
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <onboarding@resend.dev>',
+      from: 'LegalNote AI <jazz.dennis@legalnote.ai>',
       to: [to],
       subject: 'Your Guide: The Defensible Record',
       html: emailHtml,
