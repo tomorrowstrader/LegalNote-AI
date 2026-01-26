@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 
 const BRAND_TERRACOTTA = [180, 82, 59] as const; // RGB equivalent of hsl(18,70%,42%)
 const BRAND_DARK = [38, 27, 20] as const; // Dark brown for text
