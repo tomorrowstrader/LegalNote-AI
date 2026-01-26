@@ -683,7 +683,7 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <notifications@legalnote.co.uk>',
+      from: 'LegalNote AI <onboarding@resend.dev>',
       to: [to],
       subject: 'Welcome to the LegalNote AI Waitlist',
       html: emailHtml,
@@ -841,7 +841,7 @@ export async function sendLeadMagnetEmail(
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote <guides@legalnote.co.uk>',
+      from: 'LegalNote AI <onboarding@resend.dev>',
       to: [to],
       subject: 'Your Guide: The Defensible Record',
       html: emailHtml,

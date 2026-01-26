@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Check, Loader2, Download, FileText } from "lucide-react";
+import { Check, Loader2, Mail, FileText } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
 const leadMagnetSchema = z.object({
@@ -42,11 +42,6 @@ interface LeadMagnetFormProps {
 export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
   const [success, setSuccess] = useState(false);
   const [emailSent, setEmailSent] = useState<boolean | null>(null);
-  const [popupBlocked, setPopupBlocked] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  
-  // Store reference to pre-opened tab for PDF delivery (persists across renders)
-  const pdfTabRef = useRef<Window | null>(null);
 
   const form = useForm<LeadMagnetFormData>({
     resolver: zodResolver(leadMagnetSchema),
@@ -96,8 +91,6 @@ export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
       setTimeout(() => {
         setSuccess(false);
         setEmailSent(null);
-        setPopupBlocked(false);
-        setPdfUrl(null);
         form.reset();
       }, 300);
     }
@@ -219,7 +212,7 @@ export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
                     </>
                   ) : (
                     <>
-                      <Download className="mr-2 h-4 w-4" />
+                      <Mail className="mr-2 h-4 w-4" />
                       Send My Free Guide
                     </>
                   )}
