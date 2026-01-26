@@ -686,6 +686,10 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
       from: 'LegalNote AI <jazz.dennis@legalnote.ai>',
       to: [to],
       reply_to: 'jazz.dennis@legalnote.ai',
+      headers: {
+        'Precedence': 'bulk',
+        'X-Entity-Ref-ID': Date.now().toString(),
+      },
       subject: 'Welcome to the LegalNote AI Waitlist',
       html: emailHtml,
     });
@@ -845,6 +849,10 @@ export async function sendLeadMagnetEmail(
       from: 'LegalNote AI <jazz.dennis@legalnote.ai>',
       to: [to],
       reply_to: 'jazz.dennis@legalnote.ai',
+      headers: {
+        'Precedence': 'bulk',
+        'X-Entity-Ref-ID': Date.now().toString(),
+      },
       subject: 'Your Guide: The Defensible Record',
       html: emailHtml,
       attachments: [
