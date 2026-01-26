@@ -103,9 +103,9 @@ export function ExploreModal({ isVisible, onDismiss, onExplore }: ExploreModalPr
                     onClick={onDismiss}
                     variant="outline"
                     className="flex-1"
-                    data-testid="button-modal-maybe-later"
+                    data-testid="button-modal-book-demo"
                   >
-                    Maybe later
+                    Book a Demo
                   </Button>
                 </div>
               </div>
