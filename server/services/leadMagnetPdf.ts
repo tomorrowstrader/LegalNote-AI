@@ -42,14 +42,16 @@ export function generateDefensibleRecordPDF(options: LeadMagnetOptions = {}): Bu
     pdf.setFontSize(22);
     pdf.setTextColor(...BRAND_DARK);
     pdf.text(text, margin, yPos);
-    yPos += 3;
+    
+    // Professional underline matching site
+    yPos += 2;
     pdf.setDrawColor(...BRAND_TERRACOTTA);
     pdf.setLineWidth(0.8);
-    pdf.line(margin, yPos, margin + 20, yPos);
+    pdf.line(margin, yPos, margin + 25, yPos);
     yPos += 12;
   };
 
-  const addParagraph = (text: string, fontSize = 11, spacing = 6) => {
+  const addParagraph = (text: string, fontSize = 10.5, spacing = 5.5) => {
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(fontSize);
     pdf.setTextColor(...BRAND_TEXT);
@@ -61,50 +63,58 @@ export function generateDefensibleRecordPDF(options: LeadMagnetOptions = {}): Bu
 
   const addBulletPoint = (text: string) => {
     pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(11);
+    pdf.setFontSize(10.5);
     pdf.setTextColor(...BRAND_TEXT);
     const lines = pdf.splitTextToSize(text, contentWidth - 12);
-    checkPageBreak(lines.length * 6 + 2);
+    checkPageBreak(lines.length * 5.5 + 2);
     pdf.setFillColor(...BRAND_TERRACOTTA);
-    pdf.circle(margin + 4, yPos - 1.5, 1, 'F');
+    pdf.rect(margin + 4, yPos - 3, 1.5, 1.5, 'F'); // Square bullets matching site buttons
     pdf.text(lines, margin + 10, yPos);
-    yPos += (lines.length * 6) + 3;
+    yPos += (lines.length * 5.5) + 3;
   };
 
   // --- Cover Page ---
   setPageBackground();
-  pdf.setFillColor(...BRAND_TERRACOTTA);
-  pdf.rect(0, 0, pageWidth, 50, 'F');
   
-  pdf.setTextColor(255, 255, 255);
-  pdf.setFont('times', 'bold');
-  pdf.setFontSize(24);
-  pdf.text('LegalNote', margin, 28);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(9);
-  pdf.text('COMPLIANCE-FIRST DOCUMENTATION', margin, 36);
+  // Elegant top accent
+  pdf.setFillColor(...BRAND_TERRACOTTA);
+  pdf.rect(0, 0, pageWidth, 4, 'F');
 
-  yPos = 100;
+  // LegalNote branding - Logo style
   pdf.setTextColor(...BRAND_DARK);
   pdf.setFont('times', 'bold');
-  pdf.setFontSize(42);
+  pdf.setFontSize(24);
+  pdf.text('LegalNote', margin, 35);
+  
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...BRAND_TERRACOTTA);
+  pdf.text('COMPLIANCE-FIRST DOCUMENTATION', margin, 42);
+
+  yPos = 110;
+  pdf.setTextColor(...BRAND_DARK);
+  pdf.setFont('times', 'bold');
+  pdf.setFontSize(48);
   pdf.text('The Defensible', pageWidth / 2, yPos, { align: 'center' });
-  yPos += 16;
+  yPos += 18;
   pdf.text('Record', pageWidth / 2, yPos, { align: 'center' });
 
-  yPos += 20;
+  yPos += 25;
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(14);
   pdf.setTextColor(...BRAND_TEXT);
   pdf.text("A Solicitor's Guide to Contemporaneous Evidence", pageWidth / 2, yPos, { align: 'center' });
 
-  yPos = pageHeight - 40;
+  // Decorative element
+  yPos += 30;
   pdf.setDrawColor(...BRAND_TERRACOTTA);
-  pdf.setLineWidth(0.5);
-  pdf.line(pageWidth / 2 - 15, yPos, pageWidth / 2 + 15, yPos);
-  yPos += 15;
-  pdf.setFont('times', 'italic');
+  pdf.setLineWidth(1);
+  pdf.line(pageWidth / 2 - 20, yPos, pageWidth / 2 + 20, yPos);
+
+  yPos = pageHeight - 30;
+  pdf.setFont('times', 'bold');
   pdf.setFontSize(12);
+  pdf.setTextColor(...BRAND_DARK);
   pdf.text('legalnote.ai', pageWidth / 2, yPos, { align: 'center' });
 
   // --- Page 2: Intro ---
