@@ -73,44 +73,20 @@ export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
     onSuccess: (data) => {
       setSuccess(true);
       setEmailSent(data.emailSent === true);
-      // Navigate the pre-opened tab to the PDF
-      const url = `/api/lead-magnet/download?name=${encodeURIComponent(data.firstName || '')}`;
-      setPdfUrl(url);
-      if (pdfTabRef.current && !pdfTabRef.current.closed) {
-        pdfTabRef.current.location.href = url;
-        setPopupBlocked(false);
-      } else {
-        // Popup was blocked - show download link instead
-        setPopupBlocked(true);
-      }
+      // Removed direct PDF download as per user request
     },
     onError: (error: Error) => {
       if (error.message?.includes("already")) {
-        // User already on waitlist - still give them the PDF
+        // User already on waitlist
         setSuccess(true);
-        setEmailSent(true); // They already got emails before
-        const url = `/api/lead-magnet/download?name=${encodeURIComponent(form.getValues('firstName') || '')}`;
-        setPdfUrl(url);
-        if (pdfTabRef.current && !pdfTabRef.current.closed) {
-          pdfTabRef.current.location.href = url;
-          setPopupBlocked(false);
-        } else {
-          setPopupBlocked(true);
-        }
+        setEmailSent(true); 
       } else {
-        // Close the pre-opened tab if submission failed
-        if (pdfTabRef.current && !pdfTabRef.current.closed) {
-          pdfTabRef.current.close();
-        }
-        pdfTabRef.current = null;
         console.error("Lead magnet submission error:", error);
       }
     },
   });
 
   const onSubmit = (data: LeadMagnetFormData) => {
-    // Open tab synchronously on user click to avoid popup blockers
-    pdfTabRef.current = window.open('about:blank', '_blank');
     submitMutation.mutate(data);
   };
 
@@ -136,34 +112,17 @@ export function LeadMagnetForm({ open, onOpenChange }: LeadMagnetFormProps) {
               <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <DialogHeader>
-              <DialogTitle data-testid="text-pdf-success-title">Your Guide is Ready</DialogTitle>
+              <DialogTitle data-testid="text-pdf-success-title">Your Guide is on its way</DialogTitle>
               <DialogDescription data-testid="text-pdf-success-description" className="space-y-2">
-                {popupBlocked ? (
-                  <span>Click below to download your guide.</span>
-                ) : (
-                  <span>Your guide has opened in a new tab.</span>
-                )}
                 {emailSent === true && (
-                  <span className="block text-green-600 dark:text-green-400">We've also sent a copy to your inbox.</span>
+                  <span className="block text-green-600 dark:text-green-400">We've sent a copy of "The Defensible Record" to your inbox.</span>
                 )}
                 {emailSent === false && (
-                  <span className="block text-muted-foreground text-xs">(Email delivery temporarily unavailable)</span>
+                  <span className="block text-muted-foreground text-xs">(Email delivery temporarily unavailable. Please try again later.)</span>
                 )}
               </DialogDescription>
             </DialogHeader>
-            {popupBlocked && pdfUrl && (
-              <a 
-                href={pdfUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-[hsl(18,70%,42%)] text-white rounded-md"
-                data-testid="link-download-pdf"
-              >
-                <Download className="h-4 w-4" />
-                Download PDF
-              </a>
-            )}
-            <Button onClick={handleClose} className="mt-4" variant={popupBlocked ? "outline" : "default"} data-testid="button-close-pdf-success">
+            <Button onClick={handleClose} className="mt-4" data-testid="button-close-pdf-success">
               Close
             </Button>
           </div>
