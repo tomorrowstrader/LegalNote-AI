@@ -87,7 +87,7 @@ export function ExploreModal({ isVisible, onDismiss, onExplore }: ExploreModalPr
                 </div>
                 
                 <p className="text-[hsl(25,20%,35%)] mb-6 leading-relaxed">
-                  Get early access and discover how contemporaneous records can strengthen your professional defensibility.
+                  Discover how contemporaneous records can strengthen your professional defensibility.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-3">
