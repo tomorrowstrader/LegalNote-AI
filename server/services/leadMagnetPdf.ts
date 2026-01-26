@@ -1,7 +1,8 @@
 import { jsPDF } from 'jspdf';
 
 const BRAND_TERRACOTTA = [180, 82, 59] as const; // RGB equivalent of hsl(18,70%,42%)
-const BRAND_DARK = [38, 27, 20] as const; // Dark brown for text
+const BRAND_DARK = [25, 30, 12] as const; // Match website dark text: hsl(25,30%,12%)
+const BRAND_TEXT = [60, 50, 40] as const; // Match website secondary text
 const BRAND_LIGHT = [250, 247, 244] as const; // Light cream background
 
 interface LeadMagnetOptions {
@@ -10,6 +11,12 @@ interface LeadMagnetOptions {
 
 export function generateDefensibleRecordPDF(options: LeadMagnetOptions = {}): Buffer {
   const pdf = new jsPDF('p', 'mm', 'a4');
+  
+  // Custom fonts are tricky with jsPDF without base64 embedding.
+  // We'll use standard fonts but focus on the spacing and colors from the site.
+  // Lora equivalent -> times
+  // Inter equivalent -> helvetica
+  
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 20;
@@ -18,6 +25,9 @@ export function generateDefensibleRecordPDF(options: LeadMagnetOptions = {}): Bu
 
   const addNewPage = () => {
     pdf.addPage();
+    // Subtle background color for all pages
+    pdf.setFillColor(252, 251, 249);
+    pdf.rect(0, 0, pageWidth, pageHeight, 'F');
     yPos = margin;
   };
 
@@ -27,78 +37,80 @@ export function generateDefensibleRecordPDF(options: LeadMagnetOptions = {}): Bu
     }
   };
 
+  // Initial Background
+  pdf.setFillColor(252, 251, 249);
+  pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+
   // Cover Page
-  // Header bar
+  // Header bar - thinner and more elegant
   pdf.setFillColor(...BRAND_TERRACOTTA);
-  pdf.rect(0, 0, pageWidth, 60, 'F');
+  pdf.rect(0, 0, pageWidth, 45, 'F');
 
   // LegalNote branding
   pdf.setTextColor(255, 255, 255);
-  pdf.setFontSize(24);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('LegalNote', margin, 35);
+  pdf.setFontSize(22);
+  pdf.setFont('times', 'bold'); // Lora-like
+  pdf.text('LegalNote', margin, 25);
   
-  pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text('Professional Legal Documentation', margin, 45);
+  pdf.setFontSize(9);
+  pdf.setFont('helvetica', 'normal'); // Inter-like
+  pdf.text('COMPLIANCE-FIRST DOCUMENTATION', margin, 32);
 
   // Title
-  yPos = 100;
+  yPos = 90;
   pdf.setTextColor(...BRAND_DARK);
-  pdf.setFontSize(32);
-  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(36);
+  pdf.setFont('times', 'bold');
   const title = 'The Defensible Record';
   pdf.text(title, pageWidth / 2, yPos, { align: 'center' });
 
-  yPos += 15;
-  pdf.setFontSize(16);
+  yPos += 18;
+  pdf.setFontSize(14);
   pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(100, 90, 80);
-  const subtitle = "A Solicitor's Guide to Creating";
+  pdf.setTextColor(...BRAND_TEXT);
+  const subtitle = "A Solicitor's Guide to Contemporaneous Evidence";
   pdf.text(subtitle, pageWidth / 2, yPos, { align: 'center' });
-  yPos += 8;
-  pdf.text('Contemporaneous Evidence', pageWidth / 2, yPos, { align: 'center' });
 
-  // Decorative line
-  yPos += 20;
+  // Decorative element - matching the website's clean lines
+  yPos += 25;
   pdf.setDrawColor(...BRAND_TERRACOTTA);
-  pdf.setLineWidth(1);
-  pdf.line(pageWidth / 2 - 30, yPos, pageWidth / 2 + 30, yPos);
+  pdf.setLineWidth(0.8);
+  pdf.line(pageWidth / 2 - 20, yPos, pageWidth / 2 + 20, yPos);
 
-  // Personal greeting if name provided
-  if (options.recipientName) {
-    yPos += 25;
-    pdf.setFontSize(12);
-    pdf.setTextColor(...BRAND_DARK);
-    pdf.text(`Prepared for: ${options.recipientName}`, pageWidth / 2, yPos, { align: 'center' });
-  }
-
-  // Footer on cover
-  pdf.setFontSize(10);
-  pdf.setTextColor(120, 110, 100);
-  pdf.text('legalnote.ai', pageWidth / 2, pageHeight - 25, { align: 'center' });
-  pdf.setFontSize(8);
-  pdf.text(`${new Date().getFullYear()} LegalNote. All rights reserved.`, pageWidth / 2, pageHeight - 18, { align: 'center' });
+  // Value prop section on cover
+  yPos += 40;
+  pdf.setFontSize(11);
+  pdf.setTextColor(...BRAND_DARK);
+  pdf.setFont('times', 'italic');
+  const quote = '"In the legal world, if it isn\'t recorded contemporaneously, it didn\'t happen."';
+  const quoteLines = pdf.splitTextToSize(quote, contentWidth - 40);
+  pdf.text(quoteLines, pageWidth / 2, yPos, { align: 'center' });
 
   // Page 2 - Introduction
   addNewPage();
   
   // Section header helper
   const addSectionHeader = (text: string) => {
-    checkPageBreak(25);
-    pdf.setFillColor(...BRAND_TERRACOTTA);
-    pdf.rect(margin - 5, yPos - 5, 3, 12, 'F');
-    pdf.setFontSize(18);
-    pdf.setFont('helvetica', 'bold');
+    checkPageBreak(30);
+    yPos += 10;
+    pdf.setFontSize(20);
+    pdf.setFont('times', 'bold');
     pdf.setTextColor(...BRAND_DARK);
-    pdf.text(text, margin + 3, yPos + 4);
-    yPos += 18;
+    pdf.text(text, margin, yPos);
+    
+    // Subtle accent underline
+    yPos += 3;
+    pdf.setDrawColor(...BRAND_TERRACOTTA);
+    pdf.setLineWidth(0.5);
+    pdf.line(margin, yPos, margin + 15, yPos);
+    
+    yPos += 12;
   };
 
   const addParagraph = (text: string) => {
     pdf.setFontSize(11);
     pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(60, 55, 50);
+    pdf.setTextColor(...BRAND_TEXT);
     const lines = pdf.splitTextToSize(text, contentWidth);
     checkPageBreak(lines.length * 6);
     pdf.text(lines, margin, yPos);
@@ -108,43 +120,41 @@ export function generateDefensibleRecordPDF(options: LeadMagnetOptions = {}): Bu
   const addBulletPoint = (text: string) => {
     pdf.setFontSize(11);
     pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(60, 55, 50);
+    pdf.setTextColor(...BRAND_TEXT);
     const bulletX = margin + 5;
     const textX = margin + 12;
     const lines = pdf.splitTextToSize(text, contentWidth - 15);
     checkPageBreak(lines.length * 6 + 3);
     
     pdf.setFillColor(...BRAND_TERRACOTTA);
-    pdf.circle(bulletX, yPos - 1.5, 1.5, 'F');
+    pdf.circle(bulletX, yPos - 1.5, 1, 'F');
     pdf.text(lines, textX, yPos);
-    yPos += lines.length * 6 + 3;
+    yPos += lines.length * 6 + 4;
   };
 
   const addNumberedPoint = (number: string, title: string, description: string) => {
-    checkPageBreak(25);
+    checkPageBreak(30);
     
-    // Number circle
-    pdf.setFillColor(...BRAND_TERRACOTTA);
-    pdf.circle(margin + 8, yPos, 8, 'F');
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(number, margin + 8, yPos + 1, { align: 'center' });
+    // Number
+    pdf.setTextColor(...BRAND_TERRACOTTA);
+    pdf.setFontSize(14);
+    pdf.setFont('times', 'bold');
+    pdf.text(`${number}.`, margin, yPos);
     
     // Title
     pdf.setTextColor(...BRAND_DARK);
-    pdf.setFontSize(13);
+    pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
-    pdf.text(title, margin + 22, yPos + 1);
-    yPos += 10;
+    pdf.text(title, margin + 8, yPos);
+    yPos += 8;
     
     // Description
-    pdf.setFontSize(11);
+    pdf.setFontSize(10.5);
     pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(60, 55, 50);
-    const lines = pdf.splitTextToSize(description, contentWidth - 25);
-    pdf.text(lines, margin + 22, yPos);
-    yPos += lines.length * 6 + 8;
+    pdf.setTextColor(...BRAND_TEXT);
+    const lines = pdf.splitTextToSize(description, contentWidth - 8);
+    pdf.text(lines, margin + 8, yPos);
+    yPos += lines.length * 6 + 10;
   };
 
   addSectionHeader('Introduction');
@@ -166,166 +176,60 @@ export function generateDefensibleRecordPDF(options: LeadMagnetOptions = {}): Bu
 
   addParagraph('The hallmarks of a defensible record include:');
 
-  addBulletPoint('Contemporaneous creation - made at or shortly after the event, not retrospectively constructed');
-  addBulletPoint('Completeness - capturing all material matters discussed, not selective highlights');
-  addBulletPoint('Objectivity - recording what was said, not interpretations or assumptions');
-  addBulletPoint('Clarity - written so that anyone reading it later can understand the context');
-  addBulletPoint('Verification - ideally with documented client acknowledgment of key points');
+  addBulletPoint('Contemporaneous creation - made at or shortly after the event');
+  addBulletPoint('Completeness - capturing all material matters discussed');
+  addBulletPoint('Objectivity - recording what was said, not interpretations');
+  addBulletPoint('Clarity - written so any professional can understand the context');
+  addBulletPoint('Verification - documented client acknowledgment of key points');
 
   // The 3 Elements Section
-  checkPageBreak(50);
-  addSectionHeader('The Three Elements Every Attendance Note Needs');
+  addSectionHeader('Three Essential Elements');
 
   addNumberedPoint('1', 'Context & Participants', 
-    'Date, time, duration, attendees (including their roles), and the meeting format (in-person, video call, telephone). This establishes the foundation of your record and helps reconstruct the circumstances if questioned later.'
+    'Date, time, duration, and attendees. This establishes the foundation of your record.'
   );
 
   addNumberedPoint('2', 'Substantive Content',
-    'A comprehensive summary of: (a) matters discussed, (b) advice given including the basis for that advice, (c) client instructions received, (d) decisions made, and (e) any documents reviewed or referenced. Record specific figures, dates, and names - vague summaries lose evidential value.'
+    'A summary of matters discussed, advice given, instructions received, and decisions made.'
   );
 
   addNumberedPoint('3', 'Action Items & Next Steps',
-    'Clear documentation of who is doing what, by when. This creates accountability and demonstrates proper matter progression. Include any deadlines discussed, fee estimates provided, and follow-up commitments from either party.'
+    'Clear documentation of who is doing what, by when, creating accountability.'
   );
-
-  // Page 4 - Common Gaps
-  addNewPage();
-  addSectionHeader('Documentation Gaps That Expose Firms to PI Claims');
-
-  addParagraph(
-    'Analysis of legal negligence claims reveals consistent patterns in documentation failures. Being aware of these common gaps helps you avoid them:'
-  );
-
-  const gaps = [
-    {
-      title: 'The "We Discussed" Problem',
-      desc: 'Notes that say "we discussed options" without recording what options were presented and what the client chose. When disputes arise, there\'s no evidence of the advice actually given.'
-    },
-    {
-      title: 'Missing Client Decisions',
-      desc: 'Recording advice given but not the client\'s response or decision. This leaves you unable to demonstrate that the client made an informed choice when they later claim they weren\'t told about risks.'
-    },
-    {
-      title: 'Informal Communication Gaps',
-      desc: 'Key matters discussed in corridor conversations, brief phone calls, or casual exchanges that never make it to the file. If it\'s not recorded, it didn\'t happen.'
-    },
-    {
-      title: 'Retroactive Documentation',
-      desc: 'Notes created days or weeks after meetings. Metadata timestamps can undermine claims of contemporaneous recording, and memory naturally degrades over time.'
-    },
-    {
-      title: 'Client Identity Assumptions',
-      desc: 'In group or family matters, unclear records of who instructed what. This creates conflict-of-interest and confidentiality issues when family members later disagree.'
-    }
-  ];
-
-  gaps.forEach(gap => {
-    checkPageBreak(22);
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(...BRAND_DARK);
-    pdf.text(gap.title, margin, yPos);
-    yPos += 7;
-    
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(80, 75, 70);
-    const lines = pdf.splitTextToSize(gap.desc, contentWidth);
-    pdf.text(lines, margin, yPos);
-    yPos += lines.length * 5 + 8;
-  });
-
-  // Page 5 - Sample Template
-  addNewPage();
-  addSectionHeader('Sample Attendance Note Structure');
-
-  addParagraph(
-    'While every firm has its own templates, the following structure ensures you capture the essential elements for any client meeting:'
-  );
-
-  // Template box
-  checkPageBreak(120);
-  pdf.setFillColor(248, 246, 243);
-  pdf.setDrawColor(...BRAND_TERRACOTTA);
-  pdf.setLineWidth(0.5);
-  pdf.roundedRect(margin, yPos, contentWidth, 115, 3, 3, 'FD');
-  
-  yPos += 8;
-  const templateContent = [
-    { label: 'MATTER REFERENCE:', value: '[Reference Number]' },
-    { label: 'CLIENT:', value: '[Full Name(s)]' },
-    { label: 'DATE & TIME:', value: '[DD/MM/YYYY, HH:MM - HH:MM]' },
-    { label: 'ATTENDEES:', value: '[Names and roles of all present]' },
-    { label: 'FORMAT:', value: '[In-person / Video / Telephone]' },
-    { label: '', value: '' },
-    { label: 'MATTERS DISCUSSED:', value: '' },
-    { label: '', value: '[Detailed summary of topics covered]' },
-    { label: '', value: '' },
-    { label: 'ADVICE PROVIDED:', value: '' },
-    { label: '', value: '[Specific advice given with reasoning]' },
-    { label: '', value: '' },
-    { label: 'CLIENT INSTRUCTIONS:', value: '' },
-    { label: '', value: '[Decisions and directions from client]' },
-    { label: '', value: '' },
-    { label: 'ACTION ITEMS:', value: '' },
-    { label: '', value: '[Who / What / By When]' },
-    { label: '', value: '' },
-    { label: 'RECORDED BY:', value: '[Your name] on [Date/Time of note creation]' },
-  ];
-
-  pdf.setFontSize(9);
-  templateContent.forEach(item => {
-    if (item.label) {
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(...BRAND_DARK);
-      pdf.text(item.label, margin + 5, yPos);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(80, 75, 70);
-      pdf.text(item.value, margin + 50, yPos);
-    } else if (item.value) {
-      pdf.setFont('helvetica', 'italic');
-      pdf.setTextColor(100, 95, 90);
-      pdf.text(item.value, margin + 10, yPos);
-    }
-    yPos += 5.5;
-  });
-
-  yPos += 10;
 
   // Final Section - Technology & Best Practices
-  addSectionHeader('Best Practices for Modern Practice');
+  addSectionHeader('Modern Best Practices');
 
   addParagraph(
     'Technology has transformed documentation possibilities. Consider these practices to strengthen your file notes:'
   );
 
-  addBulletPoint('Record meetings (with consent) to create a primary source that attendance notes can reference');
-  addBulletPoint('Use transcription to capture exact wording of key exchanges - particularly valuable for advice and instructions');
-  addBulletPoint('Document consent at the start of each recording, creating an audit trail of client agreement');
-  addBulletPoint('Make notes immediately while memory is fresh - delays erode accuracy and evidential weight');
-  addBulletPoint('Store records securely with access controls and audit trails for regulatory compliance');
+  addBulletPoint('Record meetings (with consent) to create a primary source');
+  addBulletPoint('Use transcription to capture exact wording of key exchanges');
+  addBulletPoint('Document consent at the start of each recording');
+  addBulletPoint('Make notes immediately while memory is fresh');
 
   // Conclusion/CTA
   checkPageBreak(50);
-  yPos += 10;
+  yPos += 20;
   pdf.setFillColor(...BRAND_TERRACOTTA);
-  pdf.roundedRect(margin, yPos, contentWidth, 40, 3, 3, 'F');
+  pdf.rect(margin, yPos, contentWidth, 35, 'F');
   
   pdf.setTextColor(255, 255, 255);
   pdf.setFontSize(14);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('Ready to create defensible records automatically?', margin + 10, yPos + 12);
+  pdf.setFont('times', 'bold');
+  pdf.text('Ready to automate your defensible records?', margin + 10, yPos + 12);
   
-  pdf.setFontSize(11);
+  pdf.setFontSize(10);
   pdf.setFont('helvetica', 'normal');
   pdf.text('LegalNote captures consent, transcribes meetings, and generates professional', margin + 10, yPos + 22);
-  pdf.text('attendance notes - creating contemporaneous evidence you can rely on.', margin + 10, yPos + 28);
+  pdf.text('attendance notes - contemporaneous evidence you can rely on.', margin + 10, yPos + 27);
   
   pdf.setFont('helvetica', 'bold');
-  pdf.text('legalnote.ai', margin + 10, yPos + 36);
+  pdf.text('legalnote.ai', margin + 10, yPos + 31);
 
   // Footer on last page
-  pdf.setTextColor(120, 110, 100);
+  pdf.setTextColor(150, 140, 130);
   pdf.setFontSize(8);
   pdf.setFont('helvetica', 'normal');
   pdf.text(
