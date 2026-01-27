@@ -1797,7 +1797,7 @@ export default function Landing() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <Logo variant="wordmark" size="xl" tone="light" />
+              <Logo variant="wordmark" size="xl" tone="auto" />
             </motion.div>
             
             {/* Desktop Navigation - visible on lg and above */}
