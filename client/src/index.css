@@ -207,9 +207,9 @@ html {
   --secondary-foreground: 30 20% 96%;
 
   /* Muted */
-  --muted: 25 10% 16%;
+  --muted: 25 10% 20%;
 
-  --muted-foreground: 30 12% 70%;
+  --muted-foreground: 30 15% 75%;
 
   /* Accent - terracotta brand color (slightly brighter for dark mode) */
   --accent: 18 65% 55%;
