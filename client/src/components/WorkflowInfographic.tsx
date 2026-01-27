@@ -156,10 +156,10 @@ export function WorkflowInfographic() {
                 )}
               </div>
               
-              <h4 className="mt-2 text-xs font-medium text-[hsl(25,30%,12%)] leading-tight">
+              <h4 className="mt-2 text-xs font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] leading-tight">
                 {step.title}
               </h4>
-              <p className="mt-0.5 text-[10px] text-[hsl(25,20%,45%)] leading-tight">
+              <p className="mt-0.5 text-[10px] text-[hsl(25,20%,45%)] dark:text-[hsl(30,15%,75%)] leading-tight">
                 {step.description}
               </p>
               
@@ -176,7 +176,7 @@ export function WorkflowInfographic() {
 
       {/* Compliance tagline */}
       <motion.div 
-        className="mt-8 flex flex-wrap items-center justify-center gap-4 text-xs text-[hsl(25,20%,50%)]"
+        className="mt-8 flex flex-wrap items-center justify-center gap-4 text-xs text-[hsl(25,20%,50%)] dark:text-[hsl(30,15%,75%)]"
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true }}

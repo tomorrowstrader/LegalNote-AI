@@ -576,7 +576,7 @@ function ComparisonSlider() {
                     <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4">
                       <div className="flex items-center gap-2">
                         <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
-                        <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]" data-testid="heading-transcript">Full Transcript with Speaker Labels</h4>
+                        <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)] dark:text-[hsl(30,20%,92%)]" data-testid="heading-transcript">Full Transcript with Speaker Labels</h4>
                       </div>
                       <Badge variant="outline" className="text-[9px] sm:text-[10px] bg-purple-100 text-purple-700 border-purple-300" data-testid="badge-speakers-auto-identified">
                         <Users className="w-3 h-3 mr-1" />
@@ -666,11 +666,11 @@ function ComparisonSlider() {
                   <div>
                     <div className="flex items-center gap-2 mb-3 sm:mb-4">
                       <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Meeting Summary</h4>
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)] dark:text-[hsl(30,20%,92%)]">Meeting Summary</h4>
                     </div>
                     <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg p-3 sm:p-4 text-xs sm:text-sm space-y-3 sm:space-y-4">
                       <div>
-                        <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Key Points</p>
+                        <p className="font-medium text-[hsl(25,30%,20%)] dark:text-[hsl(30,20%,92%)] mb-1 sm:mb-2">Key Points</p>
                         <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">
                           <li className="flex items-start gap-1.5 sm:gap-2">
                             <span className="text-[hsl(18,60%,45%)] mt-0.5 sm:mt-1">•</span>
@@ -691,11 +691,11 @@ function ComparisonSlider() {
                         </ul>
                       </div>
                       <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
-                        <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Advice Given</p>
+                        <p className="font-medium text-[hsl(25,30%,20%)] dark:text-[hsl(30,20%,92%)] mb-1 sm:mb-2">Advice Given</p>
                         <p className="text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">Explained implications of Mesher order including deferred sale trigger events (daughter reaching 18, completing education, client remarrying/cohabiting). Discussed pension offsetting options and recommended obtaining CETV statement. Advised documenting school fee commitment with enforcement mechanism in consent order.</p>
                       </div>
                       <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
-                        <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Client Instructions</p>
+                        <p className="font-medium text-[hsl(25,30%,20%)] dark:text-[hsl(30,20%,92%)] mb-1 sm:mb-2">Client Instructions</p>
                         <p className="text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">Client confirmed she wishes to pursue Mesher order approach. Instructed to prioritise remaining in family home until daughter completes education over immediate capital release.</p>
                       </div>
                     </div>
@@ -707,7 +707,7 @@ function ComparisonSlider() {
                   <div>
                     <div className="flex items-center gap-2 mb-3 sm:mb-4">
                       <ClipboardCheck className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Action Items - Auto-Extracted & Diarised</h4>
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)] dark:text-[hsl(30,20%,92%)]">Action Items - Auto-Extracted & Diarised</h4>
                     </div>
                     <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
                       <div className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-[hsl(18,30%,97%)] rounded-lg border-l-2 border-[hsl(18,60%,50%)]">
@@ -759,7 +759,7 @@ function ComparisonSlider() {
                   <div>
                     <div className="flex items-center gap-2 mb-3 sm:mb-4">
                       <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Calendar Sync - Auto-Added Deadlines</h4>
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)] dark:text-[hsl(30,20%,92%)]">Calendar Sync - Auto-Added Deadlines</h4>
                     </div>
                     <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg p-3 sm:p-4">
                       <div className="border border-[hsl(220,15%,85%)] rounded-lg overflow-hidden">
@@ -814,7 +814,7 @@ function ComparisonSlider() {
                   <div>
                     <div className="flex items-center gap-2 mb-3 sm:mb-4">
                       <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Complete Audit Trail - Chain of Custody</h4>
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)] dark:text-[hsl(30,20%,92%)]">Complete Audit Trail - Chain of Custody</h4>
                     </div>
                     <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg p-3 sm:p-4">
                       <div className="space-y-0">
@@ -845,10 +845,10 @@ function ComparisonSlider() {
                             </div>
                             <div className="pb-1 sm:pb-3 -mt-0.5">
                               <div className="flex items-center gap-1.5 sm:gap-2">
-                                <span className="text-[9px] sm:text-[10px] font-mono text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">{entry.time}</span>
-                                <span className="text-[11px] sm:text-sm font-medium text-[hsl(25,30%,20%)]">{entry.event}</span>
+                                <span className="text-[9px] sm:text-[10px] font-mono text-[hsl(25,15%,50%)] dark:text-[hsl(30,15%,75%)]">{entry.time}</span>
+                                <span className="text-[11px] sm:text-sm font-medium text-[hsl(25,30%,20%)] dark:text-[hsl(30,20%,92%)]">{entry.event}</span>
                               </div>
-                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)] hidden sm:block">{entry.detail}</p>
+                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,15%,75%)] hidden sm:block">{entry.detail}</p>
                             </div>
                           </div>
                         ))}
@@ -866,7 +866,7 @@ function ComparisonSlider() {
                   <div data-testid="panel-client-version">
                     <div className="flex items-center gap-2 mb-3 sm:mb-4">
                       <Users className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]" data-testid="heading-client-version">Client-Facing Version</h4>
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)] dark:text-[hsl(30,20%,92%)]" data-testid="heading-client-version">Client-Facing Version</h4>
                     </div>
                     <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg p-3 sm:p-4 text-xs sm:text-sm">
                       {/* Solicitor Approval Stamp */}
@@ -881,12 +881,12 @@ function ComparisonSlider() {
                       {/* Client Summary */}
                       <div className="space-y-3 sm:space-y-4">
                         <div>
-                          <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2" data-testid="heading-client-summary">Summary of Our Meeting</p>
+                          <p className="font-medium text-[hsl(25,30%,20%)] dark:text-[hsl(30,20%,92%)] mb-1 sm:mb-2" data-testid="heading-client-summary">Summary of Our Meeting</p>
                           <p className="text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">We discussed your priorities for the financial settlement, focusing on remaining in the family home until Lily finishes school. I explained how a Mesher order could achieve this.</p>
                         </div>
                         
                         <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
-                          <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2" data-testid="heading-what-we-agreed">What We Agreed</p>
+                          <p className="font-medium text-[hsl(25,30%,20%)] dark:text-[hsl(30,20%,92%)] mb-1 sm:mb-2" data-testid="heading-what-we-agreed">What We Agreed</p>
                           <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">
                             <li className="flex items-start gap-1.5 sm:gap-2">
                               <Check className="w-3 h-3 sm:w-4 sm:h-4 text-[hsl(130,50%,40%)] mt-0.5 sm:mt-1 shrink-0" />
@@ -900,7 +900,7 @@ function ComparisonSlider() {
                         </div>
                         
                         <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
-                          <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2" data-testid="heading-client-next-steps">Your Next Steps</p>
+                          <p className="font-medium text-[hsl(25,30%,20%)] dark:text-[hsl(30,20%,92%)] mb-1 sm:mb-2" data-testid="heading-client-next-steps">Your Next Steps</p>
                           <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">
                             <li className="flex items-start gap-1.5 sm:gap-2">
                               <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-[hsl(220,60%,50%)] mt-0.5 sm:mt-1 shrink-0" />
@@ -949,7 +949,7 @@ function ComparisonSlider() {
                   transform: 'rotate(-0.3deg)'
                 }}
               >
-                <p className="font-semibold text-[hsl(25,30%,15%)]" style={{ transform: 'rotate(0.2deg)' }}>Emma Richards - Divorce financial settlement</p>
+                <p className="font-semibold text-[hsl(25,30%,15%)] dark:text-[hsl(30,20%,92%)]" style={{ transform: 'rotate(0.2deg)' }}>Emma Richards - Divorce financial settlement</p>
                 <p style={{ transform: 'rotate(-0.2deg)' }}>Family home approx £850k, valued last month</p>
                 <p className="ml-1" style={{ transform: 'rotate(0.1deg)' }}>Husband's pension - needs CETV</p>
                 <p style={{ transform: 'rotate(-0.3deg)' }}>Client wants to stay in property until kids finish school (6 yrs)</p>
@@ -977,7 +977,7 @@ function ComparisonSlider() {
               <div className="text-xs text-[hsl(25,25%,20%)] space-y-1.5">
                 {/* Header */}
                 <div className="border-l-2 border-[hsl(18,60%,50%)] pl-2 pb-1">
-                  <p className="font-semibold text-sm text-[hsl(25,30%,15%)]">Attendance Note</p>
+                  <p className="font-semibold text-sm text-[hsl(25,30%,15%)] dark:text-[hsl(30,20%,92%)]">Attendance Note</p>
                   <p className="text-[10px] text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">Richards v Richards | Ref: RIC-2025-0047 | 12 Mar 2025 | 52 mins</p>
                   <p className="text-[10px] text-[hsl(130,50%,40%)]">Consent: Verbal [00:00:32]</p>
                 </div>
