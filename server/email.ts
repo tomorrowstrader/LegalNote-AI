@@ -710,11 +710,6 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
             </ul>
           </div>
           
-          <div class="cta-section">
-            <p style="margin: 0 0 12px 0; font-size: 14px; color: #6b5d52;">While you wait, prepare your practice:</p>
-            <a href="https://legalnote.ai/resources/sra-documentation-checklist" class="cta-button">Download SRA Compliance Checklist</a>
-          </div>
-          
           <p class="reply-note">Have questions about your firm's documentation workflow? Simply reply to this email.</p>
           
           <p>With regards,<br><strong>The LegalNote Team</strong></p>
@@ -723,7 +718,7 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
         <div class="footer">
           <p>You received this email because you registered for early access to LegalNote.</p>
           <p>LegalNote\u2122 \u2014 Compliance-first legal documentation</p>
-          <p>71-75 Shelton Street, Covent Garden, London, WC2H 9JQ</p>
+          <p>Registered Office: 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ</p>
         </div>
       </div>
     </body>

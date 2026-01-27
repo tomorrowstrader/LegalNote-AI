@@ -1634,6 +1634,10 @@ export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activePricingCard, setActivePricingCard] = useState(0);
   const [isInPricingSection, setIsInPricingSection] = useState(false);
+  
+  // Feature flag for pricing cards - set to true to reintroduce detailed pricing
+  const showPricingCards = false;
+  const showProfessionalServices = false;
   const [showFloatingCTA, setShowFloatingCTA] = useState(false);
   const [showDarkModeHint, setShowDarkModeHint] = useState(false);
   const [visitorCity, setVisitorCity] = useState<string | null>(null);
@@ -2397,11 +2401,11 @@ export default function Landing() {
       </div>
       */}
 
-      {/* Pricing Section - Compact */}
+      {/* Pricing Section - Request Pricing CTA */}
       <div id="pricing" ref={pricingRef} className="relative bg-white dark:bg-transparent py-16">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div 
-            className="text-center mb-8"
+            className="text-center"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -2410,7 +2414,52 @@ export default function Landing() {
             <span className="text-xs font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-3 block">
               Pricing
             </span>
-            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>Simple, transparent pricing</h2>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>Tailored to your practice</h2>
+            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] max-w-2xl mx-auto mb-8" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              Every legal practice is different. We'll work with you to understand your documentation needs, matter types, and compliance requirements—then recommend the right plan.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
+              <Button 
+                onClick={() => handleRequestAccess("pricing_discovery")}
+                size="lg"
+                className="bg-[hsl(18,70%,42%)] text-white px-8"
+                data-testid="button-request-pricing"
+              >
+                <Calendar className="w-5 h-5 mr-2" />
+                Book a Discovery Call
+              </Button>
+              <span className="text-sm text-[hsl(25,20%,50%)] dark:text-[hsl(30,15%,65%)]">15-minute conversation, no obligation</span>
+            </div>
+
+            <div className="max-w-xl mx-auto p-6 rounded-xl bg-[hsl(30,25%,96%)] dark:bg-[hsl(25,12%,14%)] border border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)]">
+              <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-4">What we'll discuss:</h3>
+              <ul className="grid sm:grid-cols-2 gap-3 text-left">
+                {[
+                  'Your current documentation workflow',
+                  'Types of matters you handle',
+                  'Team size and collaboration needs',
+                  'Compliance and audit requirements'
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">
+                    <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </motion.div>
+
+          {/* PRESERVED: Original pricing cards - set showPricingCards to true to reintroduce */}
+          {showPricingCards && (
+          <>
+          <motion.div 
+            className="text-center mb-8"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
             <p className="text-lg text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] max-w-xl mx-auto mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Choose the plan that fits your practice. 14-day professional evaluation included.
             </p>
@@ -2761,7 +2810,13 @@ export default function Landing() {
           <p id="pricing-end" className="text-center text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-16">
             All prices exclude VAT. Cancel anytime during your evaluation period.
           </p>
+          </>
+          )}
+          {/* END PRESERVED: Original pricing cards */}
 
+          {/* PRESERVED: Also Available / Professional Services Section */}
+          {showProfessionalServices && (
+          <>
           {/* Professional Services Section */}
           <motion.div
             className="border-t border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)] pt-16"
@@ -2930,6 +2985,9 @@ export default function Landing() {
               </p>
             </div>
           </motion.div>
+          </>
+          )}
+          {/* END PRESERVED: Also Available section */}
         </div>
       </div>
 
