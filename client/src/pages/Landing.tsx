@@ -2436,13 +2436,13 @@ export default function Landing() {
             </div>
 
             <div className="max-w-xl mx-auto p-6 rounded-xl bg-[hsl(30,25%,96%)] dark:bg-[hsl(25,12%,14%)] border border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)]">
-              <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-4">Early access includes:</h3>
+              <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-4">What we assess:</h3>
               <ul className="grid sm:grid-cols-2 gap-3 text-left">
                 {[
-                  'Priority onboarding and setup',
-                  'Founding member pricing',
-                  'Direct input on feature development',
-                  'Dedicated support channel'
+                  'Your current documentation workflow',
+                  'Types of matters you handle',
+                  'Team size and collaboration needs',
+                  'Compliance and audit requirements'
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">
                     <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
