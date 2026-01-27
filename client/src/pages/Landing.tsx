@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EarlyAccessForm } from "@/components/EarlyAccessForm";
+import { useToast } from "@/hooks/use-toast";
 import { LeadMagnetForm } from "@/components/LeadMagnetForm";
 import { WorkflowInfographic } from "@/components/WorkflowInfographic";
 import { ExploreModal, useExploreModal } from "@/components/ExploreModal";
@@ -1706,12 +1707,23 @@ export default function Landing() {
     return () => unsubscribe();
   }, [scrollY]);
 
+  const { toast } = useToast();
+  
   const handleLogin = () => {
     if (isPreviewMode) {
       setShowPreviewModal(true);
       return;
     }
-    window.location.href = "/api/login";
+    // Login disabled during early access period
+    toast({
+      title: "Login available for approved members",
+      description: "Apply for early access to get started.",
+    });
+    // Scroll to early access section
+    setTimeout(() => {
+      setEarlyAccessSource("login_redirect");
+      setShowEarlyAccessForm(true);
+    }, 500);
   };
 
   const handleRequestAccess = (source: string = "hero") => {
