@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X, ChevronLeft, ChevronRight, FileQuestion, AlertTriangle, Download, Wifi, HardDrive, RefreshCw, Server, Lock, Shield, Moon, Sun } from "lucide-react";
+import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X, ChevronLeft, ChevronRight, FileQuestion, AlertTriangle, Download, Wifi, HardDrive, RefreshCw, Server, Lock, Shield, Moon, Sun, Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
 import Logo from "@/components/Logo";
@@ -2421,25 +2421,28 @@ export default function Landing() {
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
               <Button 
-                onClick={() => handleRequestAccess("pricing_discovery")}
+                onClick={() => {
+                  setEarlyAccessSource("pricing_section");
+                  setShowEarlyAccessForm(true);
+                }}
                 size="lg"
                 className="bg-[hsl(18,70%,42%)] text-white px-8"
-                data-testid="button-request-pricing"
+                data-testid="button-apply-early-access"
               >
-                <Calendar className="w-5 h-5 mr-2" />
-                Book a Discovery Call
+                <Sparkles className="w-5 h-5 mr-2" />
+                Apply for Early Access
               </Button>
-              <span className="text-sm text-[hsl(25,20%,50%)] dark:text-[hsl(30,15%,65%)]">15-minute conversation, no obligation</span>
+              <span className="text-sm text-[hsl(25,20%,50%)] dark:text-[hsl(30,15%,65%)]">Limited places available</span>
             </div>
 
             <div className="max-w-xl mx-auto p-6 rounded-xl bg-[hsl(30,25%,96%)] dark:bg-[hsl(25,12%,14%)] border border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)]">
-              <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-4">What we'll discuss:</h3>
+              <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-4">Early access includes:</h3>
               <ul className="grid sm:grid-cols-2 gap-3 text-left">
                 {[
-                  'Your current documentation workflow',
-                  'Types of matters you handle',
-                  'Team size and collaboration needs',
-                  'Compliance and audit requirements'
+                  'Priority onboarding and setup',
+                  'Founding member pricing',
+                  'Direct input on feature development',
+                  'Dedicated support channel'
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">
                     <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
