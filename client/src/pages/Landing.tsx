@@ -300,8 +300,8 @@ function TrustLogosMarquee() {
               key={index}
               className="flex items-center gap-3 px-6 py-2"
             >
-              <div className="w-8 h-8 rounded-lg bg-[hsl(25,20%,88%)] flex items-center justify-center">
-                <Building2 className="w-4 h-4 text-[hsl(25,25%,45%)]" />
+              <div className="w-8 h-8 rounded-lg bg-[hsl(25,20%,88%)] dark:bg-[hsl(25,12%,20%)] flex items-center justify-center">
+                <Building2 className="w-4 h-4 text-[hsl(25,25%,45%)] dark:text-[hsl(30,15%,60%)]" />
               </div>
               <span className="text-sm font-medium text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">{firm}</span>
             </div>
@@ -354,7 +354,7 @@ function HeroImageParallax() {
              <div className="hidden sm:flex items-center gap-2">
                 <div className="flex -space-x-2 mr-2">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="w-8 h-8 rounded-full border-2 border-[hsl(25,15%10%)] bg-[hsl(25,15%20%)] flex items-center justify-center text-[10px] font-bold">
+                    <div key={i} className="w-8 h-8 rounded-full border-2 border-[hsl(25,15%,10%)] bg-[hsl(25,15%,20%)] flex items-center justify-center text-[10px] font-bold">
                       {String.fromCharCode(64 + i)}
                     </div>
                   ))}
@@ -1372,10 +1372,10 @@ function TrustBadges() {
       {complianceItems.map((item, index) => (
         <motion.div
           key={item.obligation}
-          className="p-6 rounded-xl bg-white border border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)] shadow-sm"
+          className="p-6 rounded-xl bg-white dark:bg-[hsl(25,12%,14%)] border border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)] shadow-sm"
           initial={prefersReducedMotion ? { opacity: 1, x: 0 } : { opacity: 0, x: index % 2 === 0 ? -20 : 20 }}
           whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
+          viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: prefersReducedMotion ? 0 : 0.4, delay: prefersReducedMotion ? 0 : index * 0.1 }}
           data-testid={`compliance-item-${index}`}
         >
