@@ -54,6 +54,8 @@ interface EarlyAccessFormProps {
 
 export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }: EarlyAccessFormProps) {
   const [success, setSuccess] = useState(false);
+  const [alreadyOnList, setAlreadyOnList] = useState(false);
+  const [submittedData, setSubmittedData] = useState<{ firmName?: string; firstName?: string } | null>(null);
 
   const form = useForm<WaitlistFormData>({
     resolver: zodResolver(waitlistSchema),
@@ -75,10 +77,21 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
         ...data,
         source,
       });
-      return response.json();
+      return { ...response, formData: data };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setSubmittedData({ firmName: data.formData.firmName, firstName: data.formData.firstName });
       setSuccess(true);
+      setAlreadyOnList(false);
+    },
+    onError: (error: Error) => {
+      // Check for 409 Conflict (duplicate email) - apiRequest throws "409: {json}"
+      if (error.message?.startsWith("409")) {
+        const formData = form.getValues();
+        setSubmittedData({ firmName: formData.firmName, firstName: formData.firstName });
+        setAlreadyOnList(true);
+        setSuccess(true);
+      }
     },
   });
 
@@ -88,12 +101,14 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
 
   const handleClose = () => {
     onOpenChange(false);
-    if (success) {
-      setTimeout(() => {
-        setSuccess(false);
-        form.reset();
-      }, 300);
-    }
+    // Always reset form state after closing to ensure clean slate
+    setTimeout(() => {
+      setSuccess(false);
+      setAlreadyOnList(false);
+      setSubmittedData(null);
+      form.reset();
+      submitMutation.reset();
+    }, 300);
   };
 
   return (
@@ -105,9 +120,24 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
               <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <DialogHeader>
-              <DialogTitle data-testid="text-success-title">You're on the List</DialogTitle>
-              <DialogDescription data-testid="text-success-description">
-                We'll notify you as soon as early access becomes available. Check your inbox for a confirmation email.
+              <DialogTitle data-testid="text-success-title">
+                {alreadyOnList ? "You're Already With Us" : "You're on the List"}
+              </DialogTitle>
+              <DialogDescription data-testid="text-success-description" className="space-y-2">
+                {alreadyOnList ? (
+                  <span className="block">
+                    Good news, {submittedData?.firmName || submittedData?.firstName || "there"} — you're already on our early access list. We'll be in touch soon.
+                  </span>
+                ) : (
+                  <>
+                    <span className="block font-medium text-foreground">
+                      Thank you{submittedData?.firmName ? `, ${submittedData.firmName}` : submittedData?.firstName ? `, ${submittedData.firstName}` : ""}.
+                    </span>
+                    <span className="block">
+                      We'll be in touch shortly to discuss how LegalNote can support your practice.
+                    </span>
+                  </>
+                )}
               </DialogDescription>
             </DialogHeader>
             <Button onClick={handleClose} className="mt-6" data-testid="button-close-success">
@@ -282,10 +312,10 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
                   />
                 </div>
 
-                {submitMutation.isError && (
+                {submitMutation.isError && !alreadyOnList && (
                   <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-md" data-testid="text-error">
                     <AlertTriangle className="h-4 w-4" />
-                    <span>{(submitMutation.error as any)?.message || "Something went wrong. Please try again."}</span>
+                    <span>Something went wrong. Please try again or contact support@legalnote.ai.</span>
                   </div>
                 )}
 

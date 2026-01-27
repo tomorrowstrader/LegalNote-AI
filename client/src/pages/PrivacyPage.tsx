@@ -84,8 +84,12 @@ export default function PrivacyPage() {
 
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">2. Data Controller</h2>
-              <p className="leading-relaxed">
+              <p className="leading-relaxed mb-4">
                 LegalNote AI is the data controller responsible for your personal data. For any questions about this policy or our data practices, contact us at <a href="mailto:support@legalnote.ai" className="text-[hsl(18,65%,45%)] hover:underline">support@legalnote.ai</a>.
+              </p>
+              <p className="leading-relaxed">
+                <strong>Registered Address:</strong><br />
+                71-75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom
               </p>
             </section>
 

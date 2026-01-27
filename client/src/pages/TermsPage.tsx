@@ -74,8 +74,12 @@ export default function TermsPage() {
           <div className="space-y-8 text-[hsl(25,20%,30%)]">
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">1. Agreement to Terms</h2>
-              <p className="leading-relaxed">
+              <p className="leading-relaxed mb-4">
                 By accessing or using LegalNote AI ("the Platform"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, you must not access or use the Platform. These Terms constitute a legally binding agreement between you and LegalNote AI.
+              </p>
+              <p className="leading-relaxed">
+                <strong>Company Address:</strong><br />
+                71-75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom
               </p>
             </section>
 

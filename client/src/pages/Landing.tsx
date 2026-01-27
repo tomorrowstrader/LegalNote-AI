@@ -1635,6 +1635,8 @@ export default function Landing() {
   const [activePricingCard, setActivePricingCard] = useState(0);
   const [isInPricingSection, setIsInPricingSection] = useState(false);
   const [showFloatingCTA, setShowFloatingCTA] = useState(false);
+  const [showDarkModeHint, setShowDarkModeHint] = useState(false);
+  const [visitorCity, setVisitorCity] = useState<string | null>(null);
   const { scrollY } = useScroll();
   const prefersReducedMotion = useReducedMotion();
   const pricingRef = useRef<HTMLDivElement>(null);
@@ -1644,6 +1646,40 @@ export default function Landing() {
   
   const exploreModal = useExploreModal("pricing-end");
   const { theme, toggleTheme } = useTheme();
+  
+  // Dark mode hint - appears 0.5s after load, fades after 2s
+  useEffect(() => {
+    const hasSeenHint = localStorage.getItem("darkModeHintSeen");
+    if (!hasSeenHint && theme === "light") {
+      const showTimer = setTimeout(() => setShowDarkModeHint(true), 500);
+      const hideTimer = setTimeout(() => {
+        setShowDarkModeHint(false);
+        localStorage.setItem("darkModeHintSeen", "true");
+      }, 2500);
+      return () => {
+        clearTimeout(showTimer);
+        clearTimeout(hideTimer);
+      };
+    }
+  }, [theme]);
+  
+  // Geo-location - detect visitor's city via IP
+  useEffect(() => {
+    const fetchLocation = async () => {
+      try {
+        const response = await fetch("https://ipapi.co/json/");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.city && data.country_code === "GB") {
+            setVisitorCity(data.city);
+          }
+        }
+      } catch {
+        // Silently fail - geo-location is a nice-to-have
+      }
+    };
+    fetchLocation();
+  }, []);
   
   // Track scroll for sticky nav blur effect, pricing section visibility, and floating CTA
   useEffect(() => {
@@ -1856,19 +1892,36 @@ export default function Landing() {
               >
                 Log in
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleTheme}
-                className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)]"
-                data-testid="button-theme-toggle"
-              >
-                {theme === "light" ? (
-                  <Moon className="w-5 h-5" />
-                ) : (
-                  <Sun className="w-5 h-5" />
-                )}
-              </Button>
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleTheme}
+                  className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)]"
+                  data-testid="button-theme-toggle"
+                >
+                  {theme === "light" ? (
+                    <Moon className="w-5 h-5" />
+                  ) : (
+                    <Sun className="w-5 h-5" />
+                  )}
+                </Button>
+                <AnimatePresence>
+                  {showDarkModeHint && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute top-full right-0 mt-2 px-3 py-1.5 bg-[hsl(25,20%,15%)] text-white text-xs rounded-lg shadow-lg whitespace-nowrap z-50"
+                      data-testid="tooltip-dark-mode-hint"
+                    >
+                      <div className="absolute -top-1 right-3 w-2 h-2 bg-[hsl(25,20%,15%)] rotate-45" />
+                      Try dark mode
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </motion.div>
 
             {/* Mobile/Tablet Navigation - visible below lg */}
@@ -2060,6 +2113,22 @@ export default function Landing() {
               >
                 A complaint arrives about advice you gave two years ago. Your notes are sparse, the client remembers differently. With LegalNote, every meeting is captured, consent documented, timestamped and audit-ready.
               </motion.p>
+              
+              {/* Geo-location personalized message */}
+              <AnimatePresence>
+                {visitorCity && (
+                  <motion.p
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.4, delay: 0.5 }}
+                    className="text-sm text-[hsl(18,60%,45%)] mb-4"
+                    data-testid="text-geo-personalized"
+                  >
+                    Be among the first practices in <span className="font-medium">{visitorCity}</span> to give your team relief from documentation fatigue.
+                  </motion.p>
+                )}
+              </AnimatePresence>
               
               {/* CTA Button */}
               <motion.div 
@@ -3128,6 +3197,13 @@ export default function Landing() {
                   </a>
                 </li>
               </ul>
+              <div className="mt-6 pt-4 border-t border-white/10">
+                <p className="text-xs text-white/40 leading-relaxed" data-testid="text-footer-address">
+                  71-75 Shelton Street<br />
+                  Covent Garden, London<br />
+                  WC2H 9JQ, United Kingdom
+                </p>
+              </div>
             </div>
           </div>
 
