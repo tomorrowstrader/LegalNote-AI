@@ -2111,10 +2111,10 @@ export default function Landing() {
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Attendance records that evidence professional judgement
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] leading-relaxed max-w-3xl mx-auto mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-lg text-[hsl(25,20%,40%)] leading-relaxed max-w-3xl mx-auto mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               LegalNote captures what was said, what was decided, and what must happen next, then forms a reviewable attendance note that preserves reasoning, actions, and instructions for professional finalisation. Records are timestamped, contemporaneous, and aligned with how regulators expect legal work to be evidenced.
             </p>
             <p className="text-base text-[hsl(25,20%,50%)] leading-relaxed max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
@@ -2128,7 +2128,7 @@ export default function Landing() {
       <div className="bg-[hsl(30,20%,97%)] py-6 border-b border-[hsl(30,15%,90%)] dark:border-[hsl(25,12%,18%)]" data-testid="section-integrations">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-center gap-8 flex-wrap">
-            <span className="text-xs text-[hsl(25,15%,55%)] dark:text-[hsl(30,10%,50%)] uppercase tracking-wider" data-testid="text-integrates-with">Integrates with</span>
+            <span className="text-xs text-[hsl(25,15%,55%)] uppercase tracking-wider" data-testid="text-integrates-with">Integrates with</span>
             <div className="flex items-center gap-6">
               {/* Microsoft */}
               <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
@@ -2138,7 +2138,7 @@ export default function Landing() {
                   <rect y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
                   <rect x="12" y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
                 </svg>
-                <span className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] font-medium">Microsoft</span>
+                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Microsoft</span>
               </div>
               {/* Google */}
               <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
@@ -2440,12 +2440,12 @@ export default function Landing() {
                       <div className="w-10 h-10 rounded-lg bg-[hsl(30,25%,92%)] flex items-center justify-center">
                         <User className="w-5 h-5 text-[hsl(25,25%,35%)]" />
                       </div>
-                      <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">Solo</h3>
+                      <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)]">Solo</h3>
                     </div>
-                    <p className="text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4">Perfect for solo practitioners</p>
+                    <p className="text-[hsl(25,20%,45%)] mb-4">Perfect for solo practitioners</p>
                     <div className="mb-4 flex items-baseline">
-                      <span className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">£{getSoloPrice()}</span>
-                      <span className="text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] ml-2">/{getBillingLabel()}</span>
+                      <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">£{getSoloPrice()}</span>
+                      <span className="text-[hsl(25,20%,45%)] ml-2">/{getBillingLabel()}</span>
                     </div>
                     {getSoloEffectiveMonthly() && (
                       <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-4">{getSoloEffectiveMonthly()}</p>
@@ -2454,7 +2454,7 @@ export default function Landing() {
                       {['Unlimited recordings', 'AI transcription', 'Attendance notes', 'Black Box security', 'GDPR tools'].map((feature, i) => (
                         <li key={i} className="flex items-center gap-2 text-sm">
                           <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
-                          <span className="text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">{feature}</span>
+                          <span className="text-[hsl(25,20%,40%)]">{feature}</span>
                         </li>
                       ))}
                     </ul>
@@ -2478,22 +2478,22 @@ export default function Landing() {
                       <div className="w-10 h-10 rounded-lg bg-[hsl(18,50%,82%)] flex items-center justify-center">
                         <Building2 className="w-5 h-5 text-[hsl(18,65%,40%)]" />
                       </div>
-                      <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">Team</h3>
+                      <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)]">Team</h3>
                     </div>
-                    <p className="text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4">For boutique law firms</p>
+                    <p className="text-[hsl(25,20%,45%)] mb-4">For boutique law firms</p>
                     <div className="mb-2 flex items-baseline">
-                      <span className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">£{getTeamPrice()}</span>
-                      <span className="text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] ml-2">/{getBillingLabel()}</span>
+                      <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">£{getTeamPrice()}</span>
+                      <span className="text-[hsl(25,20%,45%)] ml-2">/{getBillingLabel()}</span>
                     </div>
                     {getTeamEffectiveMonthly() && (
                       <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-2">{getTeamEffectiveMonthly()}</p>
                     )}
-                    <p className="text-xs text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4">2 users included, + £{getSeatPrice()}/{getBillingLabel()} per user</p>
+                    <p className="text-xs text-[hsl(25,20%,45%)] mb-4">2 users included, + £{getSeatPrice()}/{getBillingLabel()} per user</p>
                     <ul className="space-y-3 mb-6 flex-grow">
                       {['Everything in Solo', 'Team collaboration', 'Admin dashboard', 'Priority support'].map((feature, i) => (
                         <li key={i} className="flex items-center gap-2 text-sm">
                           <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
-                          <span className="text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">{feature}</span>
+                          <span className="text-[hsl(25,20%,35%)]">{feature}</span>
                         </li>
                       ))}
                     </ul>
@@ -2562,18 +2562,18 @@ export default function Landing() {
                   <div className="w-8 h-8 rounded-lg bg-[hsl(30,25%,92%)] flex items-center justify-center">
                     <User className="w-4 h-4 text-[hsl(25,25%,35%)]" />
                   </div>
-                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">Solo</h3>
+                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)]">Solo</h3>
                 </div>
-                <p className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4">Perfect for solo practitioners</p>
+                <p className="text-sm text-[hsl(25,20%,45%)] mb-4">Perfect for solo practitioners</p>
                 <div className="mb-4 h-12 flex items-baseline">
-                  <span className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">£</span>
+                  <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">£</span>
                   {prefersReducedMotion ? (
-                    <span className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">{getSoloPrice()}</span>
+                    <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">{getSoloPrice()}</span>
                   ) : (
                     <AnimatePresence mode="wait">
                       <motion.span
                         key={getSoloPrice()}
-                        className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]"
+                        className="text-4xl font-medium text-[hsl(25,30%,12%)]"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
@@ -2583,7 +2583,7 @@ export default function Landing() {
                       </motion.span>
                     </AnimatePresence>
                   )}
-                  <span className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] ml-2">/{getBillingLabel()}</span>
+                  <span className="text-sm text-[hsl(25,20%,45%)] ml-2">/{getBillingLabel()}</span>
                 </div>
                 {getSoloEffectiveMonthly() && (
                   <p className="text-xs text-[hsl(18,65%,45%)] font-medium mb-4">{getSoloEffectiveMonthly()}</p>
@@ -2603,7 +2603,7 @@ export default function Landing() {
                   ].map((feature, i) => (
                     <li key={i} className="flex items-center gap-2">
                       <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
-                      <span className="text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">{feature}</span>
+                      <span className="text-[hsl(25,20%,40%)]">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -2636,18 +2636,18 @@ export default function Landing() {
                   <div className="w-8 h-8 rounded-lg bg-[hsl(18,50%,82%)] flex items-center justify-center">
                     <Building2 className="w-4 h-4 text-[hsl(18,65%,40%)]" />
                   </div>
-                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">Team</h3>
+                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)]">Team</h3>
                 </div>
-                <p className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4">For boutique law firms</p>
+                <p className="text-sm text-[hsl(25,20%,45%)] mb-4">For boutique law firms</p>
                 <div className="mb-2 h-12 flex items-baseline">
-                  <span className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">£</span>
+                  <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">£</span>
                   {prefersReducedMotion ? (
-                    <span className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">{getTeamPrice()}</span>
+                    <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">{getTeamPrice()}</span>
                   ) : (
                     <AnimatePresence mode="wait">
                       <motion.span
                         key={getTeamPrice()}
-                        className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]"
+                        className="text-4xl font-medium text-[hsl(25,30%,12%)]"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
@@ -2657,12 +2657,12 @@ export default function Landing() {
                       </motion.span>
                     </AnimatePresence>
                   )}
-                  <span className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] ml-2">/{getBillingLabel()}</span>
+                  <span className="text-sm text-[hsl(25,20%,45%)] ml-2">/{getBillingLabel()}</span>
                 </div>
                 {getTeamEffectiveMonthly() && (
                   <p className="text-xs text-[hsl(18,65%,45%)] font-medium mb-2">{getTeamEffectiveMonthly()}</p>
                 )}
-                <p className={`text-xs text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4 ${!getTeamEffectiveMonthly() ? 'mt-0' : ''}`}>2 users included, + £{getSeatPrice()}/{getBillingLabel()} per user</p>
+                <p className={`text-xs text-[hsl(25,20%,45%)] mb-4 ${!getTeamEffectiveMonthly() ? 'mt-0' : ''}`}>2 users included, + £{getSeatPrice()}/{getBillingLabel()} per user</p>
                 <ul className="space-y-2.5 mb-6 flex-grow text-sm">
                   {[
                     'Everything in Solo',
@@ -2674,7 +2674,7 @@ export default function Landing() {
                   ].map((feature, i) => (
                     <li key={i} className="flex items-center gap-2">
                       <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
-                      <span className="text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">{feature}</span>
+                      <span className="text-[hsl(25,20%,35%)]">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -2825,8 +2825,8 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-xl bg-[hsl(18,40%,82%)] flex items-center justify-center mb-4">
                   <Calendar className="w-6 h-6 text-[hsl(18,50%,35%)]" />
                 </div>
-                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-3">Advisory Retainer</h4>
-                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-3">Advisory Retainer</h4>
+                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
                     <span>Dedicated success manager</span>
@@ -2877,10 +2877,10 @@ export default function Landing() {
             <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
               Why LegalNote
             </span>
-            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Not another note-taking app
             </h2>
-            <p className="text-xl text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               LegalNote is a compliance-first attendance record system built for regulated legal practice—not a generic dictation tool or AI note-taker.
             </p>
           </motion.div>
@@ -2896,10 +2896,10 @@ export default function Landing() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)]">
-                    <th className="text-left p-4 text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] font-medium text-sm">Dimension</th>
-                    <th className="text-left p-4 text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)] font-medium text-sm bg-[hsl(30,15%,96%)]">Typical dictation / note apps</th>
-                    <th className="text-left p-4 font-medium text-sm text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] bg-[hsl(18,40%,90%)]">LegalNote</th>
+                  <tr className="border-b border-[hsl(30,20%,88%)]">
+                    <th className="text-left p-4 text-[hsl(25,20%,40%)] font-medium text-sm">Dimension</th>
+                    <th className="text-left p-4 text-[hsl(25,15%,50%)] font-medium text-sm bg-[hsl(30,15%,96%)]">Typical dictation / note apps</th>
+                    <th className="text-left p-4 font-medium text-sm text-[hsl(25,30%,12%)] bg-[hsl(18,40%,90%)]">LegalNote</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">
@@ -2935,9 +2935,9 @@ export default function Landing() {
                       legalnote: "Tool proposes structure; practitioner exercises judgement and signs off the attendance record" 
                     },
                   ].map((row, index) => (
-                    <tr key={index} className="border-b border-[hsl(30,15%,90%)] dark:border-[hsl(25,12%,18%)] last:border-b-0">
+                    <tr key={index} className="border-b border-[hsl(30,15%,90%)] last:border-b-0">
                       <td className="p-4 font-medium text-[hsl(25,25%,20%)] text-sm">{row.dimension}</td>
-                      <td className="p-4 text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)] bg-[hsl(30,15%,96%)] text-sm">
+                      <td className="p-4 text-[hsl(25,15%,50%)] bg-[hsl(30,15%,96%)] text-sm">
                         <div className="flex items-start gap-2">
                           <XCircle className="w-4 h-4 text-[hsl(0,50%,50%)] mt-0.5 flex-shrink-0" />
                           <span>{row.generic}</span>
