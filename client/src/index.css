@@ -144,86 +144,105 @@ html {
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
+/* LegalNote Dark Mode - Warm charcoal-brown tones for brand continuity */
 .dark {
-  --button-outline: rgba(100, 150, 255, .15);
-  --badge-outline: rgba(100, 150, 255, .10);
+  --button-outline: rgba(200, 150, 100, .15);
+  --badge-outline: rgba(200, 150, 100, .10);
 
   --opaque-button-border-intensity: 12;  /* In terms of percentages */
 
   /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(100, 150, 255, .08);
-  --elevate-2: rgba(100, 150, 255, .15);
+  --elevate-1: rgba(255, 200, 150, .06);
+  --elevate-2: rgba(255, 200, 150, .12);
 
-  --background: 220 80% 4%;
+  /* Main background - deep warm charcoal */
+  --background: 25 15% 8%;
 
-  --foreground: 220 20% 98%;
+  /* Text - warm off-white */
+  --foreground: 30 20% 92%;
 
-  --border: 220 60% 15%;
+  /* Borders - warm dark */
+  --border: 25 12% 20%;
 
-  --card: 220 70% 8%;
+  /* Cards - slightly elevated warm dark */
+  --card: 25 12% 12%;
 
-  --card-foreground: 220 20% 98%;
+  --card-foreground: 30 20% 92%;
 
-  --card-border: 220 60% 18%;
+  --card-border: 25 12% 22%;
 
-  --sidebar: 220 75% 5%;
+  /* Sidebar - deeper warm dark */
+  --sidebar: 25 15% 6%;
 
-  --sidebar-foreground: 220 20% 98%;
+  --sidebar-foreground: 30 20% 92%;
 
-  --sidebar-border: 220 60% 12%;
+  --sidebar-border: 25 12% 16%;
 
-  --sidebar-primary: 220 80% 3%;
+  --sidebar-primary: 25 15% 4%;
 
-  --sidebar-primary-foreground: 220 20% 100%;
+  --sidebar-primary-foreground: 30 20% 98%;
 
-  --sidebar-accent: 220 60% 15%;
+  --sidebar-accent: 25 12% 18%;
 
-  --sidebar-accent-foreground: 220 20% 95%;
+  --sidebar-accent-foreground: 30 15% 90%;
 
-  --sidebar-ring: 45 85% 55%;
+  /* Ring - terracotta brand color */
+  --sidebar-ring: 18 65% 50%;
 
-  --popover: 220 70% 8%;
+  /* Popover - same as card */
+  --popover: 25 12% 12%;
 
-  --popover-foreground: 220 20% 98%;
+  --popover-foreground: 30 20% 92%;
 
-  --popover-border: 220 60% 15%;
+  --popover-border: 25 12% 20%;
 
-  --primary: 220 80% 3%;
+  /* Primary - deep warm */
+  --primary: 25 15% 4%;
 
-  --primary-foreground: 220 20% 100%;
+  --primary-foreground: 30 20% 98%;
 
-  --secondary: 220 60% 15%;
+  /* Secondary */
+  --secondary: 25 12% 18%;
 
-  --secondary-foreground: 220 20% 98%;
+  --secondary-foreground: 30 20% 92%;
 
-  --muted: 220 65% 10%;
+  /* Muted */
+  --muted: 25 10% 14%;
 
-  --muted-foreground: 220 15% 70%;
+  --muted-foreground: 30 12% 60%;
 
-  --accent: 45 85% 55%;
+  /* Accent - terracotta brand color (slightly brighter for dark mode) */
+  --accent: 18 65% 50%;
 
-  --accent-foreground: 220 80% 8%;
+  --accent-foreground: 25 15% 8%;
 
+  /* Destructive */
   --destructive: 0 70% 50%;
 
-  --destructive-foreground: 220 20% 100%;
+  --destructive-foreground: 30 20% 98%;
 
-  --input: 220 50% 20%;
-  --ring: 45 85% 55%;
-  --chart-1: 220 40% 80%;
-  --chart-2: 45 85% 70%;
-  --chart-3: 220 35% 65%;
-  --chart-4: 45 70% 65%;
-  --chart-5: 220 30% 55%;
+  /* Input */
+  --input: 25 12% 22%;
+  
+  /* Ring - terracotta */
+  --ring: 18 65% 50%;
+  
+  /* Charts - warm palette */
+  --chart-1: 30 25% 75%;
+  --chart-2: 18 60% 60%;
+  --chart-3: 30 20% 55%;
+  --chart-4: 18 50% 50%;
+  --chart-5: 30 15% 45%;
 
-  --shadow-2xs: 0px 1px 2px 0px hsl(220 80% 0% / 0.60);
-  --shadow-xs: 0px 1px 3px 0px hsl(220 80% 0% / 0.70);
-  --shadow-sm: 0px 2px 4px -1px hsl(220 80% 0% / 0.65), 0px 1px 2px -1px hsl(220 80% 0% / 0.70);
-  --shadow: 0px 4px 6px -1px hsl(220 80% 0% / 0.70), 0px 2px 4px -1px hsl(220 80% 0% / 0.65);
-  --shadow-md: 0px 6px 12px -2px hsl(220 80% 0% / 0.75), 0px 3px 6px -2px hsl(220 80% 0% / 0.70);
-  --shadow-lg: 0px 10px 20px -4px hsl(220 80% 0% / 0.80), 0px 4px 8px -2px hsl(220 80% 0% / 0.70);
-  --shadow-xl: 0px 20px 30px -6px hsl(220 80% 0% / 0.85), 0px 8px 16px -4px hsl(220 80% 0% / 0.75);
-  --shadow-2xl: 0px 30px 60px -12px hsl(220 80% 0% / 0.90);
+  /* Shadows - warm dark */
+  --shadow-2xs: 0px 1px 2px 0px hsl(25 20% 0% / 0.60);
+  --shadow-xs: 0px 1px 3px 0px hsl(25 20% 0% / 0.70);
+  --shadow-sm: 0px 2px 4px -1px hsl(25 20% 0% / 0.65), 0px 1px 2px -1px hsl(25 20% 0% / 0.70);
+  --shadow: 0px 4px 6px -1px hsl(25 20% 0% / 0.70), 0px 2px 4px -1px hsl(25 20% 0% / 0.65);
+  --shadow-md: 0px 6px 12px -2px hsl(25 20% 0% / 0.75), 0px 3px 6px -2px hsl(25 20% 0% / 0.70);
+  --shadow-lg: 0px 10px 20px -4px hsl(25 20% 0% / 0.80), 0px 4px 8px -2px hsl(25 20% 0% / 0.70);
+  --shadow-xl: 0px 20px 30px -6px hsl(25 20% 0% / 0.85), 0px 8px 16px -4px hsl(25 20% 0% / 0.75);
+  --shadow-2xl: 0px 30px 60px -12px hsl(25 20% 0% / 0.90);
 
 }
 
@@ -255,13 +274,13 @@ html {
     background-attachment: fixed;
   }
 
-  /* Deep blue gradient background for dark mode */
+  /* Deep warm charcoal gradient for dark mode - matches LegalNote branding */
   .dark body {
     background: radial-gradient(ellipse at top left, 
-      hsl(220, 75%, 12%) 0%, 
-      hsl(220, 80%, 6%) 35%,
-      hsl(220, 85%, 3%) 70%,
-      hsl(220, 90%, 2%) 100%
+      hsl(25, 18%, 14%) 0%, 
+      hsl(25, 15%, 10%) 35%,
+      hsl(25, 12%, 7%) 70%,
+      hsl(25, 10%, 5%) 100%
     );
     background-attachment: fixed;
   }
@@ -273,18 +292,18 @@ html {
       0 4px 12px rgba(0, 0, 0, 0.04);
   }
 
-  /* Glossy gradient cards with gold glow in dark mode */
+  /* Glossy gradient cards with warm glow in dark mode - matches LegalNote branding */
   .dark .shadcn-card {
     background: linear-gradient(180deg, 
-      hsl(220 65% 10%) 0%, 
-      hsl(220 75% 6%) 100%
+      hsl(25 15% 12%) 0%, 
+      hsl(25 12% 8%) 100%
     );
-    border-color: hsl(220 50% 18%);
+    border-color: hsl(25 12% 20%);
     box-shadow: 
-      0 4px 20px rgba(0, 0, 20, 0.5),
-      0 2px 8px rgba(0, 0, 20, 0.4),
-      inset 0 1px 0 rgba(216, 172, 74, 0.06),
-      0 0 0 1px rgba(216, 172, 74, 0.03);
+      0 4px 20px rgba(20, 10, 0, 0.5),
+      0 2px 8px rgba(20, 10, 0, 0.4),
+      inset 0 1px 0 rgba(200, 150, 100, 0.06),
+      0 0 0 1px rgba(200, 150, 100, 0.03);
   }
 }
 
@@ -476,9 +495,10 @@ body {
   background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--background)) 50%, hsl(var(--muted)) 100%);
 }
 
+/* LegalNote warm dark mode background - overrides body gradient for brand consistency */
 .dark body,
 .dark {
-  background: linear-gradient(135deg, hsl(220 80% 4%) 0%, hsl(220 75% 6%) 50%, hsl(220 70% 8%) 100%);
+  background: linear-gradient(135deg, hsl(25 15% 6%) 0%, hsl(25 12% 8%) 50%, hsl(25 10% 10%) 100%);
 }
 
 /* Glass effect for cards */
@@ -496,10 +516,10 @@ body {
 .dark [data-slot="card"],
 .dark .glass {
   background: hsl(var(--card) / 0.7) !important;
-  border: 1px solid hsl(220 60% 25% / 0.4) !important;
+  border: 1px solid hsl(25 12% 25% / 0.4) !important;
   box-shadow: 
-    0 4px 24px hsl(220 80% 0% / 0.4),
-    inset 0 1px 0 hsl(220 60% 30% / 0.15);
+    0 4px 24px hsl(25 20% 0% / 0.4),
+    inset 0 1px 0 hsl(25 15% 30% / 0.15);
 }
 
 /* Glass effect for sidebar */
@@ -512,7 +532,7 @@ body {
 
 .dark [data-slot="sidebar"] {
   background: hsl(var(--sidebar) / 0.85) !important;
-  border-right: 1px solid hsl(220 60% 20% / 0.4) !important;
+  border-right: 1px solid hsl(25 12% 20% / 0.4) !important;
 }
 
 /* Glass effect for dropdowns and popovers */
@@ -532,10 +552,10 @@ body {
 .dark [role="dialog"],
 .dark [role="menu"] {
   background: hsl(var(--popover) / 0.85) !important;
-  border: 1px solid hsl(220 60% 25% / 0.4) !important;
+  border: 1px solid hsl(25 12% 25% / 0.4) !important;
   box-shadow: 
-    0 8px 32px hsl(220 80% 0% / 0.5),
-    inset 0 1px 0 hsl(220 60% 30% / 0.2);
+    0 8px 32px hsl(25 20% 0% / 0.5),
+    inset 0 1px 0 hsl(25 15% 30% / 0.2);
 }
 
 /* Glass effect for inputs */

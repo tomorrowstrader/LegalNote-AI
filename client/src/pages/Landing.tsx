@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X, ChevronLeft, ChevronRight, FileQuestion, AlertTriangle, Download, Wifi, HardDrive, RefreshCw, Server, Lock, Shield } from "lucide-react";
+import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, ArrowRight, Mail, Linkedin, CheckCircle2, XCircle, FileCheck, ClipboardCheck, Users, Gavel, Mic, FileOutput, Brain, Info, Menu, X, ChevronLeft, ChevronRight, FileQuestion, AlertTriangle, Download, Wifi, HardDrive, RefreshCw, Server, Lock, Shield, Moon, Sun } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
 import Logo from "@/components/Logo";
@@ -22,6 +22,27 @@ import heroSolicitorImage from "@assets/openart-subject-female-professional-earl
 import heroSolicitorImageWide from "@assets/Female_Solicitor_(Widescreen)_1769259641561.png";
 
 const isPreviewMode = import.meta.env.VITE_PREVIEW_MODE === 'true';
+
+// Theme toggle hook for dark mode
+function useTheme() {
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
+    const initialTheme = savedTheme || "light";
+    setTheme(initialTheme);
+    document.documentElement.classList.toggle("dark", initialTheme === "dark");
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
+    localStorage.setItem("theme", newTheme);
+    document.documentElement.classList.toggle("dark", newTheme === "dark");
+  };
+
+  return { theme, toggleTheme };
+}
 
 // Animated counter hook
 function useCounter(end: number, duration: number = 2000, startOnView: boolean = true) {
@@ -179,7 +200,7 @@ function SectionIndicator() {
           data-testid={`button-section-${section.id}`}
         >
           <span 
-            className="absolute right-6 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-[hsl(25,20%,40%)] bg-white/90 backdrop-blur-sm px-2 py-1 rounded shadow-sm whitespace-nowrap"
+            className="absolute right-6 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] bg-white/90 backdrop-blur-sm px-2 py-1 rounded shadow-sm whitespace-nowrap"
             data-testid={`label-section-${section.id}`}
           >
             {section.label}
@@ -252,9 +273,9 @@ function TrustLogosMarquee() {
   ];
   
   return (
-    <div className="bg-[hsl(30,20%,96%)] py-6 overflow-hidden border-y border-[hsl(30,15%,90%)]">
+    <div className="bg-[hsl(30,20%,96%)] dark:bg-[hsl(25,12%,12%)] py-6 overflow-hidden border-y border-[hsl(30,15%,90%)] dark:border-[hsl(25,12%,18%)]">
       <div className="max-w-7xl mx-auto px-6 mb-4">
-        <p className="text-xs text-center text-[hsl(25,15%,55%)] uppercase tracking-wider font-medium">
+        <p className="text-xs text-center text-[hsl(25,15%,55%)] dark:text-[hsl(30,10%,50%)] uppercase tracking-wider font-medium">
           Trusted by forward-thinking firms across the UK
         </p>
       </div>
@@ -281,7 +302,7 @@ function TrustLogosMarquee() {
               <div className="w-8 h-8 rounded-lg bg-[hsl(25,20%,88%)] flex items-center justify-center">
                 <Building2 className="w-4 h-4 text-[hsl(25,25%,45%)]" />
               </div>
-              <span className="text-sm font-medium text-[hsl(25,20%,40%)]">{firm}</span>
+              <span className="text-sm font-medium text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">{firm}</span>
             </div>
           ))}
         </motion.div>
@@ -317,9 +338,9 @@ function HeroImageParallax() {
             whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="bg-white rounded-lg shadow-xl p-4 sm:p-5 w-full max-w-[280px]">
+            <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg shadow-xl p-4 sm:p-5 w-full max-w-[280px]">
               <div className="text-sm font-medium text-[hsl(25,25%,20%)] mb-3">Record meeting</div>
-              <div className="text-xs text-[hsl(25,20%,45%)] mb-4 leading-relaxed">
+              <div className="text-xs text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4 leading-relaxed">
                 Capture attendance notes with<br />consent-first workflows
               </div>
               <div className="bg-[hsl(18,65%,45%)] text-white text-xs py-2 px-4 rounded text-center">
@@ -333,7 +354,7 @@ function HeroImageParallax() {
             whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="text-[hsl(25,20%,40%)] text-center p-4">
+            <div className="text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] text-center p-4">
               <Scale className="w-16 h-16 mx-auto mb-2 opacity-50" />
               <span className="text-sm opacity-70">Compliance-first documentation</span>
             </div>
@@ -418,7 +439,7 @@ function ComparisonSlider() {
   }, [isDragging]);
   
   return (
-    <div className="py-16 bg-white">
+    <div className="py-16 bg-white dark:bg-transparent">
       <div className="max-w-4xl mx-auto px-6">
         <motion.div
           className="text-center mb-10"
@@ -429,13 +450,13 @@ function ComparisonSlider() {
           <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
             See the Difference
           </span>
-          <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+          <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
             From handwritten to evidential
           </h2>
-          <p className="text-lg text-[hsl(25,20%,40%)] mb-2">
+          <p className="text-lg text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] mb-2">
             This comparison achieved in under 2 minutes after the meeting ends
           </p>
-          <p className="text-base text-[hsl(25,15%,50%)]">
+          <p className="text-base text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">
             Drag the slider to compare your best effort with LegalNote output
           </p>
           <p className="text-sm text-[hsl(18,60%,50%)] mt-2 md:hidden">
@@ -523,7 +544,7 @@ function ComparisonSlider() {
               <div className="flex justify-center mt-4">
                 <div className="inline-flex items-center gap-3 bg-[hsl(220,15%,95%)] rounded-full px-4 py-2 text-sm">
                   <span className="text-[hsl(0,50%,45%)] line-through">Manual: ~2-3 hours</span>
-                  <span className="text-[hsl(25,20%,40%)]">|</span>
+                  <span className="text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">|</span>
                   <span className="text-[hsl(130,50%,35%)] font-semibold">LegalNote: &lt;2 mins</span>
                 </div>
               </div>
@@ -556,7 +577,7 @@ function ComparisonSlider() {
                         2 speakers auto-identified
                       </Badge>
                     </div>
-                    <div className="bg-white rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3 text-xs sm:text-sm max-h-[280px] sm:max-h-[320px] overflow-y-auto">
+                    <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3 text-xs sm:text-sm max-h-[280px] sm:max-h-[320px] overflow-y-auto">
                       {/* Utterance 1 - Solicitor (Speaker A - Blue) */}
                       <div className="rounded-lg border p-2 sm:p-3 bg-blue-100 border-blue-300" data-testid="utterance-0">
                         <div className="flex items-start gap-2 sm:gap-3">
@@ -627,7 +648,7 @@ function ComparisonSlider() {
                         </div>
                       </div>
                       
-                      <div className="text-center text-[10px] sm:text-xs text-[hsl(25,15%,50%)] pt-2 border-t border-[hsl(220,15%,90%)]">
+                      <div className="text-center text-[10px] sm:text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)] pt-2 border-t border-[hsl(220,15%,90%)]">
                         ... transcript continues for 52 minutes ...
                       </div>
                     </div>
@@ -641,10 +662,10 @@ function ComparisonSlider() {
                       <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
                       <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Meeting Summary</h4>
                     </div>
-                    <div className="bg-white rounded-lg p-3 sm:p-4 text-xs sm:text-sm space-y-3 sm:space-y-4">
+                    <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg p-3 sm:p-4 text-xs sm:text-sm space-y-3 sm:space-y-4">
                       <div>
                         <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Key Points</p>
-                        <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)]">
+                        <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">
                           <li className="flex items-start gap-1.5 sm:gap-2">
                             <span className="text-[hsl(18,60%,45%)] mt-0.5 sm:mt-1">•</span>
                             <span>Family home valued at £850,000 with £150,000 mortgage outstanding, representing approximately £700,000 equity</span>
@@ -665,11 +686,11 @@ function ComparisonSlider() {
                       </div>
                       <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
                         <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Advice Given</p>
-                        <p className="text-[hsl(25,20%,35%)]">Explained implications of Mesher order including deferred sale trigger events (daughter reaching 18, completing education, client remarrying/cohabiting). Discussed pension offsetting options and recommended obtaining CETV statement. Advised documenting school fee commitment with enforcement mechanism in consent order.</p>
+                        <p className="text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">Explained implications of Mesher order including deferred sale trigger events (daughter reaching 18, completing education, client remarrying/cohabiting). Discussed pension offsetting options and recommended obtaining CETV statement. Advised documenting school fee commitment with enforcement mechanism in consent order.</p>
                       </div>
                       <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
                         <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2">Client Instructions</p>
-                        <p className="text-[hsl(25,20%,35%)]">Client confirmed she wishes to pursue Mesher order approach. Instructed to prioritise remaining in family home until daughter completes education over immediate capital release.</p>
+                        <p className="text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">Client confirmed she wishes to pursue Mesher order approach. Instructed to prioritise remaining in family home until daughter completes education over immediate capital release.</p>
                       </div>
                     </div>
                   </div>
@@ -682,7 +703,7 @@ function ComparisonSlider() {
                       <ClipboardCheck className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
                       <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Action Items - Auto-Extracted & Diarised</h4>
                     </div>
-                    <div className="bg-white rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
+                    <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
                       <div className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-[hsl(18,30%,97%)] rounded-lg border-l-2 border-[hsl(18,60%,50%)]">
                         <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[hsl(18,70%,42%)] text-white text-[10px] sm:text-xs flex items-center justify-center shrink-0">1</div>
                         <div className="flex-1 min-w-0">
@@ -734,7 +755,7 @@ function ComparisonSlider() {
                       <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
                       <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Calendar Sync - Auto-Added Deadlines</h4>
                     </div>
-                    <div className="bg-white rounded-lg p-3 sm:p-4">
+                    <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg p-3 sm:p-4">
                       <div className="border border-[hsl(220,15%,85%)] rounded-lg overflow-hidden">
                         <div className="bg-[hsl(220,15%,97%)] px-3 sm:px-4 py-2 flex items-center justify-between border-b border-[hsl(220,15%,85%)]">
                           <span className="font-medium text-sm sm:text-base text-[hsl(25,30%,20%)]">March 2025</span>
@@ -750,7 +771,7 @@ function ComparisonSlider() {
                             </div>
                             <div className="min-w-0">
                               <p className="text-xs sm:text-sm font-medium text-[hsl(25,30%,20%)]">Client: Pension CETV Due</p>
-                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)]">Richards v Richards</p>
+                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">Richards v Richards</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 sm:gap-3 p-2 bg-[hsl(18,60%,95%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
@@ -760,7 +781,7 @@ function ComparisonSlider() {
                             </div>
                             <div className="min-w-0">
                               <p className="text-xs sm:text-sm font-medium text-[hsl(25,30%,20%)]">Request Form E from opposing solicitor</p>
-                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)]">Richards v Richards</p>
+                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">Richards v Richards</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 sm:gap-3 p-2 bg-[hsl(18,60%,95%)] rounded border-l-2 border-[hsl(18,60%,50%)]">
@@ -770,12 +791,12 @@ function ComparisonSlider() {
                             </div>
                             <div className="min-w-0">
                               <p className="text-xs sm:text-sm font-medium text-[hsl(25,30%,20%)]">Draft Mesher order terms</p>
-                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)]">Richards v Richards</p>
+                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">Richards v Richards</p>
                             </div>
                           </div>
                         </div>
                       </div>
-                      <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)] text-center mt-2 sm:mt-3">
+                      <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)] text-center mt-2 sm:mt-3">
                         Deadlines automatically synced to your Google or Outlook calendar
                       </p>
                     </div>
@@ -789,7 +810,7 @@ function ComparisonSlider() {
                       <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
                       <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]">Complete Audit Trail - Chain of Custody</h4>
                     </div>
-                    <div className="bg-white rounded-lg p-3 sm:p-4">
+                    <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg p-3 sm:p-4">
                       <div className="space-y-0">
                         {[
                           { time: '10:02:15', event: 'Recording consent obtained', type: 'consent', detail: 'Verbal consent captured at 00:00:22' },
@@ -818,10 +839,10 @@ function ComparisonSlider() {
                             </div>
                             <div className="pb-1 sm:pb-3 -mt-0.5">
                               <div className="flex items-center gap-1.5 sm:gap-2">
-                                <span className="text-[9px] sm:text-[10px] font-mono text-[hsl(25,15%,50%)]">{entry.time}</span>
+                                <span className="text-[9px] sm:text-[10px] font-mono text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">{entry.time}</span>
                                 <span className="text-[11px] sm:text-sm font-medium text-[hsl(25,30%,20%)]">{entry.event}</span>
                               </div>
-                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)] hidden sm:block">{entry.detail}</p>
+                              <p className="text-[10px] sm:text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)] hidden sm:block">{entry.detail}</p>
                             </div>
                           </div>
                         ))}
@@ -841,7 +862,7 @@ function ComparisonSlider() {
                       <Users className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
                       <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)]" data-testid="heading-client-version">Client-Facing Version</h4>
                     </div>
-                    <div className="bg-white rounded-lg p-3 sm:p-4 text-xs sm:text-sm">
+                    <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg p-3 sm:p-4 text-xs sm:text-sm">
                       {/* Solicitor Approval Stamp */}
                       <div className="flex items-center gap-2 mb-3 sm:mb-4 p-2 sm:p-3 bg-[hsl(130,40%,95%)] rounded-lg border border-[hsl(130,40%,85%)]" data-testid="stamp-solicitor-approval">
                         <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(130,50%,40%)]" />
@@ -855,12 +876,12 @@ function ComparisonSlider() {
                       <div className="space-y-3 sm:space-y-4">
                         <div>
                           <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2" data-testid="heading-client-summary">Summary of Our Meeting</p>
-                          <p className="text-[hsl(25,20%,35%)]">We discussed your priorities for the financial settlement, focusing on remaining in the family home until Lily finishes school. I explained how a Mesher order could achieve this.</p>
+                          <p className="text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">We discussed your priorities for the financial settlement, focusing on remaining in the family home until Lily finishes school. I explained how a Mesher order could achieve this.</p>
                         </div>
                         
                         <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
                           <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2" data-testid="heading-what-we-agreed">What We Agreed</p>
-                          <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)]">
+                          <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">
                             <li className="flex items-start gap-1.5 sm:gap-2">
                               <Check className="w-3 h-3 sm:w-4 sm:h-4 text-[hsl(130,50%,40%)] mt-0.5 sm:mt-1 shrink-0" />
                               <span>I will pursue a Mesher order approach for the family home</span>
@@ -874,7 +895,7 @@ function ComparisonSlider() {
                         
                         <div className="border-t border-[hsl(220,15%,90%)] pt-3 sm:pt-4">
                           <p className="font-medium text-[hsl(25,30%,20%)] mb-1 sm:mb-2" data-testid="heading-client-next-steps">Your Next Steps</p>
-                          <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)]">
+                          <ul className="space-y-1 sm:space-y-2 text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">
                             <li className="flex items-start gap-1.5 sm:gap-2">
                               <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-[hsl(220,60%,50%)] mt-0.5 sm:mt-1 shrink-0" />
                               <span>Obtain your pension CETV statement by <strong>17 March</strong></span>
@@ -887,7 +908,7 @@ function ComparisonSlider() {
                         </div>
                       </div>
                       
-                      <div className="mt-3 sm:mt-4 pt-2 sm:pt-3 border-t border-[hsl(220,15%,90%)] flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-[hsl(25,15%,50%)]">
+                      <div className="mt-3 sm:mt-4 pt-2 sm:pt-3 border-t border-[hsl(220,15%,90%)] flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">
                         <FileCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                         <span>Simplified for client understanding • Strategic advice retained in solicitor file</span>
                       </div>
@@ -901,7 +922,7 @@ function ComparisonSlider() {
         
         <motion.div
           ref={containerRef}
-          className="relative rounded-2xl overflow-hidden shadow-2xl border border-[hsl(30,20%,85%)] select-none"
+          className="relative rounded-2xl overflow-hidden shadow-2xl border border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)] select-none"
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
@@ -951,7 +972,7 @@ function ComparisonSlider() {
                 {/* Header */}
                 <div className="border-l-2 border-[hsl(18,60%,50%)] pl-2 pb-1">
                   <p className="font-semibold text-sm text-[hsl(25,30%,15%)]">Attendance Note</p>
-                  <p className="text-[10px] text-[hsl(25,15%,50%)]">Richards v Richards | Ref: RIC-2025-0047 | 12 Mar 2025 | 52 mins</p>
+                  <p className="text-[10px] text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">Richards v Richards | Ref: RIC-2025-0047 | 12 Mar 2025 | 52 mins</p>
                   <p className="text-[10px] text-[hsl(130,50%,40%)]">Consent: Verbal [00:00:32]</p>
                 </div>
                 
@@ -1081,17 +1102,17 @@ function AuditTrailComparisonSlider() {
           <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
             Black Box Protection
           </span>
-          <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+          <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
             From nothing to everything documented
           </h2>
-          <p className="text-lg text-[hsl(25,20%,40%)]">
+          <p className="text-lg text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">
             Compare traditional record-keeping with LegalNote's cryptographic audit trail
           </p>
         </motion.div>
         
         <motion.div
           ref={containerRef}
-          className="relative rounded-2xl overflow-hidden shadow-2xl border border-[hsl(30,20%,85%)] select-none"
+          className="relative rounded-2xl overflow-hidden shadow-2xl border border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)] select-none"
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
@@ -1107,7 +1128,7 @@ function AuditTrailComparisonSlider() {
               </div>
               <div className="flex-1 flex flex-col items-center justify-center">
                 <div className="text-center opacity-40">
-                  <FileQuestion className="w-16 h-16 mx-auto mb-4 text-[hsl(25,15%,50%)]" />
+                  <FileQuestion className="w-16 h-16 mx-auto mb-4 text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]" />
                   <p className="text-lg text-[hsl(25,15%,40%)] font-medium mb-2">No Audit Trail</p>
                 </div>
                 <div 
@@ -1151,24 +1172,24 @@ function AuditTrailComparisonSlider() {
                     <p className="text-xs text-[hsl(130,50%,35%)]">Verbal consent obtained from Mrs Thompson</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 p-3 bg-[hsl(30,30%,98%)] rounded-lg border border-[hsl(30,20%,90%)]">
+                <div className="flex items-start gap-3 p-3 bg-[hsl(30,30%,98%)] dark:bg-[hsl(25,12%,16%)] rounded-lg border border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,18%)]">
                   <div className="w-2 h-2 rounded-full bg-[hsl(18,60%,50%)] mt-1.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="font-mono text-xs text-[hsl(25,15%,45%)]">15:19:23</span>
                       <span className="text-[hsl(25,30%,20%)]">Transcript generated</span>
                     </div>
-                    <p className="text-xs text-[hsl(25,15%,50%)]">AI transcription with speaker diarization</p>
+                    <p className="text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">AI transcription with speaker diarization</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 p-3 bg-[hsl(30,30%,98%)] rounded-lg border border-[hsl(30,20%,90%)]">
+                <div className="flex items-start gap-3 p-3 bg-[hsl(30,30%,98%)] dark:bg-[hsl(25,12%,16%)] rounded-lg border border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,18%)]">
                   <div className="w-2 h-2 rounded-full bg-[hsl(18,60%,50%)] mt-1.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="font-mono text-xs text-[hsl(25,15%,45%)]">15:22:45</span>
                       <span className="text-[hsl(25,30%,20%)]">Document reviewed</span>
                     </div>
-                    <p className="text-xs text-[hsl(25,15%,50%)]">J. Williams viewed attendance note</p>
+                    <p className="text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">J. Williams viewed attendance note</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 bg-[hsl(220,40%,97%)] rounded-lg border border-[hsl(220,30%,90%)]">
@@ -1182,7 +1203,7 @@ function AuditTrailComparisonSlider() {
                   </div>
                 </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-[hsl(30,20%,90%)]">
+              <div className="mt-4 pt-3 border-t border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,18%)]">
                 <div className="flex items-center gap-2 text-xs text-[hsl(130,50%,35%)]">
                   <ShieldCheck className="w-4 h-4" />
                   <span>Every action timestamped, hashed, and tamper-evident</span>
@@ -1345,7 +1366,7 @@ function TrustBadges() {
       {complianceItems.map((item, index) => (
         <motion.div
           key={item.obligation}
-          className="p-6 rounded-xl bg-white border border-[hsl(30,20%,85%)] shadow-sm"
+          className="p-6 rounded-xl bg-white border border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)] shadow-sm"
           initial={prefersReducedMotion ? { opacity: 1, x: 0 } : { opacity: 0, x: index % 2 === 0 ? -20 : 20 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
@@ -1360,7 +1381,7 @@ function TrustBadges() {
             </div>
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-2 mb-2">
-                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)]" data-testid={`text-obligation-${index}`}>{item.obligation}</h3>
+                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]" data-testid={`text-obligation-${index}`}>{item.obligation}</h3>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(25,30%,92%)] text-[hsl(25,30%,40%)]" data-testid={`text-reference-${index}`}>
                   {item.reference}
                 </span>
@@ -1368,7 +1389,7 @@ function TrustBadges() {
               <p className="text-sm text-[hsl(25,20%,50%)] mb-3 italic" data-testid={`text-requirement-${index}`}>
                 "{item.requirement}"
               </p>
-              <p className="text-sm text-[hsl(25,20%,35%)]" data-testid={`text-how-helps-${index}`}>
+              <p className="text-sm text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]" data-testid={`text-how-helps-${index}`}>
                 <span className="font-medium text-[hsl(18,55%,40%)]">How LegalNote helps:</span> {item.howLegalNoteHelps}
               </p>
             </div>
@@ -1378,7 +1399,7 @@ function TrustBadges() {
       
       {/* Summary badges */}
       <motion.div 
-        className="flex flex-wrap items-center justify-center gap-4 pt-6 text-sm text-[hsl(25,20%,45%)]"
+        className="flex flex-wrap items-center justify-center gap-4 pt-6 text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)]"
         initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true }}
@@ -1622,6 +1643,7 @@ export default function Landing() {
   const bannerRef = useRef<HTMLDivElement>(null);
   
   const exploreModal = useExploreModal("pricing-end");
+  const { theme, toggleTheme } = useTheme();
   
   // Track scroll for sticky nav blur effect, pricing section visibility, and floating CTA
   useEffect(() => {
@@ -1718,7 +1740,7 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-white" style={{ overflowX: 'clip' }}>
+    <div className="min-h-screen bg-white dark:bg-transparent" style={{ overflowX: 'clip' }}>
       {/* Scroll Progress Indicator */}
       <ScrollProgressBar />
       <SectionIndicator />
@@ -1764,8 +1786,8 @@ export default function Landing() {
       <nav 
         className={`sticky top-0 z-[100] transition-colors duration-300 ${
           isScrolled 
-            ? 'bg-white/80 backdrop-blur-lg shadow-sm border-b border-[hsl(30,20%,90%)]' 
-            : 'bg-white border-b border-[hsl(30,20%,90%)]'
+            ? 'bg-white/80 dark:bg-[hsl(25,12%,10%)]/90 backdrop-blur-lg shadow-sm border-b border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,18%)] dark:border-[hsl(25,12%,18%)]' 
+            : 'bg-white dark:bg-[hsl(25,12%,10%)] border-b border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,18%)] dark:border-[hsl(25,12%,18%)]'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
@@ -1789,7 +1811,7 @@ export default function Landing() {
                 variant="ghost"
                 size="sm"
                 onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
+                className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
                 data-testid="button-nav-how-it-works"
               >
                 How It Works
@@ -1797,7 +1819,7 @@ export default function Landing() {
               <Button 
                 variant="ghost"
                 size="sm"
-                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
+                className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
                 data-testid="button-nav-features"
                 asChild
               >
@@ -1809,7 +1831,7 @@ export default function Landing() {
                 variant="ghost"
                 size="sm"
                 onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
-                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
+                className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
                 data-testid="button-nav-pricing"
               >
                 Pricing
@@ -1817,7 +1839,7 @@ export default function Landing() {
               <Button 
                 variant="ghost"
                 size="sm"
-                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
+                className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
                 data-testid="button-nav-security"
                 asChild
               >
@@ -1829,10 +1851,23 @@ export default function Landing() {
                 variant="ghost"
                 size="sm"
                 onClick={handleLogin}
-                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
+                className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
                 data-testid="button-nav-login"
               >
                 Log in
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)]"
+                data-testid="button-theme-toggle"
+              >
+                {theme === "light" ? (
+                  <Moon className="w-5 h-5" />
+                ) : (
+                  <Sun className="w-5 h-5" />
+                )}
               </Button>
             </motion.div>
 
@@ -1841,13 +1876,13 @@ export default function Landing() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
-              className="flex lg:hidden items-center gap-3"
+              className="flex lg:hidden items-center gap-2"
             >
               <Button 
                 variant="ghost"
                 size="sm"
                 onClick={handleLogin}
-                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-sm px-3"
+                className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-sm px-3"
                 data-testid="button-nav-login-mobile"
               >
                 Log in
@@ -1855,8 +1890,21 @@ export default function Landing() {
               <Button
                 variant="ghost"
                 size="icon"
+                onClick={toggleTheme}
+                className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)]"
+                data-testid="button-theme-toggle-mobile"
+              >
+                {theme === "light" ? (
+                  <Moon className="w-5 h-5" />
+                ) : (
+                  <Sun className="w-5 h-5" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)]"
+                className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)]"
                 data-testid="button-nav-burger"
               >
                 {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -1873,7 +1921,7 @@ export default function Landing() {
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.2 }}
-              className="lg:hidden border-t border-[hsl(30,20%,90%)] bg-white"
+              className="lg:hidden border-t border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,18%)] dark:border-[hsl(25,12%,18%)] bg-white dark:bg-[hsl(25,12%,10%)]"
             >
               <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col gap-2">
                 <Button 
@@ -1883,7 +1931,7 @@ export default function Landing() {
                     document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' });
                     setMobileMenuOpen(false);
                   }}
-                  className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
+                  className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
                   data-testid="button-nav-how-it-works-mobile"
                 >
                   How It Works
@@ -1891,7 +1939,7 @@ export default function Landing() {
                 <Button 
                   variant="ghost"
                   size="sm"
-                  className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
+                  className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
                   data-testid="button-nav-features-mobile"
                   asChild
                   onClick={() => setMobileMenuOpen(false)}
@@ -1907,7 +1955,7 @@ export default function Landing() {
                     document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
                     setMobileMenuOpen(false);
                   }}
-                  className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
+                  className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
                   data-testid="button-nav-pricing-mobile"
                 >
                   Pricing
@@ -1915,7 +1963,7 @@ export default function Landing() {
                 <Button 
                   variant="ghost"
                   size="sm"
-                  className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
+                  className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
                   data-testid="button-nav-security-mobile"
                   asChild
                   onClick={() => setMobileMenuOpen(false)}
@@ -1931,7 +1979,7 @@ export default function Landing() {
       </nav>
 
       {/* Hero Section - Editorial Style with Image */}
-      <div id="hero" className="relative bg-white overflow-hidden">
+      <div id="hero" className="relative bg-white dark:bg-transparent overflow-hidden">
         <GradientMesh />
         <div className="relative max-w-7xl mx-auto px-6 pt-8 sm:pt-12 pb-12">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between lg:gap-12">
@@ -1943,7 +1991,7 @@ export default function Landing() {
               transition={{ duration: 0.7 }}
             >
               <motion.h1 
-                className="text-[2.5rem] sm:text-5xl lg:text-6xl font-normal text-[hsl(25,30%,12%)] mb-4 leading-[1.1] tracking-tight" 
+                className="text-[2.5rem] sm:text-5xl lg:text-6xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] dark:text-[hsl(30,20%,92%)] mb-4 leading-[1.1] tracking-tight" 
                 style={{ fontFamily: "'Lora', Georgia, serif" }}
                 data-testid="text-app-title"
                 initial={{ opacity: 0, y: 20 }}
@@ -2003,7 +2051,7 @@ export default function Landing() {
               </motion.div>
               
               <motion.p 
-                className="text-base sm:text-lg text-[hsl(25,20%,40%)] leading-relaxed mb-6" 
+                className="text-base sm:text-lg text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] leading-relaxed mb-6" 
                 style={{ fontFamily: "'Lora', Georgia, serif" }}
                 data-testid="text-app-description"
                 initial={{ opacity: 0, y: 20 }}
@@ -2055,7 +2103,7 @@ export default function Landing() {
       </div>
 
       {/* What LegalNote Does - Value Proposition (moved to top) */}
-      <div ref={attendanceRecordsRef} className="relative bg-[hsl(30,25%,94%)] py-20 border-y border-[hsl(30,20%,85%)]">
+      <div ref={attendanceRecordsRef} className="relative bg-[hsl(30,25%,94%)] py-20 border-y border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)]">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -2063,10 +2111,10 @@ export default function Landing() {
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Attendance records that evidence professional judgement
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)] leading-relaxed max-w-3xl mx-auto mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] leading-relaxed max-w-3xl mx-auto mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               LegalNote captures what was said, what was decided, and what must happen next, then forms a reviewable attendance note that preserves reasoning, actions, and instructions for professional finalisation. Records are timestamped, contemporaneous, and aligned with how regulators expect legal work to be evidenced.
             </p>
             <p className="text-base text-[hsl(25,20%,50%)] leading-relaxed max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
@@ -2077,10 +2125,10 @@ export default function Landing() {
       </div>
 
       {/* Integration Logos Section - moved above comparison */}
-      <div className="bg-[hsl(30,20%,97%)] py-6 border-b border-[hsl(30,15%,90%)]" data-testid="section-integrations">
+      <div className="bg-[hsl(30,20%,97%)] py-6 border-b border-[hsl(30,15%,90%)] dark:border-[hsl(25,12%,18%)]" data-testid="section-integrations">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-center gap-8 flex-wrap">
-            <span className="text-xs text-[hsl(25,15%,55%)] uppercase tracking-wider" data-testid="text-integrates-with">Integrates with</span>
+            <span className="text-xs text-[hsl(25,15%,55%)] dark:text-[hsl(30,10%,50%)] uppercase tracking-wider" data-testid="text-integrates-with">Integrates with</span>
             <div className="flex items-center gap-6">
               {/* Microsoft */}
               <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
@@ -2090,7 +2138,7 @@ export default function Landing() {
                   <rect y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
                   <rect x="12" y="12" width="11" height="11" fill="hsl(25,20%,50%)" />
                 </svg>
-                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Microsoft</span>
+                <span className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] font-medium">Microsoft</span>
               </div>
               {/* Google */}
               <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
@@ -2100,14 +2148,14 @@ export default function Landing() {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="hsl(25,20%,50%)"/>
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="hsl(25,20%,50%)"/>
                 </svg>
-                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Google</span>
+                <span className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] font-medium">Google</span>
               </div>
               {/* Clio */}
               <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
                 <div className="w-5 h-5 rounded bg-[hsl(25,20%,50%)] flex items-center justify-center">
                   <span className="text-white text-xs font-bold">C</span>
                 </div>
-                <span className="text-sm text-[hsl(25,20%,45%)] font-medium">Clio</span>
+                <span className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] font-medium">Clio</span>
               </div>
             </div>
           </div>
@@ -2133,7 +2181,7 @@ export default function Landing() {
       </div>
 
       {/* How It Works Section - Enhanced with workflow infographic */}
-      <div id="how-it-works" className="relative py-24 bg-white overflow-hidden">
+      <div id="how-it-works" className="relative py-24 bg-white dark:bg-transparent overflow-hidden">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
             className="text-center mb-12"
@@ -2151,11 +2199,11 @@ export default function Landing() {
             >
               How It Works
             </motion.span>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Consent documented before anyone speaks.<br className="hidden sm:block" />{" "}
               Audit-ready records sealed before anyone leaves.
             </h2>
-            <p className="text-lg sm:text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-lg sm:text-xl text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               This is infrastructure, not software. A methodology that captures your expertise while you focus on your client.
             </p>
           </motion.div>
@@ -2275,13 +2323,13 @@ export default function Landing() {
 
       {/* Lead Magnet Section - Hidden as per user request */}
       {/* 
-      <div className="relative bg-white py-24 border-b border-[hsl(30,20%,88%)]">
+      <div className="relative bg-white py-24 border-b border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)]">
         ...
       </div>
       */}
 
       {/* Pricing Section - Compact */}
-      <div id="pricing" ref={pricingRef} className="relative bg-white py-16">
+      <div id="pricing" ref={pricingRef} className="relative bg-white dark:bg-transparent py-16">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div 
             className="text-center mb-8"
@@ -2293,20 +2341,20 @@ export default function Landing() {
             <span className="text-xs font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-3 block">
               Pricing
             </span>
-            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>Simple, transparent pricing</h2>
-            <p className="text-lg text-[hsl(25,20%,40%)] max-w-xl mx-auto mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>Simple, transparent pricing</h2>
+            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] max-w-xl mx-auto mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Choose the plan that fits your practice. 14-day professional evaluation included.
             </p>
             
             {/* Billing Period Tabs - pill style with background */}
             <div className="flex justify-center">
-              <div className="inline-flex items-center gap-1 p-1 bg-[hsl(30,20%,93%)] border border-[hsl(30,20%,85%)] rounded-xl">
+              <div className="inline-flex items-center gap-1 p-1 bg-[hsl(30,20%,93%)] border border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)] rounded-xl">
                 <button
                   onClick={() => setBillingPeriod('monthly')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                     billingPeriod === 'monthly' 
-                      ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
-                      : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
+                      ? 'bg-white text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] shadow-sm' 
+                      : 'text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] hover:text-[hsl(25,25%,25%)]'
                   }`}
                   data-testid="button-monthly-billing"
                 >
@@ -2316,8 +2364,8 @@ export default function Landing() {
                   onClick={() => setBillingPeriod('quarterly')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
                     billingPeriod === 'quarterly' 
-                      ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
-                      : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
+                      ? 'bg-white text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] shadow-sm' 
+                      : 'text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] hover:text-[hsl(25,25%,25%)]'
                   }`}
                   data-testid="button-quarterly-billing"
                 >
@@ -2330,8 +2378,8 @@ export default function Landing() {
                   onClick={() => setBillingPeriod('annual')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
                     billingPeriod === 'annual' 
-                      ? 'bg-white text-[hsl(25,30%,12%)] shadow-sm' 
-                      : 'text-[hsl(25,20%,45%)] hover:text-[hsl(25,25%,25%)]'
+                      ? 'bg-white text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] shadow-sm' 
+                      : 'text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] hover:text-[hsl(25,25%,25%)]'
                   }`}
                   data-testid="button-annual-billing"
                 >
@@ -2380,7 +2428,7 @@ export default function Landing() {
               >
                 {/* Solo Card */}
                 <div className="w-full flex-shrink-0 px-1.5">
-                  <div className="h-full p-4 rounded-lg bg-white border border-[hsl(30,20%,85%)] flex flex-col">
+                  <div className="h-full p-4 rounded-lg bg-white border border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)] flex flex-col">
                     {billingPeriod === 'quarterly' && (
                       <div className="mb-3">
                         <span className="inline-block px-3 py-1 rounded-full bg-[hsl(18,55%,40%)] text-white text-xs font-medium" data-testid="badge-popular-solo-mobile">
@@ -2392,12 +2440,12 @@ export default function Landing() {
                       <div className="w-10 h-10 rounded-lg bg-[hsl(30,25%,92%)] flex items-center justify-center">
                         <User className="w-5 h-5 text-[hsl(25,25%,35%)]" />
                       </div>
-                      <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)]">Solo</h3>
+                      <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">Solo</h3>
                     </div>
-                    <p className="text-[hsl(25,20%,45%)] mb-4">Perfect for solo practitioners</p>
+                    <p className="text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4">Perfect for solo practitioners</p>
                     <div className="mb-4 flex items-baseline">
-                      <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">£{getSoloPrice()}</span>
-                      <span className="text-[hsl(25,20%,45%)] ml-2">/{getBillingLabel()}</span>
+                      <span className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">£{getSoloPrice()}</span>
+                      <span className="text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] ml-2">/{getBillingLabel()}</span>
                     </div>
                     {getSoloEffectiveMonthly() && (
                       <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-4">{getSoloEffectiveMonthly()}</p>
@@ -2406,7 +2454,7 @@ export default function Landing() {
                       {['Unlimited recordings', 'AI transcription', 'Attendance notes', 'Black Box security', 'GDPR tools'].map((feature, i) => (
                         <li key={i} className="flex items-center gap-2 text-sm">
                           <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
-                          <span className="text-[hsl(25,20%,40%)]">{feature}</span>
+                          <span className="text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">{feature}</span>
                         </li>
                       ))}
                     </ul>
@@ -2430,22 +2478,22 @@ export default function Landing() {
                       <div className="w-10 h-10 rounded-lg bg-[hsl(18,50%,82%)] flex items-center justify-center">
                         <Building2 className="w-5 h-5 text-[hsl(18,65%,40%)]" />
                       </div>
-                      <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)]">Team</h3>
+                      <h3 className="text-2xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">Team</h3>
                     </div>
-                    <p className="text-[hsl(25,20%,45%)] mb-4">For boutique law firms</p>
+                    <p className="text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4">For boutique law firms</p>
                     <div className="mb-2 flex items-baseline">
-                      <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">£{getTeamPrice()}</span>
-                      <span className="text-[hsl(25,20%,45%)] ml-2">/{getBillingLabel()}</span>
+                      <span className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">£{getTeamPrice()}</span>
+                      <span className="text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] ml-2">/{getBillingLabel()}</span>
                     </div>
                     {getTeamEffectiveMonthly() && (
                       <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-2">{getTeamEffectiveMonthly()}</p>
                     )}
-                    <p className="text-xs text-[hsl(25,20%,45%)] mb-4">2 users included, + £{getSeatPrice()}/{getBillingLabel()} per user</p>
+                    <p className="text-xs text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4">2 users included, + £{getSeatPrice()}/{getBillingLabel()} per user</p>
                     <ul className="space-y-3 mb-6 flex-grow">
                       {['Everything in Solo', 'Team collaboration', 'Admin dashboard', 'Priority support'].map((feature, i) => (
                         <li key={i} className="flex items-center gap-2 text-sm">
                           <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
-                          <span className="text-[hsl(25,20%,35%)]">{feature}</span>
+                          <span className="text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">{feature}</span>
                         </li>
                       ))}
                     </ul>
@@ -2502,7 +2550,7 @@ export default function Landing() {
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
             >
-              <div className="h-full p-5 rounded-lg bg-white border border-[hsl(30,20%,85%)] flex flex-col">
+              <div className="h-full p-5 rounded-lg bg-white border border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)] flex flex-col">
                 {billingPeriod === 'quarterly' && (
                   <div className="mb-3">
                     <span className="inline-block px-3 py-1 rounded-full bg-[hsl(18,55%,40%)] text-white text-xs font-medium" data-testid="badge-popular-solo-desktop">
@@ -2514,18 +2562,18 @@ export default function Landing() {
                   <div className="w-8 h-8 rounded-lg bg-[hsl(30,25%,92%)] flex items-center justify-center">
                     <User className="w-4 h-4 text-[hsl(25,25%,35%)]" />
                   </div>
-                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)]">Solo</h3>
+                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">Solo</h3>
                 </div>
-                <p className="text-sm text-[hsl(25,20%,45%)] mb-4">Perfect for solo practitioners</p>
+                <p className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4">Perfect for solo practitioners</p>
                 <div className="mb-4 h-12 flex items-baseline">
-                  <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">£</span>
+                  <span className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">£</span>
                   {prefersReducedMotion ? (
-                    <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">{getSoloPrice()}</span>
+                    <span className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">{getSoloPrice()}</span>
                   ) : (
                     <AnimatePresence mode="wait">
                       <motion.span
                         key={getSoloPrice()}
-                        className="text-4xl font-medium text-[hsl(25,30%,12%)]"
+                        className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
@@ -2535,7 +2583,7 @@ export default function Landing() {
                       </motion.span>
                     </AnimatePresence>
                   )}
-                  <span className="text-sm text-[hsl(25,20%,45%)] ml-2">/{getBillingLabel()}</span>
+                  <span className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] ml-2">/{getBillingLabel()}</span>
                 </div>
                 {getSoloEffectiveMonthly() && (
                   <p className="text-xs text-[hsl(18,65%,45%)] font-medium mb-4">{getSoloEffectiveMonthly()}</p>
@@ -2555,7 +2603,7 @@ export default function Landing() {
                   ].map((feature, i) => (
                     <li key={i} className="flex items-center gap-2">
                       <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
-                      <span className="text-[hsl(25,20%,40%)]">{feature}</span>
+                      <span className="text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -2588,18 +2636,18 @@ export default function Landing() {
                   <div className="w-8 h-8 rounded-lg bg-[hsl(18,50%,82%)] flex items-center justify-center">
                     <Building2 className="w-4 h-4 text-[hsl(18,65%,40%)]" />
                   </div>
-                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)]">Team</h3>
+                  <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">Team</h3>
                 </div>
-                <p className="text-sm text-[hsl(25,20%,45%)] mb-4">For boutique law firms</p>
+                <p className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4">For boutique law firms</p>
                 <div className="mb-2 h-12 flex items-baseline">
-                  <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">£</span>
+                  <span className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">£</span>
                   {prefersReducedMotion ? (
-                    <span className="text-4xl font-medium text-[hsl(25,30%,12%)]">{getTeamPrice()}</span>
+                    <span className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]">{getTeamPrice()}</span>
                   ) : (
                     <AnimatePresence mode="wait">
                       <motion.span
                         key={getTeamPrice()}
-                        className="text-4xl font-medium text-[hsl(25,30%,12%)]"
+                        className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)]"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
@@ -2609,12 +2657,12 @@ export default function Landing() {
                       </motion.span>
                     </AnimatePresence>
                   )}
-                  <span className="text-sm text-[hsl(25,20%,45%)] ml-2">/{getBillingLabel()}</span>
+                  <span className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] ml-2">/{getBillingLabel()}</span>
                 </div>
                 {getTeamEffectiveMonthly() && (
                   <p className="text-xs text-[hsl(18,65%,45%)] font-medium mb-2">{getTeamEffectiveMonthly()}</p>
                 )}
-                <p className={`text-xs text-[hsl(25,20%,45%)] mb-4 ${!getTeamEffectiveMonthly() ? 'mt-0' : ''}`}>2 users included, + £{getSeatPrice()}/{getBillingLabel()} per user</p>
+                <p className={`text-xs text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4 ${!getTeamEffectiveMonthly() ? 'mt-0' : ''}`}>2 users included, + £{getSeatPrice()}/{getBillingLabel()} per user</p>
                 <ul className="space-y-2.5 mb-6 flex-grow text-sm">
                   {[
                     'Everything in Solo',
@@ -2626,7 +2674,7 @@ export default function Landing() {
                   ].map((feature, i) => (
                     <li key={i} className="flex items-center gap-2">
                       <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
-                      <span className="text-[hsl(25,20%,35%)]">{feature}</span>
+                      <span className="text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -2641,13 +2689,13 @@ export default function Landing() {
             </motion.div>
           </div>
 
-          <p id="pricing-end" className="text-center text-sm text-[hsl(25,20%,45%)] mb-16">
+          <p id="pricing-end" className="text-center text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-16">
             All prices exclude VAT. Cancel anytime during your evaluation period.
           </p>
 
           {/* Professional Services Section */}
           <motion.div
-            className="border-t border-[hsl(30,20%,88%)] pt-16"
+            className="border-t border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)] pt-16"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -2657,10 +2705,10 @@ export default function Landing() {
               <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
                 Also Available
               </span>
-              <h3 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              <h3 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
                 Expert support when you need it
               </h3>
-              <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              <p className="text-lg text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
                 Optional services to help your firm get the most from LegalNote. Contact us for details.
               </p>
             </div>
@@ -2668,7 +2716,7 @@ export default function Landing() {
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Implementation Packages */}
               <motion.div
-                className="p-6 rounded-xl bg-[hsl(30,25%,96%)] border border-[hsl(30,20%,88%)]"
+                className="p-6 rounded-xl bg-[hsl(30,25%,96%)] dark:bg-[hsl(25,12%,14%)] border border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)]"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -2678,8 +2726,8 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-xl bg-[hsl(25,30%,88%)] flex items-center justify-center mb-4">
                   <FileText className="w-6 h-6 text-[hsl(25,40%,35%)]" />
                 </div>
-                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-3">Implementation</h4>
-                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-3">Implementation</h4>
+                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
                     <span>Guided onboarding sessions</span>
@@ -2701,7 +2749,7 @@ export default function Landing() {
 
               {/* Consulting Services */}
               <motion.div
-                className="p-6 rounded-xl bg-[hsl(30,25%,96%)] border border-[hsl(30,20%,88%)]"
+                className="p-6 rounded-xl bg-[hsl(30,25%,96%)] dark:bg-[hsl(25,12%,14%)] border border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)]"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -2711,8 +2759,8 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-xl bg-[hsl(25,30%,88%)] flex items-center justify-center mb-4">
                   <Users className="w-6 h-6 text-[hsl(25,40%,35%)]" />
                 </div>
-                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-3">Consulting</h4>
-                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-3">Consulting</h4>
+                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
                     <span>Workflow optimisation</span>
@@ -2734,7 +2782,7 @@ export default function Landing() {
 
               {/* Training Workshops */}
               <motion.div
-                className="p-6 rounded-xl bg-[hsl(30,25%,96%)] border border-[hsl(30,20%,88%)]"
+                className="p-6 rounded-xl bg-[hsl(30,25%,96%)] dark:bg-[hsl(25,12%,14%)] border border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)]"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -2744,8 +2792,8 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-xl bg-[hsl(25,30%,88%)] flex items-center justify-center mb-4">
                   <ClipboardCheck className="w-6 h-6 text-[hsl(25,40%,35%)]" />
                 </div>
-                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-3">Training</h4>
-                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-3">Training</h4>
+                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
                     <span>Live team workshops</span>
@@ -2777,8 +2825,8 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-xl bg-[hsl(18,40%,82%)] flex items-center justify-center mb-4">
                   <Calendar className="w-6 h-6 text-[hsl(18,50%,35%)]" />
                 </div>
-                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-3">Advisory Retainer</h4>
-                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-3">Advisory Retainer</h4>
+                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
                     <span>Dedicated success manager</span>
@@ -2808,7 +2856,7 @@ export default function Landing() {
               >
                 Request Early Access
               </Button>
-              <p className="text-sm text-[hsl(25,20%,45%)] mt-4">
+              <p className="text-sm text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mt-4">
                 Professional services can be added to any subscription.
               </p>
             </div>
@@ -2817,7 +2865,7 @@ export default function Landing() {
       </div>
 
       {/* Differentiation Section - Why LegalNote */}
-      <div className="relative bg-[hsl(30,25%,94%)] py-24 border-y border-[hsl(30,20%,85%)]">
+      <div className="relative bg-[hsl(30,25%,94%)] py-24 border-y border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)]">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div 
             className="text-center mb-16"
@@ -2829,17 +2877,17 @@ export default function Landing() {
             <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
               Why LegalNote
             </span>
-            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-4xl sm:text-5xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Not another note-taking app
             </h2>
-            <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-xl text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               LegalNote is a compliance-first attendance record system built for regulated legal practice—not a generic dictation tool or AI note-taker.
             </p>
           </motion.div>
 
           {/* Desktop Table View */}
           <motion.div
-            className="hidden md:block overflow-hidden rounded-xl border border-[hsl(30,20%,85%)] bg-white"
+            className="hidden md:block overflow-hidden rounded-xl border border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)] bg-white"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -2848,10 +2896,10 @@ export default function Landing() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[hsl(30,20%,88%)]">
-                    <th className="text-left p-4 text-[hsl(25,20%,40%)] font-medium text-sm">Dimension</th>
-                    <th className="text-left p-4 text-[hsl(25,15%,50%)] font-medium text-sm bg-[hsl(30,15%,96%)]">Typical dictation / note apps</th>
-                    <th className="text-left p-4 font-medium text-sm text-[hsl(25,30%,12%)] bg-[hsl(18,40%,90%)]">LegalNote</th>
+                  <tr className="border-b border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)]">
+                    <th className="text-left p-4 text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] font-medium text-sm">Dimension</th>
+                    <th className="text-left p-4 text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)] font-medium text-sm bg-[hsl(30,15%,96%)]">Typical dictation / note apps</th>
+                    <th className="text-left p-4 font-medium text-sm text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] bg-[hsl(18,40%,90%)]">LegalNote</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">
@@ -2887,9 +2935,9 @@ export default function Landing() {
                       legalnote: "Tool proposes structure; practitioner exercises judgement and signs off the attendance record" 
                     },
                   ].map((row, index) => (
-                    <tr key={index} className="border-b border-[hsl(30,15%,90%)] last:border-b-0">
+                    <tr key={index} className="border-b border-[hsl(30,15%,90%)] dark:border-[hsl(25,12%,18%)] last:border-b-0">
                       <td className="p-4 font-medium text-[hsl(25,25%,20%)] text-sm">{row.dimension}</td>
-                      <td className="p-4 text-[hsl(25,15%,50%)] bg-[hsl(30,15%,96%)] text-sm">
+                      <td className="p-4 text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)] bg-[hsl(30,15%,96%)] text-sm">
                         <div className="flex items-start gap-2">
                           <XCircle className="w-4 h-4 text-[hsl(0,50%,50%)] mt-0.5 flex-shrink-0" />
                           <span>{row.generic}</span>
@@ -2952,7 +3000,7 @@ export default function Landing() {
                 <AccordionItem 
                   key={index} 
                   value={`item-${index}`}
-                  className="rounded-xl border border-[hsl(30,20%,85%)] bg-white overflow-hidden"
+                  className="rounded-xl border border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)] bg-white overflow-hidden"
                 >
                   <AccordionTrigger className="px-4 py-4 [&:hover]:no-underline">
                     <span className="font-medium text-[hsl(25,25%,20%)] text-left">{row.dimension}</span>
@@ -3119,7 +3167,7 @@ export default function Landing() {
             </DialogDescription>
           </DialogHeader>
           <div className="bg-[hsl(30,30%,96%)] rounded-lg p-4 mt-2">
-            <p className="text-sm text-[hsl(25,20%,35%)]">
+            <p className="text-sm text-[hsl(25,20%,35%)] dark:text-[hsl(30,15%,75%)]">
               To access the full LegalNote platform with all features enabled, please visit our production environment or contact us for a live demonstration.
             </p>
           </div>
