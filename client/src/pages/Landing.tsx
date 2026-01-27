@@ -2241,7 +2241,7 @@ export default function Landing() {
       <div className="relative bg-[hsl(20,35%,18%)] py-4 sm:py-8 overflow-hidden">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-4 gap-2 sm:gap-8">
-            <StatCounter value={2} prefix="<" suffix=" min" label="Meeting-to-Matter™" index={0} />
+            <StatCounter value={2} prefix="<" suffix=" mins" label="Meeting-to-Matter™" index={0} />
             <StatCounter value={100} suffix="%" label="Audit-ready" index={1} />
             <StatCounter value={500} suffix="+" label="Hours documented" index={2} />
             <StatCounter value={100} suffix="%" label="GDPR compliant" index={3} />
@@ -2282,7 +2282,7 @@ export default function Landing() {
           
           {/* Closing statement */}
           <motion.p 
-            className="text-center mt-12 text-lg text-[hsl(25,30%,20%)] max-w-2xl mx-auto" 
+            className="text-center mt-12 text-lg text-[hsl(25,30%,20%)] dark:text-[hsl(30,20%,85%)] max-w-2xl mx-auto" 
             style={{ fontFamily: "'Lora', Georgia, serif" }}
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
