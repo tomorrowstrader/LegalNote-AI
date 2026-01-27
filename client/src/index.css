@@ -156,65 +156,65 @@ html {
   --elevate-2: rgba(255, 200, 150, .12);
 
   /* Main background - deep warm charcoal */
-  --background: 25 15% 8%;
+  --background: 25 15% 9%;
 
   /* Text - warm off-white */
-  --foreground: 30 20% 92%;
+  --foreground: 30 20% 96%;
 
   /* Borders - warm dark */
-  --border: 25 12% 20%;
+  --border: 25 12% 22%;
 
   /* Cards - slightly elevated warm dark */
-  --card: 25 12% 12%;
+  --card: 25 12% 13%;
 
-  --card-foreground: 30 20% 92%;
+  --card-foreground: 30 20% 96%;
 
-  --card-border: 25 12% 22%;
+  --card-border: 25 12% 20%;
 
   /* Sidebar - deeper warm dark */
-  --sidebar: 25 15% 6%;
+  --sidebar: 25 15% 7%;
 
-  --sidebar-foreground: 30 20% 92%;
+  --sidebar-foreground: 30 20% 96%;
 
-  --sidebar-border: 25 12% 16%;
+  --sidebar-border: 25 12% 18%;
 
-  --sidebar-primary: 25 15% 4%;
+  --sidebar-primary: 25 15% 5%;
 
-  --sidebar-primary-foreground: 30 20% 98%;
+  --sidebar-primary-foreground: 30 20% 100%;
 
-  --sidebar-accent: 25 12% 18%;
+  --sidebar-accent: 25 12% 20%;
 
-  --sidebar-accent-foreground: 30 15% 90%;
+  --sidebar-accent-foreground: 30 15% 94%;
 
   /* Ring - terracotta brand color */
-  --sidebar-ring: 18 65% 50%;
+  --sidebar-ring: 18 65% 55%;
 
   /* Popover - same as card */
-  --popover: 25 12% 12%;
+  --popover: 25 12% 13%;
 
-  --popover-foreground: 30 20% 92%;
+  --popover-foreground: 30 20% 96%;
 
-  --popover-border: 25 12% 20%;
+  --popover-border: 25 12% 22%;
 
   /* Primary - deep warm */
-  --primary: 25 15% 4%;
+  --primary: 25 15% 5%;
 
-  --primary-foreground: 30 20% 98%;
+  --primary-foreground: 30 20% 100%;
 
   /* Secondary */
-  --secondary: 25 12% 18%;
+  --secondary: 25 12% 20%;
 
-  --secondary-foreground: 30 20% 92%;
+  --secondary-foreground: 30 20% 96%;
 
   /* Muted */
-  --muted: 25 10% 14%;
+  --muted: 25 10% 16%;
 
-  --muted-foreground: 30 12% 60%;
+  --muted-foreground: 30 12% 70%;
 
   /* Accent - terracotta brand color (slightly brighter for dark mode) */
-  --accent: 18 65% 50%;
+  --accent: 18 65% 55%;
 
-  --accent-foreground: 25 15% 8%;
+  --accent-foreground: 25 15% 9%;
 
   /* Destructive */
   --destructive: 0 70% 50%;
@@ -470,8 +470,16 @@ html {
   }
 
   .prose li::marker {
-    color: hsl(var(--foreground) / 0.6);
+    color: hsl(var(--foreground) / 0.8);
   }
+}
+
+.prose .text-muted-foreground {
+  color: hsl(var(--muted-foreground) / 1) !important;
+}
+
+.dark .prose .text-muted-foreground {
+  color: hsl(var(--foreground) / 0.7) !important;
 }
 
 /* Apply Playfair Display to headings for premium legal aesthetic */

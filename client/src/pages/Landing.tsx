@@ -201,7 +201,7 @@ function SectionIndicator() {
           data-testid={`button-section-${section.id}`}
         >
           <span 
-            className="absolute right-6 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] bg-white/90 backdrop-blur-sm px-2 py-1 rounded shadow-sm whitespace-nowrap"
+            className="absolute right-6 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,90%)] bg-white/90 dark:bg-[hsl(25,12%,14%)]/90 backdrop-blur-sm px-2 py-1 rounded shadow-sm whitespace-nowrap border border-black/5 dark:border-white/5"
             data-testid={`label-section-${section.id}`}
           >
             {section.label}
@@ -210,7 +210,7 @@ function SectionIndicator() {
             className={`w-2 h-2 rounded-full transition-colors ${
               activeSection === index
                 ? 'bg-[hsl(18,70%,42%)] scale-125'
-                : 'bg-[hsl(30,20%,75%)]'
+                : 'bg-[hsl(30,20%,75%)] dark:bg-[hsl(25,12%,30%)]'
             }`}
             whileHover={{ scale: 1.3 }}
             whileTap={{ scale: 0.9 }}
@@ -332,34 +332,39 @@ function HeroImageParallax() {
         transition={{ duration: prefersReducedMotion ? 0 : 0.6, delay: prefersReducedMotion ? 0 : 0.2 }}
         style={{ y, scale }}
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          {/* Left panel - App preview mockup */}
-          <motion.div 
-            className="bg-[hsl(25,30%,70%)] rounded-lg sm:rounded-xl p-6 sm:p-8 aspect-[4/3] flex items-center justify-center"
-            whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg shadow-xl p-4 sm:p-5 w-full max-w-[280px]">
-              <div className="text-sm font-medium text-[hsl(25,25%,20%)] mb-3">Record meeting</div>
-              <div className="text-xs text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] mb-4 leading-relaxed">
-                Capture attendance notes with<br />consent-first workflows
-              </div>
-              <div className="bg-[hsl(18,65%,45%)] text-white text-xs py-2 px-4 rounded text-center">
-                Start recording
-              </div>
-            </div>
-          </motion.div>
-          {/* Right panel - Abstract legal imagery */}
-          <motion.div 
-            className="bg-[hsl(25,30%,70%)] rounded-lg sm:rounded-xl aspect-[4/3] flex items-center justify-center overflow-hidden"
-            whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div className="text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] text-center p-4">
-              <Scale className="w-16 h-16 mx-auto mb-2 opacity-50" />
-              <span className="text-sm opacity-70">Compliance-first documentation</span>
-            </div>
-          </motion.div>
+        <div className="rounded-lg sm:rounded-xl overflow-hidden aspect-[16/9] relative group border border-black/5 dark:border-white/5 shadow-2xl">
+          <img 
+            src={heroSolicitorImageWide} 
+            alt="Professional solicitor in client meeting" 
+            className="w-full h-full object-cover"
+            loading="eager"
+            data-testid="img-hero-solicitor"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+          <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-white/95">
+             <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+                  <ShieldCheck className="w-5 h-5 text-[hsl(18,70%,60%)]" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold tracking-wide uppercase">Compliance-First</span>
+                  <span className="text-xs opacity-80">Documentation Infrastructure</span>
+                </div>
+             </div>
+             <div className="hidden sm:flex items-center gap-2">
+                <div className="flex -space-x-2 mr-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="w-8 h-8 rounded-full border-2 border-[hsl(25,15%10%)] bg-[hsl(25,15%20%)] flex items-center justify-center text-[10px] font-bold">
+                      {String.fromCharCode(64 + i)}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-sm font-semibold">Trusted by 200+ Solicitors</span>
+                  <span className="text-xs opacity-80">London & UK Firms</span>
+                </div>
+             </div>
+          </div>
         </div>
       </motion.div>
     </div>
