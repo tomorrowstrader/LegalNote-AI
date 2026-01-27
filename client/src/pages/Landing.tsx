@@ -3275,8 +3275,10 @@ export default function Landing() {
                   <Building2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <p>
                     71-75 Shelton Street<br />
-                    Covent Garden, London<br />
-                    WC2H 9JQ, United Kingdom
+                    Covent Garden<br />
+                    London<br />
+                    WC2H 9JQ<br />
+                    United Kingdom
                   </p>
                 </div>
               </div>
