@@ -163,7 +163,7 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <support@legalnote.ai>', // Use verified domain in production
+      from: 'LegalNote™ <support@legalnote.ai>', // Use verified domain in production
       to: [to],
       subject: `Case Documents - ${clientName}${matterReference ? ` (${matterReference})` : ''}`,
       html: emailHtml,
@@ -370,7 +370,7 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
 
         <p>Dear ${solicitorName},</p>
 
-        <p>Your client meeting recording has been successfully processed and saved to LegalNote AI. All protection layers were active during recording.</p>
+        <p>Your client meeting recording has been successfully processed and saved to LegalNote. All protection layers were active during recording.</p>
 
         <div class="case-box">
           <h3>Recording Details</h3>
@@ -426,7 +426,7 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
         </p>
 
         <div class="footer">
-          <p>This confirmation was sent by LegalNote AI</p>
+          <p>This confirmation was sent by LegalNote</p>
           ${firmProfile?.firmName ? `<p>${firmProfile.firmName}</p>` : ''}
           <p>This is an automated message. Please do not reply to this email.</p>
         </div>
@@ -437,7 +437,7 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <support@legalnote.ai>',
+      from: 'LegalNote™ <support@legalnote.ai>',
       to: [to],
       subject: `Recording Saved - ${clientName}${matterReference ? ` (${matterReference})` : ''} - ${formattedDate}`,
       html: emailHtml,
@@ -555,7 +555,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
         </p>
         
         <div class="footer">
-          <p>This email was sent by LegalNote AI on behalf of your legal representative.</p>
+          <p>This email was sent by LegalNote on behalf of your legal representative.</p>
           <p>If you did not expect this email, please contact your legal representative.</p>
         </div>
       </div>
@@ -565,7 +565,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <support@legalnote.ai>',
+      from: 'LegalNote™ <support@legalnote.ai>',
       to: [to],
       subject,
       html: emailHtml,
@@ -600,81 +600,130 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
         body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          line-height: 1.6;
-          color: #1a1a1a;
+          font-family: Georgia, 'Times New Roman', serif;
+          line-height: 1.7;
+          color: #2d2520;
           max-width: 600px;
           margin: 0 auto;
           padding: 20px;
-          background-color: #f5f5f5;
+          background-color: #faf9f7;
         }
         .container {
           background: white;
           border-radius: 8px;
           padding: 32px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
         .header {
-          border-bottom: 2px solid #000;
-          padding-bottom: 16px;
+          text-align: center;
+          padding-bottom: 20px;
           margin-bottom: 24px;
+          border-bottom: 1px solid #e8e4df;
         }
-        .header h1 {
-          margin: 0;
-          font-size: 24px;
-          font-weight: 600;
+        .logo {
+          max-width: 180px;
+          height: auto;
         }
         .content {
           margin-bottom: 24px;
         }
         .highlight {
-          background: linear-gradient(135deg, #1a1a1a 0%, #333 100%);
-          color: white;
+          background: linear-gradient(135deg, #3d3028 0%, #5a4a3a 100%);
+          color: #f5f0eb;
           padding: 20px;
           border-radius: 8px;
           margin: 24px 0;
         }
+        .highlight strong {
+          color: #c97d4d;
+        }
+        .benefits {
+          background: #faf8f5;
+          border-left: 3px solid #c97d4d;
+          padding: 16px 20px;
+          margin: 24px 0;
+        }
+        .benefits ul {
+          margin: 0;
+          padding-left: 20px;
+        }
+        .benefits li {
+          margin-bottom: 8px;
+          color: #4a3f35;
+        }
+        .cta-section {
+          text-align: center;
+          margin: 28px 0;
+          padding: 20px;
+          background: #fdfcfa;
+          border-radius: 8px;
+        }
+        .cta-button {
+          display: inline-block;
+          background: #c97d4d;
+          color: white;
+          padding: 12px 24px;
+          text-decoration: none;
+          border-radius: 6px;
+          font-weight: 600;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .reply-note {
+          font-size: 14px;
+          color: #6b5d52;
+          font-style: italic;
+          margin-top: 24px;
+        }
         .footer {
           margin-top: 32px;
           padding-top: 16px;
-          border-top: 1px solid #e5e5e5;
+          border-top: 1px solid #e8e4df;
           font-size: 12px;
-          color: #666;
+          color: #8a7d72;
+          text-align: center;
         }
       </style>
     </head>
     <body>
       <div class="container">
         <div class="header">
-          <h1>LegalNote AI</h1>
+          <img src="https://legalnote.ai/assets/LegalNote_Word-Logo_-_Black_on_White_1766071272501.png" alt="LegalNote" class="logo" />
         </div>
         
         <div class="content">
-          <p>Hi ${firstName},</p>
+          <p>Dear ${firstName},</p>
           
-          <p>Thank you for your interest in LegalNote AI. You're now on our early access waitlist.</p>
+          <p>Thank you for registering your interest in LegalNote. You're now on our early access waitlist.</p>
           
           <div class="highlight">
             <strong>What happens next?</strong><br>
-            We're currently in private beta, carefully onboarding firms to ensure the best possible experience. We'll notify you as soon as early access becomes available.
+            We're carefully onboarding firms during private beta to ensure the highest standards of compliance and data protection. We'll be in touch as soon as we're ready to welcome your practice.
           </div>
           
-          <p>In the meantime, here's what LegalNote AI will help you achieve:</p>
-          <ul>
-            <li>Create attendance notes in minutes, not hours</li>
-            <li>AI-powered transcription with legal vocabulary understanding</li>
-            <li>GDPR-compliant consent management and audit trails</li>
-            <li>Professional document exports with your firm branding</li>
-          </ul>
+          <div class="benefits">
+            <p style="margin: 0 0 12px 0; font-weight: 600; color: #3d3028;">LegalNote helps your practice:</p>
+            <ul>
+              <li>Create defensible, contemporaneous attendance notes</li>
+              <li>Document client consent before any recording begins</li>
+              <li>Build audit-ready records that protect against future complaints</li>
+              <li>Relieve your team from documentation fatigue</li>
+            </ul>
+          </div>
           
-          <p>We're excited to have you join us on this journey to transform legal documentation.</p>
+          <div class="cta-section">
+            <p style="margin: 0 0 12px 0; font-size: 14px; color: #6b5d52;">While you wait, prepare your practice:</p>
+            <a href="https://legalnote.ai/resources/sra-documentation-checklist" class="cta-button">Download SRA Compliance Checklist</a>
+          </div>
           
-          <p>Best regards,<br>The LegalNote AI Team</p>
+          <p class="reply-note">Have questions about your firm's documentation workflow? Simply reply to this email.</p>
+          
+          <p>With regards,<br><strong>The LegalNote Team</strong></p>
         </div>
         
         <div class="footer">
-          <p>This email was sent because you signed up for early access to LegalNote AI.</p>
-          <p>LegalNote AI - Compliance-first legal documentation</p>
+          <p>You received this email because you registered for early access to LegalNote.</p>
+          <p>LegalNote\u2122 \u2014 Compliance-first legal documentation</p>
+          <p>71-75 Shelton Street, Covent Garden, London, WC2H 9JQ</p>
         </div>
       </div>
     </body>
@@ -683,14 +732,14 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <support@legalnote.ai>',
+      from: 'LegalNote\u2122 <support@legalnote.ai>',
       to: [to],
       reply_to: 'support@legalnote.ai',
       headers: {
         'Precedence': 'bulk',
         'X-Entity-Ref-ID': Date.now().toString(),
       },
-      subject: 'Welcome to the LegalNote AI Waitlist',
+      subject: 'Welcome to the LegalNote Waitlist',
       html: emailHtml,
     });
 
@@ -846,7 +895,7 @@ export async function sendLeadMagnetEmail(
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'LegalNote AI <support@legalnote.ai>',
+      from: 'LegalNote™ <support@legalnote.ai>',
       to: [to],
       reply_to: 'support@legalnote.ai',
       headers: {

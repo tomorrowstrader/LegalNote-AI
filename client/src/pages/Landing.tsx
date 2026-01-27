@@ -3278,6 +3278,30 @@ export default function Landing() {
           handleRequestAccess("scroll_popup");
         }}
       />
+
+      {/* Mobile Dark Mode Hint - floating toast at bottom */}
+      <AnimatePresence>
+        {showDarkModeHint && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.3 }}
+            className="lg:hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[hsl(25,20%,15%)] text-white text-sm rounded-full shadow-lg flex items-center gap-2"
+            data-testid="tooltip-dark-mode-hint-mobile"
+          >
+            <Moon className="w-4 h-4 text-[hsl(18,65%,55%)]" />
+            <span>Try dark mode</span>
+            <button 
+              onClick={toggleTheme}
+              className="ml-1 px-2 py-0.5 bg-[hsl(18,65%,45%)] text-white text-xs rounded-full font-medium"
+              data-testid="button-dark-mode-hint-toggle"
+            >
+              Switch
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
