@@ -1132,13 +1132,13 @@ function AuditTrailComparisonSlider() {
                   Traditional Approach
                 </span>
               </div>
-              <div className="flex-1 flex flex-col items-center justify-center">
-                <div className="text-center opacity-40">
-                  <FileQuestion className="w-16 h-16 mx-auto mb-4 text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]" />
-                  <p className="text-lg text-[hsl(25,15%,40%)] font-medium mb-2">No Audit Trail</p>
+                <div className="flex-1 flex flex-col items-center justify-center">
+                <div className="text-center opacity-60 dark:opacity-80">
+                  <FileQuestion className="w-16 h-16 mx-auto mb-4 text-[hsl(25,15%,40%)] dark:text-[hsl(30,20%,92%)]" />
+                  <p className="text-lg text-[hsl(25,15%,35%)] dark:text-[hsl(30,20%,92%)] font-medium mb-2">No Audit Trail</p>
                 </div>
                 <div 
-                  className="mt-8 text-base text-[hsl(25,15%,45%)] text-center max-w-sm space-y-2"
+                  className="mt-8 text-base text-[hsl(25,15%,40%)] dark:text-[hsl(30,20%,85%)] text-center max-w-sm space-y-2"
                   style={{ fontFamily: "'Caveat', cursive" }}
                 >
                   <p>"When exactly did we discuss that?"</p>
@@ -1178,24 +1178,24 @@ function AuditTrailComparisonSlider() {
                     <p className="text-xs text-[hsl(130,50%,35%)]">Verbal consent obtained from Mrs Thompson</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 p-3 bg-[hsl(30,30%,98%)] dark:bg-[hsl(25,12%,16%)] rounded-lg border border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,18%)]">
+                <div className="flex items-start gap-3 p-3 bg-[hsl(30,30%,98%)] dark:bg-[hsl(25,12%,20%)] rounded-lg border border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,25%)]">
                   <div className="w-2 h-2 rounded-full bg-[hsl(18,60%,50%)] mt-1.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="font-mono text-xs text-[hsl(25,15%,45%)]">15:19:23</span>
-                      <span className="text-[hsl(25,30%,20%)]">Transcript generated</span>
+                      <span className="font-mono text-xs text-[hsl(25,15%,45%)] dark:text-[hsl(30,15%,80%)]">15:19:23</span>
+                      <span className="text-[hsl(25,30%,20%)] dark:text-[hsl(30,20%,95%)]">Transcript generated</span>
                     </div>
-                    <p className="text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">AI transcription with speaker diarization</p>
+                    <p className="text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,15%,85%)]">AI transcription with speaker diarization</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 p-3 bg-[hsl(30,30%,98%)] dark:bg-[hsl(25,12%,16%)] rounded-lg border border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,18%)]">
+                <div className="flex items-start gap-3 p-3 bg-[hsl(30,30%,98%)] dark:bg-[hsl(25,12%,20%)] rounded-lg border border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,25%)]">
                   <div className="w-2 h-2 rounded-full bg-[hsl(18,60%,50%)] mt-1.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="font-mono text-xs text-[hsl(25,15%,45%)]">15:22:45</span>
-                      <span className="text-[hsl(25,30%,20%)]">Document reviewed</span>
+                      <span className="font-mono text-xs text-[hsl(25,15%,45%)] dark:text-[hsl(30,15%,80%)]">15:22:45</span>
+                      <span className="text-[hsl(25,30%,20%)] dark:text-[hsl(30,20%,95%)]">Document reviewed</span>
                     </div>
-                    <p className="text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">J. Williams viewed attendance note</p>
+                    <p className="text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,15%,85%)]">J. Williams viewed attendance note</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 bg-[hsl(220,40%,97%)] rounded-lg border border-[hsl(220,30%,90%)]">
