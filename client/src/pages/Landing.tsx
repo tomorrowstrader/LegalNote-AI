@@ -2348,13 +2348,13 @@ export default function Landing() {
             
             {/* Billing Period Tabs - pill style with background */}
             <div className="flex justify-center">
-              <div className="inline-flex items-center gap-1 p-1 bg-[hsl(30,20%,93%)] border border-[hsl(30,20%,85%)] dark:border-[hsl(25,12%,22%)] rounded-xl">
+              <div className="inline-flex items-center gap-1 p-1 bg-[hsl(25,25%,82%)] dark:bg-[hsl(25,18%,22%)] border border-[hsl(25,20%,75%)] dark:border-[hsl(25,12%,28%)] rounded-xl">
                 <button
                   onClick={() => setBillingPeriod('monthly')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                     billingPeriod === 'monthly' 
-                      ? 'bg-white text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] shadow-sm' 
-                      : 'text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] hover:text-[hsl(25,25%,25%)]'
+                      ? 'bg-[hsl(18,65%,45%)] text-white shadow-sm' 
+                      : 'text-[hsl(25,30%,25%)] dark:text-[hsl(30,15%,75%)] hover:text-[hsl(25,35%,18%)] dark:hover:text-white'
                   }`}
                   data-testid="button-monthly-billing"
                 >
@@ -2364,13 +2364,13 @@ export default function Landing() {
                   onClick={() => setBillingPeriod('quarterly')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
                     billingPeriod === 'quarterly' 
-                      ? 'bg-white text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] shadow-sm' 
-                      : 'text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] hover:text-[hsl(25,25%,25%)]'
+                      ? 'bg-[hsl(18,65%,45%)] text-white shadow-sm' 
+                      : 'text-[hsl(25,30%,25%)] dark:text-[hsl(30,15%,75%)] hover:text-[hsl(25,35%,18%)] dark:hover:text-white'
                   }`}
                   data-testid="button-quarterly-billing"
                 >
                   Quarterly
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'quarterly' ? 'bg-[hsl(18,55%,40%)] text-white' : 'bg-[hsl(25,30%,88%)] text-[hsl(25,40%,35%)]'}`} data-testid="badge-save-quarterly">
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'quarterly' ? 'bg-[hsl(18,45%,35%)] text-white' : 'bg-[hsl(25,20%,72%)] dark:bg-[hsl(25,15%,32%)] text-[hsl(25,40%,25%)] dark:text-[hsl(30,15%,75%)]'}`} data-testid="badge-save-quarterly">
                     Save 11%
                   </span>
                 </button>
@@ -2378,13 +2378,13 @@ export default function Landing() {
                   onClick={() => setBillingPeriod('annual')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
                     billingPeriod === 'annual' 
-                      ? 'bg-white text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] shadow-sm' 
-                      : 'text-[hsl(25,20%,45%)] dark:text-[hsl(30,12%,60%)] hover:text-[hsl(25,25%,25%)]'
+                      ? 'bg-[hsl(18,65%,45%)] text-white shadow-sm' 
+                      : 'text-[hsl(25,30%,25%)] dark:text-[hsl(30,15%,75%)] hover:text-[hsl(25,35%,18%)] dark:hover:text-white'
                   }`}
                   data-testid="button-annual-billing"
                 >
                   Annual
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(18,55%,40%)] text-white' : 'bg-[hsl(25,30%,88%)] text-[hsl(25,40%,35%)]'}`} data-testid="badge-save-annual">
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${billingPeriod === 'annual' ? 'bg-[hsl(18,45%,35%)] text-white' : 'bg-[hsl(25,20%,72%)] dark:bg-[hsl(25,15%,32%)] text-[hsl(25,40%,25%)] dark:text-[hsl(30,15%,75%)]'}`} data-testid="badge-save-annual">
                     Save 20%
                   </span>
                 </button>
@@ -2815,18 +2815,18 @@ export default function Landing() {
 
               {/* Advisory Retainers */}
               <motion.div
-                className="p-6 rounded-xl bg-[hsl(18,35%,94%)] border border-[hsl(18,30%,82%)]"
+                className="p-6 rounded-xl bg-[hsl(30,25%,96%)] dark:bg-[hsl(25,12%,14%)] border border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)]"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: 0.3 }}
                 data-testid="card-service-advisory"
               >
-                <div className="w-12 h-12 rounded-xl bg-[hsl(18,40%,82%)] flex items-center justify-center mb-4">
-                  <Calendar className="w-6 h-6 text-[hsl(18,50%,35%)]" />
+                <div className="w-12 h-12 rounded-xl bg-[hsl(25,30%,88%)] flex items-center justify-center mb-4">
+                  <Calendar className="w-6 h-6 text-[hsl(25,40%,35%)]" />
                 </div>
-                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-3">Advisory Retainer</h4>
-                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)]">
+                <h4 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-3">Advisory Retainer</h4>
+                <ul className="space-y-2 text-sm text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)]">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-[hsl(18,65%,45%)] mt-0.5 flex-shrink-0" />
                     <span>Dedicated success manager</span>
