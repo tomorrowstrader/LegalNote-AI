@@ -2432,7 +2432,7 @@ export default function Landing() {
                 <Sparkles className="w-5 h-5 mr-2" />
                 Apply for Early Access
               </Button>
-              <span className="text-sm text-[hsl(25,20%,50%)] dark:text-[hsl(30,15%,65%)]">Limited places available</span>
+              <span className="text-sm text-[hsl(25,20%,50%)] dark:text-[hsl(30,15%,65%)]">By application only</span>
             </div>
 
             <div className="max-w-xl mx-auto p-6 rounded-xl bg-[hsl(30,25%,96%)] dark:bg-[hsl(25,12%,14%)] border border-[hsl(30,20%,88%)] dark:border-[hsl(25,12%,20%)]">
@@ -3259,11 +3259,14 @@ export default function Landing() {
                 </li>
               </ul>
               <div className="mt-6 pt-4 border-t border-white/10">
-                <p className="text-xs text-white/40 leading-relaxed" data-testid="text-footer-address">
-                  71-75 Shelton Street<br />
-                  Covent Garden, London<br />
-                  WC2H 9JQ, United Kingdom
-                </p>
+                <div className="flex items-start gap-2 text-xs text-white/40 leading-relaxed" data-testid="text-footer-address">
+                  <Building2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <p>
+                    71-75 Shelton Street<br />
+                    Covent Garden, London<br />
+                    WC2H 9JQ, United Kingdom
+                  </p>
+                </div>
               </div>
             </div>
           </div>
