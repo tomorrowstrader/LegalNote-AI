@@ -31,6 +31,7 @@ import SecurityPage from "@/pages/SecurityPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
 import Features from "@/pages/Features";
+import Calculator from "@/pages/Calculator";
 import ScrollToTop from "@/components/ScrollToTop";
 
 function Router() {
@@ -48,6 +49,7 @@ function Router() {
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/terms" component={TermsPage} />
       <Route path="/features" component={Features} />
+      <Route path="/calculator" component={Calculator} />
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
