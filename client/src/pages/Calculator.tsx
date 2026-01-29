@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Calculator, Clock, PoundSterling, TrendingUp, Calendar, CheckCircle2, Moon, Sun } from "lucide-react";
+import { ArrowLeft, Calculator as CalculatorIcon, Clock, PoundSterling, TrendingUp, Calendar, CheckCircle2, Moon, Sun } from "lucide-react";
 import Logo from "@/components/Logo";
 import { motion } from "framer-motion";
 
@@ -88,7 +88,7 @@ export default function Calculator() {
           className="text-center mb-12"
         >
           <Badge variant="secondary" className="mb-4">
-            <Calculator className="h-3 w-3 mr-1" />
+            <CalculatorIcon className="h-3 w-3 mr-1" />
             ROI Calculator
           </Badge>
           <h1 className="text-4xl font-bold tracking-tight mb-4">
