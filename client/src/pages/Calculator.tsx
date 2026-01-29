@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Calculator as CalculatorIcon, Clock, PoundSterling, TrendingUp, Calendar, CheckCircle2, Moon, Sun } from "lucide-react";
 import Logo from "@/components/Logo";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -51,6 +51,8 @@ export default function Calculator() {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
   };
+
+  const [showPaybackDays, setShowPaybackDays] = useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
@@ -212,24 +214,60 @@ export default function Calculator() {
                   </div>
                 </div>
 
-                <div className="bg-background rounded-lg p-6 text-center">
-                  <p className="text-sm text-muted-foreground mb-2">LegalNote Pays for Itself in</p>
-                  <p className="text-5xl font-bold text-primary mb-1" data-testid="text-payback-days">{paybackDays}</p>
-                  <p className="text-lg text-muted-foreground">days</p>
+                <div className="bg-background rounded-lg p-6 text-center relative overflow-hidden">
+                  <AnimatePresence mode="wait">
+                    {!showPaybackDays ? (
+                      <motion.div
+                        key="cta"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="py-4"
+                      >
+                        <p className="text-sm text-muted-foreground mb-4">See how quickly LegalNote pays for itself</p>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => setShowPaybackDays(true)}
+                          className="hover-elevate"
+                        >
+                          Reveal Payback Period
+                        </Button>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="result"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="py-2"
+                      >
+                        <p className="text-sm text-muted-foreground mb-2">LegalNote Pays for Itself in</p>
+                        <p className="text-5xl font-bold text-primary mb-1" data-testid="text-payback-days">{paybackDays}</p>
+                        <p className="text-lg text-muted-foreground">days</p>
+                        <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-wider font-medium opacity-50">
+                          Based on £199/mo early adopter rate
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-muted-foreground">LegalNote Annual Cost</span>
-                    <span className="font-semibold">{formatCurrency(annualCost)}</span>
+                    <span className="font-semibold">{showPaybackDays ? formatCurrency(annualCost) : "••••"}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-muted-foreground">Net Annual Benefit</span>
-                    <span className="font-semibold text-green-600 dark:text-green-400" data-testid="text-net-benefit">{formatCurrency(netBenefit)}</span>
+                    <span className="font-semibold text-green-600 dark:text-green-400" data-testid="text-net-benefit">
+                      {showPaybackDays ? formatCurrency(netBenefit) : "••••"}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center py-2">
                     <span className="text-muted-foreground">Return on Investment</span>
-                    <span className="font-bold text-xl text-primary" data-testid="text-roi">{Math.round(roi)}%</span>
+                    <span className="font-bold text-xl text-primary" data-testid="text-roi">
+                      {showPaybackDays ? `${Math.round(roi)}%` : "••••"}
+                    </span>
                   </div>
                 </div>
               </CardContent>
