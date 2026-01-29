@@ -2,6 +2,7 @@ import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
+import puppeteer from "puppeteer";
 import { storage } from "./storage";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema } from "@shared/schema";
 import { z } from "zod";
@@ -89,9 +90,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendFile(path.resolve(__dirname, '../public/legalnote-one-pager.html'));
   });
 
-  // Direct download for one-pager PDF (simulated via header)
+  // Direct download for one-pager HTML
   app.get('/download-one-pager', (req, res) => {
     res.download(path.resolve(__dirname, '../public/legalnote-one-pager.html'), 'LegalNote-One-Pager.html');
+  });
+
+  // Direct download for one-pager PDF
+  app.get('/download-one-pager-pdf', async (req, res) => {
+    try {
+      const htmlPath = path.resolve(__dirname, '../public/legalnote-one-pager.html');
+      
+      const browser = await puppeteer.launch({
+        headless: true,
+        executablePath: '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium',
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      });
+      
+      const page = await browser.newPage();
+      await page.goto(`file://${htmlPath}`, { waitUntil: 'networkidle0' });
+      
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
+      });
+      
+      await browser.close();
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="LegalNote-One-Pager.pdf"');
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      res.status(500).json({ message: 'Failed to generate PDF' });
+    }
   });
   
   // Waitlist signup (public - no auth required)
