@@ -134,7 +134,10 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
                       Thank you{submittedData?.firmName ? `, ${submittedData.firmName}` : submittedData?.firstName ? `, ${submittedData.firstName}` : ""}.
                     </span>
                     <span className="block">
-                      We'll be in touch shortly to discuss how LegalNote can support your practice. Please check your spam or junk folder and mark as safe to ensure you receive our updates.
+                      We'll be in touch shortly to discuss how LegalNote can support your practice. 
+                    </span>
+                    <span className="block mt-4">
+                      Please check your spam or junk folder and mark as safe to ensure you receive our updates.
                     </span>
                   </>
                 )}
