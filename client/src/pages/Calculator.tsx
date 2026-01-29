@@ -64,12 +64,12 @@ export default function Calculator() {
             transition={{ duration: 0.5, delay: 0.2 }}
           >
             <Card>
-              <CardHeader className="pb-6">
-                <CardTitle className="flex items-center gap-2">
+              <CardHeader className="pb-8">
+                <CardTitle className="flex items-center gap-2 mb-3">
                   <FileCheck className="h-5 w-5 text-primary" />
                   Your Documentation Profile
                 </CardTitle>
-                <CardDescription className="mt-2">
+                <CardDescription>
                   Adjust the sliders to reflect your current practice
                 </CardDescription>
               </CardHeader>
