@@ -1,20 +1,24 @@
 # LinkedIn Content Strategy - LegalNote AI
 
-## Post 1: The "Client Who Got Burned" (Narrative: Empathy & Authenticity)
+---
+
+## Post 1: The "Client Who Got Burned" (Specific & Fearless)
 **Voice:** Client Experience
 **Target:** Solicitors who want to avoid being "that solicitor"
 
 **Draft:**
 
-I've sat in meetings with solicitors who said one thing.
+The paperwork said the opposite of the meeting.
 
-Then sent me paperwork that said the opposite.
+It took 6 months to get one attendance note corrected.
 
-It wasn't malice. It was the gap between conversation and documentation.
+I've sat across the table from solicitors who agreed to something in person - then sent documentation that contradicted it entirely.
 
-One time, the attendance note had the wrong date on it. The date was the whole point of the matter. It took 6 months to get it corrected.
+It wasn't malice. It was the gap between conversation and written record.
 
-Another time, I was supposed to receive two sets of keys. The documentation said "one key and one fob." Months of back-and-forth to clarify what was actually agreed.
+One matter, the date on the attendance note was wrong. The date was the entire point of the dispute. Six months of back-and-forth to fix a timestamp.
+
+Another matter, the documentation was unclear about what I'd actually received. Months of chasing to clarify something that should have been captured accurately in real-time.
 
 I'm not building LegalNote because I was a solicitor.
 
@@ -28,22 +32,24 @@ PS — What's your system for making sure the note matches the meeting?
 
 ---
 
-## Post 2: The Compliance Professional (Framework: PAS)
+## Post 2: The Compliance Professional
 **Voice:** Regulated Industry Experience
 **Target:** Firms who care about compliance infrastructure
 
 **Draft:**
 
-I've spent years inside highly regulated organisations.
+I've audited documentation inside banks.
 
-Banks. Fintech. Enterprise compliance.
+Law firms would fail that same standard.
+
+I've spent years inside highly regulated organisations - banks, fintech, enterprise compliance.
 
 The one thing they all have in common? They treat documentation like evidence. Because in an audit, it is.
 
 Then I looked at how boutique law firms handle client meetings:
-• Notes typed from memory, hours later
-• No timestamp on when the record was created
-• No way to prove what was actually said
+- Notes typed from memory, hours later
+- No timestamp on when the record was created
+- No way to prove what was actually said
 
 These are the firms advising clients on compliance.
 
@@ -52,47 +58,91 @@ So I built LegalNote.
 Not another "AI tool for lawyers."
 A compliance-first documentation system that treats every client meeting like evidence.
 
-1. **Consent-first recording**: Verification baked into the audio.
-2. **EU-only processing**: Dublin and Frankfurt. Period.
-3. **Audit trails**: Every version, every access, cryptographically signed.
+Here's what that means in practice:
+1. **Consent-first recording** - Verification is baked into the audio file itself
+2. **EU-only processing** - Dublin and Frankfurt, not California
+3. **Cryptographic audit trails** - Every version, every access, tamper-evident
 
 If you're advising clients on defensibility, your own workflow should be defensible too.
 
+PS — Would your documentation survive an SRA audit tomorrow?
+
 ---
 
-## Post 3: The Obsessed Vibe Coder (Concept: Obsession > Code)
-**Voice:** Founder Journey / Vibe Coding
-**Target:** Tech-curious audience + Potential clients
+## Post 3: The "Why I Stopped Waiting"
+**Voice:** Client Experience + Founder Journey (Hybrid)
+**Target:** Solicitors + Tech-curious professionals
 
 **Draft:**
 
-I built my first app 4 months ago.
+I stopped waiting for someone else to fix it.
 
-Today, 5 London law firms use it daily.
+That was the decision that changed everything.
 
-I'd never written a line of code before January.
-No technical co-founder. No dev team.
-Just Replit, curiosity, and a problem worth solving.
+For years, I experienced what happens when legal documentation fails:
+- Attendance notes with wrong dates
+- Paperwork that contradicted what was said in the room
+- Months of back-and-forth to fix things that should have been captured correctly the first time
 
-The problem: I've been on the receiving end of bad legal documentation.
+I kept thinking: "Someone should build a better system."
 
-Wrong dates. Missing details. Attendance notes that contradicted what was said in the room.
+Then I realised - I understood the problem better than most developers ever could.
 
-Months of back-and-forth to fix things that should have been captured accurately the first time.
+I'd lived it. Multiple times. Across nearly a decade.
 
-So I stopped waiting for someone else to fix it.
+So 4 months ago, I opened Replit with zero coding experience.
 
-4 months later:
-• 5 boutique London firms onboarded
-• Zero PI claims on documented meetings
-• GDPR-compliant from day one
+Today, 5 London law firms use LegalNote daily.
 
-The "vibe coding" movement gets mocked. But here's what nobody tells you:
+The lesson?
 
-When you understand the problem deeply enough, you don't need to be a developer.
+You don't need to be a developer to build something valuable.
 
-You need to be obsessed with the outcome.
+You need to be obsessed with solving a problem that actually matters.
 
-PS — If you're a solicitor still typing notes from memory, what's stopping you from recording with consent?
+PS — What problem have you been waiting for someone else to solve?
 
-#LegalTech #LawFirms #Compliance #FounderJourney #BuiltOnReplit
+---
+
+## Post 4: The Father Building Something
+**Voice:** Family / Humanising
+**Target:** Weekend audience, parent-founders, humanising the journey
+
+**Draft:**
+
+My daughter asked what I'm building.
+
+I didn't know how to explain it to a child.
+
+She sees me on the computer. Early mornings. Late nights. Weekends.
+
+She doesn't understand what "legal documentation" means. She doesn't know what a PI claim is. She has no idea why I care so much about attendance notes.
+
+But she knows I'm building something.
+
+And one day, I want her to understand why.
+
+Not because the app will make money. Not because it'll be "successful."
+
+But because she watched her dad refuse to wait for someone else to fix a problem he understood.
+
+That's the lesson I want her to learn.
+
+You don't need permission. You don't need a technical co-founder. You don't need to be "qualified."
+
+You need to care enough to start.
+
+PS — What do you tell your kids when they ask what you're building?
+
+---
+
+## SLAY Framework Checklist (Apply to Every Post)
+
+Before posting, verify:
+
+- [ ] **Hook (Line 1):** 8 words or less? Stops the scroll?
+- [ ] **Re-hook (Line 2):** Adds specificity/numbers/twist? Makes them click "see more"?
+- [ ] **Story:** Is there a narrative or personal experience?
+- [ ] **Lesson:** What's the insight or pattern?
+- [ ] **Actionable:** Is there something concrete they can do or consider?
+- [ ] **You:** Does it end pointing back to THEM? (Question or CTA)

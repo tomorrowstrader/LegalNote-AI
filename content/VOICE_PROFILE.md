@@ -154,10 +154,40 @@ Use this structure for every post:
 
 ## ADDITIONAL FRAMEWORKS
 
-### The 8-Word Hook Rule
-- First line: 8 words maximum (mobile cut-off)
-- Second line (re-hook): Adds specificity or numbers
-- "How I" > "How to" (personal credibility beats generic advice)
+### The 8-Word Hook + Re-hook Rule (MANDATORY)
+
+**This is non-negotiable for every post.**
+
+**Line 1 - The Hook (8 words max):**
+- Broad, curiosity-inducing, stops the scroll
+- Works on mobile (gets cut off otherwise)
+- Universal appeal - reaches many
+
+**Line 2 - The Re-hook:**
+- Adds specificity, numbers, or a twist
+- Narrows to your target audience
+- Makes them NEED to click "see more"
+
+**Structure:**
+```
+[Hook - 8 words max, broad appeal]
+
+[Re-hook - specific, adds numbers or twist]
+
+[Rest of post...]
+```
+
+**Examples:**
+- Hook: "I built my first app 4 months ago."
+- Re-hook: "Today, 5 London law firms use it daily."
+
+- Hook: "Most law firms are accidentally exporting data."
+- Re-hook: "Even if they aren't recording their Zoom calls."
+
+- Hook: "My daughter asked what I'm building."
+- Re-hook: "I didn't know how to answer her."
+
+**"How I" > "How to"** - Personal credibility beats generic advice. "How I got 5 firms" beats "How to get clients."
 
 ### Broad → Narrow → Niche
 Within each post:
