@@ -88,6 +88,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/legalnote-one-pager.html', (req, res) => {
     res.sendFile(path.resolve(__dirname, '../public/legalnote-one-pager.html'));
   });
+
+  // Direct download for one-pager PDF (simulated via header)
+  app.get('/download-one-pager', (req, res) => {
+    res.download(path.resolve(__dirname, '../public/legalnote-one-pager.html'), 'LegalNote-One-Pager.html');
+  });
   
   // Waitlist signup (public - no auth required)
   app.post('/api/waitlist', generalApiLimiter, async (req, res, next) => {
