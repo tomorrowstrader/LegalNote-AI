@@ -1,36 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Calculator as CalculatorIcon, Clock, PoundSterling, TrendingUp, Calendar, CheckCircle2, Moon, Sun } from "lucide-react";
-import Logo from "@/components/Logo";
+import { Calculator as CalculatorIcon, Clock, TrendingUp, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
-function useTheme() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
-    const initialTheme = savedTheme || "light";
-    setTheme(initialTheme);
-    document.documentElement.classList.toggle("dark", initialTheme === "dark");
-  }, []);
-
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
-  };
-
-  return { theme, toggleTheme };
-}
+import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
 
 export default function Calculator() {
-  const { theme, toggleTheme } = useTheme();
   
   const [hourlyRate, setHourlyRate] = useState(200);
   const [adminHoursPerWeek, setAdminHoursPerWeek] = useState(8);
@@ -56,31 +35,7 @@ export default function Calculator() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-      <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/">
-            <div className="flex items-center gap-2 cursor-pointer">
-              <Logo size="sm" />
-            </div>
-          </Link>
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleTheme}
-              data-testid="button-theme-toggle"
-            >
-              {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-            </Button>
-            <Link href="/">
-              <Button variant="outline" size="sm" data-testid="button-back-home">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </header>
+      <SecondaryPageHeader />
 
       <main className="max-w-6xl mx-auto px-4 py-12">
         <motion.div

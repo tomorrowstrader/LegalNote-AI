@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import Logo from "@/components/Logo";
+import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
 import { ArrowLeft, Mail } from "lucide-react";
 import { useEffect } from "react";
 
@@ -32,32 +33,8 @@ export default function PrivacyPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[hsl(30,25%,97%)]">
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg shadow-sm border-b border-[hsl(30,20%,90%)]">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" data-testid="link-logo-home">
-              <span className="cursor-pointer">
-                <Logo variant="wordmark" size="xl" tone="light" />
-              </span>
-            </Link>
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className="text-[hsl(25,25%,25%)] font-normal"
-                data-testid="button-back-home"
-                asChild
-              >
-                <Link href="/">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Home
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-[hsl(30,25%,97%)] dark:bg-background">
+      <SecondaryPageHeader />
 
       <main className="max-w-4xl mx-auto px-6 py-16">
         <motion.article

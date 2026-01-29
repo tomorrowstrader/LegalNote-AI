@@ -1907,6 +1907,17 @@ export default function Landing() {
               <Button 
                 variant="ghost"
                 size="sm"
+                className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
+                data-testid="button-nav-calculator"
+                asChild
+              >
+                <Link href="/calculator">
+                  ROI Calculator
+                </Link>
+              </Button>
+              <Button 
+                variant="ghost"
+                size="sm"
                 onClick={handleLogin}
                 className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-base px-4"
                 data-testid="button-nav-login"
@@ -2044,6 +2055,18 @@ export default function Landing() {
                 >
                   <Link href="/security">
                     Security
+                  </Link>
+                </Button>
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                  className="text-[hsl(25,25%,25%)] dark:text-[hsl(30,20%,85%)] hover:text-[hsl(18,65%,45%)] font-normal text-base justify-start px-4 py-3"
+                  data-testid="button-nav-calculator-mobile"
+                  asChild
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Link href="/calculator">
+                    ROI Calculator
                   </Link>
                 </Button>
               </div>

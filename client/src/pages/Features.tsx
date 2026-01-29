@@ -5,6 +5,7 @@ import { FileCheck, ClipboardCheck, Scale, Calendar, FileText, ShieldCheck, Arro
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { LeadMagnetForm } from "@/components/LeadMagnetForm";
+import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
 import { useState, useRef, useEffect } from "react";
 
 export default function Features() {
@@ -132,31 +133,8 @@ export default function Features() {
   ];
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-[hsl(30,20%,90%)]">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" data-testid="link-features-logo">
-              <Logo variant="wordmark" size="xl" tone="light" />
-            </Link>
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost"
-                size="sm"
-                asChild
-                className="text-[hsl(25,25%,25%)] hover:text-[hsl(18,65%,45%)]"
-                data-testid="button-features-back"
-              >
-                <Link href="/">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Home
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-white dark:bg-background">
+      <SecondaryPageHeader />
 
       {/* Hero */}
       <div className="relative bg-white py-20">
