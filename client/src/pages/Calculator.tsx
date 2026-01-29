@@ -64,20 +64,20 @@ export default function Calculator() {
             transition={{ duration: 0.5, delay: 0.2 }}
           >
             <Card>
-              <CardHeader>
+              <CardHeader className="pb-6">
                 <CardTitle className="flex items-center gap-2">
                   <FileCheck className="h-5 w-5 text-primary" />
                   Your Documentation Profile
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="mt-2">
                   Adjust the sliders to reflect your current practice
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-8">
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <Label htmlFor="hourly-rate" className="text-base">Your Hourly Rate</Label>
-                    <span className="text-2xl font-bold text-primary" data-testid="text-hourly-rate">{formatCurrency(hourlyRate)}</span>
+                  <div className="flex justify-between items-center gap-4">
+                    <Label htmlFor="hourly-rate" className="text-base flex-shrink-0">Your Hourly Rate</Label>
+                    <span className="text-2xl font-bold text-primary flex-shrink-0" data-testid="text-hourly-rate">{formatCurrency(hourlyRate)}</span>
                   </div>
                   <Slider
                     id="hourly-rate"
@@ -95,9 +95,9 @@ export default function Calculator() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <Label htmlFor="admin-hours" className="text-base">Hours on File Notes & Documentation</Label>
-                    <span className="text-2xl font-bold text-primary" data-testid="text-admin-hours">{adminHoursPerWeek}h</span>
+                  <div className="flex justify-between items-center gap-4">
+                    <Label htmlFor="admin-hours" className="text-base">Weekly Documentation Hours</Label>
+                    <span className="text-2xl font-bold text-primary flex-shrink-0" data-testid="text-admin-hours">{adminHoursPerWeek}h</span>
                   </div>
                   <Slider
                     id="admin-hours"
@@ -115,9 +115,9 @@ export default function Calculator() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <Label htmlFor="meetings" className="text-base">Client Meetings per Week</Label>
-                    <span className="text-2xl font-bold text-primary" data-testid="text-meetings">{meetingsPerWeek}</span>
+                  <div className="flex justify-between items-center gap-4">
+                    <Label htmlFor="meetings" className="text-base">Meetings per Week</Label>
+                    <span className="text-2xl font-bold text-primary flex-shrink-0" data-testid="text-meetings">{meetingsPerWeek}</span>
                   </div>
                   <Slider
                     id="meetings"
@@ -165,7 +165,7 @@ export default function Calculator() {
                   </div>
                   <div className="bg-background rounded-lg p-4 text-center">
                     <p className="text-sm text-muted-foreground mb-1">Billable Capacity</p>
-                    <p className="text-3xl font-bold text-green-600 dark:text-green-400" data-testid="text-revenue-recovered">{formatCurrency(revenueRecoveredPerYear)}</p>
+                    <p className="text-3xl font-bold text-amber-700 dark:text-amber-400" data-testid="text-revenue-recovered">{formatCurrency(revenueRecoveredPerYear)}</p>
                   </div>
                 </div>
 
@@ -214,7 +214,7 @@ export default function Calculator() {
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-muted-foreground">Net Annual Value</span>
-                    <span className="font-semibold text-green-600 dark:text-green-400" data-testid="text-net-benefit">
+                    <span className="font-semibold text-amber-700 dark:text-amber-400" data-testid="text-net-benefit">
                       {showPaybackDays ? formatCurrency(netBenefit) : "••••"}
                     </span>
                   </div>
