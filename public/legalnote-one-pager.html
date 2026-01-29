@@ -3,9 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LegalNote AI - One Pager</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+  <title>LegalNote AI - Meeting to Matter, Contemporaneously.</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
   <style>
+    :root {
+      /* LegalNote Brand Palette */
+      --brand-terracotta: hsl(18, 70%, 42%);
+      --brand-charcoal: hsl(25, 15%, 9%);
+      --brand-warm-off-white: hsl(30, 20%, 96%);
+      --brand-accent: hsl(25, 60%, 55%);
+      --text-main: hsl(25, 30%, 12%);
+      --text-muted: hsl(25, 15%, 35%);
+      --border-light: hsl(30, 10%, 90%);
+      --bg-warm: hsl(40, 20%, 98%);
+    }
+
     * {
       margin: 0;
       padding: 0;
@@ -13,271 +25,324 @@
     }
     
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      color: #2d2518;
-      line-height: 1.5;
-      max-width: 800px;
+      font-family: 'Inter', -apple-system, sans-serif;
+      color: var(--text-main);
+      line-height: 1.6;
+      max-width: 840px;
       margin: 0 auto;
-      padding: 40px;
-      background: #fff;
+      padding: 60px 50px;
+      background: var(--bg-warm);
+      background-image: radial-gradient(at top left, hsl(40, 20%, 100%) 0%, transparent 70%);
     }
     
     @media print {
       body {
-        padding: 20px;
-        max-width: 100%;
+        padding: 40px;
+        background: white;
+      }
+      .cta-section {
+        background: #fdfaf7 !important;
+        border: 1px solid #eee;
       }
     }
     
     .header {
-      text-align: center;
-      margin-bottom: 32px;
-      padding-bottom: 24px;
-      border-bottom: 2px solid #c4713a;
+      text-align: left;
+      margin-bottom: 48px;
+      position: relative;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 8px;
     }
     
     .logo {
       font-family: 'Lora', Georgia, serif;
-      font-size: 32px;
+      font-size: 36px;
+      font-weight: 500;
+      color: var(--brand-charcoal);
+      letter-spacing: -0.02em;
+    }
+
+    .tm {
+      font-size: 14px;
+      vertical-align: super;
+      color: var(--brand-terracotta);
       font-weight: 600;
-      color: #2d2518;
-      margin-bottom: 8px;
     }
     
     .tagline {
       font-family: 'Lora', Georgia, serif;
-      font-size: 20px;
-      color: #c4713a;
+      font-size: 22px;
+      color: var(--brand-terracotta);
       font-style: italic;
+      opacity: 0.9;
     }
     
     h2 {
       font-family: 'Lora', Georgia, serif;
-      font-size: 16px;
+      font-size: 14px;
       font-weight: 600;
-      color: #c4713a;
+      color: var(--brand-terracotta);
       text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-top: 24px;
-      margin-bottom: 12px;
+      letter-spacing: 0.1em;
+      margin-top: 40px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    h2::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(to right, var(--border-light), transparent);
     }
     
     p {
-      font-size: 14px;
-      margin-bottom: 12px;
-      color: #3d3525;
+      font-size: 15px;
+      margin-bottom: 16px;
+      color: var(--text-main);
     }
     
-    .highlight {
+    .highlight-box {
+      font-family: 'Lora', Georgia, serif;
+      font-size: 18px;
+      color: var(--brand-charcoal);
       font-style: italic;
-      color: #5a4a35;
-      border-left: 3px solid #c4713a;
-      padding-left: 12px;
-      margin: 16px 0;
+      border-left: 4px solid var(--brand-terracotta);
+      padding: 20px 24px;
+      margin: 32px 0;
+      background: white;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
     }
     
-    table {
+    .workflow-table {
       width: 100%;
-      border-collapse: collapse;
-      margin: 12px 0;
-      font-size: 13px;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin: 24px 0;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border: 1px solid var(--border-light);
     }
     
-    th {
-      background: #f8f5f0;
+    .workflow-table th {
+      background: #fafafa;
       text-align: left;
-      padding: 10px 12px;
+      padding: 14px 20px;
+      font-size: 13px;
       font-weight: 600;
-      color: #2d2518;
-      border-bottom: 2px solid #c4713a;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-light);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
     
-    td {
-      padding: 10px 12px;
-      border-bottom: 1px solid #e8e4dd;
+    .workflow-table td {
+      padding: 16px 20px;
+      border-bottom: 1px solid #f5f5f5;
       vertical-align: top;
+      font-size: 14px;
+    }
+
+    .workflow-table tr:last-child td {
+      border-bottom: none;
     }
     
-    td:first-child {
+    .step-name {
       font-weight: 600;
-      color: #2d2518;
+      color: var(--brand-charcoal);
       width: 30%;
     }
     
-    ul {
-      list-style: none;
-      padding: 0;
-      margin: 12px 0;
-    }
-    
-    li {
-      font-size: 14px;
-      padding: 6px 0;
-      padding-left: 20px;
-      position: relative;
-      color: #3d3525;
-    }
-    
-    li::before {
-      content: "—";
-      position: absolute;
-      left: 0;
-      color: #c4713a;
-      font-weight: 600;
-    }
-    
-    li strong {
-      color: #2d2518;
-    }
-    
-    .section-divider {
-      height: 1px;
-      background: linear-gradient(to right, transparent, #d4cfc5, transparent);
-      margin: 20px 0;
-    }
-    
-    .two-column {
+    .feature-list {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
+      gap: 32px;
+      margin: 32px 0;
     }
     
-    @media print {
-      .two-column {
-        grid-template-columns: 1fr 1fr;
-      }
+    .feature-item {
+      position: relative;
+      padding-left: 24px;
+    }
+
+    .feature-item::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: var(--brand-terracotta);
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .feature-item strong {
+      display: block;
+      font-size: 15px;
+      color: var(--brand-charcoal);
+      margin-bottom: 2px;
+    }
+
+    .feature-item span {
+      font-size: 14px;
+      color: var(--text-muted);
     }
     
     .cta-section {
-      background: #f8f5f0;
-      padding: 20px;
-      border-radius: 8px;
-      margin-top: 24px;
+      background: #fdfaf7;
+      padding: 40px;
+      border-radius: 12px;
+      margin-top: 60px;
+      border: 1px solid hsl(18, 50%, 94%);
+      text-align: center;
     }
     
-    .cta-section p {
-      margin-bottom: 8px;
+    .cta-section h3 {
+      font-family: 'Lora', Georgia, serif;
+      font-size: 24px;
+      margin-bottom: 12px;
+      color: var(--brand-charcoal);
     }
-    
-    .cta-section a {
-      color: #c4713a;
+
+    .cta-link {
+      display: inline-block;
+      margin-top: 20px;
+      color: var(--brand-terracotta);
       text-decoration: none;
       font-weight: 600;
+      font-size: 16px;
+      border-bottom: 2px solid var(--brand-terracotta);
+      padding-bottom: 2px;
+      transition: all 0.2s;
+    }
+
+    .cta-link:hover {
+      color: var(--brand-accent);
+      border-color: var(--brand-accent);
     }
     
     .footer {
       text-align: center;
-      margin-top: 32px;
-      padding-top: 16px;
-      border-top: 1px solid #e8e4dd;
+      margin-top: 60px;
+      padding-top: 32px;
+      border-top: 1px solid var(--border-light);
       font-size: 12px;
-      color: #7a7265;
+      color: var(--text-muted);
+      font-family: 'Inter', sans-serif;
     }
-    
-    .bold-statement {
-      font-weight: 600;
-      color: #2d2518;
+
+    .compliance-pills {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .pill {
+      background: white;
+      border: 1px solid var(--border-light);
+      padding: 4px 12px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <div class="logo">LegalNote AI</div>
+    <div class="logo-container">
+      <div class="logo">LegalNote</div>
+      <span class="tm">TM</span>
+    </div>
     <div class="tagline">Meeting to Matter, Contemporaneously.</div>
   </div>
 
   <h2>The Challenge</h2>
-  <p>Every solicitor knows it: the gap between conversation and written record. Handwritten notes drafted hours after the meeting. Key details reconstructed from memory. No clear evidence of what was said, decided, or agreed.</p>
-  <p>Traditional documentation practices leave firms exposed—to client disputes, regulatory scrutiny, and PI claims that hinge on records that were never truly contemporaneous.</p>
+  <p>The gap between conversation and written record is where risk lives. Handwritten notes drafted hours later rely on memory, leaving firms exposed to client disputes, regulatory scrutiny, and PI claims that hinge on records that were never truly contemporaneous.</p>
 
-  <div class="section-divider"></div>
+  <div class="highlight-box">
+    Consent documented before anyone speaks. Audit-ready records sealed before anyone leaves.
+  </div>
 
   <h2>The Solution</h2>
   <p><strong>LegalNote</strong> captures what was said, what was decided, and what must happen next—creating reviewable, evidential attendance records in real time.</p>
-  <p class="highlight">Consent documented before anyone speaks. Audit-ready records sealed before anyone leaves.</p>
-
-  <div class="section-divider"></div>
 
   <h2>How It Works</h2>
-  <table>
+  <table class="workflow-table">
     <thead>
       <tr>
         <th>Step</th>
-        <th>What Happens</th>
+        <th>Process</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td>Consent Captured</td>
-        <td>GDPR-compliant consent documented before recording begins</td>
+        <td class="step-name">Consent Captured</td>
+        <td>GDPR-compliant consent documented before anyone speaks.</td>
       </tr>
       <tr>
-        <td>Meeting Recorded</td>
-        <td>Secure, real-time capture with speaker attribution</td>
+        <td class="step-name">Meeting Recorded</td>
+        <td>Secure, real-time capture with automated speaker attribution.</td>
       </tr>
       <tr>
-        <td>Evidence Created</td>
-        <td>Your conversation becomes your contemporaneous record</td>
+        <td class="step-name">Evidence Created</td>
+        <td>The conversation becomes the record, processed in minutes.</td>
       </tr>
       <tr>
-        <td>Your Judgment</td>
-        <td>You shape the final attendance note—LegalNote preserves the evidence</td>
+        <td class="step-name">Your Judgment</td>
+        <td>You shape the final note—LegalNote preserves the reasoning.</td>
       </tr>
       <tr>
-        <td>Cryptographically Sealed</td>
-        <td>Timestamped, tamper-evident, audit-ready</td>
+        <td class="step-name">Audit Sealed</td>
+        <td>Timestamped, tamper-evident, and cryptographically verified.</td>
       </tr>
     </tbody>
   </table>
 
-  <div class="section-divider"></div>
-
-  <div class="two-column">
-    <div>
-      <h2>What Sets LegalNote Apart</h2>
-      <ul>
-        <li><strong>SRA-Aligned Structure</strong> — Attendance notes formatted to regulatory expectations</li>
-        <li><strong>Actions Surfaced & Diarised</strong> — Follow-ups captured and tracked automatically</li>
-        <li><strong>Matter Linking</strong> — Every record connected to its case</li>
-        <li><strong>Client-Ready Versions</strong> — Share redacted, professional documents</li>
-      </ul>
+  <div class="feature-list">
+    <div class="feature-item">
+      <strong>SRA-Aligned Structure</strong>
+      <span>Attendance notes formatted to professional regulatory expectations.</span>
     </div>
-    <div>
-      <h2>Who It's For</h2>
-      <ul>
-        <li><strong>Solo practitioners</strong> — Managing their own documentation</li>
-        <li><strong>Boutique firms (1-10 solicitors)</strong> — Consistent, defensible standards</li>
-        <li><strong>Compliance-conscious practices</strong> — Where audit-readiness matters</li>
-      </ul>
+    <div class="feature-item">
+      <strong>Actions Surfaced</strong>
+      <span>Key follow-ups captured and diarised automatically.</span>
+    </div>
+    <div class="feature-item">
+      <strong>Matter Linking</strong>
+      <span>Every record connected to its case with full searchable history.</span>
+    </div>
+    <div class="feature-item">
+      <strong>Client-Ready Versions</strong>
+      <span>Share professional, redacted documentation with clarity.</span>
     </div>
   </div>
 
-  <div class="section-divider"></div>
-
-  <h2>Why LegalNote</h2>
-  <p>LegalNote is <strong>documentation infrastructure</strong>—not an AI gimmick.</p>
-  <p>We don't provide legal analysis. We ensure the record matches the meeting.</p>
-  <p class="bold-statement">Compliance-first. Audit-ready. Built for defensibility.</p>
-
-  <div class="section-divider"></div>
-
-  <h2>Compliance Snapshot</h2>
-  <ul>
-    <li><strong>EU Data Residency</strong> — All processing in Dublin/Frankfurt data centres</li>
-    <li><strong>GDPR-Aligned</strong> — Consent captured, data minimised, retention managed</li>
-    <li><strong>SRA-Ready</strong> — Documentation standards aligned with regulatory expectations</li>
-  </ul>
-
   <div class="cta-section">
-    <h2 style="margin-top: 0;">Next Steps</h2>
-    <p><strong>Website:</strong> <a href="https://legalnote.ai">legalnote.ai</a></p>
-    <p><strong>For Partners:</strong> Interested in introducing LegalNote to your law firm clients? Let's discuss a referral pathway that works for your practice.</p>
-    <p><strong>Book a Call:</strong> 15-minute demo available via the website or direct on LinkedIn.</p>
+    <h3>Ready for a Demo?</h3>
+    <p>Book a 15-minute walkthrough to see how LegalNote creates defensible records for solo and boutique firms.</p>
+    <a href="https://legalnote.ai" class="cta-link">Explore at legalnote.ai</a>
+    <p style="margin-top: 20px; font-size: 13px; color: var(--text-muted);">For Partners: Ask about our referral pathway for consultants.</p>
   </div>
 
   <div class="footer">
+    <div class="compliance-pills">
+      <span class="pill">EU Data Residency</span>
+      <span class="pill">GDPR Compliant</span>
+      <span class="pill">SRA Aligned</span>
+    </div>
     <p>LegalNote AI Ltd — 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ</p>
-    <p>EU-hosted infrastructure for GDPR compliance</p>
+    <p>Infrastructure hosted in Dublin/Frankfurt for absolute GDPR compliance</p>
   </div>
 </body>
 </html>
