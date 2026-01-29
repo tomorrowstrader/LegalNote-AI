@@ -52,9 +52,45 @@
 - We don't do legal analysis
 - We're a documentation tool, not a practice management system
 
+## CORE CONCEPTS & TERMINOLOGY
+
+**1. Meeting to Matter (The Workflow)**
+- LegalNote isn't just a recorder; it's a bridge.
+- We take the raw energy of a **Meeting** and anchor it to the official **Matter**.
+- This eliminates the "orphan recording" problem where audio sits on a phone or laptop and never makes it to the case file.
+
+**2. Contemporaneous Documentation**
+- This is our "North Star."
+- SRA guidelines and PI insurers value notes created *during* or *immediately after* the event.
+- Documentation created from memory 48 hours later is "hearsay of oneself." LegalNote makes it contemporaneous by default.
+
+**3. Infrastructure over AI**
+- AI is the engine, but **Infrastructure** is the chassis.
+- We talk about encryption, EU-pining (Dublin/Frankfurt), and cryptographic signatures.
+- Positioning: "We use AI to solve the documentation gap, but we use Infrastructure to solve the compliance gap."
+
+**4. The "Black Box" (Triple Redundancy)**
+- LegalNote acts as the flight recorder for the law firm.
+- Triple-layer protection: Local capture, Cloud backup, Audit trail.
+
+**5. Consent-First Architecture**
+- Consent isn't a checkbox; it's a workflow.
+- We capture the verbal consent at the start of the audio and flag it for permanent retention, even if the main audio is deleted after 7 days.
+
 ---
 
-## THE THREE VOICES
+## PRODUCT FEATURES (Contextualised)
+
+- **Quick Record with Consent Flow**: Solicitor-led, client-focused.
+- **EU-Only Data Routing**: AWS Dublin for transcripts, AWS Frankfurt for meeting bots.
+- **Cryptographic Audit Trail**: HMAC-SHA256 signatures on every document version.
+- **Tabbed Document Viewer**: Professional, legal-grade interface for reviewing transcripts vs. attendance notes.
+- **Clio/PMS Integration**: Direct sync to the source of truth.
+- **7-Day Audio Retention**: Aggressive data minimization for GDPR compliance.
+
+---
+
+## THE FOUR VOICES
 
 Use these voices strategically based on the content goal:
 
