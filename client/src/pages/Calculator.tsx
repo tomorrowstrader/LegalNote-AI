@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Calculator as CalculatorIcon, Clock, TrendingUp, CheckCircle2 } from "lucide-react";
+import { Shield, Clock, FileCheck, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
 
@@ -45,15 +45,15 @@ export default function Calculator() {
           className="text-center mb-12"
         >
           <Badge variant="secondary" className="mb-4">
-            <CalculatorIcon className="h-3 w-3 mr-1" />
-            ROI Calculator
+            <Shield className="h-3 w-3 mr-1" />
+            Practice Protection Calculator
           </Badge>
           <h1 className="text-4xl font-bold tracking-tight mb-4">
-            What's Your Documentation Costing You?
+            What's Incomplete Documentation Costing Your Practice?
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Most solicitors spend 15-20 hours per week on administrative tasks that could be automated. 
-            Calculate how much billable time you could recover.
+            Professional indemnity claims often stem from inadequate file notes. 
+            Calculate the value of consistent, defensible documentation across every client meeting.
           </p>
         </motion.div>
 
@@ -66,11 +66,11 @@ export default function Calculator() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-primary" />
-                  Your Practice
+                  <FileCheck className="h-5 w-5 text-primary" />
+                  Your Documentation Profile
                 </CardTitle>
                 <CardDescription>
-                  Adjust the sliders to match your current workload
+                  Adjust the sliders to reflect your current practice
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-8">
@@ -96,7 +96,7 @@ export default function Calculator() {
 
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <Label htmlFor="admin-hours" className="text-base">Hours on Admin/Documentation per Week</Label>
+                    <Label htmlFor="admin-hours" className="text-base">Hours on File Notes & Documentation</Label>
                     <span className="text-2xl font-bold text-primary" data-testid="text-admin-hours">{adminHoursPerWeek}h</span>
                   </div>
                   <Slider
@@ -136,8 +136,8 @@ export default function Calculator() {
 
                 <div className="pt-4 border-t">
                   <p className="text-sm text-muted-foreground">
-                    Based on our data, LegalNote users recover approximately <strong>70%</strong> of their 
-                    documentation time through automated transcription and AI-generated attendance notes.
+                    LegalNote ensures every client meeting is properly documented with verbatim transcripts, 
+                    structured attendance notes, and a complete audit trail—reducing <strong>70%</strong> of manual documentation effort.
                   </p>
                 </div>
               </CardContent>
@@ -153,18 +153,18 @@ export default function Calculator() {
             <Card className="border-primary/50 bg-gradient-to-br from-primary/5 to-primary/10">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  Your Potential Return
+                  <Shield className="h-5 w-5 text-primary" />
+                  Documentation Value
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-background rounded-lg p-4 text-center">
-                    <p className="text-sm text-muted-foreground mb-1">Hours Recovered/Year</p>
+                    <p className="text-sm text-muted-foreground mb-1">Hours Reallocated/Year</p>
                     <p className="text-3xl font-bold text-primary" data-testid="text-hours-recovered">{Math.round(hoursRecoveredPerYear)}</p>
                   </div>
                   <div className="bg-background rounded-lg p-4 text-center">
-                    <p className="text-sm text-muted-foreground mb-1">Billable Value</p>
+                    <p className="text-sm text-muted-foreground mb-1">Billable Capacity</p>
                     <p className="text-3xl font-bold text-green-600 dark:text-green-400" data-testid="text-revenue-recovered">{formatCurrency(revenueRecoveredPerYear)}</p>
                   </div>
                 </div>
@@ -179,14 +179,14 @@ export default function Calculator() {
                         exit={{ opacity: 0 }}
                         className="py-4"
                       >
-                        <p className="text-sm text-muted-foreground mb-4">See how quickly LegalNote pays for itself</p>
+                        <p className="text-sm text-muted-foreground mb-4">See the investment perspective</p>
                         <Button 
                           variant="outline" 
                           size="sm" 
                           onClick={() => setShowPaybackDays(true)}
-                          className="hover-elevate"
+                          data-testid="button-reveal-investment"
                         >
-                          Reveal Payback Period
+                          View Investment Details
                         </Button>
                       </motion.div>
                     ) : (
@@ -196,7 +196,7 @@ export default function Calculator() {
                         animate={{ opacity: 1, scale: 1 }}
                         className="py-2"
                       >
-                        <p className="text-sm text-muted-foreground mb-2">LegalNote Pays for Itself in</p>
+                        <p className="text-sm text-muted-foreground mb-2">Investment Recovery Period</p>
                         <p className="text-5xl font-bold text-primary mb-1" data-testid="text-payback-days">{paybackDays}</p>
                         <p className="text-lg text-muted-foreground">days</p>
                         <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-wider font-medium opacity-50">
@@ -209,11 +209,11 @@ export default function Calculator() {
 
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-muted-foreground">LegalNote Annual Cost</span>
+                    <span className="text-muted-foreground">Annual Investment</span>
                     <span className="font-semibold">{showPaybackDays ? formatCurrency(annualCost) : "••••"}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-muted-foreground">Net Annual Benefit</span>
+                    <span className="text-muted-foreground">Net Annual Value</span>
                     <span className="font-semibold text-green-600 dark:text-green-400" data-testid="text-net-benefit">
                       {showPaybackDays ? formatCurrency(netBenefit) : "••••"}
                     </span>
@@ -230,22 +230,23 @@ export default function Calculator() {
 
             <Card>
               <CardContent className="pt-6">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mb-4 font-medium">Beyond the Numbers</p>
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm">Automatic transcription with speaker identification</p>
+                    <p className="text-sm">Verbatim transcripts with speaker attribution for every meeting</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm">AI-generated attendance notes in your firm's style</p>
+                    <p className="text-sm">Structured attendance notes ready for your review and sign-off</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm">Comprehensive audit trail for compliance</p>
+                    <p className="text-sm">Tamper-evident audit trail with cryptographic verification</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm">GDPR-compliant consent management</p>
+                    <p className="text-sm">Documented consent workflow aligned with SRA requirements</p>
                   </div>
                 </div>
               </CardContent>
@@ -268,10 +269,10 @@ export default function Calculator() {
           <Card className="max-w-3xl mx-auto">
             <CardContent className="pt-6">
               <p className="text-lg italic text-muted-foreground mb-4">
-                "Every case is different, but 80% of the process behind it isn't. 
-                Systematise the repetition so you can focus on the legal work that actually matters."
+                "The best defence against a PI claim isn't luck—it's a complete file. 
+                LegalNote ensures every client interaction is properly documented before you leave the room."
               </p>
-              <p className="text-sm font-medium">The LegalNote Philosophy</p>
+              <p className="text-sm font-medium">Compliance-First Documentation</p>
             </CardContent>
           </Card>
         </motion.div>
