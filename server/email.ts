@@ -751,6 +751,171 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
   }
 }
 
+interface WaitlistAdminNotificationParams {
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  firmName?: string | null;
+  firmSize?: string | null;
+  role?: string | null;
+  source?: string | null;
+}
+
+/**
+ * Sends a notification email to admin when someone joins the waitlist
+ */
+export async function sendWaitlistAdminNotification(params: WaitlistAdminNotificationParams): Promise<{ success: boolean; error?: string }> {
+  const { email, firstName, lastName, firmName, firmSize, role, source } = params;
+  
+  const adminEmails = ['jazz.dennis@legalnote.ai', 'support@legalnote.ai'];
+  
+  const submittedAt = new Date().toLocaleString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/London'
+  });
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          line-height: 1.6;
+          color: #1a1a1a;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background-color: #f5f5f5;
+        }
+        .container {
+          background: white;
+          border-radius: 8px;
+          padding: 24px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .header {
+          background: linear-gradient(135deg, #c97d4d 0%, #8b5a3c 100%);
+          color: white;
+          padding: 16px 20px;
+          border-radius: 8px 8px 0 0;
+          margin: -24px -24px 20px -24px;
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 18px;
+          font-weight: 600;
+        }
+        .detail-row {
+          display: flex;
+          border-bottom: 1px solid #eee;
+          padding: 10px 0;
+        }
+        .detail-row:last-child {
+          border-bottom: none;
+        }
+        .detail-label {
+          width: 120px;
+          color: #666;
+          font-size: 14px;
+          flex-shrink: 0;
+        }
+        .detail-value {
+          font-weight: 500;
+          font-size: 14px;
+          color: #1a1a1a;
+        }
+        .timestamp {
+          font-size: 12px;
+          color: #888;
+          margin-top: 16px;
+          padding-top: 12px;
+          border-top: 1px solid #eee;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>New Early Access Request</h1>
+        </div>
+        
+        <div class="detail-row">
+          <span class="detail-label">Email</span>
+          <span class="detail-value">${email}</span>
+        </div>
+        
+        ${firstName || lastName ? `
+        <div class="detail-row">
+          <span class="detail-label">Name</span>
+          <span class="detail-value">${[firstName, lastName].filter(Boolean).join(' ')}</span>
+        </div>
+        ` : ''}
+        
+        ${firmName ? `
+        <div class="detail-row">
+          <span class="detail-label">Firm</span>
+          <span class="detail-value">${firmName}</span>
+        </div>
+        ` : ''}
+        
+        ${firmSize ? `
+        <div class="detail-row">
+          <span class="detail-label">Firm Size</span>
+          <span class="detail-value">${firmSize}</span>
+        </div>
+        ` : ''}
+        
+        ${role ? `
+        <div class="detail-row">
+          <span class="detail-label">Role</span>
+          <span class="detail-value">${role}</span>
+        </div>
+        ` : ''}
+        
+        ${source ? `
+        <div class="detail-row">
+          <span class="detail-label">Source</span>
+          <span class="detail-value">${source}</span>
+        </div>
+        ` : ''}
+        
+        <div class="timestamp">
+          Submitted: ${submittedAt} (UK time)
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'LegalNote Waitlist <support@legalnote.ai>',
+      to: adminEmails,
+      subject: `New Early Access Request: ${firmName || email}`,
+      html: emailHtml,
+    });
+
+    if (error) {
+      console.error('[EMAIL] Error sending admin notification via Resend:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[EMAIL] Admin notification sent successfully:', data?.id);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending admin notification:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
 /**
  * Sends a lead magnet email with "The Defensible Record" PDF guide
  */

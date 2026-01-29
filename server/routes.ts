@@ -145,6 +145,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Don't fail the request if email fails
       }
       
+      // Send admin notification email (don't block on this)
+      try {
+        const { sendWaitlistAdminNotification } = await import('./email');
+        sendWaitlistAdminNotification({
+          email,
+          firstName,
+          lastName,
+          firmName,
+          firmSize,
+          role,
+          source
+        }).catch(err => {
+          console.error('[WAITLIST] Failed to send admin notification:', err);
+        });
+      } catch (err: any) {
+        console.error('[WAITLIST] Error importing admin notification function:', err);
+      }
+      
       res.status(201).json({ 
         message: "You've been added to our early access waitlist",
         id: entry.id,
