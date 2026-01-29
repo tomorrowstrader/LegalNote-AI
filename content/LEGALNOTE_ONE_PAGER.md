@@ -1,60 +1,72 @@
 # LegalNote AI
 
-**Compliance-First Meeting Documentation for UK Solicitors**
+**Meeting to Matter, Contemporaneously.**
 
 ---
 
-## The Problem
+## The Challenge
 
-Every solicitor knows the risk: a client dispute hinges on what was said in a meeting months ago. The attendance note was written hours later from memory. Key details are missing. Dates are wrong. The PI claim lands.
+Every solicitor knows it: the gap between conversation and written record. Handwritten notes drafted hours after the meeting. Key details reconstructed from memory. No clear evidence of what was said, decided, or agreed.
 
-Poor meeting documentation isn't just inconvenient—it's a professional liability.
+Traditional documentation practices leave firms exposed—to client disputes, regulatory scrutiny, and PI claims that hinge on records that were never truly contemporaneous.
 
 ---
 
 ## The Solution
 
-**LegalNote** captures, transcribes, and formats solicitor-client meetings in real-time with consent-first architecture and SRA-aligned documentation workflows.
+**LegalNote** captures what was said, what was decided, and what must happen next—creating reviewable, evidential attendance records in real time.
 
-One recording. One click. Complete, defensible attendance notes.
+*Consent documented before anyone speaks. Audit-ready records sealed before anyone leaves.*
+
+---
+
+## How It Works
+
+| Step | What Happens |
+|------|--------------|
+| **Consent Captured** | GDPR-compliant consent documented before recording begins |
+| **Meeting Recorded** | Secure, real-time capture with speaker attribution |
+| **Evidence Created** | Your conversation becomes your contemporaneous record |
+| **Your Judgment** | You shape the final attendance note—LegalNote preserves the evidence |
+| **Cryptographically Sealed** | Timestamped, tamper-evident, audit-ready |
 
 ---
 
 ## Key Features
 
-| Feature | Benefit |
-|---------|---------|
-| **Consent-First Recording** | GDPR-compliant client consent captured before every recording begins |
-| **Real-Time Transcription** | EU-hosted AI transcription with legal vocabulary optimisation |
-| **Attendance Note Generation** | Professional, SRA-aligned notes generated instantly |
-| **LegalNote BlackBox™** | Triple-layer audit trail with cryptographic integrity verification |
-| **Matter Linking** | Connect recordings to cases with full searchable history |
+- **Contemporaneous Records** — Created in real time, not reconstructed from memory
+- **Consent-First Capture** — GDPR-compliant documentation before anyone speaks
+- **SRA-Aligned Structure** — Attendance notes formatted to regulatory expectations
+- **LegalNote BlackBox™** — Triple-layer audit trail with cryptographic verification
+- **Actions Surfaced & Diarised** — What must happen next, captured and tracked
 
 ---
 
 ## Who It's For
 
 - **Solo practitioners** managing their own documentation workflows
-- **Boutique firms (1-10 solicitors)** seeking consistent documentation standards
-- **Compliance-conscious practices** prioritising audit defensibility
+- **Boutique firms (1-10 solicitors)** seeking consistent, defensible standards
+- **Compliance-conscious practices** where audit-readiness matters
 
 ---
 
-## Why LegalNote Is Different
+## Why LegalNote
 
-LegalNote is **documentation infrastructure**, not an AI gimmick.
+LegalNote is **documentation infrastructure**—not an AI gimmick.
 
-Built by a founder who spent 9 years as a legal services client—and experienced firsthand what happens when documentation fails.
+We don't provide legal analysis. We ensure the record matches the meeting.
 
-**Compliance-first. Client-trust-focused. Built for defensibility.**
+Records are timestamped, contemporaneous, and aligned with how regulators expect legal work to be evidenced.
+
+**Compliance-first. Audit-ready. Built for defensibility.**
 
 ---
 
 ## Compliance Snapshot
 
 - **EU Data Residency** — All processing in Dublin/Frankfurt data centres
-- **Consent-First Architecture** — GDPR-compliant consent captured before recording
-- **Tamper-Evident Audit Trail** — Cryptographic verification for defensibility
+- **Consent-First Architecture** — Documented before recording begins
+- **Tamper-Evident Audit Trail** — Cryptographic verification for complete chain of custody
 
 ---
 
@@ -68,5 +80,5 @@ Built by a founder who spent 9 years as a legal services client—and experience
 
 ---
 
-*LegalNote AI Ltd — 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ*
+*LegalNote AI Ltd — 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ*  
 *EU-hosted infrastructure for GDPR compliance*
