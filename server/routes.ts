@@ -119,7 +119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'attachment; filename="LegalNote-One-Pager.pdf"');
-      res.send(pdfBuffer);
+      res.end(Buffer.from(pdfBuffer), 'binary');
     } catch (error) {
       console.error('PDF generation error:', error);
       res.status(500).json({ message: 'Failed to generate PDF' });
