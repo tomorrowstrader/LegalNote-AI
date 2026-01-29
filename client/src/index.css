@@ -204,9 +204,9 @@ html {
 
   --sidebar-border: 25 12% 18%;
 
-  --sidebar-primary: 25 15% 5%;
+  --sidebar-primary: 25 60% 55%;
 
-  --sidebar-primary-foreground: 30 20% 100%;
+  --sidebar-primary-foreground: 25 15% 9%;
 
   --sidebar-accent: 25 12% 20%;
 
@@ -222,10 +222,10 @@ html {
 
   --popover-border: 25 12% 22%;
 
-  /* Primary - deep warm */
-  --primary: 25 15% 5%;
+  /* Primary - warm terracotta/amber for visibility */
+  --primary: 25 60% 55%;
 
-  --primary-foreground: 30 20% 100%;
+  --primary-foreground: 25 15% 9%;
 
   /* Secondary */
   --secondary: 25 12% 20%;
