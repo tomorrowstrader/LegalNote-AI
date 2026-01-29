@@ -1,5 +1,7 @@
 import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import path, { dirname } from "path";
+import { fileURLToPath } from "url";
 import { storage } from "./storage";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema } from "@shared/schema";
 import { z } from "zod";
@@ -37,6 +39,9 @@ import {
 import bcrypt from "bcrypt";
 import { stripeService } from "./stripeService";
 import { getStripePublishableKey, getUncachableStripeClient } from "./stripeClient";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment platform
@@ -77,6 +82,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('[LEAD-MAGNET] PDF generation error:', error?.message || error, error?.stack);
       next(error);
     }
+  });
+
+  // Serve the one-pager HTML explicitly
+  app.get('/legalnote-one-pager.html', (req, res) => {
+    res.sendFile(path.resolve(__dirname, '../public/legalnote-one-pager.html'));
   });
   
   // Waitlist signup (public - no auth required)
