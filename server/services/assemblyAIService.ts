@@ -31,7 +31,8 @@ interface AssemblyAITranscript {
   error: string | null;
 }
 
-const ASSEMBLYAI_API_URL = 'https://api.assemblyai.com/v2';
+// EU endpoint for GDPR compliance - data processed in AWS Dublin (Ireland)
+const ASSEMBLYAI_API_URL = 'https://api.eu.assemblyai.com/v2';
 const ASSEMBLYAI_COST_PER_HOUR = 0.27;
 
 export interface WordBoostConfig {

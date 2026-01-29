@@ -368,6 +368,125 @@ Red/yellow/green badges on the matter list. COLPs can filter for low scores.
 
 ---
 
+---
+
+## Phase 7: Microsoft 365 Deep Integration
+
+### Strategic Context
+
+Most UK law firms run on Microsoft 365. Being "native" to that ecosystem reduces friction and accelerates adoption, especially for mid-tier firms (10-50 solicitors) where "integrates with our stack" is a procurement requirement.
+
+**Competitive Reference:** Silks (silks.net) positions as "Native to Microsoft 365" with Teams, SharePoint, Outlook, and Copilot-style AI integration.
+
+**LegalNote Positioning:** We don't need feature parity with horizontal tools like Silks. A focused integration delivers 80% of the value at 20% of the effort while maintaining our compliance-first differentiation.
+
+---
+
+### 7.1 SharePoint/OneDrive Auto-Sync (Phase 1)
+
+**What it does:**
+When a solicitor approves an attendance note, it automatically saves to their firm's SharePoint in a structured folder:
+```
+LegalNote AI / Cases / [Client Name - Matter Ref] / Attendance Notes
+```
+
+**Current State:** Partially built (connector exists, basic sync toggle)
+
+**What's Needed:**
+- Polish folder structure logic
+- Add per-case sync status indicators ("Synced to SharePoint ✓")
+- Handle conflict resolution (file already exists)
+- Retry logic for transient failures
+
+**Effort:** 1-2 weeks
+
+**User Workflow:**
+1. Solicitor approves attendance note in LegalNote
+2. Document auto-saves to firm SharePoint
+3. Green tick appears: "Synced to SharePoint"
+4. No manual download/upload required
+
+---
+
+### 7.2 Teams Notifications (Phase 2)
+
+**What it does:**
+- Recording finishes → Teams notification: "Attendance note ready for Sarah Thompson. [Review Now]"
+- Client views shared document → "Client opened their documents"
+- Action item due → "Reminder: Follow up with Marcus Webb by Friday"
+
+**What's Needed:**
+- Microsoft Graph API integration for Teams chat/activity feed
+- Azure AD app registration with appropriate permissions
+- Webhook endpoint in LegalNote to trigger notifications
+
+**Effort:** 2-3 weeks
+
+**User Workflow:**
+1. Solicitor finishes client call
+2. 5 minutes later, Teams notification pops up
+3. One click opens LegalNote to review/approve
+4. No need to remember to check LegalNote separately
+
+---
+
+### 7.3 Outlook Pre-Meeting Prep Sidebar (Phase 3)
+
+**What it does:**
+When a solicitor opens a calendar event in Outlook, a LegalNote sidebar shows:
+- Case history for that client
+- Key points from last meeting
+- Pending action items
+- One-click "Join & Record" button
+
+**What's Needed:**
+- Outlook Add-in (embedded panel in Outlook)
+- Microsoft Graph API to read calendar event details
+- LegalNote API integration to fetch case data
+- Optional: Publish to Microsoft AppSource for easier enterprise deployment
+
+**Effort:** 4-6 weeks
+
+**User Workflow:**
+1. Solicitor opens Outlook, clicks on 2pm client meeting
+2. LegalNote sidebar appears: "Prepare for Sarah Thompson?"
+3. Shows: Last meeting summary, pending actions, case notes
+4. Click "Start Recording" → LegalNote opens with case pre-selected
+
+---
+
+### 7.4 Full Copilot-Style Assistant (Future)
+
+**What it does:**
+AI assistant embedded within Microsoft 365 apps:
+- "What did we agree about the deposit?" → Searches all transcripts
+- "Draft a follow-up email to Marcus Webb" → Uses case context
+- "Show me all matters with overdue actions" → Dashboard in Teams
+
+**What's Needed:**
+- Microsoft Copilot extensibility framework
+- Significant AI/UX development
+- Microsoft Partner certification
+
+**Effort:** 3-6 months
+
+**Priority:** Low for MVP, high for enterprise sales
+
+---
+
+### Implementation Priority
+
+| Component | Effort | Impact | Priority |
+|-----------|--------|--------|----------|
+| SharePoint auto-sync (polish) | 1-2 weeks | Medium | Post-MVP |
+| Teams notifications | 2-3 weeks | Medium | Post-MVP |
+| Outlook pre-meeting sidebar | 4-6 weeks | High | Growth Phase |
+| Copilot-style assistant | 3-6 months | Very High | Enterprise Phase |
+
+**Key Insight:** M365 integration is not MVP-critical for solo/boutique firms but becomes pivotal when scaling to mid-tier and enterprise clients.
+
+---
+
 *Document created: December 2024*
 *Last updated: January 2026*
 *Next review: Q2 2026*
