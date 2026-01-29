@@ -8,9 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Shield, Clock, FileCheck, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { EarlyAccessForm } from "@/components/EarlyAccessForm";
 
 export default function Calculator() {
-  
+  const [isEarlyAccessOpen, setIsEarlyAccessOpen] = useState(false);
   const [hourlyRate, setHourlyRate] = useState(200);
   const [adminHoursPerWeek, setAdminHoursPerWeek] = useState(8);
   const [meetingsPerWeek, setMeetingsPerWeek] = useState(6);
@@ -252,11 +254,26 @@ export default function Calculator() {
               </CardContent>
             </Card>
 
-            <Link href="/">
-              <Button size="lg" className="w-full" data-testid="button-apply-access">
-                Apply for Early Access
-              </Button>
-            </Link>
+            <Button 
+              size="lg" 
+              className="w-full" 
+              data-testid="button-apply-access"
+              onClick={() => setIsEarlyAccessOpen(true)}
+            >
+              Apply for Early Access
+            </Button>
+
+            <Dialog open={isEarlyAccessOpen} onOpenChange={setIsEarlyAccessOpen}>
+              <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-none bg-transparent">
+                <DialogHeader className="sr-only">
+                  <DialogTitle>Request Early Access</DialogTitle>
+                  <DialogDescription>
+                    Join our exclusive waitlist for LegalNote AI.
+                  </DialogDescription>
+                </DialogHeader>
+                <EarlyAccessForm onSuccess={() => setIsEarlyAccessOpen(false)} />
+              </DialogContent>
+            </Dialog>
           </motion.div>
         </div>
 
