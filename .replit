@@ -44,7 +44,7 @@ externalPort = 80
 [userenv]
 
 [userenv.shared]
-RECALL_REGION = "us-west-2"
+RECALL_REGION = "eu-central-1"
 
 [userenv.production]
 VITE_PREVIEW_MODE = "true"
