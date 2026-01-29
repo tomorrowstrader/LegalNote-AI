@@ -911,7 +911,7 @@ export async function sendWaitlistAdminNotification(params: WaitlistAdminNotific
     console.log('[EMAIL] Admin notification sent successfully:', data?.id);
     return { success: true };
   } catch (error: any) {
-    console.error('[EMAIL] Exception sending admin notification:', error);
+    console.error('[EMAIL] Exception sending admin notification to', adminEmails.join(', '), ':', error);
     return { success: false, error: error.message || 'Unknown error' };
   }
 }
