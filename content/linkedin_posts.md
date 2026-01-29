@@ -1,87 +1,98 @@
 # LinkedIn Content Strategy - LegalNote AI
 
-## Post 1: The "15 Years" Hook (Narrative: Authority & Empathy)
-**Target:** Solicitors who feel the weight of compliance.
+## Post 1: The "Client Who Got Burned" (Narrative: Empathy & Authenticity)
+**Voice:** Client Experience
+**Target:** Solicitors who want to avoid being "that solicitor"
 
 **Draft:**
 
-15 years as a solicitor taught me one thing:
+I've sat in meetings with solicitors who said one thing.
 
-The most dangerous part of your day is the 10 minutes *after* a client meeting.
+Then sent me paperwork that said the opposite.
 
-That’s when you’re most likely to forget the one detail that protects you from a PI claim 3 years from now.
+It wasn't malice. It was the gap between conversation and documentation.
 
-I watched colleagues lose sleep over missing notes. 
-I watched firms settle claims because their evidence was "typed from memory."
+One time, the attendance note had the wrong date on it. The date was the whole point of the matter. It took 6 months to get it corrected.
 
-So I didn’t wait for a tech giant to fix it.
-I built the solution myself.
+Another time, I was supposed to receive two sets of keys. The documentation said "one key and one fob." Months of back-and-forth to clarify what was actually agreed.
 
-LegalNote isn't built by a "tech bro." 
-It’s built by someone who knows exactly how it feels to stare at a blank screen trying to remember a 2-hour consultation.
+I'm not building LegalNote because I was a solicitor.
 
-We don't just transcribe. We build the "Black Box" for your practice.
+I'm building it because I've been the client who experienced what happens when documentation fails.
 
-If it isn't documented contemporaneously, did it even happen?
+Every solicitor reading this thinks: "I don't want my clients to feel that way."
 
-PS — Our EU-only data routing is now live. Your data never leaves the Dublin/Frankfurt corridor. 🛡️
+LegalNote makes sure they don't.
+
+PS — What's your system for making sure the note matches the meeting?
 
 ---
 
-## Post 2: The "Expensive Lesson" (Framework: PAS - Problem, Agitate, Solution)
-**Target:** Decision makers at boutique firms.
+## Post 2: The Compliance Professional (Framework: PAS)
+**Voice:** Regulated Industry Experience
+**Target:** Firms who care about compliance infrastructure
 
 **Draft:**
 
-Most AI tools for lawyers are toys.
+I've spent years inside highly regulated organisations.
 
-They summarize. They "chat" with PDFs. They make things look pretty.
+Banks. Fintech. Enterprise compliance.
 
-But when the SRA comes knocking, "pretty" doesn't save your license.
+The one thing they all have in common? They treat documentation like evidence. Because in an audit, it is.
 
-The problem with generic AI:
-• Data residency is a mess (is your client data in a US server?)
-• Accuracy is hit-or-miss
-• There’s no audit trail for consent
+Then I looked at how boutique law firms handle client meetings:
+• Notes typed from memory, hours later
+• No timestamp on when the record was created
+• No way to prove what was actually said
 
-I built LegalNote to be the boring, reliable, compliance-first alternative.
+These are the firms advising clients on compliance.
 
-We handle the high-stakes stuff:
-1. **Consent-first recording**: Verification is baked into the audio.
+So I built LegalNote.
+
+Not another "AI tool for lawyers."
+A compliance-first documentation system that treats every client meeting like evidence.
+
+1. **Consent-first recording**: Verification baked into the audio.
 2. **EU-only processing**: Dublin and Frankfurt. Period.
-3. **Audit Trails**: Every version, every access, cryptographically signed.
+3. **Audit trails**: Every version, every access, cryptographically signed.
 
-Boutique firms don't need "flashy." They need "defensible."
-
-5 London firms have already made the switch. Will you?
+If you're advising clients on defensibility, your own workflow should be defensible too.
 
 ---
 
-## Post 3: The "Founder's Truth" (Concept: Obsession > Code)
-**Target:** The "Vibe Coding" / Tech-curious audience + Potential Clients.
+## Post 3: The Obsessed Vibe Coder (Concept: Obsession > Code)
+**Voice:** Founder Journey / Vibe Coding
+**Target:** Tech-curious audience + Potential clients
 
 **Draft:**
 
-"How did you build a legal-tech app with zero coding background?"
+I built my first app 4 months ago.
 
-I get this question every week now.
+Today, 5 London law firms use it daily.
 
-The answer isn't about learning Python or JavaScript.
-It’s about being obsessed with a very specific outcome.
+I'd never written a line of code before January.
+No technical co-founder. No dev team.
+Just Replit, curiosity, and a problem worth solving.
 
-I wasn't obsessed with "building an app."
-I was obsessed with making sure no UK solicitor ever gets caught out by a "he said, she said" PI claim again.
+The problem: I've been on the receiving end of bad legal documentation.
 
-When you're obsessed:
-• You find the tools (Replit).
-• You find the partners (AssemblyAI EU, Recall.ai).
-• You refuse to compromise on GDPR (even if it makes the tech behalf).
+Wrong dates. Missing details. Attendance notes that contradicted what was said in the room.
 
-The "vibe coding" movement isn't about hobbyists. 
-It’s about professionals taking back control of their industry's tools.
+Months of back-and-forth to fix things that should have been captured accurately the first time.
 
-I’m 4 months in, and 5 firms are already safer for it.
+So I stopped waiting for someone else to fix it.
 
-We’re just getting started.
+4 months later:
+• 5 boutique London firms onboarded
+• Zero PI claims on documented meetings
+• GDPR-compliant from day one
+
+The "vibe coding" movement gets mocked. But here's what nobody tells you:
+
+When you understand the problem deeply enough, you don't need to be a developer.
+
+You need to be obsessed with the outcome.
+
+PS — If you're a solicitor still typing notes from memory, what's stopping you from recording with consent?
 
 #LegalTech #LawFirms #Compliance #FounderJourney #BuiltOnReplit
