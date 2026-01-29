@@ -32,13 +32,12 @@ Traditional documentation practices leave firms exposed—to client disputes, re
 
 ---
 
-## Key Features
+## What Sets LegalNote Apart
 
-- **Contemporaneous Records** — Created in real time, not reconstructed from memory
-- **Consent-First Capture** — GDPR-compliant documentation before anyone speaks
 - **SRA-Aligned Structure** — Attendance notes formatted to regulatory expectations
-- **LegalNote BlackBox™** — Triple-layer audit trail with cryptographic verification
-- **Actions Surfaced & Diarised** — What must happen next, captured and tracked
+- **Actions Surfaced & Diarised** — Follow-ups captured and tracked automatically
+- **Matter Linking** — Every record connected to its case with full searchable history
+- **Client-Ready Versions** — Share redacted, professional documents with clients
 
 ---
 
@@ -65,8 +64,8 @@ Records are timestamped, contemporaneous, and aligned with how regulators expect
 ## Compliance Snapshot
 
 - **EU Data Residency** — All processing in Dublin/Frankfurt data centres
-- **Consent-First Architecture** — Documented before recording begins
-- **Tamper-Evident Audit Trail** — Cryptographic verification for complete chain of custody
+- **GDPR-Aligned** — Consent captured, data minimised, retention managed
+- **SRA-Ready** — Documentation standards aligned with regulatory expectations
 
 ---
 
