@@ -110,6 +110,34 @@ Use these voices strategically based on the content goal:
 
 ---
 
+### Voice D: "The Father Building Something"
+**When to use:** Humanising content, weekend/evening posts, connecting with parents and family-oriented professionals
+
+**Tone:** Warm, reflective, vulnerable, relatable
+**Key phrases:**
+- "My daughter asked me what I'm building."
+- "She sees me on the computer, but she doesn't understand why yet."
+- "I'm building something so she'll understand one day."
+- "The late nights, the early mornings - they're for something bigger than me."
+- "She doesn't know it yet, but she's watching someone refuse to give up."
+
+**When this voice works best:**
+- Weekend posts (Saturday/Sunday engagement)
+- Milestone moments (launches, wins, setbacks)
+- Humanising the founder journey
+- Connecting with other parent-founders
+
+**The "Humble Brag" Angle (Lara Acosta):**
+Frame achievements through the lens of family - not "I'm so proud of myself" but "I hope she'll be proud of what I built." Makes success relatable, not boastful.
+
+**Example post structure:**
+- Hook: Daughter's question or observation
+- Story: What she sees vs. what's actually happening
+- Lesson: Why founders do this (legacy, purpose, obsession)
+- CTA: Ask other parents about their journey
+
+---
+
 ## THE SLAY FRAMEWORK (Lara Acosta)
 
 Use this structure for every post:
@@ -207,7 +235,7 @@ Paste this at the start of any content generation session:
 
 *LegalNote is a compliance-first documentation tool for UK solicitors. It records meetings with consent, generates attendance notes, and creates tamper-evident audit trails. Data is processed in the EU (Dublin/Frankfurt). We position as a 'defensive weapon against PI claims' not 'another AI tool.'*
 
-*I use the SLAY framework (Story, Lesson, Actionable, You) and write in three voices: (1) The Client Who Got Burned - personal, empathetic; (2) The Compliance Professional - authoritative, enterprise; (3) The Obsessed Vibe Coder - energetic, founder journey.*
+*I use the SLAY framework (Story, Lesson, Actionable, You) and write in four voices: (1) The Client Who Got Burned - personal, empathetic; (2) The Compliance Professional - authoritative, enterprise; (3) The Obsessed Vibe Coder - energetic, founder journey; (4) The Father Building Something - warm, vulnerable, family-oriented.*
 
 *First line must be 8 words or less. End with a question or CTA. No emojis unless requested. Never attack specific solicitors - focus on systemic issues.*
 
