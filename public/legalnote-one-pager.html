@@ -249,6 +249,32 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
+
+    .personalization-top {
+      font-family: 'Lora', Georgia, serif;
+      font-style: italic;
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 32px;
+      display: none;
+    }
+
+    .personalization-top.visible {
+      display: block;
+    }
+
+    .personalization-bottom {
+      font-family: 'Lora', Georgia, serif;
+      font-style: italic;
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 24px;
+      display: none;
+    }
+
+    .personalization-bottom.visible {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -258,6 +284,8 @@
     </div>
     <div class="tagline">Meeting to Matter, Contemporaneously.</div>
   </div>
+
+  <p class="personalization-top" id="personalization-top">Prepared for {{RECIPIENT_FULL_NAME}}</p>
 
   <h2>The Challenge</h2>
   <p>The gap between conversation and written record is where risk lives. Handwritten notes drafted hours later rely on memory, leaving firms exposed to client disputes, regulatory scrutiny, and PI claims that hinge on records that were never truly contemporaneous.</p>
@@ -326,6 +354,7 @@
     <p>Book a 15-minute walkthrough to see how LegalNote creates defensible records for solo and boutique firms.</p>
     <a href="https://legalnote.ai" class="cta-link">Explore at legalnote.ai</a>
     <p style="margin-top: 20px; font-size: 13px; color: var(--text-muted);"><strong>For Partners:</strong> Ask about our referral pathway for consultants.</p>
+    <p class="personalization-bottom" id="personalization-bottom">Thank you for exploring how LegalNote could support your practice, {{RECIPIENT_FIRST_NAME}}. Feel free to share this with colleagues.</p>
   </div>
 
   <div class="footer">

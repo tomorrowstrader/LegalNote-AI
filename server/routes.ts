@@ -2,6 +2,7 @@ import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
 import puppeteer from "puppeteer";
 import { storage } from "./storage";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema } from "@shared/schema";
@@ -95,10 +96,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.download(path.resolve(__dirname, '../public/legalnote-one-pager.html'), 'LegalNote-One-Pager.html');
   });
 
-  // Direct download for one-pager PDF
+  // Direct download for one-pager PDF with optional personalization
+  // Usage: /download-one-pager-pdf?name=Sophie%20Akehurst
   app.get('/download-one-pager-pdf', async (req, res) => {
     try {
       const htmlPath = path.resolve(__dirname, '../public/legalnote-one-pager.html');
+      const recipientName = req.query.name as string | undefined;
+      
+      // Read the HTML file
+      let htmlContent = await fs.promises.readFile(htmlPath, 'utf-8');
+      
+      // If a recipient name is provided, personalize the content
+      if (recipientName && recipientName.trim()) {
+        const fullName = recipientName.trim();
+        const firstName = fullName.split(' ')[0];
+        
+        // Replace placeholders with actual values
+        htmlContent = htmlContent.replace('{{RECIPIENT_FULL_NAME}}', fullName);
+        htmlContent = htmlContent.replace('{{RECIPIENT_FIRST_NAME}}', firstName);
+        
+        // Make personalization elements visible
+        htmlContent = htmlContent.replace(
+          'class="personalization-top"',
+          'class="personalization-top visible"'
+        );
+        htmlContent = htmlContent.replace(
+          'class="personalization-bottom"',
+          'class="personalization-bottom visible"'
+        );
+      }
       
       const browser = await puppeteer.launch({
         headless: true,
@@ -107,7 +133,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const page = await browser.newPage();
-      await page.goto(`file://${htmlPath}`, { waitUntil: 'networkidle0' });
+      
+      // Set the base URL so relative assets work correctly
+      await page.setContent(htmlContent, { 
+        waitUntil: 'networkidle0'
+      });
       
       const pdfBuffer = await page.pdf({
         format: 'A4',
@@ -117,8 +147,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       await browser.close();
       
+      // Generate filename with recipient name if provided
+      const filename = recipientName 
+        ? `LegalNote-One-Pager-${recipientName.trim().replace(/\s+/g, '-')}.pdf`
+        : 'LegalNote-One-Pager.pdf';
+      
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename="LegalNote-One-Pager.pdf"');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.end(Buffer.from(pdfBuffer), 'binary');
     } catch (error) {
       console.error('PDF generation error:', error);
