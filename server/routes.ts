@@ -4,6 +4,27 @@ import path, { dirname } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import puppeteer from "puppeteer";
+
+// Helper to resolve template paths in both dev and production
+function resolveTemplatePath(filename: string): string {
+  // Try multiple possible locations - prioritize cwd for Autoscale deployments
+  const possiblePaths = [
+    path.resolve(process.cwd(), 'public', filename),          // Works in both dev & production (cwd = project root)
+    path.resolve(__dirname, '../public', filename),           // Development fallback
+    path.resolve(__dirname, '../templates', filename),        // Alternative production location
+  ];
+  
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      console.log(`[TEMPLATE] Found ${filename} at ${p}`);
+      return p;
+    }
+  }
+  
+  console.error(`[TEMPLATE] Could not find ${filename}. Checked: ${possiblePaths.join(', ')}`);
+  // Default to first path (will error if not found)
+  return possiblePaths[0];
+}
 import { storage } from "./storage";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema } from "@shared/schema";
 import { z } from "zod";
@@ -88,19 +109,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Serve the one-pager HTML explicitly
   app.get('/legalnote-one-pager.html', (req, res) => {
-    res.sendFile(path.resolve(__dirname, '../public/legalnote-one-pager.html'));
+    res.sendFile(resolveTemplatePath('legalnote-one-pager.html'));
   });
 
   // Direct download for one-pager HTML
   app.get('/download-one-pager', (req, res) => {
-    res.download(path.resolve(__dirname, '../public/legalnote-one-pager.html'), 'LegalNote-One-Pager.html');
+    res.download(resolveTemplatePath('legalnote-one-pager.html'), 'LegalNote-One-Pager.html');
   });
 
   // Direct download for one-pager PDF with optional personalization
   // Usage: /download-one-pager-pdf?name=Sophie%20Akehurst
   app.get('/download-one-pager-pdf', async (req, res) => {
     try {
-      const htmlPath = path.resolve(__dirname, '../public/legalnote-one-pager.html');
+      const htmlPath = resolveTemplatePath('legalnote-one-pager.html');
       const recipientName = req.query.name as string | undefined;
       
       // Read the HTML file
@@ -175,7 +196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Usage: /download-compliance-checklist-pdf?name=Sophie%20Akehurst
   app.get('/download-compliance-checklist-pdf', async (req, res) => {
     try {
-      const htmlPath = path.resolve(__dirname, '../public/compliance-trap-checklist.html');
+      const htmlPath = resolveTemplatePath('compliance-trap-checklist.html');
       const recipientNameRaw = req.query.name as string | undefined;
       const recipientName = recipientNameRaw ? sanitizeHtml(recipientNameRaw) : undefined;
       
@@ -232,7 +253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Usage: /download-compliance-audit-pdf?name=Sophie%20Akehurst&firm=Smith%20%26%20Co%20Solicitors
   app.get('/download-compliance-audit-pdf', async (req, res) => {
     try {
-      const htmlPath = path.resolve(__dirname, '../public/compliance-audit-report.html');
+      const htmlPath = resolveTemplatePath('compliance-audit-report.html');
       const recipientNameRaw = req.query.name as string | undefined;
       const firmNameRaw = req.query.firm as string | undefined;
       const recipientName = recipientNameRaw ? sanitizeHtml(recipientNameRaw) : undefined;
