@@ -160,6 +160,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to generate PDF' });
     }
   });
+
+  // Helper function to sanitize HTML input to prevent XSS/injection
+  const sanitizeHtml = (input: string): string => {
+    return input
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+  };
+
+  // Download Compliance Trap Checklist PDF with optional personalization
+  // Usage: /download-compliance-checklist-pdf?name=Sophie%20Akehurst
+  app.get('/download-compliance-checklist-pdf', async (req, res) => {
+    try {
+      const htmlPath = path.resolve(__dirname, '../public/compliance-trap-checklist.html');
+      const recipientNameRaw = req.query.name as string | undefined;
+      const recipientName = recipientNameRaw ? sanitizeHtml(recipientNameRaw) : undefined;
+      
+      let htmlContent = await fs.promises.readFile(htmlPath, 'utf-8');
+      
+      if (recipientName && recipientName.trim()) {
+        const fullName = recipientName.trim();
+        const firstName = fullName.split(' ')[0];
+        
+        htmlContent = htmlContent.replace(/\{\{RECIPIENT_FULL_NAME\}\}/g, fullName);
+        htmlContent = htmlContent.replace(/\{\{RECIPIENT_FIRST_NAME\}\}/g, firstName);
+        
+        htmlContent = htmlContent.replace(
+          'class="personalization-top"',
+          'class="personalization-top visible"'
+        );
+        htmlContent = htmlContent.replace(
+          'class="personalization-bottom"',
+          'class="personalization-bottom visible"'
+        );
+      }
+      
+      const browser = await puppeteer.launch({
+        headless: true,
+        executablePath: '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium',
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      });
+      
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
+      });
+      
+      await browser.close();
+      
+      const filename = recipientName 
+        ? `LegalNote-Compliance-Checklist-${recipientName.trim().replace(/\s+/g, '-')}.pdf`
+        : 'LegalNote-Compliance-Checklist.pdf';
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.end(Buffer.from(pdfBuffer), 'binary');
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      res.status(500).json({ message: 'Failed to generate PDF' });
+    }
+  });
+
+  // Download Compliance Audit Report PDF with personalization
+  // Usage: /download-compliance-audit-pdf?name=Sophie%20Akehurst&firm=Smith%20%26%20Co%20Solicitors
+  app.get('/download-compliance-audit-pdf', async (req, res) => {
+    try {
+      const htmlPath = path.resolve(__dirname, '../public/compliance-audit-report.html');
+      const recipientNameRaw = req.query.name as string | undefined;
+      const firmNameRaw = req.query.firm as string | undefined;
+      const recipientName = recipientNameRaw ? sanitizeHtml(recipientNameRaw) : undefined;
+      const firmName = firmNameRaw ? sanitizeHtml(firmNameRaw) : undefined;
+      
+      let htmlContent = await fs.promises.readFile(htmlPath, 'utf-8');
+      
+      // Generate report metadata
+      const reportDate = new Date().toLocaleDateString('en-GB', { 
+        day: 'numeric', 
+        month: 'long', 
+        year: 'numeric' 
+      });
+      const reportId = `LN-${Date.now().toString(36).toUpperCase()}`;
+      
+      // Replace template placeholders
+      htmlContent = htmlContent.replace(/\{\{REPORT_DATE\}\}/g, reportDate);
+      htmlContent = htmlContent.replace(/\{\{REPORT_ID\}\}/g, reportId);
+      htmlContent = htmlContent.replace(/\{\{FIRM_NAME\}\}/g, firmName || '[Firm Name]');
+      
+      // Default sample scores (these would be customized per audit)
+      htmlContent = htmlContent.replace(/\{\{HIGH_RISK_COUNT\}\}/g, '5');
+      htmlContent = htmlContent.replace(/\{\{MEDIUM_RISK_COUNT\}\}/g, '4');
+      htmlContent = htmlContent.replace(/\{\{COMPLIANT_COUNT\}\}/g, '1');
+      htmlContent = htmlContent.replace(/\{\{TOTAL_AREAS\}\}/g, '10');
+      htmlContent = htmlContent.replace(/\{\{RISK_SCORE\}\}/g, '68');
+      htmlContent = htmlContent.replace(/\{\{RISK_DESCRIPTION\}\}/g, 
+        'Elevated risk. Multiple compliance gaps identified that require prompt attention to reduce regulatory and liability exposure.');
+      
+      if (recipientName && recipientName.trim()) {
+        const fullName = recipientName.trim();
+        htmlContent = htmlContent.replace(/\{\{RECIPIENT_FULL_NAME\}\}/g, fullName);
+        
+        htmlContent = htmlContent.replace(
+          'class="personalization-top"',
+          'class="personalization-top visible"'
+        );
+      } else {
+        htmlContent = htmlContent.replace(/\{\{RECIPIENT_FULL_NAME\}\}/g, '[Recipient Name]');
+      }
+      
+      const browser = await puppeteer.launch({
+        headless: true,
+        executablePath: '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium',
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      });
+      
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
+      });
+      
+      await browser.close();
+      
+      const safeFilename = firmName 
+        ? `LegalNote-Compliance-Audit-${firmName.trim().replace(/[^a-zA-Z0-9]/g, '-')}.pdf`
+        : 'LegalNote-Compliance-Audit-Report.pdf';
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+      res.end(Buffer.from(pdfBuffer), 'binary');
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      res.status(500).json({ message: 'Failed to generate PDF' });
+    }
+  });
   
   // Waitlist signup (public - no auth required)
   app.post('/api/waitlist', generalApiLimiter, async (req, res, next) => {

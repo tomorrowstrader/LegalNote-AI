@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meeting Documentation Compliance Audit Report - LegalNote</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --brand-terracotta: hsl(18, 70%, 42%);
+      --brand-charcoal: hsl(25, 15%, 9%);
+      --brand-warm-off-white: hsl(30, 20%, 96%);
+      --brand-tapioca: hsl(35, 45%, 88%);
+      --brand-tapioca-light: hsl(35, 40%, 94%);
+      --brand-accent: hsl(25, 60%, 55%);
+      --text-main: hsl(25, 30%, 12%);
+      --text-muted: hsl(25, 15%, 35%);
+      --border-light: hsl(30, 10%, 90%);
+      --bg-warm: hsl(40, 20%, 98%);
+      --risk-high: hsl(0, 65%, 50%);
+      --risk-medium: hsl(35, 80%, 50%);
+      --risk-low: hsl(120, 40%, 40%);
+      --status-compliant: hsl(120, 45%, 45%);
+      --status-partial: hsl(45, 80%, 45%);
+      --status-gap: hsl(0, 65%, 50%);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      color: var(--text-main);
+      line-height: 1.65;
+      max-width: 840px;
+      margin: 0 auto;
+      padding: 60px 50px;
+      background: var(--bg-warm);
+      background-image: 
+        radial-gradient(ellipse at top right, var(--brand-tapioca-light) 0%, transparent 50%),
+        radial-gradient(ellipse at bottom left, var(--brand-tapioca-light) 0%, transparent 40%);
+    }
+    
+    @media print {
+      body {
+        padding: 40px;
+        background: white;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+      .no-break {
+        break-inside: avoid;
+      }
+    }
+    
+    .header {
+      text-align: left;
+      margin-bottom: 32px;
+      position: relative;
+      border-bottom: 2px solid var(--brand-terracotta);
+      padding-bottom: 24px;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+
+    .logo-container {
+      margin-bottom: 0;
+    }
+    
+    .logo-img {
+      height: 42px;
+      width: auto;
+    }
+
+    .report-meta {
+      text-align: right;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .report-meta strong {
+      display: block;
+      color: var(--brand-charcoal);
+      font-size: 13px;
+    }
+
+    .document-type {
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--brand-terracotta);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 8px;
+    }
+    
+    .document-title {
+      font-family: 'Lora', Georgia, serif;
+      font-size: 28px;
+      color: var(--brand-charcoal);
+      line-height: 1.3;
+      margin-bottom: 8px;
+    }
+
+    .firm-name {
+      font-family: 'Lora', Georgia, serif;
+      font-size: 20px;
+      color: var(--brand-terracotta);
+      font-style: italic;
+    }
+
+    h2 {
+      font-family: 'Lora', Georgia, serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--brand-terracotta);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 40px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    h2::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(to right, var(--brand-tapioca), transparent);
+    }
+
+    h3 {
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--brand-charcoal);
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }
+
+    p {
+      font-size: 14px;
+      margin-bottom: 12px;
+      color: var(--text-main);
+    }
+
+    .executive-summary {
+      background: white;
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 28px;
+      margin: 24px 0;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .summary-stat {
+      text-align: center;
+      padding: 16px;
+      background: var(--brand-tapioca-light);
+      border-radius: 8px;
+    }
+
+    .summary-stat .number {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--brand-charcoal);
+      line-height: 1;
+    }
+
+    .summary-stat .number.high { color: var(--status-gap); }
+    .summary-stat .number.medium { color: var(--status-partial); }
+    .summary-stat .number.low { color: var(--status-compliant); }
+
+    .summary-stat .label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 8px;
+    }
+
+    .risk-score-box {
+      background: linear-gradient(135deg, var(--brand-terracotta) 0%, hsl(18, 65%, 35%) 100%);
+      color: white;
+      padding: 24px;
+      border-radius: 12px;
+      text-align: center;
+      margin: 24px 0;
+    }
+
+    .risk-score-box .score {
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .risk-score-box .score-label {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-top: 8px;
+    }
+
+    .risk-score-box .score-description {
+      font-size: 13px;
+      opacity: 0.8;
+      margin-top: 12px;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .assessment-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin: 24px 0;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border: 1px solid var(--border-light);
+    }
+
+    .assessment-table th {
+      background: var(--brand-tapioca-light);
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--brand-tapioca);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .assessment-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid #f5f5f5;
+      vertical-align: top;
+      font-size: 13px;
+    }
+
+    .assessment-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .status-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 4px 10px;
+      border-radius: 100px;
+      white-space: nowrap;
+    }
+
+    .status-compliant {
+      background: hsl(120, 50%, 95%);
+      color: var(--status-compliant);
+      border: 1px solid hsl(120, 40%, 80%);
+    }
+
+    .status-partial {
+      background: hsl(45, 85%, 95%);
+      color: hsl(35, 80%, 40%);
+      border: 1px solid hsl(45, 65%, 75%);
+    }
+
+    .status-gap {
+      background: hsl(0, 85%, 95%);
+      color: var(--status-gap);
+      border: 1px solid hsl(0, 65%, 85%);
+    }
+
+    .finding-card {
+      background: white;
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      padding: 20px;
+      margin: 16px 0;
+    }
+
+    .finding-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .finding-title {
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--brand-charcoal);
+    }
+
+    .finding-body {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .finding-body strong {
+      color: var(--brand-charcoal);
+    }
+
+    .finding-regulation {
+      font-size: 11px;
+      color: var(--brand-terracotta);
+      font-weight: 500;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-light);
+    }
+
+    .recommendation-box {
+      background: linear-gradient(to right, var(--brand-tapioca-light), white);
+      border-left: 4px solid var(--brand-terracotta);
+      padding: 16px 20px;
+      margin: 16px 0;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .recommendation-box strong {
+      display: block;
+      font-size: 13px;
+      color: var(--brand-charcoal);
+      margin-bottom: 6px;
+    }
+
+    .recommendation-box p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 0;
+    }
+
+    .priority-list {
+      background: white;
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .priority-item {
+      display: flex;
+      align-items: flex-start;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-light);
+      gap: 16px;
+    }
+
+    .priority-item:last-child {
+      border-bottom: none;
+    }
+
+    .priority-number {
+      width: 28px;
+      height: 28px;
+      background: var(--brand-terracotta);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .priority-content {
+      flex: 1;
+    }
+
+    .priority-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--brand-charcoal);
+      margin-bottom: 4px;
+    }
+
+    .priority-description {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .solution-section {
+      background: linear-gradient(135deg, var(--brand-tapioca-light) 0%, hsl(35, 35%, 96%) 100%);
+      padding: 32px;
+      border-radius: 12px;
+      margin-top: 40px;
+      border: 1px solid var(--brand-tapioca);
+    }
+
+    .solution-section h3 {
+      font-family: 'Lora', Georgia, serif;
+      font-size: 20px;
+      margin-top: 0;
+      margin-bottom: 16px;
+      color: var(--brand-charcoal);
+    }
+
+    .solution-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .solution-item {
+      background: white;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border-light);
+    }
+
+    .solution-item strong {
+      display: block;
+      font-size: 13px;
+      color: var(--brand-charcoal);
+      margin-bottom: 4px;
+    }
+
+    .solution-item span {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .cta-box {
+      text-align: center;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--brand-tapioca);
+    }
+
+    .cta-link {
+      display: inline-block;
+      color: var(--brand-terracotta);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 15px;
+      border-bottom: 2px solid var(--brand-terracotta);
+      padding-bottom: 2px;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid var(--brand-tapioca);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .compliance-pills {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .pill {
+      background: var(--brand-tapioca-light);
+      border: 1px solid var(--brand-tapioca);
+      padding: 4px 12px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .page-break {
+      page-break-before: always;
+      padding-top: 20px;
+    }
+
+    .confidential-notice {
+      background: hsl(0, 0%, 95%);
+      border: 1px solid hsl(0, 0%, 85%);
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .signature-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border-light);
+    }
+
+    .signature-box {
+      border-top: 1px solid var(--brand-charcoal);
+      padding-top: 8px;
+    }
+
+    .signature-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .personalization-top {
+      font-family: 'Lora', Georgia, serif;
+      font-style: italic;
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      display: none;
+    }
+
+    .personalization-top.visible {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-top">
+      <div class="logo-container">
+        <img src="data:image/png;base64,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...
+" class="logo-img" alt="LegalNote Logo">
+      </div>
+      <div class="report-meta">
+        <strong>Report Date: {{REPORT_DATE}}</strong>
+        Report ID: {{REPORT_ID}}<br>
+        Classification: Confidential
+      </div>
+    </div>
+    <div class="document-type">Compliance Audit Report</div>
+    <div class="document-title">Meeting Documentation Compliance Assessment</div>
+    <div class="firm-name">Prepared for: {{FIRM_NAME}}</div>
+  </div>
+
+  <p class="personalization-top" id="personalization-top">Attention: {{RECIPIENT_FULL_NAME}}</p>
+
+  <div class="confidential-notice">
+    This report is confidential and prepared exclusively for {{FIRM_NAME}}. It contains an assessment of current practices and should not be shared without authorisation.
+  </div>
+
+  <h2>Executive Summary</h2>
+  <div class="executive-summary">
+    <p>This assessment evaluates {{FIRM_NAME}}'s current meeting documentation practices against SRA Code of Conduct requirements, GDPR obligations, and professional indemnity best practices. The review identified areas of strength alongside compliance gaps that represent regulatory and liability exposure.</p>
+    
+    <div class="summary-grid">
+      <div class="summary-stat">
+        <div class="number high">{{HIGH_RISK_COUNT}}</div>
+        <div class="label">High Risk Gaps</div>
+      </div>
+      <div class="summary-stat">
+        <div class="number medium">{{MEDIUM_RISK_COUNT}}</div>
+        <div class="label">Medium Risk Gaps</div>
+      </div>
+      <div class="summary-stat">
+        <div class="number low">{{COMPLIANT_COUNT}}</div>
+        <div class="label">Areas Compliant</div>
+      </div>
+      <div class="summary-stat">
+        <div class="number">{{TOTAL_AREAS}}</div>
+        <div class="label">Areas Assessed</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="risk-score-box">
+    <div class="score">{{RISK_SCORE}}/100</div>
+    <div class="score-label">Overall Compliance Risk Score</div>
+    <div class="score-description">{{RISK_DESCRIPTION}}</div>
+  </div>
+
+  <div class="page-break">
+    <h2>Detailed Assessment</h2>
+    
+    <table class="assessment-table">
+      <thead>
+        <tr>
+          <th style="width: 35%;">Compliance Area</th>
+          <th style="width: 20%;">Status</th>
+          <th style="width: 45%;">Finding</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Consent Documentation</strong></td>
+          <td><span class="status-badge status-gap">Gap Identified</span></td>
+          <td>No timestamped, recorded consent before meetings. Verbal consent not independently verifiable.</td>
+        </tr>
+        <tr>
+          <td><strong>Contemporaneous Records</strong></td>
+          <td><span class="status-badge status-gap">Gap Identified</span></td>
+          <td>Attendance notes created from memory, typically hours or days after meetings concluded.</td>
+        </tr>
+        <tr>
+          <td><strong>Speaker Attribution</strong></td>
+          <td><span class="status-badge status-partial">Partial</span></td>
+          <td>Some notes identify speakers; no systematic approach. Paraphrasing without clear attribution.</td>
+        </tr>
+        <tr>
+          <td><strong>Timestamp Verification</strong></td>
+          <td><span class="status-badge status-gap">Gap Identified</span></td>
+          <td>No cryptographic or independent verification of when documents were created.</td>
+        </tr>
+        <tr>
+          <td><strong>Version Control</strong></td>
+          <td><span class="status-badge status-partial">Partial</span></td>
+          <td>Some version tracking exists; no tamper-evident audit trail of edits.</td>
+        </tr>
+        <tr>
+          <td><strong>Data Localisation</strong></td>
+          <td><span class="status-badge status-gap">Gap Identified</span></td>
+          <td>Third-party transcription tools process data outside UK/EU without adequate SCCs.</td>
+        </tr>
+        <tr>
+          <td><strong>Audio Retention Policy</strong></td>
+          <td><span class="status-badge status-gap">Gap Identified</span></td>
+          <td>No documented policy for audio retention/deletion. Recordings retained indefinitely.</td>
+        </tr>
+        <tr>
+          <td><strong>DSAR Readiness</strong></td>
+          <td><span class="status-badge status-partial">Partial</span></td>
+          <td>Can locate most records; centralised search capability limited for meeting data.</td>
+        </tr>
+        <tr>
+          <td><strong>Action Item Tracking</strong></td>
+          <td><span class="status-badge status-partial">Partial</span></td>
+          <td>Follow-ups captured ad-hoc; no systematic workflow linking actions to meeting records.</td>
+        </tr>
+        <tr>
+          <td><strong>Audit Trail</strong></td>
+          <td><span class="status-badge status-gap">Gap Identified</span></td>
+          <td>No tamper-evident logging of document access, edits, or exports.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="page-break">
+    <h2>High-Priority Findings</h2>
+
+    <div class="finding-card no-break">
+      <div class="finding-header">
+        <div class="finding-title">1. Third-Country Data Transfers via Transcription Tools</div>
+        <span class="status-badge status-gap">High Risk</span>
+      </div>
+      <div class="finding-body">
+        <strong>Current State:</strong> The firm uses consumer-grade transcription services that process client meeting audio through US-based servers without appropriate transfer mechanisms.<br><br>
+        <strong>Risk:</strong> Post-Schrems II, transfers to the US require either Standard Contractual Clauses (SCCs) with supplementary measures or explicit client consent. Consumer tools rarely provide adequate DPAs or SCCs.<br><br>
+        <strong>Impact:</strong> Potential ICO enforcement action, client complaints, and reputational damage. GDPR fines can reach 4% of annual turnover or £17.5m.
+      </div>
+      <div class="finding-regulation">GDPR Articles 44-49, Schrems II (Case C-311/18), ICO International Transfer Guidance</div>
+    </div>
+
+    <div class="finding-card no-break">
+      <div class="finding-header">
+        <div class="finding-title">2. Non-Contemporaneous Attendance Notes</div>
+        <span class="status-badge status-gap">High Risk</span>
+      </div>
+      <div class="finding-body">
+        <strong>Current State:</strong> Attendance notes are typically drafted from memory, hours or days after client meetings conclude.<br><br>
+        <strong>Risk:</strong> In negligence claims and regulatory investigations, delayed records are treated as less reliable evidence. The gap between conversation and written record is where disputes arise.<br><br>
+        <strong>Impact:</strong> Weakened defence in PI claims, difficulty demonstrating advice given, increased insurance exposure.
+      </div>
+      <div class="finding-regulation">SRA Code of Conduct Para 2.4, 3.2; Professional Negligence Best Practice; Civil Evidence Considerations</div>
+    </div>
+
+    <div class="finding-card no-break">
+      <div class="finding-header">
+        <div class="finding-title">3. No Tamper-Evident Audit Trail</div>
+        <span class="status-badge status-gap">High Risk</span>
+      </div>
+      <div class="finding-body">
+        <strong>Current State:</strong> Document access, edits, and exports are not logged in a tamper-evident manner. Standard file metadata can be manipulated.<br><br>
+        <strong>Risk:</strong> In disputes, you cannot prove chain of custody or that records were not altered after the fact. This undermines evidential value.<br><br>
+        <strong>Impact:</strong> Contested evidence in litigation, SRA concerns about record integrity, PI claim vulnerability.
+      </div>
+      <div class="finding-regulation">SRA Code of Conduct for Firms 4.2, Civil Procedure Rules, Civil Evidence Act 1995</div>
+    </div>
+  </div>
+
+  <div class="page-break">
+    <h2>Prioritised Recommendations</h2>
+    
+    <div class="priority-list">
+      <div class="priority-item">
+        <div class="priority-number">1</div>
+        <div class="priority-content">
+          <div class="priority-title">Implement EU/UK-Only Processing for Client Data</div>
+          <div class="priority-description">Migrate transcription and meeting documentation to services with guaranteed UK/EU data residency and appropriate DPAs. Timeline: Immediate (within 30 days).</div>
+        </div>
+      </div>
+      <div class="priority-item">
+        <div class="priority-number">2</div>
+        <div class="priority-content">
+          <div class="priority-title">Establish Consent-First Recording Protocol</div>
+          <div class="priority-description">Implement documented, timestamped consent capture before any meeting recording begins. Consent should be part of the audio file itself. Timeline: Within 60 days.</div>
+        </div>
+      </div>
+      <div class="priority-item">
+        <div class="priority-number">3</div>
+        <div class="priority-content">
+          <div class="priority-title">Adopt Real-Time Documentation Workflow</div>
+          <div class="priority-description">Replace memory-based note-taking with contemporaneous capture that creates records during or immediately after meetings. Timeline: Within 90 days.</div>
+        </div>
+      </div>
+      <div class="priority-item">
+        <div class="priority-number">4</div>
+        <div class="priority-content">
+          <div class="priority-title">Implement Audio Retention Policy</div>
+          <div class="priority-description">Establish documented policy for audio deletion (recommend 7 days post-transcription). Transcripts retained; audio eliminated to reduce disclosure liability. Timeline: Within 60 days.</div>
+        </div>
+      </div>
+      <div class="priority-item">
+        <div class="priority-number">5</div>
+        <div class="priority-content">
+          <div class="priority-title">Deploy Tamper-Evident Audit Logging</div>
+          <div class="priority-description">Implement cryptographically signed audit trails for all meeting documentation access, edits, and exports. Timeline: Within 90 days.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break">
+    <h2>How LegalNote Addresses These Gaps</h2>
+    
+    <div class="solution-section">
+      <h3>Purpose-Built Compliance Infrastructure</h3>
+      <p>LegalNote was designed specifically to address the documentation challenges facing UK solicitors, with SRA alignment, GDPR compliance, and PI defensibility at its core.</p>
+      
+      <div class="solution-grid">
+        <div class="solution-item">
+          <strong>Consent-First Recording</strong>
+          <span>Timestamped, documented consent captured before anyone speaks — embedded in the audio file itself.</span>
+        </div>
+        <div class="solution-item">
+          <strong>EU-Only Processing</strong>
+          <span>All data processed exclusively in Dublin and Frankfurt. No third-country transfers. UK Adequacy maintained.</span>
+        </div>
+        <div class="solution-item">
+          <strong>Contemporaneous Records</strong>
+          <span>AI-generated attendance notes created in minutes, not hours — while the meeting is still fresh.</span>
+        </div>
+        <div class="solution-item">
+          <strong>7-Day Audio Deletion</strong>
+          <span>Audio automatically deleted after 7 days. Transcript retained. Disclosure liability eliminated.</span>
+        </div>
+        <div class="solution-item">
+          <strong>Cryptographic Audit Trails</strong>
+          <span>Every access, edit, and export logged with tamper-evident signatures. Chain of custody provable.</span>
+        </div>
+        <div class="solution-item">
+          <strong>Speaker Attribution</strong>
+          <span>AI diarisation identifies who said what. No more contested attribution in disputes.</span>
+        </div>
+        <div class="solution-item">
+          <strong>Action Item Capture</strong>
+          <span>Follow-ups, deadlines, and key dates automatically surfaced and synced to your calendar.</span>
+        </div>
+        <div class="solution-item">
+          <strong>Redactable Transcripts</strong>
+          <span>Create client-ready versions with sensitive information redacted. Share with confidence.</span>
+        </div>
+      </div>
+
+      <div class="cta-box">
+        <p style="margin-bottom: 12px; font-size: 14px;">Ready to close these compliance gaps?</p>
+        <a href="https://legalnote.ai" class="cta-link">Book a Demo at legalnote.ai</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="signature-section">
+    <div class="signature-box">
+      <div class="signature-label">Prepared By</div>
+      <p style="margin-top: 8px; font-size: 13px;">LegalNote Compliance Team</p>
+    </div>
+    <div class="signature-box">
+      <div class="signature-label">Reviewed By</div>
+      <p style="margin-top: 8px; font-size: 13px;">{{RECIPIENT_FULL_NAME}}</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="compliance-pills">
+      <span class="pill">EU Data Residency</span>
+      <span class="pill">GDPR Compliant</span>
+      <span class="pill">SRA Aligned</span>
+    </div>
+    <p>LegalNote, 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ</p>
+    <p>Infrastructure hosted in Dublin/Frankfurt for absolute GDPR compliance</p>
+  </div>
+</body>
+</html>
