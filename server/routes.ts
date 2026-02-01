@@ -117,6 +117,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.download(resolveTemplatePath('legalnote-one-pager.html'), 'LegalNote-One-Pager.html');
   });
 
+  // Serve pre-generated static PDFs with download headers for mobile compatibility
+  app.get('/static-pdf/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const safeName = filename.replace(/[^a-zA-Z0-9\-_.]/g, '');
+    const filePath = path.join(process.cwd(), 'public', safeName);
+    
+    if (!safeName.endsWith('.pdf')) {
+      return res.status(400).json({ message: 'Invalid file type' });
+    }
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(filePath, (err) => {
+      if (err) {
+        res.status(404).json({ message: 'PDF not found' });
+      }
+    });
+  });
+
   // Direct download for one-pager PDF with optional personalization
   // Usage: /download-one-pager-pdf?name=Sophie%20Akehurst
   app.get('/download-one-pager-pdf', async (req, res) => {
