@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download PDF - LegalNote</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .logo {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 8px;
+    }
+    .logo span { color: #3b82f6; }
+    .subtitle {
+      color: #64748b;
+      font-size: 14px;
+      margin-bottom: 30px;
+    }
+    .filename {
+      background: #f1f5f9;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #334155;
+      margin-bottom: 24px;
+      word-break: break-all;
+    }
+    .download-btn {
+      display: block;
+      width: 100%;
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      color: white;
+      padding: 16px 24px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 16px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .download-btn:active {
+      transform: scale(0.98);
+    }
+    .instructions {
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.6;
+    }
+    .instructions strong { color: #334155; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Legal<span>Note</span></div>
+    <div class="subtitle">Personalised One-Pager</div>
+    
+    <div class="filename">
+      LegalNote-One-Pager-Zahra-Mohamed.pdf
+    </div>
+    
+    <a href="/static-pdf/zahra-mohamed-one-pager.pdf" 
+       class="download-btn"
+       download="LegalNote-One-Pager-Zahra-Mohamed.pdf">
+      Download PDF
+    </a>
+    
+    <div class="instructions">
+      <strong>On mobile?</strong> Tap the button above. If the PDF opens in your browser, tap the <strong>Share</strong> icon and select <strong>"Save to Files"</strong> or <strong>"Download"</strong>.
+    </div>
+  </div>
+</body>
+</html>
