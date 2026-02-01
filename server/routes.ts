@@ -117,6 +117,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.download(resolveTemplatePath('legalnote-one-pager.html'), 'LegalNote-One-Pager.html');
   });
 
+  // Serve the mobile-friendly PDF download page
+  app.get('/download-zahra-pdf', (req, res) => {
+    res.sendFile(path.join(process.cwd(), 'public', 'download-zahra-pdf.html'));
+  });
+
   // Serve pre-generated static PDFs with download headers for mobile compatibility
   app.get('/static-pdf/:filename', (req, res) => {
     const filename = req.params.filename;
