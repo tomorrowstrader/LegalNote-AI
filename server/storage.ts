@@ -22,6 +22,7 @@ import {
   type ClientVersionTracking, type InsertClientVersionTracking,
   type SearchHistory, type InsertSearchHistory,
   type Waitlist, type InsertWaitlist,
+  type LinkedinPostPerformance, type InsertLinkedinPostPerformance,
   users,
   cases,
   audioRecordings,
@@ -44,7 +45,8 @@ import {
   sharePointConnections,
   clientVersionTracking,
   searchHistory,
-  waitlist
+  waitlist,
+  linkedinPostPerformance
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -375,6 +377,11 @@ export interface IStorage {
   updateWaitlistEntry(id: string, updates: Partial<Waitlist>): Promise<Waitlist | undefined>;
   deleteWaitlistEntry(id: string): Promise<void>;
   getWaitlistStats(): Promise<{ total: number; pending: number; invited: number; active: number }>;
+  
+  // LinkedIn post performance methods
+  getLinkedinPostPerformance(postNumber: number): Promise<LinkedinPostPerformance | undefined>;
+  getAllLinkedinPostPerformance(): Promise<LinkedinPostPerformance[]>;
+  upsertLinkedinPostPerformance(data: InsertLinkedinPostPerformance): Promise<LinkedinPostPerformance>;
 }
 
 export class MemStorage implements IStorage {
@@ -1572,6 +1579,17 @@ export class MemStorage implements IStorage {
   
   async getWaitlistStats(): Promise<{ total: number; pending: number; invited: number; active: number }> {
     return { total: 0, pending: 0, invited: 0, active: 0 };
+  }
+  
+  // LinkedIn post performance (MemStorage stubs)
+  async getLinkedinPostPerformance(_postNumber: number): Promise<LinkedinPostPerformance | undefined> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getAllLinkedinPostPerformance(): Promise<LinkedinPostPerformance[]> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async upsertLinkedinPostPerformance(_data: InsertLinkedinPostPerformance): Promise<LinkedinPostPerformance> {
+    throw new Error("Not implemented in MemStorage");
   }
 }
 
@@ -3566,6 +3584,29 @@ export class DbStorage implements IStorage {
       invited: allEntries.filter(e => e.status === 'invited').length,
       active: allEntries.filter(e => e.status === 'active').length,
     };
+  }
+  
+  // LinkedIn post performance methods
+  async getLinkedinPostPerformance(postNumber: number): Promise<LinkedinPostPerformance | undefined> {
+    const [result] = await db.select().from(linkedinPostPerformance).where(eq(linkedinPostPerformance.postNumber, postNumber));
+    return result;
+  }
+
+  async getAllLinkedinPostPerformance(): Promise<LinkedinPostPerformance[]> {
+    return await db.select().from(linkedinPostPerformance).orderBy(linkedinPostPerformance.postNumber);
+  }
+
+  async upsertLinkedinPostPerformance(data: InsertLinkedinPostPerformance): Promise<LinkedinPostPerformance> {
+    const existing = await this.getLinkedinPostPerformance(data.postNumber);
+    if (existing) {
+      const [updated] = await db.update(linkedinPostPerformance)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(linkedinPostPerformance.postNumber, data.postNumber))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(linkedinPostPerformance).values(data).returning();
+    return created;
   }
 }
 

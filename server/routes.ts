@@ -122,6 +122,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendFile(path.join(process.cwd(), 'public', 'download-zahra-pdf.html'));
   });
 
+  // LinkedIn Post Performance Tracking API
+  app.get('/api/linkedin-performance', async (req, res, next) => {
+    try {
+      const data = await storage.getAllLinkedinPostPerformance();
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/linkedin-performance/:postNumber', async (req, res, next) => {
+    try {
+      const postNumber = parseInt(req.params.postNumber);
+      const data = await storage.getLinkedinPostPerformance(postNumber);
+      res.json(data || null);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/linkedin-performance', async (req, res, next) => {
+    try {
+      const body = { ...req.body };
+      if (body.postedAt && typeof body.postedAt === 'string') {
+        body.postedAt = new Date(body.postedAt);
+      }
+      const data = await storage.upsertLinkedinPostPerformance(body);
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Serve the 60-day LinkedIn content calendar
   app.get('/content-calendar', (req, res) => {
     res.sendFile(path.join(process.cwd(), 'public', 'content-calendar.html'));

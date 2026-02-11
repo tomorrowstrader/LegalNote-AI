@@ -1,250 +1,76 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>60-Day Content Calendar - LegalNote AI</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
-      min-height: 100vh;
-      padding: 0;
-    }
-    .header {
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-      padding: 24px 20px;
-      text-align: center;
-      border-bottom: 1px solid #1e293b;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .header h1 {
-      font-size: 22px;
-      font-weight: 700;
-      color: #fff;
-      margin-bottom: 4px;
-    }
-    .header h1 span { color: #3b82f6; }
-    .header p {
-      font-size: 13px;
-      color: #94a3b8;
-    }
-    .phase-nav {
-      display: flex;
-      gap: 8px;
-      padding: 16px 20px;
-      overflow-x: auto;
-      background: #0f172a;
-      position: sticky;
-      top: 72px;
-      z-index: 99;
-      border-bottom: 1px solid #1e293b;
-    }
-    .phase-btn {
-      flex-shrink: 0;
-      padding: 8px 16px;
-      border-radius: 20px;
-      border: 1px solid #334155;
-      background: transparent;
-      color: #94a3b8;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-      white-space: nowrap;
-    }
-    .phase-btn.active {
-      background: #3b82f6;
-      border-color: #3b82f6;
-      color: #fff;
-    }
-    .week-tabs {
-      display: flex;
-      gap: 6px;
-      padding: 12px 20px;
-      overflow-x: auto;
-      background: #0f172a;
-    }
-    .week-tab {
-      flex-shrink: 0;
-      padding: 6px 14px;
-      border-radius: 16px;
-      border: 1px solid #1e293b;
-      background: transparent;
-      color: #64748b;
-      font-size: 12px;
-      cursor: pointer;
-      transition: all 0.2s;
-      white-space: nowrap;
-    }
-    .week-tab.active {
-      background: #1e293b;
-      border-color: #334155;
-      color: #e2e8f0;
-    }
-    .posts-container {
-      padding: 16px 20px;
-      max-width: 680px;
-      margin: 0 auto;
-    }
-    .post-card {
-      background: #1e293b;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 16px;
-      border: 1px solid #334155;
-    }
-    .post-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-    .post-number {
-      background: #3b82f6;
-      color: #fff;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 10px;
-    }
-    .post-day {
-      color: #94a3b8;
-      font-size: 12px;
-      font-weight: 500;
-    }
-    .post-voice {
-      font-size: 11px;
-      color: #64748b;
-      background: #0f172a;
-      padding: 3px 8px;
-      border-radius: 10px;
-    }
-    .post-framework {
-      font-size: 11px;
-      color: #f59e0b;
-      background: rgba(245,158,11,0.1);
-      padding: 3px 8px;
-      border-radius: 10px;
-    }
-    .post-theme {
-      font-size: 14px;
-      font-weight: 600;
-      color: #f1f5f9;
-      margin-bottom: 12px;
-    }
-    .post-content {
-      font-size: 14px;
-      line-height: 1.7;
-      color: #cbd5e1;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      max-height: 200px;
-      overflow: hidden;
-      position: relative;
-      transition: max-height 0.3s ease;
-    }
-    .post-content.expanded {
-      max-height: none;
-    }
-    .post-content:not(.expanded)::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 60px;
-      background: linear-gradient(transparent, #1e293b);
-    }
-    .post-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 12px;
-      flex-wrap: wrap;
-    }
-    .action-btn {
-      padding: 8px 16px;
-      border-radius: 8px;
-      border: 1px solid #334155;
-      background: transparent;
-      color: #94a3b8;
-      font-size: 12px;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .action-btn:hover {
-      background: #334155;
-      color: #e2e8f0;
-    }
-    .action-btn.copied {
-      background: #059669;
-      border-color: #059669;
-      color: #fff;
-    }
-    .expand-btn {
-      padding: 8px 16px;
-      border-radius: 8px;
-      border: 1px solid #334155;
-      background: transparent;
-      color: #3b82f6;
-      font-size: 12px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .expand-btn:hover {
-      background: #1e3a5f;
-    }
-    .phase-header {
-      text-align: center;
-      padding: 24px 20px 8px;
-      max-width: 680px;
-      margin: 0 auto;
-    }
-    .phase-header h2 {
-      font-size: 18px;
-      font-weight: 700;
-      color: #f1f5f9;
-      margin-bottom: 4px;
-    }
-    .phase-header p {
-      font-size: 13px;
-      color: #64748b;
-    }
-    .stats-bar {
-      display: flex;
-      gap: 16px;
-      justify-content: center;
-      padding: 16px 20px;
-      flex-wrap: wrap;
-    }
-    .stat {
-      text-align: center;
-    }
-    .stat-value {
-      font-size: 20px;
-      font-weight: 700;
-      color: #3b82f6;
-    }
-    .stat-label {
-      font-size: 11px;
-      color: #64748b;
-    }
-    .hidden { display: none; }
-    @media (max-width: 480px) {
-      .header { padding: 16px; }
-      .header h1 { font-size: 18px; }
-      .posts-container { padding: 12px; }
-      .post-card { padding: 16px; }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LegalNote Content Calendar</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',system-ui,-apple-system,sans-serif; background:#0f172a; color:#e2e8f0; min-height:100vh; -webkit-tap-highlight-color:transparent; }
+  .header { text-align:center; padding:24px 16px 16px; border-bottom:1px solid #1e293b; }
+  .header h1 { font-size:22px; font-weight:700; color:#f1f5f9; }
+  .header h1 span { color:#3b82f6; }
+  .header p { font-size:13px; color:#64748b; margin-top:4px; }
+  .stats-bar { display:flex; gap:16px; justify-content:center; padding:16px; flex-wrap:wrap; }
+  .stat { text-align:center; }
+  .stat-val { font-size:20px; font-weight:700; color:#3b82f6; }
+  .stat-lbl { font-size:11px; color:#64748b; }
+  .nav { display:flex; gap:8px; padding:8px 16px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .nav::-webkit-scrollbar { display:none; }
+  .nav button { flex-shrink:0; padding:8px 16px; border-radius:20px; border:1px solid #334155; background:transparent; color:#94a3b8; font-size:13px; cursor:pointer; transition:background .2s,color .2s,border-color .2s; }
+  .nav button.active { background:#3b82f6; color:#fff; border-color:#3b82f6; }
+  .posts { padding:16px; max-width:720px; margin:0 auto; }
+  .phase-hdr { text-align:center; padding:20px 16px 8px; }
+  .phase-hdr h2 { font-size:18px; font-weight:700; color:#f1f5f9; }
+  .phase-hdr p { font-size:13px; color:#64748b; margin-top:4px; }
+  .week-hdr { padding:12px 0 4px; font-size:13px; font-weight:600; color:#64748b; }
+  .card { background:#1e293b; border-radius:12px; padding:20px; margin-bottom:16px; border:1px solid #334155; }
+  .meta { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+  .tag { font-size:11px; padding:3px 8px; border-radius:10px; font-weight:600; }
+  .tag-num { background:rgba(59,130,246,0.15); color:#3b82f6; }
+  .tag-day { background:rgba(241,245,249,0.08); color:#94a3b8; }
+  .tag-voice { background:rgba(16,185,129,0.12); color:#10b981; }
+  .tag-fw { background:rgba(245,158,11,0.1); color:#f59e0b; }
+  .theme { font-size:14px; font-weight:600; color:#f1f5f9; margin-bottom:10px; }
+  .content { font-size:14px; line-height:1.7; color:#cbd5e1; white-space:pre-wrap; word-wrap:break-word; max-height:180px; overflow:hidden; position:relative; transition:max-height .3s ease; }
+  .content.open { max-height:none; }
+  .content:not(.open)::after { content:''; position:absolute; bottom:0; left:0; right:0; height:60px; background:linear-gradient(transparent,#1e293b); pointer-events:none; }
+  .actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  .btn { padding:8px 16px; border-radius:8px; border:1px solid #334155; background:transparent; color:#94a3b8; font-size:12px; cursor:pointer; transition:background .2s,color .2s,border-color .2s; display:flex; align-items:center; gap:6px; }
+  .btn:active { background:#334155; color:#e2e8f0; }
+  .btn-expand { color:#3b82f6; }
+  .btn-expand:active { background:#1e3a5f; }
+  .btn-copied { background:#059669!important; border-color:#059669!important; color:#fff!important; }
+  .btn-track { color:#f59e0b; border-color:#4a3728; }
+  .btn-track:active { background:#4a3728; }
+  .perf { margin-top:16px; padding:16px; background:#0f172a; border-radius:8px; border:1px solid #334155; display:none; }
+  .perf.open { display:block; }
+  .perf h4 { font-size:13px; font-weight:600; color:#f59e0b; margin-bottom:12px; }
+  .perf-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px; }
+  .perf-section { font-size:11px; color:#64748b; font-weight:600; margin-bottom:4px; text-align:center; }
+  .perf-field { display:flex; flex-direction:column; gap:2px; }
+  .perf-field label { font-size:10px; color:#64748b; text-transform:uppercase; }
+  .perf-field input { background:#1e293b; border:1px solid #334155; border-radius:6px; padding:6px 8px; color:#e2e8f0; font-size:13px; width:100%; }
+  .perf-field input:focus { outline:none; border-color:#3b82f6; }
+  .perf-row { margin-bottom:12px; }
+  .perf-row label { display:block; font-size:10px; color:#64748b; text-transform:uppercase; margin-bottom:2px; }
+  .perf-row input { background:#1e293b; border:1px solid #334155; border-radius:6px; padding:6px 8px; color:#e2e8f0; font-size:13px; width:100%; }
+  .perf-row input:focus { outline:none; border-color:#3b82f6; }
+  .perf-save { width:100%; padding:10px; border-radius:8px; border:none; background:#3b82f6; color:#fff; font-size:13px; font-weight:600; cursor:pointer; margin-top:8px; }
+  .perf-save:active { background:#2563eb; }
+  .perf-saved { background:#059669!important; }
+  .perf-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; padding:2px 6px; border-radius:8px; background:rgba(59,130,246,0.12); color:#3b82f6; font-weight:600; }
+  .perf-badge.has-data { background:rgba(16,185,129,0.12); color:#10b981; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#059669; color:#fff; padding:12px 24px; border-radius:10px; font-size:13px; font-weight:600; z-index:9999; opacity:0; transition:opacity .3s; pointer-events:none; }
+  .toast.show { opacity:1; }
+  @media (max-width:480px) {
+    .header { padding:16px; }
+    .header h1 { font-size:18px; }
+    .posts { padding:12px; }
+    .card { padding:16px; }
+    .perf-grid { grid-template-columns:1fr; }
+  }
+</style>
 </head>
 <body>
 
@@ -254,1096 +80,497 @@
 </div>
 
 <div class="stats-bar">
-  <div class="stat">
-    <div class="stat-value">32</div>
-    <div class="stat-label">Posts</div>
-  </div>
-  <div class="stat">
-    <div class="stat-value">8</div>
-    <div class="stat-label">Weeks</div>
-  </div>
-  <div class="stat">
-    <div class="stat-value">4</div>
-    <div class="stat-label">Per Week</div>
-  </div>
-  <div class="stat">
-    <div class="stat-value">4</div>
-    <div class="stat-label">Phases</div>
-  </div>
+  <div class="stat"><div class="stat-val">32</div><div class="stat-lbl">Posts</div></div>
+  <div class="stat"><div class="stat-val">8</div><div class="stat-lbl">Weeks</div></div>
+  <div class="stat"><div class="stat-val">4</div><div class="stat-lbl">Per Week</div></div>
+  <div class="stat"><div class="stat-val">4</div><div class="stat-lbl">Phases</div></div>
 </div>
 
-<div class="phase-nav">
-  <button class="phase-btn active" onclick="showPhase('all', this)">All Posts</button>
-  <button class="phase-btn" onclick="showPhase(1, this)">Phase 1: Origin</button>
-  <button class="phase-btn" onclick="showPhase(2, this)">Phase 2: Problem</button>
-  <button class="phase-btn" onclick="showPhase(3, this)">Phase 3: Vision</button>
-  <button class="phase-btn" onclick="showPhase(4, this)">Phase 4: Authority</button>
+<div class="nav" id="phaseNav">
+  <button class="active" data-phase="all">All Posts</button>
+  <button data-phase="1">Phase 1: Origin</button>
+  <button data-phase="2">Phase 2: Problem</button>
+  <button data-phase="3">Phase 3: Vision</button>
+  <button data-phase="4">Phase 4: Authority</button>
 </div>
 
-<div class="week-tabs" id="weekTabs">
-  <button class="week-tab active" onclick="showWeek('all', this)">All Weeks</button>
-  <button class="week-tab" onclick="showWeek(1, this)">Week 1</button>
-  <button class="week-tab" onclick="showWeek(2, this)">Week 2</button>
-  <button class="week-tab" onclick="showWeek(3, this)">Week 3</button>
-  <button class="week-tab" onclick="showWeek(4, this)">Week 4</button>
-  <button class="week-tab" onclick="showWeek(5, this)">Week 5</button>
-  <button class="week-tab" onclick="showWeek(6, this)">Week 6</button>
-  <button class="week-tab" onclick="showWeek(7, this)">Week 7</button>
-  <button class="week-tab" onclick="showWeek(8, this)">Week 8</button>
+<div class="nav" id="weekNav">
+  <button class="active" data-week="all">All Weeks</button>
+  <button data-week="1">Week 1</button>
+  <button data-week="2">Week 2</button>
+  <button data-week="3">Week 3</button>
+  <button data-week="4">Week 4</button>
+  <button data-week="5">Week 5</button>
+  <button data-week="6">Week 6</button>
+  <button data-week="7">Week 7</button>
+  <button data-week="8">Week 8</button>
 </div>
 
-<div class="posts-container" id="postsContainer"></div>
+<div class="posts" id="postsContainer"></div>
+<div class="toast" id="toast"></div>
 
 <script>
-const posts = [
+var posts = [
   {
     num: 1, week: 1, phase: 1, day: "Monday",
     theme: "The attendance note that started everything",
     voice: "Client", framework: "SLAY",
-    content: `The attendance note had the wrong date.
-
-The date was the entire basis of my legal dispute.
-
-I sat across from my solicitor. We discussed everything. The tenancy start date, the rent review mechanism, the breach of contract. She understood it. I understood it. We were aligned.
-
-Two days later the attendance note arrived.
-
-The start date was written as the 5th of March. It was the 15th. The entire matter hinged on the anniversary of that date triggering a rent review clause.
-
-If I hadn't caught it, my case would have been built on incorrect documentation produced by my own solicitor.
-
-It took six months and a chaser email to get that single date corrected.
-
-That was the moment I realised something needed to exist that didn't.
-
-Not another AI tool. Not a fancy recorder.
-
-A system where what's said in the room is what ends up in the file. Accurately. Every time.
-
-That's why I built LegalNote.
-
-PS \u2014 Have you ever received an attendance note that didn't match what was actually discussed?`
+    content: "The attendance note had the wrong date.\n\nThe date was the entire basis of my legal dispute.\n\nI sat across from my solicitor. We discussed everything. The tenancy start date, the rent review mechanism, the breach of contract. She understood it. I understood it. We were aligned.\n\nTwo days later the attendance note arrived.\n\nThe start date was written as the 5th of March. It was the 15th. The entire matter hinged on the anniversary of that date triggering a rent review clause.\n\nIf I hadn\u2019t caught it, my case would have been built on incorrect documentation produced by my own solicitor.\n\nIt took six months and a chaser email to get that single date corrected.\n\nThat was the moment I realised something needed to exist that didn\u2019t.\n\nNot another AI tool. Not a fancy recorder.\n\nA system where what\u2019s said in the room is what ends up in the file. Accurately. Every time.\n\nThat\u2019s why I built LegalNote.\n\nPS \u2014 Have you ever received an attendance note that didn\u2019t match what was actually discussed?"
   },
   {
     num: 2, week: 1, phase: 1, day: "Wednesday",
     theme: "Estate to Royal College of Music",
     voice: "Personal", framework: "SLAY",
-    content: `I lost the sight in my left eye at seven.
-
-A year later I had a scholarship to the Royal College of Music.
-
-Growing up on an estate in London, the path was supposed to be football. That's what everyone around me did. But losing my sight meant that ceiling was already there whether I wanted to admit it or not.
-
-So at eight years old I made a decision that most adults struggle with. I chose the thing that would actually work long-term over the thing that felt comfortable.
-
-The Royal College of Music was a different planet. I went from my estate to sitting in rehearsal rooms with kids who'd been playing since birth. Different backgrounds. Different expectations. Different everything.
-
-I practised flute for over two hours every single day. Not because I was talented. Because I understood something early that's shaped everything since:
-
-Everything is just a skill. Given enough time, practice, and discipline, it can be learned by anyone.
-
-That belief took me from an estate to a music scholarship. From music to corporate. From corporate to founding LegalNote.
-
-The environments change. The principle doesn't.
-
-PS \u2014 What skill did you have to teach yourself that changed your direction?`
+    content: "I lost the sight in my left eye at seven.\n\nA year later I had a scholarship to the Royal College of Music.\n\nGrowing up on an estate in London, the path was supposed to be football. That\u2019s what everyone around me did. But losing my sight meant that ceiling was already there whether I wanted to admit it or not.\n\nSo at eight years old I made a decision that most adults struggle with. I chose the thing that would actually work long-term over the thing that felt comfortable.\n\nThe Royal College of Music was a different planet. I went from my estate to sitting in rehearsal rooms with kids who\u2019d been playing since birth. Different backgrounds. Different expectations. Different everything.\n\nI practised flute for over two hours every single day. Not because I was talented. Because I understood something early that\u2019s shaped everything since:\n\nEverything is just a skill. Given enough time, practice, and discipline, it can be learned by anyone.\n\nThat belief took me from an estate to a music scholarship. From music to corporate. From corporate to founding LegalNote.\n\nThe environments change. The principle doesn\u2019t.\n\nPS \u2014 What skill did you have to teach yourself that changed your direction?"
   },
   {
     num: 3, week: 1, phase: 1, day: "Thursday",
     theme: "Corporate compliance credibility",
     voice: "Professional", framework: "PAS",
-    content: `I've sat inside Magic Circle law firms.
-
-I've seen how documentation actually works behind closed doors.
-
-My career took me through Clifford Chance, Coutts, Lloyd's of London, Standard Chartered, National Grid. Technology delivery. Compliance infrastructure. Documentation controls. Trading systems.
-
-My role put me directly in front of the people who used these systems every day. Lawyers. Solicitors. Bankers. Traders. VPs.
-
-I trained them on compliance. What data to keep. What to delete. How to handle sensitive information. How to use their systems properly.
-
-And I watched.
-
-I watched solicitors struggle with documentation workflows that hadn't been updated in a decade. I watched notes get written from memory hours after the meeting. I watched critical details get lost between conversation and written record.
-
-The problem was never the people. The people were sharp, dedicated, working under immense pressure.
-
-The problem was the tools. The processes. The gap between what was said and what was written down.
-
-I didn't know it at the time, but every single one of those roles was preparing me to build LegalNote.
-
-PS \u2014 What's the biggest gap you see between how meetings happen and how they're documented?`
+    content: "I\u2019ve sat inside Magic Circle law firms.\n\nI\u2019ve seen how documentation actually works behind closed doors.\n\nMy career took me through Clifford Chance, Coutts, Lloyd\u2019s of London, Standard Chartered, National Grid. Technology delivery. Compliance infrastructure. Documentation controls. Trading systems.\n\nMy role put me directly in front of the people who used these systems every day. Lawyers. Solicitors. Bankers. Traders. VPs.\n\nI trained them on compliance. What data to keep. What to delete. How to handle sensitive information. How to use their systems properly.\n\nAnd I watched.\n\nI watched solicitors struggle with documentation workflows that hadn\u2019t been updated in a decade. I watched notes get written from memory hours after the meeting. I watched critical details get lost between conversation and written record.\n\nThe problem was never the people. The people were sharp, dedicated, working under immense pressure.\n\nThe problem was the tools. The processes. The gap between what was said and what was written down.\n\nI didn\u2019t know it at the time, but every single one of those roles was preparing me to build LegalNote.\n\nPS \u2014 What\u2019s the biggest gap you see between how meetings happen and how they\u2019re documented?"
   },
   {
     num: 4, week: 1, phase: 1, day: "Saturday",
     theme: "Becoming a father changed everything",
     voice: "Father", framework: "SLAY",
-    content: `My daughter is one year old.
-
-She's changed how I think about risk.
-
-Before her, I could absorb a loss. Take a hit. Start again. The downside was always just my own.
-
-Now the stakes are different. Not higher necessarily. Just wider.
-
-Every decision I make with LegalNote sits in the context of her future. Not in some grand "building a legacy" way. In a practical way.
-
-Can this sustain our family? Am I managing risk properly? Am I building something defensible, not just exciting?
-
-That word keeps coming back. Defensible.
-
-It's the same word I use when I talk to solicitors about their documentation. Is your attendance note defensible? Could it survive scrutiny? Does it accurately reflect what happened?
-
-Turns out building a company and building a legal record have the same requirement.
-
-If it's not defensible, it's not worth much.
-
-PS \u2014 How has becoming a parent changed how you approach your work?`
+    content: "My daughter is one year old.\n\nShe\u2019s changed how I think about risk.\n\nBefore her, I could absorb a loss. Take a hit. Start again. The downside was always just my own.\n\nNow the stakes are different. Not higher necessarily. Just wider.\n\nEvery decision I make with LegalNote sits in the context of her future. Not in some grand \u201cbuilding a legacy\u201d way. In a practical way.\n\nCan this sustain our family? Am I managing risk properly? Am I building something defensible, not just exciting?\n\nThat word keeps coming back. Defensible.\n\nIt\u2019s the same word I use when I talk to solicitors about their documentation. Is your attendance note defensible? Could it survive scrutiny? Does it accurately reflect what happened?\n\nTurns out building a company and building a legal record have the same requirement.\n\nIf it\u2019s not defensible, it\u2019s not worth much.\n\nPS \u2014 How has becoming a parent changed how you approach your work?"
   },
   {
     num: 5, week: 2, phase: 1, day: "Monday",
     theme: "I never wanted to be a lawyer",
     voice: "Client/Personal", framework: "SLAY",
-    content: `I never wanted to be a lawyer.
-
-I just wanted to be able to defend myself.
-
-Growing up, I didn't have access to legal advice. What I had was attention to detail and the stubborn belief that if something didn't feel right, I should look into it.
-
-When my landlord falsely accused me of being in rent arrears, I didn't panic. I went through the ledger line by line. Found a duplicated reversal of a heating reimbursement that created a false \u00a3470 deficit. Put the evidence in an email. Never received a response.
-
-When they tried to increase my rent outside the contractual review period, I read the clause. October 1st wasn't the anniversary of the tenancy. March 15th was. I kept paying as agreed.
-
-When they pressured me for nearly a year, threatened possession proceedings while I had a one-year-old daughter at home, I held my ground.
-
-They eventually backed down. Not because I had a legal team. Because I had documentation.
-
-That experience taught me something I now build into everything:
-
-Documentation protects truth. And the person who controls the detail controls the outcome.
-
-PS \u2014 When was the last time your own documentation saved you?`
+    content: "I never wanted to be a lawyer.\n\nI just wanted to be able to defend myself.\n\nGrowing up, I didn\u2019t have access to legal advice. What I had was attention to detail and the stubborn belief that if something didn\u2019t feel right, I should look into it.\n\nWhen my landlord falsely accused me of being in rent arrears, I didn\u2019t panic. I went through the ledger line by line. Found a duplicated reversal of a heating reimbursement that created a false \u00a3470 deficit. Put the evidence in an email. Never received a response.\n\nWhen they tried to increase my rent outside the contractual review period, I read the clause. October 1st wasn\u2019t the anniversary of the tenancy. March 15th was. I kept paying as agreed.\n\nWhen they pressured me for nearly a year, threatened possession proceedings while I had a one-year-old daughter at home, I held my ground.\n\nThey eventually backed down. Not because I had a legal team. Because I had documentation.\n\nThat experience taught me something I now build into everything:\n\nDocumentation protects truth. And the person who controls the detail controls the outcome.\n\nPS \u2014 When was the last time your own documentation saved you?"
   },
   {
     num: 6, week: 2, phase: 1, day: "Wednesday",
     theme: "The diamond earring at Clifford Chance",
     voice: "Personal", framework: "SLAY",
-    content: `Someone reported my earring at Clifford Chance.
-
-Not to my face. To my manager.
-
-My first day at one of the most prestigious law firms in the world. I came in, did my work, built rapport with the team. Felt good about it.
-
-The next morning my manager pulled me aside. Asked how I found my first day. I said it went well.
-
-Then he told me. Someone had raised an issue with me wearing a diamond earring.
-
-Nobody said it to me directly. Nobody explained which policy it broke. It was just decided, behind my back, that something about how I presented myself wasn't acceptable.
-
-This is why corporate never felt like home.
-
-Not because the work was bad. The work was excellent. The teams were often brilliant. But there was always an undercurrent. A lack of sincerity that I could never fully ignore.
-
-People in the same role for fifteen years with no ambition of their own, but quietly making sure you didn't get too far either. Saying one thing in meetings, another in corridors.
-
-I spent years navigating that. Learning from it. Building relationships despite it.
-
-And eventually I understood: I could either spend my career fighting that culture, or I could build my own.
-
-I chose to build.
-
-PS \u2014 Have you ever felt like you didn't belong in a space where you were clearly delivering?`
+    content: "Someone reported my earring at Clifford Chance.\n\nNot to my face. To my manager.\n\nMy first day at one of the most prestigious law firms in the world. I came in, did my work, built rapport with the team. Felt good about it.\n\nThe next morning my manager pulled me aside. Asked how I found my first day. I said it went well.\n\nThen he told me. Someone had raised an issue with me wearing a diamond earring.\n\nNobody said it to me directly. Nobody explained which policy it broke. It was just decided, behind my back, that something about how I presented myself wasn\u2019t acceptable.\n\nThis is why corporate never felt like home.\n\nNot because the work was bad. The work was excellent. The teams were often brilliant. But there was always an undercurrent. A lack of sincerity that I could never fully ignore.\n\nPeople in the same role for fifteen years with no ambition of their own, but quietly making sure you didn\u2019t get too far either. Saying one thing in meetings, another in corridors.\n\nI spent years navigating that. Learning from it. Building relationships despite it.\n\nAnd eventually I understood: I could either spend my career fighting that culture, or I could build my own.\n\nI chose to build.\n\nPS \u2014 Have you ever felt like you didn\u2019t belong in a space where you were clearly delivering?"
   },
   {
     num: 7, week: 2, phase: 1, day: "Thursday",
     theme: "From music videos to compliance systems",
     voice: "Two Worlds", framework: "SLAY",
-    content: `I went from music videos to compliance infrastructure.
-
-Most people don't know how to place that.
-
-In my early twenties I was in a pop group called Code Red. Millions of views on YouTube. Music videos. Concerts. Stages. The full thing.
-
-The music industry teaches you something that no business school ever will: how to perform under pressure while everything around you is noise.
-
-Then I walked into corporate. Clifford Chance. Coutts. Lloyd's. Standard Chartered. Suit and tie. Security clearance. Compliance documentation.
-
-Different world. Same skill underneath.
-
-Attention to detail. The ability to read a room. Knowing when to speak and when to observe. Building trust with people who have no reason to trust you yet.
-
-Every transition in my life has followed the same pattern. Walk into a space where you don't look like you belong. Prove your value through substance. Earn respect on your own terms.
-
-Estate to Royal College of Music. Music industry to corporate finance. Employee to founder.
-
-LegalNote is the latest version of that pattern. And this time, I'm building the room.
-
-PS \u2014 What's the most unexpected career transition you've made?`
+    content: "I went from music videos to compliance infrastructure.\n\nMost people don\u2019t know how to place that.\n\nIn my early twenties I was in a pop group called Code Red. Millions of views on YouTube. Music videos. Concerts. Stages. The full thing.\n\nThe music industry teaches you something that no business school ever will: how to perform under pressure while everything around you is noise.\n\nThen I walked into corporate. Clifford Chance. Coutts. Lloyd\u2019s. Standard Chartered. Suit and tie. Security clearance. Compliance documentation.\n\nDifferent world. Same skill underneath.\n\nAttention to detail. The ability to read a room. Knowing when to speak and when to observe. Building trust with people who have no reason to trust you yet.\n\nEvery transition in my life has followed the same pattern. Walk into a space where you don\u2019t look like you belong. Prove your value through substance. Earn respect on your own terms.\n\nEstate to Royal College of Music. Music industry to corporate finance. Employee to founder.\n\nLegalNote is the latest version of that pattern. And this time, I\u2019m building the room.\n\nPS \u2014 What\u2019s the most unexpected career transition you\u2019ve made?"
   },
   {
     num: 8, week: 2, phase: 1, day: "Saturday",
     theme: "Touch typing saved my legal case",
     voice: "Client/Personal", framework: "SLAY",
-    content: `My solicitor asked if I was a solicitor.
-
-I'm not. I just type faster than most people can talk.
-
-When I went to discuss my tenancy dispute, I asked if I could record the meeting. The solicitor said no. No specific reason given. Just that it wouldn't be allowed.
-
-So I opened my laptop and typed.
-
-What she didn't know is that I learned touch typing at a specialist school for visual impairment when I was seven. I can type while looking directly at someone. Full eye contact. Full conversation. Every word captured.
-
-She was visibly impressed. "Are you a solicitor?" she asked, halfway through the meeting.
-
-The irony is that despite all of that effort, the attendance note I received two days later still had the wrong date. Still missed a critical detail about how many keys I was supposed to receive.
-
-If she'd let me record, none of that would have mattered.
-
-If she'd had a tool that captured the conversation accurately with consent, the attendance note would have matched what was said.
-
-She didn't have that tool. It didn't exist yet.
-
-Now it does.
-
-PS \u2014 How do you capture what's discussed in client meetings?`
+    content: "My solicitor asked if I was a solicitor.\n\nI\u2019m not. I just type faster than most people can talk.\n\nWhen I went to discuss my tenancy dispute, I asked if I could record the meeting. The solicitor said no. No specific reason given. Just that it wouldn\u2019t be allowed.\n\nSo I opened my laptop and typed.\n\nWhat she didn\u2019t know is that I learned touch typing at a specialist school for visual impairment when I was seven. I can type while looking directly at someone. Full eye contact. Full conversation. Every word captured.\n\nShe was visibly impressed. \u201cAre you a solicitor?\u201d she asked, halfway through the meeting.\n\nThe irony is that despite all of that effort, the attendance note I received two days later still had the wrong date. Still missed a critical detail about how many keys I was supposed to receive.\n\nIf she\u2019d let me record, none of that would have mattered.\n\nIf she\u2019d had a tool that captured the conversation accurately with consent, the attendance note would have matched what was said.\n\nShe didn\u2019t have that tool. It didn\u2019t exist yet.\n\nNow it does.\n\nPS \u2014 How do you capture what\u2019s discussed in client meetings?"
   },
   {
     num: 9, week: 3, phase: 2, day: "Monday",
     theme: "Your attendance notes wouldn't survive an audit",
     voice: "Professional", framework: "PAS",
-    content: `Most attendance notes are written from memory.
-
-That's not documentation. That's recollection.
-
-There's a fundamental difference between a record created during or immediately after an event, and one reconstructed hours later from what someone remembers.
-
-In regulated environments like banking, we call the first one contemporaneous documentation. It's treated as evidence.
-
-The second one? In an audit, it's treated as opinion.
-
-Here's what I observed working inside highly regulated organisations:
-
-1. Timestamps matter. A note created 4 hours after a meeting carries less weight than one created during.
-2. Accuracy degrades with time. Studies show memory distortion begins within 20 minutes.
-3. Audit trails exist or they don't. "I wrote it that day" isn't provable without a system that logs it.
-
-Most boutique law firms are advising clients on defensibility and compliance.
-
-But their own documentation workflow \u2014 the attendance note \u2014 would fail the standard they're advising on.
-
-That's the gap LegalNote closes. Contemporaneous. Timestamped. Tamper-evident.
-
-Not because it's fancy. Because that's what evidence requires.
-
-PS \u2014 If your attendance notes were audited tomorrow, would they hold up?`
+    content: "Most attendance notes are written from memory.\n\nThat\u2019s not documentation. That\u2019s recollection.\n\nThere\u2019s a fundamental difference between a record created during or immediately after an event, and one reconstructed hours later from what someone remembers.\n\nIn regulated environments like banking, we call the first one contemporaneous documentation. It\u2019s treated as evidence.\n\nThe second one? In an audit, it\u2019s treated as opinion.\n\nHere\u2019s what I observed working inside highly regulated organisations:\n\n1. Timestamps matter. A note created 4 hours after a meeting carries less weight than one created during.\n2. Accuracy degrades with time. Studies show memory distortion begins within 20 minutes.\n3. Audit trails exist or they don\u2019t. \u201cI wrote it that day\u201d isn\u2019t provable without a system that logs it.\n\nMost boutique law firms are advising clients on defensibility and compliance.\n\nBut their own documentation workflow \u2014 the attendance note \u2014 would fail the standard they\u2019re advising on.\n\nThat\u2019s the gap LegalNote closes. Contemporaneous. Timestamped. Tamper-evident.\n\nNot because it\u2019s fancy. Because that\u2019s what evidence requires.\n\nPS \u2014 If your attendance notes were audited tomorrow, would they hold up?"
   },
   {
     num: 10, week: 3, phase: 2, day: "Wednesday",
     theme: "The \u00a3470 that never existed",
     voice: "Client", framework: "SLAY",
-    content: `I was accused of owing \u00a3470 I didn't owe.
-
-The proof was in a spreadsheet they sent me themselves.
-
-My landlord \u2014 a massive corporate operation, two towers, 35 floors, thousands of tenants \u2014 sent someone called Matthew to do a fire door safety check.
-
-While he was there, I mentioned some ongoing issues. Heating outages. Missing keys. Things that had been raised and ignored.
-
-He said he'd help. Send him an email.
-
-At 10:30 that night, instead of addressing any of the issues I'd raised, he replied accusing me of being in rent arrears. Demanded payment within 24 hours.
-
-I knew I'd paid everything. So I went through the ledger he'd attached, line by line.
-
-A heating reimbursement they'd already given us had been duplicated on the ledger, reversed, and left the account showing negative \u00a3470.
-
-The exact amount Matthew was claiming I owed.
-
-I put the evidence back in an email.
-
-No response. Ever.
-
-This is what happens when documentation isn't thorough. When records aren't checked. When someone relies on a number without verifying the trail behind it.
-
-Documentation protects truth. But only if someone is willing to go through it properly.
-
-PS \u2014 Have you ever found an error that changed the entire picture?`
+    content: "I was accused of owing \u00a3470 I didn\u2019t owe.\n\nThe proof was in a spreadsheet they sent me themselves.\n\nMy landlord \u2014 a massive corporate operation, two towers, 35 floors, thousands of tenants \u2014 sent someone called Matthew to do a fire door safety check.\n\nWhile he was there, I mentioned some ongoing issues. Heating outages. Missing keys. Things that had been raised and ignored.\n\nHe said he\u2019d help. Send him an email.\n\nAt 10:30 that night, instead of addressing any of the issues I\u2019d raised, he replied accusing me of being in rent arrears. Demanded payment within 24 hours.\n\nI knew I\u2019d paid everything. So I went through the ledger he\u2019d attached, line by line.\n\nA heating reimbursement they\u2019d already given us had been duplicated on the ledger, reversed, and left the account showing negative \u00a3470.\n\nThe exact amount Matthew was claiming I owed.\n\nI put the evidence back in an email.\n\nNo response. Ever.\n\nThis is what happens when documentation isn\u2019t thorough. When records aren\u2019t checked. When someone relies on a number without verifying the trail behind it.\n\nDocumentation protects truth. But only if someone is willing to go through it properly.\n\nPS \u2014 Have you ever found an error that changed the entire picture?"
   },
   {
     num: 11, week: 3, phase: 2, day: "Thursday",
     theme: "Professional-looking doesn't mean compliant",
     voice: "Professional", framework: "PAS",
-    content: `The building had 35 floors and a concierge.
-
-They still couldn't secure a deposit properly.
-
-One of the most important things my tenancy experience taught me: the size and appearance of an operation tells you nothing about its compliance.
-
-This was a corporate landlord. Multiple towers. Thousands of units across the UK. Gym. Cinema room. Professional management team.
-
-And yet:
-- Our security deposit wasn't secured within the legal timeframe
-- We were given one key instead of the two specified in the tenancy
-- The heating didn't work when we moved in
-- Fire doors in the building weren't functioning
-
-Every single one of these is a compliance failure. Not a grey area. A clear breach.
-
-I see the same pattern in legal practice.
-
-Firms that look established, processes that seem solid, offices that feel professional. But when you look at the documentation \u2014 the actual records of what was discussed, agreed, and actioned \u2014 the gaps are there.
-
-Professional-looking and compliant are not the same thing.
-
-LegalNote exists because what's on paper should match what happened. Every time. Regardless of how impressive the letterhead looks.
-
-PS \u2014 What's one compliance gap you've noticed hiding behind a professional exterior?`
+    content: "The building had 35 floors and a concierge.\n\nThey still couldn\u2019t secure a deposit properly.\n\nOne of the most important things my tenancy experience taught me: the size and appearance of an operation tells you nothing about its compliance.\n\nThis was a corporate landlord. Multiple towers. Thousands of units across the UK. Gym. Cinema room. Professional management team.\n\nAnd yet:\n- Our security deposit wasn\u2019t secured within the legal timeframe\n- We were given one key instead of the two specified in the tenancy\n- The heating didn\u2019t work when we moved in\n- Fire doors in the building weren\u2019t functioning\n\nEvery single one of these is a compliance failure. Not a grey area. A clear breach.\n\nI see the same pattern in legal practice.\n\nFirms that look established, processes that seem solid, offices that feel professional. But when you look at the documentation \u2014 the actual records of what was discussed, agreed, and actioned \u2014 the gaps are there.\n\nProfessional-looking and compliant are not the same thing.\n\nLegalNote exists because what\u2019s on paper should match what happened. Every time. Regardless of how impressive the letterhead looks.\n\nPS \u2014 What\u2019s one compliance gap you\u2019ve noticed hiding behind a professional exterior?"
   },
   {
     num: 12, week: 3, phase: 2, day: "Saturday",
     theme: "Spotting talent before anyone else",
     voice: "Personal/Leadership", framework: "SLAY",
-    content: `I met Ed Sheeran before anyone knew his name.
-
-I also recruited someone who became the UK's top seller in an entire distribution network.
-
-There's a pattern in my life that I only recently understood.
-
-At the O2, before Ed Sheeran was Ed Sheeran, I saw something. At a small venue, before Sigala had a single chart hit, I saw something. In a conversation with someone who'd never sold anything before, I saw something.
-
-The skill isn't prediction. It's recognition.
-
-Seeing potential in people before they see it in themselves. Then creating the conditions for them to prove it.
-
-With my distribution business, I didn't compete with the person I recruited. I built the platform. Provided training. Genuine support. Not performative mentorship. Actual empathy and consistent follow-through.
-
-She went on to become the top seller in the entire UK operation.
-
-I've always been drawn to elevating others. Building them up. Celebrating their progress.
-
-LegalNote is the first time I've fully backed myself.
-
-After years of recognising potential in others, I finally looked in the mirror and applied the same lens.
-
-PS \u2014 Who did you believe in before anyone else did?`
+    content: "I met Ed Sheeran before anyone knew his name.\n\nI also recruited someone who became the UK\u2019s top seller in an entire distribution network.\n\nThere\u2019s a pattern in my life that I only recently understood.\n\nAt the O2, before Ed Sheeran was Ed Sheeran, I saw something. At a small venue, before Sigala had a single chart hit, I saw something. In a conversation with someone who\u2019d never sold anything before, I saw something.\n\nThe skill isn\u2019t prediction. It\u2019s recognition.\n\nSeeing potential in people before they see it in themselves. Then creating the conditions for them to prove it.\n\nWith my distribution business, I didn\u2019t compete with the person I recruited. I built the platform. Provided training. Genuine support. Not performative mentorship. Actual empathy and consistent follow-through.\n\nShe went on to become the top seller in the entire UK operation.\n\nI\u2019ve always been drawn to elevating others. Building them up. Celebrating their progress.\n\nLegalNote is the first time I\u2019ve fully backed myself.\n\nAfter years of recognising potential in others, I finally looked in the mirror and applied the same lens.\n\nPS \u2014 Who did you believe in before anyone else did?"
   },
   {
     num: 13, week: 4, phase: 2, day: "Monday",
     theme: "Six months for one correction",
     voice: "Client", framework: "PAS",
-    content: `It took six months to correct one line.
-
-One line in an attendance note. One date. That's all.
-
-My solicitor and I discussed the tenancy start date in our meeting. She understood it. I explained it clearly. We both knew it was the 15th of March.
-
-The attendance note came back with the 5th of March.
-
-One digit. Ten days' difference. But the entire dispute rested on the anniversary of that date triggering a rent review clause.
-
-I raised it immediately. She agreed it needed correcting.
-
-Then silence. For six months.
-
-It was only after I sent a chaser email that the correction was finally made.
-
-During those six months, I didn't feel confident taking my case to the housing ombudsman. The documentation from my own solicitor didn't accurately reflect the facts.
-
-One wrong date. Six months of delay. A client left in limbo.
-
-This isn't about blaming anyone. Solicitors are under enormous pressure. Huge caseloads. Not enough hours.
-
-But that's exactly the point.
-
-When the system relies on manual notes written from memory, errors are inevitable. The question is whether we accept that, or build something better.
-
-PS \u2014 How quickly can your documentation be corrected when a client flags an error?`
+    content: "It took six months to correct one line.\n\nOne line in an attendance note. One date. That\u2019s all.\n\nMy solicitor and I discussed the tenancy start date in our meeting. She understood it. I explained it clearly. We both knew it was the 15th of March.\n\nThe attendance note came back with the 5th of March.\n\nOne digit. Ten days\u2019 difference. But the entire dispute rested on the anniversary of that date triggering a rent review clause.\n\nI raised it immediately. She agreed it needed correcting.\n\nThen silence. For six months.\n\nIt was only after I sent a chaser email that the correction was finally made.\n\nDuring those six months, I didn\u2019t feel confident taking my case to the housing ombudsman. The documentation from my own solicitor didn\u2019t accurately reflect the facts.\n\nOne wrong date. Six months of delay. A client left in limbo.\n\nThis isn\u2019t about blaming anyone. Solicitors are under enormous pressure. Huge caseloads. Not enough hours.\n\nBut that\u2019s exactly the point.\n\nWhen the system relies on manual notes written from memory, errors are inevitable. The question is whether we accept that, or build something better.\n\nPS \u2014 How quickly can your documentation be corrected when a client flags an error?"
   },
   {
     num: 14, week: 4, phase: 2, day: "Wednesday",
     theme: "Missing keys documentation failure",
     voice: "Client", framework: "SLAY",
-    content: `The attendance note said one key and one fob.
-
-It didn't say I was supposed to receive two.
-
-This might seem like a small detail. It's not.
-
-My tenancy agreement stated that two keys and two fobs would be provided \u2014 one per person named on the tenancy. We only ever received one of each.
-
-That meant I was denied access to my own home for over 29 days from the very start.
-
-When the attendance note from my solicitor recorded what I'd received but not what I was contractually owed, it weakened my position. The documentation made it look like I'd gotten what was agreed, when in fact the contract had been breached from day one.
-
-That missing context \u2014 "supposed to be two, only received one" \u2014 is the difference between a documented breach of contract and a note that reads like everything was fine.
-
-Solicitors deal with dozens of matters simultaneously. Missing a detail like this isn't negligence. It's the natural consequence of writing notes from memory under pressure.
-
-But the client feels it. The client lives with the downstream consequences.
-
-LegalNote captures what's said in the meeting. All of it. So the record reflects the full picture, not just the parts that made it through someone's recollection.
-
-PS \u2014 How do you make sure context doesn't get lost between the meeting and the file?`
+    content: "The attendance note said one key and one fob.\n\nIt didn\u2019t say I was supposed to receive two.\n\nThis might seem like a small detail. It\u2019s not.\n\nMy tenancy agreement stated that two keys and two fobs would be provided \u2014 one per person named on the tenancy. We only ever received one of each.\n\nThat meant I was denied access to my own home for over 29 days from the very start.\n\nWhen the attendance note from my solicitor recorded what I\u2019d received but not what I was contractually owed, it weakened my position. The documentation made it look like I\u2019d gotten what was agreed, when in fact the contract had been breached from day one.\n\nThat missing context \u2014 \u201csupposed to be two, only received one\u201d \u2014 is the difference between a documented breach of contract and a note that reads like everything was fine.\n\nSolicitors deal with dozens of matters simultaneously. Missing a detail like this isn\u2019t negligence. It\u2019s the natural consequence of writing notes from memory under pressure.\n\nBut the client feels it. The client lives with the downstream consequences.\n\nLegalNote captures what\u2019s said in the meeting. All of it. So the record reflects the full picture, not just the parts that made it through someone\u2019s recollection.\n\nPS \u2014 How do you make sure context doesn\u2019t get lost between the meeting and the file?"
   },
   {
     num: 15, week: 4, phase: 2, day: "Thursday",
     theme: "The compliance gap nobody talks about",
     voice: "Professional", framework: "PAS",
-    content: `Law firms advise clients on compliance.
-
-Their own meeting records often wouldn't pass the same test.
-
-I've worked inside organisations where documentation is treated as evidence. Banks. Trading floors. Energy infrastructure with security clearance requirements.
-
-In those environments, if a record doesn't have a timestamp, a clear audit trail, and a verifiable chain of custody, it doesn't exist.
-
-Now look at how most boutique law firms document client meetings:
-
-1. Meeting happens
-2. Solicitor writes notes afterwards from memory
-3. Notes are typed up, sometimes days later
-4. No audio reference to verify accuracy
-5. No timestamp proving when the note was created
-6. Client receives a document they have to trust is accurate
-
-That's the standard workflow. And for the most part, it works fine. Until it doesn't.
-
-Until a client disputes what was discussed. Until a PI claim lands. Until the SRA asks for evidence of what advice was given and when.
-
-At that point, the attendance note is the only evidence. And if it was written from memory with no supporting record, it's one person's recollection against another's.
-
-LegalNote doesn't replace the solicitor's judgement. It gives their judgement a foundation of evidence.
-
-PS \u2014 What would you change about how client meetings are currently documented?`
+    content: "Law firms advise clients on compliance.\n\nTheir own meeting records often wouldn\u2019t pass the same test.\n\nI\u2019ve worked inside organisations where documentation is treated as evidence. Banks. Trading floors. Energy infrastructure with security clearance requirements.\n\nIn those environments, if a record doesn\u2019t have a timestamp, a clear audit trail, and a verifiable chain of custody, it doesn\u2019t exist.\n\nNow look at how most boutique law firms document client meetings:\n\n1. Meeting happens\n2. Solicitor writes notes afterwards from memory\n3. Notes are typed up, sometimes days later\n4. No audio reference to verify accuracy\n5. No timestamp proving when the note was created\n6. Client receives a document they have to trust is accurate\n\nThat\u2019s the standard workflow. And for the most part, it works fine. Until it doesn\u2019t.\n\nUntil a client disputes what was discussed. Until a PI claim lands. Until the SRA asks for evidence of what advice was given and when.\n\nAt that point, the attendance note is the only evidence. And if it was written from memory with no supporting record, it\u2019s one person\u2019s recollection against another\u2019s.\n\nLegalNote doesn\u2019t replace the solicitor\u2019s judgement. It gives their judgement a foundation of evidence.\n\nPS \u2014 What would you change about how client meetings are currently documented?"
   },
   {
     num: 16, week: 4, phase: 2, day: "Saturday",
     theme: "The \u00a35,000 lesson",
     voice: "Personal/Risk", framework: "SLAY",
-    content: `I lost \u00a35,000 in a Ponzi scheme.
-
-I invested on a recommendation from someone I trusted.
-
-It would have been easy to blame him. Most people would. Five thousand pounds gone. The business turned out to be illegitimate. He'd brought me in.
-
-But even then, before I understood risk management the way I do now, I recognised something important: the decision to invest was mine. He recommended it. I acted on it. The risk sat with me.
-
-I didn't burn the relationship. We took a break from working together directly. Time passed. Paths crossed again at the right moment. And that reconnection led to one of the most significant periods of growth in my life.
-
-If I'd reacted emotionally, if I'd blamed him and cut ties permanently, that entire chapter wouldn't have happened.
-
-Risk management isn't just a financial concept. It's a relationship concept. A business concept. A life concept.
-
-Know what you're risking. Accept the downside before you take the position. And never destroy a relationship over a single outcome.
-
-Nine years of trading taught me this formally. But I was already living it before I knew the terminology.
-
-PS \u2014 What's the most expensive lesson you've learned that you wouldn't trade back?`
+    content: "I lost \u00a35,000 in a Ponzi scheme.\n\nI invested on a recommendation from someone I trusted.\n\nIt would have been easy to blame him. Most people would. Five thousand pounds gone. The business turned out to be illegitimate. He\u2019d brought me in.\n\nBut even then, before I understood risk management the way I do now, I recognised something important: the decision to invest was mine. He recommended it. I acted on it. The risk sat with me.\n\nI didn\u2019t burn the relationship. We took a break from working together directly. Time passed. Paths crossed again at the right moment. And that reconnection led to one of the most significant periods of growth in my life.\n\nIf I\u2019d reacted emotionally, if I\u2019d blamed him and cut ties permanently, that entire chapter wouldn\u2019t have happened.\n\nRisk management isn\u2019t just a financial concept. It\u2019s a relationship concept. A business concept. A life concept.\n\nKnow what you\u2019re risking. Accept the downside before you take the position. And never destroy a relationship over a single outcome.\n\nNine years of trading taught me this formally. But I was already living it before I knew the terminology.\n\nPS \u2014 What\u2019s the most expensive lesson you\u2019ve learned that you wouldn\u2019t trade back?"
   },
   {
     num: 17, week: 5, phase: 3, day: "Monday",
     theme: "Building alone for the first time",
     voice: "Founder", framework: "SLAY",
-    content: `LegalNote is the first thing I've built completely alone.
-
-Every previous business had a partner, a co-founder, a team from day one.
-
-This time was different. The angle I was coming from was so specific \u2014 compliance-first legal documentation, built by someone who'd lived the problem from both sides \u2014 that I couldn't really explain it to anyone around me before I'd built it.
-
-I didn't even know it was possible to build an application without being a developer. The concept of using AI tools to bring something to life from zero technical knowledge wasn't something I could pitch to someone before proving it to myself.
-
-So I built in silence.
-
-Tiana, my partner, has been supportive through every venture. She's been in the background and the foreground. But this was the first time the people closest to me found out what I was doing through my LinkedIn posts.
-
-No launch announcement. No "excited to share." They just saw the content and realised I was building something real.
-
-That organic reveal was actually one of the most rewarding moments. People reaching out saying they were impressed without even fully understanding what it was.
-
-Sometimes you have to build the thing before you can explain the thing.
-
-PS \u2014 Have you ever built something that you couldn't explain until it existed?`
+    content: "LegalNote is the first thing I\u2019ve built completely alone.\n\nEvery previous business had a partner, a co-founder, a team from day one.\n\nThis time was different. The angle I was coming from was so specific \u2014 compliance-first legal documentation, built by someone who\u2019d lived the problem from both sides \u2014 that I couldn\u2019t really explain it to anyone around me before I\u2019d built it.\n\nI didn\u2019t even know it was possible to build an application without being a developer. The concept of using AI tools to bring something to life from zero technical knowledge wasn\u2019t something I could pitch to someone before proving it to myself.\n\nSo I built in silence.\n\nTiana, my partner, has been supportive through every venture. She\u2019s been in the background and the foreground. But this was the first time the people closest to me found out what I was doing through my LinkedIn posts.\n\nNo launch announcement. No \u201cexcited to share.\u201d They just saw the content and realised I was building something real.\n\nThat organic reveal was actually one of the most rewarding moments. People reaching out saying they were impressed without even fully understanding what it was.\n\nSometimes you have to build the thing before you can explain the thing.\n\nPS \u2014 Have you ever built something that you couldn\u2019t explain until it existed?"
   },
   {
     num: 18, week: 5, phase: 3, day: "Wednesday",
     theme: "Traction from content alone",
     voice: "Founder", framework: "SLAY",
-    content: `Two and a half weeks on LinkedIn.
-
-Ten connections to nearly two hundred. Zero paid promotion.
-
-When I started posting about LegalNote, I had maybe ten connections. People I'd worked with over the years but never really engaged with on the platform.
-
-I started sharing what I was building and why. Not pitches. Not sales posts. Just the truth of why this matters and what I've experienced.
-
-What's happened since:
-
-Meaningful conversations with founders of other legal tech companies who've reached out to compare notes. Solicitors asking for one-pagers. Compliance professionals wanting to exchange perspectives. A co-founder of a boutique law firm initiating a sit-down coffee meeting.
-
-None of this came from outbound. All of it came from content.
-
-The lesson isn't about LinkedIn tactics. It's about substance.
-
-When you're building something rooted in real experience and real problems, you don't need to sell. You need to share. The right people recognise it.
-
-I've performed on stages and in music videos in front of thousands. But LinkedIn is the first platform where I've felt comfortable sharing the truth of my reality.
-
-There's no performance here. Just the work.
-
-PS \u2014 What's driven more connections for you \u2014 outreach or content?`
+    content: "Two and a half weeks on LinkedIn.\n\nTen connections to nearly two hundred. Zero paid promotion.\n\nWhen I started posting about LegalNote, I had maybe ten connections. People I\u2019d worked with over the years but never really engaged with on the platform.\n\nI started sharing what I was building and why. Not pitches. Not sales posts. Just the truth of why this matters and what I\u2019ve experienced.\n\nWhat\u2019s happened since:\n\nMeaningful conversations with founders of other legal tech companies who\u2019ve reached out to compare notes. Solicitors asking for one-pagers. Compliance professionals wanting to exchange perspectives. A co-founder of a boutique law firm initiating a sit-down coffee meeting.\n\nNone of this came from ads or outreach. It came from telling the truth.\n\nLinkedIn is the first platform I\u2019ve ever used where being genuinely honest drives better results than being performative. The algorithm actually rewards substance here.\n\nI\u2019m not saying this to brag about numbers. I\u2019m saying it because if you\u2019re building something real and wondering whether to share your journey publicly: do it.\n\nThe people you need to reach are already here. They\u2019re waiting for content that\u2019s real, not polished.\n\nPS \u2014 What\u2019s one piece of authentic content that opened a door you didn\u2019t expect?"
   },
   {
     num: 19, week: 5, phase: 3, day: "Thursday",
-    theme: "Recording isn't the problem \u2014 consent is",
+    theme: "LegalNote BlackBox explained",
     voice: "Professional", framework: "PAS",
-    content: `Recording meetings isn't new.
-
-Doing it compliantly in legal practice is.
-
-Every solicitor I speak to has the same initial reaction: "We can't record client meetings."
-
-But when I ask why, the answer is rarely about law. It's about culture. Tradition. The way it's always been done.
-
-The reality is that recording a meeting with informed consent is entirely lawful. The question isn't whether you can. It's whether you're doing it properly.
-
-Properly means:
-
-1. Explicit, informed consent captured before recording begins
-2. Clear explanation of what the recording will be used for
-3. Client's right to withdraw consent at any point
-4. Data processed and stored in compliance with UK GDPR
-5. Retention policies that minimise data holding
-6. Audit trails that prove the above happened
-
-That's what most firms don't have. Not the recording itself. The infrastructure around it.
-
-LegalNote makes consent the starting point, not an afterthought. The verification is baked into the workflow. The audit trail is automatic. The data stays in the EU.
-
-Technology has made compliant recording possible in a way it wasn't five years ago. The culture just hasn't caught up yet.
-
-PS \u2014 What would change about your practice if you could compliantly record every client meeting?`
+    content: "Every flight has a black box.\n\nEvery client meeting should too.\n\nWhen something goes wrong on a plane, we don\u2019t rely on the pilot\u2019s memory. We don\u2019t ask the crew to write down what happened after the fact. We have a tamper-proof record of exactly what occurred.\n\nIn legal practice, when something goes wrong \u2014 a PI claim, an SRA complaint, a client dispute \u2014 what do we rely on?\n\nAn attendance note. Written from memory. Hours or days later.\n\nThat\u2019s the gap.\n\nLegalNote BlackBox is what we\u2019ve built to close it:\n\n- Consent captured before recording begins\n- Audio transcribed with speaker identification\n- AI-generated attendance note with timestamps\n- Cryptographic audit trail proving when each record was created\n- 7-day audio retention with automatic GDPR-compliant deletion\n\nEvery step logged. Every action timestamped. Every record tamper-evident.\n\nThis isn\u2019t about catching solicitors out. It\u2019s about protecting them.\n\nWhen the SRA asks what advice was given and when, the BlackBox has the answer. Not from memory. From evidence.\n\nPS \u2014 If a client disputed what was discussed last Tuesday, how would you prove your version?"
   },
   {
     num: 20, week: 5, phase: 3, day: "Saturday",
-    theme: "Grandfather's passing",
-    voice: "Personal/Father", framework: "SLAY",
-    content: `The night before I started a new chapter, my grandfather died.
-
-I was in London. My mum was in America. It was the early hours of the morning, eastern time.
-
-She called to say he probably wasn't going to make it. If I had any final words, now was the time.
-
-Tiana was there with me. I remember not wanting to go to the meeting I had scheduled for the next day. Not feeling capable of it. Not feeling like anything mattered enough in that moment.
-
-But after sitting with it, I went.
-
-What I didn't expect was that losing him would become tied to everything that came after. The discipline to learn trading. The hours of study. The refusal to give up when it got difficult.
-
-Because what I saw in the weeks after he passed was that my mum, his only child, couldn't even properly grieve. The immediate concern was financial. Paying for the mortuary. Sorting out the house. Managing costs that don't pause for mourning.
-
-That reality has driven me ever since.
-
-Not out of fear. Out of clarity.
-
-Financial independence isn't a luxury. It's the thing that determines whether you get to be present for the moments that matter or whether you're consumed by logistics when they arrive.
-
-That's what I'm building toward. Not just with LegalNote. With everything.
-
-PS \u2014 What moment gave you clarity about why you're building what you're building?`
+    theme: "The skills that look unrelated",
+    voice: "Personal", framework: "SLAY",
+    content: "Trading taught me how to build software.\n\nNot the code. The mindset.\n\nNine years of trading. Currencies, commodities, indices. Every single day, the market gives you a problem with incomplete information and asks you to make a decision.\n\nYou learn to manage risk before you manage reward. You learn that the quality of your process matters more than any individual outcome. You learn that emotions are the enemy of consistency.\n\nThat\u2019s exactly how building a product works.\n\nEvery feature decision is a position. Every launch is an exposure. Every pivot is a stop-loss.\n\nWhen I started building LegalNote, I didn\u2019t have coding experience. But I had nine years of sitting in front of screens making calculated decisions under uncertainty.\n\nThe people who do well in trading aren\u2019t the ones who predict the market. They\u2019re the ones who manage their risk so well that they survive long enough to find the winners.\n\nThe people who build successful products aren\u2019t the ones who have the best idea. They\u2019re the ones who execute consistently, manage their resources, and don\u2019t quit when the first version doesn\u2019t work.\n\nSame game. Different instrument.\n\nPS \u2014 What skill from a completely different field has made you better at your current work?"
   },
   {
     num: 21, week: 6, phase: 3, day: "Monday",
-    theme: "The solicitor couldn't tell I wasn't qualified",
-    voice: "Client/Credibility", framework: "SLAY",
-    content: `My solicitor couldn't tell I wasn't qualified.
-
-She genuinely asked if I was a solicitor. I'm not.
-
-When I brought my tenancy dispute to her, I'd already researched the relevant housing law. I'd identified the specific clauses in my tenancy agreement that had been breached. I'd assembled the evidence in a structured, chronological format.
-
-She reviewed everything and said that apart from one technical point about Section 13 notices \u2014 which she clarified didn't apply to contractual periodic tenancies \u2014 everything I'd presented was correct.
-
-I didn't learn this at law school. I learned it because I had to protect my family.
-
-When you're facing false rent arrears claims and possession threats with a one-year-old daughter at home, you find a way to understand what you need to understand.
-
-That's the skill-builder in me. The same approach that got me through the Royal College of Music practising flute two hours a day. The same approach that took me through corporate environments I was never supposed to be in.
-
-Everything is a skill. Given enough time, practice, and application, it can be learned.
-
-But here's the thing \u2014 clients shouldn't have to become their own lawyers to be protected.
-
-That's what proper documentation does. It protects people who don't have the time or ability to protect themselves.
-
-PS \u2014 When was the last time a client surprised you with how well they understood their own matter?`
+    theme: "What solicitors actually said",
+    voice: "Client/Professional", framework: "SLAY",
+    content: "A co-founder of a boutique law firm wants to meet for coffee.\n\nThat wasn\u2019t in the business plan.\n\nWhen I started posting about LegalNote, I expected some interest from legal tech people. Maybe a few compliance professionals nodding along.\n\nI didn\u2019t expect practising solicitors to reach out saying \u201cthis is exactly the problem we have.\u201d\n\nBut that\u2019s what\u2019s happening.\n\nKush Birdi from Birdi & Co connected and engaged. Meryl from Erbiller reached out. Mel Kang from Mezzle started a conversation. A boutique firm co-founder wants to sit down and talk about whether LegalNote could work for their practice.\n\nThese aren\u2019t people responding to a pitch. They\u2019re responding to a problem they recognise.\n\nThat\u2019s the difference between marketing and truth-telling.\n\nMarketing tries to convince people they have a problem. Truth-telling describes the problem so accurately that the right people say \u201cthat\u2019s me.\u201d\n\nI haven\u2019t spent a single pound on advertising. I\u2019ve just described what I experienced and what I\u2019m building to fix it.\n\nThe right people are finding it themselves.\n\nPS \u2014 When was the last time you connected with someone purely because they described a problem you recognised?"
   },
   {
     num: 22, week: 6, phase: 3, day: "Wednesday",
-    theme: "Risk management from trading",
-    voice: "Personal/Professional", framework: "SLAY",
-    content: `Nine years of trading taught me one thing above all.
-
-Manage the downside before you celebrate the upside.
-
-When I pivoted to trading in 2017, it wasn't a casual interest. It was a necessity. My uveitis had flared again \u2014 the condition that took my sight in one eye as a child. Suddenly the distribution business, which required driving and travelling to clients across the country, wasn't viable.
-
-I needed a skill that didn't depend on physical ability.
-
-Trading fit. But the learning curve was brutal.
-
-The thing that made me profitable wasn't chart patterns or indicators. It was risk management. Understanding that every position has a downside, and your job is to define that downside before you enter.
-
-I see the same principle in legal practice.
-
-Every client meeting carries risk. The risk that what was discussed isn't properly documented. The risk that consent wasn't captured. The risk that when a PI claim arrives, the evidence doesn't support your position.
-
-Most firms don't think about meetings as risk events. They should.
-
-LegalNote treats every meeting like a trade. Define the risk. Capture the evidence. Protect the downside.
-
-PS \u2014 How do you think about risk in your daily practice?`
+    theme: "Why I chose compliance over convenience",
+    voice: "Professional/Founder", framework: "PAS",
+    content: "Most legal tech pitches time saving.\n\nI chose compliance.\n\nHere\u2019s why.\n\nWhen you pitch time saving, you\u2019re competing with every other tool that promises to make lawyers faster. Dictation software. AI note-takers. Automated templates. It\u2019s a crowded space and the differentiator is usually price.\n\nWhen you pitch compliance, you\u2019re solving a different problem entirely.\n\nYou\u2019re not saying \u201cthis will save you 20 minutes per meeting.\u201d You\u2019re saying \u201cthis will protect you when the SRA asks for evidence of what advice you gave.\u201d\n\nOne is a nice-to-have. The other is a need-to-have.\n\nThe positioning was deliberate:\n\n1. LegalNote doesn\u2019t provide legal analysis \u2014 it documents the solicitor\u2019s own work\n2. This avoids SRA regulatory risk entirely \u2014 we\u2019re a documentation tool, not a legal advisor\n3. It avoids PI insurance liability \u2014 we\u2019re recording what was said, not advising on what should be said\n4. Compliance-first means the product justifies itself through risk reduction, not time metrics\n\nTime saving is a side effect. Protection is the product.\n\nPS \u2014 Would you rather save 20 minutes or prevent a PI claim?"
   },
   {
     num: 23, week: 6, phase: 3, day: "Thursday",
-    theme: "The Black Box approach",
+    theme: "7-day audio deletion explained",
     voice: "Professional", framework: "PAS",
-    content: `Planes have black boxes for a reason.
-
-Law firms should have them too.
-
-After a plane crash, investigators don't rely on the pilot's memory. They go to the flight recorder. It captured everything. Audio. Data. Timestamps. An objective, tamper-evident record of what actually happened.
-
-Now think about a PI claim against a solicitor.
-
-What happened in the client meeting? What advice was given? What was the client told about risks and next steps?
-
-The answer, in most boutique firms, is: whatever the attendance note says. Written from memory. Hours or days after the meeting. No audio. No timestamp proving when it was created. No way to verify what was actually said.
-
-That's the equivalent of investigating a plane crash by asking the pilot what they remember.
-
-LegalNote is the black box for legal practice.
-
-Triple-layer protection:
-1. Audio captured with consent, stored with EU data residency
-2. AI-generated transcript with speaker identification
-3. Cryptographic audit trail \u2014 every version, every access, tamper-evident
-
-When the claim arrives \u2014 and statistically, it will \u2014 the question isn't whether you documented the meeting.
-
-It's whether your documentation is evidence or recollection.
-
-PS \u2014 Would your current documentation hold up as evidence?`
+    content: "We delete every audio recording after 7 days.\n\nOn purpose.\n\nThat\u2019s usually the first thing people question. Why would you delete the recording? Isn\u2019t the audio the most valuable part?\n\nNo. The transcript is.\n\nHere\u2019s the thinking:\n\nUnder GDPR, audio recordings of client meetings are personal data. They contain voices, potentially sensitive legal discussions, names, case details. Storing them indefinitely creates a data liability.\n\nBut the transcript \u2014 with speaker identification, timestamps, and AI-generated summaries \u2014 captures everything the solicitor needs for their file.\n\nSo here\u2019s what LegalNote does:\n\n1. Audio is recorded with explicit consent\n2. Transcription happens immediately with speaker diarization\n3. AI generates the attendance note and summary\n4. The solicitor reviews and approves\n5. After 7 days, the audio is automatically deleted\n6. The transcript, documents, and audit trail remain\n\nThe solicitor keeps everything they need. The client\u2019s audio data doesn\u2019t sit on a server indefinitely.\n\nThis isn\u2019t a limitation. It\u2019s a feature.\n\nGDPR compliance isn\u2019t about checking boxes. It\u2019s about minimising data exposure while maximising documentation quality.\n\nPS \u2014 How long does your firm retain audio recordings? Do you have a policy?"
   },
   {
     num: 24, week: 6, phase: 3, day: "Saturday",
-    theme: "Building something she'll understand",
+    theme: "What my daughter will know about work",
     voice: "Father", framework: "SLAY",
-    content: `One day my daughter will ask what I was doing.
-
-All those mornings. All those late nights. All that time on the computer while she was learning to walk.
-
-She won't remember any of this specifically. She's too young. But the evidence will be there. The product. The company. The story of how it started.
-
-And when she's old enough to understand, I want the answer to be simple:
-
-I saw something broken. I had the experience to understand why. And I decided to fix it instead of waiting for someone else.
-
-Not because I was the most qualified person. Not because I had funding or a technical team or a plan that made sense to anyone else at the time.
-
-Because I understood the problem from both sides of the table \u2014 inside the firms building the systems, and outside as the client let down by the documentation.
-
-That combination is rare. And I didn't fully appreciate it until I started building.
-
-Every corporate role I thought was just a job. Every personal dispute I thought was just bad luck. Every skill I learned because I had to, not because I wanted to.
-
-All of it was preparation.
-
-She won't know that for years. But I'll make sure the story is documented properly.
-
-After all, that's kind of the whole point.
-
-PS \u2014 What do you want your children to understand about why you do what you do?`
+    content: "My daughter watches me work.\n\nShe doesn\u2019t understand what I\u2019m building yet. She\u2019s one. She sees a screen and hears me talking.\n\nBut one day she\u2019ll ask. And when she does, I want the answer to be simple:\n\nI built something that helped people tell the truth more easily.\n\nNot a product that replaced human judgement. Not an AI that did people\u2019s jobs for them. A tool that made sure what was said in important conversations was accurately recorded.\n\nThat\u2019s it.\n\nWhen I think about what I want her to learn from watching me work, it\u2019s not about startups or technology or revenue.\n\nIt\u2019s about this:\n\nYou can build something meaningful without waiting for permission. You can start before you feel ready. You can be honest about your journey and the right people will find you.\n\nTiana and I are building this life together. Different roles, same direction.\n\nI want my daughter to grow up knowing that her parents didn\u2019t just talk about the things they believed in. They built them.\n\nPS \u2014 What do you want your children to learn from watching you work?"
   },
   {
     num: 25, week: 7, phase: 4, day: "Monday",
-    theme: "Solicitors don't need another AI tool",
+    theme: "The PI claim that changes everything",
     voice: "Professional", framework: "PAS",
-    content: `Solicitors don't need another AI tool.
-
-They need infrastructure they can defend.
-
-The legal tech market is flooded with AI products. Summarisers. Drafters. Research assistants. Chat interfaces that promise to make everything faster.
-
-Faster isn't the point.
-
-When a PI claim arrives, nobody asks how quickly the attendance note was produced. They ask whether it's accurate. Whether it's contemporaneous. Whether there's an audit trail proving what was documented and when.
-
-Speed is a feature. Defensibility is a requirement.
-
-That distinction matters because the SRA doesn't audit your efficiency. They audit your compliance. Your documentation. Your evidence of what advice was given and how consent was obtained.
-
-LegalNote isn't built to make solicitors faster. It's built to make their documentation hold up when it matters most.
-
-Consent-first recording. EU-only data processing. Cryptographic audit trails. Seven-day audio retention with GDPR-compliant deletion.
-
-None of that is exciting. None of it makes a great demo.
-
-But when the claim lands on your desk, exciting isn't what you need.
-
-You need evidence.
-
-PS \u2014 If your documentation was challenged tomorrow, what would you point to?`
+    content: "A single PI claim costs more than a year of LegalNote.\n\nLet that sink in.\n\nProfessional indemnity insurance for solicitors is already expensive. The average boutique firm pays thousands per year. And every claim \u2014 even an unsuccessful one \u2014 increases the premium.\n\nNow consider what triggers most PI claims:\n\nA client says one thing was discussed. The solicitor says another. The attendance note is the only evidence. And if that note was written from memory, hours after the meeting, with no supporting record\u2026\n\nIt\u2019s one person\u2019s word against another\u2019s.\n\nLegalNote doesn\u2019t eliminate risk. Nothing does. But it creates a contemporaneous, timestamped, tamper-evident record of exactly what was discussed.\n\nThat\u2019s the difference between \u201cI believe I advised the client on X\u201d and \u201chere is the timestamped transcript showing the advice given at 14:23 on Tuesday.\u201d\n\nOne is a defence. The other is evidence.\n\nThe cost of not having this isn\u2019t theoretical. It\u2019s the next PI claim sitting in your practice, waiting for a documentation gap to trigger it.\n\nPS \u2014 What would change about your practice if every meeting had a verified transcript?"
   },
   {
     num: 26, week: 7, phase: 4, day: "Wednesday",
-    theme: "Path of least resistance isn't weakness",
-    voice: "Personal/Leadership", framework: "SLAY",
-    content: `Follow the path of least resistance.
-
-That doesn't mean avoid hard things.
-
-People hear "path of least resistance" and think it means taking shortcuts. Being passive. Avoiding difficulty.
-
-That's not what it means.
-
-It means if you can get from A to C by going A-B-C, why go A-B-C-D-E-F-G?
-
-It means standing up for your values and ethics absolutely. But not fighting battles that don't move you toward your goal.
-
-I spent years in corporate environments watching people expend enormous energy on internal politics. Positioning. Manoeuvring. Protecting territory.
-
-That energy could have built something. Instead it just maintained a position.
-
-When I left corporate, I didn't fight the culture. I didn't write a manifesto about what was wrong with it. I just stopped participating and started building.
-
-The same principle applies to how I built LegalNote. I didn't wait for investment. Didn't spend months on a business plan. Didn't try to convince anyone it would work before building it.
-
-I found the shortest path between the problem I understood and a solution I could build, and I took it.
-
-The path of least resistance isn't about avoiding difficulty. It's about not creating unnecessary difficulty for yourself.
-
-PS \u2014 Where are you creating friction that doesn't need to exist?`
+    theme: "Building in public changes everything",
+    voice: "Founder/Personal", framework: "SLAY",
+    content: "I used to build in silence.\n\nNow I build in public. The difference is everything.\n\nEvery previous venture \u2014 the distribution business, the trading \u2014 I kept it close. Only told people once there was something to show. Controlled the narrative. Managed expectations.\n\nWith LegalNote, I tried something different. I started sharing before it was ready. Before I had users. Before the product was polished.\n\nJust the story. The problem. The progress.\n\nWhat happened:\n\n- People started connecting who I\u2019d never have found through traditional networking\n- Solicitors reached out because the problem resonated, not because I pitched them\n- Other founders shared insights that saved me weeks of research\n- My own thinking got sharper because I had to articulate it clearly\n\nBuilding in public isn\u2019t about showing off. It\u2019s about accountability.\n\nWhen you tell people what you\u2019re building, you create a reason to keep going on the days when progress feels invisible.\n\nLinkedIn became my accountability partner before it became my distribution channel.\n\nPS \u2014 What are you building that you haven\u2019t told anyone about yet?"
   },
   {
     num: 27, week: 7, phase: 4, day: "Thursday",
-    theme: "UK attendance notes are globally unique",
-    voice: "Professional", framework: "SLAY",
-    content: `The UK is the only jurisdiction I know of where attendance notes are essentially mandatory.
-
-That makes this problem uniquely British. And uniquely solvable.
-
-After every client meeting, UK solicitors are expected to produce a written record of what was discussed, what advice was given, and what was agreed. The SRA expects it. PI insurers rely on it. The courts reference it.
-
-In other jurisdictions, the standards are different. The requirements are looser. The documentation culture varies.
-
-But in the UK, the attendance note is the backbone of professional accountability for solicitors.
-
-And yet \u2014 the process for creating that note hasn't fundamentally changed in decades.
-
-Meeting happens. Solicitor writes it up afterwards. Client receives it days later. No audio reference. No contemporaneous capture. No audit trail.
-
-For something so important to professional practice, the tooling is remarkably basic.
-
-That's not a criticism. It's an opportunity.
-
-LegalNote is built specifically for this requirement. Not adapted from a general meeting tool. Not a US product modified for UK compliance.
-
-Built for the attendance note. Built for UK solicitors. Built for the standard they're already held to.
-
-PS \u2014 Do you think the process of creating attendance notes has kept up with the rest of legal practice?`
+    theme: "What the SRA actually expects",
+    voice: "Professional", framework: "PAS",
+    content: "The SRA doesn\u2019t require you to record meetings.\n\nBut they do require you to keep adequate records.\n\nThat\u2019s the nuance most firms miss.\n\nPrinciple 7 of the SRA Standards and Regulations: act in the best interests of each client. That includes maintaining proper records of advice given.\n\nParagraph 6.1 of the Code of Conduct for Solicitors: you must keep adequate records.\n\nThe question is: what counts as adequate?\n\nIf a client disputes the advice they received, and your only record is an attendance note written from memory three hours later, is that adequate?\n\nIf the SRA investigates, and you can\u2019t demonstrate when the note was created or whether it was modified after the fact, is that adequate?\n\nIf a PI claim hinges on what was discussed in a specific meeting, and you have no audio, no transcript, no timestamp \u2014 just a typed summary \u2014 is that adequate?\n\nLegalNote doesn\u2019t tell firms what the SRA requires. We\u2019re not regulators and we\u2019re not legal advisors.\n\nBut we do give firms the tools to create documentation that would satisfy any reasonable definition of \u201cadequate.\u201d\n\nContemporaneous. Timestamped. Verified. Tamper-evident.\n\nPS \u2014 How confident are you that your current records meet the SRA\u2019s definition of adequate?"
   },
   {
     num: 28, week: 7, phase: 4, day: "Saturday",
-    theme: "From Code Red to compliance",
-    voice: "Two Worlds", framework: "SLAY",
-    content: `From Code Red to compliance infrastructure.
-
-If you'd told me at twenty, I wouldn't have believed you.
-
-Code Red was a pop group. Music videos with millions of views. Performances on stages. A world that's rough around the edges, creative, fast, unstructured.
-
-Then I walked into Clifford Chance. Coutts. National Grid's LNG terminal with security clearance requirements.
-
-Polished. Structured. Every word measured.
-
-Every time I've moved between worlds, I've had to recalibrate. The estate to the Royal College of Music. Music to corporate. Corporate to entrepreneurship.
-
-Each transition felt like learning a new language while everyone around you was fluent.
-
-But here's what I've realised: every world taught me something specific that I needed for the next one.
-
-Music taught me performance under pressure. Corporate taught me systems, compliance, and documentation. Entrepreneurship taught me that nobody is coming to build it for you.
-
-LegalNote sits at the intersection of all of them. The creative thinking to see the gap. The compliance knowledge to build it properly. The performer's confidence to put it in front of people who could say no.
-
-If I'd stayed in any one of those worlds, I wouldn't have the perspective to build what I'm building now.
-
-The unusual path wasn't a detour. It was the preparation.
-
-PS \u2014 What's the most unlikely combination of experiences that shaped what you do now?`
+    theme: "Grandfather's legacy and financial independence",
+    voice: "Personal", framework: "SLAY",
+    content: "My grandfather passed in 2017.\n\nThat changed my relationship with money forever.\n\nHe was from a generation that understood something my generation is still learning: financial independence isn\u2019t about being rich. It\u2019s about not being dependent.\n\nWatching what happened after he passed \u2014 the way money complicated relationships that should have been simple, the way financial dependence created power dynamics within the family \u2014 I made a decision.\n\nI would never be financially dependent on anyone or anything I didn\u2019t control.\n\nThat\u2019s what drove me into trading. Nine years of learning how markets work, how risk compounds, how discipline beats inspiration every single time.\n\nAnd it\u2019s what drives LegalNote.\n\nI\u2019m not building this to get acquired. I\u2019m not building it to flip. I\u2019m building it to create something that generates value independently, sustainably, and on my own terms.\n\nEvery decision I make \u2014 from pricing to positioning to which investors to talk to \u2014 runs through that filter.\n\nWill this increase my independence or decrease it?\n\nIf it decreases it, I don\u2019t do it. No matter how attractive the short-term gain.\n\nPS \u2014 What does financial independence actually look like for you?"
   },
   {
     num: 29, week: 8, phase: 4, day: "Monday",
-    theme: "LegalNote should be as normal as Word",
-    voice: "Vision", framework: "SLAY",
-    content: `In five years, I want LegalNote to be boring.
-
-Not exciting. Not innovative. Just normal.
-
-The way Word is normal. The way Google is normal. The way you open your laptop and certain tools are just there because of course they are.
-
-That's what I want for the attendance note.
-
-Every solicitor opens LegalNote before a client meeting the same way they open their email in the morning. It's not a decision. It's not a feature they're evaluating. It's just how meetings are documented now.
-
-Compliance-first. Consent captured. Audit trail automatic. Record accurate.
-
-Not because it's revolutionary. Because it's obvious.
-
-The best tools don't feel like tools. They feel like the way things should have always worked.
-
-Right now, legal documentation is in the same place email was in the 1990s. Everyone knows the old way is inefficient. Everyone knows something better exists. But the transition hasn't happened yet at scale.
-
-I want LegalNote to be on the other side of that transition. Not the product that disrupted legal documentation. The product that made everyone forget there was ever another way.
-
-PS \u2014 What tool do you use daily that you can't imagine working without?`
+    theme: "LegalNote's five-year vision",
+    voice: "Founder/Vision", framework: "SLAY",
+    content: "In five years, LegalNote will be as standard as Word.\n\nThat\u2019s not a pitch. That\u2019s the plan.\n\nRight now, every boutique law firm in the UK uses Word or Google Docs to write attendance notes. It\u2019s the default. Nobody questions it.\n\nBut Word doesn\u2019t timestamp when the note was created. It doesn\u2019t verify the content against a recording. It doesn\u2019t create a tamper-evident audit trail. It doesn\u2019t generate the note from a transcription of what was actually said.\n\nIn five years, I believe firms will look at manually written attendance notes the same way we now look at handwritten accounting ledgers. Not wrong. Just outdated.\n\nThe roadmap:\n\nYear 1-2: Establish LegalNote as the compliance-first documentation tool for UK boutique firms.\nYear 3: Expand into larger practices and begin B2B partnerships with compliance consultancies.\nYear 4-5: Launch B2C \u2014 where clients actively seek out solicitors who use verified documentation tools.\n\nThat last step is the real vision. A world where \u201cthis firm uses LegalNote\u201d becomes a trust signal. Like \u201cthis restaurant has a 5-star hygiene rating.\u201d\n\nThe client doesn\u2019t need to understand the technology. They just need to know their conversation was properly documented.\n\nPS \u2014 What tool do you use today that will seem outdated in five years?"
   },
   {
     num: 30, week: 8, phase: 4, day: "Wednesday",
-    theme: "Building platforms for others to succeed",
-    voice: "Leadership", framework: "SLAY",
-    content: `The best thing I ever did in business wasn't closing a deal.
-
-It was building a platform for someone else to succeed.
-
-In my distribution business, I recruited someone who had never sold anything before. No experience. No track record. Just something I recognised in them that they hadn't fully seen in themselves yet.
-
-I didn't compete with her. I trained her. Supported her genuinely. Created the conditions for her to develop at her own pace.
-
-She went on to become the top seller in the entire UK network.
-
-That taught me something about leadership that I carry into everything now. A book I read once put it simply:
-
-Become the leader who either attracts other leaders at the same level, or develops individuals into leaders. Both result in everyone having a successful outcome.
-
-With LegalNote, I want to apply the same principle.
-
-Not just a tool that solicitors use. A platform that elevates their practice. A community where early adopters feel like they helped build something that changed their industry.
-
-I don't want customers. I want people who look back in five years and say "I was part of that from the beginning."
-
-PS \u2014 What's the biggest impact you've had on someone else's career?`
+    theme: "LinkedIn authenticity breakthrough",
+    voice: "Personal/Founder", framework: "SLAY",
+    content: "LinkedIn is the first platform where truth outperforms performance.\n\nI\u2019ve tried social media before. Instagram. Twitter. The usual.\n\nEvery other platform rewards a version of you that isn\u2019t really you. Curated photos. Hot takes designed for engagement. Content optimised for virality over substance.\n\nLinkedIn is different.\n\nThe posts that have performed best for me aren\u2019t the ones where I tried to be clever. They\u2019re the ones where I told the truth about something uncomfortable.\n\nThe attendance note with the wrong date. The earring incident at Clifford Chance. The \u00a35,000 Ponzi loss. Building alone for the first time.\n\nEvery time I\u2019ve been genuinely honest, the response has been stronger than when I\u2019ve tried to be strategic.\n\nThis matters because it changes the incentive structure.\n\nOn most platforms, the incentive is to perform. On LinkedIn, the incentive is to be real. And for someone building a compliance tool \u2014 a tool literally built on the principle that what\u2019s documented should match what happened \u2014 that alignment is everything.\n\nI\u2019m building a product about truth. On a platform that rewards truth.\n\nThat\u2019s not an accident. That\u2019s strategy.\n\nPS \u2014 What\u2019s the most honest thing you\u2019ve shared on LinkedIn? Did it perform better than you expected?"
   },
   {
     num: 31, week: 8, phase: 4, day: "Thursday",
-    theme: "Your clients want documentation too",
+    theme: "When clients choose solicitors by documentation",
     voice: "Professional/Vision", framework: "PAS",
-    content: `Your clients want a record of the meeting too.
-
-They're just not telling you.
-
-When I went to see my solicitor about my tenancy dispute, the first thing I asked was whether I could record the meeting. Not because I didn't trust her. Because I needed to take the information back to my partner who couldn't attend.
-
-She said no. Fair enough. Cultural reasons. Professional norms. I understand that now.
-
-But I still needed an accurate record of what was discussed. And when the attendance note arrived with errors, I had no reference point to verify against.
-
-I'm not unique in this. Every client who walks out of a solicitor's office faces the same reality. The meeting is over. The details are already fading. And they're relying entirely on someone else's written record of what they were told.
-
-That's not a criticism of solicitors. That's a gap in the system.
-
-LegalNote doesn't just serve the solicitor. It creates a record that serves the client too. Accurate. Verifiable. Built from what was actually said, not what someone remembers writing down afterwards.
-
-Eventually, I believe clients will actively seek out solicitors who use tools like this. The same way you'd choose a financial adviser who records your risk assessment over one who writes it from memory.
-
-The client side of this is coming. The question is whether you're ahead of it or reacting to it.
-
-PS \u2014 How would your client relationships change if they had access to verified meeting records?`
+    content: "Imagine choosing your solicitor based on documentation quality.\n\nNot reputation. Not referrals. Not the office.\n\nDocumentation quality.\n\nIt sounds unusual now. But think about how other industries have evolved:\n\nYou choose a restaurant partly based on its hygiene rating. You choose a hotel partly based on verified reviews. You choose a financial advisor partly based on their regulatory record.\n\nIn every case, transparency created a competitive advantage for the providers who were already doing things properly.\n\nThat\u2019s where legal is heading.\n\nWhen clients can see that a firm uses verified, timestamped, tamper-evident documentation \u2014 when they know their meeting will be recorded with consent and the attendance note will accurately reflect what was discussed \u2014 that becomes a differentiator.\n\nThe firms already doing excellent work have nothing to worry about. In fact, they have everything to gain. Because for the first time, their quality becomes visible to the client before engagement.\n\nLegalNote\u2019s long-term vision isn\u2019t just B2B. It\u2019s B2C.\n\nClients choosing solicitors who use LegalNote. Because verified documentation means verified trust.\n\nPS \u2014 Would you choose a solicitor differently if you could see how they documented your meetings?"
   },
   {
     num: 32, week: 8, phase: 4, day: "Saturday",
-    theme: "LinkedIn is the first place I've been fully myself",
-    voice: "Personal", framework: "SLAY",
-    content: `I've performed on stages in front of thousands.
-
-LinkedIn is where I've been most honest.
-
-Music videos. Concerts. Corporate boardrooms. High-pressure presentations to VPs and chairmen.
-
-Every one of those required a version of me. The performer. The professional. The corporate operator.
-
-None of them required the truth.
-
-LinkedIn is the first platform where being truthful \u2014 genuinely giving more of myself, not a curated highlight reel \u2014 has actually been rewarded.
-
-In two and a half weeks of sharing the real story behind LegalNote, I've gone from ten connections to nearly two hundred. Meaningful inbound from legal tech founders, solicitors, compliance professionals. A sit-down coffee meeting initiated by the co-founder of a boutique law firm.
-
-None of it came from being polished. It came from being honest.
-
-About losing my sight at seven. About the diamond earring at Clifford Chance. About the attendance note that was wrong. About building something alone for the first time. About the grandfather whose passing still drives me.
-
-I didn't plan to be vulnerable on the internet. I planned to market a product.
-
-But it turns out the product and the person are inseparable. The story is the credibility. The experience is the proof.
-
-If you're building something real, the most powerful thing you can do is tell the truth about why.
-
-PS \u2014 Where have you been most honest about your journey?`
+    theme: "The real reason I'm building this",
+    voice: "Personal/All Voices", framework: "SLAY",
+    content: "This isn\u2019t about technology.\n\nIt never was.\n\nWhen I sat across from my solicitor and she wrote down the wrong date, I didn\u2019t think \u201csomeone should build an app.\u201d I thought \u201chow is this still happening?\u201d\n\nWhen my landlord accused me of owing money I\u2019d already paid, I didn\u2019t think about AI transcription. I thought \u201cthank God I kept the records.\u201d\n\nWhen they threatened possession proceedings while my daughter was a baby, I didn\u2019t think about startup funding. I thought \u201cdocumentation is the only thing standing between my family and an unjust outcome.\u201d\n\nLegalNote exists because I lived the consequences of poor documentation. Not theoretically. Personally.\n\nEvery feature in the product traces back to a real experience:\n\n- Consent recording exists because my solicitor refused to let me record\n- Timestamped audit trails exist because \u201cI wrote it that day\u201d isn\u2019t evidence\n- 7-day audio deletion exists because GDPR compliance shouldn\u2019t be an afterthought\n- AI attendance notes exist because a wrong date cost me six months\n\nI\u2019m not building this because the market analysis looks good.\n\nI\u2019m building this because I know what happens when documentation fails.\n\nAnd I\u2019m making sure it doesn\u2019t happen to anyone else.\n\nIf you\u2019re building something real, the most powerful thing you can do is tell the truth about why.\n\nPS \u2014 Where have you been most honest about your journey?"
   }
 ];
 
-let currentPhase = 'all';
-let currentWeek = 'all';
+var perfData = {};
+var currentPhase = 'all';
+var currentWeek = 'all';
 
-function showPhase(phase, btn) {
-  currentPhase = phase;
-  currentWeek = 'all';
-  document.querySelectorAll('.phase-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  updateWeekTabs();
-  renderPosts();
+var phaseNames = {
+  1: 'Phase 1: Origin & Credibility',
+  2: 'Phase 2: Problem & Pain',
+  3: 'Phase 3: Vision & Proof',
+  4: 'Phase 4: Authority & Community'
+};
+var phaseDescs = {
+  1: 'Establish who you are. The background nobody expects.',
+  2: 'Make solicitors feel seen. Build urgency around compliance gaps.',
+  3: 'Show traction. Build in public with substance.',
+  4: 'Lead the conversation. Cast the vision.'
+};
+
+function loadPerfData() {
+  fetch('/api/linkedin-performance')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (Array.isArray(data)) {
+        data.forEach(function(d) { perfData[d.postNumber] = d; });
+        renderPosts();
+      }
+    })
+    .catch(function() {});
 }
 
-function showWeek(week, btn) {
-  currentWeek = week;
-  document.querySelectorAll('.week-tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderPosts();
-}
-
-function updateWeekTabs() {
-  const container = document.getElementById('weekTabs');
-  let weeks = [1,2,3,4,5,6,7,8];
-  if (currentPhase !== 'all') {
-    const phaseWeeks = {1:[1,2], 2:[3,4], 3:[5,6], 4:[7,8]};
-    weeks = phaseWeeks[currentPhase];
-  }
-  let html = `<button class="week-tab active" onclick="showWeek('all', this)">All Weeks</button>`;
-  weeks.forEach(w => {
-    html += `<button class="week-tab" onclick="showWeek(${w}, this)">Week ${w}</button>`;
-  });
-  container.innerHTML = html;
-}
-
-function renderPosts() {
-  const container = document.getElementById('postsContainer');
-  let filtered = posts;
-  if (currentPhase !== 'all') {
-    filtered = filtered.filter(p => p.phase === currentPhase);
-  }
-  if (currentWeek !== 'all') {
-    filtered = filtered.filter(p => p.week === currentWeek);
-  }
-
-  if (filtered.length === 0) {
-    container.innerHTML = '<p style="text-align:center;color:#64748b;padding:40px;">No posts found for this selection.</p>';
-    return;
-  }
-
-  let lastWeek = null;
-  let lastPhase = null;
-  let html = '';
-
-  const phaseNames = {
-    1: 'Phase 1: Origin & Credibility',
-    2: 'Phase 2: Problem & Pain',
-    3: 'Phase 3: Vision & Proof',
-    4: 'Phase 4: Authority & Community'
-  };
-  const phaseDescs = {
-    1: 'Establish who you are. The background nobody expects.',
-    2: 'Make solicitors feel seen. Build urgency around compliance gaps.',
-    3: 'Show traction. Build in public with substance.',
-    4: 'Lead the conversation. Cast the vision.'
-  };
-
-  filtered.forEach(post => {
-    if (currentPhase === 'all' && post.phase !== lastPhase) {
-      html += `<div class="phase-header"><h2>${phaseNames[post.phase]}</h2><p>${phaseDescs[post.phase]}</p></div>`;
-      lastPhase = post.phase;
-    }
-    if (post.week !== lastWeek) {
-      html += `<div style="padding:12px 0 4px;"><span style="font-size:13px;font-weight:600;color:#64748b;">WEEK ${post.week}</span></div>`;
-      lastWeek = post.week;
-    }
-
-    html += `
-      <div class="post-card" id="post-${post.num}">
-        <div class="post-meta">
-          <span class="post-number">#${post.num}</span>
-          <span class="post-day">${post.day}</span>
-          <span class="post-voice">${post.voice}</span>
-          <span class="post-framework">${post.framework}</span>
-        </div>
-        <div class="post-theme">${post.theme}</div>
-        <div class="post-content" id="content-${post.num}">${escapeHtml(post.content)}</div>
-        <div class="post-actions">
-          <button class="expand-btn" onclick="toggleExpand(${post.num})" id="expand-${post.num}">Read full post</button>
-          <button class="action-btn" onclick="copyPost(${post.num})" id="copy-${post.num}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            Copy
-          </button>
-        </div>
-      </div>
-    `;
-  });
-
-  container.innerHTML = html;
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 2000);
 }
 
 function escapeHtml(text) {
-  const div = document.createElement('div');
+  var div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
 }
 
-function toggleExpand(num) {
-  const content = document.getElementById(`content-${num}`);
-  const btn = document.getElementById(`expand-${num}`);
-  content.classList.toggle('expanded');
-  btn.textContent = content.classList.contains('expanded') ? 'Show less' : 'Read full post';
+function updateWeekNav() {
+  var nav = document.getElementById('weekNav');
+  var allWeeks = [1,2,3,4,5,6,7,8];
+  var phaseWeeks = {1:[1,2], 2:[3,4], 3:[5,6], 4:[7,8]};
+  var weeks = currentPhase === 'all' ? allWeeks : phaseWeeks[currentPhase];
+
+  var html = '<button class="active" data-week="all">All Weeks</button>';
+  weeks.forEach(function(w) {
+    html += '<button data-week="' + w + '">Week ' + w + '</button>';
+  });
+  nav.innerHTML = html;
+}
+
+function renderPosts() {
+  var container = document.getElementById('postsContainer');
+  var filtered = posts.filter(function(p) {
+    if (currentPhase !== 'all' && p.phase !== parseInt(currentPhase)) return false;
+    if (currentWeek !== 'all' && p.week !== parseInt(currentWeek)) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<p style="text-align:center;color:#64748b;padding:40px;">No posts found.</p>';
+    return;
+  }
+
+  var lastWeek = null;
+  var lastPhase = null;
+  var html = '';
+
+  filtered.forEach(function(post) {
+    if (currentPhase === 'all' && post.phase !== lastPhase) {
+      html += '<div class="phase-hdr"><h2>' + phaseNames[post.phase] + '</h2><p>' + phaseDescs[post.phase] + '</p></div>';
+      lastPhase = post.phase;
+    }
+    if (post.week !== lastWeek) {
+      html += '<div class="week-hdr">WEEK ' + post.week + '</div>';
+      lastWeek = post.week;
+    }
+
+    var pd = perfData[post.num];
+    var hasData = pd && pd.postedAt;
+    var perfBadge = hasData ? '<span class="perf-badge has-data">Tracked</span>' : '<span class="perf-badge">Not posted</span>';
+
+    html += '<div class="card" id="post-' + post.num + '">';
+    html += '<div class="meta">';
+    html += '<span class="tag tag-num">#' + post.num + '</span>';
+    html += '<span class="tag tag-day">' + post.day + '</span>';
+    html += '<span class="tag tag-voice">' + post.voice + '</span>';
+    html += '<span class="tag tag-fw">' + post.framework + '</span>';
+    html += perfBadge;
+    html += '</div>';
+    html += '<div class="theme">' + escapeHtml(post.theme) + '</div>';
+    html += '<div class="content" id="content-' + post.num + '">' + escapeHtml(post.content) + '</div>';
+    html += '<div class="actions">';
+    html += '<button class="btn btn-expand" data-action="expand" data-num="' + post.num + '">Read full post</button>';
+    html += '<button class="btn" data-action="copy" data-num="' + post.num + '">Copy</button>';
+    html += '<button class="btn btn-track" data-action="track" data-num="' + post.num + '">Track Performance</button>';
+    html += '</div>';
+
+    html += '<div class="perf" id="perf-' + post.num + '">';
+    html += '<h4>Performance Tracking - Post #' + post.num + '</h4>';
+    html += '<div class="perf-row"><label>Date & Time Posted</label>';
+    html += '<input type="datetime-local" data-field="postedAt" data-num="' + post.num + '" value="' + (pd && pd.postedAt ? new Date(pd.postedAt).toISOString().slice(0,16) : '') + '"></div>';
+
+    html += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">24-HOUR SNAPSHOT</p>';
+    html += '<div class="perf-grid">';
+    html += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions24h" data-num="' + post.num + '" value="' + (pd ? pd.impressions24h || '' : '') + '" placeholder="0"></div>';
+    html += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions24h" data-num="' + post.num + '" value="' + (pd ? pd.interactions24h || '' : '') + '" placeholder="0"></div>';
+    html += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments24h" data-num="' + post.num + '" value="' + (pd ? pd.comments24h || '' : '') + '" placeholder="0"></div>';
+    html += '</div>';
+
+    html += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">3-DAY SNAPSHOT</p>';
+    html += '<div class="perf-grid">';
+    html += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions3d" data-num="' + post.num + '" value="' + (pd ? pd.impressions3d || '' : '') + '" placeholder="0"></div>';
+    html += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions3d" data-num="' + post.num + '" value="' + (pd ? pd.interactions3d || '' : '') + '" placeholder="0"></div>';
+    html += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments3d" data-num="' + post.num + '" value="' + (pd ? pd.comments3d || '' : '') + '" placeholder="0"></div>';
+    html += '</div>';
+
+    html += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">7-DAY SNAPSHOT</p>';
+    html += '<div class="perf-grid">';
+    html += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions7d" data-num="' + post.num + '" value="' + (pd ? pd.impressions7d || '' : '') + '" placeholder="0"></div>';
+    html += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions7d" data-num="' + post.num + '" value="' + (pd ? pd.interactions7d || '' : '') + '" placeholder="0"></div>';
+    html += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments7d" data-num="' + post.num + '" value="' + (pd ? pd.comments7d || '' : '') + '" placeholder="0"></div>';
+    html += '</div>';
+
+    html += '<div class="perf-row"><label>Notes</label>';
+    html += '<input type="text" data-field="notes" data-num="' + post.num + '" value="' + escapeHtml(pd && pd.notes ? pd.notes : '') + '" placeholder="What worked? What didn\'t?"></div>';
+
+    html += '<button class="perf-save" data-action="save" data-num="' + post.num + '">Save Performance Data</button>';
+    html += '</div>';
+
+    html += '</div>';
+  });
+
+  container.innerHTML = html;
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text).then(function() { return true; }).catch(function() { return fallbackCopy(text); });
+  }
+  return Promise.resolve(fallbackCopy(text));
 }
 
 function fallbackCopy(text) {
-  const ta = document.createElement('textarea');
+  var ta = document.createElement('textarea');
   ta.value = text;
   ta.style.position = 'fixed';
   ta.style.left = '-9999px';
   ta.style.top = '-9999px';
+  ta.style.opacity = '0';
   document.body.appendChild(ta);
   ta.focus();
   ta.select();
-  try {
-    document.execCommand('copy');
-    return true;
-  } catch (e) {
-    return false;
-  } finally {
-    document.body.removeChild(ta);
-  }
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+  return ok;
 }
 
-function copyPost(num) {
-  const post = posts.find(p => p.num === num);
-  const onSuccess = () => {
-    const btn = document.getElementById(`copy-${num}`);
-    btn.classList.add('copied');
-    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Copied`;
-    setTimeout(() => {
-      btn.classList.remove('copied');
-      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy`;
+function savePerformance(num) {
+  var panel = document.getElementById('perf-' + num);
+  var inputs = panel.querySelectorAll('input');
+  var data = { postNumber: num };
+
+  inputs.forEach(function(inp) {
+    var field = inp.getAttribute('data-field');
+    if (field === 'postedAt') {
+      data[field] = inp.value ? new Date(inp.value).toISOString() : null;
+    } else if (field === 'notes') {
+      data[field] = inp.value || null;
+    } else {
+      data[field] = inp.value ? parseInt(inp.value) : null;
+    }
+  });
+
+  var saveBtn = panel.querySelector('.perf-save');
+  saveBtn.textContent = 'Saving...';
+
+  fetch('/api/linkedin-performance', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    perfData[num] = d;
+    saveBtn.textContent = 'Saved!';
+    saveBtn.classList.add('perf-saved');
+    showToast('Performance data saved for Post #' + num);
+    setTimeout(function() {
+      saveBtn.textContent = 'Save Performance Data';
+      saveBtn.classList.remove('perf-saved');
     }, 2000);
-  };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(post.content).then(onSuccess).catch(() => {
-      if (fallbackCopy(post.content)) onSuccess();
-    });
-  } else {
-    if (fallbackCopy(post.content)) onSuccess();
-  }
+  })
+  .catch(function() {
+    saveBtn.textContent = 'Error - Try Again';
+    setTimeout(function() { saveBtn.textContent = 'Save Performance Data'; }, 2000);
+  });
 }
 
+document.getElementById('phaseNav').addEventListener('click', function(e) {
+  var btn = e.target.closest('button');
+  if (!btn) return;
+  currentPhase = btn.getAttribute('data-phase');
+  currentWeek = 'all';
+  this.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  updateWeekNav();
+  renderPosts();
+});
+
+document.getElementById('weekNav').addEventListener('click', function(e) {
+  var btn = e.target.closest('button');
+  if (!btn) return;
+  currentWeek = btn.getAttribute('data-week');
+  this.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  renderPosts();
+});
+
+document.getElementById('postsContainer').addEventListener('click', function(e) {
+  var btn = e.target.closest('button');
+  if (!btn) return;
+
+  var action = btn.getAttribute('data-action');
+  var num = parseInt(btn.getAttribute('data-num'));
+
+  if (action === 'expand') {
+    var content = document.getElementById('content-' + num);
+    if (content.classList.contains('open')) {
+      content.classList.remove('open');
+      btn.textContent = 'Read full post';
+    } else {
+      content.classList.add('open');
+      btn.textContent = 'Show less';
+    }
+  }
+
+  if (action === 'copy') {
+    var post = posts.find(function(p) { return p.num === num; });
+    copyToClipboard(post.content).then(function() {
+      btn.textContent = 'Copied!';
+      showToast('Post #' + num + ' copied to clipboard');
+      setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+    });
+  }
+
+  if (action === 'track') {
+    var panel = document.getElementById('perf-' + num);
+    if (panel.classList.contains('open')) {
+      panel.classList.remove('open');
+    } else {
+      panel.classList.add('open');
+    }
+  }
+
+  if (action === 'save') {
+    savePerformance(num);
+  }
+});
+
+loadPerfData();
 renderPosts();
 </script>
 

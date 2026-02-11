@@ -1007,3 +1007,29 @@ export const insertWaitlistSchema = createInsertSchema(waitlist).omit({
 
 export type InsertWaitlist = z.infer<typeof insertWaitlistSchema>;
 export type Waitlist = typeof waitlist.$inferSelect;
+
+// LinkedIn Post Performance Tracking
+export const linkedinPostPerformance = pgTable("linkedin_post_performance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postNumber: integer("post_number").notNull(),
+  postedAt: timestamp("posted_at"),
+  impressions24h: integer("impressions_24h"),
+  interactions24h: integer("interactions_24h"),
+  comments24h: integer("comments_24h"),
+  impressions3d: integer("impressions_3d"),
+  interactions3d: integer("interactions_3d"),
+  comments3d: integer("comments_3d"),
+  impressions7d: integer("impressions_7d"),
+  interactions7d: integer("interactions_7d"),
+  comments7d: integer("comments_7d"),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertLinkedinPostPerformanceSchema = createInsertSchema(linkedinPostPerformance).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertLinkedinPostPerformance = z.infer<typeof insertLinkedinPostPerformanceSchema>;
+export type LinkedinPostPerformance = typeof linkedinPostPerformance.$inferSelect;
