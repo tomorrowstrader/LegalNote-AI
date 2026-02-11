@@ -273,23 +273,23 @@
 </div>
 
 <div class="phase-nav">
-  <button class="phase-btn active" onclick="showPhase('all')">All Posts</button>
-  <button class="phase-btn" onclick="showPhase(1)">Phase 1: Origin</button>
-  <button class="phase-btn" onclick="showPhase(2)">Phase 2: Problem</button>
-  <button class="phase-btn" onclick="showPhase(3)">Phase 3: Vision</button>
-  <button class="phase-btn" onclick="showPhase(4)">Phase 4: Authority</button>
+  <button class="phase-btn active" onclick="showPhase('all', this)">All Posts</button>
+  <button class="phase-btn" onclick="showPhase(1, this)">Phase 1: Origin</button>
+  <button class="phase-btn" onclick="showPhase(2, this)">Phase 2: Problem</button>
+  <button class="phase-btn" onclick="showPhase(3, this)">Phase 3: Vision</button>
+  <button class="phase-btn" onclick="showPhase(4, this)">Phase 4: Authority</button>
 </div>
 
 <div class="week-tabs" id="weekTabs">
-  <button class="week-tab active" onclick="showWeek('all')">All Weeks</button>
-  <button class="week-tab" onclick="showWeek(1)">Week 1</button>
-  <button class="week-tab" onclick="showWeek(2)">Week 2</button>
-  <button class="week-tab" onclick="showWeek(3)">Week 3</button>
-  <button class="week-tab" onclick="showWeek(4)">Week 4</button>
-  <button class="week-tab" onclick="showWeek(5)">Week 5</button>
-  <button class="week-tab" onclick="showWeek(6)">Week 6</button>
-  <button class="week-tab" onclick="showWeek(7)">Week 7</button>
-  <button class="week-tab" onclick="showWeek(8)">Week 8</button>
+  <button class="week-tab active" onclick="showWeek('all', this)">All Weeks</button>
+  <button class="week-tab" onclick="showWeek(1, this)">Week 1</button>
+  <button class="week-tab" onclick="showWeek(2, this)">Week 2</button>
+  <button class="week-tab" onclick="showWeek(3, this)">Week 3</button>
+  <button class="week-tab" onclick="showWeek(4, this)">Week 4</button>
+  <button class="week-tab" onclick="showWeek(5, this)">Week 5</button>
+  <button class="week-tab" onclick="showWeek(6, this)">Week 6</button>
+  <button class="week-tab" onclick="showWeek(7, this)">Week 7</button>
+  <button class="week-tab" onclick="showWeek(8, this)">Week 8</button>
 </div>
 
 <div class="posts-container" id="postsContainer"></div>
@@ -1196,19 +1196,19 @@ PS \u2014 Where have you been most honest about your journey?`
 let currentPhase = 'all';
 let currentWeek = 'all';
 
-function showPhase(phase) {
+function showPhase(phase, btn) {
   currentPhase = phase;
   currentWeek = 'all';
   document.querySelectorAll('.phase-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
+  btn.classList.add('active');
   updateWeekTabs();
   renderPosts();
 }
 
-function showWeek(week) {
+function showWeek(week, btn) {
   currentWeek = week;
   document.querySelectorAll('.week-tab').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
+  btn.classList.add('active');
   renderPosts();
 }
 
@@ -1219,10 +1219,11 @@ function updateWeekTabs() {
     const phaseWeeks = {1:[1,2], 2:[3,4], 3:[5,6], 4:[7,8]};
     weeks = phaseWeeks[currentPhase];
   }
-  container.innerHTML = `<button class="week-tab active" onclick="showWeek('all')">All Weeks</button>`;
+  let html = `<button class="week-tab active" onclick="showWeek('all', this)">All Weeks</button>`;
   weeks.forEach(w => {
-    container.innerHTML += `<button class="week-tab" onclick="showWeek(${w})">Week ${w}</button>`;
+    html += `<button class="week-tab" onclick="showWeek(${w}, this)">Week ${w}</button>`;
   });
+  container.innerHTML = html;
 }
 
 function renderPosts() {
