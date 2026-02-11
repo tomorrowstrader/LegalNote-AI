@@ -122,6 +122,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendFile(path.join(process.cwd(), 'public', 'download-zahra-pdf.html'));
   });
 
+  // Serve the 60-day LinkedIn content calendar
+  app.get('/content-calendar', (req, res) => {
+    res.sendFile(path.join(process.cwd(), 'public', 'content-calendar.html'));
+  });
+
   // Serve pre-generated static PDFs with download headers for mobile compatibility
   app.get('/static-pdf/:filename', (req, res) => {
     const filename = req.params.filename;

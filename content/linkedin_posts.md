@@ -146,3 +146,18 @@ Before posting, verify:
 - [ ] **Lesson:** What's the insight or pattern?
 - [ ] **Actionable:** Is there something concrete they can do or consider?
 - [ ] **You:** Does it end pointing back to THEM? (Question or CTA)
+
+---
+
+## 60-DAY CONTENT CALENDAR
+
+A comprehensive 32-post, 8-week content calendar has been created with full post drafts:
+
+- **Markdown document:** `content/linkedin_content_calendar.md`
+- **Interactive HTML page:** `/content-calendar` (mobile-friendly, browse by phase/week, copy posts)
+
+The calendar covers four phases:
+1. **Phase 1 (Weeks 1-2):** Origin & Credibility — personal story, corporate background
+2. **Phase 2 (Weeks 3-4):** Problem & Pain — documentation gaps, compliance risks
+3. **Phase 3 (Weeks 5-6):** Vision & Proof — building in public, traction, product vision
+4. **Phase 4 (Weeks 7-8):** Authority & Community — industry leadership, B2C vision, community
