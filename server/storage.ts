@@ -26,6 +26,7 @@ import {
   type LinkedinConnectionMilestone, type InsertLinkedinConnectionMilestone,
   type LinkedinInboundLead, type InsertLinkedinInboundLead,
   type LinkedinHookVariant, type InsertLinkedinHookVariant,
+  type LinkedinPostChatMessage, type InsertLinkedinPostChatMessage,
   users,
   cases,
   audioRecordings,
@@ -52,7 +53,8 @@ import {
   linkedinPostPerformance,
   linkedinConnectionMilestones,
   linkedinInboundLeads,
-  linkedinHookVariants
+  linkedinHookVariants,
+  linkedinPostChatMessages
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -403,6 +405,10 @@ export interface IStorage {
   getHookVariants(postNumber: number): Promise<LinkedinHookVariant[]>;
   addHookVariant(data: InsertLinkedinHookVariant): Promise<LinkedinHookVariant>;
   deleteHookVariant(id: string): Promise<void>;
+  
+  getChatMessages(postNumber: number): Promise<LinkedinPostChatMessage[]>;
+  addChatMessage(data: InsertLinkedinPostChatMessage): Promise<LinkedinPostChatMessage>;
+  clearChatMessages(postNumber: number): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -1637,6 +1643,15 @@ export class MemStorage implements IStorage {
     throw new Error("Not implemented in MemStorage");
   }
   async deleteHookVariant(_id: string): Promise<void> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getChatMessages(_postNumber: number): Promise<LinkedinPostChatMessage[]> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async addChatMessage(_data: InsertLinkedinPostChatMessage): Promise<LinkedinPostChatMessage> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async clearChatMessages(_postNumber: number): Promise<void> {
     throw new Error("Not implemented in MemStorage");
   }
 }
@@ -3694,6 +3709,21 @@ export class DbStorage implements IStorage {
 
   async deleteHookVariant(id: string): Promise<void> {
     await db.delete(linkedinHookVariants).where(eq(linkedinHookVariants.id, id));
+  }
+
+  async getChatMessages(postNumber: number): Promise<LinkedinPostChatMessage[]> {
+    return await db.select().from(linkedinPostChatMessages)
+      .where(eq(linkedinPostChatMessages.postNumber, postNumber))
+      .orderBy(linkedinPostChatMessages.createdAt);
+  }
+
+  async addChatMessage(data: InsertLinkedinPostChatMessage): Promise<LinkedinPostChatMessage> {
+    const [created] = await db.insert(linkedinPostChatMessages).values(data).returning();
+    return created;
+  }
+
+  async clearChatMessages(postNumber: number): Promise<void> {
+    await db.delete(linkedinPostChatMessages).where(eq(linkedinPostChatMessages.postNumber, postNumber));
   }
 }
 

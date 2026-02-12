@@ -1117,3 +1117,23 @@ export const insertLinkedinHookVariantSchema = createInsertSchema(linkedinHookVa
 
 export type InsertLinkedinHookVariant = z.infer<typeof insertLinkedinHookVariantSchema>;
 export type LinkedinHookVariant = typeof linkedinHookVariants.$inferSelect;
+
+export const linkedinPostChatMessages = pgTable("linkedin_post_chat_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postNumber: integer("post_number").notNull(),
+  role: varchar("role", { length: 20 }).notNull(),
+  content: text("content").notNull(),
+  parsedType: varchar("parsed_type", { length: 20 }),
+  parsedContent: text("parsed_content"),
+  parsedExplanation: text("parsed_explanation"),
+  parsedResponse: text("parsed_response"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLinkedinPostChatMessageSchema = createInsertSchema(linkedinPostChatMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertLinkedinPostChatMessage = z.infer<typeof insertLinkedinPostChatMessageSchema>;
+export type LinkedinPostChatMessage = typeof linkedinPostChatMessages.$inferSelect;

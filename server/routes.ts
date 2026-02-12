@@ -217,6 +217,47 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
     }
   });
 
+  app.get('/api/linkedin-post-chat/:postNumber', async (req, res, next) => {
+    try {
+      const postNumber = parseInt(req.params.postNumber);
+      if (isNaN(postNumber)) return res.status(400).json({ error: 'Invalid post number' });
+      const messages = await storage.getChatMessages(postNumber);
+      res.json(messages);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/linkedin-post-chat/message', async (req, res, next) => {
+    try {
+      const { postNumber, role, content, parsedType, parsedContent, parsedExplanation, parsedResponse } = req.body;
+      if (!postNumber || !role || !content) return res.status(400).json({ error: 'Missing required fields' });
+      const msg = await storage.addChatMessage({
+        postNumber,
+        role,
+        content,
+        parsedType: parsedType || null,
+        parsedContent: parsedContent || null,
+        parsedExplanation: parsedExplanation || null,
+        parsedResponse: parsedResponse || null,
+      });
+      res.json(msg);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete('/api/linkedin-post-chat/:postNumber', async (req, res, next) => {
+    try {
+      const postNumber = parseInt(req.params.postNumber);
+      if (isNaN(postNumber)) return res.status(400).json({ error: 'Invalid post number' });
+      await storage.clearChatMessages(postNumber);
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Connection milestones
   app.get('/api/linkedin-connections', async (req, res, next) => {
     try {

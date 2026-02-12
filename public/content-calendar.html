@@ -1228,6 +1228,7 @@ var posts = [
 
 var perfData = {};
 var chatHistories = {};
+var chatHistoriesLoaded = {};
 var currentPhase = 'all';
 var currentWeek = 'all';
 var dashboardData = null;
@@ -1258,6 +1259,59 @@ function escapeHtml(text) {
   var div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function loadChatHistory(postNum) {
+  if (chatHistoriesLoaded[postNum]) return;
+  chatHistoriesLoaded[postNum] = true;
+  fetch('/api/linkedin-post-chat/' + postNum)
+    .then(function(r) { return r.json(); })
+    .then(function(messages) {
+      if (!Array.isArray(messages) || messages.length === 0) return;
+      chatHistories[postNum] = messages.map(function(m, i) {
+        var entry = { role: m.role, content: m.content, display: m.content, idx: i };
+        if (m.role === 'assistant' && m.parsedType) {
+          var parsed = { type: m.parsedType };
+          if (m.parsedType === 'edit') {
+            parsed.content = m.parsedContent || '';
+            parsed.explanation = m.parsedExplanation || '';
+          } else if (m.parsedType === 'discussion') {
+            parsed.response = m.parsedResponse || '';
+          }
+          entry.parsed = parsed;
+          entry.content = JSON.stringify(parsed);
+        }
+        return entry;
+      });
+      var messagesDiv = document.getElementById('chat-messages-' + postNum);
+      if (messagesDiv) {
+        var html = '';
+        chatHistories[postNum].forEach(function(msg) {
+          html += renderChatMessage(msg, postNum);
+        });
+        messagesDiv.innerHTML = html;
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }
+    })
+    .catch(function() {});
+}
+
+function saveChatMessage(postNum, role, content, parsed) {
+  var body = { postNumber: postNum, role: role, content: content };
+  if (parsed) {
+    body.parsedType = parsed.type || null;
+    if (parsed.type === 'edit') {
+      body.parsedContent = parsed.content || null;
+      body.parsedExplanation = parsed.explanation || null;
+    } else if (parsed.type === 'discussion') {
+      body.parsedResponse = parsed.response || null;
+    }
+  }
+  fetch('/api/linkedin-post-chat/message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }).catch(function() {});
 }
 
 function loadPerfData() {
@@ -1553,6 +1607,9 @@ function renderPosts() {
   });
 
   container.innerHTML = html;
+  filtered.forEach(function(post) {
+    loadChatHistory(post.num);
+  });
 }
 
 function buildChatPanel(post) {
@@ -1736,6 +1793,7 @@ function sendChatMessage(num) {
   if (!chatHistories[num]) chatHistories[num] = [];
 
   chatHistories[num].push({ role: 'user', content: message, display: message });
+  saveChatMessage(num, 'user', message, null);
 
   var messagesDiv = document.getElementById('chat-messages-' + num);
   messagesDiv.innerHTML = '';
@@ -1777,6 +1835,8 @@ function sendChatMessage(num) {
       parsed: result,
       idx: idx
     });
+
+    saveChatMessage(num, 'assistant', JSON.stringify(result), result);
 
     messagesDiv.innerHTML = '';
     chatHistories[num].forEach(function(msg) {
@@ -2104,6 +2164,7 @@ document.getElementById('postsContainer').addEventListener('click', function(e) 
       content.classList.add('open');
       btn.textContent = 'Show less';
     }
+    loadChatHistory(num);
   }
 
   if (action === 'copy') {
