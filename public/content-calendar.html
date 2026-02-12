@@ -1419,28 +1419,41 @@ function buildPerfPanel(post, pd) {
   h += '<div class="perf-row"><label>Date & Time Posted</label>';
   h += '<input type="datetime-local" data-field="postedAt" data-num="' + post.num + '" value="' + (pd && pd.postedAt ? new Date(pd.postedAt).toISOString().slice(0,16) : '') + '"></div>';
 
-  h += '<p style="font-size:11px;color:var(--brand-terracotta);font-weight:600;margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Discovery</p>';
-  h += '<div class="perf-grid">';
-  h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions" data-num="' + post.num + '" value="' + perfVal(pd, 'impressions') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Members Reached</label><input type="number" data-field="membersReached" data-num="' + post.num + '" value="' + perfVal(pd, 'membersReached') + '" placeholder="0"></div>';
-  h += '</div>';
+  var snapshots = [
+    {label: '60-MINUTE SNAPSHOT', suffix: '60m'},
+    {label: '24-HOUR SNAPSHOT', suffix: '24h'},
+    {label: '7-DAY SNAPSHOT', suffix: '7d'}
+  ];
 
-  h += '<p style="font-size:11px;color:var(--brand-terracotta);font-weight:600;margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Profile Activity</p>';
-  h += '<div class="perf-grid">';
-  h += '<div class="perf-field"><label>Profile Viewers</label><input type="number" data-field="profileViewers" data-num="' + post.num + '" value="' + perfVal(pd, 'profileViewers') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Followers Gained</label><input type="number" data-field="followersGained" data-num="' + post.num + '" value="' + perfVal(pd, 'followersGained') + '" placeholder="0"></div>';
-  h += '</div>';
+  snapshots.forEach(function(snap) {
+    var s = snap.suffix;
+    h += '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-warm);">';
+    h += '<p style="font-size:12px;color:var(--brand-charcoal);font-weight:700;margin:0 0 10px;text-transform:uppercase;letter-spacing:0.5px;">' + snap.label + '</p>';
 
-  h += '<p style="font-size:11px;color:var(--brand-terracotta);font-weight:600;margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Social Engagement</p>';
-  h += '<div class="perf-grid">';
-  h += '<div class="perf-field"><label>Reactions</label><input type="number" data-field="reactions" data-num="' + post.num + '" value="' + perfVal(pd, 'reactions') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments" data-num="' + post.num + '" value="' + perfVal(pd, 'comments') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Reposts</label><input type="number" data-field="reposts" data-num="' + post.num + '" value="' + perfVal(pd, 'reposts') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Saves</label><input type="number" data-field="saves" data-num="' + post.num + '" value="' + perfVal(pd, 'saves') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Sends</label><input type="number" data-field="sends" data-num="' + post.num + '" value="' + perfVal(pd, 'sends') + '" placeholder="0"></div>';
-  h += '</div>';
+    h += '<p style="font-size:11px;color:var(--brand-terracotta);font-weight:600;margin:8px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Discovery</p>';
+    h += '<div class="perf-grid">';
+    h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions' + s + '" data-num="' + post.num + '" value="' + perfVal(pd, 'impressions' + s) + '" placeholder="0"></div>';
+    h += '<div class="perf-field"><label>Members Reached</label><input type="number" data-field="membersReached' + s + '" data-num="' + post.num + '" value="' + perfVal(pd, 'membersReached' + s) + '" placeholder="0"></div>';
+    h += '</div>';
 
-  h += '<div class="perf-row"><label>Notes</label>';
+    h += '<p style="font-size:11px;color:var(--brand-terracotta);font-weight:600;margin:8px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Profile Activity</p>';
+    h += '<div class="perf-grid">';
+    h += '<div class="perf-field"><label>Profile Viewers</label><input type="number" data-field="profileViewers' + s + '" data-num="' + post.num + '" value="' + perfVal(pd, 'profileViewers' + s) + '" placeholder="0"></div>';
+    h += '<div class="perf-field"><label>Followers Gained</label><input type="number" data-field="followersGained' + s + '" data-num="' + post.num + '" value="' + perfVal(pd, 'followersGained' + s) + '" placeholder="0"></div>';
+    h += '</div>';
+
+    h += '<p style="font-size:11px;color:var(--brand-terracotta);font-weight:600;margin:8px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Social Engagement</p>';
+    h += '<div class="perf-grid">';
+    h += '<div class="perf-field"><label>Reactions</label><input type="number" data-field="reactions' + s + '" data-num="' + post.num + '" value="' + perfVal(pd, 'reactions' + s) + '" placeholder="0"></div>';
+    h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments' + s + '" data-num="' + post.num + '" value="' + perfVal(pd, 'comments' + s) + '" placeholder="0"></div>';
+    h += '<div class="perf-field"><label>Reposts</label><input type="number" data-field="reposts' + s + '" data-num="' + post.num + '" value="' + perfVal(pd, 'reposts' + s) + '" placeholder="0"></div>';
+    h += '<div class="perf-field"><label>Saves</label><input type="number" data-field="saves' + s + '" data-num="' + post.num + '" value="' + perfVal(pd, 'saves' + s) + '" placeholder="0"></div>';
+    h += '<div class="perf-field"><label>Sends</label><input type="number" data-field="sends' + s + '" data-num="' + post.num + '" value="' + perfVal(pd, 'sends' + s) + '" placeholder="0"></div>';
+    h += '</div>';
+    h += '</div>';
+  });
+
+  h += '<div class="perf-row" style="margin-top:12px;"><label>Notes</label>';
   h += '<input type="text" data-field="notes" data-num="' + post.num + '" value="' + escapeHtml(pd && pd.notes ? pd.notes : '') + '" placeholder="What worked? What didn\'t?"></div>';
 
   h += '<button class="perf-save" data-action="save" data-num="' + post.num + '">Save Performance Data</button>';
@@ -1501,6 +1514,14 @@ function savePerformance(num) {
     saveBtn.textContent = 'Saved!';
     saveBtn.classList.add('perf-saved');
     showToast('Performance data saved for Post #' + num);
+    var card = document.getElementById('post-' + num);
+    if (card) {
+      var badge = card.querySelector('.perf-badge');
+      if (badge) {
+        badge.textContent = 'Tracked';
+        badge.classList.add('has-data');
+      }
+    }
     setTimeout(function() {
       saveBtn.textContent = 'Save Performance Data';
       saveBtn.classList.remove('perf-saved');

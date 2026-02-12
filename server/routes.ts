@@ -401,21 +401,21 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       ]);
 
       const posted = allPerf.filter(p => p.postedAt);
-      const totalImpressions = posted.reduce((s, p) => s + (p.impressions || 0), 0);
-      const totalReactions = posted.reduce((s, p) => s + (p.reactions || 0), 0);
-      const totalComments = posted.reduce((s, p) => s + (p.comments || 0), 0);
-      const totalReposts = posted.reduce((s, p) => s + (p.reposts || 0), 0);
-      const totalSaves = posted.reduce((s, p) => s + (p.saves || 0), 0);
-      const totalFollowersGained = posted.reduce((s, p) => s + (p.followersGained || 0), 0);
-      const totalProfileViewers = posted.reduce((s, p) => s + (p.profileViewers || 0), 0);
+      const totalImpressions = posted.reduce((s, p) => s + (p.impressions7d || p.impressions24h || p.impressions60m || 0), 0);
+      const totalReactions = posted.reduce((s, p) => s + (p.reactions7d || p.reactions24h || p.reactions60m || 0), 0);
+      const totalComments = posted.reduce((s, p) => s + (p.comments7d || p.comments24h || p.comments60m || 0), 0);
+      const totalReposts = posted.reduce((s, p) => s + (p.reposts7d || p.reposts24h || p.reposts60m || 0), 0);
+      const totalSaves = posted.reduce((s, p) => s + (p.saves7d || p.saves24h || p.saves60m || 0), 0);
+      const totalFollowersGained = posted.reduce((s, p) => s + (p.followersGained7d || p.followersGained24h || p.followersGained60m || 0), 0);
+      const totalProfileViewers = posted.reduce((s, p) => s + (p.profileViewers7d || p.profileViewers24h || p.profileViewers60m || 0), 0);
 
       const avgImpressions = posted.length > 0 ? Math.round(totalImpressions / posted.length) : 0;
       const avgReactions = posted.length > 0 ? Math.round(totalReactions / posted.length) : 0;
 
       const bestPost = posted.length > 0
         ? posted.reduce((best, p) => {
-            const score = (p.impressions || 0) + (p.reactions || 0) * 5 + (p.comments || 0) * 10 + (p.reposts || 0) * 15;
-            const bestScore = (best.impressions || 0) + (best.reactions || 0) * 5 + (best.comments || 0) * 10 + (best.reposts || 0) * 15;
+            const score = (p.impressions7d || 0) + (p.reactions7d || 0) * 5 + (p.comments7d || 0) * 10 + (p.reposts7d || 0) * 15;
+            const bestScore = (best.impressions7d || 0) + (best.reactions7d || 0) * 5 + (best.comments7d || 0) * 10 + (best.reposts7d || 0) * 15;
             return score > bestScore ? p : best;
           })
         : null;
@@ -433,7 +433,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           const key = `${day} ${timeSlot}`;
           if (!bestTimeData[key]) bestTimeData[key] = { count: 0, totalImpressions: 0 };
           bestTimeData[key].count++;
-          bestTimeData[key].totalImpressions += (p.impressions || 0);
+          bestTimeData[key].totalImpressions += (p.impressions7d || p.impressions24h || p.impressions60m || 0);
         }
       });
 
@@ -464,7 +464,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         totalProfileViewers,
         avgImpressions,
         avgReactions,
-        bestPost: bestPost ? { postNumber: bestPost.postNumber, impressions: bestPost.impressions || 0 } : null,
+        bestPost: bestPost ? { postNumber: bestPost.postNumber, impressions: bestPost.impressions7d || bestPost.impressions24h || bestPost.impressions60m || 0 } : null,
         currentConnections: latestConnection,
         totalLeads: leads.length,
         bestTime: bestTime !== 'Not enough data' ? bestTime : null,
