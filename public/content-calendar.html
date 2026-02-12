@@ -738,13 +738,14 @@ body {
     <h3>Campaign Progress</h3>
     <div class="progress-timeline" id="progressTimeline"></div>
     <div class="dash-grid" id="dashStats">
-      <div class="dash-stat"><div class="dash-stat-val" id="dashPublished">--</div><div class="dash-stat-lbl">Published</div></div>
+      <div class="dash-stat"><div class="dash-stat-val" id="dashPublished">--</div><div class="dash-stat-lbl">Posts Published</div></div>
       <div class="dash-stat"><div class="dash-stat-val">32</div><div class="dash-stat-lbl">Total Posts</div></div>
       <div class="dash-stat"><div class="dash-stat-val" id="dashPhase">--</div><div class="dash-stat-lbl">Current Phase</div></div>
       <div class="dash-stat"><div class="dash-stat-val" id="dashImpressions">--</div><div class="dash-stat-lbl">Impressions</div></div>
-      <div class="dash-stat"><div class="dash-stat-val" id="dashInteractions">--</div><div class="dash-stat-lbl">Interactions</div></div>
+      <div class="dash-stat"><div class="dash-stat-val" id="dashReactions">--</div><div class="dash-stat-lbl">Reactions</div></div>
       <div class="dash-stat"><div class="dash-stat-val" id="dashComments">--</div><div class="dash-stat-lbl">Comments</div></div>
-      <div class="dash-stat"><div class="dash-stat-val" id="dashEngagement">--</div><div class="dash-stat-lbl">Avg Engagement</div></div>
+      <div class="dash-stat"><div class="dash-stat-val" id="dashReposts">--</div><div class="dash-stat-lbl">Reposts</div></div>
+      <div class="dash-stat"><div class="dash-stat-val" id="dashFollowers">--</div><div class="dash-stat-lbl">Followers Gained</div></div>
       <div class="dash-stat"><div class="dash-stat-val" id="dashBestPost">--</div><div class="dash-stat-lbl">Best Post</div></div>
       <div class="dash-stat"><div class="dash-stat-val" id="dashConnections">--</div><div class="dash-stat-lbl">Connections</div></div>
       <div class="dash-stat"><div class="dash-stat-val" id="dashLeads">--</div><div class="dash-stat-lbl">Inbound Leads</div></div>
@@ -1130,16 +1131,16 @@ function renderDashboard(d) {
   document.getElementById('dashPublished').textContent = d.postsPublished || 0;
   document.getElementById('dashPhase').textContent = d.currentPhase || '--';
   document.getElementById('dashImpressions').textContent = formatNum(d.totalImpressions);
-  document.getElementById('dashInteractions').textContent = formatNum(d.totalInteractions);
+  document.getElementById('dashReactions').textContent = formatNum(d.totalReactions);
   document.getElementById('dashComments').textContent = formatNum(d.totalComments);
-  document.getElementById('dashEngagement').textContent = d.averageEngagement ? d.averageEngagement.toFixed(1) + '%' : '--';
-  document.getElementById('dashBestPost').textContent = d.bestPerformingPost ? '#' + d.bestPerformingPost : '--';
+  document.getElementById('dashReposts').textContent = formatNum(d.totalReposts);
+  document.getElementById('dashFollowers').textContent = formatNum(d.totalFollowersGained);
+  document.getElementById('dashBestPost').textContent = d.bestPost ? '#' + d.bestPost.postNumber : '--';
   document.getElementById('dashConnections').textContent = d.currentConnections || '--';
-  document.getElementById('dashLeads').textContent = d.totalInboundLeads || 0;
+  document.getElementById('dashLeads').textContent = d.totalLeads || 0;
 
-  var bestTime = d.bestTimeToPost;
-  if (bestTime && bestTime.day) {
-    document.getElementById('bestTimeText').textContent = bestTime.day + ' at ' + (bestTime.timeSlot || 'morning') + ' (based on ' + (bestTime.dataPoints || 0) + ' data points)';
+  if (d.bestTime) {
+    document.getElementById('bestTimeText').textContent = d.bestTime + ' (avg ' + formatNum(d.bestTimeAvgImpressions) + ' impressions)';
   } else {
     document.getElementById('bestTimeText').textContent = 'Not enough data yet. Track more posts to see patterns.';
   }
@@ -1407,6 +1408,10 @@ function renderChatMessage(msg, postNum) {
   return h;
 }
 
+function perfVal(pd, field) {
+  return pd && pd[field] != null ? pd[field] : '';
+}
+
 function buildPerfPanel(post, pd) {
   var h = '';
   h += '<div class="perf" id="perf-' + post.num + '">';
@@ -1414,21 +1419,26 @@ function buildPerfPanel(post, pd) {
   h += '<div class="perf-row"><label>Date & Time Posted</label>';
   h += '<input type="datetime-local" data-field="postedAt" data-num="' + post.num + '" value="' + (pd && pd.postedAt ? new Date(pd.postedAt).toISOString().slice(0,16) : '') + '"></div>';
 
-  var snapshots = [
-    {label:'60-MINUTE SNAPSHOT', prefix:'60m'},
-    {label:'24-HOUR SNAPSHOT', prefix:'24h'},
-    {label:'3-DAY SNAPSHOT', prefix:'3d'},
-    {label:'7-DAY SNAPSHOT', prefix:'7d'}
-  ];
+  h += '<p style="font-size:11px;color:var(--brand-terracotta);font-weight:600;margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Discovery</p>';
+  h += '<div class="perf-grid">';
+  h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions" data-num="' + post.num + '" value="' + perfVal(pd, 'impressions') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Members Reached</label><input type="number" data-field="membersReached" data-num="' + post.num + '" value="' + perfVal(pd, 'membersReached') + '" placeholder="0"></div>';
+  h += '</div>';
 
-  snapshots.forEach(function(s) {
-    h += '<p style="font-size:11px;color:var(--text-muted);font-weight:600;margin:12px 0 6px;">' + s.label + '</p>';
-    h += '<div class="perf-grid">';
-    h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions' + s.prefix + '" data-num="' + post.num + '" value="' + (pd && pd['impressions' + s.prefix] != null ? pd['impressions' + s.prefix] : '') + '" placeholder="0"></div>';
-    h += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions' + s.prefix + '" data-num="' + post.num + '" value="' + (pd && pd['interactions' + s.prefix] != null ? pd['interactions' + s.prefix] : '') + '" placeholder="0"></div>';
-    h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments' + s.prefix + '" data-num="' + post.num + '" value="' + (pd && pd['comments' + s.prefix] != null ? pd['comments' + s.prefix] : '') + '" placeholder="0"></div>';
-    h += '</div>';
-  });
+  h += '<p style="font-size:11px;color:var(--brand-terracotta);font-weight:600;margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Profile Activity</p>';
+  h += '<div class="perf-grid">';
+  h += '<div class="perf-field"><label>Profile Viewers</label><input type="number" data-field="profileViewers" data-num="' + post.num + '" value="' + perfVal(pd, 'profileViewers') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Followers Gained</label><input type="number" data-field="followersGained" data-num="' + post.num + '" value="' + perfVal(pd, 'followersGained') + '" placeholder="0"></div>';
+  h += '</div>';
+
+  h += '<p style="font-size:11px;color:var(--brand-terracotta);font-weight:600;margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Social Engagement</p>';
+  h += '<div class="perf-grid">';
+  h += '<div class="perf-field"><label>Reactions</label><input type="number" data-field="reactions" data-num="' + post.num + '" value="' + perfVal(pd, 'reactions') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments" data-num="' + post.num + '" value="' + perfVal(pd, 'comments') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Reposts</label><input type="number" data-field="reposts" data-num="' + post.num + '" value="' + perfVal(pd, 'reposts') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Saves</label><input type="number" data-field="saves" data-num="' + post.num + '" value="' + perfVal(pd, 'saves') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Sends</label><input type="number" data-field="sends" data-num="' + post.num + '" value="' + perfVal(pd, 'sends') + '" placeholder="0"></div>';
+  h += '</div>';
 
   h += '<div class="perf-row"><label>Notes</label>';
   h += '<input type="text" data-field="notes" data-num="' + post.num + '" value="' + escapeHtml(pd && pd.notes ? pd.notes : '') + '" placeholder="What worked? What didn\'t?"></div>';
