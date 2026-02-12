@@ -1106,10 +1106,12 @@ function loadPerfData() {
     .then(function(data) {
       if (Array.isArray(data)) {
         data.forEach(function(d) { perfData[d.postNumber] = d; });
-        renderPosts();
       }
+      renderPosts();
     })
-    .catch(function() {});
+    .catch(function() {
+      renderPosts();
+    });
 }
 
 function loadDashboard() {
@@ -1422,9 +1424,9 @@ function buildPerfPanel(post, pd) {
   snapshots.forEach(function(s) {
     h += '<p style="font-size:11px;color:var(--text-muted);font-weight:600;margin:12px 0 6px;">' + s.label + '</p>';
     h += '<div class="perf-grid">';
-    h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions' + s.prefix + '" data-num="' + post.num + '" value="' + (pd ? pd['impressions' + s.prefix] || '' : '') + '" placeholder="0"></div>';
-    h += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions' + s.prefix + '" data-num="' + post.num + '" value="' + (pd ? pd['interactions' + s.prefix] || '' : '') + '" placeholder="0"></div>';
-    h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments' + s.prefix + '" data-num="' + post.num + '" value="' + (pd ? pd['comments' + s.prefix] || '' : '') + '" placeholder="0"></div>';
+    h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions' + s.prefix + '" data-num="' + post.num + '" value="' + (pd && pd['impressions' + s.prefix] != null ? pd['impressions' + s.prefix] : '') + '" placeholder="0"></div>';
+    h += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions' + s.prefix + '" data-num="' + post.num + '" value="' + (pd && pd['interactions' + s.prefix] != null ? pd['interactions' + s.prefix] : '') + '" placeholder="0"></div>';
+    h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments' + s.prefix + '" data-num="' + post.num + '" value="' + (pd && pd['comments' + s.prefix] != null ? pd['comments' + s.prefix] : '') + '" placeholder="0"></div>';
     h += '</div>';
   });
 
@@ -1616,14 +1618,14 @@ function generateHooks(num) {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    var hooks = data.hooks || data.variants || [];
+    var hooks = Array.isArray(data) ? data : (data.hooks || data.variants || []);
     if (!hooks.length) {
-      container.innerHTML = '<p style="font-size:12px;color:var(--text-muted);">No variants generated. Try again.</p>';
+      container.innerHTML = '<p style="font-size:12px;color:var(--text-muted);">No variants generated. Try again.</p><button class="btn btn-hooks" data-action="generate-hooks" data-num="' + num + '" style="margin-top:8px;">Retry</button>';
       return;
     }
     var html = '';
     hooks.forEach(function(hook, i) {
-      var hookText = typeof hook === 'string' ? hook : hook.text || hook.hook || '';
+      var hookText = typeof hook === 'string' ? hook : (hook.variant || hook.text || hook.hook || '');
       html += '<div class="hook-variant">';
       html += '<div class="hook-label">Variant ' + (i + 1) + '</div>';
       html += '<div>' + escapeHtml(hookText) + '</div>';
@@ -1964,7 +1966,7 @@ document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
 });
 
 loadPerfData();
-renderPosts();
+loadDashboard();
 </script>
 
 </body>
