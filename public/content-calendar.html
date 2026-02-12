@@ -43,6 +43,8 @@
   .btn-copied { background:#059669!important; border-color:#059669!important; color:#fff!important; }
   .btn-track { color:#f59e0b; border-color:#4a3728; }
   .btn-track:active { background:#4a3728; }
+  .btn-chat { color:#a78bfa; border-color:#4c3575; }
+  .btn-chat:active { background:#4c3575; }
   .perf { margin-top:16px; padding:16px; background:#0f172a; border-radius:8px; border:1px solid #334155; display:none; }
   .perf.open { display:block; }
   .perf h4 { font-size:13px; font-weight:600; color:#f59e0b; margin-bottom:12px; }
@@ -61,6 +63,26 @@
   .perf-saved { background:#059669!important; }
   .perf-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; padding:2px 6px; border-radius:8px; background:rgba(59,130,246,0.12); color:#3b82f6; font-weight:600; }
   .perf-badge.has-data { background:rgba(16,185,129,0.12); color:#10b981; }
+  .chat-panel { margin-top:16px; padding:16px; background:#0f172a; border-radius:8px; border:1px solid #4c3575; display:none; }
+  .chat-panel.open { display:block; }
+  .chat-panel h4 { font-size:13px; font-weight:600; color:#a78bfa; margin-bottom:12px; }
+  .chat-messages { max-height:300px; overflow-y:auto; margin-bottom:12px; }
+  .chat-msg { padding:10px 12px; border-radius:8px; margin-bottom:8px; font-size:13px; line-height:1.6; }
+  .chat-msg-user { background:#334155; color:#e2e8f0; }
+  .chat-msg-ai { background:#1a1a2e; color:#cbd5e1; border:1px solid #334155; }
+  .chat-msg-ai .edit-preview { background:#1e293b; border:1px solid #4c3575; border-radius:6px; padding:10px; margin-top:8px; font-size:12px; line-height:1.6; white-space:pre-wrap; max-height:200px; overflow-y:auto; }
+  .chat-msg-ai .edit-actions { display:flex; gap:8px; margin-top:8px; }
+  .chat-msg-label { font-size:10px; font-weight:600; text-transform:uppercase; color:#64748b; margin-bottom:4px; }
+  .chat-input-row { display:flex; gap:8px; }
+  .chat-input { flex:1; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:10px 12px; color:#e2e8f0; font-size:13px; font-family:inherit; resize:none; min-height:42px; max-height:120px; }
+  .chat-input:focus { outline:none; border-color:#a78bfa; }
+  .chat-send { padding:10px 16px; border-radius:8px; border:none; background:#7c3aed; color:#fff; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  .chat-send:disabled { opacity:0.5; cursor:not-allowed; }
+  .chat-send:active:not(:disabled) { background:#6d28d9; }
+  .chat-typing { font-size:12px; color:#a78bfa; padding:8px 0; font-style:italic; }
+  .btn-apply { padding:6px 12px; border-radius:6px; border:none; background:#059669; color:#fff; font-size:11px; font-weight:600; cursor:pointer; }
+  .btn-apply:active { background:#047857; }
+  .btn-discard { padding:6px 12px; border-radius:6px; border:1px solid #334155; background:transparent; color:#94a3b8; font-size:11px; cursor:pointer; }
   .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#059669; color:#fff; padding:12px 24px; border-radius:10px; font-size:13px; font-weight:600; z-index:9999; opacity:0; transition:opacity .3s; pointer-events:none; }
   .toast.show { opacity:1; }
   @media (max-width:480px) {
@@ -306,6 +328,7 @@ var posts = [
 ];
 
 var perfData = {};
+var chatHistories = {};
 var currentPhase = 'all';
 var currentWeek = 'all';
 
@@ -404,45 +427,105 @@ function renderPosts() {
     html += '<div class="actions">';
     html += '<button class="btn btn-expand" data-action="expand" data-num="' + post.num + '">Read full post</button>';
     html += '<button class="btn" data-action="copy" data-num="' + post.num + '">Copy</button>';
+    html += '<button class="btn btn-chat" data-action="chat" data-num="' + post.num + '">Edit / Discuss</button>';
     html += '<button class="btn btn-track" data-action="track" data-num="' + post.num + '">Track Performance</button>';
     html += '</div>';
 
-    html += '<div class="perf" id="perf-' + post.num + '">';
-    html += '<h4>Performance Tracking - Post #' + post.num + '</h4>';
-    html += '<div class="perf-row"><label>Date & Time Posted</label>';
-    html += '<input type="datetime-local" data-field="postedAt" data-num="' + post.num + '" value="' + (pd && pd.postedAt ? new Date(pd.postedAt).toISOString().slice(0,16) : '') + '"></div>';
-
-    html += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">24-HOUR SNAPSHOT</p>';
-    html += '<div class="perf-grid">';
-    html += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions24h" data-num="' + post.num + '" value="' + (pd ? pd.impressions24h || '' : '') + '" placeholder="0"></div>';
-    html += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions24h" data-num="' + post.num + '" value="' + (pd ? pd.interactions24h || '' : '') + '" placeholder="0"></div>';
-    html += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments24h" data-num="' + post.num + '" value="' + (pd ? pd.comments24h || '' : '') + '" placeholder="0"></div>';
-    html += '</div>';
-
-    html += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">3-DAY SNAPSHOT</p>';
-    html += '<div class="perf-grid">';
-    html += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions3d" data-num="' + post.num + '" value="' + (pd ? pd.impressions3d || '' : '') + '" placeholder="0"></div>';
-    html += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions3d" data-num="' + post.num + '" value="' + (pd ? pd.interactions3d || '' : '') + '" placeholder="0"></div>';
-    html += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments3d" data-num="' + post.num + '" value="' + (pd ? pd.comments3d || '' : '') + '" placeholder="0"></div>';
-    html += '</div>';
-
-    html += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">7-DAY SNAPSHOT</p>';
-    html += '<div class="perf-grid">';
-    html += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions7d" data-num="' + post.num + '" value="' + (pd ? pd.impressions7d || '' : '') + '" placeholder="0"></div>';
-    html += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions7d" data-num="' + post.num + '" value="' + (pd ? pd.interactions7d || '' : '') + '" placeholder="0"></div>';
-    html += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments7d" data-num="' + post.num + '" value="' + (pd ? pd.comments7d || '' : '') + '" placeholder="0"></div>';
-    html += '</div>';
-
-    html += '<div class="perf-row"><label>Notes</label>';
-    html += '<input type="text" data-field="notes" data-num="' + post.num + '" value="' + escapeHtml(pd && pd.notes ? pd.notes : '') + '" placeholder="What worked? What didn\'t?"></div>';
-
-    html += '<button class="perf-save" data-action="save" data-num="' + post.num + '">Save Performance Data</button>';
-    html += '</div>';
+    html += buildChatPanel(post);
+    html += buildPerfPanel(post, pd);
 
     html += '</div>';
   });
 
   container.innerHTML = html;
+}
+
+function buildChatPanel(post) {
+  var h = '';
+  h += '<div class="chat-panel" id="chat-' + post.num + '">';
+  h += '<h4>Edit / Discuss - Post #' + post.num + '</h4>';
+  h += '<div class="chat-messages" id="chat-messages-' + post.num + '">';
+  var history = chatHistories[post.num];
+  if (history && history.length > 0) {
+    history.forEach(function(msg) {
+      h += renderChatMessage(msg, post.num);
+    });
+  } else {
+    h += '<p style="font-size:12px;color:#64748b;padding:8px 0;">Ask for edits, discuss tone, request rewrites, or get feedback on this post. Your conversation history is kept during this session.</p>';
+  }
+  h += '</div>';
+  h += '<div class="chat-input-row">';
+  h += '<textarea class="chat-input" id="chat-input-' + post.num + '" data-num="' + post.num + '" placeholder="e.g. Make the hook shorter, add more urgency to the ending..." rows="1"></textarea>';
+  h += '<button class="chat-send" data-action="send-chat" data-num="' + post.num + '">Send</button>';
+  h += '</div>';
+  h += '</div>';
+  return h;
+}
+
+function renderChatMessage(msg, postNum) {
+  var h = '';
+  if (msg.role === 'user') {
+    h += '<div class="chat-msg chat-msg-user"><div class="chat-msg-label">You</div>' + escapeHtml(msg.display || msg.content) + '</div>';
+  } else if (msg.role === 'assistant') {
+    h += '<div class="chat-msg chat-msg-ai"><div class="chat-msg-label">AI</div>';
+    if (msg.parsed && msg.parsed.type === 'edit') {
+      h += '<div>' + escapeHtml(msg.parsed.explanation || '') + '</div>';
+      h += '<div class="edit-preview">' + escapeHtml(msg.parsed.content) + '</div>';
+      h += '<div class="edit-actions">';
+      h += '<button class="btn-apply" data-action="apply-edit" data-num="' + postNum + '" data-idx="' + (msg.idx || 0) + '">Apply Edit</button>';
+      h += '<button class="btn-discard" data-action="discard-edit" data-num="' + postNum + '">Keep Original</button>';
+      h += '</div>';
+    } else if (msg.parsed && msg.parsed.type === 'discussion') {
+      h += escapeHtml(msg.parsed.response);
+    } else {
+      h += escapeHtml(msg.content);
+    }
+    h += '</div>';
+  }
+  return h;
+}
+
+function buildPerfPanel(post, pd) {
+  var h = '';
+  h += '<div class="perf" id="perf-' + post.num + '">';
+  h += '<h4>Performance Tracking - Post #' + post.num + '</h4>';
+  h += '<div class="perf-row"><label>Date & Time Posted</label>';
+  h += '<input type="datetime-local" data-field="postedAt" data-num="' + post.num + '" value="' + (pd && pd.postedAt ? new Date(pd.postedAt).toISOString().slice(0,16) : '') + '"></div>';
+
+  h += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">60-MINUTE SNAPSHOT</p>';
+  h += '<div class="perf-grid">';
+  h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions60m" data-num="' + post.num + '" value="' + (pd ? pd.impressions60m || '' : '') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions60m" data-num="' + post.num + '" value="' + (pd ? pd.interactions60m || '' : '') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments60m" data-num="' + post.num + '" value="' + (pd ? pd.comments60m || '' : '') + '" placeholder="0"></div>';
+  h += '</div>';
+
+  h += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">24-HOUR SNAPSHOT</p>';
+  h += '<div class="perf-grid">';
+  h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions24h" data-num="' + post.num + '" value="' + (pd ? pd.impressions24h || '' : '') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions24h" data-num="' + post.num + '" value="' + (pd ? pd.interactions24h || '' : '') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments24h" data-num="' + post.num + '" value="' + (pd ? pd.comments24h || '' : '') + '" placeholder="0"></div>';
+  h += '</div>';
+
+  h += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">3-DAY SNAPSHOT</p>';
+  h += '<div class="perf-grid">';
+  h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions3d" data-num="' + post.num + '" value="' + (pd ? pd.impressions3d || '' : '') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions3d" data-num="' + post.num + '" value="' + (pd ? pd.interactions3d || '' : '') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments3d" data-num="' + post.num + '" value="' + (pd ? pd.comments3d || '' : '') + '" placeholder="0"></div>';
+  h += '</div>';
+
+  h += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">7-DAY SNAPSHOT</p>';
+  h += '<div class="perf-grid">';
+  h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions7d" data-num="' + post.num + '" value="' + (pd ? pd.impressions7d || '' : '') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions7d" data-num="' + post.num + '" value="' + (pd ? pd.interactions7d || '' : '') + '" placeholder="0"></div>';
+  h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments7d" data-num="' + post.num + '" value="' + (pd ? pd.comments7d || '' : '') + '" placeholder="0"></div>';
+  h += '</div>';
+
+  h += '<div class="perf-row"><label>Notes</label>';
+  h += '<input type="text" data-field="notes" data-num="' + post.num + '" value="' + escapeHtml(pd && pd.notes ? pd.notes : '') + '" placeholder="What worked? What didn\'t?"></div>';
+
+  h += '<button class="perf-save" data-action="save" data-num="' + post.num + '">Save Performance Data</button>';
+  h += '</div>';
+  return h;
 }
 
 function copyToClipboard(text) {
@@ -509,6 +592,102 @@ function savePerformance(num) {
   });
 }
 
+function sendChatMessage(num) {
+  var input = document.getElementById('chat-input-' + num);
+  var message = input.value.trim();
+  if (!message) return;
+
+  var post = posts.find(function(p) { return p.num === num; });
+  if (!post) return;
+
+  if (!chatHistories[num]) chatHistories[num] = [];
+
+  chatHistories[num].push({ role: 'user', content: message, display: message });
+
+  var messagesDiv = document.getElementById('chat-messages-' + num);
+  messagesDiv.innerHTML = '';
+  chatHistories[num].forEach(function(msg) {
+    messagesDiv.innerHTML += renderChatMessage(msg, num);
+  });
+  messagesDiv.innerHTML += '<div class="chat-typing" id="typing-' + num + '">Thinking...</div>';
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+  input.value = '';
+  var sendBtn = document.querySelector('[data-action="send-chat"][data-num="' + num + '"]');
+  sendBtn.disabled = true;
+
+  var apiHistory = chatHistories[num].filter(function(m) { return m.role === 'user' || m.role === 'assistant'; }).map(function(m) {
+    return { role: m.role, content: m.content };
+  });
+  apiHistory.pop();
+
+  fetch('/api/linkedin-post-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      postNumber: num,
+      currentContent: post.content,
+      theme: post.theme,
+      message: message,
+      history: apiHistory
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(result) {
+    var typing = document.getElementById('typing-' + num);
+    if (typing) typing.remove();
+
+    var idx = chatHistories[num].length;
+    chatHistories[num].push({
+      role: 'assistant',
+      content: JSON.stringify(result),
+      parsed: result,
+      idx: idx
+    });
+
+    messagesDiv.innerHTML = '';
+    chatHistories[num].forEach(function(msg) {
+      messagesDiv.innerHTML += renderChatMessage(msg, num);
+    });
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    sendBtn.disabled = false;
+  })
+  .catch(function(err) {
+    var typing = document.getElementById('typing-' + num);
+    if (typing) typing.remove();
+    messagesDiv.innerHTML += '<div class="chat-msg chat-msg-ai"><div class="chat-msg-label">AI</div>Something went wrong. Please try again.</div>';
+    sendBtn.disabled = false;
+  });
+}
+
+function applyEdit(num, idx) {
+  var history = chatHistories[num];
+  if (!history) return;
+
+  var msg = history.find(function(m) { return m.idx === idx && m.parsed && m.parsed.type === 'edit'; });
+  if (!msg) {
+    for (var i = history.length - 1; i >= 0; i--) {
+      if (history[i].parsed && history[i].parsed.type === 'edit') {
+        msg = history[i];
+        break;
+      }
+    }
+  }
+  if (!msg || !msg.parsed || !msg.parsed.content) return;
+
+  var post = posts.find(function(p) { return p.num === num; });
+  if (!post) return;
+
+  post.content = msg.parsed.content;
+
+  var contentEl = document.getElementById('content-' + num);
+  if (contentEl) {
+    contentEl.textContent = post.content;
+  }
+
+  showToast('Post #' + num + ' updated with edit');
+}
+
 document.getElementById('phaseNav').addEventListener('click', function(e) {
   var btn = e.target.closest('button');
   if (!btn) return;
@@ -556,17 +735,51 @@ document.getElementById('postsContainer').addEventListener('click', function(e) 
     });
   }
 
-  if (action === 'track') {
-    var panel = document.getElementById('perf-' + num);
+  if (action === 'chat') {
+    var panel = document.getElementById('chat-' + num);
     if (panel.classList.contains('open')) {
       panel.classList.remove('open');
     } else {
       panel.classList.add('open');
+      var input = document.getElementById('chat-input-' + num);
+      if (input) input.focus();
+    }
+  }
+
+  if (action === 'track') {
+    var perfPanel = document.getElementById('perf-' + num);
+    if (perfPanel.classList.contains('open')) {
+      perfPanel.classList.remove('open');
+    } else {
+      perfPanel.classList.add('open');
     }
   }
 
   if (action === 'save') {
     savePerformance(num);
+  }
+
+  if (action === 'send-chat') {
+    sendChatMessage(num);
+  }
+
+  if (action === 'apply-edit') {
+    applyEdit(num, parseInt(btn.getAttribute('data-idx')));
+  }
+
+  if (action === 'discard-edit') {
+    showToast('Keeping original post content');
+  }
+});
+
+document.getElementById('postsContainer').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    var target = e.target;
+    if (target.classList && target.classList.contains('chat-input')) {
+      e.preventDefault();
+      var num = parseInt(target.getAttribute('data-num'));
+      sendChatMessage(num);
+    }
   }
 });
 

@@ -155,6 +155,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/linkedin-post-chat', async (req, res, next) => {
+    try {
+      const { postNumber, currentContent, theme, message, history } = req.body;
+      if (!postNumber || !currentContent || !message) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const { openaiClient } = await import('./config/openai');
+
+      const messages: any[] = [
+        {
+          role: 'system' as const,
+          content: `You are helping refine a LinkedIn post for a legal tech founder. The post is part of a 60-day content calendar for LegalNote, a compliance-first legal documentation platform.
+
+Your role:
+- Help edit, improve, or discuss the post content based on the user's request
+- Maintain the authentic voice and tone - this is personal brand content, not corporate
+- Keep posts within LinkedIn best practices (hook in first line, conversational, ends with PS question)
+- When providing an amended version, output ONLY the full amended post text with no extra commentary
+- When discussing/giving feedback, be concise and actionable
+
+The user may ask you to:
+1. Make specific edits to the post
+2. Discuss whether something works well
+3. Suggest improvements
+4. Rewrite sections
+5. Adjust tone or length
+
+Current post #${postNumber}: "${theme}"
+
+If the user asks for an edit or amendment, respond with JSON: {"type":"edit","content":"<full amended post>","explanation":"<brief note on what changed>"}
+If the user asks a question or wants discussion, respond with JSON: {"type":"discussion","response":"<your response>"}`
+        }
+      ];
+
+      if (history && Array.isArray(history)) {
+        history.forEach((h: any) => {
+          if ((h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string') {
+            messages.push({ role: h.role, content: h.content });
+          }
+        });
+      }
+
+      messages.push({
+        role: 'user' as const,
+        content: `Current post content:\n\n${currentContent}\n\nMy request: ${message}`
+      });
+
+      const response = await openaiClient.chat.completions.create({
+        model: 'gpt-4o',
+        messages,
+        response_format: { type: 'json_object' },
+        max_completion_tokens: 4096,
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || '{}');
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Serve the 60-day LinkedIn content calendar
   app.get('/content-calendar', (req, res) => {
     res.sendFile(path.join(process.cwd(), 'public', 'content-calendar.html'));
