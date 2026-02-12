@@ -641,6 +641,146 @@ body {
 .list-item strong { color: var(--brand-charcoal); }
 .list-item .list-meta { color: var(--text-muted); font-size:11px; margin-top:4px; }
 
+.leads-section-toggle {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  cursor:pointer;
+  padding:10px 0 6px;
+  border:none;
+  background:none;
+  width:100%;
+  text-align:left;
+  font-family:'Inter',sans-serif;
+  border-top:1px solid var(--border-warm);
+  margin-top:8px;
+}
+.leads-section-toggle h4 {
+  font-size:13px;
+  font-weight:600;
+  color:var(--brand-charcoal);
+  margin:0;
+}
+.leads-section-toggle .leads-count {
+  font-size:11px;
+  font-weight:600;
+  color:#fff;
+  background:var(--brand-terracotta);
+  border-radius:10px;
+  padding:2px 8px;
+  min-width:20px;
+  text-align:center;
+}
+.leads-section-toggle .leads-chevron {
+  font-size:12px;
+  color:var(--text-muted);
+  transition:transform 0.2s ease;
+}
+.leads-section-toggle.open .leads-chevron { transform:rotate(90deg); }
+.leads-list-collapsible {
+  display:none;
+  padding-top:8px;
+}
+.leads-list-collapsible.open { display:block; }
+
+.lead-card {
+  background:var(--brand-tapioca-light);
+  border-radius:8px;
+  padding:14px 16px;
+  margin-bottom:8px;
+  position:relative;
+}
+.lead-card-header {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.lead-card-avatar {
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  background:var(--brand-terracotta);
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:13px;
+  font-weight:700;
+  flex-shrink:0;
+}
+.lead-card-name {
+  font-size:14px;
+  font-weight:600;
+  color:var(--brand-charcoal);
+}
+.lead-card-company {
+  font-size:12px;
+  color:var(--text-muted);
+}
+.lead-card-badges {
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-top:8px;
+}
+.lead-badge {
+  font-size:10px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.3px;
+  padding:3px 8px;
+  border-radius:4px;
+  background:hsl(18,70%,42%,0.1);
+  color:var(--brand-terracotta);
+}
+.lead-badge-post {
+  background:hsl(220,60%,50%,0.1);
+  color:hsl(220,60%,40%);
+}
+.lead-card-notes {
+  font-size:12px;
+  color:var(--text-secondary);
+  margin-top:8px;
+  line-height:1.5;
+  padding-top:8px;
+  border-top:1px solid var(--border-warm);
+}
+.lead-card-date {
+  font-size:10px;
+  color:var(--text-muted);
+  margin-top:6px;
+}
+.lead-card .list-delete {
+  position:absolute;
+  top:10px;
+  right:10px;
+  background:none;
+  border:none;
+  color:var(--text-muted);
+  cursor:pointer;
+  font-size:14px;
+  font-family:'Inter',sans-serif;
+  opacity:0.5;
+  transition:opacity 0.15s, color 0.15s;
+}
+.lead-card .list-delete:hover { opacity:1; color:hsl(0,60%,50%); }
+
+.form-row {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.form-group {
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+@media (max-width:500px) {
+  .form-row { grid-template-columns:1fr; }
+}
+
 .templates-section {
   max-width:800px;
   margin:0 auto;
@@ -845,24 +985,43 @@ body {
   <div class="modal">
     <button class="modal-close" data-action="close-modal" data-modal="leadsModal">&times;</button>
     <h3>Inbound Lead Tagging</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin:-8px 0 16px;line-height:1.5;">Track people who engage with your content. Tag which post triggered the interaction so you can see what converts.</p>
     <div class="modal-form" id="leadForm">
-      <label>Name</label>
-      <input type="text" id="leadName" placeholder="Contact name">
-      <label>Company</label>
-      <input type="text" id="leadCompany" placeholder="Company name">
-      <label>LinkedIn URL</label>
-      <input type="url" id="leadUrl" placeholder="https://linkedin.com/in/...">
-      <label>Trigger Post Number</label>
-      <input type="number" id="leadPostNum" placeholder="e.g. 5" min="1" max="32">
-      <label>Lead Type</label>
-      <select id="leadType">
-        <option value="coffee meeting">Coffee Meeting</option>
-        <option value="direct message">Direct Message</option>
-        <option value="connection request">Connection Request</option>
-        <option value="partnership inquiry">Partnership Inquiry</option>
-      </select>
-      <label>Notes</label>
-      <textarea id="leadNotes" rows="2" placeholder="Additional notes..."></textarea>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="leadName" placeholder="e.g. Kush Birdi">
+        </div>
+        <div class="form-group">
+          <label>Company / Firm</label>
+          <input type="text" id="leadCompany" placeholder="e.g. Birdi & Co">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>LinkedIn URL</label>
+        <input type="url" id="leadUrl" placeholder="https://linkedin.com/in/...">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Trigger Post</label>
+          <input type="number" id="leadPostNum" placeholder="Post # that triggered it" min="1" max="32">
+        </div>
+        <div class="form-group">
+          <label>How They Reached Out</label>
+          <select id="leadType">
+            <option value="connection request">Connection Request</option>
+            <option value="direct message">Direct Message</option>
+            <option value="coffee meeting">Coffee Meeting</option>
+            <option value="partnership inquiry">Partnership Inquiry</option>
+            <option value="comment engagement">Comment Engagement</option>
+            <option value="referral">Referral</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="leadNotes" rows="2" placeholder="Context about the conversation, what they asked about, next steps..."></textarea>
+      </div>
       <button class="modal-submit" data-action="add-lead">Add Lead</button>
     </div>
     <div id="leadsList"></div>
@@ -1265,25 +1424,58 @@ function loadLeads() {
     .catch(function() {});
 }
 
+function getInitials(name) {
+  if (!name) return '?';
+  var parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+
+function formatLeadDate(dateStr) {
+  if (!dateStr) return '';
+  var d = new Date(dateStr);
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+}
+
 function renderLeads() {
   var container = document.getElementById('leadsList');
   if (!leadsData.length) {
-    container.innerHTML = '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;">No leads tagged yet.</p>';
+    container.innerHTML = '';
     return;
   }
   var html = '';
+  html += '<button class="leads-section-toggle" data-action="toggle-leads">';
+  html += '<div style="display:flex;align-items:center;gap:8px;">';
+  html += '<h4>Tagged Leads</h4>';
+  html += '<span class="leads-count">' + leadsData.length + '</span>';
+  html += '</div>';
+  html += '<span class="leads-chevron">&#9654;</span>';
+  html += '</button>';
+  html += '<div class="leads-list-collapsible" id="leadsCollapsible">';
   leadsData.forEach(function(l) {
-    html += '<div class="list-item">';
+    html += '<div class="lead-card">';
     html += '<button class="list-delete" data-action="delete-lead" data-id="' + l.id + '">&times;</button>';
-    html += '<strong>' + escapeHtml(l.name || 'Unknown') + '</strong>';
-    if (l.company) html += ' at ' + escapeHtml(l.company);
-    html += '<div class="list-meta">';
-    if (l.triggerPostNumber) html += 'Post #' + l.triggerPostNumber + ' | ';
-    html += escapeHtml(l.leadType || '');
-    if (l.notes) html += ' | ' + escapeHtml(l.notes);
+    html += '<div class="lead-card-header">';
+    html += '<div class="lead-card-avatar">' + getInitials(l.name) + '</div>';
+    html += '<div>';
+    html += '<div class="lead-card-name">' + escapeHtml(l.name || 'Unknown') + '</div>';
+    if (l.company) html += '<div class="lead-card-company">' + escapeHtml(l.company) + '</div>';
     html += '</div>';
+    html += '</div>';
+    html += '<div class="lead-card-badges">';
+    html += '<span class="lead-badge">' + escapeHtml(l.leadType || 'Lead') + '</span>';
+    if (l.triggerPostNumber) html += '<span class="lead-badge lead-badge-post">Post #' + l.triggerPostNumber + '</span>';
+    html += '</div>';
+    if (l.notes) {
+      html += '<div class="lead-card-notes">' + escapeHtml(l.notes) + '</div>';
+    }
+    if (l.createdAt) {
+      html += '<div class="lead-card-date">Added ' + formatLeadDate(l.createdAt) + '</div>';
+    }
     html += '</div>';
   });
+  html += '</div>';
   container.innerHTML = html;
 }
 
@@ -1836,6 +2028,13 @@ document.addEventListener('click', function(e) {
     fetch('/api/linkedin-connections/' + cid, { method: 'DELETE' })
     .then(function() { showToast('Milestone deleted'); loadConnections(); })
     .catch(function() { showToast('Failed to delete'); });
+    return;
+  }
+
+  if (action === 'toggle-leads') {
+    btn.classList.toggle('open');
+    var collapsible = document.getElementById('leadsCollapsible');
+    if (collapsible) collapsible.classList.toggle('open');
     return;
   }
 
