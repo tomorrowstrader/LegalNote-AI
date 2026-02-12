@@ -1036,3 +1036,54 @@ export const insertLinkedinPostPerformanceSchema = createInsertSchema(linkedinPo
 
 export type InsertLinkedinPostPerformance = z.infer<typeof insertLinkedinPostPerformanceSchema>;
 export type LinkedinPostPerformance = typeof linkedinPostPerformance.$inferSelect;
+
+export const linkedinConnectionMilestones = pgTable("linkedin_connection_milestones", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  date: timestamp("date").notNull(),
+  connectionCount: integer("connection_count").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLinkedinConnectionMilestoneSchema = createInsertSchema(linkedinConnectionMilestones).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertLinkedinConnectionMilestone = z.infer<typeof insertLinkedinConnectionMilestoneSchema>;
+export type LinkedinConnectionMilestone = typeof linkedinConnectionMilestones.$inferSelect;
+
+export const linkedinInboundLeads = pgTable("linkedin_inbound_leads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  company: varchar("company"),
+  linkedinUrl: varchar("linkedin_url"),
+  triggerPostNumber: integer("trigger_post_number"),
+  leadType: varchar("lead_type"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLinkedinInboundLeadSchema = createInsertSchema(linkedinInboundLeads).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertLinkedinInboundLead = z.infer<typeof insertLinkedinInboundLeadSchema>;
+export type LinkedinInboundLead = typeof linkedinInboundLeads.$inferSelect;
+
+export const linkedinHookVariants = pgTable("linkedin_hook_variants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postNumber: integer("post_number").notNull(),
+  variant: text("variant").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLinkedinHookVariantSchema = createInsertSchema(linkedinHookVariants).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertLinkedinHookVariant = z.infer<typeof insertLinkedinHookVariantSchema>;
+export type LinkedinHookVariant = typeof linkedinHookVariants.$inferSelect;

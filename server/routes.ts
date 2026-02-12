@@ -217,6 +217,255 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
     }
   });
 
+  // Connection milestones
+  app.get('/api/linkedin-connections', async (req, res, next) => {
+    try {
+      const milestones = await storage.getConnectionMilestones();
+      res.json(milestones);
+    } catch (error) { next(error); }
+  });
+
+  app.post('/api/linkedin-connections', async (req, res, next) => {
+    try {
+      const { date, connectionCount, notes } = req.body;
+      if (!date || connectionCount === undefined) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+      const milestone = await storage.addConnectionMilestone({
+        date: new Date(date),
+        connectionCount,
+        notes: notes || null,
+      });
+      res.json(milestone);
+    } catch (error) { next(error); }
+  });
+
+  app.delete('/api/linkedin-connections/:id', async (req, res, next) => {
+    try {
+      await storage.deleteConnectionMilestone(req.params.id);
+      res.json({ success: true });
+    } catch (error) { next(error); }
+  });
+
+  // Inbound leads
+  app.get('/api/linkedin-leads', async (req, res, next) => {
+    try {
+      const leads = await storage.getInboundLeads();
+      res.json(leads);
+    } catch (error) { next(error); }
+  });
+
+  app.post('/api/linkedin-leads', async (req, res, next) => {
+    try {
+      const { name, company, linkedinUrl, triggerPostNumber, leadType, notes } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: 'Name is required' });
+      }
+      const lead = await storage.addInboundLead({
+        name,
+        company: company || null,
+        linkedinUrl: linkedinUrl || null,
+        triggerPostNumber: triggerPostNumber || null,
+        leadType: leadType || null,
+        notes: notes || null,
+      });
+      res.json(lead);
+    } catch (error) { next(error); }
+  });
+
+  app.delete('/api/linkedin-leads/:id', async (req, res, next) => {
+    try {
+      await storage.deleteInboundLead(req.params.id);
+      res.json({ success: true });
+    } catch (error) { next(error); }
+  });
+
+  // Hook variants
+  app.get('/api/linkedin-hooks/:postNumber', async (req, res, next) => {
+    try {
+      const postNumber = parseInt(req.params.postNumber);
+      const variants = await storage.getHookVariants(postNumber);
+      res.json(variants);
+    } catch (error) { next(error); }
+  });
+
+  app.post('/api/linkedin-hooks/generate', async (req, res, next) => {
+    try {
+      const { postNumber, currentHook, theme } = req.body;
+      if (!postNumber || !currentHook) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+      const { openaiClient } = await import('./config/openai');
+      const response = await openaiClient.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `Generate 3 alternative LinkedIn post hooks (opening lines) for a legal tech founder. Each hook must be 8 words or fewer. The hooks should be punchy, attention-grabbing, and follow the "How I" > "How to" principle. Return JSON: {"hooks":["hook1","hook2","hook3"]}`
+          },
+          {
+            role: 'user',
+            content: `Current hook: "${currentHook}"\nPost theme: "${theme || 'LegalNote legal tech'}"\n\nGenerate 3 alternative hooks.`
+          }
+        ],
+        response_format: { type: 'json_object' },
+        max_completion_tokens: 500,
+      });
+      const result = JSON.parse(response.choices[0].message.content || '{"hooks":[]}');
+      for (const hook of result.hooks) {
+        await storage.addHookVariant({ postNumber, variant: hook, used: false });
+      }
+      const allVariants = await storage.getHookVariants(postNumber);
+      res.json(allVariants);
+    } catch (error) { next(error); }
+  });
+
+  app.delete('/api/linkedin-hooks/:id', async (req, res, next) => {
+    try {
+      await storage.deleteHookVariant(req.params.id);
+      res.json({ success: true });
+    } catch (error) { next(error); }
+  });
+
+  // Voice consistency scoring
+  app.post('/api/linkedin-voice-check', async (req, res, next) => {
+    try {
+      const { content, voice } = req.body;
+      if (!content) {
+        return res.status(400).json({ error: 'Content is required' });
+      }
+      const { openaiClient } = await import('./config/openai');
+      const response = await openaiClient.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a content consistency checker for a legal tech founder's LinkedIn content. The founder has four voices:
+1. Client Who Got Burned - personal experience with bad legal documentation
+2. Compliance Professional - corporate background at Clifford Chance, Coutts, Lloyd's, Standard Chartered
+3. Obsessed Vibe Coder - passion for building, technical craftsmanship
+4. Father Building Something - responsibility, legacy, defensibility
+
+Score the content on: authenticity (1-10), voice consistency with the stated voice (1-10), LinkedIn best practices (1-10), engagement potential (1-10).
+Provide brief actionable feedback.
+Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPractices":N,"engagementPotential":N},"overall":N,"feedback":"brief feedback","strengths":["strength1"],"improvements":["improvement1"]}`
+          },
+          {
+            role: 'user',
+            content: `Voice: ${voice || 'Not specified'}\n\nContent:\n${content}`
+          }
+        ],
+        response_format: { type: 'json_object' },
+        max_completion_tokens: 1000,
+      });
+      const result = JSON.parse(response.choices[0].message.content || '{}');
+      res.json(result);
+    } catch (error) { next(error); }
+  });
+
+  // Engagement prompts
+  app.post('/api/linkedin-engagement-prompts', async (req, res, next) => {
+    try {
+      const { content, theme } = req.body;
+      if (!content) {
+        return res.status(400).json({ error: 'Content is required' });
+      }
+      const { openaiClient } = await import('./config/openai');
+      const response = await openaiClient.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You help a legal tech founder engage with comments on their LinkedIn posts. Given a post, generate 4 suggested reply templates for common comment types they might receive. Each reply should be warm, authentic, and encourage further conversation. Return JSON: {"prompts":[{"commentType":"type","suggestedReply":"reply"},...]}`
+          },
+          {
+            role: 'user',
+            content: `Post theme: ${theme || 'Legal tech'}\n\nPost content:\n${content}`
+          }
+        ],
+        response_format: { type: 'json_object' },
+        max_completion_tokens: 1000,
+      });
+      const result = JSON.parse(response.choices[0].message.content || '{"prompts":[]}');
+      res.json(result);
+    } catch (error) { next(error); }
+  });
+
+  // Campaign dashboard summary
+  app.get('/api/linkedin-dashboard', async (req, res, next) => {
+    try {
+      const [allPerf, milestones, leads] = await Promise.all([
+        storage.getAllLinkedinPostPerformance(),
+        storage.getConnectionMilestones(),
+        storage.getInboundLeads(),
+      ]);
+
+      const posted = allPerf.filter(p => p.postedAt);
+      const totalImpressions = posted.reduce((s, p) => s + (p.impressions7d || p.impressions3d || p.impressions24h || 0), 0);
+      const totalInteractions = posted.reduce((s, p) => s + (p.interactions7d || p.interactions3d || p.interactions24h || 0), 0);
+      const totalComments = posted.reduce((s, p) => s + (p.comments7d || p.comments3d || p.comments24h || 0), 0);
+
+      const avgImpressions = posted.length > 0 ? Math.round(totalImpressions / posted.length) : 0;
+      const avgInteractions = posted.length > 0 ? Math.round(totalInteractions / posted.length) : 0;
+
+      const bestPost = posted.length > 0
+        ? posted.reduce((best, p) => {
+            const score = (p.impressions7d || 0) + (p.interactions7d || 0) * 5 + (p.comments7d || 0) * 10;
+            const bestScore = (best.impressions7d || 0) + (best.interactions7d || 0) * 5 + (best.comments7d || 0) * 10;
+            return score > bestScore ? p : best;
+          })
+        : null;
+
+      const latestConnection = milestones.length > 0 ? milestones[0].connectionCount : 0;
+
+      const bestTimeData: Record<string, { count: number; totalImpressions: number }> = {};
+      posted.forEach(p => {
+        if (p.postedAt) {
+          const date = new Date(p.postedAt);
+          const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          const day = days[date.getDay()];
+          const hour = date.getHours();
+          const timeSlot = hour < 9 ? 'Early' : hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening';
+          const key = `${day} ${timeSlot}`;
+          if (!bestTimeData[key]) bestTimeData[key] = { count: 0, totalImpressions: 0 };
+          bestTimeData[key].count++;
+          bestTimeData[key].totalImpressions += (p.impressions24h || 0);
+        }
+      });
+
+      let bestTime = 'Not enough data';
+      let bestTimeAvg = 0;
+      Object.entries(bestTimeData).forEach(([key, val]) => {
+        const avg = val.totalImpressions / val.count;
+        if (avg > bestTimeAvg) {
+          bestTimeAvg = avg;
+          bestTime = key;
+        }
+      });
+
+      const currentPhase = posted.length <= 8 ? 1 : posted.length <= 16 ? 2 : posted.length <= 24 ? 3 : 4;
+      const phaseNames = ['Origin & Credibility', 'Problem & Pain', 'Vision & Proof', 'Authority & Community'];
+
+      res.json({
+        postsPublished: posted.length,
+        totalPosts: 32,
+        currentPhase,
+        phaseName: phaseNames[currentPhase - 1],
+        totalImpressions,
+        totalInteractions,
+        totalComments,
+        avgImpressions,
+        avgInteractions,
+        bestPost: bestPost ? { postNumber: bestPost.postNumber, impressions: bestPost.impressions7d || 0 } : null,
+        currentConnections: latestConnection,
+        totalLeads: leads.length,
+        bestTime: bestTime !== 'Not enough data' ? bestTime : null,
+        bestTimeAvgImpressions: Math.round(bestTimeAvg),
+        weekProgress: Math.ceil(posted.length / 4),
+      });
+    } catch (error) { next(error); }
+  });
+
   // Serve the 60-day LinkedIn content calendar
   app.get('/content-calendar', (req, res) => {
     res.sendFile(path.join(process.cwd(), 'public', 'content-calendar.html'));

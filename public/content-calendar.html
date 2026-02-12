@@ -3,102 +3,795 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LegalNote Content Calendar</title>
+<title>LegalNote Content Calendar - 60-Day LinkedIn Strategy</title>
+<meta name="description" content="LegalNote's 60-day LinkedIn content strategy with 32 posts across 8 weeks and 4 phases. Campaign intelligence, performance tracking, and AI-powered editing.">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:'Inter',system-ui,-apple-system,sans-serif; background:#0f172a; color:#e2e8f0; min-height:100vh; -webkit-tap-highlight-color:transparent; }
-  .header { text-align:center; padding:24px 16px 16px; border-bottom:1px solid #1e293b; }
-  .header h1 { font-size:22px; font-weight:700; color:#f1f5f9; }
-  .header h1 span { color:#3b82f6; }
-  .header p { font-size:13px; color:#64748b; margin-top:4px; }
-  .stats-bar { display:flex; gap:16px; justify-content:center; padding:16px; flex-wrap:wrap; }
-  .stat { text-align:center; }
-  .stat-val { font-size:20px; font-weight:700; color:#3b82f6; }
-  .stat-lbl { font-size:11px; color:#64748b; }
-  .nav { display:flex; gap:8px; padding:8px 16px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  .nav::-webkit-scrollbar { display:none; }
-  .nav button { flex-shrink:0; padding:8px 16px; border-radius:20px; border:1px solid #334155; background:transparent; color:#94a3b8; font-size:13px; cursor:pointer; transition:background .2s,color .2s,border-color .2s; }
-  .nav button.active { background:#3b82f6; color:#fff; border-color:#3b82f6; }
-  .posts { padding:16px; max-width:720px; margin:0 auto; }
-  .phase-hdr { text-align:center; padding:20px 16px 8px; }
-  .phase-hdr h2 { font-size:18px; font-weight:700; color:#f1f5f9; }
-  .phase-hdr p { font-size:13px; color:#64748b; margin-top:4px; }
-  .week-hdr { padding:12px 0 4px; font-size:13px; font-weight:600; color:#64748b; }
-  .card { background:#1e293b; border-radius:12px; padding:20px; margin-bottom:16px; border:1px solid #334155; }
-  .meta { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
-  .tag { font-size:11px; padding:3px 8px; border-radius:10px; font-weight:600; }
-  .tag-num { background:rgba(59,130,246,0.15); color:#3b82f6; }
-  .tag-day { background:rgba(241,245,249,0.08); color:#94a3b8; }
-  .tag-voice { background:rgba(16,185,129,0.12); color:#10b981; }
-  .tag-fw { background:rgba(245,158,11,0.1); color:#f59e0b; }
-  .theme { font-size:14px; font-weight:600; color:#f1f5f9; margin-bottom:10px; }
-  .content { font-size:14px; line-height:1.7; color:#cbd5e1; white-space:pre-wrap; word-wrap:break-word; max-height:180px; overflow:hidden; position:relative; transition:max-height .3s ease; }
-  .content.open { max-height:none; }
-  .content:not(.open)::after { content:''; position:absolute; bottom:0; left:0; right:0; height:60px; background:linear-gradient(transparent,#1e293b); pointer-events:none; }
-  .actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
-  .btn { padding:8px 16px; border-radius:8px; border:1px solid #334155; background:transparent; color:#94a3b8; font-size:12px; cursor:pointer; transition:background .2s,color .2s,border-color .2s; display:flex; align-items:center; gap:6px; }
-  .btn:active { background:#334155; color:#e2e8f0; }
-  .btn-expand { color:#3b82f6; }
-  .btn-expand:active { background:#1e3a5f; }
-  .btn-copied { background:#059669!important; border-color:#059669!important; color:#fff!important; }
-  .btn-track { color:#f59e0b; border-color:#4a3728; }
-  .btn-track:active { background:#4a3728; }
-  .btn-chat { color:#a78bfa; border-color:#4c3575; }
-  .btn-chat:active { background:#4c3575; }
-  .perf { margin-top:16px; padding:16px; background:#0f172a; border-radius:8px; border:1px solid #334155; display:none; }
-  .perf.open { display:block; }
-  .perf h4 { font-size:13px; font-weight:600; color:#f59e0b; margin-bottom:12px; }
-  .perf-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px; }
-  .perf-section { font-size:11px; color:#64748b; font-weight:600; margin-bottom:4px; text-align:center; }
-  .perf-field { display:flex; flex-direction:column; gap:2px; }
-  .perf-field label { font-size:10px; color:#64748b; text-transform:uppercase; }
-  .perf-field input { background:#1e293b; border:1px solid #334155; border-radius:6px; padding:6px 8px; color:#e2e8f0; font-size:13px; width:100%; }
-  .perf-field input:focus { outline:none; border-color:#3b82f6; }
-  .perf-row { margin-bottom:12px; }
-  .perf-row label { display:block; font-size:10px; color:#64748b; text-transform:uppercase; margin-bottom:2px; }
-  .perf-row input { background:#1e293b; border:1px solid #334155; border-radius:6px; padding:6px 8px; color:#e2e8f0; font-size:13px; width:100%; }
-  .perf-row input:focus { outline:none; border-color:#3b82f6; }
-  .perf-save { width:100%; padding:10px; border-radius:8px; border:none; background:#3b82f6; color:#fff; font-size:13px; font-weight:600; cursor:pointer; margin-top:8px; }
-  .perf-save:active { background:#2563eb; }
-  .perf-saved { background:#059669!important; }
-  .perf-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; padding:2px 6px; border-radius:8px; background:rgba(59,130,246,0.12); color:#3b82f6; font-weight:600; }
-  .perf-badge.has-data { background:rgba(16,185,129,0.12); color:#10b981; }
-  .chat-panel { margin-top:16px; padding:16px; background:#0f172a; border-radius:8px; border:1px solid #4c3575; display:none; }
-  .chat-panel.open { display:block; }
-  .chat-panel h4 { font-size:13px; font-weight:600; color:#a78bfa; margin-bottom:12px; }
-  .chat-messages { max-height:300px; overflow-y:auto; margin-bottom:12px; }
-  .chat-msg { padding:10px 12px; border-radius:8px; margin-bottom:8px; font-size:13px; line-height:1.6; }
-  .chat-msg-user { background:#334155; color:#e2e8f0; }
-  .chat-msg-ai { background:#1a1a2e; color:#cbd5e1; border:1px solid #334155; }
-  .chat-msg-ai .edit-preview { background:#1e293b; border:1px solid #4c3575; border-radius:6px; padding:10px; margin-top:8px; font-size:12px; line-height:1.6; white-space:pre-wrap; max-height:200px; overflow-y:auto; }
-  .chat-msg-ai .edit-actions { display:flex; gap:8px; margin-top:8px; }
-  .chat-msg-label { font-size:10px; font-weight:600; text-transform:uppercase; color:#64748b; margin-bottom:4px; }
-  .chat-input-row { display:flex; gap:8px; }
-  .chat-input { flex:1; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:10px 12px; color:#e2e8f0; font-size:13px; font-family:inherit; resize:none; min-height:42px; max-height:120px; }
-  .chat-input:focus { outline:none; border-color:#a78bfa; }
-  .chat-send { padding:10px 16px; border-radius:8px; border:none; background:#7c3aed; color:#fff; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
-  .chat-send:disabled { opacity:0.5; cursor:not-allowed; }
-  .chat-send:active:not(:disabled) { background:#6d28d9; }
-  .chat-typing { font-size:12px; color:#a78bfa; padding:8px 0; font-style:italic; }
-  .btn-apply { padding:6px 12px; border-radius:6px; border:none; background:#059669; color:#fff; font-size:11px; font-weight:600; cursor:pointer; }
-  .btn-apply:active { background:#047857; }
-  .btn-discard { padding:6px 12px; border-radius:6px; border:1px solid #334155; background:transparent; color:#94a3b8; font-size:11px; cursor:pointer; }
-  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#059669; color:#fff; padding:12px 24px; border-radius:10px; font-size:13px; font-weight:600; z-index:9999; opacity:0; transition:opacity .3s; pointer-events:none; }
-  .toast.show { opacity:1; }
-  @media (max-width:480px) {
-    .header { padding:16px; }
-    .header h1 { font-size:18px; }
-    .posts { padding:12px; }
-    .card { padding:16px; }
-    .perf-grid { grid-template-columns:1fr; }
-  }
+:root {
+  --brand-terracotta: hsl(18, 70%, 42%);
+  --brand-charcoal: hsl(25, 15%, 9%);
+  --brand-warm-off-white: hsl(30, 20%, 96%);
+  --brand-tapioca: hsl(35, 45%, 88%);
+  --brand-tapioca-light: hsl(35, 40%, 94%);
+  --brand-accent: hsl(25, 60%, 55%);
+  --text-main: hsl(25, 30%, 12%);
+  --text-muted: hsl(25, 15%, 35%);
+  --border-light: hsl(30, 10%, 90%);
+  --bg-warm: hsl(40, 20%, 98%);
+  --success: hsl(145, 60%, 36%);
+  --info: hsl(210, 60%, 50%);
+  --warning: hsl(35, 90%, 50%);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:'Inter',-apple-system,system-ui,sans-serif;
+  background: var(--bg-warm);
+  background-image: radial-gradient(ellipse at top right, var(--brand-tapioca-light) 0%, transparent 50%), radial-gradient(ellipse at bottom left, var(--brand-tapioca-light) 0%, transparent 40%);
+  color: var(--text-main);
+  min-height:100vh;
+  -webkit-tap-highlight-color:transparent;
+}
+
+.header {
+  text-align:center;
+  padding:28px 16px 20px;
+  border-bottom:1px solid var(--border-light);
+  background: linear-gradient(135deg, var(--brand-tapioca-light) 0%, var(--bg-warm) 100%);
+}
+.header h1 {
+  font-family:'Lora',Georgia,serif;
+  font-size:26px;
+  font-weight:600;
+  color: var(--brand-charcoal);
+}
+.header h1 span { color: var(--brand-terracotta); }
+.header .tagline {
+  font-family:'Lora',Georgia,serif;
+  font-size:14px;
+  color: var(--brand-terracotta);
+  font-style:italic;
+  margin-top:4px;
+  opacity:0.85;
+}
+
+.dashboard-toggle {
+  display:flex;
+  justify-content:center;
+  padding:12px 16px 0;
+}
+.dashboard-toggle button {
+  padding:8px 20px;
+  border-radius:8px;
+  border:1px solid var(--brand-terracotta);
+  background:transparent;
+  color: var(--brand-terracotta);
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  font-family:'Inter',sans-serif;
+  transition:background .2s, color .2s;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.dashboard-toggle button:hover { background: var(--brand-terracotta); color:#fff; }
+
+.dashboard {
+  max-width:800px;
+  margin:0 auto;
+  padding:0 16px;
+  display:none;
+}
+.dashboard.open { display:block; }
+.dashboard-section {
+  background: white;
+  border:1px solid var(--border-light);
+  border-radius:10px;
+  padding:20px;
+  margin-top:16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.dashboard-section h3 {
+  font-family:'Lora',Georgia,serif;
+  font-size:16px;
+  font-weight:600;
+  color: var(--brand-charcoal);
+  margin-bottom:14px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.dashboard-section h3::after {
+  content:'';
+  flex:1;
+  height:1px;
+  background: linear-gradient(to right, var(--brand-tapioca), transparent);
+}
+.dash-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px,1fr));
+  gap:12px;
+}
+.dash-stat {
+  background: var(--brand-tapioca-light);
+  border-radius:8px;
+  padding:14px;
+  text-align:center;
+}
+.dash-stat-val {
+  font-size:22px;
+  font-weight:700;
+  color: var(--brand-terracotta);
+}
+.dash-stat-lbl {
+  font-size:11px;
+  color: var(--text-muted);
+  text-transform:uppercase;
+  letter-spacing:0.03em;
+  margin-top:2px;
+}
+.dash-best-time {
+  background: var(--brand-tapioca-light);
+  border-radius:8px;
+  padding:14px;
+  margin-top:12px;
+  font-size:13px;
+  color: var(--text-main);
+}
+.dash-best-time strong { color: var(--brand-terracotta); }
+
+.progress-timeline {
+  display:flex;
+  gap:0;
+  margin-top:12px;
+  border-radius:8px;
+  overflow:hidden;
+  border:1px solid var(--border-light);
+}
+.progress-phase {
+  flex:1;
+  text-align:center;
+  padding:10px 4px;
+  font-size:10px;
+  font-weight:600;
+  color: var(--text-muted);
+  background: var(--brand-tapioca-light);
+  border-right:1px solid var(--border-light);
+  transition: background .2s;
+}
+.progress-phase:last-child { border-right:none; }
+.progress-phase.active { background: var(--brand-terracotta); color:#fff; }
+.progress-phase.completed { background: var(--success); color:#fff; }
+.progress-phase .phase-label { font-size:10px; display:block; margin-bottom:2px; }
+.progress-phase .phase-weeks { font-size:9px; opacity:0.8; }
+
+.pillar-grid {
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:8px;
+  margin-top:10px;
+}
+.pillar-item {
+  background: var(--brand-tapioca-light);
+  border-radius:6px;
+  padding:10px;
+  font-size:12px;
+}
+.pillar-item .pillar-name { font-weight:600; color: var(--brand-charcoal); }
+.pillar-item .pillar-val { color: var(--text-muted); margin-top:2px; }
+
+.dash-actions {
+  display:flex;
+  gap:8px;
+  margin-top:14px;
+  flex-wrap:wrap;
+}
+.dash-actions button {
+  padding:8px 16px;
+  border-radius:8px;
+  border:1px solid var(--border-light);
+  background:white;
+  color: var(--text-main);
+  font-size:12px;
+  font-weight:500;
+  cursor:pointer;
+  font-family:'Inter',sans-serif;
+  transition:background .2s, border-color .2s;
+}
+.dash-actions button:hover { border-color: var(--brand-terracotta); color: var(--brand-terracotta); }
+
+.stats-bar {
+  display:flex;
+  gap:16px;
+  justify-content:center;
+  padding:16px;
+  flex-wrap:wrap;
+}
+.stat { text-align:center; }
+.stat-val { font-size:20px; font-weight:700; color: var(--brand-terracotta); }
+.stat-lbl { font-size:11px; color: var(--text-muted); }
+
+.nav {
+  display:flex;
+  gap:6px;
+  padding:8px 16px;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.nav::-webkit-scrollbar { display:none; }
+.nav button {
+  flex-shrink:0;
+  padding:8px 16px;
+  border-radius:20px;
+  border:1px solid var(--border-light);
+  background:transparent;
+  color: var(--text-muted);
+  font-size:13px;
+  cursor:pointer;
+  font-family:'Inter',sans-serif;
+  transition:background .2s,color .2s,border-color .2s;
+}
+.nav button:hover { border-color: var(--brand-terracotta); color: var(--brand-terracotta); }
+.nav button.active {
+  background: var(--brand-terracotta);
+  color:#fff;
+  border-color: var(--brand-terracotta);
+}
+
+.posts { padding:16px; max-width:760px; margin:0 auto; }
+.phase-hdr { text-align:center; padding:24px 16px 8px; }
+.phase-hdr h2 {
+  font-family:'Lora',Georgia,serif;
+  font-size:18px;
+  font-weight:600;
+  color: var(--brand-charcoal);
+}
+.phase-hdr p { font-size:13px; color: var(--text-muted); margin-top:4px; }
+.week-hdr {
+  padding:12px 0 4px;
+  font-size:12px;
+  font-weight:600;
+  color: var(--text-muted);
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+}
+
+.card {
+  background:white;
+  border-radius:10px;
+  padding:20px;
+  margin-bottom:16px;
+  border:1px solid var(--border-light);
+  box-shadow:0 1px 4px rgba(0,0,0,0.03);
+  transition: box-shadow .2s;
+}
+.card:hover { box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+
+.meta { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+.tag { font-size:11px; padding:3px 8px; border-radius:10px; font-weight:600; }
+.tag-num { background: hsla(18,70%,42%,0.1); color: var(--brand-terracotta); }
+.tag-day { background: var(--brand-tapioca-light); color: var(--text-muted); }
+.tag-voice { background: hsla(145,60%,36%,0.1); color: var(--success); }
+.tag-fw { background: hsla(35,90%,50%,0.1); color: hsl(35,80%,40%); }
+
+.theme {
+  font-family:'Lora',Georgia,serif;
+  font-size:15px;
+  font-weight:600;
+  color: var(--brand-charcoal);
+  margin-bottom:10px;
+}
+
+.content {
+  font-size:14px;
+  line-height:1.7;
+  color: var(--text-main);
+  white-space:pre-wrap;
+  word-wrap:break-word;
+  max-height:180px;
+  overflow:hidden;
+  position:relative;
+  transition:max-height .3s ease;
+}
+.content.open { max-height:none; }
+.content:not(.open)::after {
+  content:'';
+  position:absolute;
+  bottom:0; left:0; right:0;
+  height:60px;
+  background:linear-gradient(transparent, white);
+  pointer-events:none;
+}
+
+.actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.btn {
+  padding:8px 14px;
+  border-radius:8px;
+  border:1px solid var(--border-light);
+  background:transparent;
+  color: var(--text-muted);
+  font-size:12px;
+  cursor:pointer;
+  font-family:'Inter',sans-serif;
+  transition:background .2s,color .2s,border-color .2s;
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+.btn:hover { border-color: var(--brand-terracotta); color: var(--brand-terracotta); }
+.btn-expand { color: var(--brand-terracotta); border-color: hsla(18,70%,42%,0.3); }
+.btn-copied { background: var(--success)!important; border-color: var(--success)!important; color:#fff!important; }
+.btn-track { color: hsl(35,80%,40%); border-color: hsla(35,80%,40%,0.3); }
+.btn-chat { color: var(--brand-accent); border-color: hsla(25,60%,55%,0.3); }
+.btn-hooks { color: hsl(280,50%,50%); border-color: hsla(280,50%,50%,0.3); }
+.btn-voice { color: hsl(200,60%,45%); border-color: hsla(200,60%,45%,0.3); }
+.btn-prompts { color: var(--success); border-color: hsla(145,60%,36%,0.3); }
+
+.perf {
+  margin-top:16px;
+  padding:16px;
+  background: var(--brand-tapioca-light);
+  border-radius:8px;
+  border:1px solid var(--border-light);
+  display:none;
+}
+.perf.open { display:block; }
+.perf h4 { font-size:13px; font-weight:600; color: hsl(35,80%,40%); margin-bottom:12px; }
+.perf-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px; }
+.perf-field { display:flex; flex-direction:column; gap:2px; }
+.perf-field label { font-size:10px; color: var(--text-muted); text-transform:uppercase; }
+.perf-field input {
+  background:white;
+  border:1px solid var(--border-light);
+  border-radius:6px;
+  padding:6px 8px;
+  color: var(--text-main);
+  font-size:13px;
+  width:100%;
+  font-family:'Inter',sans-serif;
+}
+.perf-field input:focus { outline:none; border-color: var(--brand-terracotta); }
+.perf-row { margin-bottom:12px; }
+.perf-row label { display:block; font-size:10px; color: var(--text-muted); text-transform:uppercase; margin-bottom:2px; }
+.perf-row input {
+  background:white;
+  border:1px solid var(--border-light);
+  border-radius:6px;
+  padding:6px 8px;
+  color: var(--text-main);
+  font-size:13px;
+  width:100%;
+  font-family:'Inter',sans-serif;
+}
+.perf-row input:focus { outline:none; border-color: var(--brand-terracotta); }
+.perf-save {
+  width:100%;
+  padding:10px;
+  border-radius:8px;
+  border:none;
+  background: var(--brand-terracotta);
+  color:#fff;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  font-family:'Inter',sans-serif;
+  margin-top:8px;
+  transition: background .2s;
+}
+.perf-save:hover { background: hsl(18,70%,36%); }
+.perf-saved { background: var(--success)!important; }
+.perf-badge {
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  font-size:10px;
+  padding:2px 6px;
+  border-radius:8px;
+  background: hsla(18,70%,42%,0.1);
+  color: var(--brand-terracotta);
+  font-weight:600;
+}
+.perf-badge.has-data { background: hsla(145,60%,36%,0.1); color: var(--success); }
+
+.chat-panel {
+  margin-top:16px;
+  padding:16px;
+  background: var(--brand-tapioca-light);
+  border-radius:8px;
+  border:1px solid var(--brand-accent);
+  display:none;
+}
+.chat-panel.open { display:block; }
+.chat-panel h4 { font-size:13px; font-weight:600; color: var(--brand-accent); margin-bottom:12px; }
+.chat-messages { max-height:300px; overflow-y:auto; margin-bottom:12px; }
+.chat-msg { padding:10px 12px; border-radius:8px; margin-bottom:8px; font-size:13px; line-height:1.6; }
+.chat-msg-user { background: var(--brand-tapioca); color: var(--text-main); }
+.chat-msg-ai { background:white; color: var(--text-main); border:1px solid var(--border-light); }
+.chat-msg-ai .edit-preview {
+  background: var(--brand-tapioca-light);
+  border:1px solid var(--brand-accent);
+  border-radius:6px;
+  padding:10px;
+  margin-top:8px;
+  font-size:12px;
+  line-height:1.6;
+  white-space:pre-wrap;
+  max-height:200px;
+  overflow-y:auto;
+}
+.chat-msg-ai .edit-actions { display:flex; gap:8px; margin-top:8px; }
+.chat-msg-label { font-size:10px; font-weight:600; text-transform:uppercase; color: var(--text-muted); margin-bottom:4px; }
+.chat-input-row { display:flex; gap:8px; }
+.chat-input {
+  flex:1;
+  background:white;
+  border:1px solid var(--border-light);
+  border-radius:8px;
+  padding:10px 12px;
+  color: var(--text-main);
+  font-size:13px;
+  font-family:inherit;
+  resize:none;
+  min-height:42px;
+  max-height:120px;
+}
+.chat-input:focus { outline:none; border-color: var(--brand-accent); }
+.chat-send {
+  padding:10px 16px;
+  border-radius:8px;
+  border:none;
+  background: var(--brand-terracotta);
+  color:#fff;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  white-space:nowrap;
+  font-family:'Inter',sans-serif;
+}
+.chat-send:disabled { opacity:0.5; cursor:not-allowed; }
+.chat-send:hover:not(:disabled) { background: hsl(18,70%,36%); }
+.chat-typing { font-size:12px; color: var(--brand-accent); padding:8px 0; font-style:italic; }
+.btn-apply {
+  padding:6px 12px;
+  border-radius:6px;
+  border:none;
+  background: var(--success);
+  color:#fff;
+  font-size:11px;
+  font-weight:600;
+  cursor:pointer;
+  font-family:'Inter',sans-serif;
+}
+.btn-discard {
+  padding:6px 12px;
+  border-radius:6px;
+  border:1px solid var(--border-light);
+  background:transparent;
+  color: var(--text-muted);
+  font-size:11px;
+  cursor:pointer;
+  font-family:'Inter',sans-serif;
+}
+
+.hooks-panel, .voice-panel, .prompts-panel {
+  margin-top:12px;
+  padding:14px;
+  background: var(--brand-tapioca-light);
+  border-radius:8px;
+  border:1px solid var(--border-light);
+  display:none;
+}
+.hooks-panel.open, .voice-panel.open, .prompts-panel.open { display:block; }
+.hooks-panel h4 { font-size:13px; font-weight:600; color: hsl(280,50%,50%); margin-bottom:10px; }
+.voice-panel h4 { font-size:13px; font-weight:600; color: hsl(200,60%,45%); margin-bottom:10px; }
+.prompts-panel h4 { font-size:13px; font-weight:600; color: var(--success); margin-bottom:10px; }
+
+.hook-variant {
+  background:white;
+  border:1px solid var(--border-light);
+  border-radius:6px;
+  padding:10px;
+  margin-bottom:8px;
+  font-size:13px;
+  line-height:1.5;
+  position:relative;
+}
+.hook-variant .hook-label {
+  font-size:10px;
+  font-weight:600;
+  color: var(--text-muted);
+  text-transform:uppercase;
+  margin-bottom:4px;
+}
+.hook-variant .hook-copy {
+  position:absolute;
+  top:8px;
+  right:8px;
+  padding:4px 8px;
+  border-radius:4px;
+  border:1px solid var(--border-light);
+  background:white;
+  font-size:10px;
+  cursor:pointer;
+  color: var(--text-muted);
+  font-family:'Inter',sans-serif;
+}
+
+.voice-scores {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px,1fr));
+  gap:8px;
+  margin-bottom:10px;
+}
+.voice-score-item {
+  background:white;
+  border-radius:6px;
+  padding:10px;
+  text-align:center;
+  border:1px solid var(--border-light);
+}
+.voice-score-val { font-size:20px; font-weight:700; color: hsl(200,60%,45%); }
+.voice-score-lbl { font-size:10px; color: var(--text-muted); text-transform:uppercase; }
+.voice-feedback {
+  background:white;
+  border:1px solid var(--border-light);
+  border-radius:6px;
+  padding:10px;
+  font-size:13px;
+  line-height:1.6;
+  white-space:pre-wrap;
+}
+
+.prompt-item {
+  background:white;
+  border:1px solid var(--border-light);
+  border-radius:6px;
+  padding:10px;
+  margin-bottom:8px;
+  font-size:13px;
+  line-height:1.5;
+}
+.prompt-item .prompt-type {
+  font-size:10px;
+  font-weight:600;
+  color: var(--text-muted);
+  text-transform:uppercase;
+  margin-bottom:4px;
+}
+
+.modal-overlay {
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.4);
+  z-index:1000;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:white;
+  border-radius:12px;
+  max-width:600px;
+  width:100%;
+  max-height:80vh;
+  overflow-y:auto;
+  padding:24px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.15);
+}
+.modal h3 {
+  font-family:'Lora',Georgia,serif;
+  font-size:18px;
+  color: var(--brand-charcoal);
+  margin-bottom:16px;
+}
+.modal-close {
+  float:right;
+  background:none;
+  border:none;
+  font-size:20px;
+  cursor:pointer;
+  color: var(--text-muted);
+  padding:4px;
+}
+.modal-form { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+.modal-form label { font-size:12px; font-weight:600; color: var(--text-muted); text-transform:uppercase; }
+.modal-form input, .modal-form select, .modal-form textarea {
+  padding:8px 10px;
+  border:1px solid var(--border-light);
+  border-radius:6px;
+  font-size:13px;
+  font-family:'Inter',sans-serif;
+  color: var(--text-main);
+}
+.modal-form input:focus, .modal-form select:focus, .modal-form textarea:focus { outline:none; border-color: var(--brand-terracotta); }
+.modal-submit {
+  padding:10px 20px;
+  border:none;
+  border-radius:8px;
+  background: var(--brand-terracotta);
+  color:#fff;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  font-family:'Inter',sans-serif;
+}
+.modal-submit:hover { background: hsl(18,70%,36%); }
+
+.list-item {
+  background: var(--brand-tapioca-light);
+  border-radius:8px;
+  padding:12px;
+  margin-bottom:8px;
+  font-size:13px;
+  position:relative;
+}
+.list-item .list-delete {
+  position:absolute;
+  top:8px;
+  right:8px;
+  background:none;
+  border:none;
+  color: hsl(0,60%,50%);
+  cursor:pointer;
+  font-size:14px;
+  font-family:'Inter',sans-serif;
+}
+.list-item strong { color: var(--brand-charcoal); }
+.list-item .list-meta { color: var(--text-muted); font-size:11px; margin-top:4px; }
+
+.templates-section {
+  max-width:800px;
+  margin:0 auto;
+  padding:0 16px 16px;
+  display:none;
+}
+.templates-section.open { display:block; }
+.template-cards {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px,1fr));
+  gap:12px;
+  margin-top:12px;
+}
+.template-card {
+  background:white;
+  border:1px solid var(--border-light);
+  border-radius:10px;
+  padding:18px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.03);
+}
+.template-card h4 {
+  font-family:'Lora',Georgia,serif;
+  font-size:15px;
+  color: var(--brand-charcoal);
+  margin-bottom:6px;
+}
+.template-card p { font-size:13px; color: var(--text-muted); line-height:1.5; }
+.template-card .template-tag {
+  display:inline-block;
+  margin-top:8px;
+  font-size:10px;
+  padding:3px 8px;
+  border-radius:10px;
+  background: hsla(18,70%,42%,0.1);
+  color: var(--brand-terracotta);
+  font-weight:600;
+}
+
+.loading-spinner {
+  display:inline-block;
+  width:14px;
+  height:14px;
+  border:2px solid var(--border-light);
+  border-top:2px solid var(--brand-terracotta);
+  border-radius:50%;
+  animation:spin .6s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.toast {
+  position:fixed;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  background: var(--brand-charcoal);
+  color:#fff;
+  padding:12px 24px;
+  border-radius:10px;
+  font-size:13px;
+  font-weight:600;
+  z-index:9999;
+  opacity:0;
+  transition:opacity .3s;
+  pointer-events:none;
+}
+.toast.show { opacity:1; }
+
+@media (max-width:600px) {
+  .header { padding:16px; }
+  .header h1 { font-size:20px; }
+  .posts { padding:12px; }
+  .card { padding:16px; }
+  .perf-grid { grid-template-columns:1fr; }
+  .dash-grid { grid-template-columns:1fr 1fr; }
+  .voice-scores { grid-template-columns:1fr 1fr; }
+  .pillar-grid { grid-template-columns:1fr; }
+  .template-cards { grid-template-columns:1fr; }
+  .progress-phase { font-size:9px; padding:8px 2px; }
+}
 </style>
 </head>
 <body>
 
 <div class="header">
   <h1>Legal<span>Note</span> Content Calendar</h1>
-  <p>60-Day LinkedIn Strategy &mdash; 32 Posts, 8 Weeks</p>
+  <div class="tagline">60-Day LinkedIn Strategy &mdash; 32 Posts, 8 Weeks</div>
+</div>
+
+<div class="dashboard-toggle">
+  <button data-testid="button-toggle-dashboard" id="dashToggle">Campaign Dashboard</button>
+</div>
+
+<div class="dashboard" id="dashboard">
+  <div class="dashboard-section">
+    <h3>Campaign Progress</h3>
+    <div class="progress-timeline" id="progressTimeline"></div>
+    <div class="dash-grid" id="dashStats">
+      <div class="dash-stat"><div class="dash-stat-val" id="dashPublished">--</div><div class="dash-stat-lbl">Published</div></div>
+      <div class="dash-stat"><div class="dash-stat-val">32</div><div class="dash-stat-lbl">Total Posts</div></div>
+      <div class="dash-stat"><div class="dash-stat-val" id="dashPhase">--</div><div class="dash-stat-lbl">Current Phase</div></div>
+      <div class="dash-stat"><div class="dash-stat-val" id="dashImpressions">--</div><div class="dash-stat-lbl">Impressions</div></div>
+      <div class="dash-stat"><div class="dash-stat-val" id="dashInteractions">--</div><div class="dash-stat-lbl">Interactions</div></div>
+      <div class="dash-stat"><div class="dash-stat-val" id="dashComments">--</div><div class="dash-stat-lbl">Comments</div></div>
+      <div class="dash-stat"><div class="dash-stat-val" id="dashEngagement">--</div><div class="dash-stat-lbl">Avg Engagement</div></div>
+      <div class="dash-stat"><div class="dash-stat-val" id="dashBestPost">--</div><div class="dash-stat-lbl">Best Post</div></div>
+      <div class="dash-stat"><div class="dash-stat-val" id="dashConnections">--</div><div class="dash-stat-lbl">Connections</div></div>
+      <div class="dash-stat"><div class="dash-stat-val" id="dashLeads">--</div><div class="dash-stat-lbl">Inbound Leads</div></div>
+    </div>
+    <div class="dash-best-time" id="dashBestTime">
+      <strong>Best Time to Post:</strong> <span id="bestTimeText">Loading...</span>
+    </div>
+  </div>
+
+  <div class="dashboard-section">
+    <h3>Content Pillar Analytics</h3>
+    <div id="pillarAnalytics">
+      <p style="font-size:12px;color:var(--text-muted);">Loading analytics...</p>
+    </div>
+  </div>
+
+  <div class="dashboard-section">
+    <h3>Actions</h3>
+    <div class="dash-actions">
+      <button data-testid="button-connections" id="btnConnections">Connection Milestones</button>
+      <button data-testid="button-leads" id="btnLeads">Inbound Leads</button>
+      <button data-testid="button-templates" id="btnTemplates">Campaign Templates</button>
+    </div>
+  </div>
+</div>
+
+<div class="templates-section" id="templatesSection">
+  <div class="dashboard-section">
+    <h3>Campaign Templates</h3>
+    <div class="template-cards">
+      <div class="template-card">
+        <h4>Solicitors Campaign</h4>
+        <p>A compliance-first content strategy for boutique law firms. Focuses on documentation gaps, SRA alignment, PI claim prevention, and building trust through authentic storytelling. 32 posts over 8 weeks with a 4-phase arc from credibility to authority.</p>
+        <span class="template-tag">Legal / Compliance</span>
+      </div>
+      <div class="template-card">
+        <h4>Accountants Campaign</h4>
+        <p>A client-trust content strategy for small accounting practices. Highlights record-keeping accuracy, HMRC audit readiness, client communication gaps, and the value of contemporaneous documentation in financial advisory meetings.</p>
+        <span class="template-tag">Finance / Advisory</span>
+      </div>
+      <div class="template-card">
+        <h4>Consultants Campaign</h4>
+        <p>A thought-leadership content strategy for independent consultants. Centres on capturing meeting outcomes, protecting intellectual property, building credibility through documented results, and converting speaking engagements into retainers.</p>
+        <span class="template-tag">Consulting / Strategy</span>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="stats-bar">
@@ -129,6 +822,52 @@
 </div>
 
 <div class="posts" id="postsContainer"></div>
+
+<div class="modal-overlay" id="connectionsModal">
+  <div class="modal">
+    <button class="modal-close" data-action="close-modal" data-modal="connectionsModal">&times;</button>
+    <h3>Connection Milestones</h3>
+    <div class="modal-form" id="connectionForm">
+      <label>Date</label>
+      <input type="date" id="connDate">
+      <label>Connection Count</label>
+      <input type="number" id="connCount" placeholder="e.g. 200">
+      <label>Notes</label>
+      <input type="text" id="connNotes" placeholder="e.g. Hit 200 connections after viral post">
+      <button class="modal-submit" data-action="add-connection">Add Milestone</button>
+    </div>
+    <div id="connectionsList"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="leadsModal">
+  <div class="modal">
+    <button class="modal-close" data-action="close-modal" data-modal="leadsModal">&times;</button>
+    <h3>Inbound Lead Tagging</h3>
+    <div class="modal-form" id="leadForm">
+      <label>Name</label>
+      <input type="text" id="leadName" placeholder="Contact name">
+      <label>Company</label>
+      <input type="text" id="leadCompany" placeholder="Company name">
+      <label>LinkedIn URL</label>
+      <input type="url" id="leadUrl" placeholder="https://linkedin.com/in/...">
+      <label>Trigger Post Number</label>
+      <input type="number" id="leadPostNum" placeholder="e.g. 5" min="1" max="32">
+      <label>Lead Type</label>
+      <select id="leadType">
+        <option value="coffee meeting">Coffee Meeting</option>
+        <option value="direct message">Direct Message</option>
+        <option value="connection request">Connection Request</option>
+        <option value="partnership inquiry">Partnership Inquiry</option>
+      </select>
+      <label>Notes</label>
+      <textarea id="leadNotes" rows="2" placeholder="Additional notes..."></textarea>
+      <button class="modal-submit" data-action="add-lead">Add Lead</button>
+    </div>
+    <div id="leadsList"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -331,6 +1070,9 @@ var perfData = {};
 var chatHistories = {};
 var currentPhase = 'all';
 var currentWeek = 'all';
+var dashboardData = null;
+var connectionsData = [];
+var leadsData = [];
 
 var phaseNames = {
   1: 'Phase 1: Origin & Credibility',
@@ -345,6 +1087,19 @@ var phaseDescs = {
   4: 'Lead the conversation. Cast the vision.'
 };
 
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 2500);
+}
+
+function escapeHtml(text) {
+  var div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 function loadPerfData() {
   fetch('/api/linkedin-performance')
     .then(function(r) { return r.json(); })
@@ -357,17 +1112,176 @@ function loadPerfData() {
     .catch(function() {});
 }
 
-function showToast(msg) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(function() { t.classList.remove('show'); }, 2000);
+function loadDashboard() {
+  fetch('/api/linkedin-dashboard')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      dashboardData = data;
+      renderDashboard(data);
+    })
+    .catch(function() {
+      renderDashboardFallback();
+    });
 }
 
-function escapeHtml(text) {
-  var div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+function renderDashboard(d) {
+  document.getElementById('dashPublished').textContent = d.postsPublished || 0;
+  document.getElementById('dashPhase').textContent = d.currentPhase || '--';
+  document.getElementById('dashImpressions').textContent = formatNum(d.totalImpressions);
+  document.getElementById('dashInteractions').textContent = formatNum(d.totalInteractions);
+  document.getElementById('dashComments').textContent = formatNum(d.totalComments);
+  document.getElementById('dashEngagement').textContent = d.averageEngagement ? d.averageEngagement.toFixed(1) + '%' : '--';
+  document.getElementById('dashBestPost').textContent = d.bestPerformingPost ? '#' + d.bestPerformingPost : '--';
+  document.getElementById('dashConnections').textContent = d.currentConnections || '--';
+  document.getElementById('dashLeads').textContent = d.totalInboundLeads || 0;
+
+  var bestTime = d.bestTimeToPost;
+  if (bestTime && bestTime.day) {
+    document.getElementById('bestTimeText').textContent = bestTime.day + ' at ' + (bestTime.timeSlot || 'morning') + ' (based on ' + (bestTime.dataPoints || 0) + ' data points)';
+  } else {
+    document.getElementById('bestTimeText').textContent = 'Not enough data yet. Track more posts to see patterns.';
+  }
+
+  renderProgressTimeline(d);
+  renderPillarAnalytics(d);
+}
+
+function renderDashboardFallback() {
+  document.getElementById('bestTimeText').textContent = 'Dashboard data unavailable. Start tracking posts to generate insights.';
+  renderProgressTimeline({});
+  renderPillarAnalyticsFallback();
+}
+
+function formatNum(n) {
+  if (!n && n !== 0) return '--';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+  return n.toString();
+}
+
+function renderProgressTimeline(d) {
+  var container = document.getElementById('progressTimeline');
+  var currentPhaseNum = d.currentPhase || 1;
+  var phaseLabels = ['Origin', 'Problem', 'Vision', 'Authority'];
+  var phaseWeekLabels = ['W1-2', 'W3-4', 'W5-6', 'W7-8'];
+  var html = '';
+  for (var i = 0; i < 4; i++) {
+    var cls = 'progress-phase';
+    if (i + 1 < currentPhaseNum) cls += ' completed';
+    else if (i + 1 === currentPhaseNum) cls += ' active';
+    html += '<div class="' + cls + '"><span class="phase-label">' + phaseLabels[i] + '</span><span class="phase-weeks">' + phaseWeekLabels[i] + '</span></div>';
+  }
+  container.innerHTML = html;
+}
+
+function renderPillarAnalytics(d) {
+  var container = document.getElementById('pillarAnalytics');
+  var html = '';
+
+  if (d.voiceBreakdown && Object.keys(d.voiceBreakdown).length > 0) {
+    html += '<p style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">BY VOICE TYPE</p>';
+    html += '<div class="pillar-grid">';
+    for (var v in d.voiceBreakdown) {
+      html += '<div class="pillar-item"><div class="pillar-name">' + escapeHtml(v) + '</div><div class="pillar-val">' + d.voiceBreakdown[v] + ' posts tracked</div></div>';
+    }
+    html += '</div>';
+  }
+
+  if (d.frameworkBreakdown && Object.keys(d.frameworkBreakdown).length > 0) {
+    html += '<p style="font-size:12px;font-weight:600;color:var(--text-muted);margin:12px 0 6px;">BY FRAMEWORK</p>';
+    html += '<div class="pillar-grid">';
+    for (var f in d.frameworkBreakdown) {
+      html += '<div class="pillar-item"><div class="pillar-name">' + escapeHtml(f) + '</div><div class="pillar-val">' + d.frameworkBreakdown[f] + ' posts tracked</div></div>';
+    }
+    html += '</div>';
+  }
+
+  if (!html) {
+    html = '<p style="font-size:12px;color:var(--text-muted);">Track post performance to see content pillar analytics.</p>';
+  }
+  container.innerHTML = html;
+}
+
+function renderPillarAnalyticsFallback() {
+  var voices = {};
+  var frameworks = {};
+  posts.forEach(function(p) {
+    voices[p.voice] = (voices[p.voice] || 0) + 1;
+    frameworks[p.framework] = (frameworks[p.framework] || 0) + 1;
+  });
+
+  var container = document.getElementById('pillarAnalytics');
+  var html = '<p style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">BY VOICE TYPE (all posts)</p>';
+  html += '<div class="pillar-grid">';
+  for (var v in voices) {
+    html += '<div class="pillar-item"><div class="pillar-name">' + escapeHtml(v) + '</div><div class="pillar-val">' + voices[v] + ' posts</div></div>';
+  }
+  html += '</div>';
+  html += '<p style="font-size:12px;font-weight:600;color:var(--text-muted);margin:12px 0 6px;">BY FRAMEWORK</p>';
+  html += '<div class="pillar-grid">';
+  for (var f in frameworks) {
+    html += '<div class="pillar-item"><div class="pillar-name">' + escapeHtml(f) + '</div><div class="pillar-val">' + frameworks[f] + ' posts</div></div>';
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function loadConnections() {
+  fetch('/api/linkedin-connections')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      connectionsData = Array.isArray(data) ? data : [];
+      renderConnections();
+    })
+    .catch(function() {});
+}
+
+function renderConnections() {
+  var container = document.getElementById('connectionsList');
+  if (!connectionsData.length) {
+    container.innerHTML = '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;">No milestones recorded yet.</p>';
+    return;
+  }
+  var html = '';
+  connectionsData.forEach(function(c) {
+    html += '<div class="list-item">';
+    html += '<button class="list-delete" data-action="delete-connection" data-id="' + c.id + '">&times;</button>';
+    html += '<strong>' + c.connectionCount + ' connections</strong>';
+    html += '<div class="list-meta">' + (c.date ? new Date(c.date).toLocaleDateString() : '') + (c.notes ? ' - ' + escapeHtml(c.notes) : '') + '</div>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
+}
+
+function loadLeads() {
+  fetch('/api/linkedin-leads')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      leadsData = Array.isArray(data) ? data : [];
+      renderLeads();
+    })
+    .catch(function() {});
+}
+
+function renderLeads() {
+  var container = document.getElementById('leadsList');
+  if (!leadsData.length) {
+    container.innerHTML = '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;">No leads tagged yet.</p>';
+    return;
+  }
+  var html = '';
+  leadsData.forEach(function(l) {
+    html += '<div class="list-item">';
+    html += '<button class="list-delete" data-action="delete-lead" data-id="' + l.id + '">&times;</button>';
+    html += '<strong>' + escapeHtml(l.name || 'Unknown') + '</strong>';
+    if (l.company) html += ' at ' + escapeHtml(l.company);
+    html += '<div class="list-meta">';
+    if (l.triggerPostNumber) html += 'Post #' + l.triggerPostNumber + ' | ';
+    html += escapeHtml(l.leadType || '');
+    if (l.notes) html += ' | ' + escapeHtml(l.notes);
+    html += '</div>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
 }
 
 function updateWeekNav() {
@@ -392,7 +1306,7 @@ function renderPosts() {
   });
 
   if (filtered.length === 0) {
-    container.innerHTML = '<p style="text-align:center;color:#64748b;padding:40px;">No posts found.</p>';
+    container.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:40px;">No posts found.</p>';
     return;
   }
 
@@ -406,7 +1320,7 @@ function renderPosts() {
       lastPhase = post.phase;
     }
     if (post.week !== lastWeek) {
-      html += '<div class="week-hdr">WEEK ' + post.week + '</div>';
+      html += '<div class="week-hdr">Week ' + post.week + '</div>';
       lastWeek = post.week;
     }
 
@@ -425,14 +1339,20 @@ function renderPosts() {
     html += '<div class="theme">' + escapeHtml(post.theme) + '</div>';
     html += '<div class="content" id="content-' + post.num + '">' + escapeHtml(post.content) + '</div>';
     html += '<div class="actions">';
-    html += '<button class="btn btn-expand" data-action="expand" data-num="' + post.num + '">Read full post</button>';
-    html += '<button class="btn" data-action="copy" data-num="' + post.num + '">Copy</button>';
-    html += '<button class="btn btn-chat" data-action="chat" data-num="' + post.num + '">Edit / Discuss</button>';
-    html += '<button class="btn btn-track" data-action="track" data-num="' + post.num + '">Track Performance</button>';
+    html += '<button class="btn btn-expand" data-action="expand" data-num="' + post.num + '" data-testid="button-expand-' + post.num + '">Read full post</button>';
+    html += '<button class="btn" data-action="copy" data-num="' + post.num + '" data-testid="button-copy-' + post.num + '">Copy</button>';
+    html += '<button class="btn btn-chat" data-action="chat" data-num="' + post.num + '" data-testid="button-chat-' + post.num + '">Edit / Discuss</button>';
+    html += '<button class="btn btn-track" data-action="track" data-num="' + post.num + '" data-testid="button-track-' + post.num + '">Track</button>';
+    html += '<button class="btn btn-hooks" data-action="hooks" data-num="' + post.num + '" data-testid="button-hooks-' + post.num + '">Hooks</button>';
+    html += '<button class="btn btn-voice" data-action="voice-check" data-num="' + post.num + '" data-testid="button-voice-' + post.num + '">Voice Check</button>';
+    html += '<button class="btn btn-prompts" data-action="prompts" data-num="' + post.num + '" data-testid="button-prompts-' + post.num + '">Reply Templates</button>';
     html += '</div>';
 
     html += buildChatPanel(post);
     html += buildPerfPanel(post, pd);
+    html += '<div class="hooks-panel" id="hooks-' + post.num + '"><h4>Hook A/B Variants - Post #' + post.num + '</h4><div id="hooks-content-' + post.num + '"><p style="font-size:12px;color:var(--text-muted);">Click "Generate Hooks" to create alternative hook variants.</p><button class="btn btn-hooks" data-action="generate-hooks" data-num="' + post.num + '" style="margin-top:8px;">Generate Hooks</button></div></div>';
+    html += '<div class="voice-panel" id="voice-' + post.num + '"><h4>Voice Consistency - Post #' + post.num + '</h4><div id="voice-content-' + post.num + '"><p style="font-size:12px;color:var(--text-muted);">Click "Run Voice Check" to analyze this post.</p><button class="btn btn-voice" data-action="run-voice-check" data-num="' + post.num + '" style="margin-top:8px;">Run Voice Check</button></div></div>';
+    html += '<div class="prompts-panel" id="prompts-' + post.num + '"><h4>Engagement Reply Templates - Post #' + post.num + '</h4><div id="prompts-content-' + post.num + '"><p style="font-size:12px;color:var(--text-muted);">Click "Generate Templates" to get suggested replies.</p><button class="btn btn-prompts" data-action="generate-prompts" data-num="' + post.num + '" style="margin-top:8px;">Generate Templates</button></div></div>';
 
     html += '</div>';
   });
@@ -451,11 +1371,11 @@ function buildChatPanel(post) {
       h += renderChatMessage(msg, post.num);
     });
   } else {
-    h += '<p style="font-size:12px;color:#64748b;padding:8px 0;">Ask for edits, discuss tone, request rewrites, or get feedback on this post. Your conversation history is kept during this session.</p>';
+    h += '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;">Ask for edits, discuss tone, request rewrites, or get feedback on this post.</p>';
   }
   h += '</div>';
   h += '<div class="chat-input-row">';
-  h += '<textarea class="chat-input" id="chat-input-' + post.num + '" data-num="' + post.num + '" placeholder="e.g. Make the hook shorter, add more urgency to the ending..." rows="1"></textarea>';
+  h += '<textarea class="chat-input" id="chat-input-' + post.num + '" data-num="' + post.num + '" placeholder="e.g. Make the hook shorter, add more urgency..." rows="1"></textarea>';
   h += '<button class="chat-send" data-action="send-chat" data-num="' + post.num + '">Send</button>';
   h += '</div>';
   h += '</div>';
@@ -492,33 +1412,21 @@ function buildPerfPanel(post, pd) {
   h += '<div class="perf-row"><label>Date & Time Posted</label>';
   h += '<input type="datetime-local" data-field="postedAt" data-num="' + post.num + '" value="' + (pd && pd.postedAt ? new Date(pd.postedAt).toISOString().slice(0,16) : '') + '"></div>';
 
-  h += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">60-MINUTE SNAPSHOT</p>';
-  h += '<div class="perf-grid">';
-  h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions60m" data-num="' + post.num + '" value="' + (pd ? pd.impressions60m || '' : '') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions60m" data-num="' + post.num + '" value="' + (pd ? pd.interactions60m || '' : '') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments60m" data-num="' + post.num + '" value="' + (pd ? pd.comments60m || '' : '') + '" placeholder="0"></div>';
-  h += '</div>';
+  var snapshots = [
+    {label:'60-MINUTE SNAPSHOT', prefix:'60m'},
+    {label:'24-HOUR SNAPSHOT', prefix:'24h'},
+    {label:'3-DAY SNAPSHOT', prefix:'3d'},
+    {label:'7-DAY SNAPSHOT', prefix:'7d'}
+  ];
 
-  h += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">24-HOUR SNAPSHOT</p>';
-  h += '<div class="perf-grid">';
-  h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions24h" data-num="' + post.num + '" value="' + (pd ? pd.impressions24h || '' : '') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions24h" data-num="' + post.num + '" value="' + (pd ? pd.interactions24h || '' : '') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments24h" data-num="' + post.num + '" value="' + (pd ? pd.comments24h || '' : '') + '" placeholder="0"></div>';
-  h += '</div>';
-
-  h += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">3-DAY SNAPSHOT</p>';
-  h += '<div class="perf-grid">';
-  h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions3d" data-num="' + post.num + '" value="' + (pd ? pd.impressions3d || '' : '') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions3d" data-num="' + post.num + '" value="' + (pd ? pd.interactions3d || '' : '') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments3d" data-num="' + post.num + '" value="' + (pd ? pd.comments3d || '' : '') + '" placeholder="0"></div>';
-  h += '</div>';
-
-  h += '<p style="font-size:11px;color:#64748b;font-weight:600;margin:12px 0 6px;">7-DAY SNAPSHOT</p>';
-  h += '<div class="perf-grid">';
-  h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions7d" data-num="' + post.num + '" value="' + (pd ? pd.impressions7d || '' : '') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions7d" data-num="' + post.num + '" value="' + (pd ? pd.interactions7d || '' : '') + '" placeholder="0"></div>';
-  h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments7d" data-num="' + post.num + '" value="' + (pd ? pd.comments7d || '' : '') + '" placeholder="0"></div>';
-  h += '</div>';
+  snapshots.forEach(function(s) {
+    h += '<p style="font-size:11px;color:var(--text-muted);font-weight:600;margin:12px 0 6px;">' + s.label + '</p>';
+    h += '<div class="perf-grid">';
+    h += '<div class="perf-field"><label>Impressions</label><input type="number" data-field="impressions' + s.prefix + '" data-num="' + post.num + '" value="' + (pd ? pd['impressions' + s.prefix] || '' : '') + '" placeholder="0"></div>';
+    h += '<div class="perf-field"><label>Interactions</label><input type="number" data-field="interactions' + s.prefix + '" data-num="' + post.num + '" value="' + (pd ? pd['interactions' + s.prefix] || '' : '') + '" placeholder="0"></div>';
+    h += '<div class="perf-field"><label>Comments</label><input type="number" data-field="comments' + s.prefix + '" data-num="' + post.num + '" value="' + (pd ? pd['comments' + s.prefix] || '' : '') + '" placeholder="0"></div>';
+    h += '</div>';
+  });
 
   h += '<div class="perf-row"><label>Notes</label>';
   h += '<input type="text" data-field="notes" data-num="' + post.num + '" value="' + escapeHtml(pd && pd.notes ? pd.notes : '') + '" placeholder="What worked? What didn\'t?"></div>';
@@ -652,7 +1560,7 @@ function sendChatMessage(num) {
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
     sendBtn.disabled = false;
   })
-  .catch(function(err) {
+  .catch(function() {
     var typing = document.getElementById('typing-' + num);
     if (typing) typing.remove();
     messagesDiv.innerHTML += '<div class="chat-msg chat-msg-ai"><div class="chat-msg-label">AI</div>Something went wrong. Please try again.</div>';
@@ -688,6 +1596,150 @@ function applyEdit(num, idx) {
   showToast('Post #' + num + ' updated with edit');
 }
 
+function generateHooks(num) {
+  var post = posts.find(function(p) { return p.num === num; });
+  if (!post) return;
+
+  var container = document.getElementById('hooks-content-' + num);
+  container.innerHTML = '<div class="loading-spinner"></div> <span style="font-size:12px;color:var(--text-muted);">Generating hook variants...</span>';
+
+  var firstLine = post.content.split('\n')[0];
+
+  fetch('/api/linkedin-hooks/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      postNumber: num,
+      currentHook: firstLine,
+      theme: post.theme
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var hooks = data.hooks || data.variants || [];
+    if (!hooks.length) {
+      container.innerHTML = '<p style="font-size:12px;color:var(--text-muted);">No variants generated. Try again.</p>';
+      return;
+    }
+    var html = '';
+    hooks.forEach(function(hook, i) {
+      var hookText = typeof hook === 'string' ? hook : hook.text || hook.hook || '';
+      html += '<div class="hook-variant">';
+      html += '<div class="hook-label">Variant ' + (i + 1) + '</div>';
+      html += '<div>' + escapeHtml(hookText) + '</div>';
+      html += '<button class="hook-copy" data-action="copy-hook" data-hook="' + escapeHtml(hookText).replace(/"/g, '&quot;') + '">Copy</button>';
+      html += '</div>';
+    });
+    html += '<button class="btn btn-hooks" data-action="generate-hooks" data-num="' + num + '" style="margin-top:8px;">Regenerate</button>';
+    container.innerHTML = html;
+  })
+  .catch(function() {
+    container.innerHTML = '<p style="font-size:12px;color:hsl(0,60%,50%);">Failed to generate hooks. Try again.</p><button class="btn btn-hooks" data-action="generate-hooks" data-num="' + num + '" style="margin-top:8px;">Retry</button>';
+  });
+}
+
+function runVoiceCheck(num) {
+  var post = posts.find(function(p) { return p.num === num; });
+  if (!post) return;
+
+  var container = document.getElementById('voice-content-' + num);
+  container.innerHTML = '<div class="loading-spinner"></div> <span style="font-size:12px;color:var(--text-muted);">Analyzing voice consistency...</span>';
+
+  fetch('/api/linkedin-voice-check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content: post.content,
+      voice: post.voice
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var html = '<div class="voice-scores">';
+    var scores = ['authenticity', 'voiceConsistency', 'linkedinBestPractices', 'engagementPotential', 'overall'];
+    var labels = ['Authenticity', 'Voice Match', 'Best Practices', 'Engagement', 'Overall'];
+    scores.forEach(function(s, i) {
+      var val = data[s] || data.scores && data.scores[s] || '--';
+      html += '<div class="voice-score-item"><div class="voice-score-val">' + val + '</div><div class="voice-score-lbl">' + labels[i] + '</div></div>';
+    });
+    html += '</div>';
+    if (data.feedback) {
+      html += '<div class="voice-feedback">' + escapeHtml(data.feedback) + '</div>';
+    }
+    html += '<button class="btn btn-voice" data-action="run-voice-check" data-num="' + num + '" style="margin-top:8px;">Re-check</button>';
+    container.innerHTML = html;
+  })
+  .catch(function() {
+    container.innerHTML = '<p style="font-size:12px;color:hsl(0,60%,50%);">Voice check failed. Try again.</p><button class="btn btn-voice" data-action="run-voice-check" data-num="' + num + '" style="margin-top:8px;">Retry</button>';
+  });
+}
+
+function generatePrompts(num) {
+  var post = posts.find(function(p) { return p.num === num; });
+  if (!post) return;
+
+  var container = document.getElementById('prompts-content-' + num);
+  container.innerHTML = '<div class="loading-spinner"></div> <span style="font-size:12px;color:var(--text-muted);">Generating reply templates...</span>';
+
+  fetch('/api/linkedin-engagement-prompts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content: post.content,
+      theme: post.theme
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var prompts = data.prompts || data.replies || [];
+    if (!prompts.length) {
+      container.innerHTML = '<p style="font-size:12px;color:var(--text-muted);">No templates generated. Try again.</p>';
+      return;
+    }
+    var html = '';
+    prompts.forEach(function(p) {
+      var type = typeof p === 'string' ? 'Reply' : (p.type || p.commentType || 'Reply');
+      var text = typeof p === 'string' ? p : (p.reply || p.text || p.response || '');
+      html += '<div class="prompt-item">';
+      html += '<div class="prompt-type">' + escapeHtml(type) + '</div>';
+      html += '<div>' + escapeHtml(text) + '</div>';
+      html += '</div>';
+    });
+    html += '<button class="btn btn-prompts" data-action="generate-prompts" data-num="' + num + '" style="margin-top:8px;">Regenerate</button>';
+    container.innerHTML = html;
+  })
+  .catch(function() {
+    container.innerHTML = '<p style="font-size:12px;color:hsl(0,60%,50%);">Failed to generate templates. Try again.</p><button class="btn btn-prompts" data-action="generate-prompts" data-num="' + num + '" style="margin-top:8px;">Retry</button>';
+  });
+}
+
+document.getElementById('dashToggle').addEventListener('click', function() {
+  var dash = document.getElementById('dashboard');
+  if (dash.classList.contains('open')) {
+    dash.classList.remove('open');
+    this.textContent = 'Campaign Dashboard';
+  } else {
+    dash.classList.add('open');
+    this.textContent = 'Hide Dashboard';
+    loadDashboard();
+  }
+});
+
+document.getElementById('btnConnections').addEventListener('click', function() {
+  document.getElementById('connectionsModal').classList.add('open');
+  loadConnections();
+});
+
+document.getElementById('btnLeads').addEventListener('click', function() {
+  document.getElementById('leadsModal').classList.add('open');
+  loadLeads();
+});
+
+document.getElementById('btnTemplates').addEventListener('click', function() {
+  var sec = document.getElementById('templatesSection');
+  sec.classList.toggle('open');
+});
+
 document.getElementById('phaseNav').addEventListener('click', function(e) {
   var btn = e.target.closest('button');
   if (!btn) return;
@@ -706,6 +1758,102 @@ document.getElementById('weekNav').addEventListener('click', function(e) {
   this.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
   btn.classList.add('active');
   renderPosts();
+});
+
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('button');
+  if (!btn) return;
+
+  var action = btn.getAttribute('data-action');
+  if (!action) return;
+
+  var num = parseInt(btn.getAttribute('data-num'));
+
+  if (action === 'close-modal') {
+    var modalId = btn.getAttribute('data-modal');
+    document.getElementById(modalId).classList.remove('open');
+    return;
+  }
+
+  if (action === 'add-connection') {
+    var date = document.getElementById('connDate').value;
+    var count = document.getElementById('connCount').value;
+    var notes = document.getElementById('connNotes').value;
+    if (!count) { showToast('Please enter a connection count'); return; }
+
+    fetch('/api/linkedin-connections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: date || null, connectionCount: parseInt(count), notes: notes || null })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      showToast('Connection milestone added');
+      document.getElementById('connDate').value = '';
+      document.getElementById('connCount').value = '';
+      document.getElementById('connNotes').value = '';
+      loadConnections();
+    })
+    .catch(function() { showToast('Failed to add milestone'); });
+    return;
+  }
+
+  if (action === 'delete-connection') {
+    var cid = btn.getAttribute('data-id');
+    fetch('/api/linkedin-connections/' + cid, { method: 'DELETE' })
+    .then(function() { showToast('Milestone deleted'); loadConnections(); })
+    .catch(function() { showToast('Failed to delete'); });
+    return;
+  }
+
+  if (action === 'add-lead') {
+    var lName = document.getElementById('leadName').value;
+    var lCompany = document.getElementById('leadCompany').value;
+    var lUrl = document.getElementById('leadUrl').value;
+    var lPostNum = document.getElementById('leadPostNum').value;
+    var lType = document.getElementById('leadType').value;
+    var lNotes = document.getElementById('leadNotes').value;
+    if (!lName) { showToast('Please enter a name'); return; }
+
+    fetch('/api/linkedin-leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: lName,
+        company: lCompany || null,
+        linkedinUrl: lUrl || null,
+        triggerPostNumber: lPostNum ? parseInt(lPostNum) : null,
+        leadType: lType,
+        notes: lNotes || null
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      showToast('Lead added');
+      document.getElementById('leadName').value = '';
+      document.getElementById('leadCompany').value = '';
+      document.getElementById('leadUrl').value = '';
+      document.getElementById('leadPostNum').value = '';
+      document.getElementById('leadNotes').value = '';
+      loadLeads();
+    })
+    .catch(function() { showToast('Failed to add lead'); });
+    return;
+  }
+
+  if (action === 'delete-lead') {
+    var lid = btn.getAttribute('data-id');
+    fetch('/api/linkedin-leads/' + lid, { method: 'DELETE' })
+    .then(function() { showToast('Lead deleted'); loadLeads(); })
+    .catch(function() { showToast('Failed to delete'); });
+    return;
+  }
+
+  if (action === 'copy-hook') {
+    var hookText = btn.getAttribute('data-hook');
+    copyToClipboard(hookText).then(function() { showToast('Hook copied to clipboard'); });
+    return;
+  }
 });
 
 document.getElementById('postsContainer').addEventListener('click', function(e) {
@@ -730,8 +1878,9 @@ document.getElementById('postsContainer').addEventListener('click', function(e) 
     var post = posts.find(function(p) { return p.num === num; });
     copyToClipboard(post.content).then(function() {
       btn.textContent = 'Copied!';
+      btn.classList.add('btn-copied');
       showToast('Post #' + num + ' copied to clipboard');
-      setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('btn-copied'); }, 2000);
     });
   }
 
@@ -748,11 +1897,22 @@ document.getElementById('postsContainer').addEventListener('click', function(e) 
 
   if (action === 'track') {
     var perfPanel = document.getElementById('perf-' + num);
-    if (perfPanel.classList.contains('open')) {
-      perfPanel.classList.remove('open');
-    } else {
-      perfPanel.classList.add('open');
-    }
+    perfPanel.classList.toggle('open');
+  }
+
+  if (action === 'hooks') {
+    var hooksPanel = document.getElementById('hooks-' + num);
+    hooksPanel.classList.toggle('open');
+  }
+
+  if (action === 'voice-check') {
+    var voicePanel = document.getElementById('voice-' + num);
+    voicePanel.classList.toggle('open');
+  }
+
+  if (action === 'prompts') {
+    var promptsPanel = document.getElementById('prompts-' + num);
+    promptsPanel.classList.toggle('open');
   }
 
   if (action === 'save') {
@@ -770,6 +1930,18 @@ document.getElementById('postsContainer').addEventListener('click', function(e) 
   if (action === 'discard-edit') {
     showToast('Keeping original post content');
   }
+
+  if (action === 'generate-hooks') {
+    generateHooks(num);
+  }
+
+  if (action === 'run-voice-check') {
+    runVoiceCheck(num);
+  }
+
+  if (action === 'generate-prompts') {
+    generatePrompts(num);
+  }
 });
 
 document.getElementById('postsContainer').addEventListener('keydown', function(e) {
@@ -781,6 +1953,14 @@ document.getElementById('postsContainer').addEventListener('keydown', function(e
       sendChatMessage(num);
     }
   }
+});
+
+document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      overlay.classList.remove('open');
+    }
+  });
 });
 
 loadPerfData();

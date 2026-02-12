@@ -23,6 +23,9 @@ import {
   type SearchHistory, type InsertSearchHistory,
   type Waitlist, type InsertWaitlist,
   type LinkedinPostPerformance, type InsertLinkedinPostPerformance,
+  type LinkedinConnectionMilestone, type InsertLinkedinConnectionMilestone,
+  type LinkedinInboundLead, type InsertLinkedinInboundLead,
+  type LinkedinHookVariant, type InsertLinkedinHookVariant,
   users,
   cases,
   audioRecordings,
@@ -46,7 +49,10 @@ import {
   clientVersionTracking,
   searchHistory,
   waitlist,
-  linkedinPostPerformance
+  linkedinPostPerformance,
+  linkedinConnectionMilestones,
+  linkedinInboundLeads,
+  linkedinHookVariants
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -382,6 +388,21 @@ export interface IStorage {
   getLinkedinPostPerformance(postNumber: number): Promise<LinkedinPostPerformance | undefined>;
   getAllLinkedinPostPerformance(): Promise<LinkedinPostPerformance[]>;
   upsertLinkedinPostPerformance(data: InsertLinkedinPostPerformance): Promise<LinkedinPostPerformance>;
+  
+  // LinkedIn connection milestones
+  getConnectionMilestones(): Promise<LinkedinConnectionMilestone[]>;
+  addConnectionMilestone(data: InsertLinkedinConnectionMilestone): Promise<LinkedinConnectionMilestone>;
+  deleteConnectionMilestone(id: string): Promise<void>;
+  
+  // LinkedIn inbound leads
+  getInboundLeads(): Promise<LinkedinInboundLead[]>;
+  addInboundLead(data: InsertLinkedinInboundLead): Promise<LinkedinInboundLead>;
+  deleteInboundLead(id: string): Promise<void>;
+  
+  // LinkedIn hook variants
+  getHookVariants(postNumber: number): Promise<LinkedinHookVariant[]>;
+  addHookVariant(data: InsertLinkedinHookVariant): Promise<LinkedinHookVariant>;
+  deleteHookVariant(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -1589,6 +1610,33 @@ export class MemStorage implements IStorage {
     throw new Error("Not implemented in MemStorage");
   }
   async upsertLinkedinPostPerformance(_data: InsertLinkedinPostPerformance): Promise<LinkedinPostPerformance> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getConnectionMilestones(): Promise<LinkedinConnectionMilestone[]> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async addConnectionMilestone(_data: InsertLinkedinConnectionMilestone): Promise<LinkedinConnectionMilestone> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async deleteConnectionMilestone(_id: string): Promise<void> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getInboundLeads(): Promise<LinkedinInboundLead[]> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async addInboundLead(_data: InsertLinkedinInboundLead): Promise<LinkedinInboundLead> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async deleteInboundLead(_id: string): Promise<void> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getHookVariants(_postNumber: number): Promise<LinkedinHookVariant[]> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async addHookVariant(_data: InsertLinkedinHookVariant): Promise<LinkedinHookVariant> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async deleteHookVariant(_id: string): Promise<void> {
     throw new Error("Not implemented in MemStorage");
   }
 }
@@ -3607,6 +3655,45 @@ export class DbStorage implements IStorage {
     }
     const [created] = await db.insert(linkedinPostPerformance).values(data).returning();
     return created;
+  }
+
+  async getConnectionMilestones(): Promise<LinkedinConnectionMilestone[]> {
+    return await db.select().from(linkedinConnectionMilestones).orderBy(desc(linkedinConnectionMilestones.date));
+  }
+
+  async addConnectionMilestone(data: InsertLinkedinConnectionMilestone): Promise<LinkedinConnectionMilestone> {
+    const [created] = await db.insert(linkedinConnectionMilestones).values(data).returning();
+    return created;
+  }
+
+  async deleteConnectionMilestone(id: string): Promise<void> {
+    await db.delete(linkedinConnectionMilestones).where(eq(linkedinConnectionMilestones.id, id));
+  }
+
+  async getInboundLeads(): Promise<LinkedinInboundLead[]> {
+    return await db.select().from(linkedinInboundLeads).orderBy(desc(linkedinInboundLeads.createdAt));
+  }
+
+  async addInboundLead(data: InsertLinkedinInboundLead): Promise<LinkedinInboundLead> {
+    const [created] = await db.insert(linkedinInboundLeads).values(data).returning();
+    return created;
+  }
+
+  async deleteInboundLead(id: string): Promise<void> {
+    await db.delete(linkedinInboundLeads).where(eq(linkedinInboundLeads.id, id));
+  }
+
+  async getHookVariants(postNumber: number): Promise<LinkedinHookVariant[]> {
+    return await db.select().from(linkedinHookVariants).where(eq(linkedinHookVariants.postNumber, postNumber));
+  }
+
+  async addHookVariant(data: InsertLinkedinHookVariant): Promise<LinkedinHookVariant> {
+    const [created] = await db.insert(linkedinHookVariants).values(data).returning();
+    return created;
+  }
+
+  async deleteHookVariant(id: string): Promise<void> {
+    await db.delete(linkedinHookVariants).where(eq(linkedinHookVariants.id, id));
   }
 }
 
