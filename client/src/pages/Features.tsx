@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileCheck, ClipboardCheck, Scale, Calendar, FileText, ShieldCheck, ArrowLeft, Mic, Brain, FileOutput, Users, Lock, Search, Bell, AlertTriangle, PoundSterling, Cloud, CalendarClock, Briefcase } from "lucide-react";
+import { FileCheck, ClipboardCheck, Scale, Calendar, FileText, ShieldCheck, ArrowLeft, Mic, Brain, FileOutput, Users, Lock, Search, Bell, AlertTriangle, PoundSterling, Cloud, CalendarClock, Briefcase, Lightbulb, Focus, ListChecks, FolderOpen, CalendarCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { LeadMagnetForm } from "@/components/LeadMagnetForm";
@@ -129,6 +129,60 @@ export default function Features() {
       title: "SharePoint / OneDrive", 
       description: "Automatic document sync to your firm's Microsoft cloud. Organised folder structure by client and matter.",
       logo: "microsoft"
+    },
+  ];
+
+  const neuroInclusiveFeatures = [
+    {
+      icon: Focus,
+      title: "Zero Note-Taking During Meetings",
+      description: "The solicitor is fully present. No divided attention, no scrambling to write while listening. LegalNote captures everything, so cognitive bandwidth stays on the client.",
+      differentiator: "Generic meeting apps record audio. LegalNote removes the documentation burden entirely — the output is already in the format your firm and the SRA expect."
+    },
+    {
+      icon: FileCheck,
+      title: "SRA-Formatted Attendance Notes",
+      description: "AI doesn't just summarise — it produces structured attendance notes aligned to regulatory expectations. No reformatting, no reorganising, no second pass.",
+      differentiator: "Tools like Otter and Fireflies generate generic summaries. LegalNote produces the specific document your file actually needs — eliminating the executive function step of restructuring output."
+    },
+    {
+      icon: ShieldCheck,
+      title: "Automated Consent Documentation",
+      description: "GDPR-compliant consent is captured and logged before the meeting begins. One fewer procedural step to remember under pressure.",
+      differentiator: "Forgetting consent isn't just embarrassing — it's a regulatory breach. No generic meeting app handles this. LegalNote makes it automatic."
+    },
+    {
+      icon: ListChecks,
+      title: "Action Items Extracted and Diarised",
+      description: "Follow-ups are pulled from the transcript, linked to the matter, and synced to your calendar for approval. Nothing relies on memory alone.",
+      differentiator: "Generic apps may list action items. LegalNote integrates them into a legal workflow with deadlines, matter linking, and calendar sync — closing the loop automatically."
+    },
+    {
+      icon: FolderOpen,
+      title: "Matter-Linked Organisation",
+      description: "Every transcript, attendance note, summary, and action item is connected to its case. No flat file lists, no hunting across folders.",
+      differentiator: "When juggling multiple matters, this structure mirrors how a solicitor's workflow needs to operate — compensating for the organisational overhead that affects neurodivergent practitioners most."
+    },
+    {
+      icon: Lock,
+      title: "Tamper-Evident Audit Trail",
+      description: "Cryptographic signatures prove proper process was followed. If someone later questions whether the right steps were taken, the record speaks for itself.",
+      differentiator: "This protects neurodivergent solicitors disproportionately — removing the anxiety of 'did I follow the right process?' with verifiable, timestamped evidence."
+    },
+  ];
+
+  const neuroInclusiveRoadmap = [
+    {
+      icon: Lightbulb,
+      title: "Meeting Preparation Prompts",
+      description: "Before a scheduled meeting, LegalNote surfaces the last attendance note, outstanding actions, and key client details for that matter. A 30-second context refresh between back-to-back meetings.",
+      badge: "Coming Soon"
+    },
+    {
+      icon: CalendarCheck,
+      title: "Cognitive Load Dashboard",
+      description: "A personal view showing open actions across all matters, cases that haven't been touched recently, and upcoming deadlines. One screen replacing the mental juggling that causes things to fall through cracks.",
+      badge: "Coming Soon"
     },
   ];
 
@@ -267,8 +321,113 @@ export default function Features() {
         </div>
       </div>
 
+      {/* Neuro-Inclusive Practice */}
+      <div className="py-20 bg-white" data-testid="section-neuro-inclusive">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div 
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+              Neuro-Inclusive Practice
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              Reducing cognitive load by design
+            </h2>
+            <p className="text-lg text-[hsl(25,20%,40%)] max-w-3xl mx-auto mb-3">
+              Every feature in LegalNote removes a step your brain would otherwise have to manage. For neurodivergent solicitors — including those with ADHD, dyslexia, and autism — this isn't a convenience. It's a reasonable adjustment.
+            </p>
+            <p className="text-base text-[hsl(25,15%,50%)] max-w-2xl mx-auto">
+              These aren't additional features. They're existing capabilities viewed through the lens of the Equality Act 2010 and the SRA's guidance on reasonable adjustments.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+            {neuroInclusiveFeatures.map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                className="p-6 rounded-xl bg-gradient-to-br from-[hsl(210,30%,97%)] to-[hsl(210,20%,95%)] border border-[hsl(210,20%,88%)]"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.05 }}
+                data-testid={`card-neuro-inclusive-${index}`}
+              >
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(210,40%,90%)] to-[hsl(210,35%,85%)] flex items-center justify-center mb-4">
+                  <feature.icon className="w-6 h-6 text-[hsl(210,50%,40%)]" />
+                </div>
+                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{feature.title}</h3>
+                <p className="text-sm text-[hsl(25,20%,40%)] mb-3 leading-relaxed">{feature.description}</p>
+                <div className="bg-white/70 rounded-lg p-3 border border-[hsl(210,20%,90%)]">
+                  <p className="text-xs text-[hsl(210,30%,35%)] leading-relaxed">
+                    <span className="font-semibold text-[hsl(210,50%,40%)]">Why this matters: </span>
+                    {feature.differentiator}
+                  </p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div 
+            className="text-center mb-10"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-2xl font-normal text-[hsl(25,30%,12%)] mb-2" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              On the roadmap
+            </h3>
+            <p className="text-base text-[hsl(25,20%,40%)]">
+              Purpose-built features designed specifically to reduce cognitive overhead further.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto mb-12">
+            {neuroInclusiveRoadmap.map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                className="p-6 rounded-xl bg-gradient-to-br from-[hsl(210,25%,96%)] to-white border border-dashed border-[hsl(210,20%,82%)]"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+                data-testid={`card-neuro-roadmap-${index}`}
+              >
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="w-11 h-11 rounded-xl bg-[hsl(210,35%,90%)] flex items-center justify-center shrink-0">
+                    <feature.icon className="w-5 h-5 text-[hsl(210,50%,45%)]" />
+                  </div>
+                  <Badge variant="outline" className="bg-[hsl(210,30%,94%)] text-[hsl(210,50%,40%)] border-[hsl(210,25%,82%)] text-xs" data-testid={`badge-neuro-roadmap-${index}`}>
+                    {feature.badge}
+                  </Badge>
+                </div>
+                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{feature.title}</h3>
+                <p className="text-sm text-[hsl(25,20%,40%)] leading-relaxed">{feature.description}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div
+            className="text-center bg-[hsl(210,25%,96%)] rounded-xl p-8 border border-[hsl(210,20%,88%)] max-w-3xl mx-auto"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            data-testid="card-neuro-inclusive-summary"
+          >
+            <p className="text-lg text-[hsl(25,25%,25%)] leading-relaxed" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              "The real differentiator isn't a single feature — it's the combination within a legal-specific context. No generic meeting app produces SRA-compliant attendance notes, logs consent, creates an audit trail, extracts actions into a matter-linked calendar, and tracks document versions — all without the solicitor lifting a pen."
+            </p>
+            <p className="text-sm text-[hsl(25,15%,50%)] mt-4">
+              That combination is the reasonable adjustment.
+            </p>
+          </motion.div>
+        </div>
+      </div>
+
       {/* Practice Safeguards */}
-      <div className="py-20 bg-white" data-testid="section-practice-safeguards">
+      <div className="py-20 bg-[hsl(30,25%,96%)]" data-testid="section-practice-safeguards">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div 
             className="text-center mb-16"
