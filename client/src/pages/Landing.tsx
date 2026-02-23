@@ -1719,16 +1719,7 @@ export default function Landing() {
       setShowPreviewModal(true);
       return;
     }
-    // Login disabled during early access period
-    toast({
-      title: "Login available for approved members",
-      description: "Apply for early access to get started.",
-    });
-    // Scroll to early access section
-    setTimeout(() => {
-      setEarlyAccessSource("login_redirect");
-      setShowEarlyAccessForm(true);
-    }, 500);
+    window.location.href = "/api/login";
   };
 
   const handleRequestAccess = (source: string = "hero") => {
