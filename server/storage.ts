@@ -159,6 +159,79 @@ function removeAccents(str: string): string {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+const NUMBER_WORDS: Record<string, number> = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
+  fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
+  nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60,
+  seventy: 70, eighty: 80, ninety: 90, hundred: 100, thousand: 1000,
+  million: 1000000,
+};
+
+function wordsToNumber(text: string): number | null {
+  const words = text.toLowerCase().replace(/[,-]/g, ' ').split(/\s+/).filter(Boolean);
+  if (words.length === 0) return null;
+  let total = 0;
+  let current = 0;
+  let hasNumber = false;
+  for (const w of words) {
+    if (w === 'and') continue;
+    const val = NUMBER_WORDS[w];
+    if (val === undefined) return hasNumber ? total + current : null;
+    hasNumber = true;
+    if (val === 1000 || val === 1000000) {
+      current = (current === 0 ? 1 : current) * val;
+      total += current;
+      current = 0;
+    } else if (val === 100) {
+      current = (current === 0 ? 1 : current) * 100;
+    } else {
+      current += val;
+    }
+  }
+  return hasNumber ? total + current : null;
+}
+
+function numberToWords(n: number): string | null {
+  if (n < 0 || !Number.isInteger(n) || n > 999999999) return null;
+  if (n === 0) return 'zero';
+  const ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+    'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  const convert = (num: number): string => {
+    if (num === 0) return '';
+    if (num < 20) return ones[num];
+    if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? '-' + ones[num % 10] : '');
+    if (num < 1000) return ones[Math.floor(num / 100)] + ' hundred' + (num % 100 ? ' and ' + convert(num % 100) : '');
+    if (num < 1000000) return convert(Math.floor(num / 1000)) + ' thousand' + (num % 1000 ? ' ' + convert(num % 1000) : '');
+    return convert(Math.floor(num / 1000000)) + ' million' + (num % 1000000 ? ' ' + convert(num % 1000000) : '');
+  };
+  return convert(n);
+}
+
+function getNumberVariants(query: string): string[] {
+  const variants: string[] = [];
+  const cleaned = query.replace(/[£$€,]/g, '').trim();
+  const asNum = parseInt(cleaned, 10);
+  if (!isNaN(asNum) && asNum.toString() === cleaned) {
+    const words = numberToWords(asNum);
+    if (words) {
+      variants.push(words);
+      const parts = words.split(/[-\s]+/);
+      if (parts.length > 1) {
+        variants.push(...parts.filter(p => p !== 'and'));
+      }
+    }
+  } else {
+    const asNumber = wordsToNumber(query);
+    if (asNumber !== null) {
+      variants.push(asNumber.toString());
+      variants.push(asNumber.toLocaleString('en-GB'));
+    }
+  }
+  return variants;
+}
+
 // Server-side audio recording creation type (includes server-calculated expiresAt)
 export type ServerAudioRecordingInsert = InsertAudioRecording & {
   expiresAt: Date;
@@ -2730,6 +2803,14 @@ export class DbStorage implements IStorage {
     
     // Expand query with synonyms
     const expandedTerms = expandSearchWithSynonyms(originalQuery);
+    
+    // Expand with number-word variants (e.g., "5000" -> "five thousand", "forty-seven" -> "47")
+    const numberVariants = getNumberVariants(originalQuery);
+    for (const variant of numberVariants) {
+      if (!expandedTerms.includes(variant)) {
+        expandedTerms.push(variant);
+      }
+    }
     
     // Get all user cases
     const userCases = await db

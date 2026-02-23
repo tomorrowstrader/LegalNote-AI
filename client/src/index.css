@@ -225,7 +225,7 @@ html {
   /* Primary - warm terracotta/amber for visibility */
   --primary: 25 60% 55%;
 
-  --primary-foreground: 25 15% 9%;
+  --primary-foreground: 30 20% 96%;
 
   /* Secondary */
   --secondary: 25 12% 20%;
@@ -240,7 +240,7 @@ html {
   /* Accent - terracotta brand color (slightly brighter for dark mode) */
   --accent: 18 65% 55%;
 
-  --accent-foreground: 25 15% 9%;
+  --accent-foreground: 30 20% 96%;
 
   /* Destructive */
   --destructive: 0 70% 50%;
