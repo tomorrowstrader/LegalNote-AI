@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Shield, Lock, FileText, ArrowRight } from "lucide-react";
@@ -26,34 +25,74 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center space-y-3">
-          <div className="flex justify-center mb-6">
-            <Logo variant="wordmark" size="lg" animate />
-          </div>
-          <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mx-auto">
-            Compliance-first meeting documentation for solicitors and law firms
-          </p>
+    <div className="min-h-screen flex">
+      {/* Left panel — brand */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center"
+        style={{ background: "linear-gradient(135deg, hsl(0,0%,6%) 0%, hsl(220,12%,15%) 50%, hsl(0,0%,8%) 100%)" }}>
+        {/* Warm glow accents */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20 blur-3xl"
+            style={{ background: "radial-gradient(circle, hsl(18,60%,70%) 0%, transparent 70%)" }} />
+          <div className="absolute bottom-1/3 right-1/4 w-80 h-80 rounded-full opacity-15 blur-3xl"
+            style={{ background: "radial-gradient(circle, hsl(25,50%,75%) 0%, transparent 70%)" }} />
+          <div className="absolute top-2/3 left-1/3 w-64 h-64 rounded-full opacity-10 blur-3xl"
+            style={{ background: "radial-gradient(circle, hsl(45,85%,55%) 0%, transparent 70%)" }} />
         </div>
 
-        <Card>
-          <CardContent className="pt-6 space-y-6">
-            <div className="space-y-2 text-center">
-              <h2 className="text-lg font-semibold text-foreground">Sign in to your account</h2>
-              <p className="text-xs text-muted-foreground">
-                Access your cases, transcripts, and documents securely
+        <div className="relative z-10 max-w-md px-12 space-y-8">
+          <Logo variant="wordmark" size="lg" tone="dark" animate />
+          <div className="space-y-4">
+            <h1 className="text-3xl font-semibold text-white leading-tight">
+              The master record for every client meeting.
+            </h1>
+            <p className="text-white/60 text-sm leading-relaxed">
+              Record, transcribe, and document with full GDPR compliance. Your attendance notes, AI summaries, and searchable transcripts — all in one defensible platform.
+            </p>
+          </div>
+          <div className="space-y-3 pt-4 border-t border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-1.5 rounded-full bg-[hsl(45,85%,55%)]" />
+              <span className="text-white/50 text-xs">Meeting-to-Matter™ AI transcription</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-1.5 rounded-full bg-[hsl(45,85%,55%)]" />
+              <span className="text-white/50 text-xs">SRA-defensible audit trail with tamper detection</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-1.5 rounded-full bg-[hsl(45,85%,55%)]" />
+              <span className="text-white/50 text-xs">7-day GDPR-compliant audio retention</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right panel — login */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12 bg-background">
+        <div className="w-full max-w-sm space-y-8">
+          {/* Mobile logo — only visible on small screens */}
+          <div className="lg:hidden text-center mb-4">
+            <Logo variant="wordmark" size="lg" animate />
+            <p className="text-muted-foreground text-xs mt-2">
+              Compliance-first meeting documentation
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-2xl font-semibold text-foreground">Welcome back</h2>
+            <p className="text-sm text-muted-foreground">
+              Sign in to access your cases and documents
+            </p>
+          </div>
+
+          {authError && (
+            <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2" data-testid="alert-auth-error">
+              <p className="text-xs text-destructive">
+                Authentication failed. Please try again or contact support.
               </p>
             </div>
+          )}
 
-            {authError && (
-              <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2" data-testid="alert-auth-error">
-                <p className="text-xs text-destructive">
-                  Authentication failed. Please try again or contact support.
-                </p>
-              </div>
-            )}
-
+          <div className="space-y-4">
             <Button
               onClick={handleGoogleLogin}
               className="w-full gap-3"
@@ -64,39 +103,39 @@ export default function Login() {
               Continue with Google
               <ArrowRight className="w-4 h-4 ml-auto" />
             </Button>
+          </div>
 
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <Shield className="w-4 h-4 shrink-0 text-emerald-500" />
-                <span>GDPR-compliant data handling with full audit trail</span>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <Lock className="w-4 h-4 shrink-0 text-emerald-500" />
-                <span>End-to-end encrypted sessions with 4-hour timeout</span>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <FileText className="w-4 h-4 shrink-0 text-emerald-500" />
-                <span>SRA-defensible contemporaneous documentation</span>
-              </div>
+          <div className="space-y-3 pt-4 border-t border-border">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <Shield className="w-4 h-4 shrink-0 text-[hsl(45,85%,55%)]" />
+              <span>GDPR-compliant data handling with full audit trail</span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <Lock className="w-4 h-4 shrink-0 text-[hsl(45,85%,55%)]" />
+              <span>Encrypted sessions with automatic 4-hour timeout</span>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <FileText className="w-4 h-4 shrink-0 text-[hsl(45,85%,55%)]" />
+              <span>SRA-defensible contemporaneous documentation</span>
+            </div>
+          </div>
 
-        <div className="text-center space-y-2">
-          <p className="text-xs text-muted-foreground">
-            By signing in, you agree to our{" "}
-            <a href="/terms" className="underline" data-testid="link-terms">
-              Terms of Service
-            </a>{" "}
-            and{" "}
-            <a href="/privacy" className="underline" data-testid="link-privacy">
-              Privacy Policy
-            </a>
-          </p>
-          <div className="flex items-center justify-center gap-2 pt-1">
-            <Badge variant="secondary" className="text-[10px]">SOC 2 Ready</Badge>
-            <Badge variant="secondary" className="text-[10px]">UK GDPR</Badge>
-            <Badge variant="secondary" className="text-[10px]">ICO Registered</Badge>
+          <div className="space-y-3 pt-4">
+            <p className="text-xs text-muted-foreground text-center">
+              By signing in, you agree to our{" "}
+              <a href="/terms" className="underline" data-testid="link-terms">
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a href="/privacy" className="underline" data-testid="link-privacy">
+                Privacy Policy
+              </a>
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <Badge variant="secondary" className="text-[10px]">SOC 2 Ready</Badge>
+              <Badge variant="secondary" className="text-[10px]">UK GDPR</Badge>
+              <Badge variant="secondary" className="text-[10px]">ICO Registered</Badge>
+            </div>
           </div>
         </div>
       </div>
