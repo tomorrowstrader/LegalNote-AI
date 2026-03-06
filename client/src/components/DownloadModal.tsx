@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { FileText, FileDown, Loader2 } from "lucide-react";
+import { FileText, FileDown, Loader2, Shield } from "lucide-react";
 
 interface DownloadModalProps {
   open: boolean;
@@ -86,12 +86,20 @@ export default function DownloadModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileDown className="w-5 h-5" />
-            Download Documents
+            Download Working Copy
           </DialogTitle>
           <DialogDescription>
             Select which documents to include in your download
           </DialogDescription>
         </DialogHeader>
+
+        {/* Master Record notice */}
+        <div className="flex items-start gap-2 p-3 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+          <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+          <div className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
+            <span className="font-semibold">Working copy only.</span> The master record and complete audit trail remain securely held in LegalNote. This download is for reference only.
+          </div>
+        </div>
 
         <div className="space-y-4 py-4">
           <div className="space-y-3">

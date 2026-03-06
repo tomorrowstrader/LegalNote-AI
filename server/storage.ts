@@ -314,6 +314,7 @@ export interface IStorage {
   createManualActionItem(itemData: { caseId: string; description: string; assignee?: string | null; dueDate?: Date; priority?: string; isManual?: boolean }): Promise<ActionItem>;
   getActionItem(id: string, userId: string): Promise<ActionItem | undefined>;
   getActionItemsByCase(caseId: string, userId: string): Promise<ActionItem[]>;
+  getAllActionItemsForUser(userId: string): Promise<(ActionItem & { caseTitle?: string; clientName?: string })[]>;
   getActionItemsByTranscript(transcriptId: string, userId: string): Promise<ActionItem[]>;
   updateActionItem(id: string, updates: Partial<ActionItem>, userId: string): Promise<ActionItem | undefined>;
   deleteActionItem(id: string, userId: string): Promise<boolean>;
@@ -962,6 +963,23 @@ export class MemStorage implements IStorage {
         const aPriority = priorityOrder[item.priority as keyof typeof priorityOrder] ?? 1;
         const bPriority = priorityOrder[item.priority as keyof typeof priorityOrder] ?? 1;
         if (aPriority !== bPriority) return aPriority - bPriority;
+        if (a.dueDate && b.dueDate) return a.dueDate.getTime() - b.dueDate.getTime();
+        if (a.dueDate) return -1;
+        if (b.dueDate) return 1;
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      });
+  }
+
+  async getAllActionItemsForUser(userId: string): Promise<(ActionItem & { caseTitle?: string; clientName?: string })[]> {
+    const userCases = Array.from(this.cases.values()).filter(c => c.createdBy === userId && !c.archived);
+    const caseMap = new Map(userCases.map(c => [c.id, c]));
+    return Array.from(this.actionItemsMap.values())
+      .filter(item => caseMap.has(item.caseId))
+      .map(item => {
+        const c = caseMap.get(item.caseId);
+        return { ...item, caseTitle: c?.title, clientName: c?.clientName };
+      })
+      .sort((a, b) => {
         if (a.dueDate && b.dueDate) return a.dueDate.getTime() - b.dueDate.getTime();
         if (a.dueDate) return -1;
         if (b.dueDate) return 1;
@@ -2131,6 +2149,25 @@ export class DbStorage implements IStorage {
       .from(actionItems)
       .where(eq(actionItems.caseId, caseId))
       .orderBy(actionItems.priority, actionItems.dueDate, desc(actionItems.createdAt));
+  }
+
+  async getAllActionItemsForUser(userId: string): Promise<(ActionItem & { caseTitle?: string; clientName?: string })[]> {
+    const userCases = await db.select().from(cases).where(and(eq(cases.createdBy, userId), eq(cases.archived, false)));
+    const caseMap = new Map(userCases.map(c => [c.id, c]));
+    const caseIds = userCases.map(c => c.id);
+    if (caseIds.length === 0) return [];
+    
+    const items = await db
+      .select()
+      .from(actionItems)
+      .where(inArray(actionItems.caseId, caseIds))
+      .orderBy(actionItems.dueDate, desc(actionItems.createdAt));
+    
+    return items.map(item => ({
+      ...item,
+      caseTitle: caseMap.get(item.caseId)?.title,
+      clientName: caseMap.get(item.caseId)?.clientName,
+    }));
   }
 
   async getActionItemsByTranscript(transcriptId: string, userId: string): Promise<ActionItem[]> {

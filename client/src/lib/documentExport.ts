@@ -13,6 +13,7 @@ interface DocumentContent {
   createdAt: string;
   documentType?: 'attendance_note' | 'summary' | 'transcript' | 'full_case';
   firmProfile?: FirmProfile;
+  documentId?: string;
 }
 
 // Helper to strip markdown for plain text (PDF)
@@ -180,6 +181,23 @@ export async function exportToPDF(content: DocumentContent) {
     yPosition += 5;
     addText(stripMarkdown(content.transcript));
   }
+
+  // Master Record footer on last page
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const footerY = pageHeight - 10;
+  const exportTimestamp = new Date().toLocaleString('en-GB', { 
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+  });
+  const docId = content.documentId || '';
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(150, 150, 150);
+  doc.text(
+    `Working copy — Master record held in LegalNote as at ${exportTimestamp}.${docId ? ` Document ID: ${docId}` : ''}`,
+    margin,
+    footerY
+  );
+  doc.setTextColor(0, 0, 0);
 
   // Generate descriptive filename
   const sanitize = (str: string) => {

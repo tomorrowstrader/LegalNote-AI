@@ -18,7 +18,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import ConsentModal from "@/components/ConsentModal";
 import TextNotesModal from "@/components/TextNotesModal";
-import { ArrowLeft, Mic, Square, AlertTriangle } from "lucide-react";
+import CaseTemplatesModal, { CaseTemplate } from "@/components/CaseTemplatesModal";
+import { ArrowLeft, Mic, Square, AlertTriangle, LayoutTemplate } from "lucide-react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -57,6 +58,8 @@ export default function NewNote() {
   const [isRecording, setIsRecording] = useState(false);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const [showTextNotesModal, setShowTextNotesModal] = useState(false);
+  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+  const [activeTemplate, setActiveTemplate] = useState<CaseTemplate | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -395,6 +398,15 @@ export default function NewNote() {
       });
   };
 
+  const handleTemplateSelect = (template: CaseTemplate) => {
+    setActiveTemplate(template);
+    // Pre-populate case title with a generic version if empty
+    if (!caseTitle.trim()) {
+      setCaseTitle(template.name);
+    }
+    setShowTemplatesModal(false);
+  };
+
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -415,12 +427,40 @@ export default function NewNote() {
         </Button>
 
         <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-semibold text-foreground">Create New Note</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Record client meeting with consent capture and automatic transcription powered by Meeting-to-Matter™ AI
-            </p>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h1 className="text-3xl font-semibold text-foreground">Create New Note</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Record client meeting with consent capture and automatic transcription powered by Meeting-to-Matter™ AI
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowTemplatesModal(true)}
+              disabled={isRecording || countdown !== null}
+              className="gap-2 shrink-0"
+              data-testid="button-use-template"
+            >
+              <LayoutTemplate className="w-4 h-4" />
+              Use Template
+            </Button>
           </div>
+
+          {activeTemplate && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-accent/10 border border-accent/30">
+              <LayoutTemplate className="w-4 h-4 text-accent shrink-0" />
+              <span className="text-sm text-foreground font-medium">Template: {activeTemplate.name}</span>
+              <Badge variant="secondary" className="text-xs">{activeTemplate.practiceArea}</Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-6 text-xs text-muted-foreground"
+                onClick={() => setActiveTemplate(null)}
+              >
+                Remove
+              </Button>
+            </div>
+          )}
 
           <Card>
             <CardHeader>
@@ -543,6 +583,12 @@ export default function NewNote() {
         open={showTextNotesModal}
         onClose={() => setShowTextNotesModal(false)}
         onSave={saveTextNotes}
+      />
+
+      <CaseTemplatesModal
+        open={showTemplatesModal}
+        onOpenChange={setShowTemplatesModal}
+        onSelect={handleTemplateSelect}
       />
 
       <AlertDialog open={showStopConfirmation} onOpenChange={setShowStopConfirmation}>

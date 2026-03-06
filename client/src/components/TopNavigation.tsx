@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, User, HelpCircle, Shield, Home, FileText, FolderOpen, Settings, X } from "lucide-react";
+import { Menu, User, HelpCircle, Shield, Home, FileText, FolderOpen, Settings, CheckSquare } from "lucide-react";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import GlobalSearch from "@/components/GlobalSearch";
 import QuickRecordButton from "@/components/QuickRecordButton";
 import CaseQuickSwitch from "@/components/CaseQuickSwitch";
 import ThemeToggle from "@/components/ThemeToggle";
+import { NotificationsPanel } from "@/components/NotificationsPanel";
 import { useAuth } from "@/hooks/useAuth";
 
 interface TopNavigationProps {
@@ -24,6 +25,7 @@ const navLinks = [
   { path: "/", label: "Dashboard", icon: Home },
   { path: "/new-note", label: "New Note", icon: FileText },
   { path: "/cases", label: "Saved Cases", icon: FolderOpen },
+  { path: "/my-actions", label: "My Actions", icon: CheckSquare },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -75,6 +77,8 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
             <GlobalSearch />
             
             <QuickRecordButton />
+
+            <NotificationsPanel />
             
             <ThemeToggle />
             

@@ -32,6 +32,7 @@ import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
 import Features from "@/pages/Features";
 import Calculator from "@/pages/Calculator";
+import MyActions from "@/pages/MyActions";
 import ScrollToTop from "@/components/ScrollToTop";
 
 function Router() {
@@ -69,6 +70,7 @@ function Router() {
           <Route path="/audit-logs" component={AuditLogs} />
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/app/security" component={SecurityFeatures} />
+          <Route path="/my-actions" component={MyActions} />
           <Route path="/waitlist" component={WaitlistPage} />
         </>
       )}

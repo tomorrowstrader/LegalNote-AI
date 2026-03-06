@@ -7021,6 +7021,181 @@ ${firmName}`;
     }
   });
 
+  // Global action items (all cases for the user)
+  app.get("/api/action-items/all", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const items = await storage.getAllActionItemsForUser(userId);
+      res.json(items);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // In-app notifications system (simple polling + SSE)
+  // Notifications are generated from audit trail events
+  app.get("/api/notifications", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Generate notifications from recent audit trail events
+      const { db: dbConn } = await import("./db");
+      const { auditTrail, cases: casesTable } = await import("@shared/schema");
+      const { eq, and, desc, gte, inArray: inArr } = await import("drizzle-orm");
+      
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // last 7 days
+      
+      const notifiableEvents = [
+        'transcript_generated', 'document_generated', 'document_regenerated',
+        'case_email_sent', 'audio_expiring_soon', 'deadline_approaching', 'consent_given'
+      ];
+      
+      const events = await dbConn
+        .select()
+        .from(auditTrail)
+        .where(
+          and(
+            eq(auditTrail.userId, userId),
+            gte(auditTrail.timestamp, since),
+            inArr(auditTrail.eventType, notifiableEvents)
+          )
+        )
+        .orderBy(desc(auditTrail.timestamp))
+        .limit(30);
+      
+      // Get case titles for events that have caseIds
+      const caseIds = [...new Set(events.filter(e => e.caseId).map(e => e.caseId as string))];
+      let caseMap: Map<string, any> = new Map();
+      if (caseIds.length > 0) {
+        const caseRecords = await dbConn.select().from(casesTable).where(inArr(casesTable.id, caseIds));
+        caseMap = new Map(caseRecords.map(c => [c.id, c]));
+      }
+      
+      // Get user's read notifications from user preferences metadata (stored in audit trail metadata)
+      const readNotifications = new Set<string>();
+      const readEvents = await dbConn
+        .select()
+        .from(auditTrail)
+        .where(
+          and(
+            eq(auditTrail.userId, userId),
+            eq(auditTrail.eventType, 'notification_read')
+          )
+        );
+      readEvents.forEach(e => {
+        const meta = e.metadata as any;
+        if (meta?.notificationId) readNotifications.add(meta.notificationId);
+      });
+      
+      const notifications = events.map(event => {
+        const caseRecord = event.caseId ? caseMap.get(event.caseId) : null;
+        let title = '';
+        let message = '';
+        
+        switch (event.eventType) {
+          case 'transcript_generated':
+            title = 'Transcription Complete';
+            message = `The transcript for ${caseRecord?.title || 'your case'} is ready to review.`;
+            break;
+          case 'document_generated':
+            title = 'Document Ready';
+            message = `Attendance note and summary for ${caseRecord?.title || 'your case'} have been generated.`;
+            break;
+          case 'document_regenerated':
+            title = 'Document Regenerated';
+            message = `Documents for ${caseRecord?.title || 'your case'} have been updated.`;
+            break;
+          case 'case_email_sent':
+            title = 'Email Sent';
+            message = `Documents for ${caseRecord?.title || 'your case'} were sent to the client.`;
+            break;
+          case 'consent_given':
+            title = 'Consent Confirmed';
+            message = `Client consent was confirmed for ${caseRecord?.title || 'your case'}.`;
+            break;
+          case 'audio_expiring_soon':
+            title = 'Audio Expiring Soon';
+            message = `Recording for ${caseRecord?.title || 'a case'} will be auto-deleted within 24 hours (GDPR retention).`;
+            break;
+          case 'deadline_approaching':
+            title = 'Deadline Approaching';
+            message = `Case deadline for ${caseRecord?.title || 'a case'} is approaching.`;
+            break;
+          default:
+            title = event.eventType.replace(/_/g, ' ');
+            message = '';
+        }
+        
+        return {
+          id: event.id,
+          type: event.eventType,
+          title,
+          message,
+          caseId: event.caseId || undefined,
+          caseTitle: caseRecord?.title,
+          createdAt: event.timestamp.toISOString(),
+          readAt: readNotifications.has(event.id) ? event.timestamp.toISOString() : undefined,
+        };
+      }).filter(n => n.title);
+      
+      res.json(notifications);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/notifications/:id/read", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      await logAuditEvent(userId, "notification_read", {
+        metadata: { notificationId: id },
+        req,
+      });
+      res.json({ success: true });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/notifications/mark-all-read", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      await logAuditEvent(userId, "notification_read", {
+        metadata: { markAllRead: true, timestamp: new Date().toISOString() },
+        req,
+      });
+      res.json({ success: true });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // SSE stream for real-time notifications
+  const sseClients = new Map<string, Set<Response>>();
+  
+  app.get("/api/notifications/stream", isAuthenticated, (req: any, res: any) => {
+    const userId = req.user.claims.sub;
+    
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.flushHeaders();
+    
+    if (!sseClients.has(userId)) sseClients.set(userId, new Set());
+    sseClients.get(userId)!.add(res);
+    
+    const heartbeat = setInterval(() => {
+      res.write(':heartbeat\n\n');
+    }, 30000);
+    
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      sseClients.get(userId)?.delete(res);
+    });
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

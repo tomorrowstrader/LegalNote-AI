@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload } from "lucide-react";
+import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -58,6 +58,9 @@ function EditableDocumentContent({
   onSaveEdits,
   isSaving,
   autoSaveStatus,
+  zoom,
+  focusMode,
+  onFocusModeToggle,
 }: { 
   document: Document;
   isEditing: boolean;
@@ -68,6 +71,9 @@ function EditableDocumentContent({
   onSaveEdits: (documentId: string) => void;
   isSaving: boolean;
   autoSaveStatus: 'idle' | 'saving' | 'saved' | 'error';
+  zoom?: number;
+  focusMode?: boolean;
+  onFocusModeToggle?: () => void;
 }) {
   const isDraft = document.status === 'draft';
 
@@ -137,6 +143,9 @@ function EditableDocumentContent({
         onChange={onEditContentChange}
         disabled={!isEditing}
         placeholder="Document content..."
+        zoom={zoom}
+        focusMode={focusMode}
+        onFocusModeToggle={onFocusModeToggle}
       />
     </div>
   );
@@ -161,6 +170,8 @@ export default function DocumentViewer({
 }: DocumentViewerProps) {
   const { toast } = useToast();
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [zoom, setZoom] = useState(100);
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>("");
   const [lastSavedContent, setLastSavedContent] = useState<string>("");
@@ -665,6 +676,21 @@ export default function DocumentViewer({
     );
   }
 
+  // Focus mode: exit with Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && focusMode) setFocusMode(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [focusMode]);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const zoomLevels = [75, 100, 125, 150];
+
   // Measure sticky header height for nested sticky elements using ResizeObserver
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(80);
@@ -688,21 +714,73 @@ export default function DocumentViewer({
 
   return (
     <div 
-      className="space-y-6" 
+      className={`space-y-6 ${focusMode ? 'fixed inset-0 z-[100] bg-background overflow-auto p-8 print:p-0' : ''}`}
       data-testid="container-document-viewer"
       style={{ '--doc-header-height': `${headerHeight}px` } as CSSProperties}
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div ref={stickyHeaderRef} className="sticky top-0 z-40 bg-card pt-4 pb-3 border-b">
+        <div ref={stickyHeaderRef} className={`sticky top-0 z-40 bg-card pt-4 pb-3 border-b ${focusMode ? 'print:hidden' : ''}`}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
             <div>
-              <h2 className="text-xl sm:text-2xl font-semibold">Generated Documentation</h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl sm:text-2xl font-semibold">Generated Documentation</h2>
+                {/* Master Record badge */}
+                {(attendanceNote?.status === 'approved' || summary?.status === 'approved') && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="default" className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs" data-testid="badge-master-record">
+                        <Shield className="w-3 h-3" />
+                        Master Record
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-xs font-semibold">LegalNote is the Master Record</p>
+                      <p className="text-xs text-muted-foreground mt-1">This document has been approved and locked. All exports are working copies only — the authoritative version and full audit trail are held here.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground mt-1 sm:hidden">Export documents below</p>
             </div>
             {hasAnyDocument && (
               <div className="flex flex-col gap-2">
-                <p className="text-xs text-muted-foreground hidden sm:block">Export documents:</p>
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-wrap flex-shrink-0 justify-end">
+                  {/* Zoom controls */}
+                  <div className="hidden sm:flex items-center gap-1 border border-border rounded-md px-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setZoom(z => Math.max(75, z - 25))} disabled={zoom <= 75}>
+                          <ZoomOut className="w-3 h-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Zoom out</TooltipContent>
+                    </Tooltip>
+                    <span className="text-xs text-muted-foreground w-8 text-center">{zoom}%</span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setZoom(z => Math.min(150, z + 25))} disabled={zoom >= 150}>
+                          <ZoomIn className="w-3 h-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Zoom in</TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button size="icon" variant="ghost" onClick={handlePrint} data-testid="button-print" className="hidden sm:flex">
+                        <Printer className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Print (Cmd+P)</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button size="icon" variant="ghost" onClick={() => setFocusMode(f => !f)} data-testid="button-focus-mode" className="hidden sm:flex">
+                        {focusMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{focusMode ? 'Exit Focus Mode (Esc)' : 'Focus Mode'}</TooltipContent>
+                  </Tooltip>
                   <Button
                     variant="outline"
                     onClick={handleExport}
@@ -710,7 +788,8 @@ export default function DocumentViewer({
                     data-testid="button-export"
                   >
                     <FileDown className="w-4 h-4" />
-                    Export Documents
+                    <span className="hidden sm:inline">Download Working Copy</span>
+                    <span className="sm:hidden">Export</span>
                   </Button>
                 </div>
               </div>
@@ -751,6 +830,9 @@ export default function DocumentViewer({
                   onSaveEdits={saveEdits}
                   isSaving={editMutation.isPending}
                   autoSaveStatus={editingDocId === attendanceNote.id ? autoSaveStatus : 'idle'}
+                  zoom={zoom}
+                  focusMode={focusMode}
+                  onFocusModeToggle={() => setFocusMode(f => !f)}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground italic">
@@ -781,6 +863,9 @@ export default function DocumentViewer({
                   onSaveEdits={saveEdits}
                   isSaving={editMutation.isPending}
                   autoSaveStatus={editingDocId === summary.id ? autoSaveStatus : 'idle'}
+                  zoom={zoom}
+                  focusMode={focusMode}
+                  onFocusModeToggle={() => setFocusMode(f => !f)}
                 />
               ) : textNotes ? (
                 <div>
