@@ -1719,7 +1719,7 @@ export default function Landing() {
       setShowPreviewModal(true);
       return;
     }
-    window.location.href = "/api/login";
+    window.location.href = "/login";
   };
 
   const handleRequestAccess = (source: string = "hero") => {

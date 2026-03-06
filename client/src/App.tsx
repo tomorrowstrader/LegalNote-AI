@@ -33,6 +33,7 @@ import TermsPage from "@/pages/TermsPage";
 import Features from "@/pages/Features";
 import Calculator from "@/pages/Calculator";
 import MyActions from "@/pages/MyActions";
+import Login from "@/pages/Login";
 import ScrollToTop from "@/components/ScrollToTop";
 
 function Router() {
@@ -51,6 +52,7 @@ function Router() {
       <Route path="/terms" component={TermsPage} />
       <Route path="/features" component={Features} />
       <Route path="/calculator" component={Calculator} />
+      <Route path="/login" component={Login} />
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />

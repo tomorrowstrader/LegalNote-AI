@@ -31,7 +31,7 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **Session Management**: Designed for PostgreSQL session store.
 
 ### Authentication & Authorization
-- **Authentication**: Replit Auth (OIDC-based), session-based with secure cookies and user isolation.
+- **Authentication**: Google OAuth 2.0 via passport-google-oauth20, session-based with secure cookies and user isolation. Branded login page at `/login` with "Continue with Google" button. Requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment secrets.
 - **Authorization**: Enforced at storage, route, object, and UI levels using ACLs.
 
 ### Security Architecture
