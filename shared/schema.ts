@@ -1137,3 +1137,27 @@ export const insertLinkedinPostChatMessageSchema = createInsertSchema(linkedinPo
 
 export type InsertLinkedinPostChatMessage = z.infer<typeof insertLinkedinPostChatMessageSchema>;
 export type LinkedinPostChatMessage = typeof linkedinPostChatMessages.$inferSelect;
+
+export const documentComments = pgTable("document_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").notNull().references(() => documents.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  selectedText: text("selected_text").notNull(),
+  commentText: text("comment_text").notNull(),
+  resolved: boolean("resolved").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertDocumentCommentSchema = createInsertSchema(documentComments).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  documentId: z.string().uuid(),
+  userId: z.string().min(1),
+  selectedText: z.string().min(1).max(10000),
+  commentText: z.string().min(1).max(10000),
+  resolved: z.boolean().default(false),
+});
+
+export type InsertDocumentComment = z.infer<typeof insertDocumentCommentSchema>;
+export type DocumentComment = typeof documentComments.$inferSelect;

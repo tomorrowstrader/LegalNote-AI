@@ -9,14 +9,18 @@ import Highlight from '@tiptap/extension-highlight';
 import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import CharacterCount from '@tiptap/extension-character-count';
+import { Mark, mergeAttributes } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Markdown } from 'tiptap-markdown';
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Bold, Italic, Underline as UnderlineIcon, List, ListOrdered,
   Heading1, Heading2, Heading3, AlignLeft, AlignCenter, AlignRight,
   AlignJustify, Highlighter, Superscript as SuperscriptIcon,
   Subscript as SubscriptIcon, Table as TableIcon, Search,
-  Maximize2, Minimize2, Type
+  Maximize2, Minimize2, Type, GitCompareArrows, Check, X,
+  CheckCheck, XCircle, MessageSquarePlus
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
@@ -76,6 +80,186 @@ const LEGAL_AUTOCOMPLETE_PHRASES = [
   'on the balance of probabilities',
 ];
 
+const trackChangesPluginKey = new PluginKey('trackChanges');
+
+const InsertionMark = Mark.create({
+  name: 'insertion',
+  addAttributes() {
+    return {
+      user: { default: null },
+      timestamp: { default: null },
+      changeId: { default: null },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'ins[data-track-change]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['ins', mergeAttributes(HTMLAttributes, { 'data-track-change': 'insertion', class: 'track-change-insertion' }), 0];
+  },
+});
+
+const DeletionMark = Mark.create({
+  name: 'deletion',
+  addAttributes() {
+    return {
+      user: { default: null },
+      timestamp: { default: null },
+      originalText: { default: null },
+      changeId: { default: null },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'del[data-track-change]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['del', mergeAttributes(HTMLAttributes, { 'data-track-change': 'deletion', class: 'track-change-deletion' }), 0];
+  },
+});
+
+function createTrackChangesPlugin(
+  isTrackingRef: React.MutableRefObject<boolean>,
+  deletionBufferRef: React.MutableRefObject<TrackedChange[]>,
+  onChangeLogged?: (change: TrackedChange) => void
+) {
+  return new Plugin({
+    key: trackChangesPluginKey,
+    filterTransaction(transaction, state) {
+      if (!isTrackingRef.current) return true;
+      if (!transaction.docChanged) return true;
+      if (transaction.getMeta('trackChangesApply')) return true;
+
+      let hasPureDeletion = false;
+      const deletions: Array<{ from: number; to: number }> = [];
+
+      transaction.steps.forEach((step: any) => {
+        if (step.from !== undefined && step.to !== undefined && step.from < step.to) {
+          const insertedSize = step.slice ? step.slice.content.size : 0;
+          if (insertedSize === 0) {
+            hasPureDeletion = true;
+            deletions.push({ from: step.from, to: step.to });
+          }
+        }
+      });
+
+      if (hasPureDeletion && deletions.length > 0) {
+        const tr = state.tr;
+        tr.setMeta('trackChangesApply', true);
+        for (const del of deletions) {
+          const from = Math.max(del.from, 0);
+          const to = Math.min(del.to, state.doc.content.size);
+          if (to > from) {
+            const changeId = `tc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            const timestamp = new Date().toISOString();
+            const deletedText = state.doc.textBetween(from, to, ' ');
+            const deletionMark = state.schema.marks.deletion.create({
+              user: 'Solicitor',
+              timestamp,
+              changeId,
+            });
+            tr.addMark(from, to, deletionMark);
+            const change: TrackedChange = {
+              id: changeId,
+              type: 'deletion',
+              text: deletedText,
+              user: 'Solicitor',
+              timestamp,
+              from,
+              to,
+            };
+            deletionBufferRef.current.push(change);
+            if (onChangeLogged) {
+              onChangeLogged(change);
+            }
+          }
+        }
+        if (tr.steps.length > 0) {
+          setTimeout(() => {
+            const view = (window as any).__tiptapEditorView;
+            if (view) view.dispatch(tr);
+          }, 0);
+        }
+        return false;
+      }
+
+      return true;
+    },
+    appendTransaction(transactions, _oldState, newState) {
+      if (!isTrackingRef.current) return null;
+
+      const docChanged = transactions.some(tr => tr.docChanged && !tr.getMeta('trackChangesApply'));
+      if (!docChanged) return null;
+
+      let tr = newState.tr;
+      let modified = false;
+
+      for (const transaction of transactions) {
+        if (!transaction.docChanged || transaction.getMeta('trackChangesApply')) continue;
+
+        transaction.steps.forEach((step) => {
+          const stepMap = step.getMap();
+          stepMap.forEach((oldStart: number, oldEnd: number, newStart: number, newEnd: number) => {
+            const changeId = `tc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            const timestamp = new Date().toISOString();
+
+            if (newEnd > newStart) {
+              const clampedStart = Math.max(newStart, 1);
+              const clampedEnd = Math.min(newEnd, newState.doc.content.size);
+              if (clampedEnd > clampedStart) {
+                const insertionMark = newState.schema.marks.insertion.create({
+                  user: 'Solicitor',
+                  timestamp,
+                  changeId,
+                });
+                tr = tr.addMark(clampedStart, clampedEnd, insertionMark);
+                modified = true;
+
+                if (onChangeLogged) {
+                  const insertedText = newState.doc.textBetween(clampedStart, clampedEnd, ' ');
+                  onChangeLogged({
+                    id: changeId,
+                    type: 'insertion',
+                    text: insertedText,
+                    user: 'Solicitor',
+                    timestamp,
+                    from: clampedStart,
+                    to: clampedEnd,
+                  });
+                }
+              }
+            }
+          });
+        });
+      }
+
+      if (modified) {
+        tr.setMeta('trackChangesApply', true);
+        return tr;
+      }
+      return null;
+    },
+    view(editorView) {
+      (window as any).__tiptapEditorView = editorView;
+      return {
+        destroy() {
+          delete (window as any).__tiptapEditorView;
+        },
+      };
+    },
+  });
+}
+
+export interface TrackedChange {
+  id: string;
+  type: 'insertion' | 'deletion';
+  text: string;
+  originalText?: string;
+  user: string;
+  timestamp: string;
+  from: number;
+  to: number;
+}
+
 interface RichTextEditorProps {
   content: string;
   onChange: (content: string) => void;
@@ -84,18 +268,35 @@ interface RichTextEditorProps {
   focusMode?: boolean;
   onFocusModeToggle?: () => void;
   zoom?: number;
+  trackChangesEnabled?: boolean;
+  onTrackChangesToggle?: (enabled: boolean) => void;
+  onTrackChangeAction?: (action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changeId?: string) => void;
+  onAddComment?: (selectedText: string) => void;
 }
 
 export function RichTextEditor({ 
-  content, onChange, disabled, placeholder, focusMode, onFocusModeToggle, zoom = 100 
+  content, onChange, disabled, placeholder, focusMode, onFocusModeToggle, zoom = 100,
+  trackChangesEnabled = false, onTrackChangesToggle, onTrackChangeAction, onAddComment
 }: RichTextEditorProps) {
   const isUpdatingRef = useRef(false);
+  const isTrackingRef = useRef(trackChangesEnabled);
+  const deletionBufferRef = useRef<TrackedChange[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [replaceTerm, setReplaceTerm] = useState('');
   const [autocompleteVisible, setAutocompleteVisible] = useState(false);
   const [autocompleteOptions, setAutocompleteOptions] = useState<string[]>([]);
   const [selectedOption, setSelectedOption] = useState(0);
+  const [trackedChanges, setTrackedChanges] = useState<TrackedChange[]>([]);
+  const [changeCount, setChangeCount] = useState(0);
+
+  useEffect(() => {
+    isTrackingRef.current = trackChangesEnabled;
+  }, [trackChangesEnabled]);
+
+  const handleChangeLogged = useCallback((change: TrackedChange) => {
+    setTrackedChanges(prev => [...prev, change]);
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -118,6 +319,8 @@ export function RichTextEditor({
       Superscript,
       Subscript,
       CharacterCount,
+      InsertionMark,
+      DeletionMark,
     ],
     content: '',
     editable: !disabled,
@@ -132,7 +335,6 @@ export function RichTextEditor({
       const markdown = editor.storage.markdown.getMarkdown();
       onChange(markdown);
 
-      // Legal autocomplete
       const { from } = editor.state.selection;
       const text = editor.state.doc.textBetween(Math.max(0, from - 30), from);
       const lastWord = text.split(/\s/).pop()?.toLowerCase() || '';
@@ -150,8 +352,187 @@ export function RichTextEditor({
       } else {
         setAutocompleteVisible(false);
       }
+
+      scanForTrackedChanges(editor);
     },
   });
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const plugin = createTrackChangesPlugin(isTrackingRef, deletionBufferRef, handleChangeLogged);
+    const { state } = editor;
+    const newState = state.reconfigure({
+      plugins: [...state.plugins.filter(p => p.spec.key !== trackChangesPluginKey), plugin],
+    });
+    editor.view.updateState(newState);
+  }, [editor, handleChangeLogged]);
+
+  const scanForTrackedChanges = useCallback((editorInstance: any) => {
+    if (!editorInstance) return;
+    const changes: TrackedChange[] = [];
+    const { doc } = editorInstance.state;
+
+    doc.descendants((node: any, pos: number) => {
+      if (node.isText) {
+        node.marks.forEach((mark: any) => {
+          if (mark.type.name === 'insertion') {
+            changes.push({
+              id: mark.attrs.changeId || `tc-scan-${pos}`,
+              type: 'insertion',
+              text: node.text || '',
+              user: mark.attrs.user || 'Unknown',
+              timestamp: mark.attrs.timestamp || new Date().toISOString(),
+              from: pos,
+              to: pos + (node.text?.length || 0),
+            });
+          } else if (mark.type.name === 'deletion') {
+            changes.push({
+              id: mark.attrs.changeId || `tc-scan-${pos}`,
+              type: 'deletion',
+              text: node.text || '',
+              originalText: mark.attrs.originalText,
+              user: mark.attrs.user || 'Unknown',
+              timestamp: mark.attrs.timestamp || new Date().toISOString(),
+              from: pos,
+              to: pos + (node.text?.length || 0),
+            });
+          }
+        });
+      }
+    });
+
+    setTrackedChanges(changes);
+    setChangeCount(changes.length);
+  }, []);
+
+  useEffect(() => {
+    if (editor) {
+      scanForTrackedChanges(editor);
+    }
+  }, [editor, scanForTrackedChanges]);
+
+  const acceptChange = useCallback((changeId: string) => {
+    if (!editor) return;
+    const { doc, tr } = editor.state;
+    let modified = false;
+
+    doc.descendants((node: any, pos: number) => {
+      if (node.isText) {
+        node.marks.forEach((mark: any) => {
+          if ((mark.type.name === 'insertion' || mark.type.name === 'deletion') && mark.attrs.changeId === changeId) {
+            if (mark.type.name === 'insertion') {
+              tr.removeMark(pos, pos + node.text.length, mark.type);
+              modified = true;
+            } else if (mark.type.name === 'deletion') {
+              tr.delete(pos, pos + node.text.length);
+              modified = true;
+            }
+          }
+        });
+      }
+    });
+
+    if (modified) {
+      tr.setMeta('trackChangesApply', true);
+      editor.view.dispatch(tr);
+      scanForTrackedChanges(editor);
+      onTrackChangeAction?.('accept', changeId);
+    }
+  }, [editor, scanForTrackedChanges, onTrackChangeAction]);
+
+  const rejectChange = useCallback((changeId: string) => {
+    if (!editor) return;
+    const { doc, tr } = editor.state;
+    let modified = false;
+
+    doc.descendants((node: any, pos: number) => {
+      if (node.isText) {
+        node.marks.forEach((mark: any) => {
+          if ((mark.type.name === 'insertion' || mark.type.name === 'deletion') && mark.attrs.changeId === changeId) {
+            if (mark.type.name === 'insertion') {
+              tr.delete(pos, pos + node.text.length);
+              modified = true;
+            } else if (mark.type.name === 'deletion') {
+              tr.removeMark(pos, pos + node.text.length, mark.type);
+              modified = true;
+            }
+          }
+        });
+      }
+    });
+
+    if (modified) {
+      tr.setMeta('trackChangesApply', true);
+      editor.view.dispatch(tr);
+      scanForTrackedChanges(editor);
+      onTrackChangeAction?.('reject', changeId);
+    }
+  }, [editor, scanForTrackedChanges, onTrackChangeAction]);
+
+  const acceptAllChanges = useCallback(() => {
+    if (!editor) return;
+    const { doc } = editor.state;
+    let { tr } = editor.state;
+
+    const marksToProcess: Array<{ pos: number; end: number; type: string; mark: any }> = [];
+    doc.descendants((node: any, pos: number) => {
+      if (node.isText) {
+        node.marks.forEach((mark: any) => {
+          if (mark.type.name === 'insertion' || mark.type.name === 'deletion') {
+            marksToProcess.push({ pos, end: pos + node.text.length, type: mark.type.name, mark });
+          }
+        });
+      }
+    });
+
+    marksToProcess.sort((a, b) => b.pos - a.pos);
+
+    for (const item of marksToProcess) {
+      if (item.type === 'insertion') {
+        tr = tr.removeMark(item.pos, item.end, item.mark.type);
+      } else if (item.type === 'deletion') {
+        tr = tr.delete(item.pos, item.end);
+      }
+    }
+
+    tr.setMeta('trackChangesApply', true);
+    editor.view.dispatch(tr);
+    scanForTrackedChanges(editor);
+    onTrackChangeAction?.('accept_all');
+  }, [editor, scanForTrackedChanges, onTrackChangeAction]);
+
+  const rejectAllChanges = useCallback(() => {
+    if (!editor) return;
+    const { doc } = editor.state;
+    let { tr } = editor.state;
+
+    const marksToProcess: Array<{ pos: number; end: number; type: string; mark: any }> = [];
+    doc.descendants((node: any, pos: number) => {
+      if (node.isText) {
+        node.marks.forEach((mark: any) => {
+          if (mark.type.name === 'insertion' || mark.type.name === 'deletion') {
+            marksToProcess.push({ pos, end: pos + node.text.length, type: mark.type.name, mark });
+          }
+        });
+      }
+    });
+
+    marksToProcess.sort((a, b) => b.pos - a.pos);
+
+    for (const item of marksToProcess) {
+      if (item.type === 'insertion') {
+        tr = tr.delete(item.pos, item.end);
+      } else if (item.type === 'deletion') {
+        tr = tr.removeMark(item.pos, item.end, item.mark.type);
+      }
+    }
+
+    tr.setMeta('trackChangesApply', true);
+    editor.view.dispatch(tr);
+    scanForTrackedChanges(editor);
+    onTrackChangeAction?.('reject_all');
+  }, [editor, scanForTrackedChanges, onTrackChangeAction]);
 
   useEffect(() => {
     if (!editor) return;
@@ -208,7 +589,6 @@ export function RichTextEditor({
 
   const handleSearch = useCallback(() => {
     if (!editor || !searchTerm) return;
-    // Simple text search - highlight all occurrences
     const content = editor.getHTML();
     const highlighted = content.replace(
       new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
@@ -232,6 +612,15 @@ export function RichTextEditor({
 
   const insertTable = useCallback(() => {
     editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+  }, [editor]);
+
+  const scrollToChange = useCallback((change: TrackedChange) => {
+    if (!editor) return;
+    try {
+      editor.chain().focus().setTextSelection({ from: change.from, to: change.to }).run();
+    } catch {
+      // position may have shifted
+    }
   }, [editor]);
 
   if (!editor) return null;
@@ -263,16 +652,22 @@ export function RichTextEditor({
 
   const Sep = () => <div className="w-px h-6 bg-border mx-1" />;
 
+  const formatTimestamp = (ts: string) => {
+    try {
+      return new Date(ts).toLocaleString('en-GB', {
+        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+      });
+    } catch { return ts; }
+  };
+
   return (
     <div 
-      className={`rounded-md overflow-hidden ${disabled ? 'bg-muted/20' : 'border border-input bg-background'}`}
+      className={`rounded-md overflow-visible ${disabled ? 'bg-muted/20' : 'border border-input bg-background'}`}
       style={{ fontSize: `${zoom}%` }}
     >
       {!disabled && (
         <div className="border-b border-border bg-muted/30">
-          {/* Primary toolbar */}
           <div className="flex items-center gap-0.5 p-1.5 flex-wrap">
-            {/* Text formatting */}
             <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} icon={Bold} tooltip="Bold (Ctrl+B)" />
             <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} icon={Italic} tooltip="Italic (Ctrl+I)" />
             <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} icon={UnderlineIcon} tooltip="Underline (Ctrl+U)" />
@@ -282,20 +677,17 @@ export function RichTextEditor({
 
             <Sep />
 
-            {/* Headings */}
             <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} icon={Heading1} tooltip="Heading 1" />
             <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} icon={Heading2} tooltip="Heading 2" />
             <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} icon={Heading3} tooltip="Heading 3" />
 
             <Sep />
 
-            {/* Lists */}
             <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} icon={List} tooltip="Bullet List" />
             <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} icon={ListOrdered} tooltip="Numbered List" />
 
             <Sep />
 
-            {/* Alignment */}
             <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} icon={AlignLeft} tooltip="Align Left" />
             <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} icon={AlignCenter} tooltip="Align Centre" />
             <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} icon={AlignRight} tooltip="Align Right" />
@@ -303,9 +695,51 @@ export function RichTextEditor({
 
             <Sep />
 
-            {/* Tools */}
             <ToolbarButton onClick={insertTable} active={false} icon={TableIcon} tooltip="Insert Table" />
             <ToolbarButton onClick={() => setShowSearch(s => !s)} active={showSearch} icon={Search} tooltip="Find & Replace" />
+
+            {onAddComment && (
+              <ToolbarButton 
+                onClick={() => {
+                  if (!editor) return;
+                  const { from, to } = editor.state.selection;
+                  if (from === to) return;
+                  const selectedText = editor.state.doc.textBetween(from, to, ' ');
+                  if (selectedText.trim()) onAddComment(selectedText.trim());
+                }} 
+                active={false} 
+                icon={MessageSquarePlus} 
+                tooltip="Add Comment (select text first)" 
+              />
+            )}
+
+            {onTrackChangesToggle && (
+              <>
+                <Sep />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={trackChangesEnabled ? 'default' : 'ghost'}
+                      onClick={() => onTrackChangesToggle(!trackChangesEnabled)}
+                      disabled={disabled}
+                      className="gap-1 text-xs"
+                      data-testid="button-toggle-track-changes"
+                    >
+                      <GitCompareArrows className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Track Changes</span>
+                      {trackChangesEnabled && changeCount > 0 && (
+                        <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0" data-testid="badge-change-count">
+                          {changeCount}
+                        </Badge>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{trackChangesEnabled ? 'Track Changes: ON — edits are being tracked' : 'Track Changes: OFF'}</TooltipContent>
+                </Tooltip>
+              </>
+            )}
 
             {onFocusModeToggle && (
               <>
@@ -320,7 +754,32 @@ export function RichTextEditor({
             )}
           </div>
 
-          {/* Find & Replace bar */}
+          {trackChangesEnabled && changeCount > 0 && (
+            <div className="flex items-center gap-2 px-2 pb-2 flex-wrap" data-testid="container-track-changes-actions">
+              <span className="text-xs text-muted-foreground">{changeCount} change{changeCount !== 1 ? 's' : ''} pending</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={acceptAllChanges}
+                className="gap-1 text-xs"
+                data-testid="button-accept-all-changes"
+              >
+                <CheckCheck className="w-3 h-3" />
+                Accept All
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={rejectAllChanges}
+                className="gap-1 text-xs"
+                data-testid="button-reject-all-changes"
+              >
+                <XCircle className="w-3 h-3" />
+                Reject All
+              </Button>
+            </div>
+          )}
+
           {showSearch && (
             <div className="flex items-center gap-2 px-2 pb-2 flex-wrap">
               <Input
@@ -344,54 +803,109 @@ export function RichTextEditor({
         </div>
       )}
 
-      <div className="relative" onKeyDown={handleKeyDown}>
-        <EditorContent 
-          editor={editor} 
-          className="[&_.ProseMirror]:min-h-[400px] [&_.ProseMirror]:p-4 [&_.ProseMirror]:focus:outline-none
-            [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-bold [&_.ProseMirror_h1]:mb-3 [&_.ProseMirror_h1]:mt-4
-            [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mb-2 [&_.ProseMirror_h2]:mt-3
-            [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:mt-2
-            [&_.ProseMirror_p]:mb-2 [&_.ProseMirror_p]:leading-relaxed
-            [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ul]:mb-2
-            [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_ol]:mb-2
-            [&_.ProseMirror_li]:mb-1
-            [&_.ProseMirror_strong]:font-bold
-            [&_.ProseMirror_em]:italic
-            [&_.ProseMirror_u]:underline
-            [&_.ProseMirror_mark]:bg-yellow-200 [&_.ProseMirror_mark]:dark:bg-yellow-800
-            [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table]:my-3
-            [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-border [&_.ProseMirror_td]:p-2 [&_.ProseMirror_td]:text-sm
-            [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-border [&_.ProseMirror_th]:p-2 [&_.ProseMirror_th]:font-semibold [&_.ProseMirror_th]:bg-muted/40 [&_.ProseMirror_th]:text-sm
-            [&_.ProseMirror_.is-editor-empty:first-child::before]:text-muted-foreground
-            [&_.ProseMirror_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]
-            [&_.ProseMirror_.is-editor-empty:first-child::before]:float-left
-            [&_.ProseMirror_.is-editor-empty:first-child::before]:pointer-events-none
-            [&_.ProseMirror_.is-editor-empty:first-child::before]:h-0"
-          data-testid="editor-rich-text"
-        />
+      <div className={`flex ${trackChangesEnabled && changeCount > 0 && !disabled ? '' : ''}`}>
+        <div className={`relative flex-1 ${trackChangesEnabled && changeCount > 0 && !disabled ? 'min-w-0' : ''}`} onKeyDown={handleKeyDown}>
+          <EditorContent 
+            editor={editor} 
+            className="[&_.ProseMirror]:min-h-[400px] [&_.ProseMirror]:p-4 [&_.ProseMirror]:focus:outline-none
+              [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-bold [&_.ProseMirror_h1]:mb-3 [&_.ProseMirror_h1]:mt-4
+              [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mb-2 [&_.ProseMirror_h2]:mt-3
+              [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:mt-2
+              [&_.ProseMirror_p]:mb-2 [&_.ProseMirror_p]:leading-relaxed
+              [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ul]:mb-2
+              [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_ol]:mb-2
+              [&_.ProseMirror_li]:mb-1
+              [&_.ProseMirror_strong]:font-bold
+              [&_.ProseMirror_em]:italic
+              [&_.ProseMirror_u]:underline
+              [&_.ProseMirror_mark]:bg-yellow-200 [&_.ProseMirror_mark]:dark:bg-yellow-800
+              [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table]:my-3
+              [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-border [&_.ProseMirror_td]:p-2 [&_.ProseMirror_td]:text-sm
+              [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-border [&_.ProseMirror_th]:p-2 [&_.ProseMirror_th]:font-semibold [&_.ProseMirror_th]:bg-muted/40 [&_.ProseMirror_th]:text-sm
+              [&_.ProseMirror_.is-editor-empty:first-child::before]:text-muted-foreground
+              [&_.ProseMirror_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]
+              [&_.ProseMirror_.is-editor-empty:first-child::before]:float-left
+              [&_.ProseMirror_.is-editor-empty:first-child::before]:pointer-events-none
+              [&_.ProseMirror_.is-editor-empty:first-child::before]:h-0
+              [&_.track-change-insertion]:bg-green-100 [&_.track-change-insertion]:dark:bg-green-900/40 [&_.track-change-insertion]:text-green-800 [&_.track-change-insertion]:dark:text-green-200 [&_.track-change-insertion]:no-underline [&_.track-change-insertion]:border-b-2 [&_.track-change-insertion]:border-green-400 [&_.track-change-insertion]:dark:border-green-600
+              [&_.track-change-deletion]:bg-red-100 [&_.track-change-deletion]:dark:bg-red-900/40 [&_.track-change-deletion]:text-red-800 [&_.track-change-deletion]:dark:text-red-200 [&_.track-change-deletion]:line-through"
+            data-testid="editor-rich-text"
+          />
 
-        {/* Legal autocomplete dropdown */}
-        {autocompleteVisible && autocompleteOptions.length > 0 && (
-          <div className="absolute z-50 left-4 mt-1 bg-popover border border-border rounded-md shadow-md overflow-hidden"
-            style={{ top: '2.5rem' }}
-          >
-            {autocompleteOptions.map((opt, i) => (
-              <button
-                key={opt}
-                className={`w-full text-left px-3 py-1.5 text-sm ${i === selectedOption ? 'bg-accent text-accent-foreground' : 'hover-elevate'}`}
-                onMouseDown={e => { e.preventDefault(); applyAutocomplete(opt); }}
-              >
-                {opt}
-              </button>
-            ))}
-            <div className="px-3 py-1 text-xs text-muted-foreground border-t border-border">
-              Tab to complete
+          {autocompleteVisible && autocompleteOptions.length > 0 && (
+            <div className="absolute z-50 left-4 mt-1 bg-popover border border-border rounded-md shadow-md overflow-hidden"
+              style={{ top: '2.5rem' }}
+            >
+              {autocompleteOptions.map((opt, i) => (
+                <button
+                  key={opt}
+                  className={`w-full text-left px-3 py-1.5 text-sm ${i === selectedOption ? 'bg-accent text-accent-foreground' : 'hover-elevate'}`}
+                  onMouseDown={e => { e.preventDefault(); applyAutocomplete(opt); }}
+                >
+                  {opt}
+                </button>
+              ))}
+              <div className="px-3 py-1 text-xs text-muted-foreground border-t border-border">
+                Tab to complete
+              </div>
+            </div>
+          )}
+        </div>
+
+        {trackChangesEnabled && changeCount > 0 && !disabled && (
+          <div className="w-64 border-l border-border bg-muted/10 overflow-y-auto max-h-[500px] flex-shrink-0" data-testid="panel-tracked-changes">
+            <div className="p-2 border-b border-border">
+              <span className="text-xs font-semibold text-muted-foreground">Tracked Changes</span>
+            </div>
+            <div className="divide-y divide-border">
+              {trackedChanges.map((change) => (
+                <div 
+                  key={change.id} 
+                  className="p-2 hover-elevate cursor-pointer"
+                  onClick={() => scrollToChange(change)}
+                  data-testid={`tracked-change-${change.id}`}
+                >
+                  <div className="flex items-center gap-1 mb-1">
+                    <Badge 
+                      variant={change.type === 'insertion' ? 'default' : 'destructive'} 
+                      className={`text-[10px] px-1.5 py-0 ${change.type === 'insertion' ? 'bg-green-600' : ''}`}
+                    >
+                      {change.type === 'insertion' ? 'Added' : 'Deleted'}
+                    </Badge>
+                    <span className="text-[10px] text-muted-foreground">{formatTimestamp(change.timestamp)}</span>
+                  </div>
+                  <p className={`text-xs truncate mb-1.5 ${change.type === 'insertion' ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300 line-through'}`}>
+                    {change.text.substring(0, 60)}{change.text.length > 60 ? '...' : ''}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => { e.stopPropagation(); acceptChange(change.id); }}
+                      className="h-5 text-[10px] px-1.5 gap-0.5 text-green-700 dark:text-green-400"
+                      data-testid={`button-accept-change-${change.id}`}
+                    >
+                      <Check className="w-3 h-3" />
+                      Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => { e.stopPropagation(); rejectChange(change.id); }}
+                      className="h-5 text-[10px] px-1.5 gap-0.5 text-red-700 dark:text-red-400"
+                      data-testid={`button-reject-change-${change.id}`}
+                    >
+                      <X className="w-3 h-3" />
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
       </div>
 
-      {/* Footer: word count */}
       {!disabled && (
         <div className="flex items-center justify-between px-3 py-1.5 border-t border-border bg-muted/20 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
@@ -399,6 +913,13 @@ export function RichTextEditor({
             <span>{wordCount} words</span>
             <span className="ml-2">{charCount} characters</span>
           </div>
+          {trackChangesEnabled && (
+            <div className="flex items-center gap-1" data-testid="indicator-track-changes-status">
+              <GitCompareArrows className="w-3 h-3 text-amber-500" />
+              <span className="text-amber-600 dark:text-amber-400">Track Changes ON</span>
+              {changeCount > 0 && <span>({changeCount} pending)</span>}
+            </div>
+          )}
         </div>
       )}
     </div>

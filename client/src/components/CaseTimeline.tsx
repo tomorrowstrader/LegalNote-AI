@@ -23,6 +23,7 @@ import {
   ListChecks,
   CalendarClock,
   Circle,
+  Download,
 } from "lucide-react";
 
 interface CaseTimelineProps {
@@ -89,6 +90,7 @@ type TimelineEventType =
   | "action_item"
   | "deadline"
   | "share"
+  | "export"
   | "audit";
 
 interface TimelineEvent {
@@ -113,6 +115,7 @@ const EVENT_ICONS: Record<TimelineEventType, any> = {
   action_item: ListChecks,
   deadline: CalendarClock,
   share: Send,
+  export: Download,
   audit: Eye,
 };
 
@@ -125,6 +128,7 @@ const EVENT_COLORS: Record<TimelineEventType, string> = {
   action_item: "bg-orange-500/10 text-orange-500 border-orange-500/30",
   deadline: "bg-red-500/10 text-red-500 border-red-500/30",
   share: "bg-pink-500/10 text-pink-500 border-pink-500/30",
+  export: "bg-indigo-500/10 text-indigo-500 border-indigo-500/30",
   audit: "bg-slate-500/10 text-slate-500 border-slate-500/30",
 };
 
@@ -139,6 +143,7 @@ const FILTER_OPTIONS: { value: TimelineEventType | "all"; label: string }[] = [
   { value: "all", label: "All Events" },
   { value: "deadline", label: "Deadlines" },
   { value: "document", label: "Documents" },
+  { value: "export", label: "Exports" },
   { value: "action_item", label: "Action Items" },
   { value: "consent", label: "Consent" },
   { value: "processing", label: "AI Processing" },
@@ -289,12 +294,14 @@ export function CaseTimeline({ caseId }: CaseTimelineProps) {
 
     const significantAuditEvents = auditLogs.filter(log => 
       ["ai_processing_started", "ai_processing_completed", "transcription_completed", 
-       "share_link_created", "document_sent", "document_approved"].includes(log.eventType)
+       "share_link_created", "document_sent", "document_approved",
+       "document_exported_pdf", "document_exported_word", "document_exported"].includes(log.eventType)
     );
 
     significantAuditEvents.forEach((log) => {
       let title = log.eventType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
       let type: TimelineEventType = "audit";
+      let description: string | undefined;
       
       if (log.eventType.includes("processing") || log.eventType.includes("transcription")) {
         type = "processing";
@@ -303,12 +310,22 @@ export function CaseTimeline({ caseId }: CaseTimelineProps) {
                 "Transcription Completed";
       } else if (log.eventType.includes("share") || log.eventType.includes("sent")) {
         type = "share";
+      } else if (log.eventType.includes("exported")) {
+        type = "export";
+        const format = log.eventType === "document_exported_pdf" ? "PDF" :
+                       log.eventType === "document_exported_word" ? "Word" : "document";
+        title = `Working Copy Downloaded (${format})`;
+        const docs = log.metadata?.documents;
+        if (Array.isArray(docs) && docs.length > 0) {
+          description = `Exported: ${docs.map((d: string) => d.replace(/_/g, ' ')).join(', ')}`;
+        }
       }
 
       events.push({
         id: `audit-${log.id}`,
         type,
         title,
+        description,
         timestamp: new Date(log.timestamp),
         status: "completed",
       });
@@ -368,13 +385,15 @@ export function CaseTimeline({ caseId }: CaseTimelineProps) {
     const colorClass = EVENT_COLORS[event.type];
     const statusColor = event.status ? STATUS_COLORS[event.status] : "";
 
+    const isExportEvent = event.type === "export";
+
     return (
       <div 
         key={event.id} 
-        className="flex gap-3 py-3 border-b border-border/50 last:border-0"
+        className={`flex gap-3 py-3 border-b border-border/50 last:border-0 ${isExportEvent ? 'bg-indigo-50/50 dark:bg-indigo-950/20 -mx-3 px-3 rounded-md' : ''}`}
         data-testid={`timeline-event-${event.id}`}
       >
-        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${colorClass} border`}>
+        <div className={`flex-shrink-0 ${isExportEvent ? 'w-9 h-9' : 'w-8 h-8'} rounded-full flex items-center justify-center ${colorClass} border ${isExportEvent ? 'border-2 ring-2 ring-indigo-500/20' : ''}`}>
           <Icon className="w-4 h-4" />
         </div>
         <div className="flex-1 min-w-0">

@@ -1,20 +1,234 @@
-import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer } from "lucide-react";
+import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { FirmProfile } from "@shared/schema";
+import type { FirmProfile, DocumentComment } from "@shared/schema";
 import DownloadModal from "@/components/DownloadModal";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { RichTextEditor } from "@/components/RichTextEditor";
+import { RichTextEditor, type TrackedChange } from "@/components/RichTextEditor";
 import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
+import { Textarea } from "@/components/ui/textarea";
+import DiffMatchPatch from 'diff-match-patch';
+
+interface DocumentVersion {
+  id: string;
+  version: number;
+  versionType: string;
+  content: string;
+  createdAt: string;
+  createdBy: string;
+  isActive: boolean;
+  status: string;
+  wordCount: number;
+}
+
+function VersionDiffViewer({
+  caseId,
+  documentType,
+  onClose,
+}: {
+  caseId: string;
+  documentType: string;
+  onClose: () => void;
+}) {
+  const [leftVersion, setLeftVersion] = useState<string>('');
+  const [rightVersion, setRightVersion] = useState<string>('');
+
+  const { data: versions = [], isLoading } = useQuery<DocumentVersion[]>({
+    queryKey: ['/api/cases', caseId, 'document-versions', documentType],
+    queryFn: async () => {
+      const res = await fetch(`/api/cases/${caseId}/document-versions/${documentType}`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  useEffect(() => {
+    if (versions.length >= 2 && !leftVersion && !rightVersion) {
+      setLeftVersion(versions[versions.length - 2].id);
+      setRightVersion(versions[versions.length - 1].id);
+    } else if (versions.length === 1 && !rightVersion) {
+      setRightVersion(versions[0].id);
+    }
+  }, [versions, leftVersion, rightVersion]);
+
+  const diffHtml = useMemo(() => {
+    const left = versions.find(v => v.id === leftVersion);
+    const right = versions.find(v => v.id === rightVersion);
+    if (!left || !right) return '';
+
+    const dmp = new DiffMatchPatch();
+    const diffs = dmp.diff_main(left.content, right.content);
+    dmp.diff_cleanupSemantic(diffs);
+
+    return diffs.map(([op, text]: [number, string]) => {
+      const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>');
+      if (op === 1) {
+        return `<span class="diff-added">${escaped}</span>`;
+      } else if (op === -1) {
+        return `<span class="diff-removed">${escaped}</span>`;
+      }
+      return escaped;
+    }).join('');
+  }, [versions, leftVersion, rightVersion]);
+
+  const leftVer = versions.find(v => v.id === leftVersion);
+  const rightVer = versions.find(v => v.id === rightVersion);
+  const wordCountDiff = leftVer && rightVer ? rightVer.wordCount - leftVer.wordCount : 0;
+
+  const formatVersionLabel = (v: DocumentVersion) => {
+    const date = new Date(v.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const typeLabel = v.versionType === 'ai_generated' ? 'AI' : v.versionType === 'ai_regenerated' ? 'AI Regen' : 'Edited';
+    return `v${v.version} — ${typeLabel} — ${date}`;
+  };
+
+  if (isLoading) {
+    return (
+      <Card data-testid="panel-version-diff">
+        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+          Loading versions...
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (versions.length < 2) {
+    return (
+      <Card data-testid="panel-version-diff">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-base">Compare Versions</CardTitle>
+            <Button size="sm" variant="ghost" onClick={onClose} data-testid="button-close-diff">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground italic text-center py-6">
+          At least two versions are needed to compare. Edit the document to create additional versions.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card data-testid="panel-version-diff">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <CardTitle className="text-base flex items-center gap-2">
+            <GitCompareArrows className="w-4 h-4" />
+            Compare Versions
+          </CardTitle>
+          <Button size="sm" variant="ghost" onClick={onClose} data-testid="button-close-diff">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          <div className="flex-1 min-w-0">
+            <label className="text-xs text-muted-foreground mb-1 block">From (older)</label>
+            <Select value={leftVersion} onValueChange={setLeftVersion}>
+              <SelectTrigger data-testid="select-left-version" className="text-xs">
+                <SelectValue placeholder="Select version" />
+              </SelectTrigger>
+              <SelectContent>
+                {versions.map(v => (
+                  <SelectItem key={v.id} value={v.id} data-testid={`option-left-v${v.version}`}>
+                    {formatVersionLabel(v)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <span className="text-muted-foreground text-sm hidden sm:block pt-4">vs</span>
+          <div className="flex-1 min-w-0">
+            <label className="text-xs text-muted-foreground mb-1 block">To (newer)</label>
+            <Select value={rightVersion} onValueChange={setRightVersion}>
+              <SelectTrigger data-testid="select-right-version" className="text-xs">
+                <SelectValue placeholder="Select version" />
+              </SelectTrigger>
+              <SelectContent>
+                {versions.map(v => (
+                  <SelectItem key={v.id} value={v.id} data-testid={`option-right-v${v.version}`}>
+                    {formatVersionLabel(v)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {leftVer && rightVer && (
+          <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+            <span>v{leftVer.version} ({leftVer.wordCount} words)</span>
+            <span>→</span>
+            <span>v{rightVer.version} ({rightVer.wordCount} words)</span>
+            <Badge variant="outline" className="text-xs" data-testid="badge-word-count-diff">
+              {wordCountDiff > 0 ? `+${wordCountDiff}` : wordCountDiff} words
+            </Badge>
+          </div>
+        )}
+
+        <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-sm bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-700" />
+            <span className="text-muted-foreground">Added</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-sm bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700" />
+            <span className="text-muted-foreground">Removed</span>
+          </div>
+        </div>
+
+        <div className="border border-border rounded-md p-4 max-h-[500px] overflow-auto">
+          <div
+            className="prose prose-sm max-w-none text-sm leading-relaxed version-diff-content"
+            dangerouslySetInnerHTML={{ __html: diffHtml }}
+            data-testid="container-diff-output"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">Version History</p>
+          <div className="space-y-1">
+            {versions.map(v => (
+              <div
+                key={v.id}
+                className={`flex items-center justify-between gap-2 text-xs p-2 rounded-md ${
+                  v.id === leftVersion || v.id === rightVersion ? 'bg-muted/50' : ''
+                }`}
+                data-testid={`version-entry-${v.version}`}
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant={v.isActive ? 'default' : 'outline'} className="text-[10px]">
+                    v{v.version}
+                  </Badge>
+                  <span className="text-muted-foreground">
+                    {v.versionType === 'ai_generated' ? 'AI Generated' : v.versionType === 'ai_regenerated' ? 'AI Regenerated' : 'Manually Edited'}
+                  </span>
+                  {v.isActive && <Badge variant="outline" className="text-[10px]">Current</Badge>}
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <span>{v.wordCount} words</span>
+                  <span>{new Date(v.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 interface Document {
   id: string;
@@ -47,7 +261,107 @@ interface DocumentViewerProps {
   initialTimestamp?: number;
 }
 
-// Helper component for editable document content - single panel with inline editing
+function CommentsPanel({ 
+  documentId,
+  comments,
+  showResolved,
+  onToggleResolved,
+  onResolve,
+  onDelete,
+  onHighlightText,
+  highlightedCommentId,
+}: {
+  documentId: string;
+  comments: DocumentComment[];
+  showResolved: boolean;
+  onToggleResolved: () => void;
+  onResolve: (commentId: string, resolved: boolean) => void;
+  onDelete: (commentId: string) => void;
+  onHighlightText: (selectedText: string, commentId: string) => void;
+  highlightedCommentId: string | null;
+}) {
+  const filteredComments = showResolved ? comments : comments.filter(c => !c.resolved);
+  const activeCount = comments.filter(c => !c.resolved).length;
+  const resolvedCount = comments.filter(c => c.resolved).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium">{activeCount} comment{activeCount !== 1 ? 's' : ''}</span>
+          {resolvedCount > 0 && (
+            <Badge variant="outline" className="text-xs">{resolvedCount} resolved</Badge>
+          )}
+        </div>
+        {resolvedCount > 0 && (
+          <Button size="sm" variant="ghost" onClick={onToggleResolved} className="gap-1 text-xs" data-testid="button-toggle-resolved">
+            {showResolved ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+            {showResolved ? 'Hide resolved' : 'Show resolved'}
+          </Button>
+        )}
+      </div>
+
+      {filteredComments.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic py-4 text-center">
+          {comments.length === 0 ? 'No comments yet. Select text in the document and click "Add Comment" to get started.' : 'All comments resolved.'}
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {filteredComments.map(comment => (
+            <Card 
+              key={comment.id}
+              className={`cursor-pointer transition-colors ${highlightedCommentId === comment.id ? 'ring-2 ring-primary' : ''} ${comment.resolved ? 'opacity-60' : ''}`}
+              onClick={() => onHighlightText(comment.selectedText, comment.id)}
+              data-testid={`comment-card-${comment.id}`}
+            >
+              <CardContent className="p-3 space-y-2">
+                <div className="text-xs bg-muted/50 rounded px-2 py-1 font-mono truncate" data-testid={`comment-anchor-${comment.id}`}>
+                  "{comment.selectedText.length > 80 ? comment.selectedText.substring(0, 80) + '...' : comment.selectedText}"
+                </div>
+                <p className="text-sm" data-testid={`comment-text-${comment.id}`}>{comment.commentText}</p>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(comment.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          onClick={(e) => { e.stopPropagation(); onResolve(comment.id, !comment.resolved); }}
+                          data-testid={`button-resolve-${comment.id}`}
+                        >
+                          <Check className={`w-3.5 h-3.5 ${comment.resolved ? 'text-green-500' : ''}`} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{comment.resolved ? 'Reopen' : 'Resolve'}</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          onClick={(e) => { e.stopPropagation(); onDelete(comment.id); }}
+                          data-testid={`button-delete-comment-${comment.id}`}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EditableDocumentContent({ 
   document,
   isEditing,
@@ -61,6 +375,10 @@ function EditableDocumentContent({
   zoom,
   focusMode,
   onFocusModeToggle,
+  onAddComment,
+  trackChangesEnabled,
+  onTrackChangesToggle,
+  onTrackChangeAction,
 }: { 
   document: Document;
   isEditing: boolean;
@@ -74,12 +392,15 @@ function EditableDocumentContent({
   zoom?: number;
   focusMode?: boolean;
   onFocusModeToggle?: () => void;
+  onAddComment?: (selectedText: string) => void;
+  trackChangesEnabled?: boolean;
+  onTrackChangesToggle?: (enabled: boolean) => void;
+  onTrackChangeAction?: (action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changeId?: string) => void;
 }) {
   const isDraft = document.status === 'draft';
 
   return (
     <div className="space-y-4">
-      {/* Action buttons */}
       <div className="flex items-center gap-2 flex-wrap">
         {isEditing ? (
           <>
@@ -137,7 +458,6 @@ function EditableDocumentContent({
         ) : null}
       </div>
 
-      {/* Single panel: RichTextEditor handles both viewing and editing */}
       <RichTextEditor
         content={isEditing ? editContent : document.content}
         onChange={onEditContentChange}
@@ -146,6 +466,10 @@ function EditableDocumentContent({
         zoom={zoom}
         focusMode={focusMode}
         onFocusModeToggle={onFocusModeToggle}
+        onAddComment={onAddComment}
+        trackChangesEnabled={isEditing ? trackChangesEnabled : false}
+        onTrackChangesToggle={isEditing ? onTrackChangesToggle : undefined}
+        onTrackChangeAction={isEditing ? onTrackChangeAction : undefined}
       />
     </div>
   );
@@ -179,6 +503,18 @@ export default function DocumentViewer({
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
   
+  const [trackChangesEnabled, setTrackChangesEnabled] = useState(false);
+  
+  const [showVersionDiff, setShowVersionDiff] = useState<string | null>(null);
+  
+  const [showComments, setShowComments] = useState(false);
+  const [showResolvedComments, setShowResolvedComments] = useState(false);
+  const [commentDocId, setCommentDocId] = useState<string | null>(null);
+  const [addCommentText, setAddCommentText] = useState('');
+  const [addCommentSelectedText, setAddCommentSelectedText] = useState('');
+  const [showAddCommentForm, setShowAddCommentForm] = useState(false);
+  const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
+  
   // Controlled tab state with support for initial tab from URL
   const [activeTab, setActiveTab] = useState<string>(initialTab || 'attendance');
   
@@ -189,10 +525,83 @@ export default function DocumentViewer({
     }
   }, [initialTab]);
 
-  // Fetch firm profile for exports
   const { data: firmProfile } = useQuery<FirmProfile>({
     queryKey: ['/api/firm-profile'],
   });
+
+  const activeDocForComments = commentDocId || documents.find(d => d.type === (activeTab === 'summary' ? 'summary' : 'attendance_note'))?.id;
+  
+  const { data: commentsData = [] } = useQuery<DocumentComment[]>({
+    queryKey: ['/api/documents', activeDocForComments, 'comments'],
+    queryFn: async () => {
+      if (!activeDocForComments) return [];
+      const res = await fetch(`/api/documents/${activeDocForComments}/comments`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!activeDocForComments,
+  });
+
+  const addCommentMutation = useMutation({
+    mutationFn: async ({ documentId, selectedText, commentText }: { documentId: string; selectedText: string; commentText: string }) => {
+      return await apiRequest('POST', `/api/documents/${documentId}/comments`, { selectedText, commentText });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents', activeDocForComments, 'comments'] });
+      setShowAddCommentForm(false);
+      setAddCommentText('');
+      setAddCommentSelectedText('');
+      toast({ title: "Comment Added", description: "Your comment has been saved", duration: 3000 });
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not add comment", variant: "destructive", duration: 5000 });
+    },
+  });
+
+  const resolveCommentMutation = useMutation({
+    mutationFn: async ({ documentId, commentId, resolved }: { documentId: string; commentId: string; resolved: boolean }) => {
+      return await apiRequest('PATCH', `/api/documents/${documentId}/comments/${commentId}`, { resolved });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents', activeDocForComments, 'comments'] });
+    },
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: async ({ documentId, commentId }: { documentId: string; commentId: string }) => {
+      return await apiRequest('DELETE', `/api/documents/${documentId}/comments/${commentId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents', activeDocForComments, 'comments'] });
+      toast({ title: "Comment Deleted", duration: 3000 });
+    },
+  });
+
+  const handleAddComment = useCallback((selectedText: string) => {
+    if (!selectedText.trim()) return;
+    setAddCommentSelectedText(selectedText);
+    setShowAddCommentForm(true);
+    setShowComments(true);
+  }, []);
+
+  const handleSubmitComment = useCallback(() => {
+    if (!activeDocForComments || !addCommentText.trim() || !addCommentSelectedText.trim()) return;
+    addCommentMutation.mutate({ documentId: activeDocForComments, selectedText: addCommentSelectedText, commentText: addCommentText });
+  }, [activeDocForComments, addCommentText, addCommentSelectedText, addCommentMutation]);
+
+  const handleResolveComment = useCallback((commentId: string, resolved: boolean) => {
+    if (!activeDocForComments) return;
+    resolveCommentMutation.mutate({ documentId: activeDocForComments, commentId, resolved });
+  }, [activeDocForComments, resolveCommentMutation]);
+
+  const handleDeleteComment = useCallback((commentId: string) => {
+    if (!activeDocForComments) return;
+    deleteCommentMutation.mutate({ documentId: activeDocForComments, commentId });
+  }, [activeDocForComments, deleteCommentMutation]);
+
+  const handleHighlightText = useCallback((_selectedText: string, commentId: string) => {
+    setHighlightedCommentId(prev => prev === commentId ? null : commentId);
+  }, []);
 
   const handleExport = () => {
     setShowDownloadModal(true);
@@ -213,6 +622,8 @@ export default function DocumentViewer({
       const attendanceNote = documents.find(d => d.type === 'attendance_note');
       const summary = documents.find(d => d.type === 'summary');
 
+      const primaryDoc = selectedDocs.includes('attendance_note') ? attendanceNote : 
+                         selectedDocs.includes('summary') ? summary : undefined;
       const content: any = {
         caseTitle,
         clientName,
@@ -220,6 +631,7 @@ export default function DocumentViewer({
         createdAt,
         documentType: selectedDocs.length === 1 ? selectedDocs[0] as any : 'full_case',
         firmProfile: firmProfile || undefined,
+        documentId: primaryDoc?.id,
       };
 
       if (selectedDocs.includes('attendance_note')) {
@@ -470,6 +882,7 @@ export default function DocumentViewer({
     setEditContent(contentToLoad);
     setLastSavedContent(document.content);
     setAutoSaveStatus('idle');
+    setTrackChangesEnabled(true);
 
     if (savedDraft) {
       const savedData = JSON.parse(savedDraft);
@@ -496,7 +909,21 @@ export default function DocumentViewer({
     setEditContent("");
     setLastSavedContent("");
     setAutoSaveStatus('idle');
+    setTrackChangesEnabled(false);
   };
+
+  const handleTrackChangeAction = useCallback((action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changeId?: string) => {
+    try {
+      fetch(`/api/cases/${caseId}/audit/track-change`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action, changeId }),
+      });
+    } catch (auditError) {
+      console.error('Failed to log track change audit event:', auditError);
+    }
+  }, [caseId]);
 
   const saveEdits = (documentId: string) => {
     if (!editContent.trim()) {
@@ -585,6 +1012,23 @@ export default function DocumentViewer({
           <Badge variant="outline" data-testid="badge-version">
             Version {document.version}
           </Badge>
+          {document.version > 1 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowVersionDiff(prev => prev === document.type ? null : document.type)}
+                  className="gap-1"
+                  data-testid="button-compare-versions"
+                >
+                  <GitCompareArrows className="w-3 h-3" />
+                  Compare Versions
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Compare different versions of this document</TooltipContent>
+            </Tooltip>
+          )}
           {isApproved ? (
             <>
               <Tooltip>
@@ -765,6 +1209,27 @@ export default function DocumentViewer({
                       <TooltipContent>Zoom in</TooltipContent>
                     </Tooltip>
                   </div>
+                  {activeTab !== 'transcript' && activeDocForComments && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          size="icon" 
+                          variant={showComments ? 'secondary' : 'ghost'} 
+                          onClick={() => setShowComments(s => !s)} 
+                          data-testid="button-toggle-comments"
+                          className="hidden sm:flex relative"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          {commentsData.filter(c => !c.resolved).length > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+                              {commentsData.filter(c => !c.resolved).length}
+                            </span>
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Comments</TooltipContent>
+                    </Tooltip>
+                  )}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button size="icon" variant="ghost" onClick={handlePrint} data-testid="button-print" className="hidden sm:flex">
@@ -811,76 +1276,190 @@ export default function DocumentViewer({
         </div>
 
         <TabsContent value="attendance" className="mt-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <CardTitle>Attendance Note</CardTitle>
-                <DocumentStatusActions document={attendanceNote} />
-              </div>
-            </CardHeader>
-            <CardContent className="prose prose-sm max-w-none">
-              {attendanceNote ? (
-                <EditableDocumentContent 
-                  document={attendanceNote}
-                  isEditing={editingDocId === attendanceNote.id}
-                  editContent={editContent}
-                  onEditContentChange={setEditContent}
-                  onStartEditing={startEditing}
-                  onCancelEditing={cancelEditing}
-                  onSaveEdits={saveEdits}
-                  isSaving={editMutation.isPending}
-                  autoSaveStatus={editingDocId === attendanceNote.id ? autoSaveStatus : 'idle'}
-                  zoom={zoom}
-                  focusMode={focusMode}
-                  onFocusModeToggle={() => setFocusMode(f => !f)}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground italic">
-                  No attendance note available yet. Documents will be generated automatically.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          {showVersionDiff === 'attendance_note' && (
+            <div className="mb-4">
+              <VersionDiffViewer
+                caseId={caseId}
+                documentType="attendance_note"
+                onClose={() => setShowVersionDiff(null)}
+              />
+            </div>
+          )}
+          <div className={`flex gap-4 ${showComments ? 'flex-col lg:flex-row' : ''}`}>
+            <Card className={showComments ? 'flex-1 min-w-0' : 'w-full'}>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <CardTitle>Attendance Note</CardTitle>
+                  <DocumentStatusActions document={attendanceNote} />
+                </div>
+              </CardHeader>
+              <CardContent className="prose prose-sm max-w-none">
+                {attendanceNote ? (
+                  <EditableDocumentContent 
+                    document={attendanceNote}
+                    isEditing={editingDocId === attendanceNote.id}
+                    editContent={editContent}
+                    onEditContentChange={setEditContent}
+                    onStartEditing={startEditing}
+                    onCancelEditing={cancelEditing}
+                    onSaveEdits={saveEdits}
+                    isSaving={editMutation.isPending}
+                    autoSaveStatus={editingDocId === attendanceNote.id ? autoSaveStatus : 'idle'}
+                    zoom={zoom}
+                    focusMode={focusMode}
+                    onFocusModeToggle={() => setFocusMode(f => !f)}
+                    onAddComment={handleAddComment}
+                    trackChangesEnabled={editingDocId === attendanceNote.id ? trackChangesEnabled : false}
+                    onTrackChangesToggle={setTrackChangesEnabled}
+                    onTrackChangeAction={handleTrackChangeAction}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">
+                    No attendance note available yet. Documents will be generated automatically.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+            {showComments && attendanceNote && (
+              <Card className="lg:w-80 flex-shrink-0" data-testid="panel-comments">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Comments</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {showAddCommentForm && (
+                    <div className="space-y-2 border-b border-border pb-3" data-testid="form-add-comment">
+                      <div className="text-xs bg-muted/50 rounded px-2 py-1 font-mono truncate">
+                        "{addCommentSelectedText.length > 60 ? addCommentSelectedText.substring(0, 60) + '...' : addCommentSelectedText}"
+                      </div>
+                      <Textarea
+                        placeholder="Add your comment..."
+                        value={addCommentText}
+                        onChange={e => setAddCommentText(e.target.value)}
+                        className="text-sm resize-none"
+                        rows={3}
+                        data-testid="input-comment-text"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" onClick={handleSubmitComment} disabled={addCommentMutation.isPending || !addCommentText.trim()} data-testid="button-submit-comment">
+                          {addCommentMutation.isPending ? 'Saving...' : 'Add'}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => { setShowAddCommentForm(false); setAddCommentText(''); setAddCommentSelectedText(''); }} data-testid="button-cancel-comment">
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  <CommentsPanel
+                    documentId={attendanceNote.id}
+                    comments={commentsData}
+                    showResolved={showResolvedComments}
+                    onToggleResolved={() => setShowResolvedComments(s => !s)}
+                    onResolve={handleResolveComment}
+                    onDelete={handleDeleteComment}
+                    onHighlightText={handleHighlightText}
+                    highlightedCommentId={highlightedCommentId}
+                  />
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="summary" className="mt-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <CardTitle>Case Summary</CardTitle>
-                <DocumentStatusActions document={summary} />
-              </div>
-            </CardHeader>
-            <CardContent className="prose prose-sm max-w-none">
-              {summary ? (
-                <EditableDocumentContent 
-                  document={summary}
-                  isEditing={editingDocId === summary.id}
-                  editContent={editContent}
-                  onEditContentChange={setEditContent}
-                  onStartEditing={startEditing}
-                  onCancelEditing={cancelEditing}
-                  onSaveEdits={saveEdits}
-                  isSaving={editMutation.isPending}
-                  autoSaveStatus={editingDocId === summary.id ? autoSaveStatus : 'idle'}
-                  zoom={zoom}
-                  focusMode={focusMode}
-                  onFocusModeToggle={() => setFocusMode(f => !f)}
-                />
-              ) : textNotes ? (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-4 italic">
-                    Meeting notes (AI-generated summary will appear here once processed)
-                  </p>
-                  <p className="text-foreground whitespace-pre-wrap">{textNotes}</p>
+          {showVersionDiff === 'summary' && (
+            <div className="mb-4">
+              <VersionDiffViewer
+                caseId={caseId}
+                documentType="summary"
+                onClose={() => setShowVersionDiff(null)}
+              />
+            </div>
+          )}
+          <div className={`flex gap-4 ${showComments ? 'flex-col lg:flex-row' : ''}`}>
+            <Card className={showComments ? 'flex-1 min-w-0' : 'w-full'}>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <CardTitle>Case Summary</CardTitle>
+                  <DocumentStatusActions document={summary} />
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">
-                  No summary available yet. Documents will be generated automatically.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent className="prose prose-sm max-w-none">
+                {summary ? (
+                  <EditableDocumentContent 
+                    document={summary}
+                    isEditing={editingDocId === summary.id}
+                    editContent={editContent}
+                    onEditContentChange={setEditContent}
+                    onStartEditing={startEditing}
+                    onCancelEditing={cancelEditing}
+                    onSaveEdits={saveEdits}
+                    isSaving={editMutation.isPending}
+                    autoSaveStatus={editingDocId === summary.id ? autoSaveStatus : 'idle'}
+                    zoom={zoom}
+                    focusMode={focusMode}
+                    onFocusModeToggle={() => setFocusMode(f => !f)}
+                    onAddComment={handleAddComment}
+                    trackChangesEnabled={editingDocId === summary.id ? trackChangesEnabled : false}
+                    onTrackChangesToggle={setTrackChangesEnabled}
+                    onTrackChangeAction={handleTrackChangeAction}
+                  />
+                ) : textNotes ? (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-4 italic">
+                      Meeting notes (AI-generated summary will appear here once processed)
+                    </p>
+                    <p className="text-foreground whitespace-pre-wrap">{textNotes}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">
+                    No summary available yet. Documents will be generated automatically.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+            {showComments && summary && (
+              <Card className="lg:w-80 flex-shrink-0" data-testid="panel-comments">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Comments</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {showAddCommentForm && (
+                    <div className="space-y-2 border-b border-border pb-3" data-testid="form-add-comment">
+                      <div className="text-xs bg-muted/50 rounded px-2 py-1 font-mono truncate">
+                        "{addCommentSelectedText.length > 60 ? addCommentSelectedText.substring(0, 60) + '...' : addCommentSelectedText}"
+                      </div>
+                      <Textarea
+                        placeholder="Add your comment..."
+                        value={addCommentText}
+                        onChange={e => setAddCommentText(e.target.value)}
+                        className="text-sm resize-none"
+                        rows={3}
+                        data-testid="input-comment-text"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" onClick={handleSubmitComment} disabled={addCommentMutation.isPending || !addCommentText.trim()} data-testid="button-submit-comment">
+                          {addCommentMutation.isPending ? 'Saving...' : 'Add'}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => { setShowAddCommentForm(false); setAddCommentText(''); setAddCommentSelectedText(''); }} data-testid="button-cancel-comment">
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  <CommentsPanel
+                    documentId={summary.id}
+                    comments={commentsData}
+                    showResolved={showResolvedComments}
+                    onToggleResolved={() => setShowResolvedComments(s => !s)}
+                    onResolve={handleResolveComment}
+                    onDelete={handleDeleteComment}
+                    onHighlightText={handleHighlightText}
+                    highlightedCommentId={highlightedCommentId}
+                  />
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="transcript" className="mt-6">

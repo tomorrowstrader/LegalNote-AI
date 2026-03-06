@@ -2083,6 +2083,154 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  app.get("/api/cases/:caseId/document-versions/:type", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId, type } = req.params;
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const allDocs = await storage.getDocumentsByCase(caseId, userId);
+      const versions = allDocs
+        .filter(d => d.type === type)
+        .sort((a, b) => a.version - b.version);
+      
+      const versionsWithMeta = versions.map(doc => {
+        const wordCount = doc.content.split(/\s+/).filter(Boolean).length;
+        return {
+          id: doc.id,
+          version: doc.version,
+          versionType: doc.versionType,
+          content: doc.content,
+          createdAt: doc.createdAt,
+          createdBy: doc.createdBy,
+          isActive: doc.isActive,
+          status: doc.status,
+          wordCount,
+        };
+      });
+      
+      res.json(versionsWithMeta);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/documents/:id/comments", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const document = await storage.getDocument(req.params.id);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      const caseData = await storage.getCase(document.caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const comments = await storage.getDocumentComments(req.params.id);
+      res.json(comments);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/documents/:id/comments", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const document = await storage.getDocument(req.params.id);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      const caseData = await storage.getCase(document.caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const commentSchema = z.object({
+        selectedText: z.string().min(1).max(10000),
+        commentText: z.string().min(1).max(10000),
+      });
+      const validationResult = commentSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ message: "Validation error", errors: validationResult.error.format() });
+      }
+      const { selectedText, commentText } = validationResult.data;
+      const comment = await storage.createDocumentComment({
+        documentId: req.params.id,
+        userId,
+        selectedText,
+        commentText,
+        resolved: false,
+      });
+      await storage.createAuditLog({
+        eventType: 'document_comment_added',
+        userId,
+        caseId: document.caseId,
+        documentId: req.params.id,
+        metadata: { selectedTextPreview: selectedText.substring(0, 100) },
+      });
+      res.json(comment);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/documents/:id/comments/:commentId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const document = await storage.getDocument(req.params.id);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      const caseData = await storage.getCase(document.caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const updateSchema = z.object({
+        resolved: z.boolean().optional(),
+        commentText: z.string().min(1).max(10000).optional(),
+      });
+      const validationResult = updateSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ message: "Validation error", errors: validationResult.error.format() });
+      }
+      const updated = await storage.updateDocumentComment(req.params.commentId, validationResult.data);
+      if (!updated) {
+        return res.status(404).json({ message: "Comment not found" });
+      }
+      if (validationResult.data.resolved !== undefined) {
+        await storage.createAuditLog({
+          eventType: validationResult.data.resolved ? 'document_comment_resolved' : 'document_comment_reopened',
+          userId,
+          caseId: document.caseId,
+          documentId: req.params.id,
+          metadata: { commentId: req.params.commentId },
+        });
+      }
+      res.json(updated);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/documents/:id/comments/:commentId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const document = await storage.getDocument(req.params.id);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      const caseData = await storage.getCase(document.caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      await storage.deleteDocumentComment(req.params.commentId);
+      res.json({ success: true });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.post("/api/cases/:id/email", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
@@ -5355,6 +5503,31 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   });
 
   // Log document export/download events
+  app.post("/api/cases/:id/audit/track-change", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { action, changeId } = req.body;
+      
+      const caseData = await storage.getCase(req.params.id, userId);
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      await logAuditEvent(userId, "track_change_action", {
+        caseId: req.params.id,
+        metadata: { 
+          action,
+          changeId: changeId || null,
+        },
+        req,
+      });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.post("/api/cases/:id/audit/export", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;

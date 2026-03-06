@@ -27,6 +27,7 @@ import {
   type LinkedinInboundLead, type InsertLinkedinInboundLead,
   type LinkedinHookVariant, type InsertLinkedinHookVariant,
   type LinkedinPostChatMessage, type InsertLinkedinPostChatMessage,
+  type DocumentComment, type InsertDocumentComment,
   users,
   cases,
   audioRecordings,
@@ -54,7 +55,8 @@ import {
   linkedinConnectionMilestones,
   linkedinInboundLeads,
   linkedinHookVariants,
-  linkedinPostChatMessages
+  linkedinPostChatMessages,
+  documentComments
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -483,6 +485,11 @@ export interface IStorage {
   getChatMessages(postNumber: number): Promise<LinkedinPostChatMessage[]>;
   addChatMessage(data: InsertLinkedinPostChatMessage): Promise<LinkedinPostChatMessage>;
   clearChatMessages(postNumber: number): Promise<void>;
+  
+  getDocumentComments(documentId: string): Promise<DocumentComment[]>;
+  createDocumentComment(data: InsertDocumentComment): Promise<DocumentComment>;
+  updateDocumentComment(id: string, updates: Partial<DocumentComment>): Promise<DocumentComment | undefined>;
+  deleteDocumentComment(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -1745,6 +1752,18 @@ export class MemStorage implements IStorage {
   async clearChatMessages(_postNumber: number): Promise<void> {
     throw new Error("Not implemented in MemStorage");
   }
+  async getDocumentComments(_documentId: string): Promise<DocumentComment[]> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async createDocumentComment(_data: InsertDocumentComment): Promise<DocumentComment> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async updateDocumentComment(_id: string, _updates: Partial<DocumentComment>): Promise<DocumentComment | undefined> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async deleteDocumentComment(_id: string): Promise<void> {
+    throw new Error("Not implemented in MemStorage");
+  }
 }
 
 export class DbStorage implements IStorage {
@@ -1754,6 +1773,50 @@ export class DbStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    if (userData.email) {
+      const [existingByEmail] = await db.select().from(users).where(eq(users.email, userData.email)).limit(1);
+      if (existingByEmail) {
+        if (existingByEmail.id === userData.id) {
+          const [updated] = await db
+            .update(users)
+            .set({
+              firstName: userData.firstName ?? existingByEmail.firstName,
+              lastName: userData.lastName ?? existingByEmail.lastName,
+              profileImageUrl: userData.profileImageUrl ?? existingByEmail.profileImageUrl,
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, userData.id))
+            .returning();
+          return updated;
+        }
+        const oldId = existingByEmail.id;
+        const newId = userData.id;
+        await db.insert(users).values({
+          id: newId,
+          email: null,
+          firstName: userData.firstName ?? existingByEmail.firstName,
+          lastName: userData.lastName ?? existingByEmail.lastName,
+          profileImageUrl: userData.profileImageUrl ?? existingByEmail.profileImageUrl,
+          stripeCustomerId: existingByEmail.stripeCustomerId,
+          stripeSubscriptionId: existingByEmail.stripeSubscriptionId,
+          subscriptionStatus: existingByEmail.subscriptionStatus,
+          subscriptionPlan: existingByEmail.subscriptionPlan,
+          trialEndsAt: existingByEmail.trialEndsAt,
+          updatedAt: new Date(),
+        });
+        await db.update(cases).set({ createdBy: newId }).where(eq(cases.createdBy, oldId));
+        await db.update(cases).set({ assignedToUserId: newId }).where(eq(cases.assignedToUserId, oldId));
+        await db.update(consentLogs).set({ solicitorId: newId }).where(eq(consentLogs.solicitorId, oldId));
+        await db.update(documents).set({ createdBy: newId }).where(eq(documents.createdBy, oldId));
+        await db.update(documents).set({ generatedBy: newId }).where(eq(documents.generatedBy, oldId));
+        await db.update(auditTrail).set({ userId: newId }).where(eq(auditTrail.userId, oldId));
+        await db.update(userPreferences).set({ userId: newId }).where(eq(userPreferences.userId, oldId));
+        await db.delete(users).where(eq(users.id, oldId));
+        await db.update(users).set({ email: userData.email }).where(eq(users.id, newId));
+        const [migrated] = await db.select().from(users).where(eq(users.id, newId)).limit(1);
+        return migrated;
+      }
+    }
     const result = await db
       .insert(users)
       .values({
@@ -3842,6 +3905,29 @@ export class DbStorage implements IStorage {
 
   async clearChatMessages(postNumber: number): Promise<void> {
     await db.delete(linkedinPostChatMessages).where(eq(linkedinPostChatMessages.postNumber, postNumber));
+  }
+
+  async getDocumentComments(documentId: string): Promise<DocumentComment[]> {
+    return await db.select().from(documentComments)
+      .where(eq(documentComments.documentId, documentId))
+      .orderBy(desc(documentComments.createdAt));
+  }
+
+  async createDocumentComment(data: InsertDocumentComment): Promise<DocumentComment> {
+    const [created] = await db.insert(documentComments).values(data).returning();
+    return created;
+  }
+
+  async updateDocumentComment(id: string, updates: Partial<DocumentComment>): Promise<DocumentComment | undefined> {
+    const [updated] = await db.update(documentComments)
+      .set(updates)
+      .where(eq(documentComments.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDocumentComment(id: string): Promise<void> {
+    await db.delete(documentComments).where(eq(documentComments.id, id));
   }
 }
 

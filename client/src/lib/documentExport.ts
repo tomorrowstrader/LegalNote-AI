@@ -429,6 +429,28 @@ export async function exportToWord(content: DocumentContent) {
     );
   }
 
+  const exportTimestamp = new Date().toLocaleString('en-GB', { 
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+  });
+  const docId = content.documentId || '';
+  children.push(
+    new Paragraph({ text: '', spacing: { before: 600 } }),
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `Working copy — Master record held in LegalNote as at ${exportTimestamp}.${docId ? ` Document ID: ${docId}` : ''}`,
+          italics: true,
+          size: 14,
+          color: '999999',
+        }),
+      ],
+      spacing: { before: 200 },
+      border: {
+        top: { color: 'CCCCCC', space: 1, style: BorderStyle.SINGLE, size: 6 },
+      },
+    })
+  );
+
   const doc = new Document({
     sections: [{
       properties: {

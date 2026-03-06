@@ -18,7 +18,7 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 - **UI Component Library**: Shadcn UI with Radix UI primitives, black gradient theme, Inter font.
 - **Routing**: Wouter for client-side routing.
 - **State Management**: TanStack Query for server state and async operations.
-- **Key Features**: Quick Record with Consent Flow, Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Tabbed Document Viewer, Role-Based UI, comprehensive Quick Actions (e.g., Download Document, Email to Client, Share Link with Optional SMS 2FA), Firm Branding on Exports, Interactive Onboarding, Admin Setup, Email/SMS/Calendar Integrations, Video Conferencing Import, and a Comprehensive Audit Trail with CSV export.
+- **Key Features**: Quick Record with Consent Flow, Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Tabbed Document Viewer, Role-Based UI, comprehensive Quick Actions (e.g., Download Document, Email to Client, Share Link with Optional SMS 2FA), Firm Branding on Exports, Interactive Onboarding, Admin Setup, Email/SMS/Calendar Integrations, Video Conferencing Import, Comprehensive Audit Trail with CSV export, Track Changes/Redline, Comments and Annotations, Visual Version Diff, Master Record Framing with Export Footers, Global Action Items View, Real-Time Notifications (SSE), Case Templates, and Enhanced Search Filters.
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js (TypeScript-based).
@@ -27,7 +27,7 @@ LegalNote AI is a professional legal documentation platform for solicitors and l
 
 ### Data Storage Solutions
 - **Database**: PostgreSQL via Drizzle ORM, connected through Neon serverless.
-- **Schema**: Includes Users, Cases, Consent Logs, Transcripts, Documents, Client Version Tracking, User Preferences, Firm Profile, Calendar Events, Share Links, Meeting Imports (Recall.ai), Pre-Consent Emails, and Audit Trail (with cryptographic signatures). Zod schema validation.
+- **Schema**: Includes Users, Cases, Consent Logs, Transcripts, Documents, Document Comments, Client Version Tracking, User Preferences, Firm Profile, Calendar Events, Share Links, Meeting Imports (Recall.ai), Pre-Consent Emails, and Audit Trail (with cryptographic signatures). Zod schema validation.
 - **Session Management**: Designed for PostgreSQL session store.
 
 ### Authentication & Authorization
