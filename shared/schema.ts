@@ -996,6 +996,7 @@ export const waitlist = pgTable("waitlist", {
   invitedBy: varchar("invited_by").references(() => users.id),
   signupAt: timestamp("signup_at").notNull().defaultNow(),
   ipAddress: varchar("ip_address"),
+  referralCode: varchar("referral_code"),
 });
 
 export const insertWaitlistSchema = createInsertSchema(waitlist).omit({

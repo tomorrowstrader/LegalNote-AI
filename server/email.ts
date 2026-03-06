@@ -620,22 +620,18 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
           margin-bottom: 24px;
           border-bottom: 1px solid #e8e4df;
         }
-        .logo {
-          max-width: 180px;
-          height: auto;
-        }
         .content {
           margin-bottom: 24px;
         }
         .highlight {
           background: linear-gradient(135deg, #3d3028 0%, #5a4a3a 100%);
-          color: #f5f0eb;
+          color: #ffffff;
           padding: 20px;
           border-radius: 8px;
           margin: 24px 0;
         }
         .highlight strong {
-          color: #c97d4d;
+          color: #f0c8a0;
         }
         .benefits {
           background: #faf8f5;
@@ -687,30 +683,32 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
     <body>
       <div class="container">
         <div class="header">
-          <img src="https://legalnote.ai/assets/LegalNote_Word-Logo_-_Black_on_White_1766071272501.png" alt="LegalNote" class="logo" />
+          <span style="font-family: Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 700; color: #2d2520; letter-spacing: -0.5px;">LegalNote<span style="font-size: 16px; vertical-align: super; font-weight: 400;">&trade;</span></span>
         </div>
         
         <div class="content">
           <p>Dear ${firstName},</p>
           
           <p>Thank you for registering your interest in LegalNote. You're now on our early access waitlist.</p>
+
+          <p style="font-size: 14px; color: #6b5d52; background: #f5f2ee; padding: 10px 14px; border-radius: 6px;">Please check your spam or junk folder and move this email to your inbox to ensure you receive future updates.</p>
           
           <div class="highlight">
             <strong>What happens next?</strong><br>
-            We're carefully onboarding firms during private beta to ensure the highest standards of compliance and data protection. We'll be in touch as soon as we're ready to welcome your practice.
+            We're carefully onboarding firms during private beta to ensure the highest standards of compliance and data protection. As part of onboarding, we'll help you create contemporaneous attendance notes aligned with SRA expectations from day one. We'll be in touch as soon as we're ready to welcome your practice.
           </div>
           
           <div class="benefits">
             <p style="margin: 0 0 12px 0; font-weight: 600; color: #3d3028;">LegalNote helps your practice:</p>
             <ul>
               <li>Create defensible, contemporaneous attendance notes</li>
-              <li>Document client consent before any recording begins</li>
-              <li>Build audit-ready records that protect against future complaints</li>
-              <li>Relieve your team from documentation fatigue</li>
+              <li>GDPR-compliant consent-first recording with full audit trail</li>
+              <li>SRA-defensible records that reduce PI exposure and protect against complaints</li>
+              <li>Relieve cognitive fatigue for fee-earners with AI-powered documentation</li>
             </ul>
           </div>
           
-          <p class="reply-note">Have questions about your firm's documentation workflow? Simply reply to this email.</p>
+          <p class="reply-note">Have a question on how to make your firm's meetings defensible and compliant? Simply reply to this email.</p>
           
           <p>With regards,<br><strong>The LegalNote Team</strong></p>
         </div>

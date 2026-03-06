@@ -66,6 +66,21 @@ import { getStripePublishableKey, getUncachableStripeClient } from "./stripeClie
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const REFERRAL_CODES: Record<string, { code: string; description: string; discount: string; source: string; stripePromoCode?: string }> = {
+  LINKEDIN25: {
+    code: "LINKEDIN25",
+    description: "LinkedIn exclusive: 25% off your first quarter",
+    discount: "25% off first quarter",
+    source: "linkedin",
+    stripePromoCode: "LINKEDIN25",
+  },
+};
+
+function validateReferralCode(code: string): typeof REFERRAL_CODES[string] | null {
+  const normalized = code?.toUpperCase()?.trim();
+  return REFERRAL_CODES[normalized] || null;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment platform
   // Must be before auth middleware and CORS is configured to allow requests without origin
@@ -748,10 +763,20 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
   
+  // Referral/promo code validation endpoint (public)
+  app.get('/api/waitlist/validate-code/:code', generalApiLimiter, async (req, res) => {
+    const code = req.params.code?.toUpperCase();
+    const result = validateReferralCode(code);
+    if (result) {
+      return res.json({ valid: true, code: result.code, description: result.description, discount: result.discount });
+    }
+    return res.json({ valid: false });
+  });
+
   // Waitlist signup (public - no auth required)
   app.post('/api/waitlist', generalApiLimiter, async (req, res, next) => {
     try {
-      const { email, firstName, lastName, firmName, firmSize, role, source, gdprConsent, marketingConsent } = req.body;
+      const { email, firstName, lastName, firmName, firmSize, role, source, gdprConsent, marketingConsent, referralCode } = req.body;
       
       if (!email) {
         return res.status(400).json({ message: "Email is required" });
@@ -766,6 +791,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (existing) {
         return res.status(409).json({ message: "This email is already on our waitlist" });
       }
+
+      const validReferralCode = referralCode ? validateReferralCode(referralCode) : null;
+      const effectiveSource = validReferralCode?.source || source || 'landing_page';
       
       // Create waitlist entry
       const entry = await storage.createWaitlistEntry({
@@ -775,11 +803,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         firmName: firmName || null,
         firmSize: firmSize || null,
         role: role || null,
-        source: source || 'landing_page',
+        source: effectiveSource,
         status: 'pending',
         gdprConsent: true,
         marketingConsent: marketingConsent || false,
         ipAddress: req.ip || null,
+        referralCode: validReferralCode?.code || null,
       });
       
       // Send confirmation email (or lead magnet if that's the source)

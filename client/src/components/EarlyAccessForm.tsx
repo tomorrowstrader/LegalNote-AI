@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -28,8 +28,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Check, Loader2, AlertTriangle } from "lucide-react";
+import { Check, Loader2, AlertTriangle, Tag, ChevronDown, ChevronUp } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { Badge } from "@/components/ui/badge";
 
 const waitlistSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -42,9 +43,22 @@ const waitlistSchema = z.object({
     message: "You must consent to data processing to join the waitlist"
   }),
   marketingConsent: z.boolean().default(false),
+  referralCode: z.string().optional(),
 });
 
 type WaitlistFormData = z.infer<typeof waitlistSchema>;
+
+interface ReferralCodeValidation {
+  valid: boolean;
+  code?: string;
+  description?: string;
+  discount?: string;
+}
+
+function getRefCodeFromURL(): string {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("ref") || "";
+}
 
 interface EarlyAccessFormProps {
   open: boolean;
@@ -56,6 +70,21 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
   const [success, setSuccess] = useState(false);
   const [alreadyOnList, setAlreadyOnList] = useState(false);
   const [submittedData, setSubmittedData] = useState<{ firmName?: string; firstName?: string } | null>(null);
+  const [showReferralInput, setShowReferralInput] = useState(false);
+  const [referralCode, setReferralCode] = useState(() => getRefCodeFromURL());
+
+  const { data: referralValidation } = useQuery<ReferralCodeValidation>({
+    queryKey: ['/api/waitlist/validate-code', referralCode],
+    enabled: referralCode.length >= 3,
+  });
+
+  useEffect(() => {
+    const urlRef = getRefCodeFromURL();
+    if (urlRef) {
+      setReferralCode(urlRef);
+      setShowReferralInput(true);
+    }
+  }, []);
 
   const form = useForm<WaitlistFormData>({
     resolver: zodResolver(waitlistSchema),
@@ -68,6 +97,7 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
       role: "",
       gdprConsent: false,
       marketingConsent: false,
+      referralCode: getRefCodeFromURL(),
     },
   });
 
@@ -75,6 +105,7 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
     mutationFn: async (data: WaitlistFormData) => {
       const response = await apiRequest("POST", "/api/waitlist", {
         ...data,
+        referralCode: referralCode || undefined,
         source,
       });
       return { ...response, formData: data };
@@ -101,13 +132,17 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
 
   const handleClose = () => {
     onOpenChange(false);
-    // Always reset form state after closing to ensure clean slate
     setTimeout(() => {
       setSuccess(false);
       setAlreadyOnList(false);
       setSubmittedData(null);
       form.reset();
       submitMutation.reset();
+      const urlRef = getRefCodeFromURL();
+      if (!urlRef) {
+        setReferralCode("");
+        setShowReferralInput(false);
+      }
     }, 300);
   };
 
@@ -313,6 +348,62 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
                       </FormItem>
                     )}
                   />
+                </div>
+
+                {referralValidation?.valid && (
+                  <div className="flex items-center gap-2 p-3 rounded-md bg-green-500/10 border border-green-500/20" data-testid="banner-referral-discount">
+                    <Tag className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
+                    <span className="text-sm text-green-700 dark:text-green-300 font-medium">
+                      {referralValidation.description}
+                    </span>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {!showReferralInput && !referralValidation?.valid && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowReferralInput(true)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground px-0"
+                      data-testid="button-show-referral"
+                    >
+                      <Tag className="h-3 w-3" />
+                      Have a referral code?
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  )}
+                  {showReferralInput && !referralValidation?.valid && (
+                    <div className="space-y-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { setShowReferralInput(false); setReferralCode(""); }}
+                        className="flex items-center gap-1 text-xs text-muted-foreground px-0"
+                        data-testid="button-hide-referral"
+                      >
+                        <Tag className="h-3 w-3" />
+                        Referral code
+                        <ChevronUp className="h-3 w-3" />
+                      </Button>
+                      <Input
+                        placeholder="Enter referral code"
+                        value={referralCode}
+                        onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                        data-testid="input-referral-code"
+                      />
+                    </div>
+                  )}
+                  {referralValidation?.valid && (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-700 dark:text-green-300">
+                        <Check className="h-3 w-3 mr-1" />
+                        {referralValidation.code} applied
+                      </Badge>
+                    </div>
+                  )}
                 </div>
 
                 {submitMutation.isError && !alreadyOnList && (

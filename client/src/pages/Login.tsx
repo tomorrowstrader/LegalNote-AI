@@ -42,25 +42,25 @@ export default function Login() {
         <div className="relative z-10 max-w-md px-12 space-y-8">
           <Logo variant="wordmark" size="lg" tone="dark" animate />
           <div className="space-y-4">
-            <h1 className="text-3xl font-semibold text-white leading-tight">
-              The master record for every client meeting.
+            <h1 className="text-3xl font-semibold text-white leading-tight" data-testid="text-login-headline">
+              The defensible record for every client meeting.
             </h1>
-            <p className="text-white/60 text-sm leading-relaxed">
-              Record, transcribe, and document with full GDPR compliance. Your attendance notes, AI summaries, and searchable transcripts — all in one defensible platform.
+            <p className="text-white/60 text-sm leading-relaxed" data-testid="text-login-description">
+              Compliance-first, audit-ready documentation aligned with SRA expectations. Meeting-to-Matter™ captures contemporaneous attendance notes with cryptographic tamper detection — reducing PI exposure and building defensible records from the moment you press record.
             </p>
           </div>
           <div className="space-y-3 pt-4 border-t border-white/10">
             <div className="flex items-center gap-3">
               <div className="w-1.5 h-1.5 rounded-full bg-[hsl(18,70%,42%)]" />
-              <span className="text-white/50 text-xs">Meeting-to-Matter™ AI transcription</span>
+              <span className="text-white/50 text-xs" data-testid="text-login-feature-1">Meeting-to-Matter™ contemporaneous capture</span>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-1.5 h-1.5 rounded-full bg-[hsl(18,70%,42%)]" />
-              <span className="text-white/50 text-xs">SRA-defensible audit trail with tamper detection</span>
+              <span className="text-white/50 text-xs" data-testid="text-login-feature-2">Cryptographic audit trail — un-tamperable, SRA-defensible</span>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-1.5 h-1.5 rounded-full bg-[hsl(18,70%,42%)]" />
-              <span className="text-white/50 text-xs">7-day GDPR-compliant audio retention</span>
+              <span className="text-white/50 text-xs" data-testid="text-login-feature-3">Consent-first recording, GDPR-compliant</span>
             </div>
           </div>
         </div>
@@ -107,17 +107,17 @@ export default function Login() {
           </div>
 
           <div className="space-y-3 pt-4 border-t border-border">
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground" data-testid="text-trust-pi-protection">
               <Shield className="w-4 h-4 shrink-0 text-[hsl(18,70%,42%)]" />
-              <span>GDPR-compliant data handling with full audit trail</span>
+              <span>Reduces PI exposure with tamper-proof, SRA-aligned records</span>
             </div>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground" data-testid="text-trust-encryption">
               <Lock className="w-4 h-4 shrink-0 text-[hsl(18,70%,42%)]" />
-              <span>Encrypted sessions with automatic 4-hour timeout</span>
+              <span>Cryptographic audit trail meets SRA defensibility expectations</span>
             </div>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground" data-testid="text-trust-compliance">
               <FileText className="w-4 h-4 shrink-0 text-[hsl(18,70%,42%)]" />
-              <span>SRA-defensible contemporaneous documentation</span>
+              <span>GDPR-compliant consent-first recording and documentation</span>
             </div>
           </div>
 

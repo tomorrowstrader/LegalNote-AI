@@ -72,7 +72,7 @@ export default function WaitlistPage() {
               <div>
                 <h3 className="font-medium text-[hsl(25,25%,25%)]">Confirmation Email</h3>
                 <p className="text-sm text-[hsl(25,20%,45%)]">
-                  You'll receive an email confirming your place on the waitlist with early access benefits.
+                  You'll receive an email confirming your place on the waitlist with early access benefits. Check your spam or junk folder and move to your inbox if needed.
                 </p>
               </div>
             </div>
@@ -111,7 +111,7 @@ export default function WaitlistPage() {
           <CardContent>
             <ul className="space-y-3">
               {[
-                "20% discount on first year subscription",
+                "20% discount on your first quarterly subscription",
                 "Free implementation consultation (£1,000 value)",
                 "Priority support during onboarding",
                 "Direct input on feature development",

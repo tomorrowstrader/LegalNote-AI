@@ -54,6 +54,7 @@ interface WaitlistEntry {
   role: string | null;
   phone: string | null;
   source: string | null;
+  referralCode: string | null;
   status: string;
   gdprConsent: boolean;
   marketingConsent: boolean;
@@ -405,6 +406,7 @@ export default function AdminDashboard() {
                     <th className="text-left py-2 px-2">Contact</th>
                     <th className="text-left py-2 px-2">Firm</th>
                     <th className="text-left py-2 px-2">Source</th>
+                    <th className="text-left py-2 px-2">Referral</th>
                     <th className="text-center py-2 px-2">Consent</th>
                     <th className="text-left py-2 px-2">Status</th>
                     <th className="text-left py-2 px-2">Requested</th>
@@ -442,6 +444,15 @@ export default function AdminDashboard() {
                         <Badge variant="outline" className="text-xs">
                           {entry.source || "direct"}
                         </Badge>
+                      </td>
+                      <td className="py-3 px-2">
+                        {entry.referralCode ? (
+                          <Badge variant="secondary" className="text-xs">
+                            {entry.referralCode}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td className="py-3 px-2 text-center">
                         <div className="flex items-center justify-center gap-1">
