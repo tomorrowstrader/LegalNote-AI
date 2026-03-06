@@ -1820,23 +1820,49 @@ export class DbStorage implements IStorage {
               updatedAt: new Date(),
             }).where(eq(users.id, newId));
           }
-          await tx.update(cases).set({ createdBy: newId }).where(eq(cases.createdBy, oldId));
-          await tx.update(cases).set({ assignedToUserId: newId }).where(eq(cases.assignedToUserId, oldId));
-          await tx.update(consentLogs).set({ solicitorId: newId }).where(eq(consentLogs.solicitorId, oldId));
-          await tx.update(quickNotes).set({ createdBy: newId }).where(eq(quickNotes.createdBy, oldId));
-          await tx.update(actionItems).set({ approvedBy: newId }).where(eq(actionItems.approvedBy, oldId));
-          await tx.update(actionItems).set({ completedBy: newId }).where(eq(actionItems.completedBy, oldId));
-          await tx.update(documents).set({ createdBy: newId }).where(eq(documents.createdBy, oldId));
-          await tx.update(documents).set({ approvedBy: newId }).where(eq(documents.approvedBy, oldId));
-          await tx.update(preMeetingBriefings).set({ generatedBy: newId }).where(eq(preMeetingBriefings.generatedBy, oldId));
-          await tx.update(documentComments).set({ userId: newId }).where(eq(documentComments.userId, oldId));
-          await tx.update(clientVersionTracking).set({ sentBy: newId }).where(eq(clientVersionTracking.sentBy, oldId));
-          await tx.update(shareLinks).set({ createdBy: newId }).where(eq(shareLinks.createdBy, oldId));
-          await tx.update(calendarEvents).set({ userId: newId }).where(eq(calendarEvents.userId, oldId));
-          await tx.update(calendarIntegrations).set({ userId: newId }).where(eq(calendarIntegrations.userId, oldId));
-          await tx.update(searchHistory).set({ userId: newId }).where(eq(searchHistory.userId, oldId));
-          await tx.update(auditTrail).set({ userId: newId }).where(eq(auditTrail.userId, oldId));
-          await tx.update(userPreferences).set({ userId: newId }).where(eq(userPreferences.userId, oldId));
+          const fkUpdates: Array<{ table: string; column: string }> = [
+            { table: 'cases', column: 'created_by' },
+            { table: 'cases', column: 'assigned_to_user_id' },
+            { table: 'cases', column: 'litigation_hold_applied_by' },
+            { table: 'cases', column: 'litigation_hold_released_by' },
+            { table: 'quick_notes', column: 'created_by' },
+            { table: 'consent_logs', column: 'solicitor_id' },
+            { table: 'consent_logs', column: 'withdrawn_by' },
+            { table: 'action_items', column: 'approved_by' },
+            { table: 'action_items', column: 'completed_by' },
+            { table: 'pre_meeting_briefings', column: 'generated_by' },
+            { table: 'documents', column: 'created_by' },
+            { table: 'documents', column: 'approved_by' },
+            { table: 'client_version_tracking', column: 'sent_by' },
+            { table: 'user_preferences', column: 'user_id' },
+            { table: 'audit_trail', column: 'user_id' },
+            { table: 'dsar_requests', column: 'verified_by' },
+            { table: 'dsar_requests', column: 'acknowledged_by' },
+            { table: 'dsar_requests', column: 'completed_by' },
+            { table: 'dsar_requests', column: 'handled_by' },
+            { table: 'dsar_requests', column: 'created_by' },
+            { table: 'security_incidents', column: 'reported_by' },
+            { table: 'security_incidents', column: 'affected_user_id' },
+            { table: 'security_incidents', column: 'investigated_by' },
+            { table: 'security_incidents', column: 'resolved_by' },
+            { table: 'firm_profile', column: 'updated_by' },
+            { table: 'calendar_integrations', column: 'user_id' },
+            { table: 'calendar_events', column: 'user_id' },
+            { table: 'share_links', column: 'created_by' },
+            { table: 'recall_connections', column: 'user_id' },
+            { table: 'meeting_imports', column: 'user_id' },
+            { table: 'scheduled_meetings', column: 'user_id' },
+            { table: 'pre_consent_emails', column: 'user_id' },
+            { table: 'share_point_connections', column: 'user_id' },
+            { table: 'clio_connections', column: 'user_id' },
+            { table: 'clio_matter_links', column: 'user_id' },
+            { table: 'recording_sessions', column: 'user_id' },
+            { table: 'search_history', column: 'user_id' },
+            { table: 'document_comments', column: 'user_id' },
+          ];
+          for (const { table, column } of fkUpdates) {
+            await tx.execute(sql`UPDATE ${sql.identifier(table)} SET ${sql.identifier(column)} = ${newId} WHERE ${sql.identifier(column)} = ${oldId}`);
+          }
           await tx.delete(users).where(eq(users.id, oldId));
           await tx.update(users).set({ email: userData.email }).where(eq(users.id, newId));
           const [result] = await tx.select().from(users).where(eq(users.id, newId)).limit(1);
