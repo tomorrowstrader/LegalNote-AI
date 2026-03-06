@@ -1791,39 +1791,57 @@ export class DbStorage implements IStorage {
         }
         const oldId = existingByEmail.id;
         const newId = userData.id;
-        await db.insert(users).values({
-          id: newId,
-          email: null,
-          firstName: userData.firstName ?? existingByEmail.firstName,
-          lastName: userData.lastName ?? existingByEmail.lastName,
-          profileImageUrl: userData.profileImageUrl ?? existingByEmail.profileImageUrl,
-          stripeCustomerId: existingByEmail.stripeCustomerId,
-          stripeSubscriptionId: existingByEmail.stripeSubscriptionId,
-          subscriptionStatus: existingByEmail.subscriptionStatus,
-          subscriptionPlan: existingByEmail.subscriptionPlan,
-          trialEndsAt: existingByEmail.trialEndsAt,
-          updatedAt: new Date(),
+        const migrated = await db.transaction(async (tx) => {
+          const [existingNewUser] = await tx.select().from(users).where(eq(users.id, newId)).limit(1);
+          if (!existingNewUser) {
+            await tx.insert(users).values({
+              id: newId,
+              email: null,
+              firstName: userData.firstName ?? existingByEmail.firstName,
+              lastName: userData.lastName ?? existingByEmail.lastName,
+              profileImageUrl: userData.profileImageUrl ?? existingByEmail.profileImageUrl,
+              stripeCustomerId: existingByEmail.stripeCustomerId,
+              stripeSubscriptionId: existingByEmail.stripeSubscriptionId,
+              subscriptionStatus: existingByEmail.subscriptionStatus,
+              subscriptionPlan: existingByEmail.subscriptionPlan,
+              trialEndsAt: existingByEmail.trialEndsAt,
+              updatedAt: new Date(),
+            });
+          } else {
+            await tx.update(users).set({
+              firstName: userData.firstName ?? existingByEmail.firstName,
+              lastName: userData.lastName ?? existingByEmail.lastName,
+              profileImageUrl: userData.profileImageUrl ?? existingByEmail.profileImageUrl,
+              stripeCustomerId: existingNewUser.stripeCustomerId ?? existingByEmail.stripeCustomerId,
+              stripeSubscriptionId: existingNewUser.stripeSubscriptionId ?? existingByEmail.stripeSubscriptionId,
+              subscriptionStatus: existingNewUser.subscriptionStatus ?? existingByEmail.subscriptionStatus,
+              subscriptionPlan: existingNewUser.subscriptionPlan ?? existingByEmail.subscriptionPlan,
+              trialEndsAt: existingNewUser.trialEndsAt ?? existingByEmail.trialEndsAt,
+              updatedAt: new Date(),
+            }).where(eq(users.id, newId));
+          }
+          await tx.update(cases).set({ createdBy: newId }).where(eq(cases.createdBy, oldId));
+          await tx.update(cases).set({ assignedToUserId: newId }).where(eq(cases.assignedToUserId, oldId));
+          await tx.update(consentLogs).set({ solicitorId: newId }).where(eq(consentLogs.solicitorId, oldId));
+          await tx.update(quickNotes).set({ createdBy: newId }).where(eq(quickNotes.createdBy, oldId));
+          await tx.update(actionItems).set({ approvedBy: newId }).where(eq(actionItems.approvedBy, oldId));
+          await tx.update(actionItems).set({ completedBy: newId }).where(eq(actionItems.completedBy, oldId));
+          await tx.update(documents).set({ createdBy: newId }).where(eq(documents.createdBy, oldId));
+          await tx.update(documents).set({ approvedBy: newId }).where(eq(documents.approvedBy, oldId));
+          await tx.update(preMeetingBriefings).set({ generatedBy: newId }).where(eq(preMeetingBriefings.generatedBy, oldId));
+          await tx.update(documentComments).set({ userId: newId }).where(eq(documentComments.userId, oldId));
+          await tx.update(clientVersionTracking).set({ sentBy: newId }).where(eq(clientVersionTracking.sentBy, oldId));
+          await tx.update(shareLinks).set({ createdBy: newId }).where(eq(shareLinks.createdBy, oldId));
+          await tx.update(calendarEvents).set({ userId: newId }).where(eq(calendarEvents.userId, oldId));
+          await tx.update(calendarIntegrations).set({ userId: newId }).where(eq(calendarIntegrations.userId, oldId));
+          await tx.update(searchHistory).set({ userId: newId }).where(eq(searchHistory.userId, oldId));
+          await tx.update(auditTrail).set({ userId: newId }).where(eq(auditTrail.userId, oldId));
+          await tx.update(userPreferences).set({ userId: newId }).where(eq(userPreferences.userId, oldId));
+          await tx.delete(users).where(eq(users.id, oldId));
+          await tx.update(users).set({ email: userData.email }).where(eq(users.id, newId));
+          const [result] = await tx.select().from(users).where(eq(users.id, newId)).limit(1);
+          return result;
         });
-        await db.update(cases).set({ createdBy: newId }).where(eq(cases.createdBy, oldId));
-        await db.update(cases).set({ assignedToUserId: newId }).where(eq(cases.assignedToUserId, oldId));
-        await db.update(consentLogs).set({ solicitorId: newId }).where(eq(consentLogs.solicitorId, oldId));
-        await db.update(quickNotes).set({ createdBy: newId }).where(eq(quickNotes.createdBy, oldId));
-        await db.update(actionItems).set({ approvedBy: newId }).where(eq(actionItems.approvedBy, oldId));
-        await db.update(actionItems).set({ completedBy: newId }).where(eq(actionItems.completedBy, oldId));
-        await db.update(documents).set({ createdBy: newId }).where(eq(documents.createdBy, oldId));
-        await db.update(documents).set({ approvedBy: newId }).where(eq(documents.approvedBy, oldId));
-        await db.update(preMeetingBriefings).set({ generatedBy: newId }).where(eq(preMeetingBriefings.generatedBy, oldId));
-        await db.update(documentComments).set({ userId: newId }).where(eq(documentComments.userId, oldId));
-        await db.update(clientVersionTracking).set({ sentBy: newId }).where(eq(clientVersionTracking.sentBy, oldId));
-        await db.update(shareLinks).set({ createdBy: newId }).where(eq(shareLinks.createdBy, oldId));
-        await db.update(calendarEvents).set({ userId: newId }).where(eq(calendarEvents.userId, oldId));
-        await db.update(calendarIntegrations).set({ userId: newId }).where(eq(calendarIntegrations.userId, oldId));
-        await db.update(searchHistory).set({ userId: newId }).where(eq(searchHistory.userId, oldId));
-        await db.update(auditTrail).set({ userId: newId }).where(eq(auditTrail.userId, oldId));
-        await db.update(userPreferences).set({ userId: newId }).where(eq(userPreferences.userId, oldId));
-        await db.delete(users).where(eq(users.id, oldId));
-        await db.update(users).set({ email: userData.email }).where(eq(users.id, newId));
-        const [migrated] = await db.select().from(users).where(eq(users.id, newId)).limit(1);
         return migrated;
       }
     }
