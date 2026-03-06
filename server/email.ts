@@ -592,6 +592,12 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
+  const emailBaseUrl = process.env.REPLIT_DOMAINS 
+    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+    : 'https://legalnote.ai';
+  const logoUrl = `${emailBaseUrl}/assets/email/legalnote-wordmark.png`;
+  const logoHtml = `<img src="${logoUrl}" alt="LegalNote" style="height: 36px; width: auto;" />`;
+
   const emailHtml = `
     <!DOCTYPE html>
     <html>
@@ -625,13 +631,21 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
         }
         .highlight {
           background: linear-gradient(135deg, #3d3028 0%, #5a4a3a 100%);
-          color: #ffffff;
           padding: 20px;
           border-radius: 8px;
           margin: 24px 0;
         }
-        .highlight strong {
+        .highlight-heading {
           color: #f0c8a0;
+          font-weight: 700;
+          font-size: 16px;
+          display: block;
+          margin-bottom: 14px;
+        }
+        .highlight-body {
+          color: #ffffff;
+          font-size: 15px;
+          line-height: 1.7;
         }
         .benefits {
           background: #faf8f5;
@@ -683,19 +697,17 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
     <body>
       <div class="container">
         <div class="header">
-          <span style="font-family: Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 700; color: #2d2520; letter-spacing: -0.5px;">LegalNote<span style="font-size: 16px; vertical-align: super; font-weight: 400;">&trade;</span></span>
+          ${logoHtml}
         </div>
         
         <div class="content">
           <p>Dear ${firstName},</p>
           
           <p>Thank you for registering your interest in LegalNote. You're now on our early access waitlist.</p>
-
-          <p style="font-size: 14px; color: #6b5d52; background: #f5f2ee; padding: 10px 14px; border-radius: 6px;">Please check your spam or junk folder and move this email to your inbox to ensure you receive future updates.</p>
           
           <div class="highlight">
-            <strong>What happens next?</strong><br>
-            We're carefully onboarding firms during private beta to ensure the highest standards of compliance and data protection. As part of onboarding, we'll help you create contemporaneous attendance notes aligned with SRA expectations from day one. We'll be in touch as soon as we're ready to welcome your practice.
+            <span class="highlight-heading">What happens next?</span>
+            <span class="highlight-body">We're carefully onboarding firms during private beta to ensure the highest standards of compliance and data protection. As part of onboarding, we'll help you create contemporaneous attendance notes aligned with SRA expectations from day one. We'll be in touch as soon as we're ready to welcome your practice.</span>
           </div>
           
           <div class="benefits">
@@ -710,7 +722,7 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
           
           <p class="reply-note">Have a question on how to make your firm's meetings defensible and compliant? Simply reply to this email.</p>
           
-          <p>With regards,<br><strong>The LegalNote Team</strong></p>
+          <p>Kind regards,<br><strong>LegalNote Client Support</strong></p>
         </div>
         
         <div class="footer">
