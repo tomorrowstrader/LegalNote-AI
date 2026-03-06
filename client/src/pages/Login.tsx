@@ -51,15 +51,15 @@ export default function Login() {
           </div>
           <div className="space-y-3 pt-4 border-t border-white/10">
             <div className="flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-[hsl(45,85%,55%)]" />
+              <div className="w-1.5 h-1.5 rounded-full bg-[hsl(18,70%,42%)]" />
               <span className="text-white/50 text-xs">Meeting-to-Matter™ AI transcription</span>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-[hsl(45,85%,55%)]" />
+              <div className="w-1.5 h-1.5 rounded-full bg-[hsl(18,70%,42%)]" />
               <span className="text-white/50 text-xs">SRA-defensible audit trail with tamper detection</span>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-[hsl(45,85%,55%)]" />
+              <div className="w-1.5 h-1.5 rounded-full bg-[hsl(18,70%,42%)]" />
               <span className="text-white/50 text-xs">7-day GDPR-compliant audio retention</span>
             </div>
           </div>
@@ -78,6 +78,7 @@ export default function Login() {
           </div>
 
           <div className="space-y-2">
+            <div className="w-10 h-1 rounded-full bg-[hsl(18,70%,42%)] mb-4" />
             <h2 className="text-2xl font-semibold text-foreground">Welcome back</h2>
             <p className="text-sm text-muted-foreground">
               Sign in to access your cases and documents
@@ -107,15 +108,15 @@ export default function Login() {
 
           <div className="space-y-3 pt-4 border-t border-border">
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <Shield className="w-4 h-4 shrink-0 text-[hsl(45,85%,55%)]" />
+              <Shield className="w-4 h-4 shrink-0 text-[hsl(18,70%,42%)]" />
               <span>GDPR-compliant data handling with full audit trail</span>
             </div>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <Lock className="w-4 h-4 shrink-0 text-[hsl(45,85%,55%)]" />
+              <Lock className="w-4 h-4 shrink-0 text-[hsl(18,70%,42%)]" />
               <span>Encrypted sessions with automatic 4-hour timeout</span>
             </div>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <FileText className="w-4 h-4 shrink-0 text-[hsl(45,85%,55%)]" />
+              <FileText className="w-4 h-4 shrink-0 text-[hsl(18,70%,42%)]" />
               <span>SRA-defensible contemporaneous documentation</span>
             </div>
           </div>
