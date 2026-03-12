@@ -162,7 +162,7 @@ export default function StatsCard({
               </div>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-muted-foreground mb-1">{title}</p>
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 leading-tight">{title}</p>
               <div className="flex items-baseline gap-1">
                 <p className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
                   {displayValue}

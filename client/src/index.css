@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 /* Smooth scroll behavior for the entire page */
+html, body {
+  overflow-x: hidden;
+}
+
 html {
   scroll-behavior: smooth;
 }
