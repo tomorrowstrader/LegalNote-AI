@@ -39,7 +39,8 @@ export const cases = pgTable("cases", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   status: text("status").notNull().default("pending"), // pending, processing, review_required, completed
   priority: text("priority").notNull().default("normal"), // urgent, deadline-soon, normal
-  sourceType: text("source_type").notNull(), // audio, text
+  sourceType: text("source_type").notNull(), // audio, text, dictation
+  templateId: text("template_id"), // Template used for this case (e.g., matter_inception)
   textNotes: text("text_notes"), // For text-based notes when consent declined
   reviewed: boolean("reviewed").notNull().default(false), // Marks case as reviewed by solicitor
   archived: boolean("archived").notNull().default(false), // Soft delete / archive functionality
@@ -513,7 +514,8 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   matterReference: z.string().max(100).transform(sanitizeString).optional(),
   status: z.enum(["pending", "processing", "review_required", "completed"]).default("pending"),
   priority: z.enum(["urgent", "deadline-soon", "normal"]).default("normal"),
-  sourceType: z.enum(["audio", "text"]),
+  sourceType: z.enum(["audio", "text", "dictation"]),
+  templateId: z.string().max(100).optional(),
   textNotes: z.string().max(100000).optional(), // 100KB limit for text notes
   litigationHold: z.boolean().default(false),
   litigationHoldReason: z.string().max(2000).optional(),

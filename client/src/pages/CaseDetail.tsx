@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X } from "lucide-react";
+import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X, Phone } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
 import DownloadModal from "@/components/DownloadModal";
 import ImportRecordingModal from "@/components/ImportRecordingModal";
+import LogCallModal from "@/components/LogCallModal";
 import SharedHistoryViewer from "@/components/SharedHistoryViewer";
 import ActionItemsViewer from "@/components/ActionItemsViewer";
 import PreMeetingBriefing from "@/components/PreMeetingBriefing";
@@ -53,6 +54,7 @@ export default function CaseDetail() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showLogCallModal, setShowLogCallModal] = useState(false);
   const audioPlayerRef = useRef<AudioPlayerHandle>(null);
   const [hasAutoSeeked, setHasAutoSeeked] = useState(false);
   
@@ -339,6 +341,10 @@ export default function CaseDetail() {
                   <DropdownMenuItem onClick={() => setShowAddNoteModal(true)} data-testid="action-add-note">
                     <MessageSquarePlus className="w-4 h-4 mr-2" />
                     Add Quick Note
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowLogCallModal(true)} data-testid="action-log-call">
+                    <Phone className="w-4 h-4 mr-2" />
+                    Log a Phone Call
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShowImportModal(true)} data-testid="action-import-recording">
                     <Video className="w-4 h-4 mr-2" />
@@ -751,6 +757,15 @@ export default function CaseDetail() {
         onOpenChange={setShowImportModal}
         caseId={caseId!}
         caseTitle={caseData.title}
+      />
+
+      <LogCallModal
+        open={showLogCallModal}
+        onOpenChange={setShowLogCallModal}
+        caseId={caseId!}
+        caseTitle={caseData.title}
+        clientName={caseData.clientName}
+        matterReference={caseData.matterReference || undefined}
       />
     </div>
   );

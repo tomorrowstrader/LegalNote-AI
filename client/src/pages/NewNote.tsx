@@ -19,7 +19,7 @@ import {
 import ConsentModal from "@/components/ConsentModal";
 import TextNotesModal from "@/components/TextNotesModal";
 import CaseTemplatesModal, { CaseTemplate } from "@/components/CaseTemplatesModal";
-import { ArrowLeft, Mic, Square, AlertTriangle, LayoutTemplate } from "lucide-react";
+import { ArrowLeft, Mic, Square, AlertTriangle, LayoutTemplate, CheckCircle2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -238,6 +238,7 @@ export default function NewNote() {
         sourceType: "audio",
         status: "pending",
         priority: "normal",
+        templateId: activeTemplate?.id || undefined,
       });
       
       // Step 2: Create audio record placeholder
@@ -361,6 +362,7 @@ export default function NewNote() {
       status: "pending",
       priority: "normal",
       notes: data.notes,
+      templateId: activeTemplate?.id || undefined,
     })
       .then((caseResult) => {
         queryClient.invalidateQueries({ 
@@ -447,18 +449,44 @@ export default function NewNote() {
           </div>
 
           {activeTemplate && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-accent/10 border border-accent/30">
-              <LayoutTemplate className="w-4 h-4 text-accent shrink-0" />
-              <span className="text-sm text-foreground font-medium">Template: {activeTemplate.name}</span>
-              <Badge variant="secondary" className="text-xs">{activeTemplate.practiceArea}</Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-auto h-6 text-xs text-muted-foreground"
-                onClick={() => setActiveTemplate(null)}
-              >
-                Remove
-              </Button>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-accent/10 border border-accent/30">
+                <LayoutTemplate className="w-4 h-4 text-accent shrink-0" />
+                <span className="text-sm text-foreground font-medium">Template: {activeTemplate.name}</span>
+                <Badge variant="secondary" className="text-xs">{activeTemplate.practiceArea}</Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto h-6 text-xs text-muted-foreground"
+                  onClick={() => setActiveTemplate(null)}
+                >
+                  Remove
+                </Button>
+              </div>
+
+              {activeTemplate.preMeetingChecklist && activeTemplate.preMeetingChecklist.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-accent" />
+                      Pre-Meeting Checklist
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Ensure you cover these points during the meeting:
+                    </p>
+                    <ul className="space-y-2">
+                      {activeTemplate.preMeetingChecklist.map((item, index) => (
+                        <li key={index} className="text-xs text-muted-foreground flex items-start gap-2">
+                          <span className="text-accent/60 font-medium shrink-0">{index + 1}.</span>
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 

@@ -239,6 +239,7 @@ export class AIProcessingPipeline {
         clientName: caseData.clientName,
         matterReference: caseData.matterReference || undefined,
         recordingDate: new Date().toISOString().split('T')[0],
+        templateId: caseData.templateId || undefined,
       };
 
       // Generate summary

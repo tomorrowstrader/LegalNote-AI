@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Home, Briefcase, Users, FileText, Scale, ChevronRight
+  Home, Briefcase, Users, FileText, Scale, ChevronRight, ShieldCheck, CheckCircle2
 } from "lucide-react";
 
 export interface CaseTemplate {
@@ -14,14 +14,55 @@ export interface CaseTemplate {
   name: string;
   description: string;
   practiceArea: string;
+  category?: "compliance" | "practice";
   icon: any;
   suggestedActionItems: string[];
   documentSections: string[];
   consentLanguage: string;
   estimatedDuration: string;
+  preMeetingChecklist?: string[];
 }
 
 const BUILT_IN_TEMPLATES: CaseTemplate[] = [
+  {
+    id: 'matter_inception',
+    name: 'Matter Inception Record',
+    description: 'First client meeting with structured AML compliance capture. Documents source of funds, risk assessment, and regulatory obligations from the outset.',
+    practiceArea: 'Compliance',
+    category: 'compliance',
+    icon: ShieldCheck,
+    estimatedDuration: '30–60 min',
+    consentLanguage: 'I would like to record this meeting to prepare an accurate attendance note and compliance record. The recording will be securely stored and deleted after 7 days. Do I have your consent to proceed?',
+    documentSections: [
+      'Identity Verification Status',
+      'Nature and Purpose of Instruction',
+      'Source of Funds',
+      'Beneficial Ownership',
+      'PEP/Sanctions Confirmation',
+      'Risk Factors',
+      'EDD Decision and Reasoning',
+      'Solicitor Confirmation to Proceed',
+    ],
+    suggestedActionItems: [
+      'Complete identity verification checks',
+      'Obtain source of funds documentation',
+      'Record beneficial ownership structure',
+      'Complete firm risk assessment form',
+      'Send client care letter and engagement terms',
+      'Open matter file with matter reference',
+      'File AML compliance record to matter',
+    ],
+    preMeetingChecklist: [
+      'Confirm client identity documents are available for verification',
+      'Prepare to ask about source of funds and source of wealth',
+      'Check whether the client or any connected party is a PEP or on a sanctions list',
+      'Establish who the beneficial owner is (if acting for a company, trust, or third party)',
+      'Assess the risk level of the matter (low / medium / high)',
+      'Consider whether enhanced due diligence (EDD) is required',
+      'Note any unusual instructions or circumstances that may require further inquiry',
+      'Confirm the nature and purpose of the instruction',
+    ],
+  },
   {
     id: 'initial_consultation',
     name: 'Initial Consultation',
@@ -155,46 +196,112 @@ export default function CaseTemplatesModal({ open, onOpenChange, onSelect }: Cas
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto -mx-6 px-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-4">
-            {BUILT_IN_TEMPLATES.map(template => {
-              const Icon = template.icon;
-              const isSelected = selected?.id === template.id;
-              return (
-                <Card
-                  key={template.id}
-                  className={`cursor-pointer transition-all hover-elevate ${isSelected ? 'ring-2 ring-primary' : ''}`}
-                  onClick={() => setSelected(template)}
-                  data-testid={`template-card-${template.id}`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-md ${isSelected ? 'bg-primary/10' : 'bg-muted'}`}>
-                        <Icon className={`w-4 h-4 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-sm font-medium">{template.name}</h4>
-                          <Badge variant="outline" className="text-xs">{template.practiceArea}</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{template.description}</p>
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="text-xs text-muted-foreground">{template.estimatedDuration}</span>
-                          <span className="text-xs text-muted-foreground">{template.suggestedActionItems.length} action items</span>
-                        </div>
-                      </div>
+          {(() => {
+            const complianceTemplates = BUILT_IN_TEMPLATES.filter(t => t.category === 'compliance');
+            const practiceTemplates = BUILT_IN_TEMPLATES.filter(t => t.category !== 'compliance');
+            return (
+              <div className="py-4 space-y-4">
+                {complianceTemplates.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Compliance</p>
+                    <div className="grid grid-cols-1 gap-3">
+                      {complianceTemplates.map(template => {
+                        const Icon = template.icon;
+                        const isSelected = selected?.id === template.id;
+                        return (
+                          <Card
+                            key={template.id}
+                            className={`cursor-pointer transition-all hover-elevate border-accent/30 ${isSelected ? 'ring-2 ring-accent' : ''}`}
+                            onClick={() => setSelected(template)}
+                            data-testid={`template-card-${template.id}`}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-start gap-3">
+                                <div className={`p-2 rounded-md ${isSelected ? 'bg-accent/15' : 'bg-accent/10'}`}>
+                                  <Icon className={`w-4 h-4 ${isSelected ? 'text-accent' : 'text-accent/70'}`} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="text-sm font-medium">{template.name}</h4>
+                                    <Badge variant="secondary" className="text-xs bg-accent/10 text-accent border-accent/20">{template.practiceArea}</Badge>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{template.description}</p>
+                                  <div className="flex items-center gap-3 mt-2">
+                                    <span className="text-xs text-muted-foreground">{template.estimatedDuration}</span>
+                                    <span className="text-xs text-muted-foreground">{template.suggestedActionItems.length} action items</span>
+                                    {template.preMeetingChecklist && (
+                                      <span className="text-xs text-accent/70">{template.preMeetingChecklist.length}-point checklist</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Practice Area</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {practiceTemplates.map(template => {
+                      const Icon = template.icon;
+                      const isSelected = selected?.id === template.id;
+                      return (
+                        <Card
+                          key={template.id}
+                          className={`cursor-pointer transition-all hover-elevate ${isSelected ? 'ring-2 ring-primary' : ''}`}
+                          onClick={() => setSelected(template)}
+                          data-testid={`template-card-${template.id}`}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start gap-3">
+                              <div className={`p-2 rounded-md ${isSelected ? 'bg-primary/10' : 'bg-muted'}`}>
+                                <Icon className={`w-4 h-4 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="text-sm font-medium">{template.name}</h4>
+                                  <Badge variant="outline" className="text-xs">{template.practiceArea}</Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{template.description}</p>
+                                <div className="flex items-center gap-3 mt-2">
+                                  <span className="text-xs text-muted-foreground">{template.estimatedDuration}</span>
+                                  <span className="text-xs text-muted-foreground">{template.suggestedActionItems.length} action items</span>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
-          {/* Preview of selected template */}
           {selected && (
-            <div className="border border-border rounded-md p-4 mb-4 space-y-3">
+            <div className={`border rounded-md p-4 mb-4 space-y-3 ${selected.category === 'compliance' ? 'border-accent/30 bg-accent/5' : 'border-border'}`}>
               <h4 className="text-sm font-semibold">Preview: {selected.name}</h4>
+
+              {selected.preMeetingChecklist && selected.preMeetingChecklist.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-accent mb-1.5">Pre-meeting checklist — cover these during the meeting:</p>
+                  <ul className="space-y-1">
+                    {selected.preMeetingChecklist.map(item => (
+                      <li key={item} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                        <CheckCircle2 className="w-3 h-3 shrink-0 mt-0.5 text-accent/60" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1.5">Document sections that will be pre-created:</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">Document sections that will be generated:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {selected.documentSections.map(s => (
                     <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>

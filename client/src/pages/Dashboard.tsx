@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck } from "lucide-react";
+import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck, Phone } from "lucide-react";
 import { ScheduledMeetingsViewer } from "@/components/ScheduledMeetingsViewer";
 import StatsCard from "@/components/StatsCard";
 import CaseListView from "@/components/CaseListView";
@@ -8,7 +8,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
-import { Case } from "@shared/schema";
+import type { Case } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInDays, differenceInHours, isPast } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import CaseSelectorModal from "@/components/CaseSelectorModal";
+import LogCallModal from "@/components/LogCallModal";
 
 interface AttentionStats {
   audioExpiringCount: number;
@@ -52,6 +54,8 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<StatusTab>("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("deadline");
+  const [showCaseSelector, setShowCaseSelector] = useState(false);
+  const [logCallCase, setLogCallCase] = useState<Case | null>(null);
 
   const { data: cases, isLoading } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
@@ -271,23 +275,33 @@ export default function Dashboard() {
               </p>
             )}
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2.5 py-1.5 rounded-md border border-border/50">
-              <Keyboard className="w-3 h-3" />
-              <span>Press</span>
-              <kbd className="px-1.5 py-0.5 bg-background border border-border rounded text-[10px] font-mono font-medium">L</kbd>
-              <kbd className="px-1.5 py-0.5 bg-background border border-border rounded text-[10px] font-mono font-medium">L</kbd>
-              <span>to record</span>
+          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2.5 py-1.5 rounded-md border border-border/50">
+                <Keyboard className="w-3 h-3" />
+                <span>Press</span>
+                <kbd className="px-1.5 py-0.5 bg-background border border-border rounded text-[10px] font-mono font-medium">L</kbd>
+                <kbd className="px-1.5 py-0.5 bg-background border border-border rounded text-[10px] font-mono font-medium">L</kbd>
+                <span>to record</span>
+              </div>
+              <Button
+                onClick={() => setLocation('/new-note')}
+                className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold gap-2 shadow-md"
+                data-testid="button-new-note"
+              >
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">New Note</span>
+                <span className="sm:hidden">New</span>
+              </Button>
             </div>
-            <Button
-              onClick={() => setLocation('/new-note')}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold gap-2 shadow-md"
-              data-testid="button-new-note"
+            <button
+              onClick={() => setShowCaseSelector(true)}
+              className="text-xs text-muted-foreground flex items-center gap-1"
+              data-testid="button-log-call-dashboard"
             >
-              <FileText className="w-4 h-4" />
-              <span className="hidden sm:inline">New Note</span>
-              <span className="sm:hidden">New</span>
-            </Button>
+              <Phone className="w-3 h-3" />
+              Log a Call
+            </button>
           </div>
         </div>
 
@@ -503,6 +517,25 @@ export default function Dashboard() {
           <ScheduledMeetingsViewer />
         </div>
       </div>
+
+      <CaseSelectorModal
+        open={showCaseSelector}
+        onOpenChange={setShowCaseSelector}
+        onSelect={(caseItem) => setLogCallCase(caseItem)}
+        title="Log a Phone Call"
+        description="Which case is this call about?"
+      />
+
+      {logCallCase && (
+        <LogCallModal
+          open={!!logCallCase}
+          onOpenChange={(open) => { if (!open) setLogCallCase(null); }}
+          caseId={logCallCase.id}
+          caseTitle={logCallCase.title}
+          clientName={logCallCase.clientName}
+          matterReference={logCallCase.matterReference || undefined}
+        />
+      )}
     </div>
   );
 }

@@ -60,6 +60,16 @@ function ensureBoldHeadings(content: string): string {
     'Purpose of Meeting',
     'Additional Notes',
     'Key Discussion Points from Previous Meeting',
+    'AML COMPLIANCE SUMMARY',
+    'AML Compliance Summary',
+    'Identity Verification',
+    'Nature and Purpose of Instruction',
+    'Source of Funds',
+    'Beneficial Ownership',
+    'PEP/Sanctions Status',
+    'Risk Assessment',
+    'Enhanced Due Diligence (EDD)',
+    'Solicitor Confirmation',
   ];
   
   let result = content;
@@ -97,6 +107,7 @@ export interface CaseMetadata {
   clientName: string;
   matterReference?: string;
   recordingDate: string;
+  templateId?: string;
 }
 
 export interface FirmPreferences {
@@ -159,7 +170,7 @@ Client Signature: ________________
 Date: ________________`;
     }
 
-    const systemPrompt = `You are a UK-qualified solicitor specializing in creating professional attendance notes compliant with Solicitors Regulation Authority (SRA) standards and English law practice requirements.
+    let systemPrompt = `You are a UK-qualified solicitor specializing in creating professional attendance notes compliant with Solicitors Regulation Authority (SRA) standards and English law practice requirements.
 
 CRITICAL INSTRUCTIONS:
 - You are an expert in English and Welsh law ONLY. Do not reference or apply law from other jurisdictions.
@@ -267,6 +278,43 @@ FORMATTING GUIDELINES:
 IMPORTANT: This attendance note must be reviewed and verified by the supervising solicitor before being added to the client file. All legal advice and action items should be confirmed against current UK law and SRA guidance.
 
 Adhere strictly to the facts presented in the transcript. Where information is missing, explicitly state "Not specified" or "Not recorded" rather than inventing details.`;
+
+    if (metadata.templateId === 'matter_inception') {
+      systemPrompt += `
+
+MATTER INCEPTION RECORD — AML COMPLIANCE SUMMARY:
+This meeting uses the Matter Inception Record template. After the standard attendance note content and NEXT STEPS section, you MUST append an additional section titled "AML COMPLIANCE SUMMARY". This section extracts and structures all AML-relevant information discussed during the meeting.
+
+The AML COMPLIANCE SUMMARY section MUST follow this exact structure:
+
+**AML COMPLIANCE SUMMARY**
+
+**Identity Verification:**
+[Summarise what identity documents were discussed, presented, or verified. If not addressed, state: "Not discussed — review recommended"]
+
+**Nature and Purpose of Instruction:**
+[Summarise the stated reason for the client seeking legal services. If not addressed, state: "Not discussed — review recommended"]
+
+**Source of Funds:**
+[Summarise what was discussed about where the funds for the transaction are coming from. Include specific amounts if mentioned. If not addressed, state: "Not discussed — review recommended"]
+
+**Beneficial Ownership:**
+[Summarise who the beneficial owner is, including whether the client is acting on behalf of a third party, company, or trust. If not addressed, state: "Not discussed — review recommended"]
+
+**PEP/Sanctions Status:**
+[Note whether the client or any connected party was identified as a Politically Exposed Person or subject to sanctions. If not addressed, state: "Not discussed — review recommended"]
+
+**Risk Assessment:**
+[Summarise any risk factors noted — client risk level (low/medium/high), geographic risk, transaction complexity, sector risk. If not addressed, state: "Not discussed — review recommended"]
+
+**Enhanced Due Diligence (EDD):**
+[Note whether EDD was considered necessary and the reasoning. If not addressed, state: "Not discussed — review recommended"]
+
+**Solicitor Confirmation:**
+[Note whether the solicitor confirmed they are satisfied to proceed with the matter on the basis of the information provided. If not addressed, state: "Not discussed — review recommended"]
+
+CRITICAL: For each field, extract ONLY what was actually said in the transcript. Where an area was not covered in the meeting, you MUST state "Not discussed — review recommended" — do NOT fabricate or assume compliance information.`;
+    }
 
     const userPrompt = `Generate a professional attendance note for the following meeting transcript:
 
