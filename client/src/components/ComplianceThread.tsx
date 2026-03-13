@@ -102,8 +102,11 @@ export default function ComplianceThread({ caseId, riskLevel, clientName, autoOp
 
   const completenessItems = [
     { label: "Risk assessment", done: !!riskLevel },
-    { label: "Matter inception note", done: hasInception },
+    { label: "Matter inception (MIR)", done: hasInception },
     { label: "Source of funds", done: monitoringNotes.some(n => !!n.sourceOfFundsStatus) },
+    { label: `Monitoring notes (${monitoringNotes.length})`, done: monitoringNotes.length > 0 },
+    { label: `MLRO decisions (${decisionRecords.length})`, done: decisionRecords.length > 0 },
+    { label: "Matter completion", done: hasCompletion },
   ];
   const completenessScore = completenessItems.filter(i => i.done).length;
 

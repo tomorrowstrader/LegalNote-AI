@@ -3316,9 +3316,13 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           const triggers = await detectAmlTriggersAI(result.text);
           if (triggers.length > 0) {
             const suggestedRisk = getAmlRiskSuggestion(triggers);
+            const updatePayload: { riskLevel?: string; aiProcessingMetadata?: Record<string, unknown> } = {};
             if (!caseData.riskLevel && suggestedRisk) {
-              await storage.updateCase(caseId, { riskLevel: suggestedRisk }, userId);
+              updatePayload.riskLevel = suggestedRisk;
             }
+            const currentMetadata = (caseData.aiProcessingMetadata || {}) as Record<string, unknown>;
+            updatePayload.aiProcessingMetadata = { ...currentMetadata, amlTriggers: triggers };
+            await storage.updateCase(caseId, updatePayload, userId);
             console.log(`[AML] Transcribe path: detected ${triggers.length} trigger(s) in case ${caseId}, suggested risk: ${suggestedRisk}`);
           }
         }
