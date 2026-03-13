@@ -7591,10 +7591,10 @@ ${firmName}`;
     }
   });
 
-  app.patch("/api/user/compliance-thread", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/user/compliance-thread", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const { enabled } = req.body;
+      const { enabled, targetUserId } = req.body;
+      const userId = targetUserId || req.user.claims.sub;
       if (typeof enabled !== "boolean") {
         return res.status(400).json({ message: "enabled must be a boolean" });
       }

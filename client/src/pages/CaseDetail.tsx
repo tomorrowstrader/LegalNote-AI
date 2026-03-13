@@ -755,17 +755,9 @@ export default function CaseDetail() {
                       <p className="font-medium text-sm">Compliance Thread</p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Per-matter AML monitoring, risk assessments, and MLRO decision records.
-                        Enable in Settings to start tracking compliance for your matters.
+                        Contact your account administrator to enable this premium feature.
                       </p>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setLocation("/settings")}
-                      data-testid="button-enable-compliance"
-                    >
-                      Enable in Settings
-                    </Button>
                   </div>
                 )}
               </AccordionContent>

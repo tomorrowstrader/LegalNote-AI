@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Case } from "@shared/schema";
+import { useLocation } from "wouter";
 import CaseDetailDrawer from "./CaseDetailDrawer";
 
 // Hook for reduced motion preference
@@ -120,6 +121,7 @@ function getPriorityBadge(caseItem: Case) {
 }
 
 export default function CaseListView({ cases, amlActivityDates }: CaseListViewProps) {
+  const [, setLocation] = useLocation();
   const [selectedCase, setSelectedCase] = useState<Case | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -288,7 +290,14 @@ export default function CaseListView({ cases, amlActivityDates }: CaseListViewPr
                   </Badge>
                 )}
                 {isRiskAgeingOverdue(caseItem, amlActivityDates) && (
-                  <Badge className="text-xs no-default-hover-elevate no-default-active-elevate bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" data-testid={`badge-aml-overdue-${caseItem.id}`}>
+                  <Badge
+                    className="text-xs cursor-pointer bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLocation(`/case/${caseItem.id}?tab=compliance`);
+                    }}
+                    data-testid={`badge-aml-overdue-${caseItem.id}`}
+                  >
                     <Shield className="w-3 h-3 mr-0.5" />
                     AML Review
                   </Badge>

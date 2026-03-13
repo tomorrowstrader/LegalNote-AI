@@ -1693,22 +1693,34 @@ export default function Settings() {
                         <div>
                           <p className="font-medium">Compliance Thread (AML/KYC)</p>
                           <p className="text-sm text-muted-foreground mt-1">
-                            Enable per-matter AML monitoring notes, risk assessments, MLRO decision records, and automatic trigger detection from transcripts.
+                            {user?.complianceThread
+                              ? "Per-matter AML monitoring, risk assessments, and MLRO decision records are active."
+                              : "Contact your account administrator to enable AML compliance features."}
                           </p>
                         </div>
                       </div>
-                      <Switch
-                        checked={user?.complianceThread ?? false}
-                        onCheckedChange={async (checked) => {
-                          try {
-                            await apiRequest("PATCH", "/api/user/compliance-thread", { enabled: checked });
-                            queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-                          } catch (e) {
-                            console.error("Failed to toggle compliance thread:", e);
-                          }
-                        }}
-                        data-testid="switch-compliance-thread"
-                      />
+                      {isAdmin ? (
+                        <Switch
+                          checked={user?.complianceThread ?? false}
+                          onCheckedChange={async (checked) => {
+                            try {
+                              await apiRequest("PATCH", "/api/user/compliance-thread", { enabled: checked });
+                              queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+                            } catch (e) {
+                              console.error("Failed to toggle compliance thread:", e);
+                            }
+                          }}
+                          data-testid="switch-compliance-thread"
+                        />
+                      ) : (
+                        <Badge
+                          variant={user?.complianceThread ? "default" : "outline"}
+                          className="no-default-hover-elevate no-default-active-elevate text-xs"
+                          data-testid="badge-compliance-status"
+                        >
+                          {user?.complianceThread ? "Active" : "Inactive"}
+                        </Badge>
+                      )}
                     </div>
                   </div>
 

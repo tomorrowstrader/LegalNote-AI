@@ -75,7 +75,7 @@ export default function NewNote() {
     if (!user?.complianceThread || !clientName.trim() || clientName.trim().length < 3) return null;
     const normalised = clientName.trim().toLowerCase();
     return existingCases.find(
-      (c) => c.riskLevel && c.clientName?.toLowerCase().trim() === normalised
+      (c) => c.clientName?.toLowerCase().trim() === normalised && c.id !== undefined
     ) || null;
   }, [clientName, existingCases, user?.complianceThread]);
   
@@ -551,7 +551,10 @@ export default function NewNote() {
                   <Alert className="mt-2 border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700" data-testid="alert-client-risk-continuity">
                     <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                     <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
-                      This client has an existing matter rated <span className="font-semibold">{(clientRiskMatch.riskLevel as string).toUpperCase()} risk</span>. Previous risk assessments may apply to this new matter.{" "}
+                      {clientRiskMatch.riskLevel
+                        ? <>This client has an existing matter rated <span className="font-semibold">{(clientRiskMatch.riskLevel as string).toUpperCase()} risk</span>. Previous risk assessments may apply to this new matter.{" "}</>
+                        : <>This client has existing matters with AML history. Review prior records before proceeding.{" "}</>
+                      }
                       <a
                         href={`/case/${clientRiskMatch.id}`}
                         className="underline font-medium text-amber-700 dark:text-amber-300"
