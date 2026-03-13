@@ -8,6 +8,7 @@
  * 3. Eleanor Chen - Commercial Contract (business partnership)
  * 4. David Patterson - Family Law (divorce settlement)
  * 5. James Smith - Family Law (financial settlement with cost/timeline warning narrative)
+ * 6. Richard Patterson - Commercial Property (SRA audit compliance demo)
  */
 
 import { db } from "../db";
@@ -15,9 +16,10 @@ import {
   cases, transcripts, documents, consentLogs, actionItems, auditTrail, 
   preMeetingBriefings, shareLinks, quickNotes, audioRecordings, 
   calendarEvents, meetingImports, preConsentEmails, clioMatterLinks,
-  clientVersionTracking
+  clientVersionTracking, amlMonitoringNotes, amlDecisionRecords
 } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+import crypto from "crypto";
 
 // Dynamic demo dates - relative to current date for realistic demonstrations
 // Dates spread across the last 6 weeks to show active, ongoing usage
@@ -34,6 +36,7 @@ const DEMO_DATES = {
   eleanorChen: daysAgo(21),     // ~3 weeks ago
   davidPatterson: daysAgo(7),   // ~1 week ago
   jamesSmith: daysAgo(3),       // ~3 days ago - most recent
+  richardPatterson: daysAgo(35), // ~5 weeks ago - compliance case needs history
 };
 
 // Demo case data with realistic UK legal scenarios
@@ -743,6 +746,156 @@ Client expressly confirmed:
       { description: "Obtain counsel's availability for forthcoming hearings", assignee: "Solicitor", priority: "medium" },
       { description: "Provide any additional financial documentation if requested", assignee: "Client", priority: "low" }
     ]
+  },
+  {
+    title: "Commercial Property Acquisition - Unit 7 Riverside Business Park",
+    clientName: "Richard Patterson",
+    matterReference: "COMP/2024/0291",
+    status: "review_required" as const,
+    priority: "normal" as const,
+    sourceType: "audio" as const,
+    isComplianceDemo: true,
+    transcript: {
+      content: `Meeting transcript - Commercial Property Purchase consultation
+
+SOLICITOR: Good morning, Mr Patterson. Before we begin, I should let you know this meeting is being recorded for accuracy purposes. Do you consent?
+
+CLIENT: Yes, that's fine.
+
+SOLICITOR: Thank you. So, you're looking to acquire Unit 7 at Riverside Business Park for your logistics company. Can you tell me about the proposed purchase?
+
+CLIENT: Yes, we've been leasing space in Croydon for five years and we want to buy our own premises. Riverside is perfect - good transport links, loading bays, the right size.
+
+SOLICITOR: And the asking price?
+
+CLIENT: One point two million pounds. The agent says the vendor is motivated.
+
+SOLICITOR: Good. Now, I need to go through some routine compliance matters. Can you tell me about the source of funds for this purchase?
+
+CLIENT: Of course. Six hundred thousand is coming from retained business profits - Patterson Logistics has been profitable for the last eight years. The remaining six hundred thousand will be a commercial mortgage through NatWest.
+
+SOLICITOR: That's helpful. I'll need to see the company accounts for the last three years and the mortgage offer when it comes through. Do you have any other investors or parties contributing to the purchase?
+
+CLIENT: No, it's entirely the company's own funds and the bank loan. My wife Margaret is a director but she's not putting in any personal funds.
+
+SOLICITOR: Perfect. And the company - Patterson Logistics Limited - that's been trading since when?
+
+CLIENT: Since 2016. Started as a sole trader in 2014 and incorporated in 2016.
+
+SOLICITOR: I'll need to verify the company details with Companies House. Now, the property itself - have you had a survey done?
+
+CLIENT: Yes, the structural survey came back clean. Minor damp in the loading bay area but nothing serious.
+
+SOLICITOR: Good. I'll review the commercial lease details, check for any restrictive covenants, and examine the title. For commercial property, we also need to consider VAT implications - the vendor may have opted to tax.
+
+CLIENT: What does that mean for us?
+
+SOLICITOR: If they've opted to tax, VAT at twenty percent would be added to the purchase price. However, as a VAT-registered business, you can reclaim this on your next return. It's a cash flow consideration rather than an actual cost.
+
+CLIENT: We are VAT registered, so that should be fine.
+
+SOLICITOR: Excellent. I should also mention, there's been some development proposed near Riverside - a new access road that could affect traffic flow. I'll check with the local authority.
+
+CLIENT: That could actually be positive for us - better access means easier deliveries.
+
+SOLICITOR: Possibly, yes. Now, is the company purchasing the property directly, or through a special purpose vehicle?
+
+CLIENT: Directly through Patterson Logistics.
+
+SOLICITOR: Fine. I'll draft the contract documentation and get back to you within the week.
+
+CLIENT: Thank you. One more thing - we're hoping to complete quickly. Our lease in Croydon expires in three months.
+
+SOLICITOR: I'll push for a six to eight week completion. We should be able to meet your timeline.`,
+      utterances: [
+        { speaker: "A", text: "Good morning, Mr Patterson. Before we begin, I should let you know this meeting is being recorded for accuracy purposes. Do you consent?", start: 0, end: 8000, confidence: 0.96 },
+        { speaker: "B", text: "Yes, that's fine.", start: 8500, end: 10000, confidence: 0.98 },
+        { speaker: "A", text: "Thank you. So, you're looking to acquire Unit 7 at Riverside Business Park for your logistics company. Can you tell me about the proposed purchase?", start: 10500, end: 20000, confidence: 0.95 },
+        { speaker: "B", text: "Yes, we've been leasing space in Croydon for five years and we want to buy our own premises. Riverside is perfect - good transport links, loading bays, the right size.", start: 20500, end: 32000, confidence: 0.93 },
+        { speaker: "A", text: "And the asking price?", start: 32500, end: 34000, confidence: 0.97 },
+        { speaker: "B", text: "One point two million pounds. The agent says the vendor is motivated.", start: 34500, end: 39000, confidence: 0.94 },
+        { speaker: "A", text: "Good. Now, I need to go through some routine compliance matters. Can you tell me about the source of funds for this purchase?", start: 39500, end: 48000, confidence: 0.95 },
+        { speaker: "B", text: "Of course. Six hundred thousand is coming from retained business profits - Patterson Logistics has been profitable for the last eight years. The remaining six hundred thousand will be a commercial mortgage through NatWest.", start: 48500, end: 62000, confidence: 0.92 }
+      ],
+      speakerCount: 2
+    },
+    demoDate: DEMO_DATES.richardPatterson,
+    attendanceNote: `# ATTENDANCE NOTE
+
+**Client:** Richard Patterson (Patterson Logistics Limited)
+**Matter:** Commercial Property Acquisition - Unit 7 Riverside Business Park
+**Reference:** COMP/2024/0291
+**Date:** ${new Date(DEMO_DATES.richardPatterson).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Present:** Attending Solicitor, Richard Patterson (Client / Director)
+
+## 1. INTRODUCTION
+
+Client attended to discuss the proposed acquisition of Unit 7, Riverside Business Park for Patterson Logistics Limited. Recording consent obtained.
+
+## 2. PROPERTY DETAILS
+
+- **Property:** Unit 7, Riverside Business Park
+- **Asking price:** £1,200,000
+- **Purchaser:** Patterson Logistics Limited
+- **Structural survey:** Completed - minor damp in loading bay (non-critical)
+
+## 3. AML COMPLIANCE SUMMARY
+
+### Source of Funds
+- **£600,000:** Retained business profits (Patterson Logistics Ltd, trading since 2016)
+- **£600,000:** Commercial mortgage (NatWest - application in progress)
+- **Third-party contributions:** None confirmed
+- **Directors:** Richard Patterson, Margaret Patterson (no personal funds being contributed)
+
+### Risk Assessment
+- **Client risk:** LOW - established UK company, transparent funding structure
+- **Matter risk:** Standard commercial property acquisition
+- **EDD required:** No - standard CDD measures sufficient. Reasoning: established UK-incorporated company with 8-year trading history, regulated bank mortgage, no complex ownership structures, no high-risk jurisdictions involved.
+
+### Verification Required
+1. Patterson Logistics Ltd - 3 years certified accounts
+2. Companies House confirmation (incorporated 2016, previously sole trader from 2014)
+3. NatWest commercial mortgage offer letter
+4. Proof of identity for Richard Patterson and Margaret Patterson (directors)
+
+## 4. COMMERCIAL CONSIDERATIONS
+
+- VAT: Vendor may have opted to tax. Client is VAT registered - can reclaim on next return
+- Proposed access road near Riverside - to be checked with local authority
+- No SPV structure - direct purchase through Patterson Logistics
+- Current Croydon lease expires in 3 months - completion target 6-8 weeks
+
+## 5. NEXT STEPS
+
+**Solicitor Actions:**
+1. Draft contract documentation
+2. Review commercial lease details and restrictive covenants
+3. Examine title
+4. Check local authority re: proposed access road
+5. Verify company details with Companies House
+6. Request certified accounts (3 years)
+
+**Client Actions:**
+1. Provide 3 years certified company accounts
+2. Provide NatWest mortgage offer when available
+3. Provide ID documents for both directors
+
+## 6. CLIENT CONFIRMATION
+
+Client confirmed understanding of all matters discussed and instructed us to proceed.
+
+---
+*Fee earner to update client within the week.*`,
+    summary: `Commercial property consultation for Unit 7 Riverside Business Park (£1.2m). Patterson Logistics Ltd acquiring directly - source of funds: £600k retained profits + £600k NatWest commercial mortgage. No third-party contributions. AML risk assessment: LOW - established UK company, transparent structure. EDD not required. VAT implications discussed (vendor may have opted to tax). Structural survey clean (minor damp). Target completion: 6-8 weeks. Croydon lease expires in 3 months.`,
+    actionItems: [
+      { description: "Draft contract documentation for Unit 7 Riverside", assignee: "Solicitor", priority: "high" },
+      { description: "Review title and restrictive covenants", assignee: "Solicitor", priority: "high" },
+      { description: "Check local authority re: proposed access road", assignee: "Solicitor", priority: "medium" },
+      { description: "Verify Patterson Logistics Ltd with Companies House", assignee: "Solicitor", priority: "high" },
+      { description: "Provide 3 years certified company accounts", assignee: "Client", priority: "high" },
+      { description: "Provide NatWest mortgage offer when available", assignee: "Client", priority: "medium" },
+      { description: "Provide ID documents for both directors", assignee: "Client", priority: "high" }
+    ]
   }
 ];
 
@@ -968,6 +1121,109 @@ export async function seedDemoData(userId: string): Promise<{ success: boolean; 
         });
       }
 
+      if ('isComplianceDemo' in demoCase && demoCase.isComplianceDemo) {
+        const inceptionDate = new Date(baseDate.getTime() + 80 * 60 * 1000);
+        await db.insert(amlMonitoringNotes).values({
+          caseId: newCase.id,
+          userId,
+          recordType: "inception",
+          riskLevel: "low",
+          sourceOfFundsStatus: "Confirmed: £600,000 retained business profits (Patterson Logistics Ltd, 8-year trading history) + £600,000 NatWest commercial mortgage. No third-party contributions. Company accounts (3 years) and mortgage offer to be verified.",
+          eddDecision: "Not required",
+          eddReasoning: "Standard CDD measures sufficient. Established UK-incorporated company (2016) with 8-year trading history. Funding through regulated bank mortgage and documented retained profits. No complex ownership structures or high-risk jurisdiction involvement. Directors are UK-resident individuals with verifiable identities.",
+          notes: "Matter Inception Record — Commercial property acquisition (Unit 7, Riverside Business Park, £1.2m). Client: Patterson Logistics Limited, director Richard Patterson. Source of funds confirmed as retained business profits and NatWest commercial mortgage. Company incorporated 2016 (sole trader from 2014). Both directors (Richard and Margaret Patterson) to provide ID verification. Risk assessment: LOW. Standard CDD applied. No indicators requiring enhanced due diligence at inception.",
+          createdAt: inceptionDate,
+        });
+
+        await db.insert(auditTrail).values({
+          eventType: "aml_monitoring_note_created",
+          userId,
+          caseId: newCase.id,
+          timestamp: inceptionDate,
+          severity: "info",
+          metadata: { recordType: "inception", riskLevel: "low" },
+        });
+
+        await db.update(cases).set({ riskLevel: "low" }).where(eq(cases.id, newCase.id));
+
+        const monitoringDate = new Date(baseDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+        await db.insert(amlMonitoringNotes).values({
+          caseId: newCase.id,
+          userId,
+          recordType: "monitoring",
+          riskLevel: "medium",
+          sourceOfFundsStatus: "UPDATED: Client indicated in follow-up meeting that part of the deposit (£150,000) will now come from a business loan from a separate company, Riverside Holdings Ltd, rather than entirely from Patterson Logistics retained profits. Original source of funds position has changed. Riverside Holdings Ltd not previously disclosed. Further verification required.",
+          notes: "Source of funds change identified during follow-up meeting. Client disclosed that £150,000 of the purchase funds will now come from a business loan from Riverside Holdings Ltd, a company not previously mentioned. This changes the original source of funds position (100% retained profits + mortgage). The introduction of third-party business lending from a previously undisclosed entity warrants updated CDD checks and consideration of whether MLRO referral is appropriate. Risk level updated from LOW to MEDIUM pending further verification of Riverside Holdings Ltd and the nature of the lending arrangement.",
+          createdAt: monitoringDate,
+        });
+
+        await db.insert(auditTrail).values({
+          eventType: "aml_monitoring_note_created",
+          userId,
+          caseId: newCase.id,
+          timestamp: monitoringDate,
+          severity: "medium",
+          metadata: { recordType: "monitoring", riskLevel: "medium" },
+        });
+
+        await db.update(cases).set({ riskLevel: "medium" }).where(eq(cases.id, newCase.id));
+
+        const mlroDate = new Date(monitoringDate.getTime() + 2 * 24 * 60 * 60 * 1000);
+        const sigPayload = JSON.stringify({
+          caseId: newCase.id,
+          userId,
+          decision: "proceed",
+          concernDescription: "Source of funds change: previously undisclosed third-party company (Riverside Holdings Ltd) now providing £150,000 business loan toward purchase. Third-party funding from a previously undisclosed entity is an AML indicator requiring MLRO consideration under Regulation 33 of the Money Laundering Regulations 2017.",
+          decisionReasoning: "Following review of the source of funds change, I am satisfied that this matter can proceed for the following reasons:\n\n1. Riverside Holdings Ltd is a UK-incorporated company (verified via Companies House) with a 6-year trading history and filed accounts.\n2. The loan is a standard commercial arrangement documented in a formal facility agreement with market-rate interest.\n3. Richard Patterson is not a director or shareholder of Riverside Holdings Ltd — the connection is a longstanding commercial relationship (logistics subcontracting).\n4. The loan amount (£150,000) represents 12.5% of the total purchase price and does not fundamentally alter the risk profile.\n5. No indicators of layering, structuring, or proceeds of crime.\n6. NatWest (regulated lender) is providing the majority external funding and will conduct their own AML checks.\n\nDecision: PROCEED with updated monitoring. No SAR required. Risk level maintained at MEDIUM pending completion. Matter to be reviewed again at completion stage.",
+          timestamp: mlroDate.toISOString(),
+        });
+        const signingKey = process.env.SESSION_SECRET || "demo-signing-key";
+        const signatureHash = crypto.createHmac("sha256", signingKey).update(sigPayload).digest("hex");
+
+        await db.insert(amlDecisionRecords).values({
+          caseId: newCase.id,
+          userId,
+          concernDescription: "Source of funds change: previously undisclosed third-party company (Riverside Holdings Ltd) now providing £150,000 business loan toward purchase. Third-party funding from a previously undisclosed entity is an AML indicator requiring MLRO consideration under Regulation 33 of the Money Laundering Regulations 2017.",
+          decision: "proceed",
+          decisionReasoning: "Following review of the source of funds change, I am satisfied that this matter can proceed for the following reasons:\n\n1. Riverside Holdings Ltd is a UK-incorporated company (verified via Companies House) with a 6-year trading history and filed accounts.\n2. The loan is a standard commercial arrangement documented in a formal facility agreement with market-rate interest.\n3. Richard Patterson is not a director or shareholder of Riverside Holdings Ltd — the connection is a longstanding commercial relationship (logistics subcontracting).\n4. The loan amount (£150,000) represents 12.5% of the total purchase price and does not fundamentally alter the risk profile.\n5. No indicators of layering, structuring, or proceeds of crime.\n6. NatWest (regulated lender) is providing the majority external funding and will conduct their own AML checks.\n\nDecision: PROCEED with updated monitoring. No SAR required. Risk level maintained at MEDIUM pending completion. Matter to be reviewed again at completion stage.",
+          signatureHash,
+          createdAt: mlroDate,
+        });
+
+        await db.insert(auditTrail).values({
+          eventType: "aml_decision_recorded",
+          userId,
+          caseId: newCase.id,
+          timestamp: mlroDate,
+          severity: "high",
+          metadata: {
+            decision: "proceed",
+            signatureHash,
+            concernDescription: "Source of funds change — third-party business loan from Riverside Holdings Ltd",
+          },
+        });
+
+        const postMlroDate = new Date(mlroDate.getTime() + 4 * 60 * 60 * 1000);
+        await db.insert(amlMonitoringNotes).values({
+          caseId: newCase.id,
+          userId,
+          recordType: "monitoring",
+          riskLevel: "medium",
+          sourceOfFundsStatus: "VERIFIED: Riverside Holdings Ltd confirmed via Companies House (incorporated 2018, active status, accounts filed). Facility agreement reviewed — standard commercial loan at 4.5% interest, 5-year term. Richard Patterson confirmed no directorship or shareholding in Riverside Holdings Ltd. Relationship is longstanding logistics subcontracting. Updated source of funds position accepted following MLRO review.",
+          notes: "Post-MLRO review monitoring note. Following MLRO decision to proceed, additional verification completed: Riverside Holdings Ltd confirmed as legitimate UK company via Companies House search. Facility agreement between Riverside Holdings Ltd and Patterson Logistics Ltd reviewed — standard commercial terms, no unusual conditions. Source of funds position now fully documented and verified. Risk level maintained at MEDIUM. Next review point: matter completion.",
+          createdAt: postMlroDate,
+        });
+
+        await db.insert(auditTrail).values({
+          eventType: "aml_monitoring_note_created",
+          userId,
+          caseId: newCase.id,
+          timestamp: postMlroDate,
+          severity: "info",
+          metadata: { recordType: "monitoring", riskLevel: "medium", note: "Post-MLRO verification complete" },
+        });
+      }
+
       casesCreated++;
     }
 
@@ -1021,7 +1277,9 @@ export async function clearDemoData(userId: string): Promise<{ success: boolean;
         await db.delete(clientVersionTracking).where(eq(clientVersionTracking.documentId, doc.id));
       }
       
-      // Now delete all case-level records
+      // Now delete all case-level records (including AML compliance data)
+      await db.delete(amlMonitoringNotes).where(eq(amlMonitoringNotes.caseId, demoCase.id));
+      await db.delete(amlDecisionRecords).where(eq(amlDecisionRecords.caseId, demoCase.id));
       await db.delete(auditTrail).where(eq(auditTrail.caseId, demoCase.id));
       await db.delete(actionItems).where(eq(actionItems.caseId, demoCase.id));
       await db.delete(preMeetingBriefings).where(eq(preMeetingBriefings.caseId, demoCase.id));
