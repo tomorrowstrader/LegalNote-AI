@@ -756,16 +756,29 @@ export default function CaseDetail() {
                       <p className="text-xs text-muted-foreground mt-1">
                         Per-matter AML monitoring, risk assessments, and MLRO decision records.
                       </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        This premium feature requires activation by your account administrator.
+                      </p>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.location.href = "/settings"}
-                      data-testid="button-upgrade-compliance"
-                    >
-                      <Lock className="w-3.5 h-3.5 mr-1" />
-                      Enable in Settings
-                    </Button>
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => window.open("https://legalnote.ai/pricing", "_blank")}
+                        data-testid="button-upgrade-compliance"
+                      >
+                        <Lock className="w-3.5 h-3.5 mr-1" />
+                        Upgrade to Enable
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.location.href = "/settings"}
+                        data-testid="button-compliance-settings"
+                      >
+                        View Settings
+                      </Button>
+                    </div>
                   </div>
                 )}
               </AccordionContent>

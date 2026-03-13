@@ -16,6 +16,14 @@ interface AmlTrigger {
   excerpt: string;
 }
 
+interface AiProcessingMetadata {
+  amlTriggers?: AmlTrigger[];
+  status?: string;
+  progress?: number;
+  currentStep?: string;
+  [key: string]: unknown;
+}
+
 export default function AmlTriggerBanner({ caseData, onAddMonitoringNote }: AmlTriggerBannerProps) {
   const [dismissed, setDismissed] = useState(false);
 
@@ -31,7 +39,7 @@ export default function AmlTriggerBanner({ caseData, onAddMonitoringNote }: AmlT
     localStorage.setItem(storageKey, "true");
   };
 
-  const metadata = caseData.aiProcessingMetadata as Record<string, any> | null;
+  const metadata = caseData.aiProcessingMetadata as AiProcessingMetadata | null;
   const triggers: AmlTrigger[] = metadata?.amlTriggers || [];
 
   if (dismissed || triggers.length === 0) return null;
