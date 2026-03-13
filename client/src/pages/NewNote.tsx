@@ -60,6 +60,8 @@ export default function NewNote() {
   const [showTextNotesModal, setShowTextNotesModal] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState<CaseTemplate | null>(null);
+  const [pendingTemplate, setPendingTemplate] = useState<CaseTemplate | null>(null);
+  const [checklistAcknowledged, setChecklistAcknowledged] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -401,12 +403,22 @@ export default function NewNote() {
   };
 
   const handleTemplateSelect = (template: CaseTemplate) => {
+    setShowTemplatesModal(false);
+    if (template.preMeetingChecklist && template.preMeetingChecklist.length > 0) {
+      setPendingTemplate(template);
+      setChecklistAcknowledged(false);
+    } else {
+      applyTemplate(template);
+    }
+  };
+
+  const applyTemplate = (template: CaseTemplate) => {
     setActiveTemplate(template);
-    // Pre-populate case title with a generic version if empty
+    setChecklistAcknowledged(true);
+    setPendingTemplate(null);
     if (!caseTitle.trim()) {
       setCaseTitle(template.name);
     }
-    setShowTemplatesModal(false);
   };
 
   const formatDuration = (seconds: number) => {
@@ -458,23 +470,23 @@ export default function NewNote() {
                   variant="ghost"
                   size="sm"
                   className="ml-auto h-6 text-xs text-muted-foreground"
-                  onClick={() => setActiveTemplate(null)}
+                  onClick={() => { setActiveTemplate(null); setChecklistAcknowledged(false); }}
                 >
                   Remove
                 </Button>
               </div>
 
-              {activeTemplate.preMeetingChecklist && activeTemplate.preMeetingChecklist.length > 0 && (
+              {checklistAcknowledged && activeTemplate.preMeetingChecklist && activeTemplate.preMeetingChecklist.length > 0 && (
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-accent" />
-                      Pre-Meeting Checklist
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      Pre-Meeting Checklist — Reviewed
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground mb-3">
-                      Ensure you cover these points during the meeting:
+                      Cover these points during the meeting:
                     </p>
                     <ul className="space-y-2">
                       {activeTemplate.preMeetingChecklist.map((item, index) => (
@@ -618,6 +630,49 @@ export default function NewNote() {
         onOpenChange={setShowTemplatesModal}
         onSelect={handleTemplateSelect}
       />
+
+      <AlertDialog
+        open={!!pendingTemplate}
+        onOpenChange={(open) => { if (!open) setPendingTemplate(null); }}
+      >
+        <AlertDialogContent data-testid="dialog-pre-meeting-checklist">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-accent" />
+              Pre-Meeting Checklist
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="mb-3">
+                  Review these points before starting the recording. Ensure you cover each item during the meeting:
+                </p>
+                <ul className="space-y-2">
+                  {pendingTemplate?.preMeetingChecklist?.map((item, index) => (
+                    <li key={index} className="text-sm flex items-start gap-2">
+                      <span className="text-accent font-medium shrink-0">{index + 1}.</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => setPendingTemplate(null)}
+              data-testid="button-checklist-cancel"
+            >
+              Go Back
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { if (pendingTemplate) applyTemplate(pendingTemplate); }}
+              data-testid="button-checklist-acknowledge"
+            >
+              I've Reviewed This — Proceed
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={showStopConfirmation} onOpenChange={setShowStopConfirmation}>
         <AlertDialogContent data-testid="dialog-stop-confirmation">

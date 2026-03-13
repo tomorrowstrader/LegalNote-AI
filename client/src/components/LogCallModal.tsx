@@ -4,11 +4,12 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Mic, Square, Phone } from "lucide-react";
+import { Mic, Square, Phone, Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { logAuditEvent } from "@/lib/auditLogger";
+import { useLocation } from "wouter";
 
 interface LogCallModalProps {
   open: boolean;
@@ -22,9 +23,11 @@ interface LogCallModalProps {
 export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, clientName, matterReference }: LogCallModalProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const [processingStep, setProcessingStep] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -110,10 +113,23 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
     const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
 
     try {
-      const audioResult = await apiRequest<{ id: string }>("POST", "/api/audio", {
-        caseId,
+      setProcessingStep("Creating telephone attendance case...");
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const dictationCase = await apiRequest<{ id: string }>("POST", "/api/cases", {
+        title: `Telephone Attendance — ${clientName} — ${dateStr}`,
+        clientName,
+        matterReference: matterReference || "",
+        sourceType: "dictation",
+        priority: "normal",
       });
 
+      setProcessingStep("Creating audio record...");
+      const audioResult = await apiRequest<{ id: string }>("POST", "/api/audio", {
+        caseId: dictationCase.id,
+      });
+
+      setProcessingStep("Uploading dictation...");
       const formData = new FormData();
       formData.append('audioFile', audioBlob, 'call-dictation.webm');
       formData.append('duration', recordingDuration.toString());
@@ -129,9 +145,12 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
         throw new Error(error.message || 'Upload failed');
       }
 
+      setProcessingStep("Starting AI processing...");
+      await apiRequest("POST", `/api/cases/${dictationCase.id}/process`);
+
       await logAuditEvent({
         eventType: "recording_started",
-        metadata: { source: "phone_call_dictation", caseId, duration: recordingDuration },
+        metadata: { source: "phone_call_dictation", caseId: dictationCase.id, parentCaseId: caseId, duration: recordingDuration },
         severity: "info",
       });
 
@@ -143,11 +162,12 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
       });
 
       toast({
-        title: "Call note saved",
-        description: "Your dictation has been saved to this case. Process it with AI when ready.",
+        title: "Telephone attendance note processing",
+        description: "Your dictation is being transcribed and processed into an attendance note.",
       });
 
       onOpenChange(false);
+      setLocation(`/cases/${dictationCase.id}`);
     } catch (error: any) {
       toast({
         title: "Failed to save dictation",
@@ -156,10 +176,12 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
       });
     } finally {
       setIsSaving(false);
+      setProcessingStep(null);
     }
   };
 
   const handleClose = () => {
+    if (isSaving) return;
     if (isRecording && mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -196,7 +218,12 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
             </p>
           </div>
 
-          {isRecording ? (
+          {processingStep ? (
+            <div className="flex flex-col items-center gap-3 p-6">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">{processingStep}</span>
+            </div>
+          ) : isRecording ? (
             <div className="flex flex-col items-center gap-4 p-6 bg-destructive/10 rounded-md border border-destructive/20">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-destructive rounded-full animate-pulse" />

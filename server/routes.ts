@@ -3391,19 +3391,24 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
       
       // GDPR Compliance: Verify valid consent exists before processing
-      const consentLogs = await storage.getConsentLogsByCase(caseId, userId);
-      const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
+      // Dictation recordings (solicitor's own recollection) do not require client consent
+      const isDictation = caseData.sourceType === 'dictation';
       
-      if (!hasValidConsent) {
-        auditLogger.logFromRequest(AuditEventType.ACCESS_CONTROL_VIOLATION, req, {
-          resourceId: caseId,
-          resourceType: "case",
-          action: "process_without_consent",
-          severity: "high",
-        });
-        return res.status(403).json({ 
-          message: "GDPR compliance error: Valid client consent must be recorded before processing audio recordings" 
-        });
+      if (!isDictation) {
+        const consentLogs = await storage.getConsentLogsByCase(caseId, userId);
+        const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
+        
+        if (!hasValidConsent) {
+          auditLogger.logFromRequest(AuditEventType.ACCESS_CONTROL_VIOLATION, req, {
+            resourceId: caseId,
+            resourceType: "case",
+            action: "process_without_consent",
+            severity: "high",
+          });
+          return res.status(403).json({ 
+            message: "GDPR compliance error: Valid client consent must be recorded before processing audio recordings" 
+          });
+        }
       }
       
       // Check if audio recording exists and has file path
@@ -3482,14 +3487,18 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(400).json({ message: "Only failed cases can be retried" });
       }
       
-      // GDPR Compliance: Verify valid consent exists
-      const consentLogs = await storage.getConsentLogsByCase(caseId, userId);
-      const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
+      // GDPR Compliance: Verify valid consent exists (not required for dictation)
+      const isDictation = caseData.sourceType === 'dictation';
       
-      if (!hasValidConsent) {
-        return res.status(403).json({ 
-          message: "GDPR compliance error: Valid client consent required" 
-        });
+      if (!isDictation) {
+        const consentLogs = await storage.getConsentLogsByCase(caseId, userId);
+        const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
+        
+        if (!hasValidConsent) {
+          return res.status(403).json({ 
+            message: "GDPR compliance error: Valid client consent required" 
+          });
+        }
       }
       
       // Check if audio recording exists
