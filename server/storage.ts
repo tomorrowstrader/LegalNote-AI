@@ -500,6 +500,7 @@ export interface IStorage {
   getAmlDecisionRecords(caseId: string): Promise<AmlDecisionRecord[]>;
   createAmlDecisionRecord(data: InsertAmlDecisionRecord): Promise<AmlDecisionRecord>;
   updateUserComplianceThread(userId: string, enabled: boolean): Promise<User | undefined>;
+  getLastAmlActivityDates(caseIds: string[]): Promise<Record<string, Date>>;
 }
 
 export class MemStorage implements IStorage {
@@ -1788,6 +1789,9 @@ export class MemStorage implements IStorage {
   }
   async updateUserComplianceThread(_userId: string, _enabled: boolean): Promise<User | undefined> {
     throw new Error("Not implemented in MemStorage");
+  }
+  async getLastAmlActivityDates(_caseIds: string[]): Promise<Record<string, Date>> {
+    return {};
   }
 }
 
@@ -4037,6 +4041,34 @@ export class DbStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return updated;
+  }
+
+  async getLastAmlActivityDates(caseIds: string[]): Promise<Record<string, Date>> {
+    if (caseIds.length === 0) return {};
+    const result: Record<string, Date> = {};
+    const noteResults = await db.select({
+      caseId: amlMonitoringNotes.caseId,
+      lastDate: sql<Date>`MAX(${amlMonitoringNotes.createdAt})`,
+    }).from(amlMonitoringNotes)
+      .where(inArray(amlMonitoringNotes.caseId, caseIds))
+      .groupBy(amlMonitoringNotes.caseId);
+    const decisionResults = await db.select({
+      caseId: amlDecisionRecords.caseId,
+      lastDate: sql<Date>`MAX(${amlDecisionRecords.createdAt})`,
+    }).from(amlDecisionRecords)
+      .where(inArray(amlDecisionRecords.caseId, caseIds))
+      .groupBy(amlDecisionRecords.caseId);
+    for (const row of noteResults) {
+      result[row.caseId] = new Date(row.lastDate);
+    }
+    for (const row of decisionResults) {
+      const existing = result[row.caseId];
+      const decDate = new Date(row.lastDate);
+      if (!existing || decDate > existing) {
+        result[row.caseId] = decDate;
+      }
+    }
+    return result;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Shield, Plus, AlertTriangle, ChevronDown, ChevronUp, Clock, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +18,7 @@ interface ComplianceThreadProps {
   caseId: string;
   riskLevel?: string | null;
   clientName?: string;
+  autoOpenNoteForm?: boolean;
 }
 
 const RISK_COLORS: Record<string, string> = {
@@ -32,7 +33,7 @@ const RECORD_TYPE_LABELS: Record<string, string> = {
   completion: "Matter Completion",
 };
 
-export default function ComplianceThread({ caseId, riskLevel, clientName }: ComplianceThreadProps) {
+export default function ComplianceThread({ caseId, riskLevel, clientName, autoOpenNoteForm }: ComplianceThreadProps) {
   const { toast } = useToast();
   const [showAddNote, setShowAddNote] = useState(false);
   const [showDecisionModal, setShowDecisionModal] = useState(false);
@@ -46,6 +47,12 @@ export default function ComplianceThread({ caseId, riskLevel, clientName }: Comp
     eddReasoning: "",
     notes: "",
   });
+
+  useEffect(() => {
+    if (autoOpenNoteForm) {
+      setShowAddNote(true);
+    }
+  }, [autoOpenNoteForm]);
 
   const { data: monitoringNotes = [], isLoading: notesLoading } = useQuery<AmlMonitoringNote[]>({
     queryKey: ["/api/cases", caseId, "aml-monitoring-notes"],
@@ -180,6 +187,12 @@ export default function ComplianceThread({ caseId, riskLevel, clientName }: Comp
                     </div>
                     <p className="text-sm"><span className="font-medium">Concern:</span> {record.concernDescription}</p>
                     <p className="text-sm text-muted-foreground">{record.decisionReasoning}</p>
+                    {record.signatureHash && (
+                      <p className="text-xs text-muted-foreground/60 font-mono truncate" data-testid={`signature-${record.id}`}>
+                        <FileCheck className="w-3 h-3 inline mr-1" />
+                        HMAC-SHA256: {record.signatureHash.slice(0, 16)}...
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               ))}

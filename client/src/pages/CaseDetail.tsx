@@ -53,6 +53,7 @@ export default function CaseDetail() {
   const caseId = params.id;
   const { toast } = useToast();
   const { isFocusMode, toggleFocusMode, exitFocusMode } = useFocusMode();
+  const [autoOpenComplianceNote, setAutoOpenComplianceNote] = useState(false);
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -627,10 +628,11 @@ export default function CaseDetail() {
           <AmlTriggerBanner
             caseData={caseData}
             onAddMonitoringNote={() => {
+              setAutoOpenComplianceNote(true);
               const el = document.querySelector('[data-testid="accordion-compliance-thread"]');
               if (el) {
                 (el as HTMLElement).click();
-                el.scrollIntoView({ behavior: "smooth", block: "start" });
+                setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
               }
             }}
           />
@@ -744,6 +746,7 @@ export default function CaseDetail() {
                     caseId={caseId!}
                     riskLevel={caseData.riskLevel}
                     clientName={caseData.clientName}
+                    autoOpenNoteForm={autoOpenComplianceNote}
                   />
                 ) : (
                   <div className="text-center py-6 space-y-3" data-testid="compliance-locked-prompt">

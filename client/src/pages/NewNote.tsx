@@ -551,7 +551,14 @@ export default function NewNote() {
                   <Alert className="mt-2 border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700" data-testid="alert-client-risk-continuity">
                     <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                     <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
-                      This client has an existing matter rated <span className="font-semibold">{(clientRiskMatch.riskLevel as string).toUpperCase()} risk</span>. Previous risk assessments may apply to this new matter.
+                      This client has an existing matter rated <span className="font-semibold">{(clientRiskMatch.riskLevel as string).toUpperCase()} risk</span>. Previous risk assessments may apply to this new matter.{" "}
+                      <a
+                        href={`/case/${clientRiskMatch.id}`}
+                        className="underline font-medium text-amber-700 dark:text-amber-300"
+                        data-testid="link-review-prior-aml"
+                      >
+                        Review prior AML records
+                      </a>
                     </AlertDescription>
                   </Alert>
                 )}

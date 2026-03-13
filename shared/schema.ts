@@ -1207,6 +1207,7 @@ export const amlDecisionRecords = pgTable("aml_decision_records", {
   concernDescription: text("concern_description").notNull(),
   decision: text("decision").notNull(), // proceed, decline_to_act, sar_considered
   decisionReasoning: text("decision_reasoning").notNull(),
+  signatureHash: text("signature_hash"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -1219,6 +1220,7 @@ export const insertAmlDecisionRecordSchema = createInsertSchema(amlDecisionRecor
   concernDescription: z.string().min(1).max(10000),
   decision: z.enum(["proceed", "decline_to_act", "sar_considered"]),
   decisionReasoning: z.string().min(1).max(50000),
+  signatureHash: z.string().optional(),
 });
 
 export type InsertAmlDecisionRecord = z.infer<typeof insertAmlDecisionRecordSchema>;

@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import crypto from "crypto";
 import puppeteer from "puppeteer";
 
 // Helper to resolve template paths in both dev and production
@@ -7502,14 +7503,28 @@ ${firmName}`;
         userId,
       });
 
-      const record = await storage.createAmlDecisionRecord(validatedData);
+      const sigPayload = JSON.stringify({
+        caseId: validatedData.caseId,
+        userId: validatedData.userId,
+        decision: validatedData.decision,
+        concernDescription: validatedData.concernDescription,
+        decisionReasoning: validatedData.decisionReasoning,
+        timestamp: new Date().toISOString(),
+      });
+      const signingKey = process.env.SESSION_SECRET || process.env.REPL_ID || "legalnote-aml-signing-key";
+      const signatureHash = crypto.createHmac("sha256", signingKey).update(sigPayload).digest("hex");
+
+      const record = await storage.createAmlDecisionRecord({
+        ...validatedData,
+        signatureHash,
+      });
 
       await storage.createAuditLog({
         userId,
         eventType: "aml_decision_recorded",
         resourceType: "case",
         resourceId: caseId,
-        details: { decision: validatedData.decision },
+        details: { decision: validatedData.decision, signatureHash },
         ipAddress: req.ip,
         userAgent: req.get("user-agent") || "",
       });
@@ -7550,6 +7565,22 @@ ${firmName}`;
       }
       console.error("[AML] Error updating risk level:", error);
       res.status(500).json({ message: "Failed to update risk level" });
+    }
+  });
+
+  app.post("/api/aml-activity-dates", isAuthenticated, requireComplianceThread, async (req: any, res) => {
+    try {
+      const { caseIds } = req.body;
+      if (!Array.isArray(caseIds)) return res.status(400).json({ message: "caseIds must be an array" });
+      const dates = await storage.getLastAmlActivityDates(caseIds);
+      const serialized: Record<string, string> = {};
+      for (const [k, v] of Object.entries(dates)) {
+        serialized[k] = v.toISOString();
+      }
+      res.json(serialized);
+    } catch (error: any) {
+      console.error("[AML] Error fetching activity dates:", error);
+      res.status(500).json({ message: "Failed to fetch AML activity dates" });
     }
   });
 

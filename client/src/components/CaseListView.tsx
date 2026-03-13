@@ -28,6 +28,7 @@ function useReducedMotion(): boolean {
 interface CaseListViewProps {
   cases: Case[];
   onCaseClick?: (caseItem: Case) => void;
+  amlActivityDates?: Record<string, string>;
 }
 
 type CaseStatus = "completed" | "processing" | "pending" | "review_required" | "failed";
@@ -46,12 +47,12 @@ const RISK_AGEING_THRESHOLDS: Record<string, number> = {
   high: 91,
 };
 
-function isRiskAgeingOverdue(caseItem: Case): boolean {
+function isRiskAgeingOverdue(caseItem: Case, amlActivityDates?: Record<string, string>): boolean {
   if (!caseItem.riskLevel || caseItem.archived || caseItem.reviewed) return false;
   const threshold = RISK_AGEING_THRESHOLDS[caseItem.riskLevel as string];
   if (!threshold) return false;
-  const daysSinceCreation = differenceInDays(new Date(), new Date(caseItem.createdAt));
-  return daysSinceCreation > threshold;
+  const lastActivity = amlActivityDates?.[caseItem.id] ? new Date(amlActivityDates[caseItem.id]) : new Date(caseItem.createdAt);
+  return differenceInDays(new Date(), lastActivity) > threshold;
 }
 
 function getStatusDotColor(caseItem: Case): string {
@@ -118,7 +119,7 @@ function getPriorityBadge(caseItem: Case) {
   return null;
 }
 
-export default function CaseListView({ cases }: CaseListViewProps) {
+export default function CaseListView({ cases, amlActivityDates }: CaseListViewProps) {
   const [selectedCase, setSelectedCase] = useState<Case | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -286,7 +287,7 @@ export default function CaseListView({ cases }: CaseListViewProps) {
                     {(caseItem.riskLevel as string).charAt(0).toUpperCase()}
                   </Badge>
                 )}
-                {isRiskAgeingOverdue(caseItem) && (
+                {isRiskAgeingOverdue(caseItem, amlActivityDates) && (
                   <Badge className="text-xs no-default-hover-elevate no-default-active-elevate bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" data-testid={`badge-aml-overdue-${caseItem.id}`}>
                     <Shield className="w-3 h-3 mr-0.5" />
                     AML Review

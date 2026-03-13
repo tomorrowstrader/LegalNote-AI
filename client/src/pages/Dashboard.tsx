@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck, Shield, Phone } from "lucide-react";
 import { ScheduledMeetingsViewer } from "@/components/ScheduledMeetingsViewer";
 import StatsCard from "@/components/StatsCard";
@@ -7,7 +7,8 @@ import EmptyState from "@/components/EmptyState";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import type { Case } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInDays, differenceInHours, isPast } from "date-fns";
@@ -65,6 +66,17 @@ export default function Dashboard() {
     queryKey: ["/api/dashboard/attention-stats"],
   });
 
+  const riskCaseIds = useMemo(() => {
+    if (!cases) return [];
+    return cases.filter(c => c.riskLevel && !c.archived && !c.reviewed).map(c => c.id);
+  }, [cases]);
+
+  const { data: amlActivityDates } = useQuery<Record<string, string>>({
+    queryKey: ["/api/aml-activity-dates", riskCaseIds],
+    queryFn: () => apiRequest("POST", "/api/aml-activity-dates", { caseIds: riskCaseIds }),
+    enabled: riskCaseIds.length > 0 && !!user?.complianceThread,
+  });
+
   const { data: productivityStats } = useQuery<ProductivityStats>({
     queryKey: ["/api/dashboard/productivity-stats"],
   });
@@ -114,13 +126,14 @@ export default function Dashboard() {
       if (!c.riskLevel || c.archived || c.reviewed) return false;
       const threshold = RISK_THRESHOLDS[c.riskLevel as string];
       if (!threshold) return false;
-      return differenceInDays(now, new Date(c.createdAt)) > threshold;
+      const lastActivity = amlActivityDates?.[c.id] ? new Date(amlActivityDates[c.id]) : new Date(c.createdAt);
+      return differenceInDays(now, lastActivity) > threshold;
     });
     
     const allClear = overdue.length === 0 && awaitingReviewLong.length === 0 && audioExpiring === 0 && amlReviewDue.length === 0;
     
     return { overdue, awaitingReviewLong, audioExpiring, amlReviewDue, allClear };
-  }, [cases, attentionStats]);
+  }, [cases, attentionStats, amlActivityDates]);
 
   const transformCase = (caseItem: Case) => {
     const creatorName = user?.firstName && user?.lastName 
@@ -393,13 +406,17 @@ export default function Dashboard() {
               </span>
             )}
             {needsAttention.amlReviewDue.length > 0 && (
-              <span
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300"
+              <button
+                onClick={() => {
+                  const first = needsAttention.amlReviewDue[0];
+                  if (first) setLocation(`/case/${first.id}`);
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 cursor-pointer"
                 data-testid="attention-aml-review"
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span className="font-medium">{needsAttention.amlReviewDue.length} AML review due</span>
-              </span>
+              </button>
             )}
           </div>
         )}
@@ -504,7 +521,7 @@ export default function Dashboard() {
                       {searchQuery && ` matching "${searchQuery}"`}
                     </p>
                   </div>
-                  <CaseListView cases={filteredAndSortedCases} />
+                  <CaseListView cases={filteredAndSortedCases} amlActivityDates={amlActivityDates} />
                 </>
               ) : searchQuery ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
