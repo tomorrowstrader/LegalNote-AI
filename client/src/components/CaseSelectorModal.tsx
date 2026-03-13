@@ -32,7 +32,7 @@ export default function CaseSelectorModal({
     enabled: open,
   });
 
-  const activeCases = (cases || []).filter(c => !c.archived && c.status !== "completed");
+  const activeCases = (cases || []).filter(c => !c.archived);
 
   const filtered = search.trim()
     ? activeCases.filter(c =>

@@ -150,8 +150,8 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
       await apiRequest("POST", `/api/cases/${dictationCase.id}/process`);
 
       await logAuditEvent({
-        eventType: "recording_started",
-        metadata: { source: "phone_call_dictation", caseId: dictationCase.id, parentCaseId: caseId, duration: recordingDuration },
+        eventType: "case_created",
+        metadata: { source: "phone_call_dictation", dictationCaseId: dictationCase.id, parentCaseId: caseId, duration: recordingDuration },
         severity: "info",
       });
 
