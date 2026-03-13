@@ -167,69 +167,68 @@ export default function ComplianceThread({ caseId, riskLevel, clientName, autoOp
             <div className="text-sm text-muted-foreground py-2">Loading compliance records...</div>
           )}
 
-          {decisionRecords.length > 0 && (
+          {totalRecords > 0 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                MLRO Decisions
-              </h4>
-              {decisionRecords.map((record) => (
-                <Card key={record.id} className="border-amber-200 dark:border-amber-800">
-                  <CardContent className="p-3 space-y-1">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs" data-testid={`badge-decision-${record.id}`}>
-                        {record.decision === "proceed" ? "Proceed" : record.decision === "decline_to_act" ? "Decline to Act" : "SAR Considered"}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        <Clock className="w-3 h-3 inline mr-1" />
-                        {format(new Date(record.createdAt), "dd MMM yyyy HH:mm")}
-                      </span>
-                    </div>
-                    <p className="text-sm"><span className="font-medium">Concern:</span> {record.concernDescription}</p>
-                    <p className="text-sm text-muted-foreground">{record.decisionReasoning}</p>
-                    {record.signatureHash && (
-                      <p className="text-xs text-muted-foreground/60 font-mono truncate" data-testid={`signature-${record.id}`}>
-                        <FileCheck className="w-3 h-3 inline mr-1" />
-                        HMAC-SHA256: {record.signatureHash.slice(0, 16)}...
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {monitoringNotes.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-muted-foreground">Monitoring Notes</h4>
-              {monitoringNotes.map((note) => (
-                <Card key={note.id}>
-                  <CardContent className="p-3 space-y-1">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs" data-testid={`badge-record-type-${note.id}`}>
-                          {RECORD_TYPE_LABELS[note.recordType] || note.recordType}
-                        </Badge>
-                        {note.riskLevel && (
-                          <Badge className={`no-default-hover-elevate no-default-active-elevate text-xs ${RISK_COLORS[note.riskLevel] || ""}`}>
-                            {note.riskLevel.toUpperCase()}
+              <h4 className="text-sm font-medium text-muted-foreground">Compliance Timeline</h4>
+              {[
+                ...monitoringNotes.map(n => ({ type: "note" as const, record: n, date: new Date(n.createdAt) })),
+                ...decisionRecords.map(d => ({ type: "decision" as const, record: d, date: new Date(d.createdAt) })),
+              ].sort((a, b) => b.date.getTime() - a.date.getTime()).map((entry) => (
+                entry.type === "decision" ? (
+                  <Card key={`decision-${entry.record.id}`} className="border-amber-200 dark:border-amber-800">
+                    <CardContent className="p-3 space-y-1">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                          <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs" data-testid={`badge-decision-${entry.record.id}`}>
+                            {(entry.record as AmlDecisionRecord).decision === "proceed" ? "Proceed" : (entry.record as AmlDecisionRecord).decision === "decline_to_act" ? "Decline to Act" : "SAR Considered"}
                           </Badge>
-                        )}
+                          <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs">MLRO Decision</Badge>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          <Clock className="w-3 h-3 inline mr-1" />
+                          {format(entry.date, "dd MMM yyyy HH:mm")}
+                        </span>
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        <Clock className="w-3 h-3 inline mr-1" />
-                        {format(new Date(note.createdAt), "dd MMM yyyy HH:mm")}
-                      </span>
-                    </div>
-                    {note.sourceOfFundsStatus && (
-                      <p className="text-sm"><span className="font-medium">Source of Funds:</span> {note.sourceOfFundsStatus}</p>
-                    )}
-                    {note.eddDecision && (
-                      <p className="text-sm"><span className="font-medium">EDD:</span> {note.eddDecision}</p>
-                    )}
-                    <p className="text-sm text-muted-foreground">{note.notes}</p>
-                  </CardContent>
-                </Card>
+                      <p className="text-sm"><span className="font-medium">Concern:</span> {(entry.record as AmlDecisionRecord).concernDescription}</p>
+                      <p className="text-sm text-muted-foreground">{(entry.record as AmlDecisionRecord).decisionReasoning}</p>
+                      {(entry.record as AmlDecisionRecord).signatureHash && (
+                        <p className="text-xs text-muted-foreground/60 font-mono truncate" data-testid={`signature-${entry.record.id}`}>
+                          <FileCheck className="w-3 h-3 inline mr-1" />
+                          HMAC-SHA256: {(entry.record as AmlDecisionRecord).signatureHash!.slice(0, 16)}...
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card key={`note-${entry.record.id}`}>
+                    <CardContent className="p-3 space-y-1">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs" data-testid={`badge-record-type-${entry.record.id}`}>
+                            {RECORD_TYPE_LABELS[(entry.record as AmlMonitoringNote).recordType] || (entry.record as AmlMonitoringNote).recordType}
+                          </Badge>
+                          {(entry.record as AmlMonitoringNote).riskLevel && (
+                            <Badge className={`no-default-hover-elevate no-default-active-elevate text-xs ${RISK_COLORS[(entry.record as AmlMonitoringNote).riskLevel!] || ""}`}>
+                              {(entry.record as AmlMonitoringNote).riskLevel!.toUpperCase()}
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          <Clock className="w-3 h-3 inline mr-1" />
+                          {format(entry.date, "dd MMM yyyy HH:mm")}
+                        </span>
+                      </div>
+                      {(entry.record as AmlMonitoringNote).sourceOfFundsStatus && (
+                        <p className="text-sm"><span className="font-medium">Source of Funds:</span> {(entry.record as AmlMonitoringNote).sourceOfFundsStatus}</p>
+                      )}
+                      {(entry.record as AmlMonitoringNote).eddDecision && (
+                        <p className="text-sm"><span className="font-medium">EDD:</span> {(entry.record as AmlMonitoringNote).eddDecision}</p>
+                      )}
+                      <p className="text-sm text-muted-foreground">{(entry.record as AmlMonitoringNote).notes}</p>
+                    </CardContent>
+                  </Card>
+                )
               ))}
             </div>
           )}

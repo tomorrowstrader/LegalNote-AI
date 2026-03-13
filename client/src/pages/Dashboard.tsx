@@ -122,13 +122,13 @@ export default function Dashboard() {
     const audioExpiring = attentionStats?.audioExpiringCount || 0;
 
     const RISK_THRESHOLDS: Record<string, number> = { low: 365, medium: 183, high: 91 };
-    const amlReviewDue = cases.filter(c => {
+    const amlReviewDue = user?.complianceThread ? cases.filter(c => {
       if (!c.riskLevel || c.archived || c.reviewed) return false;
       const threshold = RISK_THRESHOLDS[c.riskLevel as string];
       if (!threshold) return false;
       const lastActivity = amlActivityDates?.[c.id] ? new Date(amlActivityDates[c.id]) : new Date(c.createdAt);
       return differenceInDays(now, lastActivity) > threshold;
-    });
+    }) : [];
     
     const allClear = overdue.length === 0 && awaitingReviewLong.length === 0 && audioExpiring === 0 && amlReviewDue.length === 0;
     
@@ -521,7 +521,7 @@ export default function Dashboard() {
                       {searchQuery && ` matching "${searchQuery}"`}
                     </p>
                   </div>
-                  <CaseListView cases={filteredAndSortedCases} amlActivityDates={amlActivityDates} />
+                  <CaseListView cases={filteredAndSortedCases} amlActivityDates={amlActivityDates} complianceEnabled={!!user?.complianceThread} />
                 </>
               ) : searchQuery ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">

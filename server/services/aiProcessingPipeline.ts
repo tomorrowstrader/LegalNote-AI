@@ -354,8 +354,8 @@ export class AIProcessingPipeline {
         if (!pipelineUser?.complianceThread) {
           console.log(`[AML] Skipping trigger detection - user ${userId} does not have compliance thread enabled`);
         } else {
-          const { detectAmlTriggers, getAmlRiskSuggestion } = await import('./amlTriggerService');
-          const triggers = detectAmlTriggers(transcriptText);
+          const { detectAmlTriggersAI, getAmlRiskSuggestion } = await import('./amlTriggerService');
+          const triggers = await detectAmlTriggersAI(transcriptText);
           if (triggers.length > 0) {
             const suggestedRisk = getAmlRiskSuggestion(triggers);
             const caseUpdate: Record<string, any> = {};

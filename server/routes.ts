@@ -7511,9 +7511,9 @@ ${firmName}`;
         decisionReasoning: validatedData.decisionReasoning,
         timestamp: new Date().toISOString(),
       });
-      const signingKey = process.env.SESSION_SECRET || process.env.REPL_ID;
+      const signingKey = process.env.SESSION_SECRET;
       if (!signingKey) {
-        return res.status(500).json({ message: "Server signing key not configured" });
+        return res.status(500).json({ message: "Server signing key not configured. Set SESSION_SECRET environment variable." });
       }
       const signatureHash = crypto.createHmac("sha256", signingKey).update(sigPayload).digest("hex");
 

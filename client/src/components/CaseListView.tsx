@@ -30,6 +30,7 @@ interface CaseListViewProps {
   cases: Case[];
   onCaseClick?: (caseItem: Case) => void;
   amlActivityDates?: Record<string, string>;
+  complianceEnabled?: boolean;
 }
 
 type CaseStatus = "completed" | "processing" | "pending" | "review_required" | "failed";
@@ -120,7 +121,7 @@ function getPriorityBadge(caseItem: Case) {
   return null;
 }
 
-export default function CaseListView({ cases, amlActivityDates }: CaseListViewProps) {
+export default function CaseListView({ cases, amlActivityDates, complianceEnabled }: CaseListViewProps) {
   const [, setLocation] = useLocation();
   const [selectedCase, setSelectedCase] = useState<Case | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
@@ -279,7 +280,7 @@ export default function CaseListView({ cases, amlActivityDates }: CaseListViewPr
               {/* Priority badge */}
               <div className="hidden sm:flex items-center gap-1.5">
                 {priorityBadge || <span className="text-muted-foreground/50 text-xs">Normal</span>}
-                {caseItem.riskLevel && (
+                {complianceEnabled && caseItem.riskLevel && (
                   <Badge className={cn(
                     "text-xs no-default-hover-elevate no-default-active-elevate",
                     caseItem.riskLevel === "high" && "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
@@ -289,7 +290,7 @@ export default function CaseListView({ cases, amlActivityDates }: CaseListViewPr
                     {(caseItem.riskLevel as string).charAt(0).toUpperCase()}
                   </Badge>
                 )}
-                {isRiskAgeingOverdue(caseItem, amlActivityDates) && (
+                {complianceEnabled && isRiskAgeingOverdue(caseItem, amlActivityDates) && (
                   <Badge
                     className="text-xs cursor-pointer bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
                     onClick={(e) => {

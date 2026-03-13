@@ -1,3 +1,5 @@
+import OpenAI from "openai";
+
 const AML_TRIGGER_PATTERNS = [
   { pattern: /\bcash\s+payment/i, category: "source_of_funds", label: "Cash payment mentioned" },
   { pattern: /\bcash\b/i, category: "source_of_funds", label: "Cash reference" },
@@ -60,6 +62,79 @@ export function detectAmlTriggers(text: string): AmlTrigger[] {
   return triggers;
 }
 
+export async function detectAmlTriggersAI(text: string): Promise<AmlTrigger[]> {
+  if (!text || text.trim().length === 0) return [];
+
+  const regexTriggers = detectAmlTriggers(text);
+
+  try {
+    const openai = new OpenAI();
+    const truncated = text.length > 8000 ? text.slice(0, 8000) + "..." : text;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0,
+      max_tokens: 1000,
+      messages: [
+        {
+          role: "system",
+          content: `You are a UK AML compliance analyst reviewing legal meeting transcripts for potential money laundering, terrorist financing, and regulatory compliance indicators.
+
+Analyse the transcript and identify AML-relevant triggers in these categories:
+- source_of_funds: Unexplained wealth, unusual transaction patterns, cash-heavy dealings, gifted deposits
+- pep: Politically exposed persons, government officials, diplomatic connections
+- sanctions: Sanctioned individuals, entities, or jurisdictions
+- beneficial_ownership: Complex ownership structures, nominees, trusts hiding UBOs
+- corporate_structure: Shell companies, layering through multiple entities
+- jurisdiction: High-risk countries (FATF grey/black list), offshore jurisdictions
+- structuring: Transaction splitting, threshold avoidance
+- aml_direct: Explicit ML/TF references
+- edd: Enhanced due diligence triggers
+- sar: Suspicious activity indicators
+- unusual_instructions: Rush transactions, reluctance to provide information, changed instructions, unusual complexity
+- value_changes: Sudden property value changes, unexplained price adjustments, below-market transactions
+
+Return a JSON array of objects with: category, label (short description), excerpt (relevant text snippet, max 120 chars).
+Return [] if no AML triggers found. Only return genuine compliance concerns, not routine legal discussions.`
+        },
+        {
+          role: "user",
+          content: truncated
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return regexTriggers;
+
+    const parsed = JSON.parse(content);
+    const aiTriggers: AmlTrigger[] = (parsed.triggers || parsed || [])
+      .filter((t: any) => t.category && t.label)
+      .map((t: any) => ({
+        pattern: "ai_analysis",
+        category: t.category,
+        label: t.label,
+        excerpt: t.excerpt || "",
+      }));
+
+    const merged = [...regexTriggers];
+    const existingLabels = new Set(regexTriggers.map(t => t.label.toLowerCase()));
+    for (const aiTrigger of aiTriggers) {
+      if (!existingLabels.has(aiTrigger.label.toLowerCase())) {
+        merged.push(aiTrigger);
+        existingLabels.add(aiTrigger.label.toLowerCase());
+      }
+    }
+
+    console.log(`[AML-AI] Found ${aiTriggers.length} AI triggers, ${regexTriggers.length} regex triggers, ${merged.length} merged total`);
+    return merged;
+  } catch (error) {
+    console.error("[AML-AI] AI trigger detection failed, falling back to regex:", error);
+    return regexTriggers;
+  }
+}
+
 export function getAmlRiskSuggestion(triggers: AmlTrigger[]): "low" | "medium" | "high" | null {
   if (triggers.length === 0) return null;
 
@@ -71,6 +146,10 @@ export function getAmlRiskSuggestion(triggers: AmlTrigger[]): "low" | "medium" |
 
   if (categories.has("pep") || categories.has("sanctions") || categories.has("jurisdiction") || categories.has("edd")) {
     return "high";
+  }
+
+  if (categories.has("unusual_instructions") || categories.has("value_changes")) {
+    return "medium";
   }
 
   if (categories.has("beneficial_ownership") || categories.has("corporate_structure") || categories.size >= 3) {
