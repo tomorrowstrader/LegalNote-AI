@@ -57,3 +57,7 @@ PREVIEW_MODE = "true"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-2167990c-3ac9-415b-8a93-bc7d4a097cbb"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
