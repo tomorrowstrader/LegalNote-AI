@@ -7511,7 +7511,10 @@ ${firmName}`;
         decisionReasoning: validatedData.decisionReasoning,
         timestamp: new Date().toISOString(),
       });
-      const signingKey = process.env.SESSION_SECRET || process.env.REPL_ID || "legalnote-aml-signing-key";
+      const signingKey = process.env.SESSION_SECRET || process.env.REPL_ID;
+      if (!signingKey) {
+        return res.status(500).json({ message: "Server signing key not configured" });
+      }
       const signatureHash = crypto.createHmac("sha256", signingKey).update(sigPayload).digest("hex");
 
       const record = await storage.createAmlDecisionRecord({
@@ -7570,9 +7573,13 @@ ${firmName}`;
 
   app.post("/api/aml-activity-dates", isAuthenticated, requireComplianceThread, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const { caseIds } = req.body;
       if (!Array.isArray(caseIds)) return res.status(400).json({ message: "caseIds must be an array" });
-      const dates = await storage.getLastAmlActivityDates(caseIds);
+      const userCases = await storage.getCases(userId);
+      const ownedIds = new Set(userCases.map(c => c.id));
+      const validatedCaseIds = caseIds.filter((id: string) => ownedIds.has(id));
+      const dates = await storage.getLastAmlActivityDates(validatedCaseIds);
       const serialized: Record<string, string> = {};
       for (const [k, v] of Object.entries(dates)) {
         serialized[k] = v.toISOString();

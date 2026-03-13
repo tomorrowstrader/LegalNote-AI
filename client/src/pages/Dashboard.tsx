@@ -409,7 +409,7 @@ export default function Dashboard() {
               <button
                 onClick={() => {
                   const first = needsAttention.amlReviewDue[0];
-                  if (first) setLocation(`/case/${first.id}`);
+                  if (first) setLocation(`/case/${first.id}?tab=compliance`);
                 }}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 cursor-pointer"
                 data-testid="attention-aml-review"

@@ -66,7 +66,7 @@ export default function CaseDetail() {
   
   // Parse URL search parameters for deep linking from search results
   const searchParams = new URLSearchParams(search);
-  const urlTab = searchParams.get('tab') as 'attendance' | 'summary' | 'transcript' | null;
+  const urlTab = searchParams.get('tab') as 'attendance' | 'summary' | 'transcript' | 'compliance' | null;
   const urlTimestamp = searchParams.get('timestamp');
 
   const handleTranscriptTimestampClick = (timeMs: number) => {
@@ -640,7 +640,7 @@ export default function CaseDetail() {
 
         {/* Briefing Stack - Collapsible Sections */}
         <div className="mt-8">
-          <Accordion type="multiple" defaultValue={["quick-notes", "action-items"]} className="space-y-4">
+          <Accordion type="multiple" defaultValue={urlTab === "compliance" ? ["quick-notes", "action-items", "compliance-thread"] : ["quick-notes", "action-items"]} className="space-y-4">
             {/* Quick Notes Section */}
             <AccordionItem value="quick-notes" className="bg-card rounded-lg border border-border px-6">
               <AccordionTrigger className="hover:no-underline" data-testid="accordion-quick-notes">

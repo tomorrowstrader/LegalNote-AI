@@ -348,24 +348,29 @@ export class AIProcessingPipeline {
       // Update case status to review_required
       await this.storage.updateCase(caseId, { status: 'review_required' }, userId);
 
-      // AML Trigger Detection: scan transcript for compliance-relevant language
+      // AML Trigger Detection: scan transcript for compliance-relevant language (only for entitled users)
       try {
-        const { detectAmlTriggers, getAmlRiskSuggestion } = await import('./amlTriggerService');
-        const triggers = detectAmlTriggers(transcriptText);
-        if (triggers.length > 0) {
-          const suggestedRisk = getAmlRiskSuggestion(triggers);
-          const caseUpdate: Record<string, any> = {};
-          const currentCase = await this.storage.getCase(caseId, userId);
-          if (!currentCase?.riskLevel && suggestedRisk) {
-            caseUpdate.riskLevel = suggestedRisk;
+        const pipelineUser = await this.storage.getUser(userId);
+        if (!pipelineUser?.complianceThread) {
+          console.log(`[AML] Skipping trigger detection - user ${userId} does not have compliance thread enabled`);
+        } else {
+          const { detectAmlTriggers, getAmlRiskSuggestion } = await import('./amlTriggerService');
+          const triggers = detectAmlTriggers(transcriptText);
+          if (triggers.length > 0) {
+            const suggestedRisk = getAmlRiskSuggestion(triggers);
+            const caseUpdate: Record<string, any> = {};
+            const currentCase = await this.storage.getCase(caseId, userId);
+            if (!currentCase?.riskLevel && suggestedRisk) {
+              caseUpdate.riskLevel = suggestedRisk;
+            }
+            if (Object.keys(caseUpdate).length > 0) {
+              await this.storage.updateCase(caseId, caseUpdate, userId);
+            }
+            await this.updateProcessingStatus(caseId, userId, {
+              amlTriggers: triggers,
+            });
+            console.log(`[AML] Detected ${triggers.length} trigger(s) in case ${caseId}, suggested risk: ${suggestedRisk}`);
           }
-          if (Object.keys(caseUpdate).length > 0) {
-            await this.storage.updateCase(caseId, caseUpdate, userId);
-          }
-          await this.updateProcessingStatus(caseId, userId, {
-            amlTriggers: triggers,
-          });
-          console.log(`[AML] Detected ${triggers.length} trigger(s) in case ${caseId}, suggested risk: ${suggestedRisk}`);
         }
       } catch (amlError) {
         console.error('[AML] Trigger detection failed (non-blocking):', amlError);
