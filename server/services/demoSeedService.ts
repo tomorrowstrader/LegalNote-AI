@@ -748,7 +748,7 @@ Client expressly confirmed:
     ]
   },
   {
-    title: "Commercial Property Acquisition - Unit 7 Riverside Business Park",
+    title: "Patterson Commercial Property [DEMO]",
     clientName: "Richard Patterson",
     matterReference: "COMP/2024/0291",
     status: "review_required" as const,
