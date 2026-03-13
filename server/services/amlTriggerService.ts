@@ -108,10 +108,17 @@ Return [] if no AML triggers found. Only return genuine compliance concerns, not
     const content = response.choices[0]?.message?.content;
     if (!content) return regexTriggers;
 
-    const parsed = JSON.parse(content);
-    const aiTriggers: AmlTrigger[] = (parsed.triggers || parsed || [])
-      .filter((t: any) => t.category && t.label)
-      .map((t: any) => ({
+    interface AiTriggerResponse {
+      category?: string;
+      label?: string;
+      excerpt?: string;
+    }
+
+    const parsed = JSON.parse(content) as { triggers?: AiTriggerResponse[] } | AiTriggerResponse[];
+    const rawTriggers: AiTriggerResponse[] = Array.isArray(parsed) ? parsed : (parsed.triggers || []);
+    const aiTriggers: AmlTrigger[] = rawTriggers
+      .filter((t): t is AiTriggerResponse & { category: string; label: string } => !!t.category && !!t.label)
+      .map((t) => ({
         pattern: "ai_analysis",
         category: t.category,
         label: t.label,

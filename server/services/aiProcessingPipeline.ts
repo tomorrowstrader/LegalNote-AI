@@ -358,13 +358,9 @@ export class AIProcessingPipeline {
           const triggers = await detectAmlTriggersAI(transcriptText);
           if (triggers.length > 0) {
             const suggestedRisk = getAmlRiskSuggestion(triggers);
-            const caseUpdate: Record<string, any> = {};
             const currentCase = await this.storage.getCase(caseId, userId);
             if (!currentCase?.riskLevel && suggestedRisk) {
-              caseUpdate.riskLevel = suggestedRisk;
-            }
-            if (Object.keys(caseUpdate).length > 0) {
-              await this.storage.updateCase(caseId, caseUpdate, userId);
+              await this.storage.updateCase(caseId, { riskLevel: suggestedRisk }, userId);
             }
             await this.updateProcessingStatus(caseId, userId, {
               amlTriggers: triggers,
