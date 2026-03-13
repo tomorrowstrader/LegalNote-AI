@@ -1177,7 +1177,7 @@ export async function seedDemoData(userId: string): Promise<{ success: boolean; 
           decisionReasoning: "Following review of the source of funds change, I am satisfied that this matter can proceed for the following reasons:\n\n1. Riverside Holdings Ltd is a UK-incorporated company (verified via Companies House) with a 6-year trading history and filed accounts.\n2. The loan is a standard commercial arrangement documented in a formal facility agreement with market-rate interest.\n3. Richard Patterson is not a director or shareholder of Riverside Holdings Ltd — the connection is a longstanding commercial relationship (logistics subcontracting).\n4. The loan amount (£150,000) represents 12.5% of the total purchase price and does not fundamentally alter the risk profile.\n5. No indicators of layering, structuring, or proceeds of crime.\n6. NatWest (regulated lender) is providing the majority external funding and will conduct their own AML checks.\n\nDecision: PROCEED with updated monitoring. No SAR required. Risk level maintained at MEDIUM pending completion. Matter to be reviewed again at completion stage.",
           timestamp: mlroDate.toISOString(),
         });
-        const signingKey = process.env.SESSION_SECRET || "demo-signing-key";
+        const signingKey = process.env.SESSION_SECRET || (process.env.NODE_ENV === "development" ? "demo-signing-key" : "");
         const signatureHash = crypto.createHmac("sha256", signingKey).update(sigPayload).digest("hex");
 
         await db.insert(amlDecisionRecords).values({
