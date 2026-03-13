@@ -18,7 +18,7 @@ interface ComplianceThreadProps {
   caseId: string;
   riskLevel?: string | null;
   clientName?: string;
-  autoOpenNoteForm?: boolean;
+  autoOpenNoteForm?: number;
 }
 
 const RISK_COLORS: Record<string, string> = {
@@ -49,8 +49,9 @@ export default function ComplianceThread({ caseId, riskLevel, clientName, autoOp
   });
 
   useEffect(() => {
-    if (autoOpenNoteForm) {
+    if (autoOpenNoteForm && autoOpenNoteForm > 0) {
       setShowAddNote(true);
+      setExpanded(true);
     }
   }, [autoOpenNoteForm]);
 
