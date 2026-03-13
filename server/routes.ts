@@ -3308,6 +3308,23 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         action: "generate",
         severity: "low",
       });
+
+      try {
+        const transcribeUser = await storage.getUser(userId);
+        if (transcribeUser?.complianceThread && result.text) {
+          const { detectAmlTriggersAI, getAmlRiskSuggestion } = await import('./services/amlTriggerService');
+          const triggers = await detectAmlTriggersAI(result.text);
+          if (triggers.length > 0) {
+            const suggestedRisk = getAmlRiskSuggestion(triggers);
+            if (!caseData.riskLevel && suggestedRisk) {
+              await storage.updateCase(caseId, { riskLevel: suggestedRisk }, userId);
+            }
+            console.log(`[AML] Transcribe path: detected ${triggers.length} trigger(s) in case ${caseId}, suggested risk: ${suggestedRisk}`);
+          }
+        }
+      } catch (amlError) {
+        console.error('[AML] Post-transcribe trigger detection failed (non-blocking):', amlError);
+      }
       
       res.json({ transcript, message: "Transcription completed" });
     } catch (error: any) {

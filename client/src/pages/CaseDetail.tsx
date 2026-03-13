@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X, Phone } from "lucide-react";
+import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X, Phone, Lock } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -755,9 +755,17 @@ export default function CaseDetail() {
                       <p className="font-medium text-sm">Compliance Thread</p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Per-matter AML monitoring, risk assessments, and MLRO decision records.
-                        Contact your account administrator to enable this premium feature.
                       </p>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.location.href = "/settings"}
+                      data-testid="button-upgrade-compliance"
+                    >
+                      <Lock className="w-3.5 h-3.5 mr-1" />
+                      Enable in Settings
+                    </Button>
                   </div>
                 )}
               </AccordionContent>
