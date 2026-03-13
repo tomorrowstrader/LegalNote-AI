@@ -7480,9 +7480,12 @@ ${firmName}`;
       await storage.createAuditLog({
         userId,
         eventType: "aml_monitoring_note_created",
-        resourceType: "case",
-        resourceId: caseId,
-        details: { recordType: validatedData.recordType, riskLevel: validatedData.riskLevel },
+        caseId,
+        metadata: {
+          recordType: validatedData.recordType,
+          riskLevel: validatedData.riskLevel,
+          noteId: note.id,
+        },
         ipAddress: req.ip,
         userAgent: req.get("user-agent") || "",
       });
@@ -7546,11 +7549,17 @@ ${firmName}`;
       await storage.createAuditLog({
         userId,
         eventType: "aml_decision_recorded",
-        resourceType: "case",
-        resourceId: caseId,
-        details: { decision: validatedData.decision, signatureHash },
+        caseId,
+        metadata: {
+          decision: validatedData.decision,
+          signatureHash,
+          concernDescription: validatedData.concernDescription,
+          decisionReasoning: validatedData.decisionReasoning,
+          recordId: record.id,
+        },
         ipAddress: req.ip,
         userAgent: req.get("user-agent") || "",
+        severity: "high",
       });
 
       res.status(201).json(record);
@@ -7575,9 +7584,8 @@ ${firmName}`;
       await storage.createAuditLog({
         userId,
         eventType: "case_risk_level_updated",
-        resourceType: "case",
-        resourceId: caseId,
-        details: { riskLevel: validLevel },
+        caseId,
+        metadata: { riskLevel: validLevel },
         ipAddress: req.ip,
         userAgent: req.get("user-agent") || "",
       });
