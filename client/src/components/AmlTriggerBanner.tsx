@@ -24,23 +24,32 @@ interface AiProcessingMetadata {
   [key: string]: unknown;
 }
 
+function computeTriggerHash(triggers: AmlTrigger[]): string {
+  return triggers.map(t => `${t.category}:${t.label}`).sort().join("|");
+}
+
 export default function AmlTriggerBanner({ caseData, onAddMonitoringNote }: AmlTriggerBannerProps) {
   const [dismissed, setDismissed] = useState(false);
 
+  const metadata = caseData.aiProcessingMetadata as AiProcessingMetadata | null;
+  const triggers: AmlTrigger[] = metadata?.amlTriggers || [];
+  const triggerHash = computeTriggerHash(triggers);
   const storageKey = `aml-banner-dismissed-${caseData.id}`;
 
   useEffect(() => {
     const stored = localStorage.getItem(storageKey);
-    if (stored === "true") setDismissed(true);
-  }, [storageKey]);
+    if (stored && stored === triggerHash) {
+      setDismissed(true);
+    } else if (stored && stored !== triggerHash) {
+      setDismissed(false);
+      localStorage.removeItem(storageKey);
+    }
+  }, [storageKey, triggerHash]);
 
   const handleDismiss = () => {
     setDismissed(true);
-    localStorage.setItem(storageKey, "true");
+    localStorage.setItem(storageKey, triggerHash);
   };
-
-  const metadata = caseData.aiProcessingMetadata as AiProcessingMetadata | null;
-  const triggers: AmlTrigger[] = metadata?.amlTriggers || [];
 
   if (dismissed || triggers.length === 0) return null;
 
