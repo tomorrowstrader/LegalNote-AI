@@ -3,6 +3,7 @@ import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileTe
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -88,13 +89,19 @@ export default function CaseDetail() {
   
   const { data: audioData, isLoading: audioLoading } = useQuery<AudioRecording>({
     queryKey: [`/api/audio/by-case/${caseId}`],
-    enabled: !!caseId && caseData?.sourceType === 'audio',
+    enabled: !!caseId && (caseData?.sourceType === 'audio' || caseData?.sourceType === 'dictation'),
   });
 
   const { data: consentLogs = [], isLoading: consentLoading } = useQuery<ConsentLog[]>({
     queryKey: [`/api/consent/by-case/${caseId}`],
     enabled: !!caseId && caseData?.sourceType === 'audio',
   });
+
+  const { data: allCases } = useQuery<Case[]>({
+    queryKey: ["/api/cases"],
+    enabled: !!caseId,
+  });
+  const linkedDictations = (allCases || []).filter(c => c.parentCaseId === caseId && c.sourceType === 'dictation');
 
   interface SpeakerUtterance {
     speaker: string;
@@ -307,8 +314,23 @@ export default function CaseDetail() {
                 {caseData.title}
               </h1>
               <p className={`text-muted-foreground ${isFocusMode ? 'text-xl' : 'text-lg'}`}>{caseData.clientName}</p>
+              {caseData.parentCaseId && (
+                <button
+                  className="text-sm text-accent underline underline-offset-2 mt-1 text-left"
+                  onClick={() => setLocation(`/case/${caseData.parentCaseId}`)}
+                  data-testid="link-parent-case"
+                >
+                  View parent matter
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
+              {caseData.sourceType === 'dictation' && (
+                <Badge variant="secondary" data-testid="badge-dictation">
+                  <Phone className="w-3 h-3 mr-1" />
+                  Telephone Attendance
+                </Badge>
+              )}
               {caseData.sourceType === 'audio' && hasValidConsent ? (
                 <Badge className="bg-accent" data-testid="badge-gdpr-compliant">
                   <Shield className="w-3 h-3 mr-1" />
@@ -540,22 +562,26 @@ export default function CaseDetail() {
           </div>
         )}
 
-        {caseData.sourceType === 'audio' && caseData.status === 'pending' && !caseData.transcript && (
+        {(caseData.sourceType === 'audio' || caseData.sourceType === 'dictation') && caseData.status === 'pending' && !caseData.transcript && (
           <div className="mb-8 p-6 bg-card rounded-lg border border-border">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <h3 className="font-semibold text-foreground mb-1">
-                  {hasValidConsent ? 'Ready for AI Processing' : 'Consent Required Before Processing'}
+                  {caseData.sourceType === 'dictation'
+                    ? 'Ready for AI Processing'
+                    : hasValidConsent ? 'Ready for AI Processing' : 'Consent Required Before Processing'}
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  {hasValidConsent 
-                    ? 'Your audio recording is ready. Click below to transcribe and generate legal documents.'
-                    : 'Valid client consent must be recorded before AI processing can begin. This is required for GDPR compliance.'}
+                  {caseData.sourceType === 'dictation'
+                    ? 'Your dictation is ready. Click below to transcribe and generate the telephone attendance note.'
+                    : hasValidConsent 
+                      ? 'Your audio recording is ready. Click below to transcribe and generate legal documents.'
+                      : 'Valid client consent must be recorded before AI processing can begin. This is required for GDPR compliance.'}
                 </p>
               </div>
               <Button
                 onClick={() => processAIMutation.mutate()}
-                disabled={processAIMutation.isPending || !hasValidConsent}
+                disabled={processAIMutation.isPending || (caseData.sourceType !== 'dictation' && !hasValidConsent)}
                 className="gap-2 bg-accent hover:bg-accent"
                 data-testid="button-process-ai"
               >
@@ -670,6 +696,42 @@ export default function CaseDetail() {
                     audioRecording={audioData}
                     consentLogs={consentLogs}
                   />
+                </AccordionContent>
+              </AccordionItem>
+            )}
+
+            {linkedDictations.length > 0 && (
+              <AccordionItem value="linked-calls" className="bg-card rounded-lg border border-border px-6">
+                <AccordionTrigger className="hover:no-underline" data-testid="accordion-linked-calls">
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-5 h-5 text-accent" />
+                    <span className="font-semibold">Telephone Attendance Notes</span>
+                    <Badge variant="secondary" className="text-xs">{linkedDictations.length}</Badge>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-2">
+                    {linkedDictations.map(d => (
+                      <Card
+                        key={d.id}
+                        className="cursor-pointer hover-elevate"
+                        onClick={() => setLocation(`/case/${d.id}`)}
+                        data-testid={`linked-call-${d.id}`}
+                      >
+                        <CardContent className="p-3 flex items-center justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-medium">{d.title}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(d.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                          <Badge variant={d.status === 'completed' || d.status === 'review_required' ? 'secondary' : 'outline'} className="text-xs shrink-0">
+                            {d.status === 'review_required' ? 'Ready for Review' : d.status === 'completed' ? 'Completed' : d.status === 'processing' ? 'Processing' : 'Pending'}
+                          </Badge>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             )}

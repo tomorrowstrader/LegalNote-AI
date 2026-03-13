@@ -121,6 +121,7 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
         clientName,
         matterReference: matterReference || "",
         sourceType: "dictation",
+        parentCaseId: caseId,
         priority: "normal",
       });
 
@@ -167,7 +168,7 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
       });
 
       onOpenChange(false);
-      setLocation(`/cases/${dictationCase.id}`);
+      setLocation(`/case/${dictationCase.id}`);
     } catch (error: any) {
       toast({
         title: "Failed to save dictation",
