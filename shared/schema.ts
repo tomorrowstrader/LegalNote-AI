@@ -25,6 +25,7 @@ export const users = pgTable("users", {
   subscriptionStatus: varchar("subscription_status"), // active, trialing, past_due, canceled, unpaid
   subscriptionPlan: varchar("subscription_plan"), // solo, team
   trialEndsAt: timestamp("trial_ends_at"),
+  complianceThread: boolean("compliance_thread").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -42,6 +43,7 @@ export const cases = pgTable("cases", {
   sourceType: text("source_type").notNull(), // audio, text, dictation
   templateId: text("template_id"), // Template used for this case (e.g., matter_inception)
   parentCaseId: varchar("parent_case_id").references(() => cases.id), // Links dictation notes back to parent matter
+  riskLevel: text("risk_level"), // AML risk level: low, medium, high
   textNotes: text("text_notes"), // For text-based notes when consent declined
   reviewed: boolean("reviewed").notNull().default(false), // Marks case as reviewed by solicitor
   archived: boolean("archived").notNull().default(false), // Soft delete / archive functionality
@@ -518,6 +520,7 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   sourceType: z.enum(["audio", "text", "dictation"]),
   templateId: z.string().max(100).optional(),
   parentCaseId: z.string().uuid().optional(),
+  riskLevel: z.enum(["low", "medium", "high"]).optional(),
   textNotes: z.string().max(100000).optional(), // 100KB limit for text notes
   litigationHold: z.boolean().default(false),
   litigationHoldReason: z.string().max(2000).optional(),
@@ -1166,3 +1169,57 @@ export const insertDocumentCommentSchema = createInsertSchema(documentComments).
 
 export type InsertDocumentComment = z.infer<typeof insertDocumentCommentSchema>;
 export type DocumentComment = typeof documentComments.$inferSelect;
+
+export const amlMonitoringNotes = pgTable("aml_monitoring_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  recordType: text("record_type").notNull(), // inception, monitoring, completion
+  riskLevel: text("risk_level"), // low, medium, high
+  sourceOfFundsStatus: text("source_of_funds_status"),
+  eddDecision: text("edd_decision"),
+  eddReasoning: text("edd_reasoning"),
+  notes: text("notes").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertAmlMonitoringNoteSchema = createInsertSchema(amlMonitoringNotes).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  userId: z.string().min(1),
+  recordType: z.enum(["inception", "monitoring", "completion"]),
+  riskLevel: z.enum(["low", "medium", "high"]).optional(),
+  sourceOfFundsStatus: z.string().max(2000).optional(),
+  eddDecision: z.string().max(500).optional(),
+  eddReasoning: z.string().max(5000).optional(),
+  notes: z.string().min(1).max(50000),
+});
+
+export type InsertAmlMonitoringNote = z.infer<typeof insertAmlMonitoringNoteSchema>;
+export type AmlMonitoringNote = typeof amlMonitoringNotes.$inferSelect;
+
+export const amlDecisionRecords = pgTable("aml_decision_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  concernDescription: text("concern_description").notNull(),
+  decision: text("decision").notNull(), // proceed, decline_to_act, sar_considered
+  decisionReasoning: text("decision_reasoning").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertAmlDecisionRecordSchema = createInsertSchema(amlDecisionRecords).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  userId: z.string().min(1),
+  concernDescription: z.string().min(1).max(10000),
+  decision: z.enum(["proceed", "decline_to_act", "sar_considered"]),
+  decisionReasoning: z.string().min(1).max(50000),
+});
+
+export type InsertAmlDecisionRecord = z.infer<typeof insertAmlDecisionRecordSchema>;
+export type AmlDecisionRecord = typeof amlDecisionRecords.$inferSelect;

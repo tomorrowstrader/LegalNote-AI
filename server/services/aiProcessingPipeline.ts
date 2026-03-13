@@ -348,6 +348,29 @@ export class AIProcessingPipeline {
       // Update case status to review_required
       await this.storage.updateCase(caseId, { status: 'review_required' }, userId);
 
+      // AML Trigger Detection: scan transcript for compliance-relevant language
+      try {
+        const { detectAmlTriggers, getAmlRiskSuggestion } = await import('./amlTriggerService');
+        const triggers = detectAmlTriggers(transcriptContent);
+        if (triggers.length > 0) {
+          const suggestedRisk = getAmlRiskSuggestion(triggers);
+          const caseUpdate: Record<string, any> = {};
+          const currentCase = await this.storage.getCase(caseId, userId);
+          if (!currentCase?.riskLevel && suggestedRisk) {
+            caseUpdate.riskLevel = suggestedRisk;
+          }
+          if (Object.keys(caseUpdate).length > 0) {
+            await this.storage.updateCase(caseId, caseUpdate, userId);
+          }
+          await this.updateProcessingStatus(caseId, userId, {
+            amlTriggers: triggers,
+          });
+          console.log(`[AML] Detected ${triggers.length} trigger(s) in case ${caseId}, suggested risk: ${suggestedRisk}`);
+        }
+      } catch (amlError) {
+        console.error('[AML] Trigger detection failed (non-blocking):', amlError);
+      }
+
       // GDPR Compliance: Delete audio immediately after successful processing
       // This implements "whichever comes first" - 7 days OR successful processing
       try {

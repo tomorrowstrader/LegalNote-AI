@@ -1687,6 +1687,32 @@ export default function Settings() {
               <CardContent className="space-y-6">
                 <div className="space-y-4">
                   <div className="p-4 bg-muted rounded-md">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1">
+                        <Shield className="w-5 h-5 text-accent mt-0.5" />
+                        <div>
+                          <p className="font-medium">Compliance Thread (AML/KYC)</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Enable per-matter AML monitoring notes, risk assessments, MLRO decision records, and automatic trigger detection from transcripts.
+                          </p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={user?.complianceThread ?? false}
+                        onCheckedChange={async (checked) => {
+                          try {
+                            await apiRequest("PATCH", "/api/user/compliance-thread", { enabled: checked });
+                            queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+                          } catch (e) {
+                            console.error("Failed to toggle compliance thread:", e);
+                          }
+                        }}
+                        data-testid="switch-compliance-thread"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-muted rounded-md">
                     <div className="flex items-start gap-3">
                       <Shield className="w-5 h-5 text-accent mt-0.5" />
                       <div>

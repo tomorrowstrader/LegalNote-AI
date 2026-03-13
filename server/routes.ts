@@ -26,7 +26,7 @@ function resolveTemplatePath(filename: string): string {
   return possiblePaths[0];
 }
 import { storage } from "./storage";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema } from "@shared/schema";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
@@ -7405,6 +7405,155 @@ ${firmName}`;
       clearInterval(heartbeat);
       sseClients.get(userId)?.delete(res);
     });
+  });
+
+  // ==================== Compliance Thread Routes ====================
+
+  app.get("/api/cases/:caseId/aml-monitoring-notes", isAuthenticated, async (req: any, res) => {
+    try {
+      const { caseId } = req.params;
+      const userId = req.user.claims.sub;
+      const caseRecord = await storage.getCase(caseId, userId);
+      if (!caseRecord) return res.status(404).json({ message: "Case not found" });
+      const notes = await storage.getAmlMonitoringNotes(caseId);
+      res.json(notes);
+    } catch (error: any) {
+      console.error("[AML] Error fetching monitoring notes:", error);
+      res.status(500).json({ message: "Failed to fetch AML monitoring notes" });
+    }
+  });
+
+  app.post("/api/cases/:caseId/aml-monitoring-notes", isAuthenticated, async (req: any, res) => {
+    try {
+      const { caseId } = req.params;
+      const userId = req.user.claims.sub;
+      const caseRecord = await storage.getCase(caseId, userId);
+      if (!caseRecord) return res.status(404).json({ message: "Case not found" });
+
+      const validatedData = insertAmlMonitoringNoteSchema.parse({
+        ...req.body,
+        caseId,
+        userId,
+      });
+
+      const note = await storage.createAmlMonitoringNote(validatedData);
+
+      if (validatedData.riskLevel) {
+        await storage.updateCase(caseId, { riskLevel: validatedData.riskLevel }, userId);
+      }
+
+      await storage.createAuditLog({
+        userId,
+        eventType: "aml_monitoring_note_created",
+        resourceType: "case",
+        resourceId: caseId,
+        details: { recordType: validatedData.recordType, riskLevel: validatedData.riskLevel },
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent") || "",
+      });
+
+      res.status(201).json(note);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      console.error("[AML] Error creating monitoring note:", error);
+      res.status(500).json({ message: "Failed to create AML monitoring note" });
+    }
+  });
+
+  app.get("/api/cases/:caseId/aml-decision-records", isAuthenticated, async (req: any, res) => {
+    try {
+      const { caseId } = req.params;
+      const userId = req.user.claims.sub;
+      const caseRecord = await storage.getCase(caseId, userId);
+      if (!caseRecord) return res.status(404).json({ message: "Case not found" });
+      const records = await storage.getAmlDecisionRecords(caseId);
+      res.json(records);
+    } catch (error: any) {
+      console.error("[AML] Error fetching decision records:", error);
+      res.status(500).json({ message: "Failed to fetch AML decision records" });
+    }
+  });
+
+  app.post("/api/cases/:caseId/aml-decision-records", isAuthenticated, async (req: any, res) => {
+    try {
+      const { caseId } = req.params;
+      const userId = req.user.claims.sub;
+      const caseRecord = await storage.getCase(caseId, userId);
+      if (!caseRecord) return res.status(404).json({ message: "Case not found" });
+
+      const validatedData = insertAmlDecisionRecordSchema.parse({
+        ...req.body,
+        caseId,
+        userId,
+      });
+
+      const record = await storage.createAmlDecisionRecord(validatedData);
+
+      await storage.createAuditLog({
+        userId,
+        eventType: "aml_decision_recorded",
+        resourceType: "case",
+        resourceId: caseId,
+        details: { decision: validatedData.decision },
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent") || "",
+      });
+
+      res.status(201).json(record);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      console.error("[AML] Error creating decision record:", error);
+      res.status(500).json({ message: "Failed to create AML decision record" });
+    }
+  });
+
+  app.patch("/api/cases/:caseId/risk-level", isAuthenticated, async (req: any, res) => {
+    try {
+      const { caseId } = req.params;
+      const userId = req.user.claims.sub;
+      const { riskLevel } = req.body;
+      const validLevel = z.enum(["low", "medium", "high"]).parse(riskLevel);
+      const updated = await storage.updateCase(caseId, { riskLevel: validLevel }, userId);
+      if (!updated) return res.status(404).json({ message: "Case not found" });
+
+      await storage.createAuditLog({
+        userId,
+        eventType: "case_risk_level_updated",
+        resourceType: "case",
+        resourceId: caseId,
+        details: { riskLevel: validLevel },
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent") || "",
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: "Invalid risk level" });
+      }
+      console.error("[AML] Error updating risk level:", error);
+      res.status(500).json({ message: "Failed to update risk level" });
+    }
+  });
+
+  app.patch("/api/user/compliance-thread", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { enabled } = req.body;
+      if (typeof enabled !== "boolean") {
+        return res.status(400).json({ message: "enabled must be a boolean" });
+      }
+      const updated = await storage.updateUserComplianceThread(userId, enabled);
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[AML] Error toggling compliance thread:", error);
+      res.status(500).json({ message: "Failed to update compliance thread setting" });
+    }
   });
 
   const httpServer = createServer(app);

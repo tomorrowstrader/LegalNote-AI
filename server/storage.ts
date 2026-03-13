@@ -28,6 +28,8 @@ import {
   type LinkedinHookVariant, type InsertLinkedinHookVariant,
   type LinkedinPostChatMessage, type InsertLinkedinPostChatMessage,
   type DocumentComment, type InsertDocumentComment,
+  type AmlMonitoringNote, type InsertAmlMonitoringNote,
+  type AmlDecisionRecord, type InsertAmlDecisionRecord,
   users,
   cases,
   audioRecordings,
@@ -56,7 +58,9 @@ import {
   linkedinInboundLeads,
   linkedinHookVariants,
   linkedinPostChatMessages,
-  documentComments
+  documentComments,
+  amlMonitoringNotes,
+  amlDecisionRecords,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -490,6 +494,12 @@ export interface IStorage {
   createDocumentComment(data: InsertDocumentComment): Promise<DocumentComment>;
   updateDocumentComment(id: string, updates: Partial<DocumentComment>): Promise<DocumentComment | undefined>;
   deleteDocumentComment(id: string): Promise<void>;
+
+  getAmlMonitoringNotes(caseId: string): Promise<AmlMonitoringNote[]>;
+  createAmlMonitoringNote(data: InsertAmlMonitoringNote): Promise<AmlMonitoringNote>;
+  getAmlDecisionRecords(caseId: string): Promise<AmlDecisionRecord[]>;
+  createAmlDecisionRecord(data: InsertAmlDecisionRecord): Promise<AmlDecisionRecord>;
+  updateUserComplianceThread(userId: string, enabled: boolean): Promise<User | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -1762,6 +1772,21 @@ export class MemStorage implements IStorage {
     throw new Error("Not implemented in MemStorage");
   }
   async deleteDocumentComment(_id: string): Promise<void> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getAmlMonitoringNotes(_caseId: string): Promise<AmlMonitoringNote[]> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async createAmlMonitoringNote(_data: InsertAmlMonitoringNote): Promise<AmlMonitoringNote> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getAmlDecisionRecords(_caseId: string): Promise<AmlDecisionRecord[]> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async createAmlDecisionRecord(_data: InsertAmlDecisionRecord): Promise<AmlDecisionRecord> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async updateUserComplianceThread(_userId: string, _enabled: boolean): Promise<User | undefined> {
     throw new Error("Not implemented in MemStorage");
   }
 }
@@ -3982,6 +4007,36 @@ export class DbStorage implements IStorage {
 
   async deleteDocumentComment(id: string): Promise<void> {
     await db.delete(documentComments).where(eq(documentComments.id, id));
+  }
+
+  async getAmlMonitoringNotes(caseId: string): Promise<AmlMonitoringNote[]> {
+    return await db.select().from(amlMonitoringNotes)
+      .where(eq(amlMonitoringNotes.caseId, caseId))
+      .orderBy(desc(amlMonitoringNotes.createdAt));
+  }
+
+  async createAmlMonitoringNote(data: InsertAmlMonitoringNote): Promise<AmlMonitoringNote> {
+    const [created] = await db.insert(amlMonitoringNotes).values(data).returning();
+    return created;
+  }
+
+  async getAmlDecisionRecords(caseId: string): Promise<AmlDecisionRecord[]> {
+    return await db.select().from(amlDecisionRecords)
+      .where(eq(amlDecisionRecords.caseId, caseId))
+      .orderBy(desc(amlDecisionRecords.createdAt));
+  }
+
+  async createAmlDecisionRecord(data: InsertAmlDecisionRecord): Promise<AmlDecisionRecord> {
+    const [created] = await db.insert(amlDecisionRecords).values(data).returning();
+    return created;
+  }
+
+  async updateUserComplianceThread(userId: string, enabled: boolean): Promise<User | undefined> {
+    const [updated] = await db.update(users)
+      .set({ complianceThread: enabled, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
   }
 }
 

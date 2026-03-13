@@ -8,6 +8,7 @@ export interface User {
   profileImageUrl?: string;
   isAdmin?: boolean;
   waitlistStatus?: "pending" | "approved" | null;
+  complianceThread?: boolean;
 }
 
 export function useAuth() {

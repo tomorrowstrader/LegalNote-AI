@@ -31,6 +31,8 @@ import ShareLinkModal from "@/components/ShareLinkModal";
 import DownloadModal from "@/components/DownloadModal";
 import ImportRecordingModal from "@/components/ImportRecordingModal";
 import LogCallModal from "@/components/LogCallModal";
+import ComplianceThread from "@/components/ComplianceThread";
+import AmlTriggerBanner from "@/components/AmlTriggerBanner";
 import SharedHistoryViewer from "@/components/SharedHistoryViewer";
 import ActionItemsViewer from "@/components/ActionItemsViewer";
 import PreMeetingBriefing from "@/components/PreMeetingBriefing";
@@ -41,6 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCaseActions } from "@/hooks/useCaseActions";
 import { useCaseExport } from "@/hooks/useCaseExport";
 import { format } from "date-fns";
+import { useAuth } from "@/hooks/useAuth";
 import type { Case, AudioRecording, ConsentLog } from "@shared/schema";
 
 export default function CaseDetail() {
@@ -56,6 +59,7 @@ export default function CaseDetail() {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showLogCallModal, setShowLogCallModal] = useState(false);
+  const { user } = useAuth();
   const audioPlayerRef = useRef<AudioPlayerHandle>(null);
   const [hasAutoSeeked, setHasAutoSeeked] = useState(false);
   
@@ -619,6 +623,8 @@ export default function CaseDetail() {
           initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
         />
 
+        {user?.complianceThread && <AmlTriggerBanner caseData={caseData} />}
+
         {/* Briefing Stack - Collapsible Sections */}
         <div className="mt-8">
           <Accordion type="multiple" defaultValue={["quick-notes", "action-items"]} className="space-y-4">
@@ -695,6 +701,33 @@ export default function CaseDetail() {
                     caseId={caseId!} 
                     audioRecording={audioData}
                     consentLogs={consentLogs}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            )}
+
+            {user?.complianceThread && (
+              <AccordionItem value="compliance-thread" className="bg-card rounded-lg border border-border px-6">
+                <AccordionTrigger className="hover:no-underline" data-testid="accordion-compliance-thread">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-accent" />
+                    <span className="font-semibold">Compliance Thread</span>
+                    {caseData.riskLevel && (
+                      <Badge className={`text-xs no-default-hover-elevate no-default-active-elevate ${
+                        caseData.riskLevel === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                        caseData.riskLevel === 'medium' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' :
+                        'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                      }`}>
+                        {(caseData.riskLevel as string).toUpperCase()}
+                      </Badge>
+                    )}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <ComplianceThread
+                    caseId={caseId!}
+                    riskLevel={caseData.riskLevel}
+                    clientName={caseData.clientName}
                   />
                 </AccordionContent>
               </AccordionItem>

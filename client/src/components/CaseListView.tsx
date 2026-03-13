@@ -260,8 +260,18 @@ export default function CaseListView({ cases }: CaseListViewProps) {
               </div>
 
               {/* Priority badge */}
-              <div className="hidden sm:flex items-center">
+              <div className="hidden sm:flex items-center gap-1.5">
                 {priorityBadge || <span className="text-muted-foreground/50 text-xs">Normal</span>}
+                {caseItem.riskLevel && (
+                  <Badge className={cn(
+                    "text-xs no-default-hover-elevate no-default-active-elevate",
+                    caseItem.riskLevel === "high" && "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+                    caseItem.riskLevel === "medium" && "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+                    caseItem.riskLevel === "low" && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+                  )} data-testid={`badge-risk-${caseItem.id}`}>
+                    {(caseItem.riskLevel as string).charAt(0).toUpperCase()}
+                  </Badge>
+                )}
               </div>
 
               {/* Arrow indicator + mobile badge */}

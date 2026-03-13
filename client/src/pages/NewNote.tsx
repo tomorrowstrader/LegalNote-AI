@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,13 +19,15 @@ import {
 import ConsentModal from "@/components/ConsentModal";
 import TextNotesModal from "@/components/TextNotesModal";
 import CaseTemplatesModal, { CaseTemplate } from "@/components/CaseTemplatesModal";
-import { ArrowLeft, Mic, Square, AlertTriangle, LayoutTemplate, CheckCircle2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowLeft, Mic, Square, AlertTriangle, LayoutTemplate, CheckCircle2, Shield } from "lucide-react";
 import { useLocation } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { logAuditEvent } from "@/lib/auditLogger";
+import type { Case } from "@shared/schema";
 
 interface CaseResponse {
   id: string;
@@ -63,6 +65,19 @@ export default function NewNote() {
   const [pendingTemplate, setPendingTemplate] = useState<CaseTemplate | null>(null);
   const [checklistAcknowledged, setChecklistAcknowledged] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+
+  const { data: existingCases = [] } = useQuery<Case[]>({
+    queryKey: ["/api/cases"],
+    enabled: !!user?.complianceThread,
+  });
+
+  const clientRiskMatch = useMemo(() => {
+    if (!user?.complianceThread || !clientName.trim() || clientName.trim().length < 3) return null;
+    const normalised = clientName.trim().toLowerCase();
+    return existingCases.find(
+      (c) => c.riskLevel && c.clientName?.toLowerCase().trim() === normalised
+    ) || null;
+  }, [clientName, existingCases, user?.complianceThread]);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -532,6 +547,14 @@ export default function NewNote() {
                   disabled={isRecording || countdown !== null}
                   data-testid="input-client-name"
                 />
+                {clientRiskMatch && (
+                  <Alert className="mt-2 border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700" data-testid="alert-client-risk-continuity">
+                    <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
+                      This client has an existing matter rated <span className="font-semibold">{(clientRiskMatch.riskLevel as string).toUpperCase()} risk</span>. Previous risk assessments may apply to this new matter.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="matter-ref">Matter Reference (Optional)</Label>
