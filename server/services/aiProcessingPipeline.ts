@@ -351,7 +351,7 @@ export class AIProcessingPipeline {
       // AML Trigger Detection: scan transcript for compliance-relevant language
       try {
         const { detectAmlTriggers, getAmlRiskSuggestion } = await import('./amlTriggerService');
-        const triggers = detectAmlTriggers(transcriptContent);
+        const triggers = detectAmlTriggers(transcriptText);
         if (triggers.length > 0) {
           const suggestedRisk = getAmlRiskSuggestion(triggers);
           const caseUpdate: Record<string, any> = {};

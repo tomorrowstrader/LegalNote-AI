@@ -623,7 +623,18 @@ export default function CaseDetail() {
           initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
         />
 
-        {user?.complianceThread && <AmlTriggerBanner caseData={caseData} />}
+        {user?.complianceThread && (
+          <AmlTriggerBanner
+            caseData={caseData}
+            onAddMonitoringNote={() => {
+              const el = document.querySelector('[data-testid="accordion-compliance-thread"]');
+              if (el) {
+                (el as HTMLElement).click();
+                el.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            }}
+          />
+        )}
 
         {/* Briefing Stack - Collapsible Sections */}
         <div className="mt-8">
@@ -706,32 +717,56 @@ export default function CaseDetail() {
               </AccordionItem>
             )}
 
-            {user?.complianceThread && (
-              <AccordionItem value="compliance-thread" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-compliance-thread">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-accent" />
-                    <span className="font-semibold">Compliance Thread</span>
-                    {caseData.riskLevel && (
-                      <Badge className={`text-xs no-default-hover-elevate no-default-active-elevate ${
-                        caseData.riskLevel === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-                        caseData.riskLevel === 'medium' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' :
-                        'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                      }`}>
-                        {(caseData.riskLevel as string).toUpperCase()}
-                      </Badge>
-                    )}
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
+            <AccordionItem value="compliance-thread" className="bg-card rounded-lg border border-border px-6">
+              <AccordionTrigger className="hover:no-underline" data-testid="accordion-compliance-thread">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-accent" />
+                  <span className="font-semibold">Compliance Thread</span>
+                  {user?.complianceThread && caseData.riskLevel && (
+                    <Badge className={`text-xs no-default-hover-elevate no-default-active-elevate ${
+                      caseData.riskLevel === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                      caseData.riskLevel === 'medium' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' :
+                      'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                    }`}>
+                      {(caseData.riskLevel as string).toUpperCase()}
+                    </Badge>
+                  )}
+                  {!user?.complianceThread && (
+                    <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">
+                      Locked
+                    </Badge>
+                  )}
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                {user?.complianceThread ? (
                   <ComplianceThread
                     caseId={caseId!}
                     riskLevel={caseData.riskLevel}
                     clientName={caseData.clientName}
                   />
-                </AccordionContent>
-              </AccordionItem>
-            )}
+                ) : (
+                  <div className="text-center py-6 space-y-3" data-testid="compliance-locked-prompt">
+                    <Shield className="w-10 h-10 mx-auto text-muted-foreground opacity-40" />
+                    <div>
+                      <p className="font-medium text-sm">Compliance Thread</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Per-matter AML monitoring, risk assessments, and MLRO decision records.
+                        Enable in Settings to start tracking compliance for your matters.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLocation("/settings")}
+                      data-testid="button-enable-compliance"
+                    >
+                      Enable in Settings
+                    </Button>
+                  </div>
+                )}
+              </AccordionContent>
+            </AccordionItem>
 
             {linkedDictations.length > 0 && (
               <AccordionItem value="linked-calls" className="bg-card rounded-lg border border-border px-6">

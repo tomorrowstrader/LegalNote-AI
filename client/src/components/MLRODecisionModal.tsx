@@ -19,9 +19,15 @@ interface MLRODecisionModalProps {
 
 export default function MLRODecisionModal({ open, onOpenChange, caseId, clientName }: MLRODecisionModalProps) {
   const { toast } = useToast();
-  const [form, setForm] = useState({
+  type Decision = "proceed" | "decline_to_act" | "sar_considered";
+
+  const [form, setForm] = useState<{
+    concernDescription: string;
+    decision: Decision | "";
+    decisionReasoning: string;
+  }>({
     concernDescription: "",
-    decision: "" as "proceed" | "decline_to_act" | "sar_considered" | "",
+    decision: "",
     decisionReasoning: "",
   });
 
@@ -78,7 +84,7 @@ export default function MLRODecisionModal({ open, onOpenChange, caseId, clientNa
             <Label>Decision</Label>
             <Select
               value={form.decision}
-              onValueChange={(v) => setForm(f => ({ ...f, decision: v as any }))}
+              onValueChange={(v: string) => setForm(f => ({ ...f, decision: v as Decision }))}
             >
               <SelectTrigger data-testid="select-mlro-decision">
                 <SelectValue placeholder="Select decision" />
@@ -110,7 +116,11 @@ export default function MLRODecisionModal({ open, onOpenChange, caseId, clientNa
           </Button>
           <Button
             onClick={() => {
-              if (canSubmit) createDecisionMutation.mutate(form as any);
+              if (canSubmit && form.decision) createDecisionMutation.mutate({
+                concernDescription: form.concernDescription,
+                decision: form.decision,
+                decisionReasoning: form.decisionReasoning,
+              });
             }}
             disabled={!canSubmit || createDecisionMutation.isPending}
             data-testid="button-save-decision"

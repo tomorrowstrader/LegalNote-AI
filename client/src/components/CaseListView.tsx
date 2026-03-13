@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { format, isPast, differenceInDays } from "date-fns";
-import { Clock, CheckCircle2, AlertCircle, Loader2, Eye, ChevronRight } from "lucide-react";
+import { Clock, CheckCircle2, AlertCircle, Loader2, Eye, ChevronRight, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,20 @@ const statusConfig: Record<CaseStatus, { color: string; label: string }> = {
   review_required: { color: "bg-orange-500", label: "Review Required" },
   failed: { color: "bg-red-500", label: "Failed" },
 };
+
+const RISK_AGEING_THRESHOLDS: Record<string, number> = {
+  low: 365,
+  medium: 183,
+  high: 91,
+};
+
+function isRiskAgeingOverdue(caseItem: Case): boolean {
+  if (!caseItem.riskLevel || caseItem.archived || caseItem.reviewed) return false;
+  const threshold = RISK_AGEING_THRESHOLDS[caseItem.riskLevel as string];
+  if (!threshold) return false;
+  const daysSinceCreation = differenceInDays(new Date(), new Date(caseItem.createdAt));
+  return daysSinceCreation > threshold;
+}
 
 function getStatusDotColor(caseItem: Case): string {
   if (caseItem.reviewed) return "bg-emerald-500";
@@ -270,6 +284,12 @@ export default function CaseListView({ cases }: CaseListViewProps) {
                     caseItem.riskLevel === "low" && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
                   )} data-testid={`badge-risk-${caseItem.id}`}>
                     {(caseItem.riskLevel as string).charAt(0).toUpperCase()}
+                  </Badge>
+                )}
+                {isRiskAgeingOverdue(caseItem) && (
+                  <Badge className="text-xs no-default-hover-elevate no-default-active-elevate bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" data-testid={`badge-aml-overdue-${caseItem.id}`}>
+                    <Shield className="w-3 h-3 mr-0.5" />
+                    AML Review
                   </Badge>
                 )}
               </div>

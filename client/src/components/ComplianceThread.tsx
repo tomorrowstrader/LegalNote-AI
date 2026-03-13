@@ -241,7 +241,7 @@ export default function ComplianceThread({ caseId, riskLevel, clientName }: Comp
               <Label>Record Type</Label>
               <Select
                 value={noteForm.recordType}
-                onValueChange={(v) => setNoteForm(f => ({ ...f, recordType: v as any }))}
+                onValueChange={(v: string) => setNoteForm(f => ({ ...f, recordType: v as "inception" | "monitoring" | "completion" }))}
               >
                 <SelectTrigger data-testid="select-record-type">
                   <SelectValue />

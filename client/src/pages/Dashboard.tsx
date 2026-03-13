@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck, Phone } from "lucide-react";
+import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck, Shield, Phone } from "lucide-react";
 import { ScheduledMeetingsViewer } from "@/components/ScheduledMeetingsViewer";
 import StatsCard from "@/components/StatsCard";
 import CaseListView from "@/components/CaseListView";
@@ -108,10 +108,18 @@ export default function Dashboard() {
     });
     
     const audioExpiring = attentionStats?.audioExpiringCount || 0;
+
+    const RISK_THRESHOLDS: Record<string, number> = { low: 365, medium: 183, high: 91 };
+    const amlReviewDue = cases.filter(c => {
+      if (!c.riskLevel || c.archived || c.reviewed) return false;
+      const threshold = RISK_THRESHOLDS[c.riskLevel as string];
+      if (!threshold) return false;
+      return differenceInDays(now, new Date(c.createdAt)) > threshold;
+    });
     
-    const allClear = overdue.length === 0 && awaitingReviewLong.length === 0 && audioExpiring === 0;
+    const allClear = overdue.length === 0 && awaitingReviewLong.length === 0 && audioExpiring === 0 && amlReviewDue.length === 0;
     
-    return { overdue, awaitingReviewLong, audioExpiring, allClear };
+    return { overdue, awaitingReviewLong, audioExpiring, amlReviewDue, allClear };
   }, [cases, attentionStats]);
 
   const transformCase = (caseItem: Case) => {
@@ -382,6 +390,15 @@ export default function Dashboard() {
               >
                 <Mic className="w-3.5 h-3.5" />
                 <span className="font-medium">{needsAttention.audioExpiring} audio expiring</span>
+              </span>
+            )}
+            {needsAttention.amlReviewDue.length > 0 && (
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300"
+                data-testid="attention-aml-review"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="font-medium">{needsAttention.amlReviewDue.length} AML review due</span>
               </span>
             )}
           </div>

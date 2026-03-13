@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, X, Plus } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import type { Case } from "@shared/schema";
 
 interface AmlTriggerBannerProps {
   caseData: Case;
+  onAddMonitoringNote?: () => void;
 }
 
 interface AmlTrigger {
@@ -15,7 +16,7 @@ interface AmlTrigger {
   excerpt: string;
 }
 
-export default function AmlTriggerBanner({ caseData }: AmlTriggerBannerProps) {
+export default function AmlTriggerBanner({ caseData, onAddMonitoringNote }: AmlTriggerBannerProps) {
   const [dismissed, setDismissed] = useState(false);
 
   const storageKey = `aml-banner-dismissed-${caseData.id}`;
@@ -56,9 +57,23 @@ export default function AmlTriggerBanner({ caseData }: AmlTriggerBannerProps) {
                 </Badge>
               ))}
             </div>
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              Review the Compliance Thread to assess and record your AML position.
-            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Review the Compliance Thread to assess and record your AML position.
+              </p>
+              {onAddMonitoringNote && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onAddMonitoringNote}
+                  className="border-amber-400 dark:border-amber-700 text-amber-800 dark:text-amber-200"
+                  data-testid="button-banner-add-note"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Add Monitoring Note
+                </Button>
+              )}
+            </div>
           </div>
         </div>
         <Button

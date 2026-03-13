@@ -7409,7 +7409,20 @@ ${firmName}`;
 
   // ==================== Compliance Thread Routes ====================
 
-  app.get("/api/cases/:caseId/aml-monitoring-notes", isAuthenticated, async (req: any, res) => {
+  const requireComplianceThread = async (req: any, res: any, next: any) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.complianceThread) {
+        return res.status(403).json({ message: "Compliance Thread is not enabled. Enable it in Settings." });
+      }
+      next();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to check compliance entitlement" });
+    }
+  };
+
+  app.get("/api/cases/:caseId/aml-monitoring-notes", isAuthenticated, requireComplianceThread, async (req: any, res) => {
     try {
       const { caseId } = req.params;
       const userId = req.user.claims.sub;
@@ -7423,7 +7436,7 @@ ${firmName}`;
     }
   });
 
-  app.post("/api/cases/:caseId/aml-monitoring-notes", isAuthenticated, async (req: any, res) => {
+  app.post("/api/cases/:caseId/aml-monitoring-notes", isAuthenticated, requireComplianceThread, async (req: any, res) => {
     try {
       const { caseId } = req.params;
       const userId = req.user.claims.sub;
@@ -7462,7 +7475,7 @@ ${firmName}`;
     }
   });
 
-  app.get("/api/cases/:caseId/aml-decision-records", isAuthenticated, async (req: any, res) => {
+  app.get("/api/cases/:caseId/aml-decision-records", isAuthenticated, requireComplianceThread, async (req: any, res) => {
     try {
       const { caseId } = req.params;
       const userId = req.user.claims.sub;
@@ -7476,7 +7489,7 @@ ${firmName}`;
     }
   });
 
-  app.post("/api/cases/:caseId/aml-decision-records", isAuthenticated, async (req: any, res) => {
+  app.post("/api/cases/:caseId/aml-decision-records", isAuthenticated, requireComplianceThread, async (req: any, res) => {
     try {
       const { caseId } = req.params;
       const userId = req.user.claims.sub;
@@ -7511,7 +7524,7 @@ ${firmName}`;
     }
   });
 
-  app.patch("/api/cases/:caseId/risk-level", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/cases/:caseId/risk-level", isAuthenticated, requireComplianceThread, async (req: any, res) => {
     try {
       const { caseId } = req.params;
       const userId = req.user.claims.sub;
