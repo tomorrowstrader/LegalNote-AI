@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send } from "lucide-react";
+import { ArrowLeft, Calendar, User, Shield, ShieldCheck, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -954,28 +954,14 @@ export default function CaseDetail() {
           initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
         />
 
-        {user?.complianceThread && (
-          <AmlTriggerBanner
-            caseData={caseData}
-            onAddMonitoringNote={() => {
-              setAutoOpenComplianceNote(prev => prev + 1);
-              const el = document.querySelector('[data-testid="accordion-compliance-thread"]');
-              if (el) {
-                (el as HTMLElement).click();
-                setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
-              }
-            }}
-          />
-        )}
-
-        {/* ── Working ─────────────────────────────────────────── */}
+        {/* ── Group A: Matter ───────────────────────────────── */}
         <div className="mt-8 space-y-6">
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Working</span>
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Matter</span>
               <div className="flex-1 h-px bg-border" />
             </div>
-            <Accordion type="multiple" defaultValue={["session-timeline", "quick-notes", "action-items"]} className="space-y-3">
+            <Accordion type="multiple" defaultValue={[]} className="space-y-3">
               {meetingSessions.length > 0 && (
                 <AccordionItem value="session-timeline" className="bg-card rounded-lg border border-border px-6">
                   <AccordionTrigger className="hover:no-underline" data-testid="accordion-session-timeline">
@@ -1043,6 +1029,30 @@ export default function CaseDetail() {
                 </AccordionItem>
               )}
 
+              <AccordionItem value="obligations" className="bg-card rounded-lg border border-border px-6">
+                <AccordionTrigger className="hover:no-underline" data-testid="accordion-obligations">
+                  <div className="flex items-center gap-2">
+                    <ListChecks className="w-5 h-5 text-accent" />
+                    <span className="font-semibold">Obligations</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <ActionItemsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="pre-meeting-briefing" className="bg-card rounded-lg border border-border px-6">
+                <AccordionTrigger className="hover:no-underline" data-testid="accordion-pre-meeting-briefing">
+                  <div className="flex items-center gap-2">
+                    <ClipboardList className="w-5 h-5 text-accent" />
+                    <span className="font-semibold">Pre-meeting Briefing</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <PreMeetingBriefing caseId={caseId!} hasTranscript={!!transcript?.content} />
+                </AccordionContent>
+              </AccordionItem>
+
               <AccordionItem value="quick-notes" className="bg-card rounded-lg border border-border px-6">
                 <AccordionTrigger className="hover:no-underline" data-testid="accordion-quick-notes">
                   <div className="flex items-center gap-2">
@@ -1081,18 +1091,20 @@ export default function CaseDetail() {
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="action-items" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-action-items">
+              <AccordionItem value="time-entries" className="bg-card rounded-lg border border-border px-6">
+                <AccordionTrigger className="hover:no-underline" data-testid="accordion-time-entries">
                   <div className="flex items-center gap-2">
-                    <ListChecks className="w-5 h-5 text-accent" />
-                    <span className="font-semibold">Obligations & Briefing</span>
+                    <Clock className="w-5 h-5 text-accent" />
+                    <span className="font-semibold">Time Recording</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <ActionItemsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
-                    <PreMeetingBriefing caseId={caseId!} hasTranscript={!!transcript?.content} />
-                  </div>
+                  <TimeEntriesViewer
+                    caseId={caseId!}
+                    caseTitle={caseData.title}
+                    matterReference={caseData.matterReference || undefined}
+                    durationSeconds={audioData?.duration || undefined}
+                  />
                 </AccordionContent>
               </AccordionItem>
 
@@ -1117,23 +1129,6 @@ export default function CaseDetail() {
                 </AccordionTrigger>
                 <AccordionContent>
                   <ExternalDocumentRefs caseId={caseId!} />
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="time-entries" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-time-entries">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-accent" />
-                    <span className="font-semibold">Time Recording</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <TimeEntriesViewer
-                    caseId={caseId!}
-                    caseTitle={caseData.title}
-                    matterReference={caseData.matterReference || undefined}
-                    durationSeconds={audioData?.duration || undefined}
-                  />
                 </AccordionContent>
               </AccordionItem>
 
@@ -1175,18 +1170,34 @@ export default function CaseDetail() {
             </Accordion>
           </div>
 
-          {/* ── Compliance ───────────────────────────────────────── */}
+          {user?.complianceThread && (
+            <AmlTriggerBanner
+              caseData={caseData}
+              onAddMonitoringNote={() => {
+                setAutoOpenComplianceNote(prev => prev + 1);
+                const el = document.querySelector('[data-testid="accordion-compliance-thread"]');
+                if (el) {
+                  (el as HTMLElement).click();
+                  setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+                }
+              }}
+            />
+          )}
+
+          {/* ── Group B: Compliance & Audit ────────────────────── */}
           <div>
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Compliance</span>
+            <div className="flex items-center gap-3 mb-1">
+              <ShieldCheck className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Compliance & Audit</span>
               <div className="flex-1 h-px bg-border" />
             </div>
-            <Accordion type="multiple" defaultValue={urlTab === "compliance" ? ["consent-evidence", "compliance-thread"] : []} className="space-y-3">
+            <p className="text-xs text-muted-foreground mb-3">Your defensibility record — accessible when needed</p>
+            <Accordion type="multiple" defaultValue={[]} className="space-y-3">
               {caseData.sourceType === 'audio' && (
                 <AccordionItem value="consent-evidence" className="bg-card rounded-lg border border-border px-6">
                   <AccordionTrigger className="hover:no-underline" data-testid="accordion-consent-evidence">
                     <div className="flex items-center gap-2">
-                      <Shield className="w-5 h-5 text-accent" />
+                      <Shield className="w-5 h-5 text-muted-foreground" />
                       <span className="font-semibold">Consent Evidence</span>
                       {hasValidConsent && (
                         <Badge className="ml-2 text-xs bg-accent">Verified</Badge>
@@ -1206,7 +1217,7 @@ export default function CaseDetail() {
               <AccordionItem value="compliance-thread" className="bg-card rounded-lg border border-border px-6">
                 <AccordionTrigger className="hover:no-underline" data-testid="accordion-compliance-thread">
                   <div className="flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-accent" />
+                    <Shield className="w-5 h-5 text-muted-foreground" />
                     <span className="font-semibold">Compliance Thread</span>
                     {user?.complianceThread && caseData.riskLevel && (
                       <Badge className={`text-xs no-default-hover-elevate no-default-active-elevate ${
@@ -1267,21 +1278,12 @@ export default function CaseDetail() {
                   )}
                 </AccordionContent>
               </AccordionItem>
-            </Accordion>
-          </div>
 
-          {/* ── History ──────────────────────────────────────────── */}
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">History</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
-            <Accordion type="multiple" defaultValue={[]} className="space-y-3">
-              <AccordionItem value="timeline" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-timeline">
+              <AccordionItem value="activity-timeline" className="bg-card rounded-lg border border-border px-6">
+                <AccordionTrigger className="hover:no-underline" data-testid="accordion-activity-timeline">
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-accent" />
-                    <span className="font-semibold">Timeline</span>
+                    <Calendar className="w-5 h-5 text-muted-foreground" />
+                    <span className="font-semibold">Activity Timeline</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -1292,7 +1294,7 @@ export default function CaseDetail() {
               <AccordionItem value="sharing-history" className="bg-card rounded-lg border border-border px-6">
                 <AccordionTrigger className="hover:no-underline" data-testid="accordion-sharing-history">
                   <div className="flex items-center gap-2">
-                    <Share2 className="w-5 h-5 text-accent" />
+                    <Share2 className="w-5 h-5 text-muted-foreground" />
                     <span className="font-semibold">Sharing History</span>
                   </div>
                 </AccordionTrigger>
@@ -1304,7 +1306,7 @@ export default function CaseDetail() {
               <AccordionItem value="audit-trail" className="bg-card rounded-lg border border-border px-6">
                 <AccordionTrigger className="hover:no-underline" data-testid="accordion-audit-trail">
                   <div className="flex items-center gap-2">
-                    <ScrollText className="w-5 h-5 text-accent" />
+                    <ScrollText className="w-5 h-5 text-muted-foreground" />
                     <span className="font-semibold">Audit Trail</span>
                   </div>
                 </AccordionTrigger>
