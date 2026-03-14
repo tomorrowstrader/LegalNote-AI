@@ -296,7 +296,8 @@ export function CaseTimeline({ caseId }: CaseTimelineProps) {
       ["ai_processing_started", "ai_processing_completed", "transcription_completed", 
        "share_link_created", "document_sent", "document_approved",
        "document_exported_pdf", "document_exported_word", "document_exported",
-       "audio_permanently_deleted", "case_handover", "external_document_referenced"].includes(log.eventType)
+       "audio_permanently_deleted", "case_handover", "external_document_referenced",
+       "pre_consent_acknowledged", "pre_consent_declined", "pre_consent_reschedule_requested"].includes(log.eventType)
     );
 
     significantAuditEvents.forEach((log) => {
@@ -333,6 +334,30 @@ export function CaseTimeline({ caseId }: CaseTimelineProps) {
         description = meta?.matterReference
           ? `Matter: ${String(meta.matterReference)} - Retention period expired`
           : "Audio deleted per GDPR retention policy";
+      } else if (log.eventType === "pre_consent_acknowledged") {
+        type = "consent";
+        title = "Pre-Meeting Consent Granted";
+        const meta = log.metadata;
+        description = meta?.recipientName
+          ? `${String(meta.recipientName)} granted recording consent`
+          : "Client granted recording consent";
+      } else if (log.eventType === "pre_consent_declined") {
+        type = "consent";
+        title = "Pre-Meeting Consent Declined";
+        const meta = log.metadata;
+        description = meta?.recipientName
+          ? `${String(meta.recipientName)} declined recording consent`
+          : "Client declined recording consent";
+      } else if (log.eventType === "pre_consent_reschedule_requested") {
+        type = "consent";
+        title = "Reschedule Requested";
+        const meta = log.metadata;
+        description = meta?.recipientName
+          ? `${String(meta.recipientName)} requested to reschedule`
+          : "Client requested to reschedule";
+        if (meta?.clientMessage) {
+          description += ` - "${String(meta.clientMessage)}"`;
+        }
       } else if (log.eventType.includes("share") || log.eventType.includes("sent")) {
         type = "share";
       } else if (log.eventType.includes("exported")) {

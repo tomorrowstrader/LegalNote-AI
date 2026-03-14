@@ -28,6 +28,9 @@ const notificationIcon = (type: string) => {
     case 'document_generated': return FileText;
     case 'client_viewed': return Eye;
     case 'consent_confirmed': return Shield;
+    case 'pre_consent_acknowledged': return Shield;
+    case 'pre_consent_declined': return Shield;
+    case 'pre_consent_reschedule_requested': return Calendar;
     case 'audio_expiring': return AlertCircle;
     case 'deadline_approaching': return Calendar;
     default: return Bell;
@@ -39,6 +42,9 @@ const notificationColor = (type: string) => {
     case 'audio_expiring': return 'text-red-500';
     case 'deadline_approaching': return 'text-amber-500';
     case 'consent_confirmed': return 'text-emerald-500';
+    case 'pre_consent_acknowledged': return 'text-emerald-500';
+    case 'pre_consent_declined': return 'text-red-500';
+    case 'pre_consent_reschedule_requested': return 'text-amber-500';
     case 'transcription_complete': return 'text-blue-500';
     case 'document_generated': return 'text-blue-500';
     default: return 'text-muted-foreground';

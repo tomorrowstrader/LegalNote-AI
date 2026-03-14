@@ -456,6 +456,9 @@ export const preConsentEmails = pgTable("pre_consent_emails", {
   consentAcknowledged: boolean("consent_acknowledged").notNull().default(false),
   consentAcknowledgedAt: timestamp("consent_acknowledged_at"),
   consentAcknowledgedIp: text("consent_acknowledged_ip"),
+  consentResponseStatus: text("consent_response_status").notNull().default("awaiting"), // awaiting, granted, declined, reschedule_requested
+  consentRespondedAt: timestamp("consent_responded_at"),
+  rescheduleRequestNote: text("reschedule_request_note"),
   emailSentAt: timestamp("email_sent_at"),
   emailStatus: text("email_status").notNull().default("pending"), // pending, sent, failed, bounced
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -885,6 +888,9 @@ export const insertPreConsentEmailSchema = createInsertSchema(preConsentEmails).
   consentAcknowledged: true,
   consentAcknowledgedAt: true,
   consentAcknowledgedIp: true,
+  consentResponseStatus: true,
+  consentRespondedAt: true,
+  rescheduleRequestNote: true,
 }).extend({
   userId: z.string().min(1), // Replit Auth IDs are not UUIDs
   caseId: z.string().uuid().optional(),

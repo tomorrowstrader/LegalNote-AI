@@ -44,7 +44,7 @@ import {
 import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { openaiService } from "./openaiService";
-import { sendCaseEmail, sendRecordingConfirmationEmail } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification } from "./email";
 import { generateSignedAuditPDF } from "./services/signedAuditExport";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders } from "./calendar";
 import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
@@ -83,6 +83,8 @@ function validateReferralCode(code: string): typeof REFERRAL_CODES[string] | nul
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const sseClients = new Map<string, Set<Response>>();
+
   // Health check endpoint for deployment platform
   // Must be before auth middleware and CORS is configured to allow requests without origin
   app.get('/health', (req, res) => {
@@ -6685,21 +6687,33 @@ ${firmName}`;
   });
   
   // Public endpoint for acknowledging consent (no auth required)
+  const consentResponseSchema = z.object({
+    responseType: z.enum(['granted', 'declined', 'reschedule_requested']).default('granted'),
+    message: z.string().max(1000).optional(),
+  });
+
   app.post("/api/pre-consent/acknowledge/:token", async (req, res, next) => {
     try {
       const { token } = req.params;
+      
+      // Validate input
+      const parsed = consentResponseSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request. Please provide a valid response type." });
+      }
+      const { responseType: status, message: clientMessage } = parsed.data;
       
       const consentEmail = await storage.getPreConsentEmailByToken(token);
       if (!consentEmail) {
         return res.status(404).json({ message: "Consent request not found" });
       }
       
-      // Check if already acknowledged
-      if (consentEmail.consentAcknowledged) {
+      // Check if already responded (not just acknowledged)
+      if (consentEmail.consentResponseStatus && consentEmail.consentResponseStatus !== 'awaiting') {
         return res.json({ 
           success: true, 
           alreadyAcknowledged: true,
-          message: "Consent was already acknowledged" 
+          message: "A response has already been recorded for this consent request" 
         });
       }
       
@@ -6711,32 +6725,88 @@ ${firmName}`;
       // Get IP address
       const ipAddress = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown';
       
-      // Acknowledge consent
-      await storage.acknowledgePreConsentEmail(consentEmail.id, ipAddress);
+      // Record the consent response atomically (only updates if still 'awaiting')
+      const updatedEmail = await storage.acknowledgePreConsentEmail(consentEmail.id, ipAddress, status, clientMessage || undefined);
+      
+      // If no row was updated, another request got there first
+      if (!updatedEmail) {
+        return res.json({ 
+          success: true, 
+          alreadyAcknowledged: true,
+          message: "A response has already been recorded for this consent request" 
+        });
+      }
       
       // Update any linked scheduled meeting's consent status
       const meetings = await storage.getScheduledMeetingsByUser(consentEmail.userId);
       const linkedMeeting = meetings.find(m => m.preConsentEmailId === consentEmail.id);
       if (linkedMeeting) {
-        await storage.updateScheduledMeeting(linkedMeeting.id, { consentStatus: 'approved' });
+        const meetingConsentStatus = status === 'granted' ? 'approved' : status === 'declined' ? 'declined' : 'declined';
+        await storage.updateScheduledMeeting(linkedMeeting.id, { consentStatus: meetingConsentStatus });
       }
       
+      // Determine audit event type based on response
+      const eventType = status === 'granted' ? 'pre_consent_acknowledged'
+        : status === 'declined' ? 'pre_consent_declined'
+        : 'pre_consent_reschedule_requested';
+      
       await storage.createAuditLog({
-        eventType: 'pre_consent_acknowledged',
+        eventType,
         userId: consentEmail.userId,
         caseId: consentEmail.caseId || undefined,
         metadata: { 
           recipientEmail: consentEmail.recipientEmail,
+          recipientName: consentEmail.recipientName,
           consentEmailId: consentEmail.id,
           scheduledMeetingId: linkedMeeting?.id,
+          responseStatus: status,
+          clientMessage: clientMessage || undefined,
           ipAddress,
         },
-        severity: 'info',
+        severity: status === 'declined' ? 'warning' : 'info',
       });
+      
+      // Send solicitor notification via email
+      try {
+        const solicitor = await storage.getUser(consentEmail.userId);
+        if (solicitor?.email) {
+          await sendConsentResponseNotification({
+            to: solicitor.email,
+            solicitorName: solicitor.firstName || 'Solicitor',
+            clientName: consentEmail.recipientName,
+            clientEmail: consentEmail.recipientEmail,
+            responseStatus: status,
+            meetingTitle: linkedMeeting?.title,
+            meetingTime: consentEmail.scheduledMeetingTime || undefined,
+            rescheduleNote: clientMessage || undefined,
+            caseId: consentEmail.caseId || undefined,
+          });
+        }
+      } catch (emailError) {
+        console.error('[CONSENT] Failed to send solicitor notification email:', emailError);
+      }
+      
+      // Trigger SSE notification for real-time update
+      try {
+        const userClients = sseClients.get(consentEmail.userId);
+        if (userClients) {
+          userClients.forEach(client => {
+            client.write(`data: ${JSON.stringify({ type: 'consent_response', status })}\n\n`);
+          });
+        }
+      } catch (sseError) {
+        console.error('[CONSENT] Failed to send SSE notification:', sseError);
+      }
+      
+      const responseMessage = status === 'granted' 
+        ? "Thank you for acknowledging the recording consent"
+        : status === 'declined'
+        ? "Your response has been recorded. The solicitor has been notified that consent was declined."
+        : "Your reschedule request has been sent to the solicitor.";
       
       res.json({ 
         success: true, 
-        message: "Thank you for acknowledging the recording consent" 
+        message: responseMessage 
       });
     } catch (error) {
       next(error);
@@ -6762,14 +6832,22 @@ ${firmName}`;
         `);
       }
       
-      if (consentEmail.consentAcknowledged) {
+      if (consentEmail.consentResponseStatus && consentEmail.consentResponseStatus !== 'awaiting') {
+        const statusLabel = consentEmail.consentResponseStatus === 'granted' ? 'Consent Granted'
+          : consentEmail.consentResponseStatus === 'declined' ? 'Consent Declined'
+          : 'Reschedule Requested';
+        const respondedAt = consentEmail.consentRespondedAt 
+          ? new Date(consentEmail.consentRespondedAt).toLocaleString('en-GB')
+          : consentEmail.consentAcknowledgedAt 
+          ? new Date(consentEmail.consentAcknowledgedAt).toLocaleString('en-GB')
+          : 'earlier';
         return res.send(`
           <!DOCTYPE html>
           <html>
-          <head><title>Consent Already Acknowledged</title></head>
+          <head><title>Response Already Recorded</title></head>
           <body style="font-family: sans-serif; padding: 40px; text-align: center;">
-            <h1>Consent Already Acknowledged</h1>
-            <p>Thank you! Your consent was acknowledged on ${new Date(consentEmail.consentAcknowledgedAt!).toLocaleString('en-GB')}.</p>
+            <h1>Response Already Recorded</h1>
+            <p>Thank you! Your response (${statusLabel}) was recorded on ${respondedAt}.</p>
           </body>
           </html>
         `);
@@ -6795,13 +6873,24 @@ ${firmName}`;
           <title>Recording Consent</title>
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; color: #1a1a1a; }
             h1 { color: #1a1a1a; }
             .card { background: #f8f9fa; border-radius: 8px; padding: 24px; margin: 24px 0; }
-            .button { display: inline-block; background: #000; color: #fff; padding: 14px 28px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; text-decoration: none; }
+            .button { display: inline-block; background: #000; color: #fff; padding: 14px 28px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; text-decoration: none; margin-right: 8px; margin-bottom: 8px; }
             .button:hover { background: #333; }
-            .success { display: none; color: #059669; }
-            .error { display: none; color: #dc2626; }
+            .button-outline { display: inline-block; background: #fff; color: #1a1a1a; padding: 14px 28px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 16px; cursor: pointer; text-decoration: none; margin-right: 8px; margin-bottom: 8px; }
+            .button-outline:hover { background: #f3f4f6; }
+            .button-destructive { display: inline-block; background: #dc2626; color: #fff; padding: 14px 28px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-right: 8px; margin-bottom: 8px; }
+            .button-destructive:hover { background: #b91c1c; }
+            .success { display: none; color: #059669; padding: 16px; background: #f0fdf4; border-radius: 8px; margin-top: 16px; }
+            .error { display: none; color: #dc2626; padding: 16px; background: #fef2f2; border-radius: 8px; margin-top: 16px; }
+            .decline-section { display: none; margin-top: 24px; padding: 24px; background: #fef2f2; border-radius: 8px; }
+            .reschedule-section { display: none; margin-top: 24px; padding: 24px; background: #fffbeb; border-radius: 8px; }
+            textarea { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical; min-height: 80px; box-sizing: border-box; margin-top: 8px; }
+            .actions { margin-top: 16px; }
+            .divider { border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }
+            .secondary-actions { margin-top: 16px; }
+            .secondary-actions p { color: #6b7280; font-size: 14px; margin-bottom: 8px; }
           </style>
         </head>
         <body>
@@ -6809,7 +6898,7 @@ ${firmName}`;
           <div class="card">
             <h2>Meeting Recording Consent</h2>
             <p>Dear ${consentEmail.recipientName},</p>
-            <p>By clicking "Acknowledge Consent" below, you agree to the recording of your video meeting for the purpose of creating accurate legal documentation.</p>
+            <p>By clicking "Grant Consent" below, you agree to the recording of your video meeting for the purpose of creating accurate legal documentation.</p>
             <p><strong>Your consent confirms:</strong></p>
             <ul>
               <li>The meeting may be recorded</li>
@@ -6818,17 +6907,75 @@ ${firmName}`;
               <li>Processing complies with GDPR and data protection requirements</li>
             </ul>
           </div>
-          <button class="button" onclick="acknowledgeConsent()">Acknowledge Consent</button>
-          <p class="success" id="success">Thank you! Your consent has been recorded.</p>
-          <p class="error" id="error">Something went wrong. Please try again.</p>
+          
+          <div id="main-actions">
+            <button class="button" onclick="submitResponse('granted')" data-testid="button-grant-consent">Grant Consent</button>
+            
+            <hr class="divider" />
+            
+            <div class="secondary-actions">
+              <p>If you are unable to attend or do not wish to be recorded:</p>
+              <button class="button-outline" onclick="showSection('reschedule')" data-testid="button-show-reschedule">Request Reschedule</button>
+              <button class="button-outline" onclick="showSection('decline')" data-testid="button-show-decline">Decline Recording</button>
+            </div>
+          </div>
+          
+          <div class="decline-section" id="decline-section">
+            <h3>Decline Recording Consent</h3>
+            <p>If you decline, the meeting will not be recorded. Your solicitor will be notified.</p>
+            <label for="decline-message">Message to your solicitor (optional):</label>
+            <textarea id="decline-message" placeholder="Add a note if you wish..." data-testid="input-decline-message"></textarea>
+            <div class="actions">
+              <button class="button-destructive" onclick="submitResponse('declined')" data-testid="button-confirm-decline">Confirm Decline</button>
+              <button class="button-outline" onclick="hideAll()" data-testid="button-cancel-decline">Cancel</button>
+            </div>
+          </div>
+          
+          <div class="reschedule-section" id="reschedule-section">
+            <h3>Request Reschedule</h3>
+            <p>Your solicitor will be notified and will contact you with a new time.</p>
+            <label for="reschedule-message">Message to your solicitor (optional):</label>
+            <textarea id="reschedule-message" placeholder="e.g., I am unavailable at this time. Could we move to Thursday afternoon?" data-testid="input-reschedule-message"></textarea>
+            <div class="actions">
+              <button class="button" onclick="submitResponse('reschedule_requested')" data-testid="button-confirm-reschedule">Send Reschedule Request</button>
+              <button class="button-outline" onclick="hideAll()" data-testid="button-cancel-reschedule">Cancel</button>
+            </div>
+          </div>
+          
+          <div class="success" id="success"></div>
+          <div class="error" id="error">Something went wrong. Please try again.</div>
+          
           <script>
-            async function acknowledgeConsent() {
+            function showSection(type) {
+              document.getElementById('decline-section').style.display = type === 'decline' ? 'block' : 'none';
+              document.getElementById('reschedule-section').style.display = type === 'reschedule' ? 'block' : 'none';
+            }
+            function hideAll() {
+              document.getElementById('decline-section').style.display = 'none';
+              document.getElementById('reschedule-section').style.display = 'none';
+            }
+            async function submitResponse(responseType) {
               try {
-                const response = await fetch('/api/pre-consent/acknowledge/${token}', { method: 'POST' });
+                let message = '';
+                if (responseType === 'declined') {
+                  message = document.getElementById('decline-message').value;
+                } else if (responseType === 'reschedule_requested') {
+                  message = document.getElementById('reschedule-message').value;
+                }
+                const response = await fetch('/api/pre-consent/acknowledge/${token}', { 
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ responseType, message })
+                });
+                const data = await response.json();
                 if (response.ok) {
+                  document.getElementById('success').textContent = data.message || 'Your response has been recorded.';
                   document.getElementById('success').style.display = 'block';
-                  document.querySelector('.button').style.display = 'none';
+                  document.getElementById('main-actions').style.display = 'none';
+                  document.getElementById('decline-section').style.display = 'none';
+                  document.getElementById('reschedule-section').style.display = 'none';
                 } else {
+                  document.getElementById('error').textContent = data.message || 'Something went wrong. Please try again.';
                   document.getElementById('error').style.display = 'block';
                 }
               } catch (e) {
@@ -7764,7 +7911,8 @@ ${firmName}`;
       const notifiableEvents = [
         'transcript_generated', 'document_generated', 'document_regenerated',
         'case_email_sent', 'audio_expiring_soon', 'deadline_approaching', 'consent_given',
-        'case_handover_received'
+        'case_handover_received',
+        'pre_consent_acknowledged', 'pre_consent_declined', 'pre_consent_reschedule_requested'
       ];
       
       const events = await dbConn
@@ -7830,6 +7978,18 @@ ${firmName}`;
             title = 'Consent Confirmed';
             message = `Client consent was confirmed for ${caseRecord?.title || 'your case'}.`;
             break;
+          case 'pre_consent_acknowledged':
+            title = 'Pre-Meeting Consent Granted';
+            message = `${(event.metadata as any)?.recipientName || 'Your client'} has granted recording consent${caseRecord ? ` for ${caseRecord.title}` : ''}.`;
+            break;
+          case 'pre_consent_declined':
+            title = 'Pre-Meeting Consent Declined';
+            message = `${(event.metadata as any)?.recipientName || 'Your client'} has declined recording consent${caseRecord ? ` for ${caseRecord.title}` : ''}. No recording will be attempted.`;
+            break;
+          case 'pre_consent_reschedule_requested':
+            title = 'Reschedule Requested';
+            message = `${(event.metadata as any)?.recipientName || 'Your client'} has requested to reschedule${caseRecord ? ` the meeting for ${caseRecord.title}` : ''}. ${(event.metadata as any)?.clientMessage ? `Message: "${(event.metadata as any).clientMessage}"` : ''}`;
+            break;
           case 'audio_expiring_soon':
             title = 'Audio Expiring Soon';
             message = `Recording for ${caseRecord?.title || 'a case'} will be auto-deleted within 24 hours (GDPR retention).`;
@@ -7889,8 +8049,6 @@ ${firmName}`;
   });
 
   // SSE stream for real-time notifications
-  const sseClients = new Map<string, Set<Response>>();
-  
   app.get("/api/notifications/stream", isAuthenticated, (req: any, res: any) => {
     const userId = req.user.claims.sub;
     

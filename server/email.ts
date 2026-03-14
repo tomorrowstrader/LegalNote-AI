@@ -584,6 +584,115 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
   }
 }
 
+interface SendConsentResponseNotificationParams {
+  to: string;
+  solicitorName: string;
+  clientName: string;
+  clientEmail: string;
+  responseStatus: string;
+  meetingTitle?: string;
+  meetingTime?: Date;
+  rescheduleNote?: string;
+  caseId?: string;
+}
+
+export async function sendConsentResponseNotification(params: SendConsentResponseNotificationParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const {
+    to,
+    solicitorName,
+    clientName,
+    clientEmail,
+    responseStatus,
+    meetingTitle,
+    meetingTime,
+    rescheduleNote,
+    caseId,
+  } = params;
+
+  const baseUrl = process.env.REPLIT_DOMAINS 
+    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+    : 'http://localhost:5000';
+
+  const statusLabel = responseStatus === 'granted' ? 'Consent Granted'
+    : responseStatus === 'declined' ? 'Consent Declined'
+    : responseStatus === 'reschedule_requested' ? 'Reschedule Requested'
+    : responseStatus;
+
+  const statusColor = responseStatus === 'granted' ? '#22c55e'
+    : responseStatus === 'declined' ? '#dc2626'
+    : '#f59e0b';
+
+  const meetingTimeStr = meetingTime
+    ? meetingTime.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) +
+      ' at ' + meetingTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    : 'Not specified';
+
+  const caseLink = caseId ? `<a href="${baseUrl}/cases/${caseId}" style="color: #000; text-decoration: underline;">View Case</a>` : '';
+
+  const rescheduleSection = rescheduleNote ? `
+    <div style="background: #fef3c7; border-radius: 6px; padding: 16px; margin-top: 16px;">
+      <strong>Client's message:</strong>
+      <p style="margin: 8px 0 0;">${rescheduleNote.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+    </div>
+  ` : '';
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+      <div style="background: white; border-radius: 8px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+        <div style="border-bottom: 2px solid ${statusColor}; padding-bottom: 16px; margin-bottom: 24px;">
+          <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Client Consent Response</h1>
+        </div>
+        <p>Dear ${solicitorName},</p>
+        <p>Your client <strong>${clientName}</strong> (${clientEmail}) has responded to your pre-meeting consent request.</p>
+        <div style="background: #f8f9fa; border-radius: 6px; padding: 16px; margin: 16px 0;">
+          <p style="margin: 0;"><strong>Status:</strong> <span style="color: ${statusColor}; font-weight: 600;">${statusLabel}</span></p>
+          ${meetingTitle ? `<p style="margin: 8px 0 0;"><strong>Meeting:</strong> ${meetingTitle}</p>` : ''}
+          <p style="margin: 8px 0 0;"><strong>Scheduled:</strong> ${meetingTimeStr}</p>
+        </div>
+        ${rescheduleSection}
+        ${responseStatus === 'declined' ? '<p style="color: #dc2626;"><strong>Note:</strong> No recording will be attempted for this meeting as the client has declined consent.</p>' : ''}
+        ${responseStatus === 'reschedule_requested' ? '<p>Please review the client\'s request and send a new meeting time at your convenience.</p>' : ''}
+        ${caseLink ? `<p style="margin-top: 24px;">${caseLink}</p>` : ''}
+        <hr style="margin: 24px 0; border: none; border-top: 1px solid #e5e5e5;" />
+        <p style="font-size: 12px; color: #666;">This is an automated notification from LegalNote. Please do not reply to this email.</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const subject = responseStatus === 'granted'
+    ? `Consent Granted: ${clientName} has approved recording`
+    : responseStatus === 'declined'
+    ? `Consent Declined: ${clientName} has declined recording`
+    : `Reschedule Requested: ${clientName} has requested a new time`;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'LegalNote™ <support@legalnote.ai>',
+      to: [to],
+      subject,
+      html: emailHtml,
+    });
+
+    if (error) {
+      console.error('[EMAIL] Error sending consent response notification:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[EMAIL] Consent response notification sent successfully:', data?.id);
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending consent response notification:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
 export async function sendWaitlistConfirmationEmail(to: string, firstName: string): Promise<{ success: boolean; messageId?: string; error?: string }> {
   if (!process.env.RESEND_API_KEY) {
     console.warn('[EMAIL] RESEND_API_KEY not configured, skipping waitlist confirmation email');

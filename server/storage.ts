@@ -455,7 +455,7 @@ export interface IStorage {
   getPreConsentEmailByToken(token: string): Promise<PreConsentEmail | undefined>;
   getPreConsentEmailsByUser(userId: string): Promise<PreConsentEmail[]>;
   updatePreConsentEmail(id: string, updates: Partial<PreConsentEmail>): Promise<PreConsentEmail | undefined>;
-  acknowledgePreConsentEmail(id: string, ipAddress: string): Promise<PreConsentEmail | undefined>;
+  acknowledgePreConsentEmail(id: string, ipAddress: string, responseStatus?: string, rescheduleNote?: string): Promise<PreConsentEmail | undefined>;
   
   // Scheduled Meeting methods
   createScheduledMeeting(meetingData: InsertScheduledMeeting): Promise<ScheduledMeeting>;
@@ -1769,7 +1769,7 @@ export class MemStorage implements IStorage {
     throw new Error("MemStorage does not support pre-consent emails - use DbStorage");
   }
   
-  async acknowledgePreConsentEmail(_id: string, _ipAddress: string): Promise<PreConsentEmail | undefined> {
+  async acknowledgePreConsentEmail(_id: string, _ipAddress: string, _responseStatus?: string, _rescheduleNote?: string): Promise<PreConsentEmail | undefined> {
     throw new Error("MemStorage does not support pre-consent emails - use DbStorage");
   }
   
@@ -3953,15 +3953,22 @@ export class DbStorage implements IStorage {
     return result[0];
   }
   
-  async acknowledgePreConsentEmail(id: string, ipAddress: string): Promise<PreConsentEmail | undefined> {
+  async acknowledgePreConsentEmail(id: string, ipAddress: string, responseStatus?: string, rescheduleNote?: string): Promise<PreConsentEmail | undefined> {
+    const status = responseStatus || 'granted';
+    const updates: any = {
+      consentAcknowledged: status === 'granted',
+      consentAcknowledgedAt: new Date(),
+      consentAcknowledgedIp: ipAddress,
+      consentResponseStatus: status,
+      consentRespondedAt: new Date(),
+    };
+    if (rescheduleNote) {
+      updates.rescheduleRequestNote = rescheduleNote;
+    }
     const result = await db
       .update(preConsentEmails)
-      .set({
-        consentAcknowledged: true,
-        consentAcknowledgedAt: new Date(),
-        consentAcknowledgedIp: ipAddress,
-      })
-      .where(eq(preConsentEmails.id, id))
+      .set(updates)
+      .where(and(eq(preConsentEmails.id, id), eq(preConsentEmails.consentResponseStatus, 'awaiting')))
       .returning();
     return result[0];
   }

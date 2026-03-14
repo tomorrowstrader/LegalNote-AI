@@ -40,6 +40,8 @@ function getConsentStatusBadge(status: string) {
       return <Badge variant="default" className="bg-green-600"><CheckCircle className="w-3 h-3 mr-1" /> Consented</Badge>;
     case 'declined':
       return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" /> Declined</Badge>;
+    case 'reschedule_requested':
+      return <Badge variant="secondary" className="bg-amber-500 text-white"><Clock className="w-3 h-3 mr-1" /> Reschedule Requested</Badge>;
     case 'sent':
       return <Badge variant="secondary"><Mail className="w-3 h-3 mr-1" /> Sent</Badge>;
     case 'expired':
