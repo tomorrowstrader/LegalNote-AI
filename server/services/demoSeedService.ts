@@ -937,6 +937,27 @@ export async function seedDemoData(userId: string): Promise<{ success: boolean; 
         consentModality: "verbal_recorded"
       });
 
+      // Create audio recording (deleted after 7-day GDPR retention)
+      const recordingDurations: Record<string, number> = {
+        "CONV/2024/0847": 3323,  // Sarah Thompson — 55 min 23 sec
+        "EMP/2024/0312": 2520,   // Marcus Webb — 42 min 0 sec
+        "COMM/2024/0156": 2880,  // Eleanor Chen — 48 min 0 sec
+        "FAM/2024/0089": 2195,   // David Patterson — 36 min 35 sec
+        "FAM/2025/0023": 3780,   // James Smith — 63 min 0 sec
+        "COMP/2024/0291": 2640,  // Richard Patterson — 44 min 0 sec
+      };
+      const recordedAt = new Date(demoCase.demoDate.getTime());
+      const deletedAt = new Date(demoCase.demoDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+      await db.insert(audioRecordings).values({
+        caseId: newCase.id,
+        filePath: null,
+        mimeType: "audio/webm",
+        duration: recordingDurations[demoCase.matterReference] || 2400,
+        recordedAt,
+        expiresAt: deletedAt,
+        deletedAt,
+      });
+
       // Create transcript
       const [newTranscript] = await db.insert(transcripts).values({
         caseId: newCase.id,

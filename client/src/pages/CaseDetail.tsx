@@ -297,7 +297,7 @@ export default function CaseDetail() {
     onSuccess: () => {
       toast({
         title: "Processing complete",
-        description: "Documents have been generated successfully",
+        description: "Documents have been produced successfully",
         duration: 6000,
       });
       queryClient.invalidateQueries({ 
@@ -610,7 +610,7 @@ export default function CaseDetail() {
                   data-testid="badge-client-care-letter"
                 >
                   <FileText className="w-3 h-3 mr-1" />
-                  {caseData.clientCareLetterSentAt ? "Client Care Letter Sent" : "Client Care Letter Generated"}
+                  {caseData.clientCareLetterSentAt ? "Client Care Letter Sent" : "Client Care Letter Ready"}
                 </Badge>
                 {!caseData.clientCareLetterSentAt && (
                   <Button
@@ -658,19 +658,67 @@ export default function CaseDetail() {
           </div>
         )}
 
-        {/* Audio deletion status indicator */}
+        {/* Recording Archived card — shown when audio has been deleted under GDPR retention */}
         {caseData.sourceType === 'audio' && hasValidConsent && audioData?.deletedAt && (
-          <Alert className="mb-8 bg-card border-muted" data-testid="alert-audio-deleted">
-            <Shield className="w-4 h-4" />
-            <AlertDescription>
-              <span className="font-medium">Audio Recording Deleted - GDPR Compliance</span>
-              <p className="text-sm text-muted-foreground mt-1">
-                The audio recording has been automatically deleted in accordance with our GDPR data retention policy. 
-                This deletion occurred either after successful processing completion or after the 7-day retention period. 
-                All generated documents and transcripts remain securely available.
+          <div className="mb-8 bg-card border-2 rounded-lg p-4 space-y-3" data-testid="card-recording-archived">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center justify-center w-9 h-9 rounded-md border bg-muted/50">
+                <Shield className="h-4 w-4 text-muted-foreground" />
+              </div>
+
+              <div className="flex-1 space-y-1">
+                {/* Static decorative waveform (SVG bar pattern) */}
+                <svg
+                  viewBox="0 0 200 32"
+                  preserveAspectRatio="none"
+                  className="w-full h-8"
+                  aria-hidden="true"
+                  data-testid="waveform-archived"
+                >
+                  {[0.3,0.5,0.7,0.4,0.9,0.6,0.8,0.35,0.65,0.5,0.85,0.45,0.7,0.55,0.4,0.75,0.3,0.6,0.9,0.5,0.7,0.4,0.85,0.55,0.65,0.3,0.8,0.45,0.6,0.7,0.35,0.5,0.75,0.4,0.9,0.55,0.65,0.8,0.3,0.7].map((h, i) => (
+                    <rect
+                      key={i}
+                      x={i * 5}
+                      y={32 - h * 32}
+                      width={3.5}
+                      height={h * 32}
+                      rx={1}
+                      className="fill-muted-foreground/25"
+                    />
+                  ))}
+                </svg>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span data-testid="text-archived-duration">
+                      {audioData.duration
+                        ? `${Math.floor(audioData.duration / 60)} min ${audioData.duration % 60} sec`
+                        : "Duration unavailable"}
+                    </span>
+                    <span data-testid="text-archived-date">
+                      {new Date(audioData.recordedAt).toLocaleDateString("en-GB", {
+                        day: "numeric", month: "short", year: "numeric",
+                      })}{" "}
+                      {new Date(audioData.recordedAt).toLocaleTimeString("en-GB", {
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                  <Badge variant="secondary" className="text-[10px] no-default-hover-elevate no-default-active-elevate" data-testid="badge-recording-deleted">
+                    Recording permanently deleted
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-xs text-muted-foreground" data-testid="text-archived-explanation">
+                The original audio has been securely deleted. The transcript and documents produced from this recording remain on file.
               </p>
-            </AlertDescription>
-          </Alert>
+              <Badge variant="outline" className="text-[10px] whitespace-nowrap no-default-hover-elevate no-default-active-elevate" data-testid="badge-gdpr-retention">
+                7-day retention — Article 5(1)(e) GDPR
+              </Badge>
+            </div>
+          </div>
         )}
 
         {caseData.sourceType === 'audio' && !hasValidConsent && !consentLoading && !audioLoading && (
@@ -1277,7 +1325,7 @@ export default function CaseDetail() {
               Send Client Care Letter
             </DialogTitle>
             <DialogDescription>
-              Send the generated client care letter to {caseData.clientName} via email.
+              Send the client care letter to {caseData.clientName} via email.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
