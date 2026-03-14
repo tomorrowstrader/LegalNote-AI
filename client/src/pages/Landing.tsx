@@ -1652,7 +1652,6 @@ export default function Landing() {
   const pricingRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   const attendanceRecordsRef = useRef<HTMLDivElement>(null);
-  const bannerRef = useRef<HTMLDivElement>(null);
   
   const exploreModal = useExploreModal("pricing-end");
   const { theme, toggleTheme } = useTheme();
@@ -1813,24 +1812,8 @@ export default function Landing() {
         </Button>
       </motion.div>
 
-      {/* Announcement Bar - scrolls away naturally */}
-      <div ref={bannerRef} className="bg-[hsl(20,40%,35%)] text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-center gap-2 text-xs sm:text-sm">
-          <span className="font-medium">News</span>
-          <span className="text-white/60">|</span>
-          <span className="hidden sm:inline">LegalNote now integrates with Clio Manage</span>
-          <span className="sm:hidden">Clio integration live</span>
-          <button 
-            onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-            className="font-medium hover:underline ml-1 text-white"
-            data-testid="button-announcement-readmore"
-          >
-            Read more →
-          </button>
-        </div>
-      </div>
 
-      {/* Sticky Navigation with Blur - sticks to top after banner scrolls away */}
+      {/* Sticky Navigation with Blur */}
       <nav 
         className={`sticky top-0 z-[100] transition-colors duration-300 ${
           isScrolled 
