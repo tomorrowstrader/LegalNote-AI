@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Search, FolderOpen, FileText, MessageSquare, ClipboardList, Clock, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import CaseCard from "@/components/CaseCard";
+import CaseListView from "@/components/CaseListView";
 import EmptyState from "@/components/EmptyState";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -231,114 +231,105 @@ export default function SavedCases() {
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Loading cases...</div>
           ) : activeCases.length > 0 ? (
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            <>
               {searchQuery.trim() && enhancedResults ? (
-                enhancedResults.map((result) => (
-                  <div key={result.case.id} className="space-y-2">
-                    <CaseCard 
-                      id={result.case.id}
-                      title={result.case.title}
-                      clientName={result.case.clientName}
-                      meetingDate={new Date(result.case.createdAt).toLocaleDateString('en-GB', { 
-                        day: 'numeric', 
-                        month: 'long', 
-                        year: 'numeric' 
-                      })}
-                      status={result.case.status as "pending" | "processing" | "review_required" | "completed" | "failed"}
-                      createdBy={result.case.createdBy}
-                      priority={result.case.priority as "urgent" | "deadline-soon" | "normal"}
-                      deadline={result.case.deadline ? new Date(result.case.deadline).toISOString() : null}
-                      reviewed={result.case.reviewed}
-                    />
-                    {result.matches.length > 0 && (
-                      <div className="bg-muted/50 rounded-md p-2 space-y-1">
-                        <div className="text-xs font-medium text-muted-foreground px-2 py-1">
-                          {result.matches.length} match{result.matches.length !== 1 ? 'es' : ''} found
+                <div className="space-y-2">
+                  {enhancedResults.map((result) => (
+                    <div key={result.case.id} className="space-y-1">
+                      <button
+                        onClick={() => setLocation(`/case/${result.case.id}`)}
+                        className="w-full text-left hover:bg-muted/50 transition-colors duration-150 grid grid-cols-[auto_1fr_auto] sm:grid-cols-[1fr_1fr_100px] gap-3 px-4 py-2.5 items-center rounded-lg border border-border bg-card"
+                        data-testid={`row-search-result-${result.case.id}`}
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate text-sm">
+                            {result.case.clientName}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate sm:hidden mt-0.5">
+                            {result.case.title}
+                          </p>
                         </div>
-                        {(() => {
-                          const isExpanded = expandedCases.has(result.case.id);
-                          const visibleMatches = isExpanded ? result.matches : result.matches.slice(0, 3);
-                          const hiddenCount = result.matches.length - 3;
-                          
-                          return (
-                            <>
-                              {visibleMatches.map((match, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleMatchClick(result.case.id, match);
-                                  }}
-                                  className="w-full text-left px-2 py-1.5 rounded hover-elevate group cursor-pointer"
-                                  data-testid={`match-result-${result.case.id}-${idx}`}
-                                >
-                                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5">
-                                    {getMatchIcon(match.documentType)}
-                                    <span>{getMatchLabel(match.documentType, match.fieldName)}</span>
-                                    {match.timestampMs !== undefined && (
-                                      <Badge variant="secondary" className="text-[10px] py-0 px-1 flex items-center gap-0.5">
-                                        <Clock className="w-2.5 h-2.5" />
-                                        {formatTimestamp(match.timestampMs)}
-                                      </Badge>
+                        <div className="hidden sm:block min-w-0">
+                          <p className="text-sm text-muted-foreground truncate">
+                            {result.case.title}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-end">
+                          <Badge variant="secondary" className="text-xs">
+                            {result.matches.length} match{result.matches.length !== 1 ? 'es' : ''}
+                          </Badge>
+                        </div>
+                      </button>
+                      {result.matches.length > 0 && (
+                        <div className="bg-muted/50 rounded-md p-2 space-y-1 ml-4">
+                          {(() => {
+                            const isExpanded = expandedCases.has(result.case.id);
+                            const visibleMatches = isExpanded ? result.matches : result.matches.slice(0, 3);
+                            const hiddenCount = result.matches.length - 3;
+                            
+                            return (
+                              <>
+                                {visibleMatches.map((match, idx) => (
+                                  <button
+                                    key={idx}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMatchClick(result.case.id, match);
+                                    }}
+                                    className="w-full text-left px-2 py-1.5 rounded hover-elevate group cursor-pointer"
+                                    data-testid={`match-result-${result.case.id}-${idx}`}
+                                  >
+                                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5">
+                                      {getMatchIcon(match.documentType)}
+                                      <span>{getMatchLabel(match.documentType, match.fieldName)}</span>
+                                      {match.timestampMs !== undefined && (
+                                        <Badge variant="secondary" className="text-[10px] py-0 px-1 flex items-center gap-0.5">
+                                          <Clock className="w-2.5 h-2.5" />
+                                          {formatTimestamp(match.timestampMs)}
+                                        </Badge>
+                                      )}
+                                      <ChevronRight className="w-3 h-3 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                    <p className="text-foreground/80 text-xs leading-relaxed line-clamp-2">
+                                      {highlightMatch(match.snippet, searchQuery)}
+                                    </p>
+                                  </button>
+                                ))}
+                                {hiddenCount > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleExpandedCase(result.case.id);
+                                    }}
+                                    className="w-full px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground hover-elevate flex items-center gap-1"
+                                    data-testid={`toggle-matches-${result.case.id}`}
+                                  >
+                                    {isExpanded ? (
+                                      <>
+                                        <ChevronUp className="w-3 h-3" />
+                                        Show fewer matches
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ChevronDown className="w-3 h-3" />
+                                        +{hiddenCount} more match{hiddenCount !== 1 ? 'es' : ''}
+                                      </>
                                     )}
-                                    <ChevronRight className="w-3 h-3 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-                                  </div>
-                                  <p className="text-foreground/80 text-xs leading-relaxed line-clamp-2">
-                                    {highlightMatch(match.snippet, searchQuery)}
-                                  </p>
-                                </button>
-                              ))}
-                              {hiddenCount > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleExpandedCase(result.case.id);
-                                  }}
-                                  className="w-full px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground hover-elevate flex items-center gap-1"
-                                  data-testid={`toggle-matches-${result.case.id}`}
-                                >
-                                  {isExpanded ? (
-                                    <>
-                                      <ChevronUp className="w-3 h-3" />
-                                      Show fewer matches
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ChevronDown className="w-3 h-3" />
-                                      +{hiddenCount} more match{hiddenCount !== 1 ? 'es' : ''}
-                                    </>
-                                  )}
-                                </button>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                ))
+                                  </button>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               ) : (
-                activeCases.map((caseItem) => (
-                  <CaseCard 
-                    key={caseItem.id} 
-                    id={caseItem.id}
-                    title={caseItem.title}
-                    clientName={caseItem.clientName}
-                    meetingDate={new Date(caseItem.createdAt).toLocaleDateString('en-GB', { 
-                      day: 'numeric', 
-                      month: 'long', 
-                      year: 'numeric' 
-                    })}
-                    status={caseItem.status as "pending" | "processing" | "review_required" | "completed" | "failed"}
-                    createdBy={caseItem.createdBy}
-                    priority={caseItem.priority as "urgent" | "deadline-soon" | "normal"}
-                    deadline={caseItem.deadline ? new Date(caseItem.deadline).toISOString() : null}
-                    reviewed={caseItem.reviewed}
-                  />
-                ))
+                <CaseListView cases={activeCases} />
               )}
-            </div>
+            </>
           ) : (
             <EmptyState
               icon={FolderOpen}

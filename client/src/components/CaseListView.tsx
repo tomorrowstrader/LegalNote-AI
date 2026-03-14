@@ -4,7 +4,7 @@ import { Clock, CheckCircle2, AlertCircle, Loader2, Eye, ChevronRight, Shield } 
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Case } from "@shared/schema";
+import { Case, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
 import { useLocation } from "wouter";
 import CaseDetailDrawer from "./CaseDetailDrawer";
 
@@ -197,10 +197,11 @@ export default function CaseListView({ cases, amlActivityDates, complianceEnable
         onKeyDown={handleKeyDown}
       >
         {/* Header row */}
-        <div className="hidden sm:grid sm:grid-cols-[auto_1fr_1fr_120px_100px_32px] gap-4 px-4 py-2.5 bg-muted/50 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="hidden sm:grid sm:grid-cols-[auto_1fr_1fr_minmax(0,140px)_100px_100px_32px] gap-3 px-4 py-2.5 bg-muted/50 text-xs font-medium text-muted-foreground uppercase tracking-wider">
           <div className="w-3"></div>
           <div>Client</div>
           <div>Case Title</div>
+          <div>Practice Area</div>
           <div>Deadline</div>
           <div>Priority</div>
           <div></div>
@@ -229,7 +230,7 @@ export default function CaseListView({ cases, amlActivityDates, complianceEnable
               className={cn(
                 "w-full text-left transition-colors duration-150",
                 "hover:bg-muted/50 focus:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/50",
-                "grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_1fr_120px_100px_32px] gap-3 sm:gap-4 px-4 py-3",
+                "grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_1fr_minmax(0,140px)_100px_100px_32px] gap-2 sm:gap-3 px-4 py-2.5",
                 isSelected && "bg-primary/5 border-l-2 border-l-primary",
                 isFocused && !isSelected && "bg-muted/30"
               )}
@@ -262,6 +263,17 @@ export default function CaseListView({ cases, amlActivityDates, complianceEnable
                 <p className="text-sm text-muted-foreground truncate">
                   {caseItem.title}
                 </p>
+              </div>
+
+              {/* Practice area - desktop only */}
+              <div className="hidden sm:flex items-center min-w-0">
+                {caseItem.practiceArea ? (
+                  <Badge variant="outline" className="text-[11px] truncate max-w-full no-default-hover-elevate no-default-active-elevate" data-testid={`badge-practice-${caseItem.id}`}>
+                    {PRACTICE_AREA_LABELS[caseItem.practiceArea as PracticeArea] || caseItem.practiceArea}
+                  </Badge>
+                ) : (
+                  <span className="text-muted-foreground/50 text-xs">—</span>
+                )}
               </div>
 
               {/* Deadline */}
