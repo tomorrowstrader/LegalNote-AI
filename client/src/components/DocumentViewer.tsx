@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -1267,7 +1267,7 @@ export default function DocumentViewer({
               <span className="hidden sm:inline">Attendance Note</span>
               <span className="sm:hidden">Att. Note</span>
             </TabsTrigger>
-            <TabsTrigger value="summary" data-testid="tab-summary" disabled={!summary && !textNotes} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+            <TabsTrigger value="summary" data-testid="tab-summary" className="text-xs sm:text-sm px-2 py-2.5 h-auto">
               Matter Record
             </TabsTrigger>
             <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
@@ -1325,7 +1325,7 @@ export default function DocumentViewer({
                   </div>
                 </div>
               )}
-              <CardContent className="prose prose-sm max-w-none">
+              <CardContent className="prose prose-sm max-w-none max-h-[600px] overflow-y-auto">
                 {attendanceNote ? (
                   <EditableDocumentContent 
                     document={attendanceNote}
@@ -1431,7 +1431,7 @@ export default function DocumentViewer({
                   </div>
                 </div>
               )}
-              <CardContent className="prose prose-sm max-w-none">
+              <CardContent className="prose prose-sm max-w-none max-h-[600px] overflow-y-auto">
                 {summary ? (
                   <EditableDocumentContent 
                     document={summary}
@@ -1459,9 +1459,15 @@ export default function DocumentViewer({
                     <p className="text-foreground whitespace-pre-wrap">{textNotes}</p>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground italic">
-                    No matter record produced yet. Documents will appear here once produced.
-                  </p>
+                  <div className="text-center py-8 space-y-3" data-testid="placeholder-matter-record">
+                    <FileText className="w-10 h-10 mx-auto text-muted-foreground opacity-40" />
+                    <div>
+                      <p className="font-medium text-sm text-foreground">Matter Record</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        The matter record will appear here once the session is processed.
+                      </p>
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -1525,7 +1531,7 @@ export default function DocumentViewer({
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-h-[600px] overflow-y-auto">
               {transcriptUtterances && transcriptUtterances.length > 0 ? (
                 <DiarizedTranscriptViewer
                   utterances={transcriptUtterances}

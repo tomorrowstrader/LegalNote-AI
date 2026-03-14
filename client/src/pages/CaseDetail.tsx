@@ -202,6 +202,12 @@ export default function CaseDetail() {
     enabled: !!caseId && caseData?.sourceType === 'audio',
   });
 
+  const { data: undertakingsData = [] } = useQuery<Array<{ id: string; status: string }>>({
+    queryKey: [`/api/cases/${caseId}/undertakings`],
+    enabled: !!caseId,
+  });
+  const outstandingUndertakingsCount = undertakingsData.filter(u => u.status === 'outstanding').length;
+
   const { data: allCases } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
     enabled: !!caseId,
@@ -539,6 +545,59 @@ export default function CaseDetail() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+          </div>
+
+          <div
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-md border text-sm flex-wrap ${
+              caseData.riskLevel === 'high'
+                ? 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'
+                : caseData.riskLevel === 'medium'
+                ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800'
+                : caseData.riskLevel === 'low'
+                ? 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800'
+                : 'bg-muted border-border'
+            }`}
+            data-testid="banner-aml-risk"
+          >
+            <Shield className={`w-4 h-4 flex-shrink-0 ${
+              caseData.riskLevel === 'high'
+                ? 'text-red-600 dark:text-red-400'
+                : caseData.riskLevel === 'medium'
+                ? 'text-amber-600 dark:text-amber-400'
+                : caseData.riskLevel === 'low'
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-muted-foreground'
+            }`} />
+            <span className={`font-semibold ${
+              caseData.riskLevel === 'high'
+                ? 'text-red-800 dark:text-red-300'
+                : caseData.riskLevel === 'medium'
+                ? 'text-amber-800 dark:text-amber-300'
+                : caseData.riskLevel === 'low'
+                ? 'text-green-800 dark:text-green-300'
+                : 'text-muted-foreground'
+            }`} data-testid="text-risk-level">
+              AML Risk: {caseData.riskLevel ? (caseData.riskLevel as string).toUpperCase() : 'Not Assessed'}
+            </span>
+            {hasValidConsent ? (
+              <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 no-default-hover-elevate no-default-active-elevate" data-testid="badge-consent-status">
+                Consent Recorded
+              </Badge>
+            ) : caseData.sourceType === 'audio' ? (
+              <Badge variant="destructive" className="no-default-hover-elevate no-default-active-elevate" data-testid="badge-consent-status">
+                Consent Required
+              </Badge>
+            ) : null}
+            {!caseData.conflictCheckCompleted && (
+              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 no-default-hover-elevate no-default-active-elevate" data-testid="badge-conflict-pending">
+                Conflict Check Pending
+              </Badge>
+            )}
+            {outstandingUndertakingsCount > 0 && (
+              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 no-default-hover-elevate no-default-active-elevate" data-testid="badge-outstanding-undertakings">
+                {outstandingUndertakingsCount} Outstanding Undertaking{outstandingUndertakingsCount !== 1 ? 's' : ''}
+              </Badge>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-4 text-sm">

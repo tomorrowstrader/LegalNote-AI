@@ -1,10 +1,25 @@
-import { useState, useRef, useEffect, useImperativeHandle, forwardRef, type Ref } from "react";
+import { useState, useRef, useEffect, useImperativeHandle, useCallback, type Ref } from "react";
 import { Play, Pause, Volume2, VolumeX, AlertTriangle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatDistanceToNow, differenceInDays, differenceInHours, differenceInMinutes } from "date-fns";
 import { logAuditEvent } from "@/lib/auditLogger";
+
+const BAR_COUNT = 60;
+
+function generateWaveformBars(): number[] {
+  const bars: number[] = [];
+  for (let i = 0; i < BAR_COUNT; i++) {
+    const t = i / (BAR_COUNT - 1);
+    const envelope = Math.sin(t * Math.PI);
+    const variation = 0.15 * Math.sin(t * Math.PI * 7) + 0.1 * Math.sin(t * Math.PI * 13);
+    bars.push(Math.max(0.08, Math.min(1, envelope * 0.7 + 0.2 + variation)));
+  }
+  return bars;
+}
+
+const WAVEFORM_BARS = generateWaveformBars();
 
 export interface AudioPlayerHandle {
   seekTo: (timeMs: number) => void;
@@ -21,10 +36,12 @@ interface AudioPlayerProps {
 
 export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecordingId, playerRef }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const timelineRef = useRef<HTMLInputElement>(null);
-  const isSeekingRef = useRef(false);
+  const waveformRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const dragStartTimeRef = useRef(0);
   const animationFrameRef = useRef<number | null>(null);
   const currentTimeDisplayRef = useRef<HTMLSpanElement>(null);
+  const barRefsArray = useRef<(HTMLDivElement | null)[]>([]);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -105,15 +122,19 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
     };
 
     const updateTimeSmooth = () => {
-      if (!isSeekingRef.current && audio && !audio.paused) {
-        // Update DOM directly via refs to avoid React re-renders on every frame
-        if (timelineRef.current) {
-          timelineRef.current.value = String(audio.currentTime);
-        }
+      if (!isDraggingRef.current && audio && !audio.paused) {
+        const progress = audio.duration > 0 ? audio.currentTime / audio.duration : 0;
+        const playedBars = Math.floor(progress * BAR_COUNT);
+        barRefsArray.current.forEach((bar, i) => {
+          if (bar) {
+            bar.style.backgroundColor = i < playedBars
+              ? 'hsl(var(--primary))'
+              : 'hsl(var(--secondary))';
+          }
+        });
         if (currentTimeDisplayRef.current) {
           currentTimeDisplayRef.current.textContent = formatTime(audio.currentTime);
         }
-        // Only update React state occasionally for other UI needs
         if (Math.abs(audio.currentTime - currentTime) > 0.5) {
           setCurrentTime(audio.currentTime);
         }
@@ -132,7 +153,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
-      if (!isSeekingRef.current) {
+      if (!isDraggingRef.current) {
         setCurrentTime(audio.currentTime);
       }
     };
@@ -218,62 +239,71 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
     }
   };
 
-  const handleTimelineMouseDown = () => {
-    isSeekingRef.current = true;
-  };
-
-  const handleTimelineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!audioRef.current || isExpired) return;
-    const newTime = parseFloat(e.target.value);
-    if (!isFinite(newTime)) return;
-    setCurrentTime(newTime);
-  };
-
-  const handleTimelineMouseUp = async (e: React.MouseEvent<HTMLInputElement>) => {
-    if (!audioRef.current || isExpired) return;
-    const newTime = parseFloat((e.target as HTMLInputElement).value);
-    if (!isFinite(newTime)) return;
-    const previousTime = audioRef.current.currentTime;
+  const seekToFraction = useCallback((clientX: number) => {
+    if (!audioRef.current || duration <= 0) return;
+    const container = waveformRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const newTime = fraction * duration;
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
-    isSeekingRef.current = false;
+  }, [duration]);
 
-    // Log audio seek event
+  const handleWaveformPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!audioRef.current || isExpired || duration <= 0) return;
+    dragStartTimeRef.current = audioRef.current.currentTime;
+    isDraggingRef.current = true;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    seekToFraction(e.clientX);
+  }, [isExpired, duration, seekToFraction]);
+
+  const handleWaveformPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    seekToFraction(e.clientX);
+  }, [seekToFraction]);
+
+  const handleWaveformPointerUp = useCallback(async (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current || !audioRef.current) return;
+    isDraggingRef.current = false;
+    seekToFraction(e.clientX);
+
     await logAuditEvent({
       eventType: "audio_seeked",
       caseId,
       audioRecordingId,
-      metadata: { 
-        from: previousTime,
-        to: newTime,
+      metadata: {
+        from: dragStartTimeRef.current,
+        to: audioRef.current.currentTime,
         duration: audioRef.current.duration,
       },
       severity: "info",
     });
-  };
+  }, [caseId, audioRecordingId, seekToFraction]);
 
-  const handleTimelineTouchEnd = async (e: React.TouchEvent<HTMLInputElement>) => {
-    if (!audioRef.current || isExpired) return;
-    const newTime = parseFloat((e.target as HTMLInputElement).value);
-    if (!isFinite(newTime)) return;
-    const previousTime = audioRef.current.currentTime;
+  const handleWaveformKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!audioRef.current || isExpired || duration <= 0) return;
+    let seekDelta = 0;
+    switch (e.key) {
+      case 'ArrowRight': seekDelta = 5; break;
+      case 'ArrowLeft': seekDelta = -5; break;
+      case 'Home':
+        audioRef.current.currentTime = 0;
+        setCurrentTime(0);
+        e.preventDefault();
+        return;
+      case 'End':
+        audioRef.current.currentTime = duration;
+        setCurrentTime(duration);
+        e.preventDefault();
+        return;
+      default: return;
+    }
+    e.preventDefault();
+    const newTime = Math.max(0, Math.min(duration, audioRef.current.currentTime + seekDelta));
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
-    isSeekingRef.current = false;
-
-    // Log audio seek event
-    await logAuditEvent({
-      eventType: "audio_seeked",
-      caseId,
-      audioRecordingId,
-      metadata: { 
-        from: previousTime,
-        to: newTime,
-        duration: audioRef.current.duration,
-      },
-      severity: "info",
-    });
-  };
+  }, [isExpired, duration]);
 
   const handleVolumeChange = (value: number[]) => {
     if (!audioRef.current) return;
@@ -382,21 +412,44 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
           </Button>
 
           <div className="flex-1 space-y-1">
-            <input
-              ref={timelineRef}
-              type="range"
-              min={0}
-              max={duration > 0 ? duration : 100}
-              step={0.01}
-              value={currentTime}
-              onMouseDown={handleTimelineMouseDown}
-              onTouchStart={handleTimelineMouseDown}
-              onChange={handleTimelineChange}
-              onMouseUp={handleTimelineMouseUp}
-              onTouchEnd={handleTimelineTouchEnd}
-              className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
-              data-testid="slider-timeline"
-            />
+            <div
+              ref={waveformRef}
+              className="flex items-end gap-[2px] h-10 cursor-pointer select-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary touch-none"
+              onPointerDown={handleWaveformPointerDown}
+              onPointerMove={handleWaveformPointerMove}
+              onPointerUp={handleWaveformPointerUp}
+              onPointerCancel={() => { isDraggingRef.current = false; }}
+              onLostPointerCapture={() => { isDraggingRef.current = false; }}
+              onKeyDown={handleWaveformKeyDown}
+              data-testid="waveform-timeline"
+              role="slider"
+              aria-label="Audio timeline"
+              aria-valuemin={0}
+              aria-valuemax={duration}
+              aria-valuenow={currentTime}
+              aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+              tabIndex={0}
+            >
+              {WAVEFORM_BARS.map((height, i) => {
+                const progress = duration > 0 ? currentTime / duration : 0;
+                const isPlayed = i < Math.floor(progress * BAR_COUNT);
+                return (
+                  <div
+                    key={i}
+                    ref={el => { barRefsArray.current[i] = el; }}
+                    className="flex-1 rounded-sm transition-colors duration-100"
+                    style={{
+                      height: `${height * 100}%`,
+                      minWidth: '2px',
+                      backgroundColor: isPlayed
+                        ? 'hsl(var(--primary))'
+                        : 'hsl(var(--secondary))',
+                    }}
+                    data-testid={`waveform-bar-${i}`}
+                  />
+                );
+              })}
+            </div>
             <div className="flex justify-between text-xs text-muted-foreground">
               <span ref={currentTimeDisplayRef} data-testid="text-current-time">{formatTime(currentTime)}</span>
               <span data-testid="text-duration">{formatTime(duration)}</span>
