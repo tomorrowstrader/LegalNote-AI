@@ -147,7 +147,14 @@ export default function CaseDetail() {
   const [showLogCallModal, setShowLogCallModal] = useState(false);
   const [showHandoverModal, setShowHandoverModal] = useState(false);
   const [showTimeRecordingModal, setShowTimeRecordingModal] = useState(false);
-  const [hasPromptedTimeRecording, setHasPromptedTimeRecording] = useState(false);
+  const timeRecordingKey = `timeRecordingPrompted_${params.id}`;
+  const [hasPromptedTimeRecording, setHasPromptedTimeRecording] = useState(() => {
+    return sessionStorage.getItem(timeRecordingKey) === 'true';
+  });
+
+  useEffect(() => {
+    setHasPromptedTimeRecording(sessionStorage.getItem(timeRecordingKey) === 'true');
+  }, [timeRecordingKey]);
   const [showCareLetterModal, setShowCareLetterModal] = useState(false);
   const [showSendCareLetterDialog, setShowSendCareLetterDialog] = useState(false);
   const [sendEmail, setSendEmail] = useState("");
@@ -282,10 +289,11 @@ export default function CaseDetail() {
       const timer = setTimeout(() => {
         setShowTimeRecordingModal(true);
         setHasPromptedTimeRecording(true);
+        sessionStorage.setItem(timeRecordingKey, 'true');
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [caseData?.status, caseData?.sourceType, hasPromptedTimeRecording]);
+  }, [caseData?.status, caseData?.sourceType, hasPromptedTimeRecording, timeRecordingKey]);
 
   // Check if there's a valid consent log (consentGiven === true)
   const hasValidConsent = consentLogs.some(log => log.consentGiven === true);

@@ -14,6 +14,7 @@ import DownloadModal from "@/components/DownloadModal";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import { RichTextEditor, type TrackedChange } from "@/components/RichTextEditor";
 import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
 import { Textarea } from "@/components/ui/textarea";
@@ -1562,10 +1563,12 @@ export default function DocumentViewer({
               </CardHeader>
               <CardContent>
                 <div
-                  className="prose dark:prose-invert max-w-none text-foreground whitespace-pre-wrap"
+                  className="prose dark:prose-invert max-w-none text-foreground"
                   data-testid="content-care-letter"
                 >
-                  {clientCareLetter.content}
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                    {clientCareLetter.content}
+                  </ReactMarkdown>
                 </div>
               </CardContent>
             </Card>
