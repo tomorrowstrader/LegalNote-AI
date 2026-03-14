@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, unique, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -26,6 +26,7 @@ export const users = pgTable("users", {
   subscriptionPlan: varchar("subscription_plan"), // solo, team
   trialEndsAt: timestamp("trial_ends_at"),
   complianceThread: boolean("compliance_thread").notNull().default(false),
+  hourlyRate: text("hourly_rate"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1335,3 +1336,33 @@ export const insertExternalDocumentRefSchema = createInsertSchema(externalDocume
 
 export type InsertExternalDocumentRef = z.infer<typeof insertExternalDocumentRefSchema>;
 export type ExternalDocumentRef = typeof externalDocumentRefs.$inferSelect;
+
+export const timeEntries = pgTable("time_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetingSessionId: varchar("meeting_session_id").references(() => cases.id),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  durationMinutes: integer("duration_minutes").notNull(),
+  description: text("description").notNull(),
+  hourlyRate: text("hourly_rate").notNull(),
+  status: text("status").notNull().default("draft"),
+  clioTimeEntryId: text("clio_time_entry_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertTimeEntrySchema = createInsertSchema(timeEntries).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  caseId: z.string().min(1),
+  userId: z.string().min(1),
+  durationMinutes: z.number().int().min(1),
+  description: z.string().min(1).max(5000),
+  hourlyRate: z.string().regex(/^\d+(\.\d{1,2})?$/, "Must be a valid decimal number"),
+  status: z.enum(["draft", "confirmed"]).default("draft"),
+  meetingSessionId: z.string().optional(),
+  clioTimeEntryId: z.string().optional(),
+});
+
+export type InsertTimeEntry = z.infer<typeof insertTimeEntrySchema>;
+export type TimeEntry = typeof timeEntries.$inferSelect;

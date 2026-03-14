@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -6,15 +7,25 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Activity } from "lucide-react";
+import { ArrowLeft, Activity, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { Case } from "@shared/schema";
 
 export default function MyProfile() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [hourlyRate, setHourlyRate] = useState('');
+
+  useEffect(() => {
+    if (user?.hourlyRate) {
+      setHourlyRate(user.hourlyRate);
+    }
+  }, [user?.hourlyRate]);
   
   const displayName = user?.firstName && user?.lastName 
     ? `${user.firstName} ${user.lastName}` 
@@ -22,6 +33,19 @@ export default function MyProfile() {
 
   const { data: cases, isLoading: loadingCases } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
+  });
+
+  const hourlyRateMutation = useMutation({
+    mutationFn: async (rate: string) => {
+      return await apiRequest("PATCH", "/api/user/hourly-rate", { hourlyRate: rate });
+    },
+    onSuccess: () => {
+      toast({ title: "Hourly rate updated", description: "Your default hourly rate has been saved." });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to update", description: "Could not save your hourly rate.", variant: "destructive" });
+    },
   });
 
   // Calculate user statistics
@@ -119,6 +143,46 @@ export default function MyProfile() {
                   <p className="text-sm text-muted-foreground">Get notified when documents are ready</p>
                 </div>
                 <Switch defaultChecked data-testid="switch-processing-alerts" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Billing & Time Recording</CardTitle>
+              <CardDescription>Set your default hourly rate for time entries</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="hourly-rate">Default Hourly Rate (GBP)</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    id="hourly-rate"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="250.00"
+                    value={hourlyRate}
+                    onChange={(e) => setHourlyRate(e.target.value)}
+                    className="max-w-[200px]"
+                    data-testid="input-hourly-rate"
+                  />
+                  <Button
+                    onClick={() => hourlyRateMutation.mutate(hourlyRate)}
+                    disabled={hourlyRateMutation.isPending || !hourlyRate}
+                    className="bg-accent hover:bg-accent"
+                    data-testid="button-save-hourly-rate"
+                  >
+                    {hourlyRateMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      "Save Rate"
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This rate will be pre-filled when recording billable time after sessions
+                </p>
               </div>
             </CardContent>
           </Card>

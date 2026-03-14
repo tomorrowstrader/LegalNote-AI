@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X, Phone, Lock, ArrowRightLeft } from "lucide-react";
+import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,8 @@ import ActionItemsViewer from "@/components/ActionItemsViewer";
 import PreMeetingBriefing from "@/components/PreMeetingBriefing";
 import HandoverModal from "@/components/HandoverModal";
 import ExternalDocumentRefs from "@/components/ExternalDocumentRefs";
+import TimeEntriesViewer from "@/components/TimeEntriesViewer";
+import TimeRecordingModal from "@/components/TimeRecordingModal";
 import { useLocation, useParams, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -137,6 +139,8 @@ export default function CaseDetail() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showLogCallModal, setShowLogCallModal] = useState(false);
   const [showHandoverModal, setShowHandoverModal] = useState(false);
+  const [showTimeRecordingModal, setShowTimeRecordingModal] = useState(false);
+  const [hasPromptedTimeRecording, setHasPromptedTimeRecording] = useState(false);
   const { user } = useAuth();
   const audioPlayerRef = useRef<AudioPlayerHandle>(null);
   const [hasAutoSeeked, setHasAutoSeeked] = useState(false);
@@ -255,6 +259,21 @@ export default function CaseDetail() {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
     }
   }, [processingStatus?.status, caseData?.status, caseId]);
+
+  // Prompt time recording after processing completes
+  useEffect(() => {
+    if (
+      !hasPromptedTimeRecording &&
+      caseData?.status === 'review_required' &&
+      (caseData?.sourceType === 'audio' || caseData?.sourceType === 'dictation')
+    ) {
+      const timer = setTimeout(() => {
+        setShowTimeRecordingModal(true);
+        setHasPromptedTimeRecording(true);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [caseData?.status, caseData?.sourceType, hasPromptedTimeRecording]);
 
   // Check if there's a valid consent log (consentGiven === true)
   const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
@@ -897,6 +916,23 @@ export default function CaseDetail() {
               </AccordionContent>
             </AccordionItem>
 
+            <AccordionItem value="time-entries" className="bg-card rounded-lg border border-border px-6">
+              <AccordionTrigger className="hover:no-underline" data-testid="accordion-time-entries">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-accent" />
+                  <span className="font-semibold">Time</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <TimeEntriesViewer
+                  caseId={caseId!}
+                  caseTitle={caseData.title}
+                  matterReference={caseData.matterReference || undefined}
+                  durationSeconds={audioData?.duration || undefined}
+                />
+              </AccordionContent>
+            </AccordionItem>
+
             <AccordionItem value="compliance-thread" className="bg-card rounded-lg border border-border px-6">
               <AccordionTrigger className="hover:no-underline" data-testid="accordion-compliance-thread">
                 <div className="flex items-center gap-2">
@@ -1099,6 +1135,16 @@ export default function CaseDetail() {
         caseId={caseId!}
         caseTitle={caseData.title}
         currentAssignee={caseData.assignedToUserId}
+      />
+
+      <TimeRecordingModal
+        open={showTimeRecordingModal}
+        onOpenChange={setShowTimeRecordingModal}
+        caseId={caseId!}
+        caseTitle={caseData.title}
+        matterReference={caseData.matterReference || undefined}
+        durationSeconds={audioData?.duration || undefined}
+        sessionType={caseData.sourceType === 'dictation' ? 'Telephone Attendance' : 'Meeting'}
       />
     </div>
   );

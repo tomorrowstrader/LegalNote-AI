@@ -9,6 +9,7 @@ export interface User {
   isAdmin?: boolean;
   waitlistStatus?: "pending" | "approved" | null;
   complianceThread?: boolean;
+  hourlyRate?: string;
 }
 
 export function useAuth() {

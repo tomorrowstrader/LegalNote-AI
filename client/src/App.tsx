@@ -36,6 +36,7 @@ import MyActions from "@/pages/MyActions";
 import Clients from "@/pages/Clients";
 import ClientProfile from "@/pages/ClientProfile";
 import Login from "@/pages/Login";
+import TimeSummary from "@/pages/TimeSummary";
 import ScrollToTop from "@/components/ScrollToTop";
 
 function Router() {
@@ -77,6 +78,7 @@ function Router() {
           <Route path="/my-actions" component={MyActions} />
           <Route path="/clients" component={Clients} />
           <Route path="/clients/:id" component={ClientProfile} />
+          <Route path="/time-summary" component={TimeSummary} />
           <Route path="/waitlist" component={WaitlistPage} />
         </>
       )}

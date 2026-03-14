@@ -27,7 +27,7 @@ function resolveTemplatePath(filename: string): string {
   return possiblePaths[0];
 }
 import { storage } from "./storage";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema } from "@shared/schema";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
@@ -2051,6 +2051,159 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       });
 
       res.json(ref);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Time Entry routes
+  app.get("/api/cases/:id/time-entries", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseRecord = await storage.getCase(req.params.id, userId);
+      if (!caseRecord) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const entries = await storage.getTimeEntriesByCase(req.params.id);
+      res.json(entries);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/time-entries", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseRecord = await storage.getCase(req.params.id, userId);
+      if (!caseRecord) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const body = { ...req.body, caseId: req.params.id, userId };
+      const validated = insertTimeEntrySchema.parse(body);
+      const entry = await storage.createTimeEntry(validated);
+      res.json(entry);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/time-entries/:id", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const entry = await storage.getTimeEntry(req.params.id);
+      if (!entry) {
+        return res.status(404).json({ message: "Time entry not found" });
+      }
+      if (entry.userId !== userId) {
+        return res.status(403).json({ message: "Not authorised" });
+      }
+      const updateSchema = z.object({
+        durationMinutes: z.number().int().min(1).optional(),
+        description: z.string().min(1).max(5000).optional(),
+        hourlyRate: z.string().regex(/^\d+(\.\d{1,2})?$/, "Must be a valid decimal number").optional(),
+        status: z.enum(["draft", "confirmed"]).optional(),
+        clioTimeEntryId: z.string().optional(),
+      });
+      const validated = updateSchema.parse(req.body);
+      const updated = await storage.updateTimeEntry(req.params.id, validated);
+      res.json(updated);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/time-entries/:id", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const entry = await storage.getTimeEntry(req.params.id);
+      if (!entry) {
+        return res.status(404).json({ message: "Time entry not found" });
+      }
+      if (entry.userId !== userId) {
+        return res.status(403).json({ message: "Not authorised" });
+      }
+      await storage.deleteTimeEntry(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/time-entries", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+      const isAdmin = userId === ADMIN_USER_ID;
+      const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+      const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+      if (isAdmin) {
+        const entries = await storage.getAllTimeEntries(startDate, endDate);
+        res.json(entries);
+      } else {
+        const entries = await storage.getTimeEntriesByUser(userId, startDate, endDate);
+        res.json(entries);
+      }
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/time-entries/export-csv", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+      const isAdmin = userId === ADMIN_USER_ID;
+      const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+      const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+      const entries = isAdmin
+        ? await storage.getAllTimeEntries(startDate, endDate)
+        : await storage.getTimeEntriesByUser(userId, startDate, endDate);
+
+      const csvHeader = "Date,Fee Earner,Matter,Client,Description,Duration (mins),Hourly Rate,Total,Status\n";
+      const csvRows = entries.map(e => {
+        const rate = parseFloat(e.hourlyRate) || 0;
+        const date = new Date(e.createdAt).toISOString().split('T')[0];
+        const total = ((e.durationMinutes / 60) * rate).toFixed(2);
+        const escape = (s: string | undefined | null) => `"${(s || '').replace(/"/g, '""')}"`;
+        return `${date},${escape((e as any).userName)},${escape((e as any).caseTitle)},${escape((e as any).clientName)},${escape(e.description)},${e.durationMinutes},${e.hourlyRate},${total},${e.status}`;
+      }).join("\n");
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="time-entries.csv"');
+      res.send(csvHeader + csvRows);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/user/hourly-rate", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const rateSchema = z.object({
+        hourlyRate: z.string().regex(/^\d+(\.\d{1,2})?$/, "Must be a valid decimal number"),
+      });
+      const { hourlyRate } = rateSchema.parse(req.body);
+      const user = await storage.updateUserHourlyRate(userId, hourlyRate);
+      res.json(user);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/time-entries/:id/push-to-clio", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const entry = await storage.getTimeEntry(req.params.id);
+      if (!entry) {
+        return res.status(404).json({ message: "Time entry not found" });
+      }
+      if (entry.userId !== userId) {
+        return res.status(403).json({ message: "Not authorised" });
+      }
+      if (entry.status !== 'confirmed') {
+        return res.status(400).json({ message: "Only confirmed time entries can be pushed to Clio" });
+      }
+      res.status(501).json({ message: "Clio integration not yet configured. Please connect your Clio account in Settings." });
     } catch (error: any) {
       next(error);
     }

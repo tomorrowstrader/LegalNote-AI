@@ -33,6 +33,7 @@ import {
   type AmlDecisionRecord, type InsertAmlDecisionRecord,
   type ExternalDocumentRef, type InsertExternalDocumentRef,
   type MeetingSession, type InsertMeetingSession,
+  type TimeEntry, type InsertTimeEntry,
   users,
   clients,
   cases,
@@ -67,6 +68,7 @@ import {
   amlDecisionRecords,
   externalDocumentRefs,
   meetingSessions,
+  timeEntries,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -528,6 +530,15 @@ export interface IStorage {
 
   getExternalDocumentRefs(caseId: string): Promise<ExternalDocumentRef[]>;
   createExternalDocumentRef(data: InsertExternalDocumentRef, userId: string): Promise<ExternalDocumentRef>;
+
+  createTimeEntry(data: InsertTimeEntry): Promise<TimeEntry>;
+  getTimeEntry(id: string): Promise<TimeEntry | undefined>;
+  getTimeEntriesByCase(caseId: string): Promise<TimeEntry[]>;
+  getTimeEntriesByUser(userId: string, startDate?: Date, endDate?: Date): Promise<TimeEntry[]>;
+  getAllTimeEntries(startDate?: Date, endDate?: Date): Promise<(TimeEntry & { caseTitle?: string; clientName?: string; userName?: string })[]>;
+  updateTimeEntry(id: string, updates: Partial<TimeEntry>): Promise<TimeEntry | undefined>;
+  deleteTimeEntry(id: string): Promise<void>;
+  updateUserHourlyRate(userId: string, hourlyRate: string): Promise<User | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -582,6 +593,8 @@ export class MemStorage implements IStorage {
       subscriptionStatus: existing?.subscriptionStatus ?? null,
       subscriptionPlan: existing?.subscriptionPlan ?? null,
       trialEndsAt: existing?.trialEndsAt ?? null,
+      complianceThread: existing?.complianceThread ?? false,
+      hourlyRate: existing?.hourlyRate ?? null,
       createdAt: existing?.createdAt || new Date(),
       updatedAt: new Date(),
     };
@@ -1970,6 +1983,28 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...updates };
     this.meetingSessionsMap.set(id, updated);
     return updated;
+  }
+  async createTimeEntry(_data: InsertTimeEntry): Promise<TimeEntry> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getTimeEntry(_id: string): Promise<TimeEntry | undefined> {
+    return undefined;
+  }
+  async getTimeEntriesByCase(_caseId: string): Promise<TimeEntry[]> {
+    return [];
+  }
+  async getTimeEntriesByUser(_userId: string, _startDate?: Date, _endDate?: Date): Promise<TimeEntry[]> {
+    return [];
+  }
+  async getAllTimeEntries(_startDate?: Date, _endDate?: Date): Promise<(TimeEntry & { caseTitle?: string; clientName?: string; userName?: string })[]> {
+    return [];
+  }
+  async updateTimeEntry(_id: string, _updates: Partial<TimeEntry>): Promise<TimeEntry | undefined> {
+    return undefined;
+  }
+  async deleteTimeEntry(_id: string): Promise<void> {}
+  async updateUserHourlyRate(_userId: string, _hourlyRate: string): Promise<User | undefined> {
+    return undefined;
   }
 }
 
@@ -4416,6 +4451,89 @@ export class DbStorage implements IStorage {
       .where(eq(meetingSessions.id, id))
       .returning();
     return updated;
+  }
+
+  async createTimeEntry(data: InsertTimeEntry): Promise<TimeEntry> {
+    const result = await db.insert(timeEntries).values({
+      meetingSessionId: data.meetingSessionId ?? null,
+      caseId: data.caseId,
+      userId: data.userId,
+      durationMinutes: data.durationMinutes,
+      description: data.description,
+      hourlyRate: data.hourlyRate,
+      status: data.status ?? "draft",
+      clioTimeEntryId: data.clioTimeEntryId ?? null,
+    }).returning();
+    return result[0];
+  }
+
+  async getTimeEntry(id: string): Promise<TimeEntry | undefined> {
+    const result = await db.select().from(timeEntries).where(eq(timeEntries.id, id));
+    return result[0];
+  }
+
+  async getTimeEntriesByCase(caseId: string): Promise<TimeEntry[]> {
+    return await db.select().from(timeEntries)
+      .where(eq(timeEntries.caseId, caseId))
+      .orderBy(desc(timeEntries.createdAt));
+  }
+
+  async getTimeEntriesByUser(userId: string, startDate?: Date, endDate?: Date): Promise<TimeEntry[]> {
+    const conditions = [eq(timeEntries.userId, userId)];
+    if (startDate) conditions.push(gte(timeEntries.createdAt, startDate));
+    if (endDate) conditions.push(lte(timeEntries.createdAt, endDate));
+    return await db.select().from(timeEntries)
+      .where(and(...conditions))
+      .orderBy(desc(timeEntries.createdAt));
+  }
+
+  async getAllTimeEntries(startDate?: Date, endDate?: Date): Promise<(TimeEntry & { caseTitle?: string; clientName?: string; userName?: string })[]> {
+    const conditions: any[] = [];
+    if (startDate) conditions.push(gte(timeEntries.createdAt, startDate));
+    if (endDate) conditions.push(lte(timeEntries.createdAt, endDate));
+
+    const results = await db.select({
+      timeEntry: timeEntries,
+      caseTitle: cases.title,
+      clientName: cases.clientName,
+      userFirstName: users.firstName,
+      userLastName: users.lastName,
+      userEmail: users.email,
+    })
+      .from(timeEntries)
+      .leftJoin(cases, eq(timeEntries.caseId, cases.id))
+      .leftJoin(users, eq(timeEntries.userId, users.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(timeEntries.createdAt));
+
+    return results.map(r => ({
+      ...r.timeEntry,
+      caseTitle: r.caseTitle ?? undefined,
+      clientName: r.clientName ?? undefined,
+      userName: r.userFirstName && r.userLastName
+        ? `${r.userFirstName} ${r.userLastName}`
+        : r.userEmail ?? undefined,
+    }));
+  }
+
+  async updateTimeEntry(id: string, updates: Partial<TimeEntry>): Promise<TimeEntry | undefined> {
+    const result = await db.update(timeEntries)
+      .set(updates)
+      .where(eq(timeEntries.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteTimeEntry(id: string): Promise<void> {
+    await db.delete(timeEntries).where(eq(timeEntries.id, id));
+  }
+
+  async updateUserHourlyRate(userId: string, hourlyRate: string): Promise<User | undefined> {
+    const result = await db.update(users)
+      .set({ hourlyRate, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
   }
 }
 
