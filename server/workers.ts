@@ -13,13 +13,13 @@ export function initializeWorkers() {
   console.log('[WORKERS] Initializing job queue workers...');
 
   // Register AI processing job handler
-  jobQueue.registerHandler('ai-processing', async (data: { caseId: string; userId: string }) => {
-    console.log(`[AI-WORKER] Starting AI processing for case ${data.caseId}`);
+  jobQueue.registerHandler('ai-processing', async (data: { caseId: string; userId: string; sessionId?: string }) => {
+    console.log(`[AI-WORKER] Starting AI processing for case ${data.caseId}${data.sessionId ? ` session ${data.sessionId}` : ''}`);
     
     const pipeline = new AIProcessingPipeline(storage);
     
     try {
-      const result = await pipeline.processCase(data.caseId, data.userId);
+      const result = await pipeline.processCase(data.caseId, data.userId, data.sessionId);
       
       if (result.success) {
         console.log(`[AI-WORKER] Successfully processed case ${data.caseId}. Cost: $${result.totalCost.toFixed(4)}`);

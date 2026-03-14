@@ -6,6 +6,7 @@ import { configureSecurityHeaders } from "./securityHeaders";
 import { cleanupExpiredAudio } from "./audioCleanup";
 import { initializeWorkers } from "./workers";
 import { migrateClientsFromCases } from "./clientMigration";
+import { backfillSessions } from "./sessionMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
@@ -121,6 +122,9 @@ app.use((req, res, next) => {
 
   // Backfill client records from existing cases (idempotent)
   await migrateClientsFromCases();
+
+  // Backfill meeting sessions for existing cases (idempotent)
+  await backfillSessions();
 
   // Initialize background job workers
   initializeWorkers();

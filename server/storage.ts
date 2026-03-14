@@ -32,6 +32,7 @@ import {
   type AmlMonitoringNote, type InsertAmlMonitoringNote,
   type AmlDecisionRecord, type InsertAmlDecisionRecord,
   type ExternalDocumentRef, type InsertExternalDocumentRef,
+  type MeetingSession, type InsertMeetingSession,
   users,
   clients,
   cases,
@@ -65,6 +66,7 @@ import {
   amlMonitoringNotes,
   amlDecisionRecords,
   externalDocumentRefs,
+  meetingSessions,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -306,6 +308,7 @@ export interface IStorage {
   createAudioRecording(audioData: ServerAudioRecordingInsert): Promise<AudioRecording>;
   getAudioRecording(id: string): Promise<AudioRecording | undefined>;
   getAudioRecordingByCase(caseId: string, userId: string): Promise<AudioRecording | undefined>;
+  getAudioRecordingBySession(meetingSessionId: string): Promise<AudioRecording | undefined>;
   updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined>;
   getExpiredAudioRecordings(): Promise<AudioRecording[]>;
   getExpiringAudioCount(userId: string, withinHours: number): Promise<number>;
@@ -325,6 +328,7 @@ export interface IStorage {
   createTranscript(transcriptData: InsertTranscript): Promise<Transcript>;
   getTranscript(id: string): Promise<Transcript | undefined>;
   getTranscriptByCase(caseId: string, userId: string): Promise<Transcript | undefined>;
+  getTranscriptBySession(meetingSessionId: string): Promise<Transcript | undefined>;
   updateTranscript(id: string, updates: Partial<Transcript>, userId: string): Promise<Transcript | undefined>;
   
   // Action Items methods
@@ -348,6 +352,7 @@ export interface IStorage {
   createDocument(documentData: InsertDocument): Promise<Document>;
   getDocument(id: string): Promise<Document | undefined>;
   getDocumentsByCase(caseId: string, userId: string): Promise<Document[]>;
+  getDocumentsBySession(meetingSessionId: string): Promise<Document[]>;
   getActiveDocumentsByCase(caseId: string, userId: string): Promise<Document[]>;
   updateDocument(id: string, updates: Partial<Document>, userId: string): Promise<Document | undefined>;
   approveDocument(id: string, userId: string, comment?: string): Promise<Document | undefined>;
@@ -507,6 +512,11 @@ export interface IStorage {
   updateDocumentComment(id: string, updates: Partial<DocumentComment>): Promise<DocumentComment | undefined>;
   deleteDocumentComment(id: string): Promise<void>;
 
+  createMeetingSession(sessionData: InsertMeetingSession): Promise<MeetingSession>;
+  getMeetingSession(id: string): Promise<MeetingSession | undefined>;
+  getMeetingSessionsByCase(caseId: string, userId: string): Promise<MeetingSession[]>;
+  updateMeetingSession(id: string, updates: Partial<MeetingSession>): Promise<MeetingSession | undefined>;
+
   getAmlMonitoringNotes(caseId: string): Promise<AmlMonitoringNote[]>;
   createAmlMonitoringNote(data: InsertAmlMonitoringNote): Promise<AmlMonitoringNote>;
   getAmlDecisionRecords(caseId: string): Promise<AmlDecisionRecord[]>;
@@ -535,6 +545,7 @@ export class MemStorage implements IStorage {
   private clientVersionTrackingRecords: Map<string, ClientVersionTracking>;
   private clientsMap: Map<string, Client>;
   private searchHistoryRecords: Map<string, SearchHistory>;
+  private meetingSessionsMap: Map<string, MeetingSession>;
 
   constructor() {
     this.users = new Map();
@@ -551,6 +562,7 @@ export class MemStorage implements IStorage {
     this.calendarIntegrations = new Map();
     this.clientVersionTrackingRecords = new Map();
     this.searchHistoryRecords = new Map();
+    this.meetingSessionsMap = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -733,12 +745,15 @@ export class MemStorage implements IStorage {
     const audioRecording: AudioRecording = {
       id,
       caseId: insertAudioRecording.caseId,
+      meetingSessionId: insertAudioRecording.meetingSessionId ?? null,
       recordedAt: new Date(),
       expiresAt: insertAudioRecording.expiresAt,
       filePath: insertAudioRecording.filePath ?? null,
       mimeType: insertAudioRecording.mimeType ?? null,
       duration: insertAudioRecording.duration ?? null,
       deletedAt: null,
+      consentSegmentPath: null,
+      consentDurationSeconds: null,
     };
     this.audioRecordings.set(id, audioRecording);
     return audioRecording;
@@ -752,9 +767,17 @@ export class MemStorage implements IStorage {
     const caseRecord = this.cases.get(caseId);
     if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
     
-    return Array.from(this.audioRecordings.values()).find(
-      (recording) => recording.caseId === caseId
-    );
+    const recordings = Array.from(this.audioRecordings.values())
+      .filter((recording) => recording.caseId === caseId)
+      .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
+    return recordings[0];
+  }
+
+  async getAudioRecordingBySession(meetingSessionId: string): Promise<AudioRecording | undefined> {
+    const recordings = Array.from(this.audioRecordings.values())
+      .filter((recording) => recording.meetingSessionId === meetingSessionId)
+      .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
+    return recordings[0];
   }
 
   async updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined> {
@@ -986,6 +1009,12 @@ export class MemStorage implements IStorage {
     
     return Array.from(this.transcripts.values()).find(
       (transcript) => transcript.caseId === caseId
+    );
+  }
+
+  async getTranscriptBySession(meetingSessionId: string): Promise<Transcript | undefined> {
+    return Array.from(this.transcripts.values()).find(
+      (transcript) => transcript.meetingSessionId === meetingSessionId
     );
   }
 
@@ -1222,6 +1251,12 @@ export class MemStorage implements IStorage {
     
     return Array.from(this.documents.values())
       .filter((doc) => doc.caseId === caseId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getDocumentsBySession(meetingSessionId: string): Promise<Document[]> {
+    return Array.from(this.documents.values())
+      .filter((doc) => doc.meetingSessionId === meetingSessionId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
@@ -1903,6 +1938,39 @@ export class MemStorage implements IStorage {
   async createExternalDocumentRef(_data: InsertExternalDocumentRef, _userId: string): Promise<ExternalDocumentRef> {
     throw new Error("Not implemented in MemStorage");
   }
+
+  async createMeetingSession(sessionData: InsertMeetingSession): Promise<MeetingSession> {
+    const id = crypto.randomUUID();
+    const session: MeetingSession = {
+      id,
+      caseId: sessionData.caseId,
+      recordingType: sessionData.recordingType || "full_meeting",
+      startedAt: new Date(),
+      durationSeconds: sessionData.durationSeconds ?? null,
+      status: sessionData.status || "pending",
+      notes: sessionData.notes ?? null,
+      createdBy: sessionData.createdBy,
+    };
+    this.meetingSessionsMap.set(id, session);
+    return session;
+  }
+  async getMeetingSession(id: string): Promise<MeetingSession | undefined> {
+    return this.meetingSessionsMap.get(id);
+  }
+  async getMeetingSessionsByCase(caseId: string, userId: string): Promise<MeetingSession[]> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    return Array.from(this.meetingSessionsMap.values())
+      .filter(s => s.caseId === caseId)
+      .sort((a, b) => (b.startedAt?.getTime() ?? 0) - (a.startedAt?.getTime() ?? 0));
+  }
+  async updateMeetingSession(id: string, updates: Partial<MeetingSession>): Promise<MeetingSession | undefined> {
+    const existing = this.meetingSessionsMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...updates };
+    this.meetingSessionsMap.set(id, updated);
+    return updated;
+  }
 }
 
 export class DbStorage implements IStorage {
@@ -2213,6 +2281,7 @@ export class DbStorage implements IStorage {
       .insert(audioRecordings)
       .values({
         caseId: insertAudioRecording.caseId,
+        meetingSessionId: insertAudioRecording.meetingSessionId ?? null,
         filePath: insertAudioRecording.filePath ?? null,
         mimeType: insertAudioRecording.mimeType ?? null,
         duration: insertAudioRecording.duration ?? null,
@@ -2231,7 +2300,16 @@ export class DbStorage implements IStorage {
     const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
     if (!caseRecord[0]) return undefined;
     
-    const result = await db.select().from(audioRecordings).where(eq(audioRecordings.caseId, caseId));
+    const result = await db.select().from(audioRecordings)
+      .where(eq(audioRecordings.caseId, caseId))
+      .orderBy(desc(audioRecordings.recordedAt));
+    return result[0];
+  }
+
+  async getAudioRecordingBySession(meetingSessionId: string): Promise<AudioRecording | undefined> {
+    const result = await db.select().from(audioRecordings)
+      .where(eq(audioRecordings.meetingSessionId, meetingSessionId))
+      .orderBy(desc(audioRecordings.recordedAt));
     return result[0];
   }
 
@@ -2407,6 +2485,7 @@ export class DbStorage implements IStorage {
         utterances: transcriptData.utterances ?? [],
         speakerCount: transcriptData.speakerCount ?? null,
         redactions: transcriptData.redactions ?? [],
+        meetingSessionId: transcriptData.meetingSessionId ?? null,
       })
       .returning();
     return result[0];
@@ -2422,6 +2501,11 @@ export class DbStorage implements IStorage {
     if (!caseRecord[0]) return undefined;
     
     const result = await db.select().from(transcripts).where(eq(transcripts.caseId, caseId));
+    return result[0];
+  }
+
+  async getTranscriptBySession(meetingSessionId: string): Promise<Transcript | undefined> {
+    const result = await db.select().from(transcripts).where(eq(transcripts.meetingSessionId, meetingSessionId));
     return result[0];
   }
 
@@ -2631,6 +2715,7 @@ export class DbStorage implements IStorage {
         parentVersionId: documentData.parentVersionId ?? null,
         verificationWarnings: documentData.verificationWarnings ?? null,
         isShortRecording: documentData.isShortRecording ?? false,
+        meetingSessionId: documentData.meetingSessionId ?? null,
       })
       .returning();
     return result[0];
@@ -2649,6 +2734,14 @@ export class DbStorage implements IStorage {
       .select()
       .from(documents)
       .where(eq(documents.caseId, caseId))
+      .orderBy(desc(documents.createdAt));
+  }
+
+  async getDocumentsBySession(meetingSessionId: string): Promise<Document[]> {
+    return await db
+      .select()
+      .from(documents)
+      .where(eq(documents.meetingSessionId, meetingSessionId))
       .orderBy(desc(documents.createdAt));
   }
 
@@ -4297,6 +4390,32 @@ export class DbStorage implements IStorage {
       providedBy: data.providedBy,
     }).returning();
     return result[0];
+  }
+
+  async createMeetingSession(sessionData: InsertMeetingSession): Promise<MeetingSession> {
+    const [created] = await db.insert(meetingSessions).values(sessionData).returning();
+    return created;
+  }
+
+  async getMeetingSession(id: string): Promise<MeetingSession | undefined> {
+    const [result] = await db.select().from(meetingSessions).where(eq(meetingSessions.id, id));
+    return result;
+  }
+
+  async getMeetingSessionsByCase(caseId: string, userId: string): Promise<MeetingSession[]> {
+    const caseData = await this.getCase(caseId, userId);
+    if (!caseData) return [];
+    return await db.select().from(meetingSessions)
+      .where(eq(meetingSessions.caseId, caseId))
+      .orderBy(desc(meetingSessions.startedAt));
+  }
+
+  async updateMeetingSession(id: string, updates: Partial<MeetingSession>): Promise<MeetingSession | undefined> {
+    const [updated] = await db.update(meetingSessions)
+      .set(updates)
+      .where(eq(meetingSessions.id, id))
+      .returning();
+    return updated;
   }
 }
 

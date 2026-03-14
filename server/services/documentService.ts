@@ -608,6 +608,301 @@ If all substantive statements are traceable to the transcript, return: {"unverif
     }
   }
 
+  async generateTelephoneAttendanceNote(
+    transcript: string,
+    metadata: CaseMetadata,
+    firmPreferences?: FirmPreferences
+  ): Promise<DocumentGenerationResult> {
+    const prefs = {
+      showFullSolicitorName: firmPreferences?.showFullSolicitorName ?? true,
+    };
+
+    const solicitorFormat = prefs.showFullSolicitorName
+      ? '{Solicitor full name and title from transcript, or "Not recorded"}'
+      : '{Solicitor initials from transcript, or "Not recorded"}';
+
+    const systemPrompt = `You are a UK-qualified solicitor creating a telephone attendance note compliant with SRA standards.
+
+CRITICAL INSTRUCTIONS:
+- Base all content strictly on the transcript provided
+- Do NOT invent or fabricate any details not present in the transcript
+- If information is missing, state "Not specified" rather than guessing
+- Keep the note concise and factual — telephone calls produce shorter notes than full meetings
+- Use UK legal terminology throughout
+
+Format:
+
+**TELEPHONE ATTENDANCE NOTE**
+
+File Reference:  ${metadata.matterReference || 'TBD'}
+Date:           ${metadata.recordingDate}
+Time:           {Call time from transcript, or "Not recorded"}
+Duration:       {Call duration, or "Not recorded"}
+Solicitor:      ${solicitorFormat}
+
+**MATTER:**     ${metadata.title}
+**CLIENT:**     ${metadata.clientName}
+
+**CALL SUMMARY**
+
+[Brief factual account of what was discussed, advice given, and instructions received. Use "I advised the client that..." phrasing. Keep to 2-4 paragraphs maximum.]
+
+**ACTION POINTS**
+
+Solicitor:
+1. [Action if any]
+
+Client:
+1. [Action if any]
+
+This telephone attendance note is subject to legal professional privilege.
+
+Prepared by: ${solicitorFormat}
+Date Prepared: ${metadata.recordingDate}
+
+FORMATTING: Use **bold** for headings. Keep the entire note to approximately half a page. Be factual and concise.`;
+
+    const userPrompt = `Generate a telephone attendance note for this call transcript:
+
+**Case Title:** ${metadata.title}
+**Client Name:** ${metadata.clientName}
+**Matter Reference:** ${metadata.matterReference || 'TBD'}
+
+**Transcript:**
+${transcript}`;
+
+    return await this.generateDocument(systemPrompt, userPrompt);
+  }
+
+  async generateFileNote(
+    transcript: string,
+    metadata: CaseMetadata
+  ): Promise<DocumentGenerationResult> {
+    const systemPrompt = `You are a UK-qualified solicitor creating a brief file note.
+
+CRITICAL INSTRUCTIONS:
+- Base all content strictly on the transcript or notes provided
+- Do NOT invent details
+- A file note is a single-paragraph internal record — keep it brief and factual
+- Use UK legal terminology
+
+Format:
+
+**FILE NOTE**
+
+File Reference: ${metadata.matterReference || 'TBD'}
+Date: ${metadata.recordingDate}
+Matter: ${metadata.title}
+Client: ${metadata.clientName}
+
+[Single paragraph summarising the key point being recorded. This should be 3-6 sentences maximum, capturing the essential facts, any decision made, and any follow-up required.]
+
+This file note is subject to legal professional privilege.`;
+
+    const userPrompt = `Generate a file note from the following:
+
+**Case Title:** ${metadata.title}
+**Client Name:** ${metadata.clientName}
+
+**Content:**
+${transcript}`;
+
+    return await this.generateDocument(systemPrompt, userPrompt);
+  }
+
+  async generateCourtAttendanceNote(
+    transcript: string,
+    metadata: CaseMetadata,
+    firmPreferences?: FirmPreferences
+  ): Promise<DocumentGenerationResult> {
+    const prefs = {
+      showFullSolicitorName: firmPreferences?.showFullSolicitorName ?? true,
+    };
+
+    const solicitorFormat = prefs.showFullSolicitorName
+      ? '{Solicitor full name and title from transcript, or "Not recorded"}'
+      : '{Solicitor initials from transcript, or "Not recorded"}';
+
+    const systemPrompt = `You are a UK-qualified solicitor creating a court attendance note compliant with SRA standards.
+
+CRITICAL INSTRUCTIONS:
+- Base all content strictly on the transcript provided
+- Do NOT invent or fabricate details
+- If information is missing, state "Not specified in hearing" rather than guessing
+- Use UK legal terminology and court conventions throughout
+
+Format:
+
+**COURT ATTENDANCE NOTE**
+
+File Reference:  ${metadata.matterReference || 'TBD'}
+Date:           ${metadata.recordingDate}
+Court:          {Court name from transcript, or "Not recorded"}
+Before:         {Judge name and title from transcript, or "Not recorded"}
+Case Number:    {Case number from transcript, or "Not recorded"}
+
+**MATTER:**     ${metadata.title}
+**CLIENT:**     ${metadata.clientName}
+
+**PARTIES PRESENT**
+
+- [List parties and their representatives as identified in transcript]
+
+**HEARING SUMMARY**
+
+**1. [NATURE OF HEARING]**
+
+[Description of the type of hearing and its purpose]
+
+**2. [SUBMISSIONS AND ARGUMENTS]**
+
+[Key submissions made by each party]
+
+**3. [ORDERS MADE]**
+
+[List all orders made by the court]
+
+**4. [DIRECTIONS]**
+
+[List any directions given with dates]
+
+**NEXT STEPS**
+
+Solicitor to action:
+1. [Action with deadline]
+
+Client to action:
+1. [Action with deadline]
+
+Next hearing: [Date if scheduled, or "To be listed"]
+
+This court attendance note is subject to legal professional privilege.
+
+Prepared by: ${solicitorFormat}
+Date Prepared: ${metadata.recordingDate}
+
+FORMATTING: Use **bold** for all section headings. Be thorough but concise.`;
+
+    const userPrompt = `Generate a court attendance note from this hearing transcript:
+
+**Case Title:** ${metadata.title}
+**Client Name:** ${metadata.clientName}
+**Matter Reference:** ${metadata.matterReference || 'TBD'}
+
+**Transcript:**
+${transcript}`;
+
+    return await this.generateDocument(systemPrompt, userPrompt);
+  }
+
+  async generatePoliceStationAttendanceNote(
+    transcript: string,
+    metadata: CaseMetadata,
+    firmPreferences?: FirmPreferences
+  ): Promise<DocumentGenerationResult> {
+    const prefs = {
+      showFullSolicitorName: firmPreferences?.showFullSolicitorName ?? true,
+    };
+
+    const solicitorFormat = prefs.showFullSolicitorName
+      ? '{Solicitor full name and title from transcript, or "Not recorded"}'
+      : '{Solicitor initials from transcript, or "Not recorded"}';
+
+    const systemPrompt = `You are a UK-qualified solicitor creating a police station attendance record compliant with PACE (Police and Criminal Evidence Act 1984) requirements and SRA standards.
+
+CRITICAL INSTRUCTIONS:
+- Base all content strictly on the transcript provided
+- Do NOT invent or fabricate details
+- This record must be PACE-compliant — accuracy is paramount
+- Use UK criminal law terminology throughout
+
+Format:
+
+**POLICE STATION ATTENDANCE RECORD**
+
+File Reference:     ${metadata.matterReference || 'TBD'}
+Date:               ${metadata.recordingDate}
+Station:            {Police station name from transcript, or "Not recorded"}
+Custody Number:     {Custody reference from transcript, or "Not recorded"}
+Arrival Time:       {Time of arrival from transcript, or "Not recorded"}
+Departure Time:     {Time of departure from transcript, or "Not recorded"}
+
+**CLIENT:**         ${metadata.clientName}
+**OFFENCE(S):**     {Offence(s) as stated from transcript, or "Not specified"}
+
+**1. INITIAL CONSULTATION**
+
+[Summary of private consultation with client before interview, including advice given on right to silence, disclosure reviewed, and client's instructions]
+
+**2. DISCLOSURE**
+
+[Summary of disclosure provided by police, any issues with adequacy of disclosure]
+
+**3. INTERVIEW SUMMARY**
+
+[Chronological summary of the interview, questions asked, answers given or "no comment" responses, any significant statements]
+
+**4. ADVICE GIVEN**
+
+[Record of legal advice provided at each stage, including pre-interview, during breaks, and post-interview]
+
+**5. REPRESENTATIONS**
+
+[Any representations made to custody sergeant regarding detention, bail, or conditions]
+
+**6. OUTCOME**
+
+[Outcome of attendance — charged, released under investigation, NFA, bail conditions]
+
+**7. FOLLOW-UP ACTIONS**
+
+Solicitor:
+1. [Action required]
+
+Client:
+1. [Action required]
+
+This police station attendance record is subject to legal professional privilege.
+
+Prepared by: ${solicitorFormat}
+Date Prepared: ${metadata.recordingDate}
+
+FORMATTING: Use **bold** for all section headings. Be thorough and PACE-compliant.`;
+
+    const userPrompt = `Generate a police station attendance record from this transcript:
+
+**Case Title:** ${metadata.title}
+**Client Name:** ${metadata.clientName}
+**Matter Reference:** ${metadata.matterReference || 'TBD'}
+
+**Transcript:**
+${transcript}`;
+
+    return await this.generateDocument(systemPrompt, userPrompt);
+  }
+
+  async generateDocumentByRecordingType(
+    recordingType: string,
+    transcript: string,
+    metadata: CaseMetadata,
+    firmPreferences?: FirmPreferences,
+    utterances?: Array<{ text: string; start: number; end: number }>
+  ): Promise<DocumentGenerationResult> {
+    switch (recordingType) {
+      case 'telephone_call':
+        return this.generateTelephoneAttendanceNote(transcript, metadata, firmPreferences);
+      case 'file_note':
+        return this.generateFileNote(transcript, metadata);
+      case 'court_hearing':
+        return this.generateCourtAttendanceNote(transcript, metadata, firmPreferences);
+      case 'police_station':
+        return this.generatePoliceStationAttendanceNote(transcript, metadata, firmPreferences);
+      case 'full_meeting':
+      default:
+        return this.generateAttendanceNote(transcript, metadata, firmPreferences, utterances);
+    }
+  }
+
   /**
    * Extract action items from transcript
    */

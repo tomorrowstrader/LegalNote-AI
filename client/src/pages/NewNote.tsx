@@ -20,7 +20,15 @@ import ConsentModal from "@/components/ConsentModal";
 import TextNotesModal from "@/components/TextNotesModal";
 import CaseTemplatesModal, { CaseTemplate } from "@/components/CaseTemplatesModal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Mic, Square, AlertTriangle, LayoutTemplate, CheckCircle2, Shield, UserPlus, X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ArrowLeft, Mic, Square, AlertTriangle, LayoutTemplate, CheckCircle2, Shield, UserPlus, X, FolderPlus, FolderOpen } from "lucide-react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -28,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { logAuditEvent } from "@/lib/auditLogger";
 import type { Case, Client } from "@shared/schema";
+import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 
 interface CaseResponse {
   id: string;
@@ -69,16 +78,41 @@ export default function NewNote() {
   const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const clientSearchRef = useRef<HTMLDivElement>(null);
+  const [noteMode, setNoteMode] = useState<"new_matter" | "add_session">("new_matter");
+  const [selectedCaseId, setSelectedCaseId] = useState<string>("");
+  const [recordingType, setRecordingType] = useState<RecordingType>("full_meeting");
+  const [caseSearchQuery, setCaseSearchQuery] = useState("");
+  const [showCaseDropdown, setShowCaseDropdown] = useState(false);
+  const caseSearchRef = useRef<HTMLDivElement>(null);
 
   const { data: clientSearchResults = [] } = useQuery<Client[]>({
     queryKey: [`/api/clients/search?q=${encodeURIComponent(clientSearchQuery)}`],
     enabled: clientSearchQuery.trim().length >= 2 && !selectedClient,
   });
 
+  const { data: existingCases = [] } = useQuery<Case[]>({
+    queryKey: ["/api/cases"],
+  });
+
+  const filteredCases = existingCases
+    .filter((c) => c.status !== "withdrawn")
+    .filter((c) => {
+      if (!caseSearchQuery.trim()) return true;
+      const q = caseSearchQuery.toLowerCase();
+      return (
+        c.title.toLowerCase().includes(q) ||
+        (c.clientName && c.clientName.toLowerCase().includes(q)) ||
+        (c.matterReference && c.matterReference.toLowerCase().includes(q))
+      );
+    });
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (clientSearchRef.current && !clientSearchRef.current.contains(e.target as Node)) {
         setShowClientDropdown(false);
+      }
+      if (caseSearchRef.current && !caseSearchRef.current.contains(e.target as Node)) {
+        setShowCaseDropdown(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -200,15 +234,26 @@ export default function NewNote() {
   }, []);
 
   const initiateRecording = () => {
-    if (!caseTitle.trim() || !selectedClient) {
-      toast({
-        title: "Missing information",
-        description: !caseTitle.trim() ? "Please enter a case title" : "Please select or create a client",
-        variant: "destructive",
-      });
-      return;
+    if (noteMode === "new_matter") {
+      if (!caseTitle.trim() || !selectedClient) {
+        toast({
+          title: "Missing information",
+          description: !caseTitle.trim() ? "Please enter a case title" : "Please select or create a client",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      if (!selectedCaseId) {
+        toast({
+          title: "Missing information",
+          description: "Please select an existing matter",
+          variant: "destructive",
+        });
+        return;
+      }
     }
-    setCountdown(3); // 3-second countdown
+    setCountdown(3);
   };
 
   const cancelCountdown = () => {
@@ -273,7 +318,7 @@ export default function NewNote() {
   };
 
   const saveCase = async () => {
-    console.log('Saving case:', { caseTitle, clientName, matterRef });
+    console.log('Saving case:', { caseTitle, clientName, matterRef, noteMode, recordingType });
     
     if (!user?.id) {
       toast({
@@ -284,10 +329,19 @@ export default function NewNote() {
       return;
     }
 
-    if (!selectedClient) {
+    if (noteMode === "new_matter" && !selectedClient) {
       toast({
         title: "Client required",
         description: "Please select or create a client before saving",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (noteMode === "add_session" && !selectedCaseId) {
+      toast({
+        title: "Matter required",
+        description: "Please select an existing matter to add a session",
         variant: "destructive",
       });
       return;
@@ -297,34 +351,51 @@ export default function NewNote() {
     let consentLogFailed = false;
     
     try {
-      // Step 1: Create case
-      caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
-        title: caseTitle,
-        clientName: selectedClient!.name,
-        clientId: selectedClient!.id,
-        matterReference: matterRef || undefined,
-        sourceType: "audio",
-        status: "pending",
-        priority: "normal",
-        riskLevel: selectedClient!.amlRiskLevel || undefined,
-        templateId: activeTemplate?.id || undefined,
+      let targetCaseId: string;
+
+      if (noteMode === "add_session" && selectedCaseId) {
+        targetCaseId = selectedCaseId;
+        const selectedCase = existingCases.find(c => c.id === selectedCaseId);
+        caseResult = selectedCase ? {
+          id: selectedCase.id,
+          title: selectedCase.title,
+          clientName: selectedCase.clientName || "",
+          matterReference: selectedCase.matterReference || undefined,
+          status: selectedCase.status,
+          priority: selectedCase.priority || "normal",
+          sourceType: selectedCase.sourceType,
+        } : null;
+      } else {
+        caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
+          title: caseTitle,
+          clientName: selectedClient!.name,
+          clientId: selectedClient!.id,
+          matterReference: matterRef || undefined,
+          sourceType: "audio",
+          status: "pending",
+          priority: "normal",
+          riskLevel: selectedClient!.amlRiskLevel || undefined,
+          templateId: activeTemplate?.id || undefined,
+        });
+        targetCaseId = caseResult.id;
+      }
+
+      const sessionResult = await apiRequest<{ id: string }>("POST", `/api/cases/${targetCaseId}/sessions`, {
+        recordingType,
       });
       
-      // Step 2: Create audio record placeholder
       const audioResult = await apiRequest<AudioResponse>("POST", "/api/audio", {
-        caseId: caseResult.id,
+        caseId: targetCaseId,
+        meetingSessionId: sessionResult.id,
       });
       
-      // Step 3: Upload audio file
       if (audioBlobRef.current) {
         console.log('Uploading audio file via multipart...');
         
-        // Create FormData for multipart upload (industry standard)
         const formData = new FormData();
         formData.append('audioFile', audioBlobRef.current, 'recording.webm');
         formData.append('duration', recordingDuration.toString());
         
-        // Upload using native fetch (FormData automatically sets multipart/form-data)
         const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
           method: 'POST',
           credentials: 'include',
@@ -339,11 +410,10 @@ export default function NewNote() {
         console.log('Audio upload completed successfully');
       }
       
-      // Step 4: Save consent log to backend (GDPR compliance)
       if (consentGiven !== null) {
         try {
           const consentPayload = {
-            caseId: caseResult.id,
+            caseId: targetCaseId,
             audioRecordingId: audioResult.id,
             consentGiven: consentGiven,
             consentModality: "verbal_recorded" as const,
@@ -377,14 +447,15 @@ export default function NewNote() {
         }
       });
       
-      // Capture caseId for toast action and navigation
-      const savedCaseId = caseResult?.id;
+      const savedCaseId = targetCaseId;
       
       toast({
-        title: "Case created successfully",
+        title: noteMode === "add_session" ? "Session added successfully" : "Case created successfully",
         description: consentLogFailed 
           ? "Case saved but consent logging had issues. Please check before processing." 
-          : "Your case has been saved and is ready for processing.",
+          : noteMode === "add_session"
+            ? "A new session has been added to the existing matter."
+            : "Your case has been saved and is ready for processing.",
         duration: 6000,
         action: savedCaseId ? (
           <ToastAction 
@@ -424,75 +495,99 @@ export default function NewNote() {
     }
 
     let clientForCase = selectedClient;
-    if (!clientForCase && data.clientName.trim()) {
-      try {
-        clientForCase = await apiRequest<Client>("POST", "/api/clients", { name: data.clientName.trim() });
-        queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
-      } catch (err: any) {
+    if (noteMode === "new_matter") {
+      if (!clientForCase && data.clientName.trim()) {
+        try {
+          clientForCase = await apiRequest<Client>("POST", "/api/clients", { name: data.clientName.trim() });
+          queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+        } catch (err: any) {
+          toast({
+            title: "Failed to create client",
+            description: err.message || "Could not create client record",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      if (!clientForCase) {
         toast({
-          title: "Failed to create client",
-          description: err.message || "Could not create client record",
+          title: "Client required",
+          description: "Please enter a client name",
           variant: "destructive",
         });
         return;
       }
     }
 
-    if (!clientForCase) {
+    if (noteMode === "add_session" && !selectedCaseId) {
       toast({
-        title: "Client required",
-        description: "Please enter a client name",
+        title: "Matter required",
+        description: "Please select an existing matter to add a session",
         variant: "destructive",
       });
       return;
     }
     
-    apiRequest<CaseResponse>("POST", "/api/cases", {
-      title: data.caseTitle,
-      clientName: clientForCase.name,
-      clientId: clientForCase.id,
-      matterReference: data.matterRef || undefined,
-      sourceType: "text",
-      status: "pending",
-      priority: "normal",
-      riskLevel: clientForCase.amlRiskLevel || undefined,
-      notes: data.notes,
-      templateId: activeTemplate?.id || undefined,
-    })
-      .then((caseResult) => {
-        queryClient.invalidateQueries({ 
-          predicate: (query) => {
-            const key = query.queryKey[0] as string;
-            return key?.startsWith("/api/cases");
-          }
+    const createTextCase = async () => {
+      let targetCaseId: string;
+
+      if (noteMode === "add_session" && selectedCaseId) {
+        targetCaseId = selectedCaseId;
+      } else {
+        const caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
+          title: data.caseTitle,
+          clientName: clientForCase.name,
+          clientId: clientForCase.id,
+          matterReference: data.matterRef || undefined,
+          sourceType: "text",
+          status: "pending",
+          priority: "normal",
+          riskLevel: clientForCase.amlRiskLevel || undefined,
+          notes: data.notes,
+          templateId: activeTemplate?.id || undefined,
         });
-        
-        toast({
-          title: "Case created successfully",
-          description: "Your text-based case has been saved.",
-          duration: 6000,
-          action: (
-            <ToastAction 
-              altText="View case" 
-              onClick={() => setLocation(`/case/${caseResult.id}`)}
-              data-testid="button-toast-view-case"
-            >
-              View Case
-            </ToastAction>
-          ),
-        });
-        
-        setShowTextNotesModal(false);
-        setLocation(`/case/${caseResult.id}`);
-      })
-      .catch((error: any) => {
-        toast({
-          title: "Error creating case",
-          description: error.message || "Something went wrong",
-          variant: "destructive",
-          duration: 8000,
-        });
+        targetCaseId = caseResult.id;
+      }
+
+      await apiRequest("POST", `/api/cases/${targetCaseId}/sessions`, {
+        recordingType,
       });
+
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0] as string;
+          return key?.startsWith("/api/cases");
+        }
+      });
+
+      toast({
+        title: noteMode === "add_session" ? "Session added successfully" : "Case created successfully",
+        description: noteMode === "add_session" ? "A new session has been added." : "Your text-based case has been saved.",
+        duration: 6000,
+        action: (
+          <ToastAction 
+            altText="View case" 
+            onClick={() => setLocation(`/case/${targetCaseId}`)}
+            data-testid="button-toast-view-case"
+          >
+            View Case
+          </ToastAction>
+        ),
+      });
+
+      setShowTextNotesModal(false);
+      setLocation(`/case/${targetCaseId}`);
+    };
+
+    createTextCase().catch((error: any) => {
+      toast({
+        title: "Error creating case",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+        duration: 8000,
+      });
+    });
   };
 
   const handleTemplateSelect = (template: CaseTemplate) => {
@@ -597,123 +692,236 @@ export default function NewNote() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Case Details</CardTitle>
+              <CardTitle>Recording Type</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <RadioGroup
+                value={noteMode}
+                onValueChange={(v) => setNoteMode(v as "new_matter" | "add_session")}
+                className="flex flex-col gap-3 sm:flex-row sm:gap-6"
+                disabled={isRecording || countdown !== null}
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="new_matter" id="mode-new" data-testid="radio-new-matter" />
+                  <Label htmlFor="mode-new" className="flex items-center gap-1.5 cursor-pointer">
+                    <FolderPlus className="w-4 h-4" />
+                    New Matter
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="add_session" id="mode-add" data-testid="radio-add-session" />
+                  <Label htmlFor="mode-add" className="flex items-center gap-1.5 cursor-pointer">
+                    <FolderOpen className="w-4 h-4" />
+                    Add Session to Existing Matter
+                  </Label>
+                </div>
+              </RadioGroup>
+
               <div className="space-y-2">
-                <Label htmlFor="case-title">
-                  Case Title <span className="text-accent">*</span>
-                </Label>
-                <Input
-                  id="case-title"
-                  placeholder="e.g., Estate Planning Consultation"
-                  value={caseTitle}
-                  onChange={(e) => setCaseTitle(e.target.value)}
+                <Label htmlFor="recording-type">Type of Recording</Label>
+                <Select
+                  value={recordingType}
+                  onValueChange={(v) => setRecordingType(v as RecordingType)}
                   disabled={isRecording || countdown !== null}
-                  data-testid="input-case-title"
-                />
+                >
+                  <SelectTrigger id="recording-type" data-testid="select-recording-type">
+                    <SelectValue placeholder="Select recording type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.entries(RECORDING_TYPE_LABELS) as [RecordingType, string][]).map(([value, label]) => (
+                      <SelectItem key={value} value={value} data-testid={`option-recording-type-${value}`}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="client-name">
-                  Client Name <span className="text-accent">*</span>
-                </Label>
-                <div ref={clientSearchRef} className="relative">
-                  {selectedClient ? (
-                    <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
-                      <span className="text-sm font-medium flex-1 truncate" data-testid="text-selected-client">
-                        {selectedClient.name}
-                      </span>
-                      {selectedClient.amlRiskLevel && (
-                        <Badge variant={selectedClient.amlRiskLevel === "high" ? "destructive" : selectedClient.amlRiskLevel === "medium" ? "secondary" : "outline"} className="text-xs shrink-0">
-                          <Shield className="w-3 h-3 mr-1" />
-                          {selectedClient.amlRiskLevel.toUpperCase()}
-                        </Badge>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleClearClient}
-                        disabled={isRecording || countdown !== null}
-                        data-testid="button-clear-client"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <Input
-                      id="client-name"
-                      placeholder="Search existing clients or type a new name..."
-                      value={clientName}
-                      onChange={(e) => handleClientInputChange(e.target.value)}
-                      onFocus={() => { if (clientSearchQuery.trim().length >= 2) setShowClientDropdown(true); }}
-                      disabled={isRecording || countdown !== null}
-                      data-testid="input-client-name"
-                    />
-                  )}
-                  {showClientDropdown && !selectedClient && (
-                    <div className="absolute z-50 top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-md max-h-48 overflow-y-auto" data-testid="dropdown-client-search">
-                      {clientSearchResults.length > 0 ? (
-                        clientSearchResults.map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center justify-between gap-2"
-                            onClick={() => handleClientSelect(c)}
-                            data-testid={`option-client-${c.id}`}
-                          >
-                            <span className="truncate">{c.name}</span>
-                            {c.amlRiskLevel && (
-                              <Badge variant={c.amlRiskLevel === "high" ? "destructive" : c.amlRiskLevel === "medium" ? "secondary" : "outline"} className="text-xs shrink-0">
-                                {c.amlRiskLevel.toUpperCase()}
-                              </Badge>
-                            )}
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">No matching clients</div>
-                      )}
-                      {clientName.trim().length >= 2 && (
-                        <button
-                          type="button"
-                          className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center gap-2 border-t"
-                          onClick={() => createClientMutation.mutate(clientName.trim())}
-                          disabled={createClientMutation.isPending}
-                          data-testid="button-create-client-inline"
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{noteMode === "add_session" ? "Select Existing Matter" : "Case Details"}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {noteMode === "add_session" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="existing-case">Existing Matter <span className="text-accent">*</span></Label>
+                  <div ref={caseSearchRef} className="relative">
+                    {selectedCaseId ? (
+                      <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
+                        <span className="text-sm font-medium flex-1 truncate" data-testid="text-selected-case">
+                          {(() => {
+                            const c = existingCases.find(c => c.id === selectedCaseId);
+                            return c ? `${c.title} — ${c.clientName}${c.matterReference ? ` (${c.matterReference})` : ""}` : selectedCaseId;
+                          })()}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => { setSelectedCaseId(""); setCaseSearchQuery(""); }}
+                          disabled={isRecording || countdown !== null}
+                          data-testid="button-clear-case"
                         >
-                          <UserPlus className="w-4 h-4" />
-                          <span>{createClientMutation.isPending ? "Creating..." : `Create "${clientName.trim()}" as new client`}</span>
-                        </button>
-                      )}
-                    </div>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Input
+                        id="existing-case"
+                        placeholder="Search existing matters by title, client or reference..."
+                        value={caseSearchQuery}
+                        onChange={(e) => { setCaseSearchQuery(e.target.value); setShowCaseDropdown(true); }}
+                        onFocus={() => setShowCaseDropdown(true)}
+                        disabled={isRecording || countdown !== null}
+                        data-testid="input-case-search"
+                      />
+                    )}
+                    {showCaseDropdown && !selectedCaseId && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-md max-h-48 overflow-y-auto" data-testid="dropdown-case-search">
+                        {filteredCases.length > 0 ? (
+                          filteredCases.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center justify-between gap-2"
+                              onClick={() => { setSelectedCaseId(c.id); setShowCaseDropdown(false); setCaseSearchQuery(""); }}
+                              data-testid={`option-case-${c.id}`}
+                            >
+                              <span className="truncate">{c.title} — {c.clientName}{c.matterReference ? ` (${c.matterReference})` : ""}</span>
+                              <Badge variant="secondary" className="text-xs shrink-0">{c.status}</Badge>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">No matching matters</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {selectedCaseId && (
+                    <p className="text-xs text-muted-foreground">
+                      A new session will be added to this matter with the selected recording type.
+                    </p>
                   )}
                 </div>
-                {selectedClient?.amlRiskLevel && (
-                  <Alert className="mt-2 border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700" data-testid="alert-client-risk-continuity">
-                    <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                    <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
-                      This client is assessed as <span className="font-semibold">{selectedClient.amlRiskLevel.toUpperCase()} risk</span>. This risk level will be applied to the new matter.{" "}
-                      <a
-                        href={`/clients/${selectedClient.id}`}
-                        className="underline font-medium text-amber-700 dark:text-amber-300"
-                        data-testid="link-review-prior-aml"
-                      >
-                        View client profile
-                      </a>
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="matter-ref">Matter Reference (Optional)</Label>
-                <Input
-                  id="matter-ref"
-                  placeholder="e.g., MAT-2025-001"
-                  value={matterRef}
-                  onChange={(e) => setMatterRef(e.target.value)}
-                  disabled={isRecording || countdown !== null}
-                  data-testid="input-matter-ref"
-                />
-              </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="case-title">
+                      Case Title <span className="text-accent">*</span>
+                    </Label>
+                    <Input
+                      id="case-title"
+                      placeholder="e.g., Estate Planning Consultation"
+                      value={caseTitle}
+                      onChange={(e) => setCaseTitle(e.target.value)}
+                      disabled={isRecording || countdown !== null}
+                      data-testid="input-case-title"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client-name">
+                      Client Name <span className="text-accent">*</span>
+                    </Label>
+                    <div ref={clientSearchRef} className="relative">
+                      {selectedClient ? (
+                        <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
+                          <span className="text-sm font-medium flex-1 truncate" data-testid="text-selected-client">
+                            {selectedClient.name}
+                          </span>
+                          {selectedClient.amlRiskLevel && (
+                            <Badge variant={selectedClient.amlRiskLevel === "high" ? "destructive" : selectedClient.amlRiskLevel === "medium" ? "secondary" : "outline"} className="text-xs shrink-0">
+                              <Shield className="w-3 h-3 mr-1" />
+                              {selectedClient.amlRiskLevel.toUpperCase()}
+                            </Badge>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleClearClient}
+                            disabled={isRecording || countdown !== null}
+                            data-testid="button-clear-client"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Input
+                          id="client-name"
+                          placeholder="Search existing clients or type a new name..."
+                          value={clientName}
+                          onChange={(e) => handleClientInputChange(e.target.value)}
+                          onFocus={() => { if (clientSearchQuery.trim().length >= 2) setShowClientDropdown(true); }}
+                          disabled={isRecording || countdown !== null}
+                          data-testid="input-client-name"
+                        />
+                      )}
+                      {showClientDropdown && !selectedClient && (
+                        <div className="absolute z-50 top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-md max-h-48 overflow-y-auto" data-testid="dropdown-client-search">
+                          {clientSearchResults.length > 0 ? (
+                            clientSearchResults.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center justify-between gap-2"
+                                onClick={() => handleClientSelect(c)}
+                                data-testid={`option-client-${c.id}`}
+                              >
+                                <span className="truncate">{c.name}</span>
+                                {c.amlRiskLevel && (
+                                  <Badge variant={c.amlRiskLevel === "high" ? "destructive" : c.amlRiskLevel === "medium" ? "secondary" : "outline"} className="text-xs shrink-0">
+                                    {c.amlRiskLevel.toUpperCase()}
+                                  </Badge>
+                                )}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-sm text-muted-foreground">No matching clients</div>
+                          )}
+                          {clientName.trim().length >= 2 && (
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center gap-2 border-t"
+                              onClick={() => createClientMutation.mutate(clientName.trim())}
+                              disabled={createClientMutation.isPending}
+                              data-testid="button-create-client-inline"
+                            >
+                              <UserPlus className="w-4 h-4" />
+                              <span>{createClientMutation.isPending ? "Creating..." : `Create "${clientName.trim()}" as new client`}</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {selectedClient?.amlRiskLevel && (
+                      <Alert className="mt-2 border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700" data-testid="alert-client-risk-continuity">
+                        <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
+                          This client is assessed as <span className="font-semibold">{selectedClient.amlRiskLevel.toUpperCase()} risk</span>. This risk level will be applied to the new matter.{" "}
+                          <a
+                            href={`/clients/${selectedClient.id}`}
+                            className="underline font-medium text-amber-700 dark:text-amber-300"
+                            data-testid="link-review-prior-aml"
+                          >
+                            View client profile
+                          </a>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="matter-ref">Matter Reference (Optional)</Label>
+                    <Input
+                      id="matter-ref"
+                      placeholder="e.g., MAT-2025-001"
+                      value={matterRef}
+                      onChange={(e) => setMatterRef(e.target.value)}
+                      disabled={isRecording || countdown !== null}
+                      data-testid="input-matter-ref"
+                    />
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

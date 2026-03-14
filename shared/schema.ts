@@ -87,6 +87,7 @@ export const quickNotes = pgTable("quick_notes", {
 export const audioRecordings = pgTable("audio_recordings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
+  meetingSessionId: varchar("meeting_session_id").references(() => meetingSessions.id),
   filePath: text("file_path"), // Storage path for audio file
   consentSegmentPath: text("consent_segment_path"), // Storage path for preserved consent segment (timestamp-based)
   consentDurationSeconds: integer("consent_duration_seconds"), // Exact duration of consent segment (from start to consent confirmation)
@@ -118,14 +119,37 @@ export const consentLogs = pgTable("consent_logs", {
   withdrawnBy: varchar("withdrawn_by").references(() => users.id),
 });
 
+export const RECORDING_TYPES = ["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station"] as const;
+export type RecordingType = typeof RECORDING_TYPES[number];
+
+export const RECORDING_TYPE_LABELS: Record<RecordingType, string> = {
+  full_meeting: "Full Meeting",
+  telephone_call: "Telephone Call",
+  file_note: "File Note",
+  court_hearing: "Court Hearing",
+  police_station: "Police Station",
+};
+
+export const meetingSessions = pgTable("meeting_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  recordingType: text("recording_type").notNull().default("full_meeting"),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  durationSeconds: integer("duration_seconds"),
+  status: text("status").notNull().default("pending"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+});
+
 export const transcripts = pgTable("transcripts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
+  meetingSessionId: varchar("meeting_session_id").references(() => meetingSessions.id),
   content: text("content").notNull(),
-  utterances: jsonb("utterances").default([]), // Array of {speaker, text, start, end, confidence} for diarization
-  speakerCount: integer("speaker_count"), // Number of distinct speakers detected
+  utterances: jsonb("utterances").default([]),
+  speakerCount: integer("speaker_count"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  redactions: jsonb("redactions").default([]), // Array of {start, end, reason, redactedBy, timestamp}
+  redactions: jsonb("redactions").default([]),
 });
 
 // AI-extracted or manually created action items
@@ -165,7 +189,8 @@ export const preMeetingBriefings = pgTable("pre_meeting_briefings", {
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
-  transcriptSnapshotId: varchar("transcript_snapshot_id").references(() => transcripts.id), // Links to redaction state at generation time
+  meetingSessionId: varchar("meeting_session_id").references(() => meetingSessions.id),
+  transcriptSnapshotId: varchar("transcript_snapshot_id").references(() => transcripts.id),
   type: text("type").notNull(), // attendance_note, summary
   content: text("content").notNull(),
   contentHash: text("content_hash"), // SHA-256 hash for integrity verification
@@ -610,12 +635,25 @@ export const insertConsentLogSchema = createInsertSchema(consentLogs).omit({
   withdrawnBy: z.string().min(1).optional(),
 });
 
+export const insertMeetingSessionSchema = createInsertSchema(meetingSessions).omit({
+  id: true,
+  startedAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  recordingType: z.enum(["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station"]).default("full_meeting"),
+  durationSeconds: z.number().int().min(0).max(43200).optional(),
+  status: z.enum(["pending", "processing", "completed", "failed"]).default("pending"),
+  notes: z.string().max(50000).optional(),
+  createdBy: z.string().min(1),
+});
+
 export const insertTranscriptSchema = createInsertSchema(transcripts).omit({
   id: true,
   createdAt: true,
 }).extend({
   caseId: z.string().uuid(),
-  content: z.string().max(1000000), // 1MB max for transcript
+  meetingSessionId: z.string().uuid().optional(),
+  content: z.string().max(1000000),
 });
 
 export const insertActionItemSchema = createInsertSchema(actionItems).omit({
@@ -650,6 +688,7 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   createdAt: true,
 }).extend({
   caseId: z.string().uuid(),
+  meetingSessionId: z.string().uuid().optional(),
   transcriptSnapshotId: z.string().uuid().optional(),
   type: z.enum(["attendance_note", "summary"]),
   content: z.string().max(1000000), // 1MB max for documents
@@ -922,6 +961,9 @@ export type AudioRecording = typeof audioRecordings.$inferSelect;
 
 export type InsertConsentLog = z.infer<typeof insertConsentLogSchema>;
 export type ConsentLog = typeof consentLogs.$inferSelect;
+
+export type InsertMeetingSession = z.infer<typeof insertMeetingSessionSchema>;
+export type MeetingSession = typeof meetingSessions.$inferSelect;
 
 export type InsertTranscript = z.infer<typeof insertTranscriptSchema>;
 export type Transcript = typeof transcripts.$inferSelect;

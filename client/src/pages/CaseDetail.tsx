@@ -46,7 +46,81 @@ import { useCaseActions } from "@/hooks/useCaseActions";
 import { useCaseExport } from "@/hooks/useCaseExport";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
-import type { Case, AudioRecording, ConsentLog } from "@shared/schema";
+import type { Case, AudioRecording, ConsentLog, MeetingSession, Transcript, Document } from "@shared/schema";
+import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
+
+interface SessionWithDetails extends MeetingSession {
+  transcript: Transcript | null;
+  documents: Document[];
+}
+
+function SessionDetails({ sessionId }: { sessionId: string }) {
+  const { data, isLoading } = useQuery<SessionWithDetails>({
+    queryKey: ['/api/sessions', sessionId],
+  });
+
+  if (isLoading) {
+    return (
+      <div className="py-3 flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Loading session details...
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const hasTranscript = data.transcript && data.transcript.content;
+  const activeDocuments = data.documents.filter(d => d.isActive);
+  const previousVersions = data.documents.filter(d => !d.isActive);
+
+  return (
+    <div className="py-3 space-y-3" data-testid={`session-details-${sessionId}`}>
+      {hasTranscript ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+            <ScrollText className="w-3.5 h-3.5" />
+            Transcript
+          </p>
+          <div className="text-sm bg-muted/30 rounded-md p-3 max-h-40 overflow-y-auto">
+            <p className="whitespace-pre-wrap line-clamp-6">{data.transcript!.content.slice(0, 500)}{data.transcript!.content.length > 500 ? "..." : ""}</p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <ScrollText className="w-3.5 h-3.5" />
+          No transcript linked to this session
+        </p>
+      )}
+      {activeDocuments.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5" />
+            Documents ({activeDocuments.length})
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {activeDocuments.map(doc => (
+              <Badge key={doc.id} variant="outline" className="text-xs" data-testid={`session-doc-${doc.id}`}>
+                {doc.type === "summary" ? "Summary" : "Attendance Note"}
+                {doc.version > 1 && ` v${doc.version}`}
+              </Badge>
+            ))}
+          </div>
+          {previousVersions.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-1" data-testid={`session-version-history-${sessionId}`}>
+              {previousVersions.length} previous version{previousVersions.length !== 1 ? "s" : ""} available
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <FileText className="w-3.5 h-3.5" />
+          No documents linked to this session
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function CaseDetail() {
   const [, setLocation] = useLocation();
@@ -170,7 +244,11 @@ export default function CaseDetail() {
     refetchInterval: 5000, // Poll every 5 seconds
   });
 
-  // Refresh case data when processing completes (any terminal status)
+  const { data: meetingSessions = [] } = useQuery<MeetingSession[]>({
+    queryKey: [`/api/cases/${caseId}/sessions`],
+    enabled: !!caseId,
+  });
+
   useEffect(() => {
     const terminalStatuses = ['review_required', 'completed', 'pending', 'failed'];
     if (processingStatus?.status && terminalStatuses.includes(processingStatus.status) && caseData?.status === 'processing') {
@@ -653,6 +731,77 @@ export default function CaseDetail() {
               }
             }}
           />
+        )}
+
+        {meetingSessions.length > 0 && (
+          <div className="mt-8">
+            <Accordion type="multiple" defaultValue={["session-timeline"]} className="space-y-4">
+              <AccordionItem value="session-timeline" className="bg-card rounded-lg border border-border px-6">
+                <AccordionTrigger className="hover:no-underline" data-testid="accordion-session-timeline">
+                  <div className="flex items-center gap-2">
+                    <History className="w-5 h-5 text-accent" />
+                    <span className="font-semibold">Session Timeline</span>
+                    <Badge variant="secondary" className="ml-2 text-xs">{meetingSessions.length} {meetingSessions.length === 1 ? "session" : "sessions"}</Badge>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="py-4 space-y-3" data-testid="session-timeline-list">
+                    <Accordion type="multiple">
+                      {meetingSessions.map((session, idx) => (
+                        <AccordionItem
+                          key={session.id}
+                          value={`session-${session.id}`}
+                          className="border border-border rounded-md mb-3 last:mb-0 px-3"
+                          data-testid={`session-item-${session.id}`}
+                        >
+                          <AccordionTrigger className="hover:no-underline py-3">
+                            <div className="flex items-start gap-4 w-full">
+                              <div className="flex flex-col items-center gap-1 shrink-0 pt-0.5">
+                                <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center text-xs font-semibold text-accent">
+                                  {meetingSessions.length - idx}
+                                </div>
+                                {idx < meetingSessions.length - 1 && (
+                                  <div className="w-px h-6 bg-border" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 text-left">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className="text-xs" data-testid={`badge-recording-type-${session.id}`}>
+                                    {RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType}
+                                  </Badge>
+                                  <Badge
+                                    variant={session.status === "completed" ? "default" : session.status === "failed" ? "destructive" : "secondary"}
+                                    className="text-xs"
+                                    data-testid={`badge-session-status-${session.id}`}
+                                  >
+                                    {session.status}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {session.startedAt ? format(new Date(session.startedAt), "d MMM yyyy, HH:mm") : "—"}
+                                  {session.durationSeconds != null && (
+                                    <span className="ml-2">
+                                      {Math.floor(session.durationSeconds / 60)}m {session.durationSeconds % 60}s
+                                    </span>
+                                  )}
+                                </p>
+                                {session.notes && (
+                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{session.notes}</p>
+                                )}
+                              </div>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <SessionDetails sessionId={session.id} />
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
         )}
 
         {/* Briefing Stack - Collapsible Sections */}

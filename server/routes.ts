@@ -2906,6 +2906,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       
       const audioRecording = await storage.createAudioRecording({
         caseId: validatedData.caseId,
+        meetingSessionId: validatedData.meetingSessionId ?? undefined,
         expiresAt,
         filePath: undefined,
         duration: undefined,
@@ -3738,12 +3739,23 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         }
       }
       
-      // Check if audio recording exists and has file path
-      const audioRecording = await storage.getAudioRecordingByCase(caseId, userId);
+      const sessionId = req.body.sessionId;
+
+      let audioRecording;
+      if (sessionId) {
+        audioRecording = await storage.getAudioRecordingBySession(sessionId);
+        if (audioRecording && audioRecording.caseId !== caseId) {
+          return res.status(403).json({ message: "Session does not belong to this case" });
+        }
+      } else {
+        audioRecording = await storage.getAudioRecordingByCase(caseId, userId);
+      }
       if (!audioRecording || !audioRecording.filePath) {
         return res.status(404).json({ message: "No audio recording found for this case" });
       }
       
+      const effectiveSessionId = sessionId || audioRecording.meetingSessionId;
+
       // Prevent duplicate processing - check both case status and metadata
       const metadata = (caseData.aiProcessingMetadata as any) || {};
       if (caseData.status === 'processing' || metadata.status === 'processing') {
@@ -3759,10 +3771,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           currentStep: 'Queued for processing...',
         }
       }, userId);
+
+      if (effectiveSessionId) {
+        await storage.updateMeetingSession(effectiveSessionId, { status: 'processing' });
+      }
       
       // Queue AI processing job
       const { jobQueue } = await import('./services/jobQueue');
-      const jobId = await jobQueue.addJob('ai-processing', { caseId, userId });
+      const jobId = await jobQueue.addJob('ai-processing', { caseId, userId, sessionId: effectiveSessionId });
       
       auditLogger.logFromRequest(AuditEventType.AI_PROCESSING_STARTED, req, {
         resourceId: caseId,
@@ -3828,11 +3844,20 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         }
       }
       
-      // Check if audio recording exists
-      const audioRecording = await storage.getAudioRecordingByCase(caseId, userId);
+      const retrySessionId = req.body.sessionId;
+      let audioRecording;
+      if (retrySessionId) {
+        audioRecording = await storage.getAudioRecordingBySession(retrySessionId);
+        if (audioRecording && audioRecording.caseId !== caseId) {
+          return res.status(403).json({ message: "Session does not belong to this case" });
+        }
+      } else {
+        audioRecording = await storage.getAudioRecordingByCase(caseId, userId);
+      }
       if (!audioRecording || !audioRecording.filePath) {
         return res.status(404).json({ message: "No audio recording found" });
       }
+      const effectiveRetrySessionId = retrySessionId || audioRecording.meetingSessionId;
       
       // Reset processing metadata and update status
       await storage.updateCase(caseId, { 
@@ -3841,13 +3866,13 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           status: 'processing',
           progress: 0,
           currentStep: 'Retrying processing...',
-          error: undefined, // Clear previous error
+          error: undefined,
         }
       }, userId);
       
       // Queue AI processing job
       const { jobQueue } = await import('./services/jobQueue');
-      const jobId = await jobQueue.addJob('ai-processing', { caseId, userId });
+      const jobId = await jobQueue.addJob('ai-processing', { caseId, userId, sessionId: effectiveRetrySessionId });
       
       auditLogger.logFromRequest(AuditEventType.AI_PROCESSING_STARTED, req, {
         resourceId: caseId,
@@ -7939,6 +7964,92 @@ ${firmName}`;
     } catch (error: any) {
       console.error("[AML] Error toggling compliance thread:", error);
       res.status(500).json({ message: "Failed to update compliance thread setting" });
+    }
+  });
+
+  app.post("/api/cases/:caseId/sessions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId } = req.params;
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(404).json({ message: "Case not found" });
+
+      const validRecordingTypes = ["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station"];
+      const recordingType = validRecordingTypes.includes(req.body.recordingType)
+        ? req.body.recordingType
+        : "full_meeting";
+
+      const sessionData = {
+        caseId,
+        recordingType,
+        status: "pending" as const,
+        notes: typeof req.body.notes === "string" ? req.body.notes : null,
+        createdBy: userId,
+      };
+
+      const session = await storage.createMeetingSession(sessionData);
+      res.status(201).json(session);
+    } catch (error: any) {
+      console.error("[Sessions] Error creating session:", error);
+      res.status(500).json({ message: "Failed to create session" });
+    }
+  });
+
+  app.get("/api/cases/:caseId/sessions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId } = req.params;
+      const sessions = await storage.getMeetingSessionsByCase(caseId, userId);
+      res.json(sessions);
+    } catch (error: any) {
+      console.error("[Sessions] Error fetching sessions:", error);
+      res.status(500).json({ message: "Failed to fetch sessions" });
+    }
+  });
+
+  app.get("/api/sessions/:sessionId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const session = await storage.getMeetingSession(req.params.sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const caseData = await storage.getCase(session.caseId, userId);
+      if (!caseData) return res.status(404).json({ message: "Session not found" });
+      const transcript = await storage.getTranscriptBySession(session.id);
+      const documents = await storage.getDocumentsBySession(session.id);
+      res.json({ ...session, transcript: transcript || null, documents });
+    } catch (error: any) {
+      console.error("[Sessions] Error fetching session:", error);
+      res.status(500).json({ message: "Failed to fetch session" });
+    }
+  });
+
+  app.patch("/api/sessions/:sessionId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+      const session = await storage.getMeetingSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const caseData = await storage.getCase(session.caseId, userId);
+      if (!caseData) return res.status(404).json({ message: "Session not found" });
+
+      const validStatuses = ["pending", "processing", "completed", "failed"];
+      const updates: Record<string, any> = {};
+      if (req.body.status && validStatuses.includes(req.body.status)) {
+        updates.status = req.body.status;
+      }
+      if (typeof req.body.durationSeconds === "number" && req.body.durationSeconds >= 0) {
+        updates.durationSeconds = req.body.durationSeconds;
+      }
+      if (typeof req.body.notes === "string") {
+        updates.notes = req.body.notes;
+      }
+
+      const updated = await storage.updateMeetingSession(sessionId, updates);
+      if (!updated) return res.status(404).json({ message: "Session not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[Sessions] Error updating session:", error);
+      res.status(500).json({ message: "Failed to update session" });
     }
   });
 

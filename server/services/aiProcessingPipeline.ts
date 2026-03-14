@@ -58,21 +58,39 @@ export class AIProcessingPipeline {
     }
   }
 
+  private async getLatestSessionForCase(caseId: string, userId: string): Promise<{ recordingType: string; sessionId: string | null }> {
+    try {
+      const sessions = await this.storage.getMeetingSessionsByCase(caseId, userId);
+      if (sessions.length > 0) {
+        return {
+          recordingType: sessions[0].recordingType || 'full_meeting',
+          sessionId: sessions[0].id,
+        };
+      }
+    } catch (e) {
+    }
+    return { recordingType: 'full_meeting', sessionId: null };
+  }
+
   /**
    * Process a case: transcribe audio → generate documents
    */
-  async processCase(caseId: string, userId: string): Promise<AIProcessingResult> {
-    console.log(`Starting AI processing for case ${caseId}`);
+  async processCase(caseId: string, userId: string, sessionId?: string): Promise<AIProcessingResult> {
+    console.log(`Starting AI processing for case ${caseId}${sessionId ? ` (session ${sessionId})` : ''}`);
 
     try {
-      // Get case details
       const caseData = await this.storage.getCase(caseId, userId);
       if (!caseData) {
         throw new Error('Case not found');
       }
 
-      // Get audio recording
-      const audio = await this.storage.getAudioRecordingByCase(caseId, userId);
+      let audio;
+      if (sessionId) {
+        audio = await this.storage.getAudioRecordingBySession(sessionId);
+      }
+      if (!audio) {
+        audio = await this.storage.getAudioRecordingByCase(caseId, userId);
+      }
       if (!audio) {
         throw new Error('No audio recording found for case');
       }
@@ -198,12 +216,24 @@ export class AIProcessingPipeline {
       
       transcriptionCost += correctionCost;
 
+      let sessionInfo: { recordingType: string; sessionId: string | null };
+      if (sessionId) {
+        const session = await this.storage.getMeetingSession(sessionId);
+        sessionInfo = {
+          recordingType: session?.recordingType || 'full_meeting',
+          sessionId,
+        };
+      } else {
+        sessionInfo = await this.getLatestSessionForCase(caseId, userId);
+      }
+
       // Save transcript with diarization data if available
       const transcript = await this.storage.createTranscript({
         caseId,
         content: transcriptText,
         utterances: transcriptUtterances.length > 0 ? transcriptUtterances : undefined,
         speakerCount: speakerCount,
+        meetingSessionId: sessionInfo.sessionId ?? undefined,
       });
 
       auditLogger.log({
@@ -271,6 +301,7 @@ export class AIProcessingPipeline {
         isActive: true,
         verificationWarnings: summaryVerification.warnings.length > 0 ? summaryVerification.warnings : undefined,
         isShortRecording: summaryResult.isShortRecording || false,
+        meetingSessionId: sessionInfo.sessionId ?? undefined,
       });
 
       auditLogger.log({
@@ -302,9 +333,10 @@ export class AIProcessingPipeline {
         includeClientConfirmation: firmProfile?.includeClientConfirmation ?? false,
       };
 
-      // Generate attendance note
-      console.log(`Generating attendance note for case ${caseId}...`);
-      const attendanceResult = await this.documentService.generateAttendanceNote(
+      const recordingType = sessionInfo.recordingType;
+      console.log(`Generating attendance note for case ${caseId} (recording type: ${recordingType}, session: ${sessionInfo.sessionId})...`);
+      const attendanceResult = await this.documentService.generateDocumentByRecordingType(
+        recordingType,
         transcriptForDocGen,
         metadata,
         firmPreferences,
@@ -333,6 +365,7 @@ export class AIProcessingPipeline {
         isActive: true,
         verificationWarnings: attendanceVerification.warnings.length > 0 ? attendanceVerification.warnings : undefined,
         isShortRecording: attendanceResult.isShortRecording || false,
+        meetingSessionId: sessionInfo.sessionId ?? undefined,
       });
 
       auditLogger.log({
@@ -376,6 +409,17 @@ export class AIProcessingPipeline {
 
       // Update case status to review_required
       await this.storage.updateCase(caseId, { status: 'review_required' }, userId);
+
+      if (sessionInfo.sessionId) {
+        try {
+          await this.storage.updateMeetingSession(sessionInfo.sessionId, {
+            status: 'completed',
+            durationSeconds: audio.duration ? Math.round(audio.duration) : undefined,
+          });
+        } catch (e) {
+          console.warn('[AI Pipeline] Failed to update session status:', e);
+        }
+      }
 
       // AML Trigger Detection: scan transcript for compliance-relevant language (only for entitled users)
       try {
