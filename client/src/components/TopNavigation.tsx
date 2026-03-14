@@ -16,6 +16,7 @@ import CaseQuickSwitch from "@/components/CaseQuickSwitch";
 import ThemeToggle from "@/components/ThemeToggle";
 import { NotificationsPanel } from "@/components/NotificationsPanel";
 import { useAuth } from "@/hooks/useAuth";
+import AdminQuickAccess from "@/components/AdminQuickAccess";
 
 interface TopNavigationProps {
   onRestartTour: () => void;
@@ -32,11 +33,8 @@ const navLinks = [
 
 export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   const [location, setLocation] = useLocation();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
-  // Admin check via isAdmin flag from backend (configurable via ADMIN_USER_ID env var)
-  const isAdmin = (user as any)?.isAdmin === true;
 
   const handleNavClick = (path: string) => {
     setLocation(path);
@@ -82,6 +80,8 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
             <NotificationsPanel />
             
             <ThemeToggle />
+
+            {isAdmin && <AdminQuickAccess />}
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
