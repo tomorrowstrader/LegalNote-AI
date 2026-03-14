@@ -67,8 +67,8 @@ export default function TermsPage() {
               </p>
               <ul className="list-disc pl-6 space-y-2">
                 <li>Audio recording of client meetings with consent capture</li>
-                <li>AI-powered transcription and document generation</li>
-                <li>Creation of attendance notes, summaries, and action items</li>
+                <li>Speaker-attributed transcription and document generation</li>
+                <li>Creation of attendance notes, matter records, and obligations</li>
                 <li>Document management with comprehensive audit trails</li>
                 <li>Secure sharing and collaboration features</li>
               </ul>
@@ -166,7 +166,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">10. Disclaimer of Warranties</h2>
               <p className="leading-relaxed">
-                THE PLATFORM IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED. WE DO NOT WARRANT THAT THE PLATFORM WILL BE UNINTERRUPTED, ERROR-FREE, OR COMPLETELY SECURE. AI-GENERATED CONTENT MAY CONTAIN ERRORS AND SHOULD BE REVIEWED BY QUALIFIED PROFESSIONALS BEFORE USE.
+                THE PLATFORM IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED. WE DO NOT WARRANT THAT THE PLATFORM WILL BE UNINTERRUPTED, ERROR-FREE, OR COMPLETELY SECURE. SYSTEM-GENERATED CONTENT MAY CONTAIN ERRORS AND SHOULD BE REVIEWED BY QUALIFIED PROFESSIONALS BEFORE USE.
               </p>
             </section>
 

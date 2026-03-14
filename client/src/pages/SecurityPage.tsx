@@ -57,12 +57,12 @@ export default function SecurityPage() {
     {
       icon: Server,
       title: "UK/EU Data Residency",
-      description: "Processing and infrastructure entirely within UK/EU borders. No data crosses international boundaries—full alignment with UK/EU data protection law from capture to deletion."
+      description: "Processing and infrastructure entirely within UK/EU borders. No data crosses international boundaries. Full alignment with UK/EU data protection law from capture to deletion."
     },
     {
       icon: Eye,
       title: "No AI Model Training",
-      description: "We contractually guarantee that your data is never used to train AI models. Your confidential client information remains exactly that—confidential."
+      description: "We contractually guarantee that your data is never used to train AI models. Your confidential client information remains exactly that: confidential."
     },
     {
       icon: FileCheck,
@@ -365,7 +365,7 @@ export default function SecurityPage() {
                 Security is Fundamental to Everything We Do
               </h2>
               <p className="text-lg text-[hsl(25,20%,40%)] mb-8 leading-relaxed">
-                We've built a comprehensive system that protects data at every level—from robust user authentication to vigilant activity monitoring. Our approach combines proven security technologies with rigorous protocols, ensuring that client information remains secure throughout its lifecycle.
+                We've built a comprehensive system that protects data at every level, from robust user authentication to vigilant activity monitoring. Our approach combines proven security technologies with rigorous protocols, ensuring that client information remains secure throughout its lifecycle.
               </p>
               <ul className="space-y-4">
                 {[
@@ -445,7 +445,7 @@ export default function SecurityPage() {
               Audio Deleted Within 7 Days
             </h2>
             <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
-              We don't just protect your data—we eliminate it. Audio recordings are automatically purged within 7 days, leaving only the documentation that matters.
+              We don't just protect your data. We eliminate it. Audio recordings are automatically purged within 7 days, leaving only the documentation that matters.
             </p>
           </motion.div>
 
@@ -478,7 +478,7 @@ export default function SecurityPage() {
               </div>
               <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">Documentation Preserved</h3>
               <p className="text-[hsl(25,20%,40%)]">
-                Transcripts, attendance notes, and AI summaries remain as permanent records. The evidence of your work persists.
+                Transcripts, attendance notes, and matter records remain as permanent records. The evidence of your work persists.
               </p>
             </motion.div>
             
@@ -494,7 +494,7 @@ export default function SecurityPage() {
               </div>
               <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">GDPR Article 5(1)(e)</h3>
               <p className="text-[hsl(25,20%,40%)]">
-                Storage limitation principle in action. We keep data only as long as necessary—no longer.
+                Storage limitation principle in action. We keep data only as long as necessary. No longer.
               </p>
             </motion.div>
           </div>

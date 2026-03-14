@@ -118,7 +118,7 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
       const now = new Date();
       const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
       const dictationCase = await apiRequest<{ id: string }>("POST", "/api/cases", {
-        title: `Telephone Attendance — ${clientName} — ${dateStr}`,
+        title: `Telephone Attendance · ${clientName} · ${dateStr}`,
         clientName,
         clientId: clientId || undefined,
         matterReference: matterReference || "",
@@ -148,7 +148,7 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
         throw new Error(error.message || 'Upload failed');
       }
 
-      setProcessingStep("Starting AI processing...");
+      setProcessingStep("Starting processing...");
       await apiRequest("POST", `/api/cases/${dictationCase.id}/process`);
 
       await logAuditEvent({
@@ -202,7 +202,7 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
             Log a Phone Call
           </DialogTitle>
           <DialogDescription>
-            Dictate your telephone attendance note for {clientName} — {caseTitle}.
+            Dictate your telephone attendance note for {clientName}, {caseTitle}.
             No client consent is required as you are recording your own recollection.
           </DialogDescription>
         </DialogHeader>
@@ -216,7 +216,7 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
 
           <div className="p-3 bg-muted rounded-md">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Speak your summary of the call now, while details are fresh. Include who you
+              Record the substance of the call now, while details are fresh. Include who you
               spoke to, what was discussed, any advice given, and agreed next steps.
             </p>
           </div>

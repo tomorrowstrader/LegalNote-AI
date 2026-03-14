@@ -245,9 +245,9 @@ export default function AdminDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              Meeting-to-Matter™ AI Engine Performance
+              Meeting-to-Matter™ Engine Performance
             </CardTitle>
-            <CardDescription>Average processing times and document generation via Meeting-to-Matter™ AI</CardDescription>
+            <CardDescription>Average processing times and document generation via Meeting-to-Matter™</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between items-center">

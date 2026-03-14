@@ -105,7 +105,7 @@ const BUILT_IN_TEMPLATES: CaseTemplate[] = [
     icon: Briefcase,
     estimatedDuration: '60–90 min',
     consentLanguage: 'I would like to record this meeting to create a detailed attendance note for your file. The recording will be deleted after 7 days. Do you consent to this recording?',
-    documentSections: ['Case Background', 'Claim Summary', 'Witness Evidence Review', 'Documentary Evidence', 'Hearing Strategy', 'Client Preparation Notes', 'Action Items'],
+    documentSections: ['Case Background', 'Claim Summary', 'Witness Evidence Review', 'Documentary Evidence', 'Hearing Strategy', 'Client Preparation Notes', 'Obligations'],
     suggestedActionItems: [
       'Serve any outstanding disclosure on respondent',
       'Prepare client witness statement',
@@ -123,7 +123,7 @@ const BUILT_IN_TEMPLATES: CaseTemplate[] = [
     icon: Users,
     estimatedDuration: '45–60 min',
     consentLanguage: 'With your permission, I would like to record this meeting to prepare an attendance note. The recording is securely stored and automatically deleted after 7 days. Do you agree?',
-    documentSections: ['Current Position', 'Financial Disclosure Summary', 'Outstanding Issues', 'Without Prejudice Discussions', 'Next Court Date / Directions', 'Action Items'],
+    documentSections: ['Current Position', 'Financial Disclosure Summary', 'Outstanding Issues', 'Without Prejudice Discussions', 'Next Court Date / Directions', 'Obligations'],
     suggestedActionItems: [
       'Obtain updated Form E financial disclosure',
       'Instruct expert valuer if property in dispute',
@@ -191,7 +191,7 @@ export default function CaseTemplatesModal({ open, onOpenChange, onSelect }: Cas
         <DialogHeader>
           <DialogTitle>Choose a Case Template</DialogTitle>
           <DialogDescription>
-            Templates pre-populate the practice area, document structure, action items, and consent language.
+            Templates pre-populate the practice area, document structure, obligations, and consent language.
           </DialogDescription>
         </DialogHeader>
 
@@ -228,7 +228,7 @@ export default function CaseTemplatesModal({ open, onOpenChange, onSelect }: Cas
                                   <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{template.description}</p>
                                   <div className="flex items-center gap-3 mt-2">
                                     <span className="text-xs text-muted-foreground">{template.estimatedDuration}</span>
-                                    <span className="text-xs text-muted-foreground">{template.suggestedActionItems.length} action items</span>
+                                    <span className="text-xs text-muted-foreground">{template.suggestedActionItems.length} obligations</span>
                                     {template.preMeetingChecklist && (
                                       <span className="text-xs text-accent/70">{template.preMeetingChecklist.length}-point checklist</span>
                                     )}
@@ -268,7 +268,7 @@ export default function CaseTemplatesModal({ open, onOpenChange, onSelect }: Cas
                                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{template.description}</p>
                                 <div className="flex items-center gap-3 mt-2">
                                   <span className="text-xs text-muted-foreground">{template.estimatedDuration}</span>
-                                  <span className="text-xs text-muted-foreground">{template.suggestedActionItems.length} action items</span>
+                                  <span className="text-xs text-muted-foreground">{template.suggestedActionItems.length} obligations</span>
                                 </div>
                               </div>
                             </div>
@@ -288,7 +288,7 @@ export default function CaseTemplatesModal({ open, onOpenChange, onSelect }: Cas
 
               {selected.preMeetingChecklist && selected.preMeetingChecklist.length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-accent mb-1.5">Pre-meeting checklist — cover these during the meeting:</p>
+                  <p className="text-xs font-medium text-accent mb-1.5">Pre-meeting checklist: cover these during the meeting:</p>
                   <ul className="space-y-1">
                     {selected.preMeetingChecklist.map(item => (
                       <li key={item} className="text-xs text-muted-foreground flex items-start gap-1.5">
@@ -309,7 +309,7 @@ export default function CaseTemplatesModal({ open, onOpenChange, onSelect }: Cas
                 </div>
               </div>
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1.5">Suggested action items to track:</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">Suggested obligations to track:</p>
                 <ul className="space-y-1">
                   {selected.suggestedActionItems.slice(0, 3).map(a => (
                     <li key={a} className="text-xs text-muted-foreground flex items-start gap-1.5">

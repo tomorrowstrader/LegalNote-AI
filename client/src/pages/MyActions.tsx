@@ -50,10 +50,10 @@ export default function MyActions() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/action-items/all'] });
-      toast({ title: "Action item updated", duration: 2000 });
+      toast({ title: "Obligation updated", duration: 2000 });
     },
     onError: () => {
-      toast({ title: "Failed to update action item", variant: "destructive", duration: 3000 });
+      toast({ title: "Failed to update obligation", variant: "destructive", duration: 3000 });
     }
   });
 
@@ -114,7 +114,7 @@ export default function MyActions() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold text-foreground">My Actions</h1>
-        <p className="text-sm text-muted-foreground mt-1">All outstanding action items across your cases</p>
+        <p className="text-sm text-muted-foreground mt-1">All outstanding obligations across your matters</p>
       </div>
 
       {/* Stats row */}
@@ -235,7 +235,7 @@ export default function MyActions() {
         <Card>
           <CardContent className="py-12 flex flex-col items-center justify-center text-center">
             <CheckCircle2 className="w-10 h-10 text-muted-foreground mb-3" />
-            <h3 className="text-base font-medium">No action items found</h3>
+            <h3 className="text-base font-medium">No obligations found</h3>
             <p className="text-sm text-muted-foreground mt-1">
               {filterStatus === 'pending' ? "You're all caught up." : "No items match your filters."}
             </p>

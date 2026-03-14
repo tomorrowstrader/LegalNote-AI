@@ -87,8 +87,8 @@ function VersionDiffViewer({
 
   const formatVersionLabel = (v: DocumentVersion) => {
     const date = new Date(v.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const typeLabel = v.versionType === 'ai_generated' ? 'AI' : v.versionType === 'ai_regenerated' ? 'AI Regen' : 'Edited';
-    return `v${v.version} — ${typeLabel} — ${date}`;
+    const typeLabel = v.versionType === 'ai_generated' ? 'Generated' : v.versionType === 'ai_regenerated' ? 'Regenerated' : 'Edited';
+    return `v${v.version} · ${typeLabel} · ${date}`;
   };
 
   if (isLoading) {
@@ -213,7 +213,7 @@ function VersionDiffViewer({
                     v{v.version}
                   </Badge>
                   <span className="text-muted-foreground">
-                    {v.versionType === 'ai_generated' ? 'AI Generated' : v.versionType === 'ai_regenerated' ? 'AI Regenerated' : 'Manually Edited'}
+                    {v.versionType === 'ai_generated' ? 'System Generated' : v.versionType === 'ai_regenerated' ? 'Regenerated' : 'Manually Edited'}
                   </span>
                   {v.isActive && <Badge variant="outline" className="text-[10px]">Current</Badge>}
                 </div>
@@ -1070,7 +1070,7 @@ export default function DocumentViewer({
                 <TooltipContent>
                   <div className="text-xs">
                     <p className="font-semibold">Review Required</p>
-                    <p className="text-muted-foreground">This AI-generated document needs your professional review and approval</p>
+                    <p className="text-muted-foreground">This document needs your professional review and approval</p>
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -1112,8 +1112,8 @@ export default function DocumentViewer({
             <h3 className="text-lg font-semibold text-foreground mb-2">No Documents Yet</h3>
             <p className="text-sm text-muted-foreground text-center max-w-md">
               {textNotes 
-                ? 'Meeting-to-Matter™ AI Engine will generate documents from your meeting notes.' 
-                : 'Record audio and use Meeting-to-Matter™ AI Engine to generate legal documents automatically.'}
+                ? 'Meeting-to-Matter™ Engine will produce documents from your meeting notes.' 
+                : 'Record audio and use Meeting-to-Matter™ Engine to produce legal documents automatically.'}
             </p>
           </CardContent>
         </Card>
@@ -1180,7 +1180,7 @@ export default function DocumentViewer({
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
                       <p className="text-xs font-semibold">LegalNote is the Master Record</p>
-                      <p className="text-xs text-muted-foreground mt-1">This document has been approved and locked. All exports are working copies only — the authoritative version and full audit trail are held here.</p>
+                      <p className="text-xs text-muted-foreground mt-1">This document has been approved and locked. All exports are working copies only. The authoritative version and full audit trail are held here.</p>
                     </TooltipContent>
                   </Tooltip>
                 )}
@@ -1267,7 +1267,7 @@ export default function DocumentViewer({
               <span className="sm:hidden">Att. Note</span>
             </TabsTrigger>
             <TabsTrigger value="summary" data-testid="tab-summary" disabled={!summary && !textNotes} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
-              Summary
+              Matter Record
             </TabsTrigger>
             <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
               <span className="hidden sm:inline">Transcript</span>
@@ -1410,7 +1410,7 @@ export default function DocumentViewer({
             <Card className={showComments ? 'flex-1 min-w-0' : 'w-full'}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <CardTitle>Case Summary</CardTitle>
+                  <CardTitle>Matter Record</CardTitle>
                   <DocumentStatusActions document={summary} />
                 </div>
               </CardHeader>
@@ -1453,13 +1453,13 @@ export default function DocumentViewer({
                 ) : textNotes ? (
                   <div>
                     <p className="text-sm text-muted-foreground mb-4 italic">
-                      Meeting notes (AI-generated summary will appear here once processed)
+                      Meeting notes (matter record will be produced once processing is complete)
                     </p>
                     <p className="text-foreground whitespace-pre-wrap">{textNotes}</p>
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground italic">
-                    No summary available yet. Documents will be generated automatically.
+                    No matter record produced yet. Documents will appear here once produced.
                   </p>
                 )}
               </CardContent>
@@ -1520,7 +1520,7 @@ export default function DocumentViewer({
                       Speaker Diarization
                     </Badge>
                   )}
-                  <Badge variant="outline" data-testid="badge-ai-generated">AI Generated</Badge>
+                  <Badge variant="outline" data-testid="badge-ai-generated">Transcript</Badge>
                 </div>
               </div>
             </CardHeader>
@@ -1541,7 +1541,7 @@ export default function DocumentViewer({
                 <p className="text-foreground whitespace-pre-wrap">{transcriptContent}</p>
               ) : (
                 <p className="text-sm text-muted-foreground italic">
-                  Transcript not yet available. Process this case with AI to generate a transcript.
+                  Transcript not yet available. Process this case to produce a transcript.
                 </p>
               )}
             </CardContent>
@@ -1555,7 +1555,7 @@ export default function DocumentViewer({
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <CardTitle>Client Care Letter</CardTitle>
                   <div className="flex gap-2">
-                    <Badge variant="outline" data-testid="badge-care-letter-ai">AI Generated</Badge>
+                    <Badge variant="outline" data-testid="badge-care-letter-ai">System Generated</Badge>
                     <DocumentStatusActions document={clientCareLetter} />
                   </div>
                 </div>

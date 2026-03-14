@@ -144,14 +144,14 @@ export default function TextNotesModal({ open, onClose, onSave }: TextNotesModal
                   </FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Type your meeting notes here... Include key discussion points, client instructions, legal issues raised, and any action items."
+                      placeholder="Type your meeting notes here... Include key discussion points, client instructions, legal issues raised, and any obligations."
                       className="min-h-[200px] resize-none"
                       {...field}
                       data-testid="textarea-meeting-notes"
                     />
                   </FormControl>
                   <FormDescription className="text-xs">
-                    Tip: Be thorough - these notes will be used to generate your professional attendance note and summary.
+                    Tip: Be thorough - these notes will be used to produce your attendance note and matter record.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

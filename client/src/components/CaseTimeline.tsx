@@ -144,9 +144,9 @@ const FILTER_OPTIONS: { value: TimelineEventType | "all"; label: string }[] = [
   { value: "deadline", label: "Deadlines" },
   { value: "document", label: "Documents" },
   { value: "export", label: "Exports" },
-  { value: "action_item", label: "Action Items" },
+  { value: "action_item", label: "Obligations" },
   { value: "consent", label: "Consent" },
-  { value: "processing", label: "AI Processing" },
+  { value: "processing", label: "Processing" },
 ];
 
 export function CaseTimeline({ caseId }: CaseTimelineProps) {
@@ -275,12 +275,12 @@ export function CaseTimeline({ caseId }: CaseTimelineProps) {
         const isCompleted = item.completed === true;
         const isOverdue = isPast(dueDate) && !isCompleted;
         const isUpcoming = isFuture(dueDate) && !isCompleted;
-        const descText = item.description || "Action item";
+        const descText = item.description || "Obligation";
         
         events.push({
           id: `action-due-${item.id}`,
           type: "action_item",
-          title: isCompleted ? "Action Item Completed" : "Action Item Due",
+          title: isCompleted ? "Obligation Completed" : "Obligation Due",
           description: descText.length > 100 ? descText.substring(0, 100) + "..." : descText,
           timestamp: dueDate,
           isDeadline: !isCompleted,
@@ -307,8 +307,8 @@ export function CaseTimeline({ caseId }: CaseTimelineProps) {
       
       if (log.eventType.includes("processing") || log.eventType.includes("transcription")) {
         type = "processing";
-        title = log.eventType === "ai_processing_started" ? "AI Processing Started" :
-                log.eventType === "ai_processing_completed" ? "AI Processing Completed" :
+        title = log.eventType === "ai_processing_started" ? "Processing Started" :
+                log.eventType === "ai_processing_completed" ? "Processing Completed" :
                 "Transcription Completed";
       } else if (log.eventType === "case_handover") {
         type = "audit";

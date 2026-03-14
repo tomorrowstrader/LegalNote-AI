@@ -139,7 +139,7 @@ export default function Calculator() {
                 <div className="pt-4 border-t">
                   <p className="text-sm text-muted-foreground">
                     LegalNote ensures every client meeting is properly documented with verbatim transcripts, 
-                    structured attendance notes, and a complete audit trail—reducing <strong>70%</strong> of manual documentation effort.
+                    structured attendance notes, and a complete audit trail, reducing <strong>70%</strong> of manual documentation effort.
                   </p>
                 </div>
               </CardContent>
@@ -286,7 +286,7 @@ export default function Calculator() {
           <Card className="max-w-3xl mx-auto">
             <CardContent className="pt-6">
               <p className="text-lg italic text-muted-foreground mb-4">
-                "The best defence against a PI claim isn't luck—it's a complete file. 
+                "The best defence against a PI claim isn't luck. It's a complete file. 
                 LegalNote ensures every client interaction is properly documented before you leave the room."
               </p>
               <p className="text-sm font-medium">Compliance-First Documentation</p>

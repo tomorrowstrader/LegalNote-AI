@@ -321,7 +321,7 @@ export default function CaseDetail() {
     onSuccess: () => {
       toast({
         title: "Retry started",
-        description: "AI processing has been queued again",
+        description: "Processing has been queued again",
         duration: 6000,
       });
       queryClient.invalidateQueries({ 
@@ -715,7 +715,7 @@ export default function CaseDetail() {
                 The original audio has been securely deleted. The transcript and documents produced from this recording remain on file.
               </p>
               <Badge variant="outline" className="text-[10px] whitespace-nowrap no-default-hover-elevate no-default-active-elevate" data-testid="badge-gdpr-retention">
-                7-day retention — Article 5(1)(e) GDPR
+                7-day retention, Article 5(1)(e) GDPR
               </Badge>
             </div>
           </div>
@@ -753,7 +753,7 @@ export default function CaseDetail() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <h3 className="font-semibold text-foreground">Meeting-to-Matter™ AI Engine</h3>
+                  <h3 className="font-semibold text-foreground">Meeting-to-Matter™ Engine</h3>
                   {(!processingStatus || processingStatus.processingMetadata?.status === 'processing') && (
                     <Loader2 className="w-4 h-4 animate-spin text-accent" />
                   )}
@@ -794,7 +794,7 @@ export default function CaseDetail() {
           <div className="mb-8 p-6 bg-destructive/10 rounded-lg border-2 border-destructive" data-testid="failed-status-card">
             <div className="flex items-start gap-4">
               <div className="flex-1">
-                <h3 className="font-semibold text-foreground mb-2">AI Processing Failed</h3>
+                <h3 className="font-semibold text-foreground mb-2">Processing Failed</h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   {(caseData.aiProcessingMetadata as any)?.error || 'An error occurred during processing. Please try again.'}
                 </p>
@@ -836,15 +836,15 @@ export default function CaseDetail() {
               <div className="flex-1">
                 <h3 className="font-semibold text-foreground mb-1">
                   {caseData.sourceType === 'dictation'
-                    ? 'Ready for AI Processing'
-                    : hasValidConsent ? 'Ready for AI Processing' : 'Consent Required Before Processing'}
+                    ? 'Ready for Processing'
+                    : hasValidConsent ? 'Ready for Processing' : 'Consent Required Before Processing'}
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   {caseData.sourceType === 'dictation'
                     ? 'Your dictation is ready. Click below to transcribe and generate the telephone attendance note.'
                     : hasValidConsent 
                       ? 'Your audio recording is ready. Click below to transcribe and generate legal documents.'
-                      : 'Valid client consent must be recorded before AI processing can begin. This is required for GDPR compliance.'}
+                      : 'Valid client consent must be recorded before processing can begin. This is required for GDPR compliance.'}
                 </p>
               </div>
               <Button
@@ -861,7 +861,7 @@ export default function CaseDetail() {
                 ) : (
                   <>
                     <RefreshCw className="w-4 h-4" />
-                    Process with AI
+                    Process Case
                   </>
                 )}
               </Button>
@@ -1020,7 +1020,7 @@ export default function CaseDetail() {
               <AccordionTrigger className="hover:no-underline" data-testid="accordion-action-items">
                 <div className="flex items-center gap-2">
                   <ListChecks className="w-5 h-5 text-accent" />
-                  <span className="font-semibold">Action Items & Briefing</span>
+                  <span className="font-semibold">Obligations & Briefing</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent>

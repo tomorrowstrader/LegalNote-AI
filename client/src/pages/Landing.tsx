@@ -460,13 +460,13 @@ function ComparisonSlider() {
             From handwritten to evidential
           </h2>
           <p className="text-lg text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] mb-2">
-            This comparison achieved in under 2 minutes after the meeting ends
+            The record your client file needs. The standard a complaint investigation expects to find.
           </p>
           <p className="text-base text-[hsl(25,15%,50%)] dark:text-[hsl(30,10%,55%)]">
-            Drag the slider to compare your best effort with LegalNote output
+            Drag the slider to compare handwritten notes with LegalNote output
           </p>
           <p className="text-sm text-[hsl(18,60%,50%)] mt-2 md:hidden">
-            Swipe to reveal our 6-step methodology in action
+            Swipe to see the standard LegalNote produces
           </p>
         </motion.div>
         
@@ -707,7 +707,7 @@ function ComparisonSlider() {
                   <div>
                     <div className="flex items-center gap-2 mb-3 sm:mb-4">
                       <ClipboardCheck className="w-4 h-4 sm:w-5 sm:h-5 text-[hsl(18,70%,42%)]" />
-                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)] dark:text-[hsl(30,20%,92%)]">Action Items - Auto-Extracted & Diarised</h4>
+                      <h4 className="font-semibold text-sm sm:text-base text-[hsl(25,30%,15%)] dark:text-[hsl(30,20%,92%)]">Obligations - Extracted & Diarised</h4>
                     </div>
                     <div className="bg-white dark:bg-[hsl(25,12%,14%)] rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
                       <div className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-[hsl(18,30%,97%)] rounded-lg border-l-2 border-[hsl(18,60%,50%)]">
@@ -822,10 +822,10 @@ function ComparisonSlider() {
                           { time: '10:02:15', event: 'Recording consent obtained', type: 'consent', detail: 'Verbal consent captured at 00:00:22' },
                           { time: '10:02:18', event: 'Audio recording started', type: 'recording', detail: 'Device: iPhone 14 Pro' },
                           { time: '10:54:33', event: 'Recording ended', type: 'recording', detail: 'Duration: 52m 15s' },
-                          { time: '10:55:01', event: 'Transcript generated', type: 'ai', detail: 'Speaker diarization: 2 speakers identified' },
-                          { time: '10:55:45', event: 'Attendance note created', type: 'document', detail: 'Auto-generated from transcript' },
-                          { time: '10:56:02', event: 'Summary created', type: 'document', detail: 'Key points extracted' },
-                          { time: '10:56:30', event: 'Action items extracted', type: 'actions', detail: '4 items with due dates' },
+                          { time: '10:55:01', event: 'Transcript produced', type: 'ai', detail: 'Speaker diarization: 2 speakers identified' },
+                          { time: '10:55:45', event: 'Attendance note created', type: 'document', detail: 'Produced from transcript' },
+                          { time: '10:56:02', event: 'Matter record created', type: 'document', detail: 'Key points extracted' },
+                          { time: '10:56:30', event: 'Obligations extracted', type: 'actions', detail: '4 items with due dates' },
                           { time: '11:14:08', event: 'Solicitor review confirmed', type: 'approved', detail: 'Documents reviewed and approved by solicitor' },
                           { time: '11:15:22', event: 'Client version sent', type: 'share', detail: 'emma.richards@email.com' },
                           { time: '11:15:22', event: 'Share link created', type: 'share', detail: 'SMS 2FA enabled' },
@@ -997,9 +997,9 @@ function ComparisonSlider() {
                 {/* Actions Required */}
                 <div className="bg-[hsl(220,30%,96%)] rounded p-2">
                   <p className="font-medium text-[hsl(25,30%,25%)] text-[10px] uppercase tracking-wide mb-1">Actions Required</p>
-                  <p className="text-[10px]">1. Request Form E from husband's solicitor — 19 Mar</p>
-                  <p className="text-[10px]">2. Client to obtain pension CETV — 17 Mar</p>
-                  <p className="text-[10px]">3. Draft Mesher order terms for review — 21 Mar</p>
+                  <p className="text-[10px]">1. Request Form E from husband's solicitor, 19 Mar</p>
+                  <p className="text-[10px]">2. Client to obtain pension CETV, 17 Mar</p>
+                  <p className="text-[10px]">3. Draft Mesher order terms for review, 21 Mar</p>
                 </div>
                 
                 {/* Client Acknowledgement */}
@@ -1183,9 +1183,9 @@ function AuditTrailComparisonSlider() {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="font-mono text-xs text-[hsl(25,15%,45%)] dark:text-[hsl(30,15%,80%)]">15:19:23</span>
-                      <span className="text-[hsl(25,30%,20%)] dark:text-[hsl(30,20%,95%)]">Transcript generated</span>
+                      <span className="text-[hsl(25,30%,20%)] dark:text-[hsl(30,20%,95%)]">Transcript produced</span>
                     </div>
-                    <p className="text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,15%,85%)]">AI transcription with speaker diarization</p>
+                    <p className="text-xs text-[hsl(25,15%,50%)] dark:text-[hsl(30,15%,85%)]">Speaker-attributed transcription with diarization</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 bg-[hsl(30,30%,98%)] dark:bg-[hsl(25,12%,20%)] rounded-lg border border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,25%)]">
@@ -1341,7 +1341,7 @@ function TrustBadges() {
       obligation: "SRA Code of Conduct",
       reference: "Paragraph 3.3",
       requirement: "Keep records of decisions and actions relating to client matters",
-      howLegalNoteHelps: "Automated attendance notes capture decisions and actions in real-time, linked to the matter record with timestamps.",
+      howLegalNoteHelps: "Contemporaneous attendance notes capture decisions, advice given and the reasoning behind it, linked to the matter record with timestamps.",
       icon: FileText,
     },
     {
@@ -2329,7 +2329,7 @@ export default function Landing() {
               LegalNote BlackBox
             </h2>
             <p className="text-base sm:text-lg text-[hsl(220,10%,70%)] max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Your data survives anything. Battery death, device loss, network dropouts, crashes—recordings continue uploading the moment connectivity returns.
+              Your data survives anything. Battery death, device loss, network dropouts, crashes. Recordings continue uploading the moment connectivity returns.
             </p>
           </motion.div>
 
@@ -2338,7 +2338,7 @@ export default function Landing() {
               {
                 icon: Wifi,
                 title: "Resilient Streaming",
-                description: "Chunked uploads with automatic retry. No single point of failure—if your connection drops mid-meeting, we resume exactly where you left off."
+                description: "Chunked uploads with automatic retry. No single point of failure. If your connection drops mid-meeting, we resume exactly where you left off."
               },
               {
                 icon: HardDrive,
@@ -2353,7 +2353,7 @@ export default function Landing() {
               {
                 icon: Server,
                 title: "UK/EU Data Residency",
-                description: "Processing infrastructure entirely within UK/EU borders. No data crosses international boundaries—full alignment with UK/EU data protection law."
+                description: "Processing infrastructure entirely within UK/EU borders. No data crosses international boundaries. Full alignment with UK/EU data protection law."
               },
               {
                 icon: RefreshCw,
@@ -2363,7 +2363,7 @@ export default function Landing() {
               {
                 icon: Lock,
                 title: "End-to-End Encryption",
-                description: "TLS 1.3 in transit, AES-256 at rest. Client communications remain confidential from capture to deletion—even we can't read your content."
+                description: "TLS 1.3 in transit, AES-256 at rest. Client communications remain confidential from capture to deletion. Even we can't read your content."
               }
             ].map((feature, index) => (
               <motion.div
@@ -2430,7 +2430,7 @@ export default function Landing() {
             </span>
             <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-[hsl(30,20%,92%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>Tailored to your practice</h2>
             <p className="text-lg text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] max-w-2xl mx-auto mb-8" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Every legal practice is different. We'll work with you to understand your documentation needs, matter types, and compliance requirements—then recommend the right plan.
+              Every legal practice is different. We'll work with you to understand your documentation needs, matter types, and compliance requirements, then recommend the right plan.
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
@@ -2586,7 +2586,7 @@ export default function Landing() {
                       <p className="text-sm text-[hsl(18,65%,45%)] font-medium mb-4">{getSoloEffectiveMonthly()}</p>
                     )}
                     <ul className="space-y-3 mb-6 flex-grow">
-                      {['Unlimited recordings', 'AI transcription', 'Attendance notes', 'Black Box security', 'GDPR tools'].map((feature, i) => (
+                      {['Unlimited recordings', 'Speaker-attributed transcription', 'Attendance notes', 'Black Box security', 'GDPR tools'].map((feature, i) => (
                         <li key={i} className="flex items-center gap-2 text-sm">
                           <Check className="w-4 h-4 text-[hsl(18,65%,45%)] flex-shrink-0" />
                           <span className="text-[hsl(25,20%,40%)]">{feature}</span>
@@ -2726,9 +2726,9 @@ export default function Landing() {
                 <ul className={`space-y-2.5 mb-6 flex-grow text-sm ${!getSoloEffectiveMonthly() ? 'mt-4' : ''}`}>
                   {[
                     'Unlimited recordings',
-                    'AI transcription with speaker ID',
+                    'Speaker-attributed transcription',
                     'Attendance note generation',
-                    'AI summaries & action items',
+                    'Meeting record & obligations log',
                     'Black Box triple-layer security',
                     'Secure document sharing',
                     'Firm branding on exports',
@@ -3025,7 +3025,7 @@ export default function Landing() {
               Not another note-taking app
             </h2>
             <p className="text-xl text-[hsl(25,20%,40%)] max-w-3xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              LegalNote is a compliance-first attendance record system built for regulated legal practice—not a generic dictation tool or AI note-taker.
+              LegalNote is a compliance-first attendance record system built for regulated legal practice. Not a generic dictation tool or meeting transcriber.
             </p>
           </motion.div>
 

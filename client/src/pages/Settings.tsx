@@ -1414,7 +1414,7 @@ function DemoDataControls() {
       queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
       toast({
         title: "Demo Data Loaded",
-        description: `Created ${data.casesCreated || 4} sample cases with transcripts, documents, and action items.`,
+        description: `Created ${data.casesCreated || 4} sample cases with transcripts, documents, and obligations.`,
       });
     },
     onError: (error: any) => {
@@ -1487,7 +1487,7 @@ function DemoDataControls() {
         <Alert>
           <Database className="h-4 w-4" />
           <AlertDescription>
-            Demo data creates 5 realistic UK legal case scenarios: Property Purchase, Employment Dispute, Commercial Contract, and Family Law. Each includes full transcripts, attendance notes, summaries, action items, and audit trail entries.
+            Demo data creates 5 realistic UK legal case scenarios: Property Purchase, Employment Dispute, Commercial Contract, and Family Law. Each includes full transcripts, attendance notes, matter records, obligations, and audit trail entries.
           </AlertDescription>
         </Alert>
 

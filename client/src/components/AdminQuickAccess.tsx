@@ -142,7 +142,7 @@ export default function AdminQuickAccess() {
         ) : (
           <div className="px-2 py-2 space-y-2">
             <p className="text-xs text-muted-foreground">
-              This will clear and reseed the Patterson demo case — continue?
+              This will clear and reseed the Patterson demo case. Continue?
             </p>
             <div className="flex items-center gap-2">
               <Button

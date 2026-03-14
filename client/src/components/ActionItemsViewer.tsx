@@ -90,15 +90,15 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
       setIsExtracting(false);
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/action-items`] });
       toast({
-        title: "Action Items Extracted",
-        description: `Found ${data.items?.length || 0} action items from the transcript.`,
+        title: "Obligations Extracted",
+        description: `Found ${data.items?.length || 0} obligations from the transcript.`,
       });
     },
     onError: (error: any) => {
       setIsExtracting(false);
       toast({
         title: "Extraction Failed",
-        description: error.message || "Failed to extract action items",
+        description: error.message || "Failed to extract obligations",
         variant: "destructive",
       });
     },
@@ -114,7 +114,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
     onError: (error: any) => {
       toast({
         title: "Update Failed",
-        description: error.message || "Failed to update action item",
+        description: error.message || "Failed to update obligation",
         variant: "destructive",
       });
     },
@@ -127,14 +127,14 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/action-items`] });
       toast({
-        title: "Action Item Approved",
-        description: "The action item has been approved and is now part of the case record.",
+        title: "Obligation Approved",
+        description: "The obligation has been approved and is now part of the case record.",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Approval Failed",
-        description: error.message || "Failed to approve action item",
+        description: error.message || "Failed to approve obligation",
         variant: "destructive",
       });
     },
@@ -147,14 +147,14 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/action-items`] });
       toast({
-        title: "Action Items Approved",
-        description: `${data.approvedCount || 0} action items have been approved.`,
+        title: "Obligations Approved",
+        description: `${data.approvedCount || 0} obligations have been approved.`,
       });
     },
     onError: (error: any) => {
       toast({
         title: "Bulk Approval Failed",
-        description: error.message || "Failed to approve action items",
+        description: error.message || "Failed to approve obligations",
         variant: "destructive",
       });
     },
@@ -167,13 +167,13 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/action-items`] });
       toast({
-        title: "Action Item Deleted",
+        title: "Obligation Deleted",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Delete Failed",
-        description: error.message || "Failed to delete action item",
+        description: error.message || "Failed to delete obligation",
         variant: "destructive",
       });
     },
@@ -190,14 +190,14 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
       setNewAssignee("Solicitor");
       setNewPriority("medium");
       toast({
-        title: "Action Item Created",
-        description: "The action item has been added as a draft.",
+        title: "Obligation Created",
+        description: "The obligation has been added as a draft.",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Creation Failed",
-        description: error.message || "Failed to create action item",
+        description: error.message || "Failed to create obligation",
         variant: "destructive",
       });
     },
@@ -218,7 +218,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <ListTodo className="w-4 h-4" />
-            Action Items
+            Obligations
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -241,7 +241,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <ListTodo className="w-4 h-4" />
-            Action Items
+            Obligations
           </CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
             {totalCount > 0 && (
@@ -336,7 +336,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
           <div className="p-3 rounded-lg border bg-muted/30 space-y-3 mb-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <PenLine className="w-4 h-4" />
-              Add Manual Action Item
+              Add Manual Obligation
             </div>
             <div className="space-y-2">
               <div>
@@ -345,7 +345,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
                   id="new-description"
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder="Enter action item description..."
+                  placeholder="Enter obligation description..."
                   data-testid="input-new-action-description"
                 />
               </div>
@@ -411,9 +411,9 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
         {(!items || items.length === 0) && !showAddForm && (
           <div className="text-center py-6 text-muted-foreground">
             <ListTodo className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No action items found.</p>
+            <p className="text-sm">No obligations found.</p>
             {hasTranscript && (
-              <p className="text-xs mt-1">Click "Extract" to find action items from the transcript.</p>
+              <p className="text-xs mt-1">Click "Extract" to identify obligations from the transcript.</p>
             )}
             <p className="text-xs mt-1">Or click "Add" to create one manually.</p>
           </div>
@@ -503,7 +503,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
                       className="h-8 w-8"
                       onClick={() => approveMutation.mutate(item.id)}
                       disabled={approveMutation.isPending}
-                      title="Approve this action item"
+                      title="Approve this obligation"
                       data-testid={`button-approve-action-item-${idx}`}
                     >
                       <ShieldCheck className="w-4 h-4 text-green-600 dark:text-green-400" />
@@ -532,7 +532,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ListTodo className="w-4 h-4" />
-              Action Items
+              Obligations
               {items && items.length > 0 && (
                 <Badge variant="secondary" className="ml-2">
                   {items.filter(i => i.completed).length}/{items.length}

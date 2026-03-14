@@ -47,8 +47,8 @@ const pricingTiers: PricingTier[] = [
     features: [
       "Unlimited recordings & transcriptions",
       "25 hours bundled monthly",
-      "AI attendance notes & summaries",
-      "Action item extraction",
+      "Attendance notes & matter records",
+      "Obligation extraction",
       "Client consent management",
       "Secure document sharing",
       "Calendar integration",
@@ -108,7 +108,7 @@ const pricingTiers: PricingTier[] = [
 const compliancePackFeatures = [
   "COLP self-audit checklist completion",
   "DPIA template customised to your firm",
-  "AI usage policy template",
+  "Data usage policy template",
   "Insurer-facing documentation pack",
   "Staff training materials",
   "White-glove platform setup",

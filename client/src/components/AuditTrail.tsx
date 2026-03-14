@@ -105,18 +105,18 @@ const EVENT_LABELS: Record<string, string> = {
   transcript_redacted: "Transcript Redacted",
   audit_exported_csv: "Audit Exported (CSV)",
   pre_meeting_briefing_generated: "Meeting Briefing Generated",
-  ai_processing_started: "AI Processing Started",
-  ai_processing_completed: "AI Processing Completed",
+  ai_processing_started: "Processing Started",
+  ai_processing_completed: "Processing Completed",
   transcription_completed: "Transcription Completed",
   quick_note_added: "Quick Note Added",
   share_link_created: "Share Link Created",
   share_link_accessed: "Share Link Accessed",
-  action_item_created: "Action Item Created",
-  action_item_approved: "Action Item Approved",
-  action_item_updated: "Action Item Updated",
-  action_items_bulk_approved: "Action Items Bulk Approved",
-  action_item_created_manual: "Manual Action Item Created",
-  action_items_extracted: "Action Items Extracted",
+  action_item_created: "Obligation Created",
+  action_item_approved: "Obligation Approved",
+  action_item_updated: "Obligation Updated",
+  action_items_bulk_approved: "Obligations Bulk Approved",
+  action_item_created_manual: "Manual Obligation Created",
+  action_items_extracted: "Obligations Extracted",
   deadline_changed: "Deadline Changed",
   priority_changed: "Priority Changed",
   litigation_hold_applied: "Litigation Hold Applied",
@@ -264,10 +264,10 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
         : "Meeting briefing prepared";
     
     case "ai_processing_started":
-      return "AI document generation initiated";
+      return "Document generation initiated";
     
     case "ai_processing_completed":
-      return "AI document generation completed successfully";
+      return "Document generation completed successfully";
     
     case "transcription_completed":
       return metadata.duration 

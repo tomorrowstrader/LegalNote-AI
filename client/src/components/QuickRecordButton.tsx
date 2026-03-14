@@ -689,7 +689,7 @@ export default function QuickRecordButton() {
             console.error('AI processing failed:', error);
             const errorMessage = error?.message || error?.toString() || "Unknown error occurred";
             toast({
-              title: "AI Processing Issue",
+              title: "Processing Issue",
               description: `Documents may not have been generated: ${errorMessage}. You can retry from the case detail page.`,
               variant: "destructive",
               duration: 10000,
@@ -754,7 +754,7 @@ export default function QuickRecordButton() {
           // Success
           toast({
             title: "Case created successfully",
-            description: "Meeting-to-Matter™ AI Engine is preparing your documents.",
+            description: "Meeting-to-Matter™ Engine is preparing your documents.",
             duration: 6000,
             action: (
               <ToastAction 
@@ -1099,7 +1099,7 @@ export default function QuickRecordButton() {
                   <h3 className="text-lg font-semibold" data-testid="text-processing-title">
                     {processingStep === 'complete' 
                       ? 'All Done!' 
-                      : 'Meeting-to-Matter™ AI Engine'}
+                      : 'Meeting-to-Matter™ Engine'}
                   </h3>
                   <p className="text-sm text-muted-foreground" data-testid="text-processing-description">
                     {processingStep === 'complete'
@@ -1169,7 +1169,7 @@ export default function QuickRecordButton() {
                     </div>
                     <div className="flex-1">
                       <p className={`text-sm font-medium ${processingStep === 'processing' ? 'text-foreground' : processingStep === 'complete' ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
-                        Activating AI Engine
+                        Activating Engine
                       </p>
                     </div>
                   </div>

@@ -240,7 +240,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
             <p className="text-muted-foreground">
-              Meeting-to-Matter™ AI is transcribing your recording...
+              Meeting-to-Matter™ is transcribing your recording...
             </p>
           </div>
         </DialogContent>

@@ -51,7 +51,7 @@ export default function Features() {
     { 
       icon: ClipboardCheck, 
       title: "Consent-First Capture", 
-      description: "Workflows make it straightforward to explain, obtain, and record client consent to recording—meeting expectations of confidentiality and transparency." 
+      description: "Workflows make it straightforward to explain, obtain, and record client consent to recording, meeting expectations of confidentiality and transparency." 
     },
     { 
       icon: Scale, 
@@ -77,15 +77,15 @@ export default function Features() {
 
   const workflowSteps = [
     { icon: Mic, title: "Record", description: "Capture client meetings with consent-first workflows. One click to start, automatic pause detection." },
-    { icon: Brain, title: "Process", description: "Transcription with speaker diarization, legal vocabulary recognition, and intelligent structuring." },
-    { icon: FileOutput, title: "Document", description: "Professional attendance notes, summaries, and action items—ready for your sign-off." },
+    { icon: Brain, title: "Process", description: "Transcription with speaker diarization, legal vocabulary recognition, and structured formatting." },
+    { icon: FileOutput, title: "Document", description: "Attendance notes, matter record and obligations log. Ready for your review and sign-off." },
   ];
 
   const additionalFeatures = [
     { icon: Users, title: "Speaker Identification", description: "Automatically identify and label speakers throughout the meeting for clear attribution." },
     { icon: Lock, title: "Black Box Security", description: "Triple-layer redundancy ensures your records are protected and recoverable." },
-    { icon: Search, title: "Matter-Wide Search", description: "Find anything across transcripts, attendance notes, summaries, and action items—from a single search bar. No more hunting through paper notes, emails, and Word documents." },
-    { icon: Bell, title: "Smart Reminders", description: "Automatic follow-up reminders linked to action items extracted from meetings." },
+    { icon: Search, title: "Matter-Wide Search", description: "Find anything across transcripts, attendance notes, matter records and obligations. From a single search bar. No more hunting through paper notes, emails, and Word documents." },
+    { icon: Bell, title: "Smart Reminders", description: "Automatic follow-up reminders linked to obligations extracted from the meeting record." },
   ];
 
   const practiceSafeguards = [
@@ -115,7 +115,7 @@ export default function Features() {
     { 
       icon: CalendarClock, 
       title: "Google Calendar", 
-      description: "Bidirectional sync. Action items from meetings appear as calendar events. See upcoming client meetings in LegalNote.",
+      description: "Bidirectional sync. Obligations from meetings appear as calendar events. See upcoming client meetings in LegalNote.",
       logo: "google"
     },
     { 
@@ -137,37 +137,37 @@ export default function Features() {
       icon: Focus,
       title: "Zero Note-Taking During Meetings",
       description: "The solicitor is fully present. No divided attention, no scrambling to write while listening. LegalNote captures everything, so cognitive bandwidth stays on the client.",
-      differentiator: "Generic meeting apps record audio. LegalNote removes the documentation burden entirely — the output is already in the format your firm and the SRA expect."
+      differentiator: "Generic meeting apps record audio. LegalNote removes the documentation burden entirely. The output is already in the format your firm and the SRA expect."
     },
     {
       icon: FileCheck,
       title: "SRA-Formatted Attendance Notes",
-      description: "AI doesn't just summarise — it produces structured attendance notes aligned to regulatory expectations. No reformatting, no reorganising, no second pass.",
-      differentiator: "Tools like Otter and Fireflies generate generic summaries. LegalNote produces the specific document your file actually needs — eliminating the executive function step of restructuring output."
+      description: "LegalNote produces structured attendance notes aligned to regulatory expectations. No reformatting, no reorganising, no second pass.",
+      differentiator: "Tools like Otter and Fireflies generate generic summaries. LegalNote produces the specific document your file actually needs, eliminating the executive function step of restructuring output."
     },
     {
       icon: ShieldCheck,
       title: "Automated Consent Documentation",
       description: "GDPR-compliant consent is captured and logged before the meeting begins. One fewer procedural step to remember under pressure.",
-      differentiator: "Forgetting consent isn't just embarrassing — it's a regulatory breach. No generic meeting app handles this. LegalNote makes it automatic."
+      differentiator: "Forgetting consent isn't just embarrassing. It's a regulatory breach. No generic meeting app handles this. LegalNote makes it automatic."
     },
     {
       icon: ListChecks,
-      title: "Action Items Extracted and Diarised",
-      description: "Follow-ups are pulled from the transcript, linked to the matter, and synced to your calendar for approval. Nothing relies on memory alone.",
-      differentiator: "Generic apps may list action items. LegalNote integrates them into a legal workflow with deadlines, matter linking, and calendar sync — closing the loop automatically."
+      title: "Obligations Extracted and Diarised",
+      description: "Obligations are identified in the transcript, linked to the matter, and synced to your calendar for approval. Nothing falls through.",
+      differentiator: "Generic apps may list action items. LegalNote integrates obligations into a legal workflow with deadlines, matter linking, and calendar sync, closing the loop automatically."
     },
     {
       icon: FolderOpen,
       title: "Matter-Linked Organisation",
-      description: "Every transcript, attendance note, summary, and action item is connected to its case. No flat file lists, no hunting across folders.",
-      differentiator: "When juggling multiple matters, this structure mirrors how a solicitor's workflow needs to operate — compensating for the organisational overhead that affects neurodivergent practitioners most."
+      description: "Every transcript, attendance note, matter record and obligation is connected to its case. No flat file lists, no hunting across folders.",
+      differentiator: "When juggling multiple matters, this structure mirrors how a solicitor's workflow needs to operate, compensating for the organisational overhead that affects neurodivergent practitioners most."
     },
     {
       icon: Lock,
       title: "Tamper-Evident Audit Trail",
       description: "Cryptographic signatures prove proper process was followed. If someone later questions whether the right steps were taken, the record speaks for itself.",
-      differentiator: "This protects neurodivergent solicitors disproportionately — removing the anxiety of 'did I follow the right process?' with verifiable, timestamped evidence."
+      differentiator: "This protects neurodivergent solicitors disproportionately, removing the anxiety of 'did I follow the right process?' with verifiable, timestamped evidence."
     },
   ];
 
@@ -206,7 +206,7 @@ export default function Features() {
               Built for how solicitors actually work
             </h1>
             <p className="text-xl text-[hsl(25,20%,40%)]" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Every feature designed around the reality of regulated legal practice—not retrofitted from generic note-taking software.
+              Every feature designed around the reality of regulated legal practice. Not retrofitted from generic note-taking software.
             </p>
           </motion.div>
         </div>
@@ -337,7 +337,7 @@ export default function Features() {
               Reducing cognitive load by design
             </h2>
             <p className="text-lg text-[hsl(25,20%,40%)] max-w-3xl mx-auto mb-3">
-              Every feature in LegalNote removes a step your brain would otherwise have to manage. For neurodivergent solicitors — including those with ADHD, dyslexia, and autism — this isn't a convenience. It's a reasonable adjustment.
+              Every feature in LegalNote removes a step your brain would otherwise have to manage. For neurodivergent solicitors, including those with ADHD, dyslexia, and autism, this isn't a convenience. It's a reasonable adjustment.
             </p>
             <p className="text-base text-[hsl(25,15%,50%)] max-w-2xl mx-auto">
               These aren't additional features. They're existing capabilities viewed through the lens of the Equality Act 2010 and the SRA's guidance on reasonable adjustments.
@@ -417,7 +417,7 @@ export default function Features() {
             data-testid="card-neuro-inclusive-summary"
           >
             <p className="text-lg text-[hsl(25,25%,25%)] leading-relaxed" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              "The real differentiator isn't a single feature — it's the combination within a legal-specific context. No generic meeting app produces SRA-compliant attendance notes, logs consent, creates an audit trail, extracts actions into a matter-linked calendar, and tracks document versions — all without the solicitor lifting a pen."
+              "The real differentiator isn't a single feature. It's the combination within a legal-specific context. No generic meeting app produces SRA-compliant attendance notes, logs consent, creates an audit trail, extracts obligations into a matter-linked calendar, and tracks document versions. All without the solicitor lifting a pen."
             </p>
             <p className="text-sm text-[hsl(25,15%,50%)] mt-4">
               That combination is the reasonable adjustment.
@@ -442,7 +442,7 @@ export default function Features() {
               Protect your practice, protect your fees
             </h2>
             <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
-              Intelligent guardrails that surface during documentation—helping you catch issues before they become problems.
+              Intelligent guardrails that surface during documentation, helping you catch issues before they become problems.
             </p>
           </motion.div>
 

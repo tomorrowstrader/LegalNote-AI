@@ -674,7 +674,7 @@ export default function NewNote() {
             <div>
               <h1 className="text-3xl font-semibold text-foreground">Create New Note</h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Record client meeting with consent capture and automatic transcription powered by Meeting-to-Matter™ AI
+                Record client meeting with consent capture and automatic transcription powered by Meeting-to-Matter™
               </p>
             </div>
             <Button
@@ -710,7 +710,7 @@ export default function NewNote() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-green-600" />
-                      Pre-Meeting Checklist — Reviewed
+                      Pre-Meeting Checklist: Reviewed
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -794,7 +794,7 @@ export default function NewNote() {
                         <span className="text-sm font-medium flex-1 truncate" data-testid="text-selected-case">
                           {(() => {
                             const c = existingCases.find(c => c.id === selectedCaseId);
-                            return c ? `${c.title} — ${c.clientName}${c.matterReference ? ` (${c.matterReference})` : ""}` : selectedCaseId;
+                            return c ? `${c.title} · ${c.clientName}${c.matterReference ? ` (${c.matterReference})` : ""}` : selectedCaseId;
                           })()}
                         </span>
                         <Button
@@ -829,7 +829,7 @@ export default function NewNote() {
                               onClick={() => { setSelectedCaseId(c.id); setShowCaseDropdown(false); setCaseSearchQuery(""); }}
                               data-testid={`option-case-${c.id}`}
                             >
-                              <span className="truncate">{c.title} — {c.clientName}{c.matterReference ? ` (${c.matterReference})` : ""}</span>
+                              <span className="truncate">{c.title} · {c.clientName}{c.matterReference ? ` (${c.matterReference})` : ""}</span>
                               <Badge variant="secondary" className="text-xs shrink-0">{c.status}</Badge>
                             </button>
                           ))
@@ -996,7 +996,7 @@ export default function NewNote() {
                       data-testid="input-costs-estimate"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Used in the auto-generated client care letter.
+                      Used in the client care letter.
                     </p>
                   </div>
                 </>
@@ -1174,7 +1174,7 @@ export default function NewNote() {
               onClick={() => { if (pendingTemplate) applyTemplate(pendingTemplate); }}
               data-testid="button-checklist-acknowledge"
             >
-              I've Reviewed This — Proceed
+              I've Reviewed This. Proceed
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

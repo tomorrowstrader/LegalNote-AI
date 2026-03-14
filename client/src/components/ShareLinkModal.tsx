@@ -391,7 +391,7 @@ export default function ShareLinkModal({
                       <AlertTriangle className="w-3 h-3 text-amber-500" />
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Raw conversation transcript. Consider sharing Attendance Note instead for a professional summary.
+                      Raw conversation transcript. Consider sharing the Attendance Note instead for a professional matter record.
                     </p>
                   </div>
                 </div>

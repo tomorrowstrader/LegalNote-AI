@@ -90,9 +90,9 @@ export default function MLRODecisionModal({ open, onOpenChange, caseId, clientNa
                 <SelectValue placeholder="Select decision" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="proceed">Proceed — risk accepted with controls</SelectItem>
-                <SelectItem value="decline_to_act">Decline to Act — disengage from matter</SelectItem>
-                <SelectItem value="sar_considered">SAR Considered — reporting decision documented</SelectItem>
+                <SelectItem value="proceed">Proceed: risk accepted with controls</SelectItem>
+                <SelectItem value="decline_to_act">Decline to Act: disengage from matter</SelectItem>
+                <SelectItem value="sar_considered">SAR Considered: reporting decision documented</SelectItem>
               </SelectContent>
             </Select>
           </div>

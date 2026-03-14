@@ -449,7 +449,7 @@ function CandidatesReviewModal({
         <DialogHeader>
           <DialogTitle>Review Detected Undertakings</DialogTitle>
           <DialogDescription>
-            AI has identified potential undertakings in the transcript. Review each and confirm, edit, or dismiss.
+            Potential undertakings have been identified in the transcript. Review each and confirm, edit, or dismiss.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

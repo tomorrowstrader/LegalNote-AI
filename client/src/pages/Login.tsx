@@ -46,7 +46,7 @@ export default function Login() {
               The defensible record for every client meeting.
             </h1>
             <p className="text-white/60 text-sm leading-relaxed" data-testid="text-login-description">
-              Compliance-first, audit-ready documentation aligned with SRA expectations. Meeting-to-Matter™ captures contemporaneous attendance notes with cryptographic tamper detection — reducing PI exposure and building defensible records from the moment you press record.
+              Compliance-first, audit-ready documentation aligned with SRA expectations. Meeting-to-Matter™ captures contemporaneous attendance notes with cryptographic tamper detection, reducing PI exposure and building defensible records from the moment you press record.
             </p>
           </div>
           <div className="space-y-3 pt-4 border-t border-white/10">
@@ -56,7 +56,7 @@ export default function Login() {
             </div>
             <div className="flex items-center gap-3">
               <div className="w-1.5 h-1.5 rounded-full bg-[hsl(18,70%,42%)]" />
-              <span className="text-white/50 text-xs" data-testid="text-login-feature-2">Cryptographic audit trail — un-tamperable, SRA-defensible</span>
+              <span className="text-white/50 text-xs" data-testid="text-login-feature-2">Cryptographic audit trail: un-tamperable, SRA-defensible</span>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-1.5 h-1.5 rounded-full bg-[hsl(18,70%,42%)]" />

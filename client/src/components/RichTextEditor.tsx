@@ -39,9 +39,9 @@ function ensureBoldHeadings(content: string): string {
     'Attendance Note', 'Meeting Summary', 'Matters Discussed', 'Next Steps',
     'Key Points', 'Critical Issues Identified', 'Immediate Actions Required',
     'Client Concerns', 'Solicitor Recommendations', 'Matter Summary',
-    'Outstanding Action Items', 'Important Dates', 'Suggested Agenda Items',
+    'Outstanding Obligations', 'Important Dates', 'Suggested Agenda Items',
     'Client Confirmation', 'Introduction', 'Background', 'Summary',
-    'Conclusion', 'Assets Summary', 'Discussion Points', 'Action Items',
+    'Conclusion', 'Assets Summary', 'Discussion Points', 'Obligations',
     'Decisions Made', 'Purpose of Meeting', 'Additional Notes',
     'Key Discussion Points from Previous Meeting',
   ];
