@@ -869,10 +869,10 @@ function VideoConferencing() {
           <p className="text-sm font-medium">How it works</p>
           <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
             <li>Record your video meetings using Zoom, Teams, or Google Meet</li>
-            <li>After the call ends, open the case in LegalNote AI</li>
+            <li>After the call ends, open the case in LegalNote</li>
             <li>Click "Import Recording" to select from your recent meetings</li>
             <li>Confirm client consent was obtained before or during the call</li>
-            <li>LegalNote AI downloads the recording and generates your attendance note automatically</li>
+            <li>LegalNote downloads the recording and generates your attendance note automatically</li>
           </ul>
         </div>
 
@@ -1055,7 +1055,7 @@ function ClioIntegration() {
           <p className="text-sm font-medium">How it works</p>
           <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
             <li>Connect your Clio account using OAuth</li>
-            <li>Import matters from Clio to create new cases in LegalNote AI</li>
+            <li>Import matters from Clio to create new cases in LegalNote</li>
             <li>Link existing cases to Clio matters for easy reference</li>
             <li>Matter reference numbers and client names are automatically synced</li>
           </ul>
@@ -1063,7 +1063,7 @@ function ClioIntegration() {
 
         <div className="p-3 bg-muted rounded-md">
           <p className="text-xs text-muted-foreground">
-            <strong>Note:</strong> LegalNote AI uses Clio's EU endpoint for GDPR compliance. 
+            <strong>Note:</strong> LegalNote uses Clio's EU endpoint for GDPR compliance. 
             Only matter metadata is synced - no document content is transferred to Clio.
           </p>
         </div>
@@ -1290,7 +1290,7 @@ function StorageIntegrations() {
           <p className="text-sm font-medium">How it works</p>
           <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
             <li>Admin connects the firm's OneDrive or SharePoint account via Replit Tools</li>
-            <li>Documents from all solicitors sync to: LegalNote AI / Cases / [Client - Case Title]</li>
+            <li>Documents from all solicitors sync to: LegalNote / Cases / [Client - Case Title]</li>
             <li>Each case gets organized folders for attendance notes, summaries, and transcripts</li>
             <li>Perfect for boutique firms wanting a shared document library</li>
           </ul>

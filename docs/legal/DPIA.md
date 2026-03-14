@@ -1,8 +1,8 @@
-# LegalNote AI Data Protection Impact Assessment (DPIA)
+# LegalNote Data Protection Impact Assessment (DPIA)
 
 **Document Version:** 1.0  
 **Last Updated:** January 2026  
-**Author:** LegalNote AI Ltd  
+**Author:** LegalNote Ltd  
 **Status:** Active  
 **Next Review Date:** July 2026  
 
@@ -10,7 +10,7 @@
 
 ## 1. Executive Summary
 
-This Data Protection Impact Assessment (DPIA) evaluates the data protection risks associated with the LegalNote AI platform, a compliance-first legal documentation tool for UK solicitors and law firms.
+This Data Protection Impact Assessment (DPIA) evaluates the data protection risks associated with the LegalNote platform, a compliance-first legal documentation tool for UK solicitors and law firms.
 
 **Key Findings:**
 - LegalNote processes high-risk personal data (audio recordings of legal consultations)

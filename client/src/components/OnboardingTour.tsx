@@ -64,7 +64,7 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
       target: "body",
       content: (
         <div className="space-y-3">
-          <h2 className="text-2xl font-bold tracking-tight">Welcome to LegalNote AI</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Welcome to LegalNote</h2>
           <p className="text-base leading-relaxed text-muted-foreground">
             Let me show you the key features to help you get started. This quick tour will only take a minute.
           </p>

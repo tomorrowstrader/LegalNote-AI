@@ -1,4 +1,4 @@
-# LegalNote AI Cookie Policy
+# LegalNote Cookie Policy
 
 **Last Updated:** January 2026  
 **Effective Date:** January 2026  
@@ -7,7 +7,7 @@
 
 ## 1. Introduction
 
-This Cookie Policy explains how LegalNote AI Ltd ("LegalNote", "we", "us", "our") uses cookies and similar technologies when you use our legal documentation platform.
+This Cookie Policy explains how LegalNote Ltd ("LegalNote", "we", "us", "our") uses cookies and similar technologies when you use our legal documentation platform.
 
 ---
 
@@ -91,7 +91,7 @@ If you have questions about our use of cookies:
 
 **Email:** privacy@legalnote.ai
 
-LegalNote AI Ltd  
+LegalNote Ltd  
 71-75 Shelton Street  
 Covent Garden, London  
 WC2H 9JQ  

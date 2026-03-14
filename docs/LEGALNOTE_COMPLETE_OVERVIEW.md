@@ -1,12 +1,12 @@
-# LegalNote AI - Complete Technical & Product Overview
+# LegalNote - Complete Technical & Product Overview
 
-> **Purpose**: This document provides a comprehensive description of LegalNote AI for use as context in AI tools (Perplexity, ChatGPT, Claude, etc.) to enable contextual questions about the platform's capabilities, architecture, and implementation.
+> **Purpose**: This document provides a comprehensive description of LegalNote for use as context in AI tools (Perplexity, ChatGPT, Claude, etc.) to enable contextual questions about the platform's capabilities, architecture, and implementation.
 
 ---
 
 ## Executive Summary
 
-**LegalNote AI** is a compliance-first legal meeting documentation platform designed for UK solicitors and law firms. It transforms client meetings into evidence-quality documentation through recording, transcription, AI-assisted document generation, and comprehensive audit trails.
+**LegalNote** is a compliance-first legal meeting documentation platform designed for UK solicitors and law firms. It transforms client meetings into evidence-quality documentation through recording, transcription, AI-assisted document generation, and comprehensive audit trails.
 
 **Tagline**: "Meeting to Matter in Minutes"
 
@@ -203,7 +203,7 @@
 
 **Features**:
 - Automatic document sync to Microsoft cloud
-- Folder structure: LegalNote AI / Cases / [Client - Case Title] / [Document Type]
+- Folder structure: LegalNote / Cases / [Client - Case Title] / [Document Type]
 - Auto-sync settings per provider
 - Site and drive selection for SharePoint
 
@@ -610,10 +610,10 @@ shared/
 
 ## Contact & Resources
 
-**Product**: LegalNote AI
+**Product**: LegalNote
 **Target Market**: UK Legal Sector
 **Regulatory Framework**: SRA, GDPR, ICO
 
 ---
 
-*This document is intended for use as context in AI assistants to enable informed questions about LegalNote AI's capabilities, architecture, and implementation details.*
+*This document is intended for use as context in AI assistants to enable informed questions about LegalNote's capabilities, architecture, and implementation details.*

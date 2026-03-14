@@ -1,4 +1,4 @@
-# LegalNote AI - Partner Outreach Scripts
+# LegalNote - Partner Outreach Scripts
 
 > **Purpose**: Ready-to-use conversation templates and email scripts for partner development.
 
@@ -336,4 +336,4 @@ Best,
 
 ---
 
-*Document created for LegalNote AI partner development.*
+*Document created for LegalNote partner development.*

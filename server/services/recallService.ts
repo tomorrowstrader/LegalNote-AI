@@ -117,7 +117,7 @@ export class RecallService {
     return response.json() as Promise<T>;
   }
   
-  async createBot(meetingUrl: string, botName: string = 'LegalNote AI'): Promise<RecallBotResponse> {
+  async createBot(meetingUrl: string, botName: string = 'LegalNote'): Promise<RecallBotResponse> {
     return this.apiRequest<RecallBotResponse>('/bot/', {
       method: 'POST',
       body: JSON.stringify({

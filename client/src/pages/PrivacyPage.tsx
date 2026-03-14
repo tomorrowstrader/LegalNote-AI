@@ -8,11 +8,11 @@ import { useEffect } from "react";
 
 export default function PrivacyPage() {
   useEffect(() => {
-    document.title = "Privacy Policy - LegalNote AI";
+    document.title = "Privacy Policy - LegalNote";
     
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute('content', 'LegalNote AI Privacy Policy. Learn how we collect, use, and protect your personal data in compliance with GDPR and UK data protection law.');
+      metaDescription.setAttribute('content', 'LegalNote Privacy Policy. Learn how we collect, use, and protect your personal data in compliance with GDPR and UK data protection law.');
     }
     
     const setOrCreateMeta = (property: string, content: string) => {
@@ -25,11 +25,11 @@ export default function PrivacyPage() {
       meta.setAttribute('content', content);
     };
     
-    setOrCreateMeta('og:title', 'Privacy Policy - LegalNote AI');
-    setOrCreateMeta('og:description', 'How LegalNote AI collects, uses, and protects your personal data.');
+    setOrCreateMeta('og:title', 'Privacy Policy - LegalNote');
+    setOrCreateMeta('og:description', 'How LegalNote collects, uses, and protects your personal data.');
     setOrCreateMeta('og:type', 'website');
     setOrCreateMeta('og:url', window.location.href);
-    setOrCreateMeta('og:site_name', 'LegalNote AI');
+    setOrCreateMeta('og:site_name', 'LegalNote');
   }, []);
 
   return (
@@ -52,7 +52,7 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">1. Introduction</h2>
               <p className="leading-relaxed mb-4">
-                LegalNote AI ("we", "our", "us") is committed to protecting and respecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our legal documentation platform.
+                LegalNote ("we", "our", "us") is committed to protecting and respecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our legal documentation platform.
               </p>
               <p className="leading-relaxed">
                 We are registered with the Information Commissioner's Office (ICO) and comply with the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018.
@@ -62,7 +62,7 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">2. Data Controller</h2>
               <p className="leading-relaxed mb-4">
-                LegalNote AI is the data controller responsible for your personal data. For any questions about this policy or our data practices, contact us at <a href="mailto:support@legalnote.ai" className="text-[hsl(18,65%,45%)] hover:underline">support@legalnote.ai</a>.
+                LegalNote is the data controller responsible for your personal data. For any questions about this policy or our data practices, contact us at <a href="mailto:support@legalnote.ai" className="text-[hsl(18,65%,45%)] hover:underline">support@legalnote.ai</a>.
               </p>
               <p className="leading-relaxed">
                 <strong>Registered Address:</strong><br />

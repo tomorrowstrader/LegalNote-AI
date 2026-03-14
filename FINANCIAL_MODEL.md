@@ -1,8 +1,8 @@
-# LegalNote AI - Financial Model & Investor Summary
+# LegalNote - Financial Model & Investor Summary
 
 ## Executive Summary
 
-LegalNote AI is a compliance-first legal documentation platform targeting UK solicitors and boutique law firms. The platform transforms meeting recordings into evidence-quality attendance notes, AI summaries, and searchable transcripts while maintaining full GDPR compliance and SRA alignment.
+LegalNote is a compliance-first legal documentation platform targeting UK solicitors and boutique law firms. The platform transforms meeting recordings into evidence-quality attendance notes, AI summaries, and searchable transcripts while maintaining full GDPR compliance and SRA alignment.
 
 **Key Investment Highlights:**
 - **70%+ gross margins** on core subscriptions

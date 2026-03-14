@@ -1,4 +1,4 @@
-# LegalNote AI: Compliance and Risk Management
+# LegalNote: Compliance and Risk Management
 
 **For COLPs, Risk Partners, and Professional Indemnity Insurers**
 
@@ -6,13 +6,13 @@
 
 ## Executive Summary
 
-LegalNote AI is a compliance-first meeting documentation platform designed as risk infrastructure for UK law firms. It addresses specific failure modes that drive professional negligence claims and regulatory complaints: poor attendance notes, missed actions, and weak documentation of client instructions.
+LegalNote is a compliance-first meeting documentation platform designed as risk infrastructure for UK law firms. It addresses specific failure modes that drive professional negligence claims and regulatory complaints: poor attendance notes, missed actions, and weak documentation of client instructions.
 
 **Core positioning:** Evidence-quality meeting records, under your control.
 
 ---
 
-## What LegalNote AI Does
+## What LegalNote Does
 
 ### Primary Functions
 
@@ -24,7 +24,7 @@ LegalNote AI is a compliance-first meeting documentation platform designed as ri
 | **Action Item Extraction** | Identifies obligations and deadlines | Reduces missed limitation dates |
 | **Consent Logging** | Records consent with exact wording | GDPR defensibility |
 
-### What LegalNote AI Does NOT Do
+### What LegalNote Does NOT Do
 
 | Excluded Function | Reason |
 |-------------------|--------|
@@ -52,9 +52,9 @@ Professional negligence claims frequently arise from:
 
 ### The Solution: Structured Documentation Infrastructure
 
-LegalNote AI addresses each failure mode:
+LegalNote addresses each failure mode:
 
-| PI Risk Driver | LegalNote AI Mitigation |
+| PI Risk Driver | LegalNote Mitigation |
 |----------------|------------------------|
 | Missed actions | AI extracts obligations and deadlines from every meeting |
 | Poor notes | Structured attendance notes with consistent sections |
@@ -91,7 +91,7 @@ LegalNote AI addresses each failure mode:
 
 ### Why Not Generic AI Meeting Tools?
 
-| Aspect | Generic AI Notetakers | LegalNote AI |
+| Aspect | Generic AI Notetakers | LegalNote |
 |--------|----------------------|--------------|
 | **Data training** | Often train on client data | No cross-client training, no secondary use |
 | **Consent** | Generic pop-up or none | Solicitor-controlled with lawful basis logging |
@@ -102,7 +102,7 @@ LegalNote AI addresses each failure mode:
 
 ### Why Not Manual Notes?
 
-| Aspect | Manual Notes | LegalNote AI |
+| Aspect | Manual Notes | LegalNote |
 |--------|--------------|--------------|
 | **Accuracy** | Memory-dependent | Verbatim transcript |
 | **Timing** | Often delayed | Immediate |
@@ -116,7 +116,7 @@ LegalNote AI addresses each failure mode:
 
 ### Risk Reduction Evidence
 
-LegalNote AI provides:
+LegalNote provides:
 
 1. **Consistent documentation** - Every meeting produces structured attendance notes
 2. **Action capture** - Obligations and deadlines systematically extracted
@@ -210,7 +210,7 @@ When a PI claim alleges:
 
 ## Contact and Support
 
-For compliance queries regarding LegalNote AI deployment:
+For compliance queries regarding LegalNote deployment:
 
 - **Technical documentation:** See DATA_HANDLING.md
 - **Policy templates:** See AI_USAGE_POLICY_TEMPLATE.md

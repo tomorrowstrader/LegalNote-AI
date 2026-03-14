@@ -1,4 +1,4 @@
-# LegalNote AI
+# LegalNote
 
 **Meeting to Matter, Contemporaneously.**
 
@@ -79,5 +79,5 @@ Records are timestamped, contemporaneous, and aligned with how regulators expect
 
 ---
 
-*LegalNote AI Ltd — 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ*  
+*LegalNote Ltd — 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ*  
 *EU-hosted infrastructure for GDPR compliance*

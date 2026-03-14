@@ -1,10 +1,10 @@
-# LegalNote AI - Deployment Configuration
+# LegalNote - Deployment Configuration
 
 ## Health Check Endpoint
 
 The application provides a dedicated health check endpoint for the deployment platform:
 
-- **Endpoint**: `GET /health` - Returns `{ status: 'ok', service: 'LegalNote AI', timestamp: '...' }`
+- **Endpoint**: `GET /health` - Returns `{ status: 'ok', service: 'LegalNote', timestamp: '...' }`
 
 This endpoint:
 - Responds quickly (under 5 seconds)

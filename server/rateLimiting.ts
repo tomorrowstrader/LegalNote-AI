@@ -1,7 +1,7 @@
 import rateLimit from "express-rate-limit";
 
 /**
- * Rate limiting configuration for LegalNote AI
+ * Rate limiting configuration for LegalNote
  * Protects against abuse and DoS attacks with proper IPv6 support
  */
 

@@ -1,4 +1,4 @@
-# LegalNote AI - LinkedIn Content Strategy Playbook
+# LegalNote - LinkedIn Content Strategy Playbook
 
 > **Purpose**: Comprehensive guide to LinkedIn posting frequency, content formats, and conversion tactics for building authority and generating leads.
 
@@ -462,4 +462,4 @@ When sending requests, include a note:
 
 ---
 
-*Document created for LegalNote AI content marketing.*
+*Document created for LegalNote content marketing.*

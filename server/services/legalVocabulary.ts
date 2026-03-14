@@ -10,7 +10,7 @@
 export const UK_LEGAL_VOCABULARY = [
   // Practice Management Systems
   'Clio', 'Clio Manage', 'iManage', 'LEAP', 'PracticePanther',
-  'Actionstep', 'MyCase', 'Smokeball', 'LegalNote', 'LegalNote AI',
+  'Actionstep', 'MyCase', 'Smokeball', 'LegalNote',
   
   // Regulatory Bodies
   'SRA', 'Solicitors Regulation Authority', 'Law Society',

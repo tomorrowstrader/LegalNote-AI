@@ -1,4 +1,4 @@
-// Stripe Service for LegalNote AI
+// Stripe Service for LegalNote
 // Handles direct Stripe API operations
 
 import { getUncachableStripeClient } from './stripeClient';

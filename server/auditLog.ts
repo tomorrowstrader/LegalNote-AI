@@ -1,7 +1,7 @@
 import type { Request } from "express";
 
 /**
- * Security audit logging for LegalNote AI
+ * Security audit logging for LegalNote
  * Tracks critical security events for compliance and incident response
  */
 

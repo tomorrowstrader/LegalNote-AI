@@ -314,7 +314,7 @@ Your Legal Team
     try {
       await storage.updateScheduledMeeting(meeting.id, { botStatus: 'waiting' });
 
-      const bot = await recallService.createBot(meeting.meetingUrl, 'LegalNote AI');
+      const bot = await recallService.createBot(meeting.meetingUrl, 'LegalNote');
 
       await storage.updateScheduledMeeting(meeting.id, {
         recallBotId: bot.id,

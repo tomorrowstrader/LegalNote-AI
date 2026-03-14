@@ -3,7 +3,7 @@ import cors from "cors";
 import type { Express } from "express";
 
 /**
- * Security headers and CORS configuration for LegalNote AI
+ * Security headers and CORS configuration for LegalNote
  * Implements defense-in-depth protection against common web vulnerabilities
  */
 

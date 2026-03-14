@@ -276,7 +276,7 @@ export default function Pricing() {
         </Card>
 
         <div className="text-center mb-12">
-          <h2 className="text-2xl font-bold mb-4">Why Solicitors Choose LegalNote AI</h2>
+          <h2 className="text-2xl font-bold mb-4">Why Solicitors Choose LegalNote</h2>
           <p className="text-muted-foreground max-w-2xl mx-auto mb-8">
             Built specifically for UK legal practice with compliance at the core
           </p>
@@ -306,7 +306,7 @@ export default function Pricing() {
             <h2 className="text-2xl font-bold mb-4">Ready to transform your practice?</h2>
             <p className="text-muted-foreground max-w-xl mx-auto mb-6">
               Start your 14-day free trial. No credit card required. 
-              See how LegalNote AI can save you hours on every client meeting.
+              See how LegalNote can save you hours on every client meeting.
             </p>
             <div className="flex items-center justify-center gap-4 flex-wrap">
               <Button size="lg" data-testid="button-start-trial">

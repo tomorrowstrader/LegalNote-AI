@@ -1,8 +1,8 @@
-# LegalNote AI - Future Features Roadmap
+# LegalNote - Future Features Roadmap
 
 ## Strategic Vision: The Waze Model for Legal Documentation
 
-Inspired by how Waze built a real-time traffic engine through crowdsourced data, LegalNote AI can evolve from a documentation tool into an intelligent legal workflow platform that gets smarter with every use.
+Inspired by how Waze built a real-time traffic engine through crowdsourced data, LegalNote can evolve from a documentation tool into an intelligent legal workflow platform that gets smarter with every use.
 
 ---
 
@@ -387,7 +387,7 @@ Most UK law firms run on Microsoft 365. Being "native" to that ecosystem reduces
 **What it does:**
 When a solicitor approves an attendance note, it automatically saves to their firm's SharePoint in a structured folder:
 ```
-LegalNote AI / Cases / [Client Name - Matter Ref] / Attendance Notes
+LegalNote / Cases / [Client Name - Matter Ref] / Attendance Notes
 ```
 
 **Current State:** Partially built (connector exists, basic sync toggle)

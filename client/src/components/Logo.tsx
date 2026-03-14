@@ -57,14 +57,14 @@ export default function Logo({ variant = "icon", size = "md", tone = "auto", ani
       {tone === "dark" ? (
         <img
           src={logoWordWhite}
-          alt="LegalNote AI"
+          alt="LegalNote"
           className={`${sizeClasses[size]} ${className}`}
           style={{ objectFit: "contain" }}
         />
       ) : tone === "light" ? (
         <img
           src={logoWordBlack}
-          alt="LegalNote AI"
+          alt="LegalNote"
           className={`${sizeClasses[size]} ${className}`}
           style={{ objectFit: "contain" }}
         />
@@ -72,13 +72,13 @@ export default function Logo({ variant = "icon", size = "md", tone = "auto", ani
         <>
           <img
             src={logoWordBlack}
-            alt="LegalNote AI"
+            alt="LegalNote"
             className={`${sizeClasses[size]} ${className} dark:hidden`}
             style={{ objectFit: "contain" }}
           />
           <img
             src={logoWordWhite}
-            alt="LegalNote AI"
+            alt="LegalNote"
             className={`${sizeClasses[size]} ${className} hidden dark:block`}
             style={{ objectFit: "contain" }}
           />

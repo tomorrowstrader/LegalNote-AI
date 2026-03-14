@@ -1,4 +1,4 @@
-// Stripe Client for LegalNote AI
+// Stripe Client for LegalNote
 // Uses Replit connector for OAuth token management
 
 import Stripe from 'stripe';

@@ -8,11 +8,11 @@ import { useEffect } from "react";
 
 export default function TermsPage() {
   useEffect(() => {
-    document.title = "Terms of Service - LegalNote AI";
+    document.title = "Terms of Service - LegalNote";
     
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute('content', 'LegalNote AI Terms of Service. Read the terms and conditions governing your use of our legal documentation platform.');
+      metaDescription.setAttribute('content', 'LegalNote Terms of Service. Read the terms and conditions governing your use of our legal documentation platform.');
     }
     
     const setOrCreateMeta = (property: string, content: string) => {
@@ -25,11 +25,11 @@ export default function TermsPage() {
       meta.setAttribute('content', content);
     };
     
-    setOrCreateMeta('og:title', 'Terms of Service - LegalNote AI');
-    setOrCreateMeta('og:description', 'Terms and conditions for using LegalNote AI legal documentation platform.');
+    setOrCreateMeta('og:title', 'Terms of Service - LegalNote');
+    setOrCreateMeta('og:description', 'Terms and conditions for using LegalNote legal documentation platform.');
     setOrCreateMeta('og:type', 'website');
     setOrCreateMeta('og:url', window.location.href);
-    setOrCreateMeta('og:site_name', 'LegalNote AI');
+    setOrCreateMeta('og:site_name', 'LegalNote');
   }, []);
 
   return (
@@ -52,7 +52,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">1. Agreement to Terms</h2>
               <p className="leading-relaxed mb-4">
-                By accessing or using LegalNote AI ("the Platform"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, you must not access or use the Platform. These Terms constitute a legally binding agreement between you and LegalNote AI.
+                By accessing or using LegalNote ("the Platform"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, you must not access or use the Platform. These Terms constitute a legally binding agreement between you and LegalNote.
               </p>
               <p className="leading-relaxed">
                 <strong>Company Address:</strong><br />
@@ -63,7 +63,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">2. Description of Service</h2>
               <p className="leading-relaxed mb-4">
-                LegalNote AI provides a compliance-first documentation platform designed for UK solicitors and legal professionals. The Platform enables:
+                LegalNote provides a compliance-first documentation platform designed for UK solicitors and legal professionals. The Platform enables:
               </p>
               <ul className="list-disc pl-6 space-y-2">
                 <li>Audio recording of client meetings with consent capture</li>
@@ -73,7 +73,7 @@ export default function TermsPage() {
                 <li>Secure sharing and collaboration features</li>
               </ul>
               <p className="leading-relaxed mt-4">
-                <strong>Important:</strong> LegalNote AI is a documentation tool. It does not provide legal advice, legal analysis, or professional legal services. The Platform records, transcribes, and formats your own professional work.
+                <strong>Important:</strong> LegalNote is a documentation tool. It does not provide legal advice, legal analysis, or professional legal services. The Platform records, transcribes, and formats your own professional work.
               </p>
             </section>
 
@@ -139,7 +139,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">7. Client Consent</h2>
               <p className="leading-relaxed">
-                You are solely responsible for obtaining appropriate consent from clients and other parties before recording meetings. The Platform provides consent capture tools, but compliance with applicable laws and professional regulations regarding recording consent remains your responsibility. LegalNote AI cannot verify that consent was properly obtained.
+                You are solely responsible for obtaining appropriate consent from clients and other parties before recording meetings. The Platform provides consent capture tools, but compliance with applicable laws and professional regulations regarding recording consent remains your responsibility. LegalNote cannot verify that consent was properly obtained.
               </p>
             </section>
 
@@ -159,7 +159,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">9. Intellectual Property</h2>
               <p className="leading-relaxed">
-                The Platform, including all software, features, design, and documentation, is owned by LegalNote AI and protected by intellectual property laws. These Terms do not grant you any rights to our trademarks, logos, or other proprietary materials except as expressly provided.
+                The Platform, including all software, features, design, and documentation, is owned by LegalNote and protected by intellectual property laws. These Terms do not grant you any rights to our trademarks, logos, or other proprietary materials except as expressly provided.
               </p>
             </section>
 
@@ -173,14 +173,14 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">11. Limitation of Liability</h2>
               <p className="leading-relaxed">
-                TO THE MAXIMUM EXTENT PERMITTED BY LAW, LEGALNOTE AI SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, DATA, OR GOODWILL, ARISING FROM YOUR USE OF THE PLATFORM. OUR TOTAL LIABILITY SHALL NOT EXCEED THE FEES PAID BY YOU IN THE 12 MONTHS PRECEDING THE CLAIM.
+                TO THE MAXIMUM EXTENT PERMITTED BY LAW, LEGALNOTE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, DATA, OR GOODWILL, ARISING FROM YOUR USE OF THE PLATFORM. OUR TOTAL LIABILITY SHALL NOT EXCEED THE FEES PAID BY YOU IN THE 12 MONTHS PRECEDING THE CLAIM.
               </p>
             </section>
 
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">12. Indemnification</h2>
               <p className="leading-relaxed">
-                You agree to indemnify and hold harmless LegalNote AI from any claims, damages, losses, or expenses arising from: (a) your use of the Platform; (b) your violation of these Terms; (c) your violation of any third-party rights; or (d) your failure to obtain proper consent for recordings.
+                You agree to indemnify and hold harmless LegalNote from any claims, damages, losses, or expenses arising from: (a) your use of the Platform; (b) your violation of these Terms; (c) your violation of any third-party rights; or (d) your failure to obtain proper consent for recordings.
               </p>
             </section>
 
@@ -217,7 +217,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">16. General Provisions</h2>
               <p className="leading-relaxed mb-4">
-                These Terms constitute the entire agreement between you and LegalNote AI regarding the Platform. If any provision is found unenforceable, the remaining provisions continue in effect. Our failure to enforce any right does not waive that right. You may not assign these Terms; we may assign them in connection with a merger or acquisition.
+                These Terms constitute the entire agreement between you and LegalNote regarding the Platform. If any provision is found unenforceable, the remaining provisions continue in effect. Our failure to enforce any right does not waive that right. You may not assign these Terms; we may assign them in connection with a merger or acquisition.
               </p>
             </section>
 

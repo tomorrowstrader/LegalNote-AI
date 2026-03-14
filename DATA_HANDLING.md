@@ -1,4 +1,4 @@
-# LegalNote AI: Data Handling Statement
+# LegalNote: Data Handling Statement
 
 **Lawyer-Readable Summary of Data Flows, Retention, and Privacy**
 
@@ -6,7 +6,7 @@
 
 ## Purpose
 
-This document provides a clear, lawyer-readable explanation of how LegalNote AI handles client data. It is designed for:
+This document provides a clear, lawyer-readable explanation of how LegalNote handles client data. It is designed for:
 
 - Compliance Officers (COLPs/DPOs)
 - Risk Partners
@@ -100,7 +100,7 @@ Client Meeting
 
 ### No Cross-Client Training
 
-LegalNote AI does not:
+LegalNote does not:
 - Train AI models on client data
 - Share data between tenants/firms
 - Use client data for product improvement without consent
@@ -266,11 +266,11 @@ For each sub-processor, verify:
 
 **For client-facing communications:**
 
-> "LegalNote AI processes meeting recordings to create transcripts and attendance notes. Audio is retained for 7 days then automatically deleted. All data is encrypted, access-controlled, and logged. We do not share your data with other clients or use it to train AI models. Full data handling details are available on request."
+> "LegalNote processes meeting recordings to create transcripts and attendance notes. Audio is retained for 7 days then automatically deleted. All data is encrypted, access-controlled, and logged. We do not share your data with other clients or use it to train AI models. Full data handling details are available on request."
 
 **For regulatory inquiries:**
 
-> "LegalNote AI maintains comprehensive audit trails with cryptographic integrity verification. All processing is lawful-basis documented, consent is logged with exact wording, and data subject rights are fully supported. Retention policies are technically enforced with litigation hold capability."
+> "LegalNote maintains comprehensive audit trails with cryptographic integrity verification. All processing is lawful-basis documented, consent is logged with exact wording, and data subject rights are fully supported. Retention policies are technically enforced with litigation hold capability."
 
 ---
 

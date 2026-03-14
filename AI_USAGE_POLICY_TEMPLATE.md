@@ -1,4 +1,4 @@
-# AI Usage Policy Template: LegalNote AI
+# AI Usage Policy Template: LegalNote
 
 **Ready-Made Policy for Firm Adoption**
 
@@ -6,15 +6,15 @@
 
 ## Purpose
 
-This template provides a ready-made AI usage policy for firms deploying LegalNote AI. It can be adopted as-is or customised to fit existing firm governance frameworks.
+This template provides a ready-made AI usage policy for firms deploying LegalNote. It can be adopted as-is or customised to fit existing firm governance frameworks.
 
 ---
 
-## [FIRM NAME] AI Usage Policy: LegalNote AI Platform
+## [FIRM NAME] AI Usage Policy: LegalNote Platform
 
 ### 1. Scope
 
-This policy governs the use of LegalNote AI for meeting recording, transcription, attendance note generation, and action item extraction.
+This policy governs the use of LegalNote for meeting recording, transcription, attendance note generation, and action item extraction.
 
 **Applies to:**
 - All fee-earners (partners, associates, trainees)
@@ -25,7 +25,7 @@ This policy governs the use of LegalNote AI for meeting recording, transcription
 
 ### 2. Permitted Uses
 
-LegalNote AI may be used for:
+LegalNote may be used for:
 
 | Use | Permitted | Conditions |
 |-----|-----------|------------|
@@ -37,7 +37,7 @@ LegalNote AI may be used for:
 
 ### 3. Prohibited Uses
 
-LegalNote AI must NOT be used for:
+LegalNote must NOT be used for:
 
 | Prohibited Use | Reason |
 |----------------|--------|
@@ -58,7 +58,7 @@ LegalNote AI must NOT be used for:
 - The AI does not provide legal advice, analysis, or recommendations
 
 **Quote for training purposes:**
-> "LegalNote AI documents what you said and did. It does not tell you what to say or do. You remain the lawyer; the platform is your documentation tool."
+> "LegalNote documents what you said and did. It does not tell you what to say or do. You remain the lawyer; the platform is your documentation tool."
 
 ### 5. Consent Requirements
 
@@ -71,7 +71,7 @@ Before recording any meeting:
 5. **Document consent** - the platform logs consent with exact wording
 
 **Consent script (suggested wording):**
-> "I'm going to record this meeting using our documentation platform, LegalNote AI. The recording will be transcribed and used to generate an attendance note. The audio is processed by AI services and deleted after 7 days. The transcript and notes are retained on your matter file. Do you consent to this recording?"
+> "I'm going to record this meeting using our documentation platform, LegalNote. The recording will be transcribed and used to generate an attendance note. The audio is processed by AI services and deleted after 7 days. The transcript and notes are retained on your matter file. Do you consent to this recording?"
 
 If any participant declines, do not record. Use manual note-taking.
 
@@ -119,7 +119,7 @@ All users must understand:
 
 ### 9. Confidentiality and Privilege
 
-- All data processed by LegalNote AI remains confidential
+- All data processed by LegalNote remains confidential
 - Privilege attaches to outputs as it would to manual attendance notes
 - Do not process data that should not leave the firm's systems
 - Sub-processors (AssemblyAI, OpenAI) are contractually bound to confidentiality
@@ -139,7 +139,7 @@ Report immediately to [COLP/IT SECURITY] if:
 
 ### 11. Training Requirements
 
-Before using LegalNote AI, all users must:
+Before using LegalNote, all users must:
 
 - [ ] Read this policy
 - [ ] Complete platform training session
@@ -174,7 +174,7 @@ Breach of this policy may result in disciplinary action, including removal of pl
 
 ## Acknowledgement
 
-I have read and understood this AI Usage Policy for LegalNote AI. I agree to comply with its requirements.
+I have read and understood this AI Usage Policy for LegalNote. I agree to comply with its requirements.
 
 | Field | Value |
 |-------|-------|

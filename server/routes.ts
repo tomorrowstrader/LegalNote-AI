@@ -86,7 +86,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment platform
   // Must be before auth middleware and CORS is configured to allow requests without origin
   app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok', service: 'LegalNote AI', timestamp: new Date().toISOString() });
+    res.status(200).json({ status: 'ok', service: 'LegalNote', timestamp: new Date().toISOString() });
   });
 
   // Setup Replit Auth
@@ -1075,7 +1075,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
       // Get firm profile for branded SMS
       const firmProfile = await storage.getFirmProfile();
-      const firmName = firmProfile?.name || "LegalNote AI";
+      const firmName = firmProfile?.name || "LegalNote";
 
       // Send SMS
       const result = await sendVerificationCode(formattedPhone, verificationCode, firmName);
@@ -6263,7 +6263,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       
       // Get firm profile for email branding
       const firmProfile = await storage.getFirmProfile();
-      const firmName = firmProfile?.firmName || 'LegalNote AI';
+      const firmName = firmProfile?.firmName || 'LegalNote';
       
       // Create email content
       const emailSubject = `Recording Consent for Video Meeting - ${firmName}`;

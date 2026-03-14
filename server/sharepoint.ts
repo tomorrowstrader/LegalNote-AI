@@ -212,12 +212,12 @@ export async function ensureLegalNoteFolderStructure(
   provider: StorageProvider,
   driveId: string
 ): Promise<{ rootFolder: FolderInfo | null; casesFolder: FolderInfo | null }> {
-  const rootFolder = await createFolder(provider, driveId, '/', 'LegalNote AI');
+  const rootFolder = await createFolder(provider, driveId, '/', 'LegalNote');
   if (!rootFolder) {
     return { rootFolder: null, casesFolder: null };
   }
   
-  const casesFolder = await createFolder(provider, driveId, '/LegalNote AI', 'Cases');
+  const casesFolder = await createFolder(provider, driveId, '/LegalNote', 'Cases');
   return { rootFolder, casesFolder };
 }
 
@@ -274,9 +274,9 @@ export async function syncDocumentToStorage(
   mimeType: string
 ): Promise<UploadedFile | null> {
   const sanitizedCaseTitle = caseTitle.replace(/[<>:"/\\|?*]/g, '-').substring(0, 100);
-  const caseFolderPath = `/LegalNote AI/Cases/${clientName} - ${sanitizedCaseTitle}`;
+  const caseFolderPath = `/LegalNote/Cases/${clientName} - ${sanitizedCaseTitle}`;
   
-  await createFolder(provider, driveId, '/LegalNote AI/Cases', `${clientName} - ${sanitizedCaseTitle}`);
+  await createFolder(provider, driveId, '/LegalNote/Cases', `${clientName} - ${sanitizedCaseTitle}`);
   
   const typeFolder = documentType === 'attendance_note' ? 'Attendance Notes' : 
                      documentType === 'ai_summary' ? 'AI Summaries' : 

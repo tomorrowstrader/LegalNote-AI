@@ -100,7 +100,7 @@ export async function createReplitOutlookEvent(eventData: {
     const deadlineDate = new Date(eventData.deadline);
     
     // Build event description with case context
-    let description = `LegalNote AI Case Deadline\n\nCase: ${eventData.title}\nClient: ${eventData.clientName}`;
+    let description = `LegalNote Case Deadline\n\nCase: ${eventData.title}\nClient: ${eventData.clientName}`;
     if (eventData.matterReference) {
       description += `\nMatter Reference: ${eventData.matterReference}`;
     }
@@ -110,7 +110,7 @@ export async function createReplitOutlookEvent(eventData: {
     if (eventData.priority && eventData.priority !== 'normal') {
       description += `\n\nPriority: ${eventData.priority.toUpperCase()}`;
     }
-    description += `\n\nCase ID: ${eventData.caseId}\nCreated by LegalNote AI`;
+    description += `\n\nCase ID: ${eventData.caseId}\nCreated by LegalNote`;
 
     // Compute time-based reminders
     const { minutesBefore } = computeReminderSchedule({
@@ -188,7 +188,7 @@ export async function updateReplitOutlookEvent(eventId: string, eventData: {
     const client = await getUncachableOutlookClient();
     const deadlineDate = new Date(eventData.deadline);
     
-    let description = `LegalNote AI Case Deadline\n\nCase: ${eventData.title}\nClient: ${eventData.clientName}`;
+    let description = `LegalNote Case Deadline\n\nCase: ${eventData.title}\nClient: ${eventData.clientName}`;
     if (eventData.matterReference) {
       description += `\nMatter Reference: ${eventData.matterReference}`;
     }

@@ -30,7 +30,7 @@ export function generateVerificationCode(): string {
 export async function sendVerificationCode(
   phoneNumber: string,
   verificationCode: string,
-  firmName: string = 'LegalNote AI'
+  firmName: string = 'LegalNote'
 ): Promise<{ success: boolean; error?: string }> {
   if (!twilioClient || !twilioPhoneNumber) {
     console.error('Twilio not configured - cannot send SMS');
@@ -52,7 +52,7 @@ export async function sendVerificationCode(
     // Send SMS via Twilio
     // Use alphanumeric sender ID if explicitly configured, otherwise fall back to phone number
     const message = await twilioClient.messages.create({
-      body: `Your verification code for ${firmName} is: ${verificationCode}\n\nThis code expires in 15 minutes.\n\nPowered by LegalNote AI`,
+      body: `Your verification code for ${firmName} is: ${verificationCode}\n\nThis code expires in 15 minutes.\n\nPowered by LegalNote`,
       from: twilioSenderName ? twilioSenderName : twilioPhoneNumber,
       to: phoneNumber,
     });

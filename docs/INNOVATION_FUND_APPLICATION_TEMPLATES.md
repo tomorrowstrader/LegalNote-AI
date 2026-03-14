@@ -1,4 +1,4 @@
-# LegalNote AI - Innovation Fund Application Templates
+# LegalNote - Innovation Fund Application Templates
 
 > **Purpose**: Ready-to-adapt application frameworks for legal innovation funding opportunities.
 
@@ -21,7 +21,7 @@
 ### 1. Executive Summary Template
 
 ```
-LegalNote AI is a compliance-first legal meeting documentation platform that transforms 
+LegalNote is a compliance-first legal meeting documentation platform that transforms 
 client meetings into evidence-quality attendance notes, transcripts, and summaries.
 
 PROBLEM:
@@ -520,4 +520,4 @@ What I'm Looking For:
 
 ---
 
-*Document created for LegalNote AI funding applications.*
+*Document created for LegalNote funding applications.*

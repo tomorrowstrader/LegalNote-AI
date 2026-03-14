@@ -1,11 +1,11 @@
-// Seed script to create LegalNote AI one-time service products in Stripe
+// Seed script to create LegalNote one-time service products in Stripe
 // Run with: npx tsx server/seed-stripe-services.ts
 // These complement the subscription products with high-ticket services
 
 import { getUncachableStripeClient } from './stripeClient';
 
 async function createServiceProducts() {
-  console.log('Creating LegalNote AI service products in Stripe...');
+  console.log('Creating LegalNote service products in Stripe...');
   
   const stripe = await getUncachableStripeClient();
 

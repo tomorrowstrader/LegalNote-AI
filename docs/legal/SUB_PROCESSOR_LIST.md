@@ -1,4 +1,4 @@
-# LegalNote AI Sub-processor List
+# LegalNote Sub-processor List
 
 **Last Updated:** January 2026  
 **Version:** 1.0  
@@ -7,7 +7,7 @@
 
 ## Overview
 
-This document lists all third-party sub-processors engaged by LegalNote AI Ltd to process personal data on behalf of our customers (law firms and legal professionals).
+This document lists all third-party sub-processors engaged by LegalNote Ltd to process personal data on behalf of our customers (law firms and legal professionals).
 
 In accordance with our Data Processing Agreement (DPA), we will notify customers at least 30 days before adding or replacing sub-processors.
 
@@ -109,7 +109,7 @@ To receive sub-processor change notifications or to object to a proposed change:
 
 **Email:** privacy@legalnote.ai
 
-LegalNote AI Ltd  
+LegalNote Ltd  
 71-75 Shelton Street  
 Covent Garden, London  
 WC2H 9JQ  

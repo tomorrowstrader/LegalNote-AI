@@ -1,4 +1,4 @@
-# LegalNote AI - Phase 2 Roadmap
+# LegalNote - Phase 2 Roadmap
 
 **Document Version:** 1.0  
 **Created:** December 2025  

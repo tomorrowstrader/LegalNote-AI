@@ -23,7 +23,7 @@ import { useEffect, useState, useRef } from "react";
 
 export default function SecurityPage() {
   useEffect(() => {
-    document.title = "Security - LegalNote AI | Enterprise-Grade Data Protection for UK Solicitors";
+    document.title = "Security - LegalNote | Enterprise-Grade Data Protection for UK Solicitors";
     
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
@@ -40,11 +40,11 @@ export default function SecurityPage() {
       meta.setAttribute('content', content);
     };
     
-    setOrCreateMeta('og:title', 'Security - LegalNote AI | Enterprise-Grade Data Protection');
+    setOrCreateMeta('og:title', 'Security - LegalNote | Enterprise-Grade Data Protection');
     setOrCreateMeta('og:description', 'World-class security for UK/EU legal practice. UK/EU data residency, GDPR compliance, encryption, and comprehensive audit trails.');
     setOrCreateMeta('og:type', 'website');
     setOrCreateMeta('og:url', window.location.href);
-    setOrCreateMeta('og:site_name', 'LegalNote AI');
+    setOrCreateMeta('og:site_name', 'LegalNote');
     setOrCreateMeta('og:image', 'https://legalnote.ai/og-security.png');
   }, []);
 

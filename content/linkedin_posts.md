@@ -1,4 +1,4 @@
-# LinkedIn Content Strategy - LegalNote AI
+# LinkedIn Content Strategy - LegalNote
 
 ---
 

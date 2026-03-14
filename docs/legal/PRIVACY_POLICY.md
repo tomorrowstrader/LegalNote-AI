@@ -1,15 +1,15 @@
-# LegalNote AI Privacy Policy
+# LegalNote Privacy Policy
 
 **Last Updated:** January 2026  
 **Effective Date:** January 2026  
-**Company:** LegalNote AI Ltd  
+**Company:** LegalNote Ltd  
 **Registered Address:** 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ  
 
 ---
 
 ## 1. Introduction
 
-LegalNote AI Ltd ("LegalNote", "we", "us", "our") is committed to protecting the privacy of our users and their clients. This Privacy Policy explains how we collect, use, store, and protect personal data when you use our legal documentation platform.
+LegalNote Ltd ("LegalNote", "we", "us", "our") is committed to protecting the privacy of our users and their clients. This Privacy Policy explains how we collect, use, store, and protect personal data when you use our legal documentation platform.
 
 LegalNote is a compliance-first documentation tool designed for UK solicitors and law firms. We act as a **data processor** on behalf of law firms (the **data controllers**) when processing client meeting recordings and generating legal documentation.
 
@@ -20,7 +20,7 @@ LegalNote is a compliance-first documentation tool designed for UK solicitors an
 | Role | Entity | Responsibility |
 |------|--------|----------------|
 | **Data Controller** | Your law firm | Determines purposes and means of processing client data |
-| **Data Processor** | LegalNote AI Ltd | Processes data on behalf of your firm per our DPA |
+| **Data Processor** | LegalNote Ltd | Processes data on behalf of your firm per our DPA |
 | **Sub-processors** | See Section 9 | Third parties we engage to deliver services |
 
 ---
@@ -170,7 +170,7 @@ We may update this Privacy Policy from time to time. We will notify registered u
 Email: privacy@legalnote.ai
 
 **Data Protection Officer:**  
-LegalNote AI Ltd  
+LegalNote Ltd  
 71-75 Shelton Street  
 Covent Garden, London  
 WC2H 9JQ  

@@ -1,4 +1,4 @@
-# LegalNote AI Legal Documentation
+# LegalNote Legal Documentation
 
 **Status:** DRAFT - Requires Legal Review Before Publication  
 **Last Updated:** January 2026  
@@ -7,7 +7,7 @@
 
 ## Overview
 
-This folder contains draft legal and compliance documents for LegalNote AI. These documents are based on the current technical implementation and should be reviewed by qualified legal counsel before publication.
+This folder contains draft legal and compliance documents for LegalNote. These documents are based on the current technical implementation and should be reviewed by qualified legal counsel before publication.
 
 ---
 

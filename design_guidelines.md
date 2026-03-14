@@ -1,4 +1,4 @@
-# LegalNote AI - Design Guidelines
+# LegalNote - Design Guidelines
 
 ## Design Approach: Professional Legal Application
 

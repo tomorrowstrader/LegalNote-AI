@@ -2,7 +2,7 @@
 
 ## For Managing Directors & Partners
 
-### "Why should our firm invest in LegalNote AI's security features?"
+### "Why should our firm invest in LegalNote's security features?"
 
 **Your clients trust you with sensitive information.** Our security features ensure that trust is never broken - while protecting your firm from regulatory fines, professional negligence claims, and reputational damage.
 
@@ -236,22 +236,22 @@ You're working from a coffee shop, reviewing a sensitive client file. Someone el
 ### Scenario 1: GDPR Fine
 **Situation:** You keep client recordings indefinitely without deletion policy. ICO investigates a complaint.
 **Fine:** Up to £17.5 million (or 4% of annual turnover, whichever is higher)
-**LegalNote AI Protection:** Automatic deletion proves data minimization compliance.
+**LegalNote Protection:** Automatic deletion proves data minimization compliance.
 
 ### Scenario 2: Data Breach
 **Situation:** Laptop stolen from solicitor's car containing client recordings from 2 years ago.
 **Cost:** GDPR breach notification requirements, ICO investigation, reputational damage, potential SRA disciplinary action.
-**LegalNote AI Protection:** Only 7 days of recordings exist - most data already deleted.
+**LegalNote Protection:** Only 7 days of recordings exist - most data already deleted.
 
 ### Scenario 3: Professional Negligence Claim
 **Situation:** Client claims you never sent them critical legal advice. No audit trail to prove you did.
 **Cost:** Insurance excess (£5k-£25k) + increased premiums + stress
-**LegalNote AI Protection:** Tamper-proof audit trail proves exactly when document was sent and accessed.
+**LegalNote Protection:** Tamper-proof audit trail proves exactly when document was sent and accessed.
 
 ### Scenario 4: Account Compromise
 **Situation:** Former employee still has access credentials and logs in to access sensitive client files.
 **Cost:** Data breach, client notification, ICO reporting, reputational damage
-**LegalNote AI Protection:** Account lockout after failed attempts + suspicious activity alerts catch unauthorized access immediately.
+**LegalNote Protection:** Account lockout after failed attempts + suspicious activity alerts catch unauthorized access immediately.
 
 ---
 
@@ -263,7 +263,7 @@ You're working from a coffee shop, reviewing a sensitive client file. Someone el
 - No audit trail
 - Reactive security (fix problems after they occur)
 
-**LegalNote AI Approach:**
+**LegalNote Approach:**
 - Automated compliance (no manual work)
 - System prevents human error
 - Complete audit trail
@@ -286,7 +286,7 @@ You're working from a coffee shop, reviewing a sensitive client file. Someone el
 ## How to Explain to Clients
 
 ### Option 1: Reassurance Focus
-*"We use LegalNote AI which has enterprise-grade security. Your recordings are automatically deleted after 7 days, all actions are logged with tamper-proof records, and we use the same encryption as banks. Your information is safer with us than in email."*
+*"We use LegalNote which has enterprise-grade security. Your recordings are automatically deleted after 7 days, all actions are logged with tamper-proof records, and we use the same encryption as banks. Your information is safer with us than in email."*
 
 ### Option 2: Transparency Focus
 *"Your data security is our priority. Here's what we do: automatic data deletion, encrypted connections, password-protected document sharing, and complete audit trails. We meet all GDPR and SRA requirements automatically."*
@@ -298,7 +298,7 @@ You're working from a coffee shop, reviewing a sensitive client file. Someone el
 
 ## When Tendering for Corporate Clients
 
-Many corporate clients (especially large companies and public sector) require detailed security questionnaires. Here's how LegalNote AI helps you win tenders:
+Many corporate clients (especially large companies and public sector) require detailed security questionnaires. Here's how LegalNote helps you win tenders:
 
 **Question: "Do you have an audit trail of all access to our data?"**
 **Answer:** "Yes. Every action is logged with tamper-proof cryptographic signatures. We can export complete audit trails for your compliance team."
@@ -342,7 +342,7 @@ Many corporate clients (especially large companies and public sector) require de
 
 When pitching against other firms or platforms:
 
-**What makes LegalNote AI different:**
+**What makes LegalNote different:**
 1. Security is built-in, not bolted-on
 2. Compliance is automatic, not manual
 3. Audit trails are tamper-proof, not editable
@@ -359,7 +359,7 @@ When pitching against other firms or platforms:
 
 ## Final Message to Clients
 
-"Your trust is our most valuable asset. LegalNote AI's security features ensure that trust is never broken. We don't just meet compliance requirements - we exceed them. Your data is protected by the same enterprise-grade security used by banks and hospitals, tailored specifically for UK legal practice.
+"Your trust is our most valuable asset. LegalNote's security features ensure that trust is never broken. We don't just meet compliance requirements - we exceed them. Your data is protected by the same enterprise-grade security used by banks and hospitals, tailored specifically for UK legal practice.
 
 Every recording is deleted after 7 days. Every action is logged with tamper-proof records. Every document shared is password-protected and time-limited. Every suspicious event is detected and logged.
 

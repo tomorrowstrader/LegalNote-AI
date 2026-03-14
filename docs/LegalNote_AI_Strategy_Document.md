@@ -1,4 +1,4 @@
-# LegalNote AI - Strategic Business Document
+# LegalNote - Strategic Business Document
 
 **Document Version:** 1.0  
 **Date:** December 2025  
@@ -23,7 +23,7 @@
 
 ## Executive Summary
 
-LegalNote AI is a GDPR-compliant legal documentation platform designed for UK solicitors. It streamlines attendance notes, AI summaries, and searchable transcripts from client meetings. The platform is deliberately positioned as a "compliance-first documentation tool" - recording, transcribing, and formatting solicitors' own work, NOT providing legal analysis. This positioning avoids SRA compliance risks and PI insurance liability exposure.
+LegalNote is a GDPR-compliant legal documentation platform designed for UK solicitors. It streamlines attendance notes, AI summaries, and searchable transcripts from client meetings. The platform is deliberately positioned as a "compliance-first documentation tool" - recording, transcribing, and formatting solicitors' own work, NOT providing legal analysis. This positioning avoids SRA compliance risks and PI insurance liability exposure.
 
 ### Current Target Market
 - Solo practitioners at £99/month pilot pricing (£149/month standard)
@@ -344,7 +344,7 @@ When you partner with an established vendor, they provide:
 - Recognition: None publicly
 
 #### Channel Partnership Scenario
-- Your brand: Visible ("Powered by LegalNote AI")
+- Your brand: Visible ("Powered by LegalNote")
 - Their brand: Primary
 - Your role: Product company
 - Recognition: Shared
@@ -359,7 +359,7 @@ When you partner with an established vendor, they provide:
 
 **Key contract clauses to include:**
 1. **Technology IP remains yours** - You license, not transfer
-2. **Branding rights** - "Powered by LegalNote AI" or similar
+2. **Branding rights** - "Powered by LegalNote" or similar
 3. **Client data ownership** - Clear data portability
 4. **Non-compete limitations** - They can't clone your product
 5. **Exit clause** - What happens if partnership ends?
@@ -482,7 +482,7 @@ When you partner with an established vendor, they provide:
 - Revenue: 20-40% of end-user price
 
 **Path to Independence:**
-1. **Build parallel SME business** - Launch LegalNote AI brand to solo practitioners
+1. **Build parallel SME business** - Launch LegalNote brand to solo practitioners
 2. **Accumulate capital** - Save partnership revenue for independence
 3. **Develop differentiating features** - Build capabilities partner doesn't use
 4. **Contract termination** - Exit when contract allows (typically 1-3 year terms)
@@ -495,7 +495,7 @@ When you partner with an established vendor, they provide:
 #### 2. Channel Partnership Exit
 
 **During Partnership:**
-- Your brand is visible ("Powered by LegalNote AI")
+- Your brand is visible ("Powered by LegalNote")
 - Partner handles enterprise sales
 - Revenue: 60-70% of end-user price
 
@@ -563,7 +563,7 @@ When you partner with an established vendor, they provide:
 
 5. **Termination Convenience:** "Either party may terminate with [90 days] written notice after the initial [12-month] term."
 
-6. **Branding Rights:** "Licensee shall include 'Powered by LegalNote AI' branding on all client-facing interfaces."
+6. **Branding Rights:** "Licensee shall include 'Powered by LegalNote' branding on all client-facing interfaces."
 
 ### Valuation Impact
 
@@ -583,7 +583,7 @@ When you partner with an established vendor, they provide:
 
 ## Funding Opportunities
 
-### UK Grants (High Probability for LegalNote AI)
+### UK Grants (High Probability for LegalNote)
 
 #### 1. LawtechUK Programme (Government-Backed)
 
@@ -605,7 +605,7 @@ When you partner with an established vendor, they provide:
 - Website: LawtechUK.com
 - Attend Legal Geek conferences
 
-**Probability for LegalNote AI: HIGH (80%+)**
+**Probability for LegalNote: HIGH (80%+)**
 
 ---
 
@@ -626,7 +626,7 @@ When you partner with an established vendor, they provide:
 - Clear sector focus (legal services)
 - Well-defined use case
 
-**Probability for LegalNote AI: MEDIUM-HIGH (60-70%)**
+**Probability for LegalNote: MEDIUM-HIGH (60-70%)**
 
 ---
 
@@ -645,7 +645,7 @@ When you partner with an established vendor, they provide:
 - Non-dilutive (no equity)
 - Validation for future investment
 
-**Probability for LegalNote AI: MEDIUM (40-50%)**
+**Probability for LegalNote: MEDIUM (40-50%)**
 
 ---
 
@@ -797,7 +797,7 @@ When you partner with an established vendor, they provide:
 
 ---
 
-### Funding Probability Summary for LegalNote AI
+### Funding Probability Summary for LegalNote
 
 | Opportunity | Amount | Probability | Timeline |
 |-------------|--------|-------------|----------|
@@ -911,7 +911,7 @@ When you partner with an established vendor, they provide:
 | DraftWise | Document drafting | $20M+ | Document review, not meetings |
 | AttiFin AI | UK law documents | £5M | Training on UK law, similar positioning |
 
-**LegalNote AI Differentiation:**
+**LegalNote Differentiation:**
 - Meeting-focused (not document review)
 - GDPR-first design
 - UK solicitor workflow

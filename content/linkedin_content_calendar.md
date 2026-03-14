@@ -1,4 +1,4 @@
-# LegalNote AI - 60-Day LinkedIn Content Calendar
+# LegalNote - 60-Day LinkedIn Content Calendar
 
 **Creator:** Jazz Dennis, Founder
 **Schedule:** 4 posts per week (Monday, Wednesday, Thursday, Saturday)

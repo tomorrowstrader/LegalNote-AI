@@ -1,6 +1,6 @@
 /**
  * Demo Seeding Service
- * Creates sample data for LegalNote AI demonstrations
+ * Creates sample data for LegalNote demonstrations
  * 
  * Sample Cases:
  * 1. Sarah Thompson - Conveyancing (property purchase)

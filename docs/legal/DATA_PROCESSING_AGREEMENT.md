@@ -1,4 +1,4 @@
-# LegalNote AI Data Processing Agreement (DPA)
+# LegalNote Data Processing Agreement (DPA)
 
 **Last Updated:** January 2026  
 **Version:** 1.0  
@@ -11,7 +11,7 @@ This Data Processing Agreement ("DPA") is entered into between:
 
 **Data Controller:** The law firm or legal professional subscribing to the LegalNote service ("Controller", "You", "Your Firm")
 
-**Data Processor:** LegalNote AI Ltd, registered in England and Wales, with registered address at 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ ("Processor", "LegalNote", "We", "Us")
+**Data Processor:** LegalNote Ltd, registered in England and Wales, with registered address at 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ ("Processor", "LegalNote", "We", "Us")
 
 This DPA supplements and forms part of the LegalNote Terms of Service.
 
@@ -237,7 +237,7 @@ Email: privacy@legalnote.ai
 **Legal Matters:**  
 Email: legal@legalnote.ai
 
-LegalNote AI Ltd  
+LegalNote Ltd  
 71-75 Shelton Street  
 Covent Garden, London  
 WC2H 9JQ  

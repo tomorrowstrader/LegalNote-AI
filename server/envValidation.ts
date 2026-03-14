@@ -1,5 +1,5 @@
 /**
- * Environment variable validation for LegalNote AI
+ * Environment variable validation for LegalNote
  * Ensures all required configuration is present before startup
  */
 

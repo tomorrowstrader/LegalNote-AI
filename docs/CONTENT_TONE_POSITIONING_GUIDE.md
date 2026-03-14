@@ -1,4 +1,4 @@
-# LegalNote AI - Content Tone & Positioning Guide
+# LegalNote - Content Tone & Positioning Guide
 
 > **Purpose**: Guidelines for sharing insider insights without appearing as an attack or whistleblower. Covers name-dropping rules, safe storytelling formulas, and positioning strategies.
 
@@ -146,7 +146,7 @@ This makes you a **reformed insider**, not a critic. You're sharing hard-won les
 
 ### For LinkedIn Bio
 
-"Legal Ops veteran | Ex-Clifford Chance, CRS, Deloitte | Building LegalNote AI to solve the documentation problem I saw at every firm I worked at."
+"Legal Ops veteran | Ex-Clifford Chance, CRS, Deloitte | Building LegalNote to solve the documentation problem I saw at every firm I worked at."
 
 ### For Workshop Intro
 
@@ -258,4 +258,4 @@ Avoid using it to:
 
 ---
 
-*Document created for LegalNote AI content strategy.*
+*Document created for LegalNote content strategy.*

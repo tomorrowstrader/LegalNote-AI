@@ -268,7 +268,7 @@ export default function Calculator() {
                 <DialogHeader className="sr-only">
                   <DialogTitle>Request Early Access</DialogTitle>
                   <DialogDescription>
-                    Join our exclusive waitlist for LegalNote AI.
+                    Join our exclusive waitlist for LegalNote.
                   </DialogDescription>
                 </DialogHeader>
                 <EarlyAccessForm onSuccess={() => setIsEarlyAccessOpen(false)} />
@@ -297,7 +297,7 @@ export default function Calculator() {
 
       <footer className="border-t mt-16 py-8">
         <div className="max-w-6xl mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>LegalNote AI Ltd. Registered in England and Wales.</p>
+          <p>LegalNote Ltd. Registered in England and Wales.</p>
           <p className="mt-1">71-75 Shelton Street, Covent Garden, London, WC2H 9JQ</p>
         </div>
       </footer>

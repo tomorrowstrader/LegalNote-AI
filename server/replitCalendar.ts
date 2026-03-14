@@ -85,7 +85,7 @@ export async function createReplitCalendarEvent(eventData: {
     const deadlineDate = new Date(eventData.deadline);
     
     // Build event description with case context
-    let description = `LegalNote AI Case Deadline\n\nCase: ${eventData.title}`;
+    let description = `LegalNote Case Deadline\n\nCase: ${eventData.title}`;
     if (eventData.notes) {
       description += `\n\nNotes: ${eventData.notes}`;
     }
@@ -176,7 +176,7 @@ export async function updateReplitCalendarEvent(eventId: string, eventData: {
     
     const deadlineDate = new Date(eventData.deadline);
     
-    let description = `LegalNote AI Case Deadline\n\nCase: ${eventData.title}`;
+    let description = `LegalNote Case Deadline\n\nCase: ${eventData.title}`;
     if (eventData.notes) {
       description += `\n\nNotes: ${eventData.notes}`;
     }

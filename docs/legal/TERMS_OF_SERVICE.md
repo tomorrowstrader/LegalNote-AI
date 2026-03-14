@@ -1,4 +1,4 @@
-# LegalNote AI Terms of Service
+# LegalNote Terms of Service
 
 **Last Updated:** January 2026  
 **Effective Date:** January 2026  
@@ -7,7 +7,7 @@
 
 ## 1. Introduction
 
-These Terms of Service ("Terms") govern your use of the LegalNote AI platform ("Service") provided by LegalNote AI Ltd ("LegalNote", "we", "us", "our"), a company registered in England and Wales.
+These Terms of Service ("Terms") govern your use of the LegalNote platform ("Service") provided by LegalNote Ltd ("LegalNote", "we", "us", "our"), a company registered in England and Wales.
 
 **Registered Address:** 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ
 
@@ -139,7 +139,7 @@ We may change prices with 30 days' notice. Continued use after a price change co
 ## 10. Intellectual Property
 
 ### 10.1 LegalNote IP
-The Service, including software, design, logos, and documentation, is owned by LegalNote AI Ltd and protected by copyright and other intellectual property laws.
+The Service, including software, design, logos, and documentation, is owned by LegalNote Ltd and protected by copyright and other intellectual property laws.
 
 ### 10.2 Your Content
 You retain ownership of all content you upload or create using the Service (recordings, transcripts, documents). You grant us a limited license to process this content solely to provide the Service.
@@ -249,7 +249,7 @@ You may not assign these Terms without our consent. We may assign our rights and
 **Legal Matters:** legal@legalnote.ai  
 **Data Protection:** privacy@legalnote.ai
 
-LegalNote AI Ltd  
+LegalNote Ltd  
 71-75 Shelton Street  
 Covent Garden, London  
 WC2H 9JQ  

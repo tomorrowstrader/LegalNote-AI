@@ -35,7 +35,7 @@ function formatEventDescription(data: CalendarEventData): string {
   if (data.notes) {
     description += `\n\nNotes:\n${data.notes}`;
   }
-  description += `\n\nCreated by LegalNote AI`;
+  description += `\n\nCreated by LegalNote`;
   return description;
 }
 

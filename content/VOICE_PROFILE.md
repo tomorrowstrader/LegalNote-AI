@@ -1,6 +1,6 @@
-# LegalNote AI - Voice Profile & Content Bible
+# LegalNote - Voice Profile & Content Bible
 
-**Purpose:** This document is your "paste-first" context for any AI tool (ChatGPT, Perplexity, Claude, etc.) to generate consistent, on-brand LinkedIn content for LegalNote AI.
+**Purpose:** This document is your "paste-first" context for any AI tool (ChatGPT, Perplexity, Claude, etc.) to generate consistent, on-brand LinkedIn content for LegalNote.
 
 ---
 
@@ -295,7 +295,7 @@ Paste this at the start of any content generation session:
 
 ---
 
-*"I'm Jazz Dennis, founder of LegalNote AI. I'm creating LinkedIn content to grow awareness for my legal documentation platform.*
+*"I'm Jazz Dennis, founder of LegalNote. I'm creating LinkedIn content to grow awareness for my legal documentation platform.*
 
 *My background: I'm NOT a solicitor. I've worked in legal tech infrastructure and compliance-first regulated environments (banks, fintech). I've also been a client of solicitors where documentation failed me - wrong dates, contradictory paperwork, missing details that took months to resolve.*
 
@@ -314,7 +314,7 @@ Paste this at the start of any content generation session:
 - High-performing post example: "I built my first app 4 months ago" (6,876 impressions)
 - Legal documents: `docs/legal/` (Privacy Policy, DPA, DPIA)
 - Future features: `FUTURE_FEATURES.md`
-- Company: LegalNote AI Ltd, 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ
+- Company: LegalNote Ltd, 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ
 
 ---
 

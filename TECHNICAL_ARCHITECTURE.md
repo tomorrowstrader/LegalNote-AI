@@ -1,8 +1,8 @@
-# LegalNote AI - Technical Architecture
+# LegalNote - Technical Architecture
 
 ## Overview
 
-LegalNote AI is a legal documentation platform for UK solicitors. This document describes all external services, data flows, and GDPR considerations.
+LegalNote is a legal documentation platform for UK solicitors. This document describes all external services, data flows, and GDPR considerations.
 
 ---
 
@@ -97,7 +97,7 @@ LegalNote AI is a legal documentation platform for UK solicitors. This document 
 - SOC2, ISO27001 certified
 - Recall.ai GDPR compliant
 - Recordings can be deleted via API
-- Bot name displayed as "LegalNote AI" to meeting participants
+- Bot name displayed as "LegalNote" to meeting participants
 - Consent handling via pre-consent email workflow
 
 ---
@@ -191,7 +191,7 @@ LegalNote AI is a legal documentation platform for UK solicitors. This document 
 **Data Flow:**
 1. OAuth via Replit connector
 2. Documents uploaded to specified drive
-3. Folder structure: `LegalNote AI / Cases / [Client - Case Title] / [Document Type]`
+3. Folder structure: `LegalNote / Cases / [Client - Case Title] / [Document Type]`
 
 **Configuration:**
 - Managed via Replit connector

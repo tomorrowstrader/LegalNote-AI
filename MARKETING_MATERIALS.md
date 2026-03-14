@@ -1,15 +1,15 @@
-# LegalNote AI - Marketing Materials
+# LegalNote - Marketing Materials
 
 ## Executive Summary
 
-LegalNote AI is a professional legal documentation platform that transforms how solicitors manage client meetings. Record conversations, generate attendance notes and legal opinions automatically, and maintain complete GDPR compliance - all while saving 2-3 hours per client meeting.
+LegalNote is a professional legal documentation platform that transforms how solicitors manage client meetings. Record conversations, generate attendance notes and legal opinions automatically, and maintain complete GDPR compliance - all while saving 2-3 hours per client meeting.
 
 ---
 
 ## Core Value Proposition
 
 **For Managing Directors/Partners:**
-"Reduce documentation time by 75% while maintaining professional standards and ensuring GDPR compliance. LegalNote AI pays for itself after processing just 3-4 client meetings per month."
+"Reduce documentation time by 75% while maintaining professional standards and ensuring GDPR compliance. LegalNote pays for itself after processing just 3-4 client meetings per month."
 
 **For Solicitors:**
 "Focus on legal advice, not note-taking. Record your client meeting, and get professional attendance notes and legal opinions generated automatically - with full audit trails for SRA compliance."
@@ -30,7 +30,7 @@ LegalNote AI is a professional legal documentation platform that transforms how 
 - Legal opinions drafted automatically from meeting context
 - Searchable transcripts eliminate re-listening to recordings
 
-**Proof Point:** "Traditional attendance note: 90 minutes. LegalNote AI: 3 minutes."
+**Proof Point:** "Traditional attendance note: 90 minutes. LegalNote: 3 minutes."
 
 ### 2. Professional Quality
 **Headline:** "AI-powered, solicitor-reviewed documentation"
@@ -192,21 +192,21 @@ LegalNote AI is a professional legal documentation platform that transforms how 
 ## Competitive Positioning
 
 ### vs. Manual Note-Taking
-**LegalNote AI Advantage:**
+**LegalNote Advantage:**
 - 75% time savings
 - No missed details
 - Searchable records
 - Client prefers full solicitor attention
 
 ### vs. Generic Transcription Services
-**LegalNote AI Advantage:**
+**LegalNote Advantage:**
 - Built for UK legal practice
 - GDPR compliance built-in
 - Generates legal opinions, not just transcripts
 - Firm branding included
 
 ### vs. Practice Management Software
-**LegalNote AI Advantage:**
+**LegalNote Advantage:**
 - AI-powered document generation (not just storage)
 - Purpose-built for client meetings
 - Modern, intuitive interface
@@ -217,7 +217,7 @@ LegalNote AI is a professional legal documentation platform that transforms how 
 ## Objection Handling
 
 ### "AI can't replace solicitor expertise"
-**Response:** "You're absolutely right. That's why every AI-generated document is reviewed by you before sending to clients. LegalNote AI handles the first draft - you provide the expertise."
+**Response:** "You're absolutely right. That's why every AI-generated document is reviewed by you before sending to clients. LegalNote handles the first draft - you provide the expertise."
 
 ### "What about client data security?"
 **Response:** "We exceed UK legal practice requirements: GDPR compliant, SRA Code of Conduct 8.4/8.5, cryptographically signed audit trails, and enterprise-grade security. Your clients' data is safer than traditional email."
@@ -229,7 +229,7 @@ LegalNote AI is a professional legal documentation platform that transforms how 
 **Response:** "OpenAI Whisper achieves 99%+ accuracy, and you review all documents before sending. Plus, clients get the original audio if they want to verify anything."
 
 ### "We already have practice management software"
-**Response:** "LegalNote AI complements your existing software. We focus on one thing: making client meeting documentation effortless. Most firms use both."
+**Response:** "LegalNote complements your existing software. We focus on one thing: making client meeting documentation effortless. Most firms use both."
 
 ### "Cost concerns"
 **Response:** "Consider your hourly rate. If you save 2 hours per client meeting, and meet with 4 clients per month, you've saved 8 billable hours. At £200/hour, that's £1,600 in recovered time."
@@ -261,7 +261,7 @@ LegalNote AI is a professional legal documentation platform that transforms how 
 
 ### Testimonial Framework
 **From Managing Partner:**
-"LegalNote AI paid for itself in the first week. Our solicitors now spend time on legal work, not note-taking."
+"LegalNote paid for itself in the first week. Our solicitors now spend time on legal work, not note-taking."
 
 **From Solicitor:**
 "I can give clients my full attention during meetings, knowing every detail is being captured accurately."
@@ -271,7 +271,7 @@ LegalNote AI is a professional legal documentation platform that transforms how 
 
 ### Case Study Template
 **Challenge:** [Firm] spent 90 minutes per client meeting on manual note-taking
-**Solution:** Implemented LegalNote AI across 5 solicitors
+**Solution:** Implemented LegalNote across 5 solicitors
 **Results:** 
 - 75% reduction in documentation time
 - 100% GDPR compliance
@@ -305,7 +305,7 @@ LegalNote AI is a professional legal documentation platform that transforms how 
 "UK solicitors spend 40% of their time on documentation instead of legal work"
 
 ### Slide 2: Solution
-"LegalNote AI: AI-powered legal documentation that's GDPR-compliant and solicitor-reviewed"
+"LegalNote: AI-powered legal documentation that's GDPR-compliant and solicitor-reviewed"
 
 ### Slide 3: How It Works
 1. Record client meeting with consent
@@ -338,7 +338,7 @@ LegalNote AI is a professional legal documentation platform that transforms how 
 ### Email 1 (Day 0): Problem Awareness
 **Subject:** "Still typing notes during client meetings?"
 **Content:** Pain point identification + time study statistics
-**CTA:** "See how LegalNote AI works"
+**CTA:** "See how LegalNote works"
 
 ### Email 2 (Day 3): Solution Introduction
 **Subject:** "AI that understands UK legal practice"
@@ -447,12 +447,12 @@ LegalNote AI is a professional legal documentation platform that transforms how 
 ## Partner/Referral Program Ideas
 
 ### Law Society Partnerships
-**Pitch:** "Recommend LegalNote AI to your members as a vetted, compliant solution"
+**Pitch:** "Recommend LegalNote to your members as a vetted, compliant solution"
 **Benefit:** Commission on referrals + thought leadership content
 
 ### Professional Indemnity Insurers
 **Pitch:** "Reduce risk for your insureds through better documentation and compliance"
-**Benefit:** Premium discounts for insureds using LegalNote AI
+**Benefit:** Premium discounts for insureds using LegalNote
 
 ### Practice Management Consultants
 **Pitch:** "Add AI-powered documentation to your efficiency toolkit"
@@ -479,7 +479,7 @@ LegalNote AI is a professional legal documentation platform that transforms how 
 3. "Security Best Practices for Client Data Management"
 
 ### Video Content
-1. "LegalNote AI in 2 Minutes" (product overview)
+1. "LegalNote in 2 Minutes" (product overview)
 2. "How It Works: From Recording to Client Document"
 3. "Compliance Explained: GDPR, SRA, and You"
 4. "Customer Testimonials: Real Solicitors, Real Results"

@@ -49,7 +49,7 @@ export default function WaitlistPage() {
             You're on the Waitlist
           </h1>
           <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
-            Thank you for your interest in LegalNote AI. We're currently in private beta 
+            Thank you for your interest in LegalNote. We're currently in private beta 
             and will notify you as soon as access becomes available.
           </p>
         </div>

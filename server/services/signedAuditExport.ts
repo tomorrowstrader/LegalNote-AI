@@ -102,7 +102,7 @@ export function generateSignedAuditPDF(
   pdf.setTextColor(255, 255, 255);
   pdf.setFontSize(20);
   pdf.setFont('helvetica', 'bold');
-  pdf.text(metadata.firmName || 'LegalNote AI', margin, 20);
+  pdf.text(metadata.firmName || 'LegalNote', margin, 20);
 
   pdf.setFontSize(12);
   pdf.setFont('helvetica', 'normal');

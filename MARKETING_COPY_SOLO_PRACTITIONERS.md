@@ -1,4 +1,4 @@
-# LegalNote AI - Marketing Copy for Solo Practitioners
+# LegalNote - Marketing Copy for Solo Practitioners
 
 ## 🌐 Landing Page Copy
 
@@ -41,12 +41,12 @@ Practice management software (£69/month), transcription service (£90/hour), do
 ## Your AI-Powered Legal Assistant
 
 **Subheadline:**
-LegalNote AI combines transcription, document generation, and practice management into one intelligent platform built specifically for UK solicitors.
+LegalNote combines transcription, document generation, and practice management into one intelligent platform built specifically for UK solicitors.
 
 **How It Works (4 steps with visuals):**
 
 **1. Record**  
-Click record before your client meeting. LegalNote AI captures everything while you focus on listening and advising.
+Click record before your client meeting. LegalNote captures everything while you focus on listening and advising.
 
 **2. Transcribe**  
 AI-powered transcription converts your entire meeting into a searchable, accurate transcript - in minutes, not days.
@@ -109,7 +109,7 @@ Built-in consent logging, audit trails, and automated data retention. Compliance
 
 **CTA Button:** Start Free Trial
 
-**Money-Back Guarantee Badge:** "30-day money-back guarantee - if LegalNote AI doesn't save you time and money, we'll refund every penny."
+**Money-Back Guarantee Badge:** "30-day money-back guarantee - if LegalNote doesn't save you time and money, we'll refund every penny."
 
 ---
 
@@ -135,11 +135,11 @@ Other tools replaced: £99
 Total monthly savings: £1,209
 Annual savings: £14,508
 
-LegalNote AI cost: £99/month
+LegalNote cost: £99/month
 Your net savings: £1,110/month
 ```
 
-**ROI:** LegalNote AI pays for itself with your first client meeting.
+**ROI:** LegalNote pays for itself with your first client meeting.
 
 ---
 
@@ -156,7 +156,7 @@ Your net savings: £1,110/month
 **"The AI-generated attendance notes are so accurate, I barely need to edit them. This has given me 6 hours back every week."**  
 *James Patel, Commercial Solicitor, Birmingham*
 
-**"My clients are impressed by how quickly I can turn around legal opinions. LegalNote AI makes me look like a much bigger firm."**  
+**"My clients are impressed by how quickly I can turn around legal opinions. LegalNote makes me look like a much bigger firm."**  
 *Emma Thompson, Property Solicitor, London*
 
 ---
@@ -169,8 +169,8 @@ Your net savings: £1,110/month
 **Q: Is my client data secure?**  
 A: Absolutely. All data is encrypted at rest and in transit. We're fully GDPR-compliant with automatic consent logging, audit trails, and data retention policies. Your client conversations never leave our secure UK-based servers.
 
-**Q: Do I need technical skills to use LegalNote AI?**  
-A: Not at all. If you can use email, you can use LegalNote AI. We've designed it specifically for solicitors, not IT professionals. Plus, we have an interactive tutorial that gets you up and running in 5 minutes.
+**Q: Do I need technical skills to use LegalNote?**  
+A: Not at all. If you can use email, you can use LegalNote. We've designed it specifically for solicitors, not IT professionals. Plus, we have an interactive tutorial that gets you up and running in 5 minutes.
 
 **Q: What happens after my 14-day trial?**  
 A: Nothing - unless you choose to subscribe. We don't ask for a credit card upfront. If you love it (and we think you will), you can subscribe for £99/month or £89/month annually.
@@ -182,7 +182,7 @@ A: Yes. No long-term contracts, no cancellation fees. If you're not happy, cance
 A: We use OpenAI's Whisper API, which achieves 95%+ accuracy on clear audio. The AI is trained on legal terminology and understands UK accents. You can always edit the transcript if needed.
 
 **Q: Will this work with my existing practice management software?**  
-A: LegalNote AI is a complete practice management solution, so you won't need your existing software. However, you can export all your data anytime (cases, documents, transcripts) if you want to integrate with other tools.
+A: LegalNote is a complete practice management solution, so you won't need your existing software. However, you can export all your data anytime (cases, documents, transcripts) if you want to integrate with other tools.
 
 **Q: What if I only do a few client meetings per month?**  
 A: Even with just 2-3 meetings per month, you'll save money. You're not just replacing transcription - you're getting case management, document sharing, calendar sync, and compliance tools that would normally cost £150+/month separately.
@@ -195,7 +195,7 @@ A: Even with just 2-3 meetings per month, you'll save money. You're not just rep
 ## Ready to Get Your Time Back?
 
 **Subheadline:**
-Join UK solicitors who are already saving 10+ hours per week with LegalNote AI.
+Join UK solicitors who are already saving 10+ hours per week with LegalNote.
 
 **CTA Button (Large, Primary):** Start Your Free 14-Day Trial
 
@@ -214,13 +214,13 @@ Questions? Book a free 15-minute demo with our team → [Book Demo Link]
 
 ### Email 1: Welcome Email (Immediate after signup)
 
-**Subject:** Welcome to LegalNote AI - Your 14-Day Trial Starts Now! 🎉
+**Subject:** Welcome to LegalNote - Your 14-Day Trial Starts Now! 🎉
 
 **Body:**
 
 Hi [First Name],
 
-Welcome to LegalNote AI! Your 14-day free trial is now active.
+Welcome to LegalNote! Your 14-day free trial is now active.
 
 **Here's what to do first:**
 
@@ -240,7 +240,7 @@ Looking forward to helping you save time and money!
 
 Best regards,  
 [Your Name]  
-Founder, LegalNote AI
+Founder, LegalNote
 
 P.S. Your trial includes everything - no features are locked. Give it a proper test drive!
 
@@ -261,7 +261,7 @@ Most solicitors we speak to use:
 - DocuSign or similar (£30+/month, complicated)
 - Printing and posting (expensive, slow)
 
-**LegalNote AI makes client sharing dead simple:**
+**LegalNote makes client sharing dead simple:**
 
 ✅ Generate your document (attendance note, legal opinion)  
 ✅ Click "Share with Client"  
@@ -301,7 +301,7 @@ You're halfway through your 14-day trial - how's it going so far?
 - Explored the case management features?
 
 **Need help?**  
-If you're stuck or haven't had time to properly test LegalNote AI yet, I'm happy to jump on a quick call and walk you through it.
+If you're stuck or haven't had time to properly test LegalNote yet, I'm happy to jump on a quick call and walk you through it.
 
 Just reply to this email with a time that works for you this week.
 
@@ -314,7 +314,7 @@ Just reply to this email with a time that works for you this week.
 Best,  
 [Your Name]
 
-P.S. If you've already decided LegalNote AI is for you, you can subscribe early and lock in the £89/month annual rate (saves £120/year): [Subscribe Link]
+P.S. If you've already decided LegalNote is for you, you can subscribe early and lock in the £89/month annual rate (saves £120/year): [Subscribe Link]
 
 ---
 
@@ -330,7 +330,7 @@ With 3 days left in your trial, I wanted to address something we hear a lot:
 
 **"I don't do that many client meetings, so I'm not sure it's worth it."**
 
-Here's the thing - LegalNote AI isn't just a transcription tool.
+Here's the thing - LegalNote isn't just a transcription tool.
 
 **Even if you only do 2 meetings per month, you're getting:**
 
@@ -349,7 +349,7 @@ Here's the thing - LegalNote AI isn't just a transcription tool.
 - **Cost:** £99/month
 - **Net savings:** £761/month
 
-LegalNote AI pays for itself even with minimal client meetings.
+LegalNote pays for itself even with minimal client meetings.
 
 **Your trial ends in 3 days** - make sure you've tested everything!
 
@@ -381,7 +381,7 @@ Subscribe in the next 24 hours and get:
 
 **Why other solicitors subscribed:**
 
-"I saved £500 in transcription costs in my first month. LegalNote AI is a no-brainer." - Sarah, Family Law
+"I saved £500 in transcription costs in my first month. LegalNote is a no-brainer." - Sarah, Family Law
 
 "I've got 6 hours back every week. That's 6 billable hours I was wasting on admin." - James, Commercial Law
 
@@ -406,14 +406,14 @@ P.S. Remember - 30-day money-back guarantee means zero risk. If it doesn't work 
 
 Hi [First Name],
 
-Your 14-day trial ended today. I hope you got a chance to see how LegalNote AI can save you time and money.
+Your 14-day trial ended today. I hope you got a chance to see how LegalNote can save you time and money.
 
 **Your data is safe:**  
 We've saved all your cases, transcripts, and documents for the next 30 days. If you decide to subscribe, everything will be right where you left it.
 
 **Haven't had time to properly test it?**
 
-I get it - solicitors are busy. If you'd like another week to try LegalNote AI properly, just reply to this email and I'll extend your trial.
+I get it - solicitors are busy. If you'd like another week to try LegalNote properly, just reply to this email and I'll extend your trial.
 
 **Ready to subscribe?**
 
@@ -432,13 +432,13 @@ Just hit reply and let me know.
 Best,  
 [Your Name]
 
-P.S. If LegalNote AI isn't the right fit, I hope you find a solution that works for you. Good luck with your practice!
+P.S. If LegalNote isn't the right fit, I hope you find a solution that works for you. Good luck with your practice!
 
 ---
 
 ### Email 7: Day 21 - Final Win-Back
 
-**Subject:** Last chance to recover your LegalNote AI data
+**Subject:** Last chance to recover your LegalNote data
 
 **Body:**
 
@@ -446,7 +446,7 @@ Hi [First Name],
 
 This is my last email - promise!
 
-Your LegalNote AI trial data will be permanently deleted in 9 days (30 days after trial ended).
+Your LegalNote trial data will be permanently deleted in 9 days (30 days after trial ended).
 
 **If you want to:**
 - Access your transcripts
@@ -481,7 +481,7 @@ All the best,
 **Ad Headline 2:** AI Transcription + Document Generation | £99/Month  
 **Ad Headline 3:** Record Meetings, Generate Documents Instantly  
 
-**Description 1:** LegalNote AI records client meetings, transcribes them, and generates professional legal documents in seconds. 14-day free trial.  
+**Description 1:** LegalNote records client meetings, transcribes them, and generates professional legal documents in seconds. 14-day free trial.  
 **Description 2:** Replace expensive transcription services. Save 10+ hours/week. Built for UK solicitors. GDPR compliant. No credit card required.  
 
 **Display URL:** legalnoteai.com/solo-practitioners  
@@ -527,7 +527,7 @@ All the best,
 **Body:**  
 UK solicitors spend 40% of their time on admin work that could be automated.
 
-LegalNote AI records your client meetings, generates professional legal documents in 60 seconds, and manages your entire practice - for £99/month.
+LegalNote records your client meetings, generates professional legal documents in 60 seconds, and manages your entire practice - for £99/month.
 
 Save 10+ hours per week. Spend more time advising clients, less time on paperwork.
 
@@ -568,7 +568,7 @@ Pay for itself with your first client meeting.
 **Headline:** "I've saved £500 in my first month alone"
 
 **Body:**  
-Sarah Mitchell, Family Law Solicitor, switched from traditional transcription services to LegalNote AI.
+Sarah Mitchell, Family Law Solicitor, switched from traditional transcription services to LegalNote.
 
 The result?  
 ✅ £500 saved in transcription costs  
@@ -621,7 +621,7 @@ Subtext: "14-day free trial. No credit card required."
 
 [0-5s] Solicitor stressed at desk with papers: "Still spending hours on attendance notes?"
 
-[5-10s] Screen recording of LegalNote AI recording meeting: "LegalNote AI records your client meetings..."
+[5-10s] Screen recording of LegalNote recording meeting: "LegalNote records your client meetings..."
 
 [10-15s] Transcription appearing: "...transcribes them with AI..."
 
@@ -641,7 +641,7 @@ Subtext: "14-day free trial. No credit card required."
 
 **Problem (3-8s):** "That's £360/month for just 4 meetings. Plus I still had to draft the attendance notes myself."
 
-**Solution (8-15s):** "Then I found LegalNote AI. £99/month for UNLIMITED meetings, AI transcription, AND it generates the attendance notes for me."
+**Solution (8-15s):** "Then I found LegalNote. £99/month for UNLIMITED meetings, AI transcription, AND it generates the attendance notes for me."
 
 **Result (15-20s):** "I've saved £500 in my first month. And I've got 6 hours back every week."
 
@@ -657,7 +657,7 @@ Subtext: "14-day free trial. No credit card required."
 
 **After (8-18s):** Screen recording: "After: Click 'Generate Legal Opinion', AI does it all, quick edit... 60 seconds. Done."
 
-**Reveal (18-23s):** "This is LegalNote AI. It's changed how I work. 14-day free trial, link in bio."
+**Reveal (18-23s):** "This is LegalNote. It's changed how I work. 14-day free trial, link in bio."
 
 ---
 
@@ -668,7 +668,7 @@ Subtext: "14-day free trial. No credit card required."
 **Headline:** Still thinking about it?
 
 **Body:**  
-You checked out LegalNote AI - what's holding you back?
+You checked out LegalNote - what's holding you back?
 
 ✅ No credit card required for trial  
 ✅ 30-day money-back guarantee  
@@ -685,7 +685,7 @@ Zero risk. Start your 14-day free trial today.
 **Headline:** You're 90% there...
 
 **Body:**  
-You started signing up for LegalNote AI but didn't finish.
+You started signing up for LegalNote but didn't finish.
 
 **Complete your signup now and get:**  
 ✅ 14-day free trial (no credit card)  
@@ -720,7 +720,7 @@ Takes 60 seconds to finish.
 
 **Version A:** Start Your 14-Day Free Trial  
 **Version B:** See How Much You'll Save  
-**Version C:** Try LegalNote AI Free  
+**Version C:** Try LegalNote Free  
 **Version D:** Get Started Free - No Credit Card  
 
 ---

@@ -1,4 +1,4 @@
-# LegalNote AI - Workshop Slide Structure
+# LegalNote - Workshop Slide Structure
 
 > **Purpose**: Complete slide-by-slide breakdown for the "Meeting to Matter: Documentation Mastery for Law Firms" workshop.
 
@@ -530,4 +530,4 @@
 
 ---
 
-*Document created for LegalNote AI workshop delivery.*
+*Document created for LegalNote workshop delivery.*

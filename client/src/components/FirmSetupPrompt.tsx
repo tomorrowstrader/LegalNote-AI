@@ -55,7 +55,7 @@ export default function FirmSetupPrompt() {
           </div>
           <DialogTitle className="text-xl">Complete Firm Setup</DialogTitle>
           <DialogDescription className="text-base pt-2">
-            Your firm profile needs to be set up before you can start using LegalNote AI. This information will appear on all exported documents.
+            Your firm profile needs to be set up before you can start using LegalNote. This information will appear on all exported documents.
           </DialogDescription>
         </DialogHeader>
         

@@ -1,8 +1,8 @@
-# LegalNote AI - Pilot User Onboarding Guide
+# LegalNote - Pilot User Onboarding Guide
 
-## Welcome to Your LegalNote AI Pilot
+## Welcome to Your LegalNote Pilot
 
-Thank you for participating in the LegalNote AI pilot program. This guide will help you get up and running quickly and make the most of your pilot experience.
+Thank you for participating in the LegalNote pilot program. This guide will help you get up and running quickly and make the most of your pilot experience.
 
 ---
 
@@ -112,7 +112,7 @@ Before your first client meeting, complete these steps:
 - Laptop or desktop (recording works best on computers, not phones)
 - Chrome browser recommended
 - Microphone tested and working
-- LegalNote AI open in a tab
+- LegalNote open in a tab
 
 ---
 
@@ -227,7 +227,7 @@ We'd like you to track time during the pilot to measure actual savings:
 - Drafting legal opinion: _____ minutes
 - **Total time:** _____ minutes
 
-**LegalNote AI Method (record actual):**
+**LegalNote Method (record actual):**
 - Meeting duration: _____ minutes
 - Reviewing transcript: _____ minutes
 - Editing attendance note: _____ minutes
@@ -287,7 +287,7 @@ Always review and edit before sending. The AI provides a first draft based on th
 ### "How long are recordings kept?"
 7 days. After that, they're automatically deleted for GDPR compliance. Transcripts and documents remain indefinitely.
 
-### "Can I access LegalNote AI on my phone?"
+### "Can I access LegalNote on my phone?"
 Yes, but recording works best on desktop/laptop. You can view cases and documents on mobile.
 
 ### "What happens if I lose internet during recording?"
@@ -297,7 +297,7 @@ The recording continues locally in your browser. It will upload once connection 
 Not in the current pilot version - each case belongs to the solicitor who created it. Team sharing is on the roadmap.
 
 ### "What if my client doesn't consent to recording?"
-Skip the recording and use LegalNote AI for document storage and management only. You can manually upload documents.
+Skip the recording and use LegalNote for document storage and management only. You can manually upload documents.
 
 ---
 
@@ -432,7 +432,7 @@ Overall rating: [1-10]
 
 **Your data:**
 - Stored securely with encryption
-- Only accessible by you and LegalNote AI support (for troubleshooting)
+- Only accessible by you and LegalNote support (for troubleshooting)
 - Not used for marketing or shared with third parties
 - Automatically deleted 7 days after pilot ends (if you don't continue)
 
@@ -610,7 +610,7 @@ If you'd like a 30-minute onboarding call, we'll cover:
 - No hard sell at the end - your decision, your timeline
 
 **Your mission:**
-- Use LegalNote AI for real client meetings
+- Use LegalNote for real client meetings
 - Provide honest feedback
 - Help us build something truly useful for UK solicitors
 
@@ -631,7 +631,7 @@ If you'd like a 30-minute onboarding call, we'll cover:
 
 ---
 
-Thank you for being a LegalNote AI pilot user. We're excited to work with you and create something that genuinely improves your practice.
+Thank you for being a LegalNote pilot user. We're excited to work with you and create something that genuinely improves your practice.
 
 Let's get started! 🚀
 

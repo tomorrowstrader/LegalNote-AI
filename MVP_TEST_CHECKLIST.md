@@ -1,4 +1,4 @@
-# LegalNote AI - MVP Test Checklist
+# LegalNote - MVP Test Checklist
 
 This checklist covers all MVP functionality for internal testing and QA. Complete each section to verify the system is working correctly before pilot launch.
 
