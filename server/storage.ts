@@ -169,6 +169,63 @@ function soundsLike(query: string, target: string): boolean {
   return false;
 }
 
+// Phonetic word search in longer text
+// Returns the position and matched word if any word in `text` phonetically matches any word in `query`
+// Excludes exact matches (those are caught by substring search first)
+function phoneticMatchInText(
+  query: string,
+  text: string
+): { pos: number; matchWord: string; textWord: string } | null {
+  if (!query || !text) return null;
+
+  const soundex = (s: string): string => {
+    const str = s.toUpperCase().replace(/[^A-Z]/g, '');
+    if (!str) return '';
+    const codes: Record<string, string> = {
+      'B': '1', 'F': '1', 'P': '1', 'V': '1',
+      'C': '2', 'G': '2', 'J': '2', 'K': '2', 'Q': '2', 'S': '2', 'X': '2', 'Z': '2',
+      'D': '3', 'T': '3',
+      'L': '4',
+      'M': '5', 'N': '5',
+      'R': '6',
+    };
+    let result = str[0];
+    let prevCode = codes[str[0]] || '';
+    for (let i = 1; i < str.length && result.length < 4; i++) {
+      const code = codes[str[i]] || '';
+      if (code && code !== prevCode) result += code;
+      prevCode = code || prevCode;
+    }
+    return (result + '000').substring(0, 4);
+  };
+
+  // Only phonetically expand short alphabetic words (names/terms, not stopwords)
+  const queryWords = query
+    .split(/\s+/)
+    .filter(w => w.length > 2 && /^[a-z]+$/i.test(w));
+  if (queryWords.length === 0) return null;
+
+  const queryCodes = queryWords.map(w => ({
+    word: w.toLowerCase(),
+    code: soundex(w),
+  }));
+
+  const wordRegex = /\b([a-zA-Z]{3,})\b/g;
+  let match: RegExpExecArray | null;
+  while ((match = wordRegex.exec(text)) !== null) {
+    const textWord = match[1];
+    const textWordLower = textWord.toLowerCase();
+    const textCode = soundex(textWord);
+    for (const { word: qWord, code: qCode } of queryCodes) {
+      // Same Soundex but not an exact substring match (exact is handled before this pass)
+      if (textCode === qCode && textWordLower !== qWord) {
+        return { pos: match.index, matchWord: qWord, textWord };
+      }
+    }
+  }
+  return null;
+}
+
 // Accent folding helper: Remove diacritics/accents from text
 // e.g., "Café" -> "Cafe", "José" -> "Jose"
 function removeAccents(str: string): string {
@@ -3278,6 +3335,39 @@ export class DbStorage implements IStorage {
       ...casesWithTranscripts.map(c => c.caseId),
       ...casesWithDocuments.map(c => c.caseId)
     ]);
+
+    // Phonetic pass: for queries that look like names (short alphabetic words), scan
+    // transcript and document content for words that sound alike but are spelled differently
+    const isNameLikeQuery = originalQuery.split(/\s+/).every(w => /^[a-z]+$/i.test(w));
+    if (isNameLikeQuery) {
+      const allTranscriptContent = await db
+        .select({ caseId: transcripts.caseId, content: transcripts.content })
+        .from(transcripts)
+        .innerJoin(cases, eq(transcripts.caseId, cases.id))
+        .where(eq(cases.createdBy, userId));
+
+      for (const t of allTranscriptContent) {
+        if (!matchingCaseIds.has(t.caseId) && t.content) {
+          if (phoneticMatchInText(originalQuery, t.content.toLowerCase())) {
+            matchingCaseIds.add(t.caseId);
+          }
+        }
+      }
+
+      const allDocumentContent = await db
+        .select({ caseId: documents.caseId, content: documents.content })
+        .from(documents)
+        .innerJoin(cases, eq(documents.caseId, cases.id))
+        .where(eq(cases.createdBy, userId));
+
+      for (const d of allDocumentContent) {
+        if (!matchingCaseIds.has(d.caseId) && d.content) {
+          if (phoneticMatchInText(originalQuery, d.content.toLowerCase())) {
+            matchingCaseIds.add(d.caseId);
+          }
+        }
+      }
+    }
     
     // Calculate similarity scores for each case using tiered priority matching
     // Priority tiers ensure exact matches always rank above fuzzy matches
@@ -3396,6 +3486,7 @@ export class DbStorage implements IStorage {
         if (!field.value) continue;
         const fieldLower = removeAccents(field.value.toLowerCase());
         
+        let foundInField = false;
         for (const term of expandedTerms) {
           const pos = fieldLower.indexOf(term);
           if (pos !== -1) {
@@ -3412,7 +3503,28 @@ export class DbStorage implements IStorage {
               matchPosition: pos,
             });
             score += 100;
+            foundInField = true;
             break;
+          }
+        }
+
+        // Phonetic fallback for case fields (catches name misspellings in client name / title)
+        if (!foundInField) {
+          const phoneticHit = phoneticMatchInText(originalQuery, fieldLower);
+          if (phoneticHit) {
+            const { pos } = phoneticHit;
+            const start = Math.max(0, pos - 50);
+            const end = Math.min(field.value.length, pos + 50);
+            const snippet = (start > 0 ? '...' : '') +
+              field.value.substring(start, end) +
+              (end < field.value.length ? '...' : '');
+            matches.push({
+              documentType: 'case_field',
+              fieldName: field.name,
+              snippet,
+              matchPosition: pos,
+            });
+            score += 50; // Lower than exact (100) but still meaningful for direct case fields
           }
         }
       }
@@ -3469,6 +3581,36 @@ export class DbStorage implements IStorage {
               }
             }
             
+            // Phonetic fallback over utterances (catches misspelled names like Paterson→Patterson)
+            if (!foundInUtterances) {
+              for (const utterance of utterances) {
+                if (!utterance.text) continue;
+                const textLower = removeAccents(utterance.text.toLowerCase());
+                const phoneticHit = phoneticMatchInText(originalQuery, textLower);
+                if (phoneticHit) {
+                  const { pos } = phoneticHit;
+                  const start = Math.max(0, pos - 30);
+                  const end = Math.min(utterance.text.length, pos + 30);
+                  const snippet = (start > 0 ? '...' : '') +
+                    utterance.text.substring(start, end) +
+                    (end < utterance.text.length ? '...' : '');
+                  matches.push({
+                    documentType: 'transcript',
+                    documentId: transcript.id,
+                    snippet,
+                    matchPosition: pos,
+                    createdAt: transcript.createdAt,
+                    timestampMs: utterance.start,
+                    speaker: utterance.speaker,
+                  });
+                  score += 40; // Lower than exact (80) to rank below exact matches
+                  foundInUtterances = true;
+                  break;
+                }
+                if (matches.filter(m => m.documentId === transcript.id && m.timestampMs !== undefined).length >= 3) break;
+              }
+            }
+
             if (foundInUtterances) continue; // Skip fallback content search
           }
           
@@ -3476,6 +3618,7 @@ export class DbStorage implements IStorage {
           if (!transcript.content) continue;
           const contentLower = removeAccents(transcript.content.toLowerCase());
           
+          let foundInContent = false;
           for (const term of expandedTerms) {
             const pos = contentLower.indexOf(term);
             if (pos !== -1) {
@@ -3493,7 +3636,29 @@ export class DbStorage implements IStorage {
                 createdAt: transcript.createdAt,
               });
               score += 80;
+              foundInContent = true;
               break;
+            }
+          }
+
+          // Phonetic fallback on plain content
+          if (!foundInContent) {
+            const phoneticHit = phoneticMatchInText(originalQuery, contentLower);
+            if (phoneticHit) {
+              const { pos } = phoneticHit;
+              const start = Math.max(0, pos - 50);
+              const end = Math.min(transcript.content.length, pos + 50);
+              const snippet = (start > 0 ? '...' : '') +
+                transcript.content.substring(start, end) +
+                (end < transcript.content.length ? '...' : '');
+              matches.push({
+                documentType: 'transcript',
+                documentId: transcript.id,
+                snippet,
+                matchPosition: pos,
+                createdAt: transcript.createdAt,
+              });
+              score += 40;
             }
           }
         }
@@ -3518,6 +3683,7 @@ export class DbStorage implements IStorage {
           
           const contentLower = removeAccents(doc.content.toLowerCase());
           
+          let foundInDoc = false;
           for (const term of expandedTerms) {
             const pos = contentLower.indexOf(term);
             if (pos !== -1) {
@@ -3535,7 +3701,29 @@ export class DbStorage implements IStorage {
                 createdAt: doc.createdAt,
               });
               score += 90;
+              foundInDoc = true;
               break;
+            }
+          }
+
+          // Phonetic fallback for document content (catches name misspellings)
+          if (!foundInDoc) {
+            const phoneticHit = phoneticMatchInText(originalQuery, contentLower);
+            if (phoneticHit) {
+              const { pos } = phoneticHit;
+              const start = Math.max(0, pos - 50);
+              const end = Math.min(doc.content.length, pos + 50);
+              const snippet = (start > 0 ? '...' : '') +
+                doc.content.substring(start, end) +
+                (end < doc.content.length ? '...' : '');
+              matches.push({
+                documentType: doc.type === 'attendance_note' ? 'attendance_note' : 'summary',
+                documentId: doc.id,
+                snippet,
+                matchPosition: pos,
+                createdAt: doc.createdAt,
+              });
+              score += 45;
             }
           }
         }
