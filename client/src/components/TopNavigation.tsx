@@ -106,6 +106,9 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 <DropdownMenuItem asChild data-testid="menu-item-firm-settings">
                   <Link href="/settings">Firm Settings</Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild data-testid="menu-item-undertakings">
+                  <Link href="/undertakings">Undertakings Register</Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild data-testid="menu-item-audit-logs">
                   <Link href="/audit-logs">Audit Logs</Link>
                 </DropdownMenuItem>

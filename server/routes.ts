@@ -27,7 +27,7 @@ function resolveTemplatePath(filename: string): string {
   return possiblePaths[0];
 }
 import { storage } from "./storage";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, PRACTICE_AREAS, type ScheduledMeeting } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, PRACTICE_AREAS, type ScheduledMeeting } from "@shared/schema";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -1884,8 +1884,47 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           totalTokens: metadata.totalTokens || 0,
           error: metadata.error,
           completedAt: metadata.completedAt,
+          undertakingCandidates: metadata.undertakingCandidates || [],
+          dismissedUndertakingQuotes: metadata.dismissedUndertakingQuotes || [],
         }
       });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/cases/:id/processing-status", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      const patchSchema = z.object({
+        dismissedUndertakingQuote: z.string().min(1).max(10000),
+      });
+      const parsed = patchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+      }
+
+      const metadata = (caseData.aiProcessingMetadata as any) || {};
+      const dismissedQuotes: string[] = metadata.dismissedUndertakingQuotes || [];
+      if (!dismissedQuotes.includes(parsed.data.dismissedUndertakingQuote)) {
+        dismissedQuotes.push(parsed.data.dismissedUndertakingQuote);
+      }
+
+      await storage.updateCase(caseId, {
+        aiProcessingMetadata: {
+          ...metadata,
+          dismissedUndertakingQuotes: dismissedQuotes,
+        },
+      }, userId);
+
+      res.json({ success: true });
     } catch (error: any) {
       next(error);
     }
@@ -4798,7 +4837,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const actionItems = await storage.getActionItemsByCase(caseId, userId);
       const outstandingItems = actionItems.filter(item => !item.completed && item.status === 'approved');
       if (outstandingItems.length > 0) {
-        caseContextSuffix += '\n\nOUTSTANDING UNDERTAKINGS:\n';
+        caseContextSuffix += '\n\nOUTSTANDING ACTION ITEMS:\n';
         outstandingItems.forEach(item => {
           caseContextSuffix += `- ${item.description}${item.assignee ? ` (Assigned to: ${item.assignee})` : ''}${item.dueDate ? ` (Due: ${new Date(item.dueDate).toISOString().split('T')[0]})` : ''}\n`;
         });
@@ -4825,8 +4864,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (caseContextSuffix && meetings.length > 0) {
         meetings[meetings.length - 1].transcript += caseContextSuffix;
       }
+
+      // Get outstanding undertakings to include in the briefing
+      const caseUndertakings = await storage.getUndertakingsByCase(caseId);
+      const outstandingUndertakings = caseUndertakings.filter(u => u.status === 'outstanding');
       
-      const result = await documentService.generatePreMeetingBriefing(meetings, metadata);
+      const result = await documentService.generatePreMeetingBriefing(meetings, metadata, outstandingUndertakings);
       
       // Store the briefing
       const briefing = await storage.createPreMeetingBriefing({
@@ -4940,6 +4983,69 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  // Get undertakings for a case
+  app.get("/api/cases/:id/undertakings", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const items = await storage.getUndertakingsByCase(caseId);
+      res.json(items);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create/confirm an undertaking
+  app.post("/api/cases/:id/undertakings", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const bodySchema = z.object({
+        wording: z.string().min(1, "Wording is required").max(5000),
+        speaker: z.string().max(500).nullable().optional(),
+        sourceQuote: z.string().max(5000).nullable().optional(),
+        deadline: z.string().nullable().optional(),
+        dateGiven: z.string().nullable().optional(),
+        meetingSessionId: z.string().uuid().nullable().optional(),
+      });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+      }
+      const { wording, speaker, sourceQuote, deadline, dateGiven, meetingSessionId } = parsed.data;
+      const undertaking = await storage.createUndertaking({
+        caseId,
+        meetingSessionId: meetingSessionId || null,
+        wording,
+        speaker: speaker || null,
+        sourceQuote: sourceQuote || null,
+        deadline: deadline ? new Date(deadline) : undefined,
+        status: "outstanding",
+        confirmedBy: userId,
+        confirmedAt: new Date(),
+        dateGiven: dateGiven ? new Date(dateGiven) : new Date(),
+      });
+
+      await logAuditEvent(userId, "undertaking_confirmed", {
+        caseId,
+        metadata: { undertakingId: undertaking.id, wording: undertaking.wording },
+        req,
+      });
+
+      res.json(undertaking);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post("/api/cases/:id/send-client-care-letter", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
@@ -5003,6 +5109,76 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (error.name === "ZodError") {
         return res.status(400).json({ message: error.message });
       }
+      next(error);
+    }
+  });
+
+  // Update an undertaking (edit wording, discharge, etc.)
+  app.patch("/api/undertakings/:id", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const undertakingId = req.params.id;
+      const existing = await storage.getUndertaking(undertakingId);
+      if (!existing) {
+        return res.status(404).json({ message: "Undertaking not found" });
+      }
+      const caseData = await storage.getCase(existing.caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const patchSchema = z.object({
+        wording: z.string().min(1).max(5000).optional(),
+        deadline: z.string().nullable().optional(),
+        status: z.enum(["outstanding", "discharged", "varied"]).optional(),
+        dischargeNote: z.string().max(5000).optional(),
+      });
+      const parsed = patchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+      }
+      const { wording, deadline, status, dischargeNote } = parsed.data;
+      const updates: Record<string, any> = {};
+      if (wording !== undefined) updates.wording = wording;
+      if (deadline !== undefined) updates.deadline = deadline ? new Date(deadline) : null;
+      if (status !== undefined) {
+        if (existing.status === "discharged" && status === "outstanding") {
+          return res.status(400).json({ message: "Cannot reopen a discharged undertaking" });
+        }
+        updates.status = status;
+        if (status === "discharged") {
+          updates.dischargedAt = new Date();
+          updates.dischargedBy = userId;
+          if (dischargeNote) updates.dischargeNote = dischargeNote;
+        }
+      }
+      const updated = await storage.updateUndertaking(undertakingId, updates);
+
+      if (status === "discharged") {
+        await logAuditEvent(userId, "undertaking_discharged", {
+          caseId: existing.caseId,
+          metadata: { undertakingId, wording: existing.wording, dischargeNote },
+          req,
+        });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get all outstanding undertakings (firm-wide admin view)
+  app.get("/api/undertakings/outstanding", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+      const user = await storage.getUser(userId);
+      if (userId !== ADMIN_USER_ID && user?.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      const items = await storage.getAllOutstandingUndertakings();
+      res.json(items);
+    } catch (error) {
       next(error);
     }
   });

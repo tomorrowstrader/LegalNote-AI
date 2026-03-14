@@ -34,6 +34,7 @@ import {
   type ExternalDocumentRef, type InsertExternalDocumentRef,
   type MeetingSession, type InsertMeetingSession,
   type TimeEntry, type InsertTimeEntry,
+  type Undertaking, type InsertUndertaking,
   users,
   clients,
   cases,
@@ -69,6 +70,7 @@ import {
   externalDocumentRefs,
   meetingSessions,
   timeEntries,
+  undertakings,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -541,6 +543,12 @@ export interface IStorage {
   updateTimeEntry(id: string, updates: Partial<TimeEntry>): Promise<TimeEntry | undefined>;
   deleteTimeEntry(id: string): Promise<void>;
   updateUserHourlyRate(userId: string, hourlyRate: string): Promise<User | undefined>;
+
+  getUndertakingsByCase(caseId: string): Promise<Undertaking[]>;
+  getUndertaking(id: string): Promise<Undertaking | undefined>;
+  createUndertaking(data: InsertUndertaking): Promise<Undertaking>;
+  updateUndertaking(id: string, updates: Partial<Undertaking>): Promise<Undertaking | undefined>;
+  getAllOutstandingUndertakings(): Promise<(Undertaking & { caseTitle?: string; clientName?: string })[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -2021,6 +2029,21 @@ export class MemStorage implements IStorage {
   async deleteTimeEntry(_id: string): Promise<void> {}
   async updateUserHourlyRate(_userId: string, _hourlyRate: string): Promise<User | undefined> {
     return undefined;
+  }
+  async getUndertakingsByCase(_caseId: string): Promise<Undertaking[]> {
+    return [];
+  }
+  async getUndertaking(_id: string): Promise<Undertaking | undefined> {
+    return undefined;
+  }
+  async createUndertaking(_data: InsertUndertaking): Promise<Undertaking> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async updateUndertaking(_id: string, _updates: Partial<Undertaking>): Promise<Undertaking | undefined> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getAllOutstandingUndertakings(): Promise<(Undertaking & { caseTitle?: string; clientName?: string })[]> {
+    return [];
   }
 }
 
@@ -4590,6 +4613,60 @@ export class DbStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return result[0];
+  }
+
+  async getUndertakingsByCase(caseId: string): Promise<Undertaking[]> {
+    return await db.select().from(undertakings)
+      .where(eq(undertakings.caseId, caseId))
+      .orderBy(desc(undertakings.createdAt));
+  }
+
+  async getUndertaking(id: string): Promise<Undertaking | undefined> {
+    const result = await db.select().from(undertakings).where(eq(undertakings.id, id));
+    return result[0];
+  }
+
+  async createUndertaking(data: InsertUndertaking): Promise<Undertaking> {
+    const result = await db.insert(undertakings).values({
+      caseId: data.caseId,
+      meetingSessionId: data.meetingSessionId ?? null,
+      wording: data.wording,
+      speaker: data.speaker ?? null,
+      sourceQuote: data.sourceQuote ?? null,
+      deadline: data.deadline ?? null,
+      status: data.status ?? "outstanding",
+      confirmedBy: data.confirmedBy ?? null,
+      confirmedAt: data.confirmedAt ?? null,
+      dischargedAt: data.dischargedAt ?? null,
+      dischargedBy: data.dischargedBy ?? null,
+      dischargeNote: data.dischargeNote ?? null,
+      dateGiven: data.dateGiven ?? new Date(),
+    }).returning();
+    return result[0];
+  }
+
+  async updateUndertaking(id: string, updates: Partial<Undertaking>): Promise<Undertaking | undefined> {
+    const result = await db.update(undertakings)
+      .set(updates)
+      .where(eq(undertakings.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getAllOutstandingUndertakings(): Promise<(Undertaking & { caseTitle?: string; clientName?: string })[]> {
+    const results = await db.select({
+      undertaking: undertakings,
+      caseTitle: cases.title,
+      clientName: cases.clientName,
+    }).from(undertakings)
+      .leftJoin(cases, eq(undertakings.caseId, cases.id))
+      .where(eq(undertakings.status, "outstanding"))
+      .orderBy(undertakings.deadline, desc(undertakings.createdAt));
+    return results.map(r => ({
+      ...r.undertaking,
+      caseTitle: r.caseTitle ?? undefined,
+      clientName: r.clientName ?? undefined,
+    }));
   }
 }
 

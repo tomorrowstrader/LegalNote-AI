@@ -37,6 +37,7 @@ import Clients from "@/pages/Clients";
 import ClientProfile from "@/pages/ClientProfile";
 import Login from "@/pages/Login";
 import TimeSummary from "@/pages/TimeSummary";
+import UndertakingsDashboard from "@/pages/UndertakingsDashboard";
 import ScrollToTop from "@/components/ScrollToTop";
 
 function Router() {
@@ -79,6 +80,7 @@ function Router() {
           <Route path="/clients" component={Clients} />
           <Route path="/clients/:id" component={ClientProfile} />
           <Route path="/time-summary" component={TimeSummary} />
+          <Route path="/undertakings" component={UndertakingsDashboard} />
           <Route path="/waitlist" component={WaitlistPage} />
         </>
       )}

@@ -44,6 +44,7 @@ import ExternalDocumentRefs from "@/components/ExternalDocumentRefs";
 import TimeEntriesViewer from "@/components/TimeEntriesViewer";
 import TimeRecordingModal from "@/components/TimeRecordingModal";
 import ClientCareLetterModal from "@/components/ClientCareLetterModal";
+import UndertakingsViewer from "@/components/UndertakingsViewer";
 import { useLocation, useParams, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -979,6 +980,19 @@ export default function CaseDetail() {
                   <ActionItemsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
                   <PreMeetingBriefing caseId={caseId!} hasTranscript={!!transcript?.content} />
                 </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Undertakings Register */}
+            <AccordionItem value="undertakings" className="bg-card rounded-lg border border-border px-6">
+              <AccordionTrigger className="hover:no-underline" data-testid="accordion-undertakings">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-accent" />
+                  <span className="font-semibold">Undertakings</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <UndertakingsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
               </AccordionContent>
             </AccordionItem>
 

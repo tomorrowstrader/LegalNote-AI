@@ -423,6 +423,29 @@ export class AIProcessingPipeline {
         }
       }
 
+      // Undertaking Detection: scan transcript for undertaking language
+      try {
+        console.log(`[UNDERTAKINGS] Scanning for undertakings in case ${caseId}...`);
+        const undertakingResult = await this.documentService.extractUndertakings(
+          transcriptForDocGen,
+          metadata
+        );
+        if (undertakingResult.items.length > 0) {
+          await this.updateProcessingStatus(caseId, userId, {
+            undertakingCandidates: undertakingResult.items.map(item => ({
+              wording: item.wording,
+              speaker: item.speaker,
+              sourceQuote: item.sourceQuote,
+              deadline: item.deadline,
+              meetingSessionId: sessionInfo.sessionId ?? undefined,
+            })),
+          });
+          console.log(`[UNDERTAKINGS] Detected ${undertakingResult.items.length} candidate(s) in case ${caseId}`);
+        }
+      } catch (undertakingError) {
+        console.error('[UNDERTAKINGS] Detection failed (non-blocking):', undertakingError);
+      }
+
       // AML Trigger Detection: scan transcript for compliance-relevant language (only for entitled users)
       try {
         const pipelineUser = await this.storage.getUser(userId);

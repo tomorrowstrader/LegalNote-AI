@@ -1009,8 +1009,14 @@ Return the action items as a JSON object with an "items" array:`;
       attendanceNote?: string;
       summary?: string;
     }>,
-    metadata: CaseMetadata
+    metadata: CaseMetadata,
+    outstandingUndertakings?: Array<{ wording: string; deadline: Date | null; dateGiven: Date; status: string }>
   ): Promise<DocumentGenerationResult> {
+    let undertakingsSection = '';
+    if (outstandingUndertakings && outstandingUndertakings.length > 0) {
+      undertakingsSection = `\n7. **Outstanding Undertakings** - CRITICAL: List all outstanding undertakings given by this firm on this matter. These are binding professional commitments that MUST be addressed. Include deadlines where applicable. Mark any overdue undertakings clearly.\n`;
+    }
+
     const systemPrompt = `You are a UK legal assistant preparing a concise pre-meeting briefing for a solicitor before their next client meeting.
 
 TASK: Generate a 1-page professional briefing document summarizing all prior meetings on this matter.
@@ -1021,7 +1027,7 @@ The briefing should include:
 3. **Outstanding Action Items** - Tasks that were assigned but may still be pending
 4. **Important Dates & Deadlines** - Any critical dates mentioned
 5. **Client Concerns** - Any worries or priorities the client has expressed
-6. **Suggested Agenda Items** - Topics to discuss in the next meeting
+6. **Suggested Agenda Items** - Topics to discuss in the next meeting${undertakingsSection}
 
 CRITICAL RULES:
 - Be concise and scannable - solicitors need to review this quickly before meetings
@@ -1029,7 +1035,8 @@ CRITICAL RULES:
 - Use professional UK legal terminology
 - Format for easy reading with clear headings and bullet points
 - Keep the entire briefing to approximately one printed page
-- If information is not available in the records, use the exact phrase "Not recorded in this session" rather than guessing`;
+- If information is not available in the records, use the exact phrase "Not recorded in this session" rather than guessing
+- If outstanding undertakings are provided, they MUST be prominently featured as they represent binding professional obligations`;
 
     const meetingsSummary = meetings.map((m, idx) => `
 --- MEETING ${idx + 1} (${m.date}) ---
@@ -1037,6 +1044,16 @@ ${m.summary ? `SUMMARY:\n${m.summary}\n` : ''}
 ${m.attendanceNote ? `ATTENDANCE NOTE:\n${m.attendanceNote}\n` : ''}
 ${m.transcript ? `TRANSCRIPT EXCERPT:\n${m.transcript.slice(0, 5000)}\n` : ''}
 `).join('\n');
+
+    let undertakingsData = '';
+    if (outstandingUndertakings && outstandingUndertakings.length > 0) {
+      undertakingsData = `\n\nOUTSTANDING UNDERTAKINGS (BINDING COMMITMENTS):\n${outstandingUndertakings.map((u, i) => {
+        const deadlineStr = u.deadline ? new Date(u.deadline).toISOString().split('T')[0] : 'No deadline specified';
+        const givenStr = new Date(u.dateGiven).toISOString().split('T')[0];
+        const isOverdue = u.deadline && new Date(u.deadline) < new Date();
+        return `${i + 1}. ${u.wording}\n   Given: ${givenStr} | Deadline: ${deadlineStr}${isOverdue ? ' [OVERDUE]' : ''}`;
+      }).join('\n')}\n`;
+    }
 
     const userPrompt = `Generate a pre-meeting briefing for:
 
@@ -1046,7 +1063,7 @@ ${metadata.matterReference ? `Reference: ${metadata.matterReference}` : ''}
 Number of Prior Meetings: ${meetings.length}
 
 MEETING RECORDS:
-${meetingsSummary}
+${meetingsSummary}${undertakingsData}
 
 Generate the briefing document:`;
 
@@ -1072,6 +1089,100 @@ Generate the briefing document:`;
 
     return this.generateDocument(systemPrompt, userPrompt);
   }
+
+  async extractUndertakings(
+    transcript: string,
+    metadata: CaseMetadata
+  ): Promise<{ items: ExtractedUndertaking[], cost: number, inputTokens: number, outputTokens: number }> {
+    const systemPrompt = `You are a UK legal compliance assistant specializing in identifying undertakings in legal meeting transcripts.
+
+TASK: Identify all undertakings — binding commitments given by a solicitor on behalf of their firm — in the transcript.
+
+Undertaking language includes phrases such as:
+- "we undertake to..."
+- "I give an undertaking that..."
+- "we will provide by..."
+- "I confirm we will..."
+- "I undertake to..."
+- "this firm undertakes..."
+- "we give our undertaking..."
+- "I/we confirm that we will..."
+- Any promise or commitment by the solicitor to do something specific, especially with a deadline
+
+For each undertaking found, extract:
+1. The precise wording of the undertaking commitment
+2. Who gave the undertaking (speaker name or role)
+3. The exact quoted text from the transcript containing the undertaking language
+4. Any deadline mentioned (convert to ISO date format YYYY-MM-DD if possible)
+
+IMPORTANT RULES:
+- Only extract genuine undertakings — binding professional commitments by the solicitor or firm
+- Do NOT include general action items, to-do lists, or informal promises
+- Focus on language that creates a binding professional obligation
+- Be conservative — when in doubt, do NOT include it
+- The source quote must be the exact text from the transcript
+
+OUTPUT FORMAT: Return a JSON object with an "items" array:
+{
+  "items": [
+    {
+      "wording": "Clear description of the undertaking commitment",
+      "speaker": "Solicitor" | "specific name",
+      "sourceQuote": "Exact quoted text from transcript",
+      "deadline": "YYYY-MM-DD" | null
+    }
+  ]
+}
+
+If no undertakings are found, return: {"items": []}`;
+
+    const userPrompt = `Identify all undertakings in this legal meeting transcript:
+
+Matter: ${metadata.title}
+Client: ${metadata.clientName}
+${metadata.matterReference ? `Reference: ${metadata.matterReference}` : ''}
+
+TRANSCRIPT:
+${transcript}
+
+Return the undertakings as a JSON object with an "items" array:`;
+
+    try {
+      console.log('Extracting undertakings with GPT-4o...');
+
+      const response = await openaiClient.chat.completions.create({
+        model: MODELS.DOCUMENT_GENERATION,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 2000,
+        response_format: { type: 'json_object' },
+      });
+
+      const content = response.choices[0]?.message?.content || '{"items":[]}';
+      const inputTokens = response.usage?.prompt_tokens || 0;
+      const outputTokens = response.usage?.completion_tokens || 0;
+      const cost = calculateGPT4oCost(inputTokens, outputTokens);
+
+      let items: ExtractedUndertaking[] = [];
+      try {
+        const parsed = JSON.parse(content);
+        items = Array.isArray(parsed) ? parsed : (parsed.items || parsed.undertakings || []);
+      } catch (parseError) {
+        console.error('Failed to parse undertakings JSON:', parseError);
+        items = [];
+      }
+
+      console.log(`Extracted ${items.length} undertaking(s). Cost: $${cost.toFixed(4)}`);
+
+      return { items, cost, inputTokens, outputTokens };
+    } catch (error: any) {
+      console.error('Undertaking extraction failed:', error);
+      throw new Error(`Undertaking extraction failed: ${error.message}`);
+    }
+  }
 }
 
 export interface ExtractedActionItem {
@@ -1079,4 +1190,11 @@ export interface ExtractedActionItem {
   assignee: string | null;
   dueDate: string | null;
   priority: 'high' | 'medium' | 'low';
+}
+
+export interface ExtractedUndertaking {
+  wording: string;
+  speaker: string | null;
+  sourceQuote: string;
+  deadline: string | null;
 }

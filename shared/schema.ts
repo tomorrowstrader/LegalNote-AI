@@ -1432,3 +1432,43 @@ export const insertTimeEntrySchema = createInsertSchema(timeEntries).omit({
 
 export type InsertTimeEntry = z.infer<typeof insertTimeEntrySchema>;
 export type TimeEntry = typeof timeEntries.$inferSelect;
+
+export const undertakings = pgTable("undertakings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  meetingSessionId: varchar("meeting_session_id").references(() => meetingSessions.id),
+  wording: text("wording").notNull(),
+  speaker: text("speaker"),
+  sourceQuote: text("source_quote"),
+  deadline: timestamp("deadline"),
+  status: text("status").notNull().default("outstanding"),
+  confirmedBy: varchar("confirmed_by").references(() => users.id),
+  confirmedAt: timestamp("confirmed_at"),
+  dischargedAt: timestamp("discharged_at"),
+  dischargedBy: varchar("discharged_by").references(() => users.id),
+  dischargeNote: text("discharge_note"),
+  dateGiven: timestamp("date_given").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertUndertakingSchema = createInsertSchema(undertakings).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  meetingSessionId: z.string().uuid().optional().nullable(),
+  wording: z.string().min(1).max(10000),
+  speaker: z.string().max(500).optional(),
+  sourceQuote: z.string().max(10000).optional(),
+  deadline: z.coerce.date().optional(),
+  status: z.enum(["outstanding", "discharged", "varied"]).default("outstanding"),
+  confirmedBy: z.string().optional(),
+  confirmedAt: z.coerce.date().optional(),
+  dischargedAt: z.coerce.date().optional(),
+  dischargedBy: z.string().optional(),
+  dischargeNote: z.string().max(5000).optional(),
+  dateGiven: z.coerce.date().optional(),
+});
+
+export type InsertUndertaking = z.infer<typeof insertUndertakingSchema>;
+export type Undertaking = typeof undertakings.$inferSelect;
