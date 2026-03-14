@@ -111,6 +111,7 @@ export interface CaseMetadata {
   matterReference?: string;
   recordingDate: string;
   templateId?: string;
+  practiceArea?: string;
 }
 
 export interface FirmPreferences {
@@ -325,6 +326,16 @@ The AML COMPLIANCE SUMMARY section MUST follow this exact structure:
 [Note whether the solicitor confirmed they are satisfied to proceed with the matter on the basis of the information provided. If not addressed, state: "Not recorded in this session"]
 
 CRITICAL: For each field, extract ONLY what was actually said in the transcript. Where an area was not covered in the meeting, you MUST state "Not recorded in this session" — do NOT fabricate or assume compliance information.`;
+    }
+
+    if (metadata.practiceArea) {
+      try {
+        const { getPracticeAreaPromptContext } = require('./practiceAreaConfig');
+        const paContext = getPracticeAreaPromptContext(metadata.practiceArea);
+        if (paContext) {
+          systemPrompt += `\n\n${paContext}`;
+        }
+      } catch {}
     }
 
     const userPrompt = `Generate a professional attendance note for the following meeting transcript:
@@ -1038,6 +1049,26 @@ MEETING RECORDS:
 ${meetingsSummary}
 
 Generate the briefing document:`;
+
+    return this.generateDocument(systemPrompt, userPrompt);
+  }
+  async generateClientCareLetter(params: {
+    firmName: string;
+    firmAddress?: string;
+    firmPhone?: string;
+    firmEmail?: string;
+    sraNumber?: string;
+    feeEarnerName: string;
+    clientName: string;
+    matterDescription: string;
+    practiceArea: string;
+    costsEstimate?: string;
+    matterReference?: string;
+  }): Promise<DocumentGenerationResult> {
+    const { getClientCareLetterPrompt } = require('./practiceAreaConfig');
+    const systemPrompt = getClientCareLetterPrompt(params);
+
+    const userPrompt = `Generate the client care letter now based on the details provided. Output the complete letter in professional format ready for solicitor review.`;
 
     return this.generateDocument(systemPrompt, userPrompt);
   }

@@ -20,6 +20,7 @@ import ConsentModal from "@/components/ConsentModal";
 import TextNotesModal from "@/components/TextNotesModal";
 import CaseTemplatesModal, { CaseTemplate } from "@/components/CaseTemplatesModal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -37,6 +38,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { logAuditEvent } from "@/lib/auditLogger";
 import type { Case, Client } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
+import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
 
 interface CaseResponse {
   id: string;
@@ -84,6 +86,10 @@ export default function NewNote() {
   const [caseSearchQuery, setCaseSearchQuery] = useState("");
   const [showCaseDropdown, setShowCaseDropdown] = useState(false);
   const caseSearchRef = useRef<HTMLDivElement>(null);
+  const [practiceArea, setPracticeArea] = useState<PracticeArea | "">("");
+  const [conflictCheckCompleted, setConflictCheckCompleted] = useState(false);
+  const [conflictCheckNote, setConflictCheckNote] = useState("");
+  const [costsEstimate, setCostsEstimate] = useState("");
 
   const { data: clientSearchResults = [] } = useQuery<Client[]>({
     queryKey: [`/api/clients/search?q=${encodeURIComponent(clientSearchQuery)}`],
@@ -346,6 +352,15 @@ export default function NewNote() {
       });
       return;
     }
+
+    if (noteMode === "new_matter" && !conflictCheckCompleted && !conflictCheckNote.trim()) {
+      toast({
+        title: "Conflict check required",
+        description: "Either confirm the conflict check or provide a reason for deferral",
+        variant: "destructive",
+      });
+      return;
+    }
     
     let caseResult: CaseResponse | null = null;
     let consentLogFailed = false;
@@ -376,6 +391,10 @@ export default function NewNote() {
           priority: "normal",
           riskLevel: selectedClient!.amlRiskLevel || undefined,
           templateId: activeTemplate?.id || undefined,
+          practiceArea: practiceArea || undefined,
+          conflictCheckCompleted,
+          conflictCheckNote: conflictCheckNote || undefined,
+          costsEstimate: costsEstimate || undefined,
         });
         targetCaseId = caseResult.id;
       }
@@ -528,6 +547,24 @@ export default function NewNote() {
       });
       return;
     }
+
+    if (!practiceArea) {
+      toast({
+        title: "Practice area required",
+        description: "Please select a practice area for this matter",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!conflictCheckCompleted && !conflictCheckNote.trim()) {
+      toast({
+        title: "Conflict check required",
+        description: "Either confirm the conflict check or provide a reason for deferral",
+        variant: "destructive",
+      });
+      return;
+    }
     
     const createTextCase = async () => {
       let targetCaseId: string;
@@ -546,6 +583,10 @@ export default function NewNote() {
           riskLevel: clientForCase.amlRiskLevel || undefined,
           notes: data.notes,
           templateId: activeTemplate?.id || undefined,
+          practiceArea: practiceArea || undefined,
+          conflictCheckCompleted,
+          conflictCheckNote: conflictCheckNote || undefined,
+          costsEstimate: costsEstimate || undefined,
         });
         targetCaseId = caseResult.id;
       }
@@ -920,10 +961,97 @@ export default function NewNote() {
                       data-testid="input-matter-ref"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="practice-area">Practice Area (Optional)</Label>
+                    <Select
+                      value={practiceArea}
+                      onValueChange={(val) => setPracticeArea(val as PracticeArea)}
+                      disabled={isRecording || countdown !== null}
+                    >
+                      <SelectTrigger id="practice-area" data-testid="select-practice-area">
+                        <SelectValue placeholder="Select practice area..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRACTICE_AREAS.map((pa) => (
+                          <SelectItem key={pa} value={pa} data-testid={`option-practice-area-${pa}`}>
+                            {PRACTICE_AREA_LABELS[pa]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {practiceArea && (practiceArea === "residential_conveyancing" || practiceArea === "commercial_property") && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        This practice area is classified as HIGH AML risk by default.
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="costs-estimate">Costs Estimate (Optional)</Label>
+                    <Input
+                      id="costs-estimate"
+                      placeholder="e.g., £1,500 – £3,000 plus VAT and disbursements"
+                      value={costsEstimate}
+                      onChange={(e) => setCostsEstimate(e.target.value)}
+                      disabled={isRecording || countdown !== null}
+                      data-testid="input-costs-estimate"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Used in the auto-generated client care letter.
+                    </p>
+                  </div>
                 </>
               )}
             </CardContent>
           </Card>
+
+          {noteMode === "new_matter" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                Conflict of Interest Check
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="conflict-check"
+                  checked={conflictCheckCompleted}
+                  onCheckedChange={(checked) => {
+                    setConflictCheckCompleted(checked === true);
+                    if (checked) setConflictCheckNote("");
+                  }}
+                  disabled={isRecording || countdown !== null}
+                  data-testid="checkbox-conflict-check"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="conflict-check" className="text-sm font-medium cursor-pointer">
+                    I confirm that a conflict of interest check has been completed for this matter
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    SRA compliance requires a conflict check before accepting new instructions. This confirmation is recorded in the audit trail.
+                  </p>
+                </div>
+              </div>
+              {!conflictCheckCompleted && (
+                <div className="space-y-2 pl-7">
+                  <Label htmlFor="conflict-note" className="text-xs text-amber-600 dark:text-amber-400">
+                    If deferring the conflict check, provide a reason:
+                  </Label>
+                  <Textarea
+                    id="conflict-note"
+                    placeholder="e.g., Conflict check to be completed by compliance team before first meeting"
+                    value={conflictCheckNote}
+                    onChange={(e) => setConflictCheckNote(e.target.value)}
+                    disabled={isRecording || countdown !== null}
+                    className="text-sm"
+                    data-testid="input-conflict-note"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          )}
 
           <Card>
             <CardHeader>

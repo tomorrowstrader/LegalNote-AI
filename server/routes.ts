@@ -27,7 +27,8 @@ function resolveTemplatePath(filename: string): string {
   return possiblePaths[0];
 }
 import { storage } from "./storage";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, PRACTICE_AREAS } from "@shared/schema";
+import { getAmlRiskDefault } from "./services/practiceAreaConfig";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
@@ -1611,8 +1612,32 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           }
         }
       }
-      
-      // Security: Storage layer enforces user isolation
+
+      if (validatedData.parentCaseId) {
+        const parentCase = await storage.getCase(validatedData.parentCaseId, userId);
+        if (parentCase) {
+          if (!validatedData.practiceArea && parentCase.practiceArea) {
+            validatedData.practiceArea = parentCase.practiceArea;
+          }
+          if (!validatedData.conflictCheckCompleted && parentCase.conflictCheckCompleted) {
+            validatedData.conflictCheckCompleted = true;
+          }
+        }
+      }
+
+      if (!validatedData.parentCaseId && !validatedData.practiceArea) {
+        return res.status(400).json({ message: "Practice area is required for new cases" });
+      }
+
+      if (!validatedData.parentCaseId && !validatedData.conflictCheckCompleted && !validatedData.conflictCheckNote?.trim()) {
+        return res.status(400).json({ message: "Either confirm the conflict check or provide a reason for deferral" });
+      }
+
+      if (validatedData.practiceArea) {
+        validatedData.riskLevel = getAmlRiskDefault(validatedData.practiceArea);
+      }
+
+
       const newCase = await storage.createCase(validatedData, userId);
       auditLogger.logFromRequest(AuditEventType.CASE_CREATED, req, {
         resourceId: newCase.id,
@@ -1620,13 +1645,79 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         action: "create",
         severity: "low",
       });
+
+      if (validatedData.conflictCheckCompleted !== undefined) {
+        auditLogger.logFromRequest(AuditEventType.CASE_UPDATED, req, {
+          resourceId: newCase.id,
+          resourceType: "case",
+          action: "conflict_check",
+          severity: "medium",
+          additionalInfo: {
+            conflictCheckCompleted: validatedData.conflictCheckCompleted,
+            conflictCheckNote: validatedData.conflictCheckNote || null,
+          },
+        });
+      }
+
+      (async () => {
+        try {
+          const fp = await storage.getFirmProfile();
+          if (!fp?.firmName) return;
+          const { DocumentService } = await import("./services/documentService");
+          const documentService = new DocumentService();
+          const { PRACTICE_AREA_LABELS: PAL } = await import("@shared/schema");
+          const paLabel = newCase.practiceArea
+            ? PAL[newCase.practiceArea as keyof typeof PAL] || newCase.practiceArea
+            : "General";
+          const feeEarnerUser = await storage.getUser(newCase.assignedToUserId || userId);
+          const feeEarnerDisplayName = feeEarnerUser
+            ? [feeEarnerUser.firstName, feeEarnerUser.lastName].filter(Boolean).join(" ") || feeEarnerUser.email || "Fee Earner"
+            : "Fee Earner";
+          const result = await documentService.generateClientCareLetter({
+            firmName: fp.firmName,
+            firmAddress: [fp.addressLine1, fp.addressLine2, fp.city, fp.postcode].filter(Boolean).join(", ") || undefined,
+            firmPhone: fp.phone || undefined,
+            firmEmail: fp.email || undefined,
+            sraNumber: fp.sraNumber || undefined,
+            feeEarnerName: feeEarnerDisplayName,
+            clientName: newCase.clientName,
+            matterDescription: newCase.title,
+            practiceArea: paLabel,
+            costsEstimate: newCase.costsEstimate || undefined,
+            matterReference: newCase.matterReference || undefined,
+          });
+          const doc = await storage.createDocument({
+            caseId: newCase.id,
+            type: "client_care_letter",
+            content: result.content,
+            version: 1,
+            versionType: "ai_generated",
+            createdBy: userId,
+          });
+          await storage.updateCase(newCase.id, { clientCareLetterId: doc.id }, userId);
+          auditLogger.logFromRequest(AuditEventType.DOCUMENT_GENERATED, req, {
+            resourceId: doc.id,
+            resourceType: "document",
+            action: "auto_generate_client_care_letter",
+            severity: "medium",
+            additionalInfo: {
+              caseId: newCase.id,
+              practiceArea: newCase.practiceArea,
+              generationCost: result.cost,
+              automatic: true,
+            },
+          });
+          console.log(`[CLIENT_CARE_LETTER] Auto-generated for case ${newCase.id}`);
+        } catch (err) {
+          console.error(`[CLIENT_CARE_LETTER] Auto-generation failed for case ${newCase.id}:`, err);
+        }
+      })();
+
       res.json(newCase);
     } catch (error: any) {
-      // Zod validation errors: return 400 with message
       if (error.name === "ZodError") {
         return res.status(400).json({ message: error.message });
       }
-      // All other errors: use sanitized error handler
       next(error);
     }
   });
@@ -2260,7 +2351,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   app.patch("/api/cases/:id", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const { priority, deadline, deadlineIsAllDay, textNotes } = req.body;
+      const { priority, deadline, deadlineIsAllDay, textNotes, conflictCheckCompleted, conflictCheckNote, practiceArea } = req.body;
       
       // Get current case to verify access
       const currentCase = await storage.getCase(req.params.id, userId);
@@ -2272,12 +2363,18 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const updates: any = {};
       if (priority !== undefined) updates.priority = priority;
       if (deadline !== undefined) {
-        // Store deadline as-is without normalization
-        // The deadlineIsAllDay flag indicates how to interpret the timestamp
         updates.deadline = deadline ? new Date(deadline) : null;
       }
       if (deadlineIsAllDay !== undefined) updates.deadlineIsAllDay = deadlineIsAllDay;
       if (textNotes !== undefined) updates.textNotes = textNotes;
+      if (conflictCheckCompleted !== undefined) updates.conflictCheckCompleted = conflictCheckCompleted;
+      if (conflictCheckNote !== undefined) updates.conflictCheckNote = conflictCheckNote;
+      if (practiceArea !== undefined) {
+        if ((PRACTICE_AREAS as readonly string[]).includes(practiceArea)) {
+          updates.practiceArea = practiceArea;
+          updates.riskLevel = getAmlRiskDefault(practiceArea);
+        }
+      }
       
       // Update the case
       const updatedCase = await storage.updateCase(req.params.id, updates, userId);
@@ -2317,6 +2414,18 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         });
       }
       
+      if (conflictCheckCompleted !== undefined) {
+        await logAuditEvent(userId, "conflict_check_updated", {
+          caseId: req.params.id,
+          metadata: {
+            previousValue: currentCase.conflictCheckCompleted,
+            newValue: conflictCheckCompleted,
+            conflictCheckNote: conflictCheckNote || null,
+          },
+          req,
+        });
+      }
+
       // General case update log
       await logAuditEvent(userId, "case_updated", {
         caseId: req.params.id,
@@ -4689,6 +4798,153 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         generationCost: result.cost,
       });
     } catch (error: any) {
+      next(error);
+    }
+  });
+
+  const clientCareLetterSchema = z.object({
+    firmName: z.string().min(1).max(200),
+    firmAddress: z.string().max(500).optional(),
+    firmPhone: z.string().max(50).optional(),
+    firmEmail: z.string().max(200).optional(),
+    sraNumber: z.string().max(50).optional(),
+    feeEarnerName: z.string().min(1).max(200),
+    costsEstimate: z.string().max(500).optional(),
+  });
+
+  app.post("/api/cases/:id/client-care-letter", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const validatedBody = clientCareLetterSchema.parse(req.body);
+      const { firmName, firmAddress, firmPhone, firmEmail, sraNumber, feeEarnerName, costsEstimate } = validatedBody;
+
+      const { DocumentService } = await import("./services/documentService");
+      const documentService = new DocumentService();
+      const { PRACTICE_AREA_LABELS } = await import("@shared/schema");
+
+      const practiceAreaLabel = caseData.practiceArea
+        ? PRACTICE_AREA_LABELS[caseData.practiceArea as keyof typeof PRACTICE_AREA_LABELS] || caseData.practiceArea
+        : "General";
+
+      const result = await documentService.generateClientCareLetter({
+        firmName,
+        firmAddress,
+        firmPhone,
+        firmEmail,
+        sraNumber,
+        feeEarnerName,
+        clientName: caseData.clientName,
+        matterDescription: caseData.title,
+        practiceArea: practiceAreaLabel,
+        costsEstimate: costsEstimate || caseData.costsEstimate || undefined,
+        matterReference: caseData.matterReference || undefined,
+      });
+
+      const document = await storage.createDocument({
+        caseId,
+        type: "client_care_letter",
+        content: result.content,
+        version: 1,
+        versionType: "ai_generated",
+        createdBy: userId,
+      });
+
+      await storage.updateCase(caseId, { clientCareLetterId: document.id }, userId);
+
+      auditLogger.logFromRequest(AuditEventType.DOCUMENT_GENERATED, req, {
+        resourceId: document.id,
+        resourceType: "document",
+        action: "generate_client_care_letter",
+        severity: "medium",
+        additionalInfo: {
+          caseId,
+          practiceArea: caseData.practiceArea,
+          generationCost: result.cost,
+        },
+      });
+
+      res.json({
+        document,
+        generationCost: result.cost,
+      });
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.message });
+      }
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/send-client-care-letter", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      if (!caseData.clientCareLetterId) {
+        return res.status(400).json({ message: "No client care letter has been generated for this case" });
+      }
+
+      const sendSchema = z.object({
+        recipientEmail: z.string().email(),
+        recipientName: z.string().min(1).max(200).optional(),
+      });
+      const { recipientEmail, recipientName } = sendSchema.parse(req.body);
+
+      const documents = await storage.getDocumentsByCase(caseId, userId);
+      const careLetter = documents.find(d => d.id === caseData.clientCareLetterId);
+      if (!careLetter) {
+        return res.status(404).json({ message: "Client care letter document not found" });
+      }
+
+      const fp = await storage.getFirmProfile();
+      const firmName = fp?.firmName || "Your Solicitor";
+
+      const { sendClientCareLetterEmail } = await import("./email");
+      const emailResult = await sendClientCareLetterEmail({
+        to: recipientEmail,
+        clientName: recipientName || caseData.clientName,
+        firmName,
+        letterContent: careLetter.content,
+        matterReference: caseData.matterReference || undefined,
+        firmEmail: fp?.email || undefined,
+        firmPhone: fp?.phone || undefined,
+      });
+
+      auditLogger.logFromRequest(AuditEventType.DOCUMENT_GENERATED, req, {
+        resourceId: caseData.clientCareLetterId,
+        resourceType: "document",
+        action: "send_client_care_letter",
+        severity: "medium",
+        additionalInfo: {
+          caseId,
+          recipientEmail,
+          success: emailResult.success,
+          messageId: emailResult.messageId,
+        },
+      });
+
+      if (emailResult.success) {
+        await storage.updateCase(caseId, { clientCareLetterSentAt: new Date() }, userId);
+        res.json({ success: true, messageId: emailResult.messageId });
+      } else {
+        res.status(500).json({ message: emailResult.error || "Failed to send email" });
+      }
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.message });
+      }
       next(error);
     }
   });

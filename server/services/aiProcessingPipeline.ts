@@ -134,6 +134,7 @@ export class AIProcessingPipeline {
         clientName: caseData.clientName,
         title: caseData.title,
         matterReference: caseData.matterReference || undefined,
+        practiceArea: caseData.practiceArea || undefined,
       });
       const wordBoostConfig: WordBoostConfig = {
         words: wordBoostList,
@@ -270,6 +271,7 @@ export class AIProcessingPipeline {
         matterReference: caseData.matterReference || undefined,
         recordingDate: new Date().toISOString().split('T')[0],
         templateId: caseData.templateId || undefined,
+        practiceArea: caseData.practiceArea || undefined,
       };
 
       // Generate summary

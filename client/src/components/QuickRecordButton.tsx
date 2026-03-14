@@ -27,6 +27,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToastAction } from "@/components/ui/toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
@@ -35,6 +37,7 @@ import TextNotesModal from "@/components/TextNotesModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Client } from "@shared/schema";
+import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
@@ -111,6 +114,9 @@ export default function QuickRecordButton() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [practiceArea, setPracticeArea] = useState<PracticeArea | "">("");
+  const [conflictCheckCompleted, setConflictCheckCompleted] = useState(false);
+  const [conflictCheckNote, setConflictCheckNote] = useState("");
   const clientSearchRef = useRef<HTMLDivElement>(null);
   const [showInterruptedWarning, setShowInterruptedWarning] = useState(false);
   const [interruptedDuration, setInterruptedDuration] = useState(0);
@@ -558,6 +564,24 @@ export default function QuickRecordButton() {
       return;
     }
     
+    if (!practiceArea) {
+      toast({
+        title: "Practice area required",
+        description: "Please select a practice area for this matter",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!conflictCheckCompleted && !conflictCheckNote.trim()) {
+      toast({
+        title: "Conflict check required",
+        description: "Either confirm the conflict check or provide a reason for deferral",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Show processing overlay immediately
     setIsProcessing(true);
     setProcessingStep('saving');
@@ -576,7 +600,9 @@ export default function QuickRecordButton() {
         sourceType: "audio",
         status: "pending",
         priority: "normal",
-        riskLevel: selectedClient!.amlRiskLevel || undefined,
+        practiceArea: practiceArea || undefined,
+        conflictCheckCompleted,
+        conflictCheckNote: conflictCheckNote || undefined,
       });
       
       // Step 2: Create audio record placeholder
@@ -876,7 +902,9 @@ export default function QuickRecordButton() {
       textNotes: data.notes,
       status: "pending",
       priority: "normal",
-      riskLevel: clientForCase.amlRiskLevel || undefined,
+      practiceArea: practiceArea || undefined,
+      conflictCheckCompleted,
+      conflictCheckNote: conflictCheckNote || undefined,
     });
     
     setShowTextNotesModal(false);
@@ -1247,6 +1275,57 @@ export default function QuickRecordButton() {
                     data-testid="input-quick-matter-ref"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quick-practice-area">Practice Area <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={practiceArea}
+                    onValueChange={(val) => setPracticeArea(val as PracticeArea)}
+                  >
+                    <SelectTrigger id="quick-practice-area" data-testid="select-quick-practice-area">
+                      <SelectValue placeholder="Select practice area..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRACTICE_AREAS.map((pa) => (
+                        <SelectItem key={pa} value={pa} data-testid={`option-quick-practice-area-${pa}`}>
+                          {PRACTICE_AREA_LABELS[pa]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-start gap-3 pt-2">
+                  <Checkbox
+                    id="quick-conflict-check"
+                    checked={conflictCheckCompleted}
+                    onCheckedChange={(checked) => {
+                      setConflictCheckCompleted(checked === true);
+                      if (checked) setConflictCheckNote("");
+                    }}
+                    data-testid="checkbox-quick-conflict-check"
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="quick-conflict-check" className="text-sm font-medium cursor-pointer">
+                      Conflict of interest check completed
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      SRA compliance requirement
+                    </p>
+                  </div>
+                </div>
+                {!conflictCheckCompleted && (
+                  <div className="space-y-1">
+                    <Label htmlFor="quick-conflict-note" className="text-xs text-amber-600 dark:text-amber-400">
+                      Reason for deferring conflict check:
+                    </Label>
+                    <Input
+                      id="quick-conflict-note"
+                      placeholder="e.g., To be completed by compliance team"
+                      value={conflictCheckNote}
+                      onChange={(e) => setConflictCheckNote(e.target.value)}
+                      data-testid="input-quick-conflict-note"
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-2">
                 <Button
@@ -1258,7 +1337,7 @@ export default function QuickRecordButton() {
                 </Button>
                 <Button
                   onClick={saveCase}
-                  disabled={!caseTitle || !selectedClient}
+                  disabled={!caseTitle || !selectedClient || !practiceArea}
                   className="bg-accent hover:bg-accent"
                   data-testid="button-save-case"
                 >

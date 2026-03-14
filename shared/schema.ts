@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, unique, numeric } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, text, varchar, timestamp, boolean, integer, jsonb, unique, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -47,6 +47,46 @@ export const clients = pgTable("clients", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const PRACTICE_AREAS = [
+  "residential_conveyancing",
+  "commercial_property",
+  "wills_probate",
+  "lasting_power_of_attorney",
+  "family_divorce_financial",
+  "family_children_arrangements",
+  "employment_employee",
+  "employment_employer",
+  "personal_injury_rta",
+  "clinical_negligence",
+  "housing_tenancy",
+  "debt_litigation",
+  "criminal_defence",
+  "immigration",
+  "corporate_commercial",
+] as const;
+
+export type PracticeArea = typeof PRACTICE_AREAS[number];
+
+export const PRACTICE_AREA_LABELS: Record<PracticeArea, string> = {
+  residential_conveyancing: "Residential Conveyancing",
+  commercial_property: "Commercial Property",
+  wills_probate: "Wills & Probate",
+  lasting_power_of_attorney: "Lasting Power of Attorney",
+  family_divorce_financial: "Family (Divorce / Financial Remedy)",
+  family_children_arrangements: "Family (Children / Arrangements)",
+  employment_employee: "Employment (Employee)",
+  employment_employer: "Employment (Employer)",
+  personal_injury_rta: "Personal Injury / RTA",
+  clinical_negligence: "Clinical Negligence",
+  housing_tenancy: "Housing / Tenancy",
+  debt_litigation: "Debt / Litigation",
+  criminal_defence: "Criminal Defence",
+  immigration: "Immigration",
+  corporate_commercial: "Corporate / Commercial",
+};
+
+export const practiceAreaEnum = pgEnum("practice_area_enum", PRACTICE_AREAS as unknown as [string, ...string[]]);
+
 export const cases = pgTable("cases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),
@@ -62,6 +102,12 @@ export const cases = pgTable("cases", {
   templateId: text("template_id"),
   parentCaseId: varchar("parent_case_id").references(() => cases.id),
   riskLevel: text("risk_level"),
+  practiceArea: practiceAreaEnum("practice_area"),
+  conflictCheckCompleted: boolean("conflict_check_completed").notNull().default(false),
+  conflictCheckNote: text("conflict_check_note"),
+  clientCareLetterId: varchar("client_care_letter_id").references(() => documents.id),
+  clientCareLetterSentAt: timestamp("client_care_letter_sent_at"),
+  costsEstimate: text("costs_estimate"),
   textNotes: text("text_notes"),
   reviewed: boolean("reviewed").notNull().default(false),
   archived: boolean("archived").notNull().default(false),
@@ -576,6 +622,8 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   litigationHoldAppliedBy: true,
   litigationHoldReleasedAt: true,
   litigationHoldReleasedBy: true,
+  clientCareLetterId: true,
+  clientCareLetterSentAt: true,
 }).extend({
   title: z.string().min(1).max(500).transform(sanitizeString),
   clientName: z.string().min(1).max(200).transform(sanitizeString),
@@ -587,6 +635,10 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   templateId: z.string().max(100).optional(),
   parentCaseId: z.string().uuid().optional(),
   riskLevel: z.enum(["low", "medium", "high"]).optional(),
+  practiceArea: z.enum(PRACTICE_AREAS).optional(),
+  conflictCheckCompleted: z.boolean().default(false),
+  conflictCheckNote: z.string().max(2000).transform(sanitizeString).optional(),
+  costsEstimate: z.string().max(500).transform(sanitizeString).optional(),
   textNotes: z.string().max(100000).optional(), // 100KB limit for text notes
   litigationHold: z.boolean().default(false),
   litigationHoldReason: z.string().max(2000).optional(),
@@ -694,7 +746,7 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   caseId: z.string().uuid(),
   meetingSessionId: z.string().uuid().optional(),
   transcriptSnapshotId: z.string().uuid().optional(),
-  type: z.enum(["attendance_note", "summary"]),
+  type: z.enum(["attendance_note", "summary", "client_care_letter"]),
   content: z.string().max(1000000), // 1MB max for documents
   version: z.number().int().min(1).default(1),
   versionType: z.enum(["ai_generated", "manually_edited", "ai_regenerated"]),

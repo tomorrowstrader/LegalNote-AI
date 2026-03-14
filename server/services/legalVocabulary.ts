@@ -206,12 +206,13 @@ export const UK_LEGAL_VOCABULARY = [
 
 /**
  * Extract boost words from case metadata
- * Combines case-specific terms with general legal vocabulary
+ * Combines case-specific terms with practice-area-specific vocabulary and general legal vocabulary
  */
 export function buildWordBoostList(caseData: {
   clientName?: string;
   title?: string;
   matterReference?: string;
+  practiceArea?: string;
   participants?: Array<{ name?: string }>;
 }): string[] {
   const caseSpecificTerms: string[] = [];
@@ -244,7 +245,19 @@ export function buildWordBoostList(caseData: {
     });
   }
   
-  const uniqueTerms = [...new Set([...caseSpecificTerms, ...UK_LEGAL_VOCABULARY])];
+  let practiceAreaTerms: string[] = [];
+  if (caseData.practiceArea) {
+    try {
+      const { PRACTICE_AREA_WORD_BOOST } = require('./practiceAreaConfig');
+      const paTerms = PRACTICE_AREA_WORD_BOOST[caseData.practiceArea];
+      if (paTerms) {
+        practiceAreaTerms = paTerms;
+      }
+    } catch {
+    }
+  }
+  
+  const uniqueTerms = Array.from(new Set([...caseSpecificTerms, ...practiceAreaTerms, ...UK_LEGAL_VOCABULARY]));
   
   return uniqueTerms.slice(0, 1000);
 }

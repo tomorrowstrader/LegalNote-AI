@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock } from "lucide-react";
+import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Accordion,
   AccordionContent,
@@ -40,6 +43,7 @@ import HandoverModal from "@/components/HandoverModal";
 import ExternalDocumentRefs from "@/components/ExternalDocumentRefs";
 import TimeEntriesViewer from "@/components/TimeEntriesViewer";
 import TimeRecordingModal from "@/components/TimeRecordingModal";
+import ClientCareLetterModal from "@/components/ClientCareLetterModal";
 import { useLocation, useParams, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -50,6 +54,8 @@ import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import type { Case, AudioRecording, ConsentLog, MeetingSession, Transcript, Document } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
+import { PRACTICE_AREA_LABELS, PRACTICE_AREAS, type PracticeArea } from "@shared/schema";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SessionWithDetails extends MeetingSession {
   transcript: Transcript | null;
@@ -141,6 +147,11 @@ export default function CaseDetail() {
   const [showHandoverModal, setShowHandoverModal] = useState(false);
   const [showTimeRecordingModal, setShowTimeRecordingModal] = useState(false);
   const [hasPromptedTimeRecording, setHasPromptedTimeRecording] = useState(false);
+  const [showCareLetterModal, setShowCareLetterModal] = useState(false);
+  const [showSendCareLetterDialog, setShowSendCareLetterDialog] = useState(false);
+  const [sendEmail, setSendEmail] = useState("");
+  const [isSendingCareLetter, setIsSendingCareLetter] = useState(false);
+  const [editingPracticeArea, setEditingPracticeArea] = useState(false);
   const { user } = useAuth();
   const audioPlayerRef = useRef<AudioPlayerHandle>(null);
   const [hasAutoSeeked, setHasAutoSeeked] = useState(false);
@@ -535,6 +546,95 @@ export default function CaseDetail() {
                 <Shield className="w-4 h-4" />
                 <span>Consent recorded</span>
               </div>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {editingPracticeArea ? (
+              <Select
+                value={caseData.practiceArea || ""}
+                onValueChange={async (val) => {
+                  try {
+                    await apiRequest("PATCH", `/api/cases/${caseId}`, { practiceArea: val });
+                    queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+                    toast({ title: "Practice area updated" });
+                  } catch (err: any) {
+                    toast({ title: "Update failed", description: err.message, variant: "destructive" });
+                  }
+                  setEditingPracticeArea(false);
+                }}
+              >
+                <SelectTrigger className="w-auto min-w-[200px]" data-testid="select-edit-practice-area">
+                  <SelectValue placeholder="Select practice area..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRACTICE_AREAS.map((pa) => (
+                    <SelectItem key={pa} value={pa}>{PRACTICE_AREA_LABELS[pa]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge
+                variant="secondary"
+                className={!caseData.practiceArea ? "cursor-pointer" : ""}
+                onClick={() => !caseData.practiceArea && setEditingPracticeArea(true)}
+                data-testid="badge-practice-area"
+              >
+                {caseData.practiceArea
+                  ? PRACTICE_AREA_LABELS[caseData.practiceArea as keyof typeof PRACTICE_AREA_LABELS] || caseData.practiceArea
+                  : "Practice area not set (click to set)"}
+              </Badge>
+            )}
+            <Badge
+              variant={caseData.conflictCheckCompleted ? "secondary" : "outline"}
+              className={caseData.conflictCheckCompleted
+                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"}
+              data-testid="badge-conflict-check"
+            >
+              <Shield className="w-3 h-3 mr-1" />
+              {caseData.conflictCheckCompleted ? "Conflict Check Completed" : "Conflict Check Pending"}
+            </Badge>
+            {!caseData.conflictCheckCompleted && caseData.conflictCheckNote && (
+              <span className="text-xs text-muted-foreground italic" data-testid="text-conflict-note">
+                Note: {caseData.conflictCheckNote}
+              </span>
+            )}
+            {caseData.clientCareLetterId ? (
+              <>
+                <Badge
+                  variant="secondary"
+                  className={caseData.clientCareLetterSentAt
+                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                    : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"}
+                  data-testid="badge-client-care-letter"
+                >
+                  <FileText className="w-3 h-3 mr-1" />
+                  {caseData.clientCareLetterSentAt ? "Client Care Letter Sent" : "Client Care Letter Generated"}
+                </Badge>
+                {!caseData.clientCareLetterSentAt && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowSendCareLetterDialog(true)}
+                    className="gap-1"
+                    data-testid="button-send-care-letter"
+                  >
+                    <Send className="w-3 h-3" />
+                    Send to Client
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCareLetterModal(true)}
+                className="gap-1"
+                data-testid="button-generate-care-letter"
+              >
+                <FileText className="w-3 h-3" />
+                Generate Client Care Letter
+              </Button>
             )}
           </div>
         </div>
@@ -1146,6 +1246,82 @@ export default function CaseDetail() {
         durationSeconds={audioData?.duration || undefined}
         sessionType={caseData.sourceType === 'dictation' ? 'Telephone Attendance' : 'Meeting'}
       />
+
+      <ClientCareLetterModal
+        open={showCareLetterModal}
+        onOpenChange={setShowCareLetterModal}
+        caseId={caseId!}
+        clientName={caseData.clientName}
+        costsEstimate={caseData.costsEstimate}
+      />
+
+      <Dialog open={showSendCareLetterDialog} onOpenChange={setShowSendCareLetterDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5" />
+              Send Client Care Letter
+            </DialogTitle>
+            <DialogDescription>
+              Send the generated client care letter to {caseData.clientName} via email.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="send-ccl-email">
+                Recipient Email <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="send-ccl-email"
+                type="email"
+                placeholder="client@example.com"
+                value={sendEmail}
+                onChange={(e) => setSendEmail(e.target.value)}
+                disabled={isSendingCareLetter}
+                data-testid="input-send-ccl-email"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowSendCareLetterDialog(false)} disabled={isSendingCareLetter}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!sendEmail.trim()) {
+                  toast({ title: "Email required", description: "Please enter a recipient email address", variant: "destructive" });
+                  return;
+                }
+                setIsSendingCareLetter(true);
+                try {
+                  await apiRequest("POST", `/api/cases/${caseId}/send-client-care-letter`, {
+                    recipientEmail: sendEmail.trim(),
+                    recipientName: caseData.clientName,
+                  });
+                  toast({ title: "Letter sent", description: `Client care letter sent to ${sendEmail}` });
+                  setShowSendCareLetterDialog(false);
+                  setSendEmail("");
+                } catch (err: any) {
+                  toast({ title: "Send failed", description: err.message || "Failed to send client care letter", variant: "destructive" });
+                } finally {
+                  setIsSendingCareLetter(false);
+                }
+              }}
+              disabled={isSendingCareLetter}
+              data-testid="button-confirm-send-ccl"
+            >
+              {isSendingCareLetter ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                "Send Letter"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

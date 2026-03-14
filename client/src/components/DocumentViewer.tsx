@@ -233,7 +233,7 @@ function VersionDiffViewer({
 interface Document {
   id: string;
   caseId: string;
-  type: 'attendance_note' | 'summary' | 'transcript';
+  type: 'attendance_note' | 'summary' | 'transcript' | 'client_care_letter';
   content: string;
   version: number;
   createdAt: string;
@@ -983,6 +983,7 @@ export default function DocumentViewer({
   const attendanceNote = documents.find(d => d.type === 'attendance_note');
   const summary = documents.find(d => d.type === 'summary');
   const transcriptDoc = documents.find(d => d.type === 'transcript');
+  const clientCareLetter = documents.find(d => d.type === 'client_care_letter');
   
   const transcriptContent = transcriptDoc?.content ?? transcript;
 
@@ -1260,7 +1261,7 @@ export default function DocumentViewer({
               </div>
             )}
           </div>
-          <TabsList className="grid w-full grid-cols-3 h-auto">
+          <TabsList className={`grid w-full h-auto ${clientCareLetter ? 'grid-cols-4' : 'grid-cols-3'}`}>
             <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
               <span className="hidden sm:inline">Attendance Note</span>
               <span className="sm:hidden">Att. Note</span>
@@ -1272,6 +1273,12 @@ export default function DocumentViewer({
               <span className="hidden sm:inline">Transcript</span>
               <span className="sm:hidden">Script</span>
             </TabsTrigger>
+            {clientCareLetter && (
+              <TabsTrigger value="care_letter" data-testid="tab-care-letter" className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+                <span className="hidden sm:inline">Care Letter</span>
+                <span className="sm:hidden">Letter</span>
+              </TabsTrigger>
+            )}
           </TabsList>
         </div>
 
@@ -1540,6 +1547,30 @@ export default function DocumentViewer({
             </CardContent>
           </Card>
         </TabsContent>
+
+        {clientCareLetter && (
+          <TabsContent value="care_letter" className="mt-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <CardTitle>Client Care Letter</CardTitle>
+                  <div className="flex gap-2">
+                    <Badge variant="outline" data-testid="badge-care-letter-ai">AI Generated</Badge>
+                    <DocumentStatusActions document={clientCareLetter} />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div
+                  className="prose dark:prose-invert max-w-none text-foreground whitespace-pre-wrap"
+                  data-testid="content-care-letter"
+                >
+                  {clientCareLetter.content}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
       </Tabs>
 

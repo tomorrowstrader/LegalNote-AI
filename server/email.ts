@@ -1203,3 +1203,70 @@ export async function sendLeadMagnetEmail(
     return { success: false, error: error.message || 'Unknown error' };
   }
 }
+
+interface SendClientCareLetterEmailParams {
+  to: string;
+  clientName: string;
+  firmName: string;
+  letterContent: string;
+  matterReference?: string;
+  firmEmail?: string;
+  firmPhone?: string;
+}
+
+export async function sendClientCareLetterEmail(params: SendClientCareLetterEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { to, clientName, firmName, letterContent, matterReference, firmEmail, firmPhone } = params;
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Georgia, 'Times New Roman', serif; color: #1a1a1a; line-height: 1.6; max-width: 700px; margin: 0 auto; padding: 20px; }
+        .header { border-bottom: 2px solid #1a365d; padding-bottom: 16px; margin-bottom: 24px; }
+        .header h1 { color: #1a365d; font-size: 20px; margin: 0; }
+        .header p { color: #4a5568; font-size: 13px; margin: 4px 0 0 0; }
+        .letter-content { white-space: pre-wrap; font-size: 14px; }
+        .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #718096; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>${firmName}</h1>
+        ${matterReference ? `<p>Reference: ${matterReference}</p>` : ''}
+      </div>
+      <p>Dear ${clientName},</p>
+      <p>Please find attached your Client Care Letter. This document sets out the terms of our engagement and important information about the services we will provide.</p>
+      <p>Please review the letter carefully and do not hesitate to contact us if you have any questions.</p>
+      <div class="letter-content">${letterContent}</div>
+      <div class="footer">
+        <p>This email contains confidential and privileged information intended only for ${clientName}.
+        If you are not the intended recipient, please delete this email and notify us immediately.</p>
+        ${firmEmail ? `<p>Email: ${firmEmail}</p>` : ''}
+        ${firmPhone ? `<p>Phone: ${firmPhone}</p>` : ''}
+        <p>&copy; ${new Date().getFullYear()} ${firmName}. All rights reserved.</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `${firmName} via LegalNote <support@legalnote.ai>`,
+      to: [to],
+      subject: `Client Care Letter - ${firmName}${matterReference ? ` (Ref: ${matterReference})` : ''}`,
+      html: emailHtml,
+    });
+
+    if (error) {
+      console.error('[EMAIL] Error sending client care letter via Resend:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[EMAIL] Client care letter sent successfully:', data?.id);
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending client care letter:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
