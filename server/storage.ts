@@ -1108,6 +1108,12 @@ export class MemStorage implements IStorage {
       createdBy: insertDocument.createdBy,
       isActive: insertDocument.isActive,
       parentVersionId: insertDocument.parentVersionId ?? null,
+      status: 'draft',
+      approvedBy: null,
+      approvedAt: null,
+      approvalComment: null,
+      verificationWarnings: insertDocument.verificationWarnings ?? null,
+      isShortRecording: insertDocument.isShortRecording ?? false,
     };
     this.documents.set(id, document);
     return document;
@@ -2426,6 +2432,8 @@ export class DbStorage implements IStorage {
         createdBy: documentData.createdBy,
         isActive: documentData.isActive,
         parentVersionId: documentData.parentVersionId ?? null,
+        verificationWarnings: documentData.verificationWarnings ?? null,
+        isShortRecording: documentData.isShortRecording ?? false,
       })
       .returning();
     return result[0];

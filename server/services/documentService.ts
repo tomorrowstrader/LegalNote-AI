@@ -1,4 +1,5 @@
 import { openaiClient, MODELS, calculateGPT4oCost } from '../config/openai';
+import { anthropicClient, CLAUDE_MODELS, calculateClaudeCost } from '../config/anthropic';
 
 /**
  * Post-process document content to ensure known section headings are bold.
@@ -100,6 +101,8 @@ export interface DocumentGenerationResult {
   inputTokens: number;
   outputTokens: number;
   cost: number;
+  verificationWarnings?: string[];
+  isShortRecording?: boolean;
 }
 
 export interface CaseMetadata {
@@ -123,7 +126,8 @@ export class DocumentService {
   async generateAttendanceNote(
     transcript: string,
     metadata: CaseMetadata,
-    firmPreferences?: FirmPreferences
+    firmPreferences?: FirmPreferences,
+    utterances?: Array<{ text: string; start: number; end: number }>
   ): Promise<DocumentGenerationResult> {
     // Apply firm preferences (default to true if not specified)
     const prefs = {
@@ -135,25 +139,25 @@ export class DocumentService {
     // Build metadata header based on preferences
     let metadataFields = `File Reference:  ${metadata.matterReference || 'TBD'}
 Date:           ${metadata.recordingDate}
-Time:           {Meeting start time in 24-hour format from transcript, or "Not recorded"}
-Duration:       {Total meeting duration from transcript, or "Not recorded"}`;
+Time:           {Meeting start time in 24-hour format from transcript, or "Not recorded in this session"}
+Duration:       {Total meeting duration from transcript, or "Not recorded in this session"}`;
 
     if (prefs.includeLocation) {
-      metadataFields += `\nLocation:       {Meeting location from transcript, or "Not recorded"}`;
+      metadataFields += `\nLocation:       {Meeting location from transcript, or "Not recorded in this session"}`;
     }
 
     if (prefs.showFullSolicitorName) {
-      metadataFields += `\nSolicitor:      {Solicitor full name and title from transcript, or "Not recorded"}`;
+      metadataFields += `\nSolicitor:      {Solicitor full name and title from transcript, or "Not recorded in this session"}`;
     } else {
-      metadataFields += `\nSolicitor:      {Solicitor initials from transcript, or "Not recorded"}`;
+      metadataFields += `\nSolicitor:      {Solicitor initials from transcript, or "Not recorded in this session"}`;
     }
 
     // Build footer with optional client confirmation
     const preparedByFormat = prefs.showFullSolicitorName 
-      ? '{Solicitor name and title from transcript, or "To be completed"}'
-      : '{Solicitor initials from transcript, or "To be completed"}';
+      ? '{Solicitor name and title from transcript, or "Not recorded in this session"}'
+      : '{Solicitor initials from transcript, or "Not recorded in this session"}';
 
-    let footerSection = `Time Engaged: {Total meeting duration from transcript, or "Not recorded"}
+    let footerSection = `Time Engaged: {Total meeting duration from transcript, or "Not recorded in this session"}
 
 This attendance note is subject to legal professional privilege.
 
@@ -172,11 +176,18 @@ Date: ________________`;
 
     let systemPrompt = `You are a UK-qualified solicitor specializing in creating professional attendance notes compliant with Solicitors Regulation Authority (SRA) standards and English law practice requirements.
 
-CRITICAL INSTRUCTIONS:
+ABSOLUTE ANTI-FABRICATION RULES — READ BEFORE GENERATING ANY CONTENT:
+You MUST treat these rules as inviolable. Breach of any of them renders the document professionally negligent.
+
+1. EVERY SINGLE STATEMENT in this attendance note must have a direct, traceable basis in the transcript provided. If you cannot point to a specific passage in the transcript that supports a statement, you MUST NOT include that statement.
+2. You MUST NOT draw on your training knowledge to supplement, elaborate, or contextualise sparse transcripts. If the transcript says little, the attendance note must be correspondingly brief.
+3. You MUST NOT infer, assume, or fabricate any legal advice, recommendations, case strategy, next steps, or factual details that are not explicitly stated in the transcript.
+4. For any section or field that cannot be completed from the transcript, you MUST use the exact phrase: "Not recorded in this session" — do not paraphrase, do not guess, do not fill in plausible details.
+5. Do NOT add substantive legal advice, case law references, statutory provisions, or procedural guidance unless the solicitor in the transcript explicitly stated them.
+6. If the transcript records the solicitor giving advice, reproduce only the substance of what was said — do not expand, elaborate, or add further advice the solicitor did not give.
+
+ADDITIONAL INSTRUCTIONS:
 - You are an expert in English and Welsh law ONLY. Do not reference or apply law from other jurisdictions.
-- Base all observations strictly on the information provided in the transcript
-- Do NOT invent, assume, or fabricate any details not present in the transcript
-- If information is unclear or missing, explicitly state "Not specified in meeting" rather than guessing
 - Use UK legal terminology and practice conventions throughout
 - Format the document professionally with clean spacing (use white space for visual separation, NO horizontal lines or underscores)
 
@@ -243,7 +254,7 @@ ${metadataFields}
 
    Solicitor to action:
    1. [First action step with clear description]
-      Due: [Specific date if mentioned, or "To be determined"]
+      Due: [Specific date if mentioned, or "Not recorded in this session"]
    
    2. [Second action step]
       Due: [Specific date if mentioned]
@@ -255,7 +266,7 @@ ${metadataFields}
    2. [Action required from client]
       Due: [Specific date if mentioned]
    
-   Next appointment: [Date/time if scheduled, or "To be arranged"]
+   Next appointment: [Date/time if scheduled, or "Not recorded in this session"]
 
 ${footerSection}
 
@@ -277,7 +288,7 @@ FORMATTING GUIDELINES:
 
 IMPORTANT: This attendance note must be reviewed and verified by the supervising solicitor before being added to the client file. All legal advice and action items should be confirmed against current UK law and SRA guidance.
 
-Adhere strictly to the facts presented in the transcript. Where information is missing, explicitly state "Not specified" or "Not recorded" rather than inventing details.`;
+Adhere strictly to the facts presented in the transcript. Where information is missing, use the exact phrase "Not recorded in this session" rather than inventing details.`;
 
     if (metadata.templateId === 'matter_inception') {
       systemPrompt += `
@@ -290,30 +301,30 @@ The AML COMPLIANCE SUMMARY section MUST follow this exact structure:
 **AML COMPLIANCE SUMMARY**
 
 **Identity Verification:**
-[Summarise what identity documents were discussed, presented, or verified. If not addressed, state: "Not discussed — review recommended"]
+[Summarise what identity documents were discussed, presented, or verified. If not addressed, state: "Not recorded in this session"]
 
 **Nature and Purpose of Instruction:**
-[Summarise the stated reason for the client seeking legal services. If not addressed, state: "Not discussed — review recommended"]
+[Summarise the stated reason for the client seeking legal services. If not addressed, state: "Not recorded in this session"]
 
 **Source of Funds:**
-[Summarise what was discussed about where the funds for the transaction are coming from. Include specific amounts if mentioned. If not addressed, state: "Not discussed — review recommended"]
+[Summarise what was discussed about where the funds for the transaction are coming from. Include specific amounts if mentioned. If not addressed, state: "Not recorded in this session"]
 
 **Beneficial Ownership:**
-[Summarise who the beneficial owner is, including whether the client is acting on behalf of a third party, company, or trust. If not addressed, state: "Not discussed — review recommended"]
+[Summarise who the beneficial owner is, including whether the client is acting on behalf of a third party, company, or trust. If not addressed, state: "Not recorded in this session"]
 
 **PEP/Sanctions Status:**
-[Note whether the client or any connected party was identified as a Politically Exposed Person or subject to sanctions. If not addressed, state: "Not discussed — review recommended"]
+[Note whether the client or any connected party was identified as a Politically Exposed Person or subject to sanctions. If not addressed, state: "Not recorded in this session"]
 
 **Risk Assessment:**
-[Summarise any risk factors noted — client risk level (low/medium/high), geographic risk, transaction complexity, sector risk. If not addressed, state: "Not discussed — review recommended"]
+[Summarise any risk factors noted — client risk level (low/medium/high), geographic risk, transaction complexity, sector risk. If not addressed, state: "Not recorded in this session"]
 
 **Enhanced Due Diligence (EDD):**
-[Note whether EDD was considered necessary and the reasoning. If not addressed, state: "Not discussed — review recommended"]
+[Note whether EDD was considered necessary and the reasoning. If not addressed, state: "Not recorded in this session"]
 
 **Solicitor Confirmation:**
-[Note whether the solicitor confirmed they are satisfied to proceed with the matter on the basis of the information provided. If not addressed, state: "Not discussed — review recommended"]
+[Note whether the solicitor confirmed they are satisfied to proceed with the matter on the basis of the information provided. If not addressed, state: "Not recorded in this session"]
 
-CRITICAL: For each field, extract ONLY what was actually said in the transcript. Where an area was not covered in the meeting, you MUST state "Not discussed — review recommended" — do NOT fabricate or assume compliance information.`;
+CRITICAL: For each field, extract ONLY what was actually said in the transcript. Where an area was not covered in the meeting, you MUST state "Not recorded in this session" — do NOT fabricate or assume compliance information.`;
     }
 
     const userPrompt = `Generate a professional attendance note for the following meeting transcript:
@@ -324,6 +335,11 @@ CRITICAL: For each field, extract ONLY what was actually said in the transcript.
 
 **Transcript:**
 ${transcript}`;
+
+    if (DocumentService.isShortRecording(transcript, utterances)) {
+      console.log('Short recording detected — generating brief file note instead of full attendance note');
+      return await this.generateBriefFileNote(transcript, metadata);
+    }
 
     return await this.generateDocument(systemPrompt, userPrompt);
   }
@@ -337,12 +353,19 @@ ${transcript}`;
   ): Promise<DocumentGenerationResult> {
     const systemPrompt = `You are a UK-qualified solicitor specializing in creating concise, actionable case summaries for legal professionals working under English and Welsh law.
 
-CRITICAL INSTRUCTIONS:
+ABSOLUTE ANTI-FABRICATION RULES — READ BEFORE GENERATING ANY CONTENT:
+You MUST treat these rules as inviolable. Breach of any of them renders the document professionally negligent.
+
+1. EVERY SINGLE STATEMENT in this summary must have a direct, traceable basis in the transcript provided. If you cannot point to a specific passage in the transcript that supports a statement, you MUST NOT include that statement.
+2. You MUST NOT draw on your training knowledge to supplement, elaborate, or contextualise sparse transcripts. If the transcript says little, the summary must be correspondingly brief.
+3. You MUST NOT infer, assume, or fabricate any legal advice, recommendations, case strategy, next steps, or factual details that are not explicitly stated in the transcript.
+4. For any section or field that cannot be completed from the transcript, you MUST use the exact phrase: "Not recorded in this session" — do not paraphrase, do not guess, do not fill in plausible details.
+5. Do NOT add substantive legal advice, case law references, statutory provisions, or procedural guidance unless the solicitor in the transcript explicitly stated them.
+6. Prioritize accuracy over completeness — it is far better to omit information than to guess or fabricate.
+
+ADDITIONAL INSTRUCTIONS:
 - You are an expert in English and Welsh law ONLY. Do not reference or apply law from other jurisdictions.
-- Extract information ONLY from the provided transcript - do not invent, assume, or fabricate details
-- If any section cannot be completed from the transcript, state "Not discussed in meeting" rather than speculating
 - Use UK legal terminology and practice conventions
-- Prioritize accuracy over completeness - it is better to omit information than to guess
 
 SPEAKER-LABELED TRANSCRIPTS:
 - The transcript may include speaker labels in the format "[Speaker A]: text" or "[Speaker B]: text"
@@ -396,35 +419,182 @@ ${transcript}`;
     return await this.generateDocument(systemPrompt, userPrompt);
   }
 
-  /**
-   * Core document generation with GPT-4o
-   */
+  private static get SHORT_RECORDING_SECONDS_THRESHOLD(): number {
+    const envVal = process.env.SHORT_RECORDING_SECONDS_THRESHOLD;
+    if (envVal) {
+      const parsed = parseInt(envVal, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    return 60;
+  }
+
+  static isShortRecording(transcript: string, utterances?: Array<{ text: string; start: number; end: number }>): boolean {
+    const consentPhrases = [
+      /consent to (?:being )?record/i,
+      /recording (?:this|our) (?:meeting|conversation|call)/i,
+      /do you (?:agree|consent)/i,
+      /are you (?:happy|okay|ok) (?:for|with|to)/i,
+      /permission to record/i,
+      /this (?:meeting|call|conversation) (?:is|will be) (?:being )?recorded/i,
+      /gdpr|data protection|privacy notice/i,
+    ];
+
+    if (utterances && utterances.length > 0) {
+      const substantiveUtterances = utterances.filter(u =>
+        !consentPhrases.some(pattern => pattern.test(u.text))
+      );
+
+      const substantiveDurationMs = substantiveUtterances.reduce(
+        (total, u) => total + (u.end - u.start),
+        0
+      );
+      const substantiveDurationSeconds = substantiveDurationMs / 1000;
+      return substantiveDurationSeconds < DocumentService.SHORT_RECORDING_SECONDS_THRESHOLD;
+    }
+
+    const lines = transcript.split('\n');
+    const substantiveLines = lines.filter(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      return !consentPhrases.some(pattern => pattern.test(trimmed));
+    });
+
+    const substantiveText = substantiveLines.join(' ');
+    const wordCount = substantiveText.split(/\s+/).filter(w => w.length > 0).length;
+    const estimatedSeconds = (wordCount / 150) * 60;
+    return estimatedSeconds < DocumentService.SHORT_RECORDING_SECONDS_THRESHOLD;
+  }
+
+  private async generateBriefFileNote(
+    transcript: string,
+    metadata: CaseMetadata
+  ): Promise<DocumentGenerationResult> {
+    const systemPrompt = `You are a UK-qualified solicitor creating a brief file note for a short recording.
+
+ABSOLUTE ANTI-FABRICATION RULES:
+1. EVERY statement must have a direct basis in the transcript. If you cannot trace it to the transcript, do not include it.
+2. Do NOT draw on training knowledge to supplement the transcript.
+3. For anything not in the transcript, use: "Not recorded in this session"
+4. Do NOT add legal advice, case law, or procedural guidance not explicitly stated in the transcript.
+
+This recording was brief and contained limited substantive content. Generate a short file note (not a full attendance note) that captures only what was actually discussed.
+
+Format:
+**FILE NOTE**
+
+File Reference: ${metadata.matterReference || 'TBD'}
+Date: ${metadata.recordingDate}
+Client: ${metadata.clientName}
+Matter: ${metadata.title}
+
+**Note:** This is a brief file note generated from a short recording with limited substantive legal content.
+
+**Content:**
+[Brief summary of what was actually said — only from the transcript]
+
+This file note is subject to legal professional privilege.`;
+
+    const userPrompt = `Generate a brief file note from this short recording transcript:\n\n${transcript}`;
+
+    const result = await this.generateDocument(systemPrompt, userPrompt);
+    return { ...result, isShortRecording: true };
+  }
+
+  async verifyDocumentAgainstTranscript(
+    document: string,
+    transcript: string
+  ): Promise<{ warnings: string[]; inputTokens: number; outputTokens: number; cost: number }> {
+    if (!anthropicClient) {
+      console.warn('Anthropic client not available — marking verification as not performed');
+      return { warnings: ['Automated verification could not be performed — solicitor review is required before this document is added to the client file'], inputTokens: 0, outputTokens: 0, cost: 0 };
+    }
+
+    try {
+      console.log('Running post-generation verification against transcript...');
+
+      const response = await anthropicClient.messages.create({
+        model: CLAUDE_MODELS.DOCUMENT_GENERATION,
+        max_tokens: 2000,
+        temperature: 0,
+        system: `You are a legal document auditor. Your task is to compare a generated legal document against the source transcript and identify any statements in the document that CANNOT be traced to specific content in the transcript.
+
+For each unverifiable statement, provide a brief description of the claim and why it cannot be found in the transcript.
+
+RULES:
+- Standard formatting elements (headings, boilerplate disclaimers like "subject to legal professional privilege") are NOT considered fabrications.
+- "Not recorded in this session" placeholder entries are NOT fabrications.
+- Focus on substantive claims: legal advice, factual assertions, action items, dates, amounts, and recommendations.
+- A statement is unverifiable if the transcript does not contain content that directly supports it.
+
+Return your response as a JSON object with this structure:
+{"unverifiable_statements": ["description of statement 1 not found in transcript", "description of statement 2 not found in transcript"]}
+
+If all substantive statements are traceable to the transcript, return: {"unverifiable_statements": []}`,
+        messages: [
+          {
+            role: 'user',
+            content: `TRANSCRIPT:\n${transcript}\n\n---\n\nGENERATED DOCUMENT:\n${document}\n\nIdentify any substantive statements in the document that cannot be traced to the transcript. Return JSON only.`,
+          },
+        ],
+      });
+
+      const content = response.content[0]?.type === 'text' ? response.content[0].text : '';
+      const inputTokens = response.usage?.input_tokens || 0;
+      const outputTokens = response.usage?.output_tokens || 0;
+      const cost = calculateClaudeCost(inputTokens, outputTokens);
+
+      let warnings: string[] = [];
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          warnings = parsed.unverifiable_statements || [];
+        } else {
+          warnings = ['Verification response could not be parsed — solicitor review is required before this document is added to the client file'];
+        }
+      } catch (parseError) {
+        console.warn('Failed to parse verification response:', parseError);
+        warnings = ['Verification response could not be parsed — solicitor review is required before this document is added to the client file'];
+      }
+
+      console.log(`Verification complete. Found ${warnings.length} unverifiable statement(s). Cost: $${cost.toFixed(4)}`);
+
+      return { warnings, inputTokens, outputTokens, cost };
+    } catch (error: any) {
+      console.error('Verification pass failed:', error);
+      return { warnings: ['Automated verification failed — solicitor review is required before this document is added to the client file'], inputTokens: 0, outputTokens: 0, cost: 0 };
+    }
+  }
+
   private async generateDocument(
     systemPrompt: string,
     userPrompt: string
   ): Promise<DocumentGenerationResult> {
+    if (!anthropicClient) {
+      throw new Error('Document generation requires ANTHROPIC_API_KEY. Claude 3.7 Sonnet is the only approved model for document generation to prevent hallucination.');
+    }
+
     try {
-      console.log('Generating document with GPT-4o...');
-      
-      const response = await openaiClient.chat.completions.create({
-        model: MODELS.DOCUMENT_GENERATION,
+      console.log('Generating document with Claude 3.7 Sonnet...');
+
+      const response = await anthropicClient.messages.create({
+        model: CLAUDE_MODELS.DOCUMENT_GENERATION,
+        max_tokens: 4000,
+        temperature: 0,
+        system: systemPrompt,
         messages: [
-          { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0.3, // Lower temperature for consistent, professional output
-        max_tokens: 4000, // Allow for detailed documents
       });
 
-      const rawContent = response.choices[0]?.message?.content || '';
-      const inputTokens = response.usage?.prompt_tokens || 0;
-      const outputTokens = response.usage?.completion_tokens || 0;
-      const cost = calculateGPT4oCost(inputTokens, outputTokens);
+      const rawContent = response.content[0]?.type === 'text' ? response.content[0].text : '';
+      const inputTokens = response.usage?.input_tokens || 0;
+      const outputTokens = response.usage?.output_tokens || 0;
+      const cost = calculateClaudeCost(inputTokens, outputTokens);
 
-      // Post-process to ensure uppercase section headings are bold
       const content = ensureBoldHeadings(rawContent);
 
-      console.log(`Document generated. Input tokens: ${inputTokens}, Output tokens: ${outputTokens}, Cost: $${cost.toFixed(4)}`);
+      console.log(`Document generated with Claude. Input tokens: ${inputTokens}, Output tokens: ${outputTokens}, Cost: $${cost.toFixed(4)}`);
 
       return {
         content,
@@ -433,7 +603,7 @@ ${transcript}`;
         cost,
       };
     } catch (error: any) {
-      console.error('Document generation failed:', error);
+      console.error('Claude document generation failed:', error);
       throw new Error(`Document generation failed: ${error.message}`);
     }
   }
@@ -553,7 +723,7 @@ CRITICAL RULES:
 - Use professional UK legal terminology
 - Format for easy reading with clear headings and bullet points
 - Keep the entire briefing to approximately one printed page
-- If information is not available in the records, note "Not discussed" rather than guessing`;
+- If information is not available in the records, use the exact phrase "Not recorded in this session" rather than guessing`;
 
     const meetingsSummary = meetings.map((m, idx) => `
 --- MEETING ${idx + 1} (${m.date}) ---

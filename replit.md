@@ -52,7 +52,7 @@ LegalNote AI is a professional legal documentation platform designed for solicit
 - **Date Handling**: date-fns (frontend), Luxon (backend).
 - **Icons**: Lucide React.
 - **Audio Recording & Storage**: MediaRecorder API, Replit Object Storage with presigned URL uploads (Uppy + AWS S3).
-- **AI Services**: AssemblyAI (primary transcription with speaker diarization), OpenAI GPT-4o (document generation, transcript correction).
+- **AI Services**: AssemblyAI (primary transcription with speaker diarization), Anthropic Claude 3.7 Sonnet (document generation — attendance notes and summaries, with post-generation verification pass), OpenAI GPT-4o (AML trigger detection, action item extraction, transcript correction).
 - **Transcription Accuracy Pipeline**: AssemblyAI Word Boost (auto-injects client names, matter refs, UK legal terms) followed by GPT-4o post-processing for context-aware correction.
 - **Email Service**: Resend API.
 - **SMS Service**: Twilio API for platform-level SMS two-factor authentication.

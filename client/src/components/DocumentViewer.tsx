@@ -1289,10 +1289,34 @@ export default function DocumentViewer({
             <Card className={showComments ? 'flex-1 min-w-0' : 'w-full'}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <CardTitle>Attendance Note</CardTitle>
+                  <CardTitle>{attendanceNote?.isShortRecording ? 'Brief File Note' : 'Attendance Note'}</CardTitle>
                   <DocumentStatusActions document={attendanceNote} />
                 </div>
               </CardHeader>
+              {attendanceNote?.verificationWarnings && attendanceNote.verificationWarnings.length > 0 && (
+                <div className="mx-6 mb-2 p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-md" data-testid="panel-verification-warning-attendance">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Solicitor Review Required</p>
+                      <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">The verification pass flagged statements that could not be traced to the transcript:</p>
+                      <ul className="text-xs text-yellow-700 dark:text-yellow-400 mt-1 list-disc pl-4 space-y-0.5">
+                        {attendanceNote.verificationWarnings.map((w: string, i: number) => (
+                          <li key={i} data-testid={`text-verification-warning-attendance-${i}`}>{w}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {attendanceNote?.isShortRecording && (
+                <div className="mx-6 mb-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md" data-testid="panel-short-recording-attendance">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-blue-700 dark:text-blue-400">This recording was brief with limited substantive content. A short file note has been generated instead of a full attendance note.</p>
+                  </div>
+                </div>
+              )}
               <CardContent className="prose prose-sm max-w-none">
                 {attendanceNote ? (
                   <EditableDocumentContent 
@@ -1383,6 +1407,22 @@ export default function DocumentViewer({
                   <DocumentStatusActions document={summary} />
                 </div>
               </CardHeader>
+              {summary?.verificationWarnings && summary.verificationWarnings.length > 0 && (
+                <div className="mx-6 mb-2 p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-md" data-testid="panel-verification-warning-summary">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Solicitor Review Required</p>
+                      <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">The verification pass flagged statements that could not be traced to the transcript:</p>
+                      <ul className="text-xs text-yellow-700 dark:text-yellow-400 mt-1 list-disc pl-4 space-y-0.5">
+                        {summary.verificationWarnings.map((w: string, i: number) => (
+                          <li key={i} data-testid={`text-verification-warning-summary-${i}`}>{w}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
               <CardContent className="prose prose-sm max-w-none">
                 {summary ? (
                   <EditableDocumentContent 

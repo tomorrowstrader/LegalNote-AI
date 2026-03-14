@@ -249,6 +249,17 @@ export class AIProcessingPipeline {
         metadata
       );
 
+      await this.updateProcessingStatus(caseId, userId, {
+        status: 'generating_documents',
+        progress: 50,
+        currentStep: 'Verifying summary against transcript...',
+      });
+
+      const summaryVerification = await this.documentService.verifyDocumentAgainstTranscript(
+        summaryResult.content,
+        transcriptForDocGen
+      );
+
       const summaryDoc = await this.storage.createDocument({
         caseId,
         transcriptSnapshotId: transcript.id,
@@ -258,6 +269,8 @@ export class AIProcessingPipeline {
         versionType: 'ai_generated',
         createdBy: userId,
         isActive: true,
+        verificationWarnings: summaryVerification.warnings.length > 0 ? summaryVerification.warnings : undefined,
+        isShortRecording: summaryResult.isShortRecording || false,
       });
 
       auditLogger.log({
@@ -294,7 +307,19 @@ export class AIProcessingPipeline {
       const attendanceResult = await this.documentService.generateAttendanceNote(
         transcriptForDocGen,
         metadata,
-        firmPreferences
+        firmPreferences,
+        transcriptUtterances.length > 0 ? transcriptUtterances : undefined
+      );
+
+      await this.updateProcessingStatus(caseId, userId, {
+        status: 'generating_documents',
+        progress: 75,
+        currentStep: 'Verifying attendance note against transcript...',
+      });
+
+      const attendanceVerification = await this.documentService.verifyDocumentAgainstTranscript(
+        attendanceResult.content,
+        transcriptForDocGen
       );
 
       const attendanceDoc = await this.storage.createDocument({
@@ -306,6 +331,8 @@ export class AIProcessingPipeline {
         versionType: 'ai_generated',
         createdBy: userId,
         isActive: true,
+        verificationWarnings: attendanceVerification.warnings.length > 0 ? attendanceVerification.warnings : undefined,
+        isShortRecording: attendanceResult.isShortRecording || false,
       });
 
       auditLogger.log({
@@ -323,14 +350,16 @@ export class AIProcessingPipeline {
         severity: 'medium',
       });
 
-      // Calculate total cost and tokens
+      const verificationCost = summaryVerification.cost + attendanceVerification.cost;
+
       const totalCost = transcriptionCost + 
                        summaryResult.cost + 
-                       attendanceResult.cost;
+                       attendanceResult.cost +
+                       verificationCost;
 
       const totalTokens = {
-        input: summaryResult.inputTokens + attendanceResult.inputTokens,
-        output: summaryResult.outputTokens + attendanceResult.outputTokens,
+        input: summaryResult.inputTokens + attendanceResult.inputTokens + summaryVerification.inputTokens + attendanceVerification.inputTokens,
+        output: summaryResult.outputTokens + attendanceResult.outputTokens + summaryVerification.outputTokens + attendanceVerification.outputTokens,
       };
 
       // Update final status
@@ -339,7 +368,7 @@ export class AIProcessingPipeline {
         progress: 100,
         currentStep: 'Processing complete',
         transcriptionCost: transcriptionCost,
-        documentGenerationCost: summaryResult.cost + attendanceResult.cost,
+        documentGenerationCost: summaryResult.cost + attendanceResult.cost + verificationCost,
         totalCost,
         totalTokens,
         completedAt: new Date().toISOString(),

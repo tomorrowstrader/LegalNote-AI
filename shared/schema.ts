@@ -162,6 +162,8 @@ export const documents = pgTable("documents", {
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
   approvalComment: text("approval_comment"),
+  verificationWarnings: text("verification_warnings").array(),
+  isShortRecording: boolean("is_short_recording").default(false),
 });
 
 export const clientVersionTracking = pgTable("client_version_tracking", {
@@ -621,6 +623,8 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   createdBy: z.string().uuid(),
   isActive: z.boolean().default(true),
   parentVersionId: z.string().uuid().optional(),
+  verificationWarnings: z.array(z.string()).optional(),
+  isShortRecording: z.boolean().optional().default(false),
 });
 
 export const insertClientVersionTrackingSchema = createInsertSchema(clientVersionTracking).omit({
