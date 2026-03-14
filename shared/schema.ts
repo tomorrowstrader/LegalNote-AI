@@ -1405,7 +1405,7 @@ export type ExternalDocumentRef = typeof externalDocumentRefs.$inferSelect;
 
 export const timeEntries = pgTable("time_entries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  meetingSessionId: varchar("meeting_session_id").references(() => cases.id),
+  meetingSessionId: varchar("meeting_session_id").references(() => meetingSessions.id),
   caseId: varchar("case_id").notNull().references(() => cases.id),
   userId: varchar("user_id").notNull().references(() => users.id),
   durationMinutes: integer("duration_minutes").notNull(),
