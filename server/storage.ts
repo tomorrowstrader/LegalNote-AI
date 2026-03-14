@@ -1,5 +1,6 @@
 import { 
   type User, type InsertUser, type UpsertUser, 
+  type Client, type InsertClient,
   type Case, type InsertCase, 
   type AudioRecording, type InsertAudioRecording, 
   type ConsentLog, type InsertConsentLog,
@@ -32,6 +33,7 @@ import {
   type AmlDecisionRecord, type InsertAmlDecisionRecord,
   type ExternalDocumentRef, type InsertExternalDocumentRef,
   users,
+  clients,
   cases,
   audioRecordings,
   consentLogs,
@@ -285,6 +287,14 @@ export interface IStorage {
     trialEndsAt?: Date | null;
   }): Promise<User | undefined>;
   
+  createClient(clientData: InsertClient, userId: string): Promise<Client>;
+  getClient(id: string, userId: string): Promise<Client | undefined>;
+  updateClient(id: string, updates: Partial<Client>, userId: string): Promise<Client | undefined>;
+  searchClients(query: string, userId: string): Promise<Client[]>;
+  getClientsByUser(userId: string): Promise<Client[]>;
+  getCasesByClientId(clientId: string, userId: string): Promise<Case[]>;
+  migrateExistingClientsFromCases(userId: string): Promise<number>;
+
   createCase(caseData: InsertCase, userId: string): Promise<Case>;
   getCases(userId: string, includeArchived?: boolean): Promise<Case[]>;
   getCase(id: string, userId: string): Promise<Case | undefined>;
@@ -523,10 +533,12 @@ export class MemStorage implements IStorage {
   private auditLogs: Map<string, AuditTrail>;
   private calendarIntegrations: Map<string, CalendarIntegration>;
   private clientVersionTrackingRecords: Map<string, ClientVersionTracking>;
+  private clientsMap: Map<string, Client>;
   private searchHistoryRecords: Map<string, SearchHistory>;
 
   constructor() {
     this.users = new Map();
+    this.clientsMap = new Map();
     this.cases = new Map();
     this.audioRecordings = new Map();
     this.consentLogs = new Map();
@@ -587,12 +599,86 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
+  async createClient(clientData: InsertClient, userId: string): Promise<Client> {
+    const id = randomUUID();
+    const client: Client = {
+      id,
+      name: clientData.name,
+      email: clientData.email ?? null,
+      phone: clientData.phone ?? null,
+      address: clientData.address ?? null,
+      dateOfBirth: clientData.dateOfBirth ?? null,
+      companyName: clientData.companyName ?? null,
+      amlRiskLevel: clientData.amlRiskLevel ?? null,
+      amlRiskLastReviewed: clientData.amlRiskLastReviewed ?? null,
+      clioClientId: clientData.clioClientId ?? null,
+      createdBy: userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.clientsMap.set(id, client);
+    return client;
+  }
+
+  async getClient(id: string, userId: string): Promise<Client | undefined> {
+    const client = this.clientsMap.get(id);
+    if (!client || client.createdBy !== userId) return undefined;
+    return client;
+  }
+
+  async updateClient(id: string, updates: Partial<Client>, userId: string): Promise<Client | undefined> {
+    const existing = this.clientsMap.get(id);
+    if (!existing || existing.createdBy !== userId) return undefined;
+    const updated = { ...existing, ...updates, updatedAt: new Date() };
+    this.clientsMap.set(id, updated);
+    return updated;
+  }
+
+  async searchClients(query: string, userId: string): Promise<Client[]> {
+    const lower = query.toLowerCase();
+    return Array.from(this.clientsMap.values())
+      .filter(c => c.createdBy === userId &&
+        (c.name.toLowerCase().includes(lower) ||
+         (c.email && c.email.toLowerCase().includes(lower))));
+  }
+
+  async getClientsByUser(userId: string): Promise<Client[]> {
+    return Array.from(this.clientsMap.values())
+      .filter(c => c.createdBy === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getCasesByClientId(clientId: string, userId: string): Promise<Case[]> {
+    return Array.from(this.cases.values())
+      .filter(c => c.clientId === clientId && c.createdBy === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async migrateExistingClientsFromCases(userId: string): Promise<number> {
+    const userCases = Array.from(this.cases.values()).filter(c => c.createdBy === userId && !c.clientId);
+    const clientsByName = new Map<string, Client>();
+    let count = 0;
+    for (const c of userCases) {
+      const normalName = c.clientName.trim().toLowerCase();
+      if (!clientsByName.has(normalName)) {
+        const client = await this.createClient({ name: c.clientName.trim() }, userId);
+        clientsByName.set(normalName, client);
+        count++;
+      }
+      const client = clientsByName.get(normalName)!;
+      c.clientId = client.id;
+      this.cases.set(c.id, c);
+    }
+    return count;
+  }
+
   async createCase(insertCase: InsertCase, userId: string): Promise<Case> {
     const id = randomUUID();
     const newCase: Case = {
       ...insertCase,
       id,
-      createdBy: userId, // Security: Enforce user isolation at storage layer
+      createdBy: userId,
+      clientId: insertCase.clientId || null,
       assignedToUserId: insertCase.assignedToUserId || null,
       createdAt: new Date(),
       status: insertCase.status || "pending",
@@ -1907,6 +1993,7 @@ export class DbStorage implements IStorage {
             { table: 'scheduled_meetings', column: 'user_id' },
             { table: 'pre_consent_emails', column: 'user_id' },
             { table: 'share_point_connections', column: 'user_id' },
+            { table: 'clients', column: 'created_by' },
             { table: 'clio_connections', column: 'user_id' },
             { table: 'clio_matter_links', column: 'user_id' },
             { table: 'recording_sessions', column: 'user_id' },
@@ -1970,12 +2057,101 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async createClient(clientData: InsertClient, userId: string): Promise<Client> {
+    const result = await db
+      .insert(clients)
+      .values({
+        name: clientData.name,
+        email: clientData.email ?? null,
+        phone: clientData.phone ?? null,
+        address: clientData.address ?? null,
+        dateOfBirth: clientData.dateOfBirth ?? null,
+        companyName: clientData.companyName ?? null,
+        amlRiskLevel: clientData.amlRiskLevel ?? null,
+        amlRiskLastReviewed: clientData.amlRiskLastReviewed ?? null,
+        clioClientId: clientData.clioClientId ?? null,
+        createdBy: userId,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getClient(id: string, userId: string): Promise<Client | undefined> {
+    const result = await db.select().from(clients).where(and(eq(clients.id, id), eq(clients.createdBy, userId)));
+    return result[0];
+  }
+
+  async updateClient(id: string, updates: Partial<Client>, userId: string): Promise<Client | undefined> {
+    const result = await db
+      .update(clients)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(clients.id, id), eq(clients.createdBy, userId)))
+      .returning();
+    return result[0];
+  }
+
+  async searchClients(query: string, userId: string): Promise<Client[]> {
+    const lower = `%${query.toLowerCase()}%`;
+    return await db.select().from(clients)
+      .where(and(
+        eq(clients.createdBy, userId),
+        sql`(LOWER(${clients.name}) LIKE ${lower} OR LOWER(${clients.email}) LIKE ${lower})`
+      ))
+      .orderBy(clients.name)
+      .limit(20);
+  }
+
+  async getClientsByUser(userId: string): Promise<Client[]> {
+    return await db.select().from(clients)
+      .where(eq(clients.createdBy, userId))
+      .orderBy(desc(clients.createdAt));
+  }
+
+  async getCasesByClientId(clientId: string, userId: string): Promise<Case[]> {
+    return await db.select().from(cases)
+      .where(and(eq(cases.clientId, clientId), eq(cases.createdBy, userId)))
+      .orderBy(desc(cases.createdAt));
+  }
+
+  async migrateExistingClientsFromCases(userId: string): Promise<number> {
+    const unlinkedCases = await db.select().from(cases)
+      .where(and(eq(cases.createdBy, userId), isNull(cases.clientId)));
+    
+    const clientsByName = new Map<string, string>();
+    let count = 0;
+
+    for (const c of unlinkedCases) {
+      const normalName = c.clientName.trim().toLowerCase();
+      if (!clientsByName.has(normalName)) {
+        const existing = await db.select().from(clients)
+          .where(and(eq(clients.createdBy, userId), sql`LOWER(${clients.name}) = ${normalName}`))
+          .limit(1);
+        
+        if (existing.length > 0) {
+          clientsByName.set(normalName, existing[0].id);
+        } else {
+          const [newClient] = await db.insert(clients)
+            .values({ name: c.clientName.trim(), createdBy: userId })
+            .returning();
+          clientsByName.set(normalName, newClient.id);
+          count++;
+        }
+      }
+      
+      await db.update(cases)
+        .set({ clientId: clientsByName.get(normalName)! })
+        .where(eq(cases.id, c.id));
+    }
+    return count;
+  }
+
   async createCase(insertCase: InsertCase, userId: string): Promise<Case> {
     const result = await db
       .insert(cases)
       .values({
         title: insertCase.title,
         clientName: insertCase.clientName,
+        clientId: insertCase.clientId ?? null,
         matterReference: insertCase.matterReference ?? null,
         createdBy: userId,
         assignedToUserId: insertCase.assignedToUserId ?? null,

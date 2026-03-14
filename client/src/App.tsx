@@ -33,6 +33,8 @@ import TermsPage from "@/pages/TermsPage";
 import Features from "@/pages/Features";
 import Calculator from "@/pages/Calculator";
 import MyActions from "@/pages/MyActions";
+import Clients from "@/pages/Clients";
+import ClientProfile from "@/pages/ClientProfile";
 import Login from "@/pages/Login";
 import ScrollToTop from "@/components/ScrollToTop";
 
@@ -73,6 +75,8 @@ function Router() {
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/app/security" component={SecurityFeatures} />
           <Route path="/my-actions" component={MyActions} />
+          <Route path="/clients" component={Clients} />
+          <Route path="/clients/:id" component={ClientProfile} />
           <Route path="/waitlist" component={WaitlistPage} />
         </>
       )}

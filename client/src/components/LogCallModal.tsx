@@ -17,10 +17,11 @@ interface LogCallModalProps {
   caseId: string;
   caseTitle: string;
   clientName: string;
+  clientId?: string | null;
   matterReference?: string;
 }
 
-export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, clientName, matterReference }: LogCallModalProps) {
+export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, clientName, clientId, matterReference }: LogCallModalProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
@@ -119,6 +120,7 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
       const dictationCase = await apiRequest<{ id: string }>("POST", "/api/cases", {
         title: `Telephone Attendance — ${clientName} — ${dateStr}`,
         clientName,
+        clientId: clientId || undefined,
         matterReference: matterReference || "",
         sourceType: "dictation",
         parentCaseId: caseId,

@@ -321,7 +321,17 @@ export default function CaseDetail() {
               <h1 className={`font-semibold text-foreground mb-2 ${isFocusMode ? 'text-4xl' : 'text-3xl'}`}>
                 {caseData.title}
               </h1>
-              <p className={`text-muted-foreground ${isFocusMode ? 'text-xl' : 'text-lg'}`}>{caseData.clientName}</p>
+              {caseData.clientId ? (
+                <button
+                  className={`text-muted-foreground hover:text-foreground underline-offset-2 hover:underline transition-colors ${isFocusMode ? 'text-xl' : 'text-lg'}`}
+                  onClick={() => setLocation(`/clients/${caseData.clientId}`)}
+                  data-testid="link-client-profile"
+                >
+                  {caseData.clientName}
+                </button>
+              ) : (
+                <p className={`text-muted-foreground ${isFocusMode ? 'text-xl' : 'text-lg'}`}>{caseData.clientName}</p>
+              )}
               {caseData.parentCaseId && (
                 <button
                   className="text-sm text-accent underline underline-offset-2 mt-1 text-left"
@@ -930,6 +940,7 @@ export default function CaseDetail() {
         caseId={caseId!}
         caseTitle={caseData.title}
         clientName={caseData.clientName}
+        clientId={caseData.clientId}
         matterReference={caseData.matterReference || undefined}
       />
 

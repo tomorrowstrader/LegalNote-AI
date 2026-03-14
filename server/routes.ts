@@ -1475,11 +1475,140 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
   // ==================== END STRIPE BILLING ROUTES ====================
 
+  // Client routes
+  app.get("/api/clients", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const clientsList = await storage.getClientsByUser(userId);
+      res.json(clientsList);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/clients/search", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const query = req.query.q as string;
+      if (!query || query.trim().length < 1) {
+        return res.json([]);
+      }
+      const results = await storage.searchClients(query.trim(), userId);
+      res.json(results);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/clients/:id", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const client = await storage.getClient(req.params.id, userId);
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+      res.json(client);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/clients/:id/cases", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const client = await storage.getClient(req.params.id, userId);
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+      const clientCases = await storage.getCasesByClientId(req.params.id, userId);
+      res.json(clientCases);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/clients", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { insertClientSchema } = await import("@shared/schema");
+      const validatedData = insertClientSchema.parse(req.body);
+      const client = await storage.createClient(validatedData, userId);
+      res.status(201).json(client);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/clients/:id", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const allowedFields = ["name", "email", "phone", "address", "companyName", "amlRiskLevel", "amlRiskLastReviewed", "clioClientId", "dateOfBirth"];
+      const sanitized: Record<string, any> = {};
+      for (const key of allowedFields) {
+        if (key in req.body) {
+          sanitized[key] = req.body[key];
+        }
+      }
+      if (sanitized.amlRiskLevel && !["low", "medium", "high"].includes(sanitized.amlRiskLevel)) {
+        return res.status(400).json({ message: "amlRiskLevel must be 'low', 'medium', or 'high'" });
+      }
+      if (sanitized.email && typeof sanitized.email !== "string") {
+        return res.status(400).json({ message: "email must be a string" });
+      }
+      if (sanitized.name !== undefined && (!sanitized.name || typeof sanitized.name !== "string" || !sanitized.name.trim())) {
+        return res.status(400).json({ message: "name is required and must be a non-empty string" });
+      }
+      const client = await storage.updateClient(req.params.id, sanitized, userId);
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+      res.json(client);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/clients/migrate", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const count = await storage.migrateExistingClientsFromCases(userId);
+      res.json({ migrated: count });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Protected Case routes
   app.post("/api/cases", isAuthenticated, caseCreationLimiter, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const validatedData = insertCaseSchema.parse(req.body);
+      
+      // Enforce client linkage on new top-level cases (child/dictation cases inherit from parent)
+      if (!validatedData.clientId && !validatedData.parentCaseId) {
+        return res.status(400).json({ message: "A client must be selected or created before creating a case" });
+      }
+
+      // If clientId provided, verify ownership and derive clientName
+      if (validatedData.clientId) {
+        const client = await storage.getClient(validatedData.clientId, userId);
+        if (!client) {
+          return res.status(400).json({ message: "Invalid client: not found or not owned by you" });
+        }
+        validatedData.clientName = client.name;
+      }
+
+      // Inherit clientId from parent case if not explicitly provided
+      if (!validatedData.clientId && validatedData.parentCaseId) {
+        const parentCase = await storage.getCase(validatedData.parentCaseId, userId);
+        if (parentCase?.clientId) {
+          validatedData.clientId = parentCase.clientId;
+          const parentClient = await storage.getClient(parentCase.clientId, userId);
+          if (parentClient) {
+            validatedData.clientName = parentClient.name;
+          }
+        }
+      }
       
       // Security: Storage layer enforces user isolation
       const newCase = await storage.createCase(validatedData, userId);

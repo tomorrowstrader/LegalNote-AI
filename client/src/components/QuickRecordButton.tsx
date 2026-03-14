@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, Square, Loader2, CheckCircle2, FileText, Upload, Sparkles, Shield, AlertTriangle, Wifi, WifiOff, CloudUpload, Battery, BatteryLow } from "lucide-react";
+import { Mic, Square, Loader2, CheckCircle2, FileText, Upload, Sparkles, Shield, AlertTriangle, Wifi, WifiOff, CloudUpload, Battery, BatteryLow, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,8 +32,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import ConsentModal from "@/components/ConsentModal";
 import TextNotesModal from "@/components/TextNotesModal";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { Client } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
@@ -107,6 +108,10 @@ export default function QuickRecordButton() {
   const [caseTitle, setCaseTitle] = useState("");
   const [clientName, setClientName] = useState("");
   const [matterRef, setMatterRef] = useState("");
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const clientSearchRef = useRef<HTMLDivElement>(null);
   const [showInterruptedWarning, setShowInterruptedWarning] = useState(false);
   const [interruptedDuration, setInterruptedDuration] = useState(0);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
@@ -142,6 +147,51 @@ export default function QuickRecordButton() {
   const setIsRecording = useChunkedUpload 
     ? () => {} 
     : setIsRecordingLocal;
+
+  const { data: qrClientSearchResults = [] } = useQuery<Client[]>({
+    queryKey: [`/api/clients/search?q=${encodeURIComponent(clientSearchQuery)}`],
+    enabled: clientSearchQuery.trim().length >= 2 && !selectedClient,
+  });
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (clientSearchRef.current && !clientSearchRef.current.contains(e.target as Node)) {
+        setShowClientDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleQRClientSelect = (client: Client) => {
+    setSelectedClient(client);
+    setClientName(client.name);
+    setShowClientDropdown(false);
+    setClientSearchQuery("");
+  };
+
+  const handleQRClearClient = () => {
+    setSelectedClient(null);
+    setClientName("");
+    setClientSearchQuery("");
+  };
+
+  const handleQRClientInputChange = (value: string) => {
+    setClientSearchQuery(value);
+    setClientName(value);
+    setSelectedClient(null);
+    setShowClientDropdown(value.trim().length >= 2);
+  };
+
+  const createQRClientMutation = useMutation({
+    mutationFn: async (name: string) => {
+      return await apiRequest<Client>("POST", "/api/clients", { name });
+    },
+    onSuccess: (client) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      handleQRClientSelect(client);
+    },
+  });
 
   useEffect(() => {
     if ('getBattery' in navigator) {
@@ -520,11 +570,13 @@ export default function QuickRecordButton() {
       // Step 1: Create case
       caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
         title: caseTitle,
-        clientName: clientName,
+        clientName: selectedClient!.name,
+        clientId: selectedClient!.id,
         matterReference: matterRef || undefined,
         sourceType: "audio",
         status: "pending",
         priority: "normal",
+        riskLevel: selectedClient!.amlRiskLevel || undefined,
       });
       
       // Step 2: Create audio record placeholder
@@ -703,6 +755,8 @@ export default function QuickRecordButton() {
         setCaseTitle("");
         setClientName("");
         setMatterRef("");
+        setSelectedClient(null);
+        setClientSearchQuery("");
         audioBlobRef.current = null;
         setConsentGiven(null);
       }
@@ -775,9 +829,11 @@ export default function QuickRecordButton() {
     setCaseTitle("");
     setClientName("");
     setMatterRef("");
+    setSelectedClient(null);
+    setClientSearchQuery("");
   };
 
-  const saveTextNotes = (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
+  const saveTextNotes = async (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
     if (!user?.id) {
       toast({
         title: "Authentication required",
@@ -787,14 +843,40 @@ export default function QuickRecordButton() {
       return;
     }
     
+    let clientForCase = selectedClient;
+    if (!clientForCase && data.clientName.trim()) {
+      try {
+        clientForCase = await apiRequest<Client>("POST", "/api/clients", { name: data.clientName.trim() });
+        queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      } catch (err: any) {
+        toast({
+          title: "Failed to create client",
+          description: err.message || "Could not create client record",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    if (!clientForCase) {
+      toast({
+        title: "Client required",
+        description: "Please enter a client name",
+        variant: "destructive",
+      });
+      return;
+    }
+
     createCaseMutation.mutate({
       title: data.caseTitle,
-      clientName: data.clientName,
+      clientName: clientForCase.name,
+      clientId: clientForCase.id,
       matterReference: data.matterRef || undefined,
       sourceType: "text",
       textNotes: data.notes,
       status: "pending",
       priority: "normal",
+      riskLevel: clientForCase.amlRiskLevel || undefined,
     });
     
     setShowTextNotesModal(false);
@@ -1091,13 +1173,69 @@ export default function QuickRecordButton() {
                   <Label htmlFor="quick-client-name">
                     Client Name <span className="text-accent">*</span>
                   </Label>
-                  <Input
-                    id="quick-client-name"
-                    placeholder="e.g., Mrs. Catherine Williams"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    data-testid="input-quick-client-name"
-                  />
+                  <div ref={clientSearchRef} className="relative">
+                    {selectedClient ? (
+                      <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
+                        <span className="text-sm font-medium flex-1 truncate" data-testid="text-quick-selected-client">
+                          {selectedClient.name}
+                        </span>
+                        {selectedClient.amlRiskLevel && (
+                          <Badge variant={selectedClient.amlRiskLevel === "high" ? "destructive" : selectedClient.amlRiskLevel === "medium" ? "secondary" : "outline"} className="text-xs shrink-0">
+                            <Shield className="w-3 h-3 mr-1" />
+                            {selectedClient.amlRiskLevel.toUpperCase()}
+                          </Badge>
+                        )}
+                        <Button variant="ghost" size="icon" onClick={handleQRClearClient} data-testid="button-quick-clear-client">
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Input
+                        id="quick-client-name"
+                        placeholder="Search existing clients or type a new name..."
+                        value={clientName}
+                        onChange={(e) => handleQRClientInputChange(e.target.value)}
+                        onFocus={() => { if (clientSearchQuery.trim().length >= 2) setShowClientDropdown(true); }}
+                        data-testid="input-quick-client-name"
+                      />
+                    )}
+                    {showClientDropdown && !selectedClient && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-md max-h-48 overflow-y-auto">
+                        {qrClientSearchResults.length > 0 ? (
+                          qrClientSearchResults.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center justify-between gap-2"
+                              onClick={() => handleQRClientSelect(c)}
+                              data-testid={`option-quick-client-${c.id}`}
+                            >
+                              <span className="truncate">{c.name}</span>
+                              {c.amlRiskLevel && (
+                                <Badge variant={c.amlRiskLevel === "high" ? "destructive" : c.amlRiskLevel === "medium" ? "secondary" : "outline"} className="text-xs shrink-0">
+                                  {c.amlRiskLevel.toUpperCase()}
+                                </Badge>
+                              )}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">No matching clients</div>
+                        )}
+                        {clientName.trim().length >= 2 && (
+                          <button
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center gap-2 border-t"
+                            onClick={() => createQRClientMutation.mutate(clientName.trim())}
+                            disabled={createQRClientMutation.isPending}
+                            data-testid="button-quick-create-client-inline"
+                          >
+                            <UserPlus className="w-4 h-4" />
+                            <span>{createQRClientMutation.isPending ? "Creating..." : `Create "${clientName.trim()}" as new client`}</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="quick-matter-ref">Matter Reference</Label>
@@ -1120,7 +1258,7 @@ export default function QuickRecordButton() {
                 </Button>
                 <Button
                   onClick={saveCase}
-                  disabled={!caseTitle || !clientName}
+                  disabled={!caseTitle || !selectedClient}
                   className="bg-accent hover:bg-accent"
                   data-testid="button-save-case"
                 >

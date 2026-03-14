@@ -18,7 +18,7 @@ LegalNote is a professional legal documentation platform designed for solicitors
 - **UI Component Library**: Shadcn UI with Radix UI primitives, black gradient theme, Inter font.
 - **Routing**: Wouter for client-side routing.
 - **State Management**: TanStack Query for server state and async operations.
-- **Key Features**: Quick Record with Consent Flow, Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Tabbed Document Viewer, Role-Based UI, Comprehensive Quick Actions (e.g., Download Document, Email to Client, Share Link with Optional SMS 2FA), Firm Branding on Exports, Interactive Onboarding, Admin Setup, Email/SMS/Calendar Integrations, Video Conferencing Import, Comprehensive Audit Trail with CSV export, Track Changes/Redline, Comments and Annotations, Visual Version Diff, Master Record Framing with Export Footers, Global Action Items View, Real-Time Notifications (SSE), Case Templates, Log a Call, Enhanced Search Filters, and Compliance Thread (AML/KYC).
+- **Key Features**: Quick Record with Consent Flow, Global Search, Document Version Control, Transcript Redaction, Client Version Tracking, Tabbed Document Viewer, Role-Based UI, Comprehensive Quick Actions (e.g., Download Document, Email to Client, Share Link with Optional SMS 2FA), Firm Branding on Exports, Interactive Onboarding, Admin Setup, Email/SMS/Calendar Integrations, Video Conferencing Import, Comprehensive Audit Trail with CSV export, Track Changes/Redline, Comments and Annotations, Visual Version Diff, Master Record Framing with Export Footers, Global Action Items View, Real-Time Notifications (SSE), Case Templates, Log a Call, Enhanced Search Filters, Compliance Thread (AML/KYC), and Client Registry (searchable client records with AML risk continuity, linked matters, inline creation from New Note).
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js (TypeScript-based).
@@ -27,7 +27,7 @@ LegalNote is a professional legal documentation platform designed for solicitors
 
 ### Data Storage Solutions
 - **Database**: PostgreSQL via Drizzle ORM, connected through Neon serverless.
-- **Schema**: Includes Users (with complianceThread flag), Cases (with templateId for case template tracking, sourceType: audio/text/dictation, riskLevel for AML), Consent Logs, Transcripts, Documents, Document Comments, Client Version Tracking, User Preferences, Firm Profile, Calendar Events, Share Links, Meeting Imports, Pre-Consent Emails, AML Monitoring Notes, AML Decision Records, and Audit Trail. Zod schema validation.
+- **Schema**: Includes Users (with complianceThread flag), Clients (name, email, phone, address, dateOfBirth, companyName, amlRiskLevel, amlRiskLastReviewed, clioClientId, createdBy — per-user isolation), Cases (with templateId for case template tracking, sourceType: audio/text/dictation, riskLevel for AML, nullable clientId FK to clients), Consent Logs, Transcripts, Documents, Document Comments, Client Version Tracking, User Preferences, Firm Profile, Calendar Events, Share Links, Meeting Imports, Pre-Consent Emails, AML Monitoring Notes, AML Decision Records, and Audit Trail. Zod schema validation.
 - **Session Management**: Designed for PostgreSQL session store.
 
 ### Authentication & Authorization

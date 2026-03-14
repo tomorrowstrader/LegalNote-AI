@@ -30,33 +30,50 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const clients = pgTable("clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  address: text("address"),
+  dateOfBirth: timestamp("date_of_birth"),
+  companyName: text("company_name"),
+  amlRiskLevel: text("aml_risk_level"), // low, medium, high
+  amlRiskLastReviewed: timestamp("aml_risk_last_reviewed"),
+  clioClientId: text("clio_client_id"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const cases = pgTable("cases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),
   clientName: text("client_name").notNull(),
+  clientId: varchar("client_id").references(() => clients.id),
   matterReference: text("matter_reference"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
-  assignedToUserId: varchar("assigned_to_user_id").references(() => users.id), // Team member assignment
+  assignedToUserId: varchar("assigned_to_user_id").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  status: text("status").notNull().default("pending"), // pending, processing, review_required, completed
-  priority: text("priority").notNull().default("normal"), // urgent, deadline-soon, normal
-  sourceType: text("source_type").notNull(), // audio, text, dictation
-  templateId: text("template_id"), // Template used for this case (e.g., matter_inception)
-  parentCaseId: varchar("parent_case_id").references(() => cases.id), // Links dictation notes back to parent matter
-  riskLevel: text("risk_level"), // AML risk level: low, medium, high
-  textNotes: text("text_notes"), // For text-based notes when consent declined
-  reviewed: boolean("reviewed").notNull().default(false), // Marks case as reviewed by solicitor
-  archived: boolean("archived").notNull().default(false), // Soft delete / archive functionality
-  aiProcessingMetadata: jsonb("ai_processing_metadata").default({}), // Tracks tokens, costs, processing status, errors
-  deadline: timestamp("deadline"), // Case deadline for calendar sync
-  syncToCalendar: boolean("sync_to_calendar").notNull().default(false), // Whether to sync deadline to calendar
-  deadlineIsAllDay: boolean("deadline_is_all_day").notNull().default(false), // Whether deadline is all-day or has specific time
-  litigationHold: boolean("litigation_hold").notNull().default(false), // Prevents auto-deletion of audio
+  status: text("status").notNull().default("pending"),
+  priority: text("priority").notNull().default("normal"),
+  sourceType: text("source_type").notNull(),
+  templateId: text("template_id"),
+  parentCaseId: varchar("parent_case_id").references(() => cases.id),
+  riskLevel: text("risk_level"),
+  textNotes: text("text_notes"),
+  reviewed: boolean("reviewed").notNull().default(false),
+  archived: boolean("archived").notNull().default(false),
+  aiProcessingMetadata: jsonb("ai_processing_metadata").default({}),
+  deadline: timestamp("deadline"),
+  syncToCalendar: boolean("sync_to_calendar").notNull().default(false),
+  deadlineIsAllDay: boolean("deadline_is_all_day").notNull().default(false),
+  litigationHold: boolean("litigation_hold").notNull().default(false),
   litigationHoldAppliedAt: timestamp("litigation_hold_applied_at"),
   litigationHoldAppliedBy: varchar("litigation_hold_applied_by").references(() => users.id),
-  litigationHoldReason: text("litigation_hold_reason"), // Justification for hold
-  litigationHoldReleasedAt: timestamp("litigation_hold_released_at"), // When hold was last released
-  litigationHoldReleasedBy: varchar("litigation_hold_released_by").references(() => users.id), // Who released the hold
+  litigationHoldReason: text("litigation_hold_reason"),
+  litigationHoldReleasedAt: timestamp("litigation_hold_released_at"),
+  litigationHoldReleasedBy: varchar("litigation_hold_released_by").references(() => users.id),
 });
 
 export const quickNotes = pgTable("quick_notes", {
@@ -504,18 +521,36 @@ export const upsertUserSchema = createInsertSchema(users).pick({
   profileImageUrl: z.string().url().max(500).optional(),
 });
 
+export const insertClientSchema = createInsertSchema(clients).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  createdBy: true,
+}).extend({
+  name: z.string().min(1).max(200).transform(sanitizeString),
+  email: z.string().email().max(255).transform(sanitizeString).optional(),
+  phone: z.string().max(50).transform(sanitizeString).optional(),
+  address: z.string().max(1000).transform(sanitizeString).optional(),
+  dateOfBirth: z.date().optional(),
+  companyName: z.string().max(200).transform(sanitizeString).optional(),
+  amlRiskLevel: z.enum(["low", "medium", "high"]).optional(),
+  amlRiskLastReviewed: z.date().optional(),
+  clioClientId: z.string().max(100).optional(),
+});
+
 export const insertCaseSchema = createInsertSchema(cases).omit({
   id: true,
   createdAt: true,
-  createdBy: true, // Security: Server assigns this from authenticated session
-  aiProcessingMetadata: true, // Server manages this
-  litigationHoldAppliedAt: true, // Server manages this
-  litigationHoldAppliedBy: true, // Server assigns this from session
-  litigationHoldReleasedAt: true, // Server manages this
-  litigationHoldReleasedBy: true, // Server assigns this from session
+  createdBy: true,
+  aiProcessingMetadata: true,
+  litigationHoldAppliedAt: true,
+  litigationHoldAppliedBy: true,
+  litigationHoldReleasedAt: true,
+  litigationHoldReleasedBy: true,
 }).extend({
   title: z.string().min(1).max(500).transform(sanitizeString),
   clientName: z.string().min(1).max(200).transform(sanitizeString),
+  clientId: z.string().uuid().optional(),
   matterReference: z.string().max(100).transform(sanitizeString).optional(),
   status: z.enum(["pending", "processing", "review_required", "completed"]).default("pending"),
   priority: z.enum(["urgent", "deadline-soon", "normal"]).default("normal"),
@@ -872,6 +907,9 @@ export const insertClioMatterLinkSchema = createInsertSchema(clioMatterLinks).om
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+export type InsertClient = z.infer<typeof insertClientSchema>;
+export type Client = typeof clients.$inferSelect;
 
 export type InsertCase = z.infer<typeof insertCaseSchema>;
 export type Case = typeof cases.$inferSelect;

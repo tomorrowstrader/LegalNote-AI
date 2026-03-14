@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,14 +20,14 @@ import ConsentModal from "@/components/ConsentModal";
 import TextNotesModal from "@/components/TextNotesModal";
 import CaseTemplatesModal, { CaseTemplate } from "@/components/CaseTemplatesModal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Mic, Square, AlertTriangle, LayoutTemplate, CheckCircle2, Shield } from "lucide-react";
+import { ArrowLeft, Mic, Square, AlertTriangle, LayoutTemplate, CheckCircle2, Shield, UserPlus, X } from "lucide-react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { logAuditEvent } from "@/lib/auditLogger";
-import type { Case } from "@shared/schema";
+import type { Case, Client } from "@shared/schema";
 
 interface CaseResponse {
   id: string;
@@ -65,19 +65,60 @@ export default function NewNote() {
   const [pendingTemplate, setPendingTemplate] = useState<CaseTemplate | null>(null);
   const [checklistAcknowledged, setChecklistAcknowledged] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const clientSearchRef = useRef<HTMLDivElement>(null);
 
-  const { data: existingCases = [] } = useQuery<Case[]>({
-    queryKey: ["/api/cases"],
-    enabled: !!user?.complianceThread,
+  const { data: clientSearchResults = [] } = useQuery<Client[]>({
+    queryKey: [`/api/clients/search?q=${encodeURIComponent(clientSearchQuery)}`],
+    enabled: clientSearchQuery.trim().length >= 2 && !selectedClient,
   });
 
-  const clientRiskMatch = useMemo(() => {
-    if (!user?.complianceThread || !clientName.trim() || clientName.trim().length < 3) return null;
-    const normalised = clientName.trim().toLowerCase();
-    return existingCases.find(
-      (c) => c.clientName?.toLowerCase().trim() === normalised && c.id !== undefined
-    ) || null;
-  }, [clientName, existingCases, user?.complianceThread]);
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (clientSearchRef.current && !clientSearchRef.current.contains(e.target as Node)) {
+        setShowClientDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleClientSelect = (client: Client) => {
+    setSelectedClient(client);
+    setClientName(client.name);
+    setShowClientDropdown(false);
+    setClientSearchQuery("");
+  };
+
+  const handleClearClient = () => {
+    setSelectedClient(null);
+    setClientName("");
+    setClientSearchQuery("");
+  };
+
+  const handleClientInputChange = (value: string) => {
+    setClientSearchQuery(value);
+    setClientName(value);
+    setSelectedClient(null);
+    setShowClientDropdown(value.trim().length >= 2);
+  };
+
+  const createClientMutation = useMutation({
+    mutationFn: async (name: string) => {
+      return await apiRequest<Client>("POST", "/api/clients", { name });
+    },
+    onSuccess: (client) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      handleClientSelect(client);
+      toast({
+        title: "Client created",
+        description: `${client.name} has been added to your client registry.`,
+        duration: 4000,
+      });
+    },
+  });
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -159,10 +200,10 @@ export default function NewNote() {
   }, []);
 
   const initiateRecording = () => {
-    if (!caseTitle.trim() || !clientName.trim()) {
+    if (!caseTitle.trim() || !selectedClient) {
       toast({
         title: "Missing information",
-        description: "Please enter case title and client name",
+        description: !caseTitle.trim() ? "Please enter a case title" : "Please select or create a client",
         variant: "destructive",
       });
       return;
@@ -242,6 +283,15 @@ export default function NewNote() {
       });
       return;
     }
+
+    if (!selectedClient) {
+      toast({
+        title: "Client required",
+        description: "Please select or create a client before saving",
+        variant: "destructive",
+      });
+      return;
+    }
     
     let caseResult: CaseResponse | null = null;
     let consentLogFailed = false;
@@ -250,11 +300,13 @@ export default function NewNote() {
       // Step 1: Create case
       caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
         title: caseTitle,
-        clientName: clientName,
+        clientName: selectedClient!.name,
+        clientId: selectedClient!.id,
         matterReference: matterRef || undefined,
         sourceType: "audio",
         status: "pending",
         priority: "normal",
+        riskLevel: selectedClient!.amlRiskLevel || undefined,
         templateId: activeTemplate?.id || undefined,
       });
       
@@ -359,7 +411,7 @@ export default function NewNote() {
     }
   };
 
-  const saveTextNotes = (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
+  const saveTextNotes = async (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
     console.log('Saving text-based case:', data);
     
     if (!user?.id) {
@@ -370,14 +422,40 @@ export default function NewNote() {
       });
       return;
     }
+
+    let clientForCase = selectedClient;
+    if (!clientForCase && data.clientName.trim()) {
+      try {
+        clientForCase = await apiRequest<Client>("POST", "/api/clients", { name: data.clientName.trim() });
+        queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      } catch (err: any) {
+        toast({
+          title: "Failed to create client",
+          description: err.message || "Could not create client record",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    if (!clientForCase) {
+      toast({
+        title: "Client required",
+        description: "Please enter a client name",
+        variant: "destructive",
+      });
+      return;
+    }
     
     apiRequest<CaseResponse>("POST", "/api/cases", {
       title: data.caseTitle,
-      clientName: data.clientName,
+      clientName: clientForCase.name,
+      clientId: clientForCase.id,
       matterReference: data.matterRef || undefined,
       sourceType: "text",
       status: "pending",
       priority: "normal",
+      riskLevel: clientForCase.amlRiskLevel || undefined,
       notes: data.notes,
       templateId: activeTemplate?.id || undefined,
     })
@@ -539,28 +617,87 @@ export default function NewNote() {
                 <Label htmlFor="client-name">
                   Client Name <span className="text-accent">*</span>
                 </Label>
-                <Input
-                  id="client-name"
-                  placeholder="e.g., Mrs. Catherine Williams"
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  disabled={isRecording || countdown !== null}
-                  data-testid="input-client-name"
-                />
-                {clientRiskMatch && (
+                <div ref={clientSearchRef} className="relative">
+                  {selectedClient ? (
+                    <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
+                      <span className="text-sm font-medium flex-1 truncate" data-testid="text-selected-client">
+                        {selectedClient.name}
+                      </span>
+                      {selectedClient.amlRiskLevel && (
+                        <Badge variant={selectedClient.amlRiskLevel === "high" ? "destructive" : selectedClient.amlRiskLevel === "medium" ? "secondary" : "outline"} className="text-xs shrink-0">
+                          <Shield className="w-3 h-3 mr-1" />
+                          {selectedClient.amlRiskLevel.toUpperCase()}
+                        </Badge>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleClearClient}
+                        disabled={isRecording || countdown !== null}
+                        data-testid="button-clear-client"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Input
+                      id="client-name"
+                      placeholder="Search existing clients or type a new name..."
+                      value={clientName}
+                      onChange={(e) => handleClientInputChange(e.target.value)}
+                      onFocus={() => { if (clientSearchQuery.trim().length >= 2) setShowClientDropdown(true); }}
+                      disabled={isRecording || countdown !== null}
+                      data-testid="input-client-name"
+                    />
+                  )}
+                  {showClientDropdown && !selectedClient && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-md max-h-48 overflow-y-auto" data-testid="dropdown-client-search">
+                      {clientSearchResults.length > 0 ? (
+                        clientSearchResults.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center justify-between gap-2"
+                            onClick={() => handleClientSelect(c)}
+                            data-testid={`option-client-${c.id}`}
+                          >
+                            <span className="truncate">{c.name}</span>
+                            {c.amlRiskLevel && (
+                              <Badge variant={c.amlRiskLevel === "high" ? "destructive" : c.amlRiskLevel === "medium" ? "secondary" : "outline"} className="text-xs shrink-0">
+                                {c.amlRiskLevel.toUpperCase()}
+                              </Badge>
+                            )}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">No matching clients</div>
+                      )}
+                      {clientName.trim().length >= 2 && (
+                        <button
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center gap-2 border-t"
+                          onClick={() => createClientMutation.mutate(clientName.trim())}
+                          disabled={createClientMutation.isPending}
+                          data-testid="button-create-client-inline"
+                        >
+                          <UserPlus className="w-4 h-4" />
+                          <span>{createClientMutation.isPending ? "Creating..." : `Create "${clientName.trim()}" as new client`}</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {selectedClient?.amlRiskLevel && (
                   <Alert className="mt-2 border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700" data-testid="alert-client-risk-continuity">
                     <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                     <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
-                      {clientRiskMatch.riskLevel
-                        ? <>This client has an existing matter rated <span className="font-semibold">{(clientRiskMatch.riskLevel as string).toUpperCase()} risk</span>. Previous risk assessments may apply to this new matter.{" "}</>
-                        : <>This client has existing matters with AML history. Review prior records before proceeding.{" "}</>
-                      }
+                      This client is assessed as <span className="font-semibold">{selectedClient.amlRiskLevel.toUpperCase()} risk</span>. This risk level will be applied to the new matter.{" "}
                       <a
-                        href={`/case/${clientRiskMatch.id}`}
+                        href={`/clients/${selectedClient.id}`}
                         className="underline font-medium text-amber-700 dark:text-amber-300"
                         data-testid="link-review-prior-aml"
                       >
-                        Review prior AML records
+                        View client profile
                       </a>
                     </AlertDescription>
                   </Alert>

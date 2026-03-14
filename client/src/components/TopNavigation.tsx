@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, User, HelpCircle, Shield, Home, FileText, FolderOpen, Settings, CheckSquare } from "lucide-react";
+import { Menu, User, HelpCircle, Shield, Home, FileText, FolderOpen, Settings, CheckSquare, Users } from "lucide-react";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,7 @@ const navLinks = [
   { path: "/new-note", label: "New Note", icon: FileText },
   { path: "/cases", label: "Saved Cases", icon: FolderOpen },
   { path: "/my-actions", label: "My Actions", icon: CheckSquare },
+  { path: "/clients", label: "Clients", icon: Users },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 

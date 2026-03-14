@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { clioConnections, clioMatterLinks, cases } from "@shared/schema";
+import { clioConnections, clioMatterLinks, cases, clients } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
 const CLIO_EU_BASE_URL = "https://eu.app.clio.com";
@@ -402,11 +402,52 @@ export class ClioService {
       ? `${matter.display_number} - ${clientName}`
       : clientName;
 
+    let clientId: string | undefined;
+    if (matter.client) {
+      const clioClientIdStr = String(matter.client.id);
+      const [existingClient] = await db
+        .select()
+        .from(clients)
+        .where(
+          and(
+            eq(clients.clioClientId, clioClientIdStr),
+            eq(clients.createdBy, userId)
+          )
+        )
+        .limit(1);
+
+      if (existingClient) {
+        clientId = existingClient.id;
+        const updates: Record<string, any> = {};
+        if (matter.client.email && matter.client.email !== existingClient.email) {
+          updates.email = matter.client.email;
+        }
+        if (matter.client.name && matter.client.name !== existingClient.name) {
+          updates.name = matter.client.name;
+        }
+        if (Object.keys(updates).length > 0) {
+          await db.update(clients).set(updates).where(eq(clients.id, existingClient.id));
+        }
+      } else {
+        const [newClient] = await db
+          .insert(clients)
+          .values({
+            name: matter.client.name,
+            email: matter.client.email || undefined,
+            clioClientId: clioClientIdStr,
+            createdBy: userId,
+          })
+          .returning();
+        clientId = newClient.id;
+      }
+    }
+
     const [newCase] = await db
       .insert(cases)
       .values({
         title,
         clientName,
+        clientId: clientId || undefined,
         matterReference: matter.display_number || undefined,
         status: "pending",
         priority: "normal",
