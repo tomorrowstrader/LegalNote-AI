@@ -462,23 +462,27 @@ export const meetingImports = pgTable("meeting_imports", {
 export const scheduledMeetings = pgTable("scheduled_meetings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
-  calendarEventId: text("calendar_event_id").notNull(), // Google Calendar event ID
+  caseId: varchar("case_id").references(() => cases.id),
+  calendarEventId: text("calendar_event_id").notNull(),
   calendarProvider: text("calendar_provider").notNull().default("google"), // google, outlook
   title: text("title").notNull(),
   description: text("description"),
-  meetingUrl: text("meeting_url"), // Extracted meeting link (Zoom, Teams, Meet)
+  meetingUrl: text("meeting_url"),
   meetingPlatform: text("meeting_platform"), // zoom, teams, meet, webex
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time"),
   attendees: jsonb("attendees").default([]), // Array of {email, name, responseStatus}
-  clientEmail: text("client_email"), // Primary client email for consent
-  clientName: text("client_name"), // Primary client name
-  autoRecordEnabled: boolean("auto_record_enabled").notNull().default(false), // Opt-in for auto-recording
+  clientEmail: text("client_email"),
+  clientName: text("client_name"),
+  autoRecordEnabled: boolean("auto_record_enabled").notNull().default(false),
   consentStatus: text("consent_status").notNull().default("pending"), // pending, sent, approved, declined, expired
   preConsentEmailId: varchar("pre_consent_email_id").references(() => preConsentEmails.id),
-  recallBotId: text("recall_bot_id"), // Recall.ai bot ID when deployed
+  recallBotId: text("recall_bot_id"),
   botStatus: text("bot_status"), // waiting, joining, in_call, done, failed
-  meetingImportId: varchar("meeting_import_id"), // Link to imported recording
+  meetingImportId: varchar("meeting_import_id"),
+  status: text("status").notNull().default("scheduled"), // scheduled, cancelled, rescheduled, completed
+  replacedByMeetingId: varchar("replaced_by_meeting_id"),
+  cancellationReason: text("cancellation_reason"),
   lastPolledAt: timestamp("last_polled_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -921,6 +925,7 @@ export const insertScheduledMeetingSchema = createInsertSchema(scheduledMeetings
   updatedAt: true,
 }).extend({
   userId: z.string().min(1),
+  caseId: z.string().optional(),
   calendarEventId: z.string().min(1).max(500),
   calendarProvider: z.enum(["google", "outlook"]).default("google"),
   title: z.string().min(1).max(500).transform(sanitizeString),
@@ -932,6 +937,9 @@ export const insertScheduledMeetingSchema = createInsertSchema(scheduledMeetings
   autoRecordEnabled: z.boolean().default(false),
   consentStatus: z.enum(["pending", "sent", "approved", "declined", "expired"]).default("pending"),
   botStatus: z.enum(["waiting", "joining", "in_call", "done", "failed"]).optional(),
+  status: z.enum(["scheduled", "cancelled", "rescheduled", "completed"]).default("scheduled"),
+  replacedByMeetingId: z.string().optional(),
+  cancellationReason: z.string().max(1000).optional(),
 });
 
 export const insertPreConsentEmailSchema = createInsertSchema(preConsentEmails).omit({

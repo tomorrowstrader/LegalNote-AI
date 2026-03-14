@@ -342,6 +342,82 @@ async function deleteGoogleCalendarEvent(
   }
 }
 
+export interface MeetingEventData {
+  title: string;
+  description?: string;
+  startTime: Date;
+  endTime?: Date;
+  meetingUrl?: string;
+  attendees?: Array<{ email: string; name?: string }>;
+}
+
+export async function createMeetingCalendarEvent(
+  userId: string,
+  data: MeetingEventData,
+  storage: IStorage
+): Promise<CalendarSyncResult> {
+  try {
+    const { token } = await getValidAccessToken(userId, storage);
+
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials({ access_token: token });
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    const endTime = data.endTime || new Date(data.startTime.getTime() + 60 * 60 * 1000);
+
+    const eventBody: Record<string, unknown> = {
+      summary: data.title,
+      description: data.description || `Meeting: ${data.title}\n\nCreated by LegalNote`,
+      start: {
+        dateTime: data.startTime.toISOString(),
+        timeZone: 'Europe/London',
+      },
+      end: {
+        dateTime: endTime.toISOString(),
+        timeZone: 'Europe/London',
+      },
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'popup', minutes: 15 },
+          { method: 'popup', minutes: 5 },
+        ],
+      },
+    };
+
+    if (data.attendees && data.attendees.length > 0) {
+      eventBody.attendees = data.attendees.map(a => ({
+        email: a.email,
+        displayName: a.name,
+      }));
+    }
+
+    if (data.meetingUrl) {
+      eventBody.location = data.meetingUrl;
+    }
+
+    const response = await calendar.events.insert({
+      calendarId: 'primary',
+      requestBody: eventBody,
+    });
+
+    return {
+      success: true,
+      provider: 'google',
+      eventId: response.data.id || undefined,
+    };
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('[CALENDAR] Meeting event creation failed:', err.message);
+    return {
+      success: false,
+      provider: 'google',
+      error: err.message || 'Failed to create meeting calendar event',
+    };
+  }
+}
+
 // Public API
 export async function createCalendarEvent(
   userId: string,

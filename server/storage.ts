@@ -461,7 +461,9 @@ export interface IStorage {
   createScheduledMeeting(meetingData: InsertScheduledMeeting): Promise<ScheduledMeeting>;
   getScheduledMeeting(id: string): Promise<ScheduledMeeting | undefined>;
   getScheduledMeetingByCalendarEvent(userId: string, calendarEventId: string, provider: string): Promise<ScheduledMeeting | undefined>;
+  getScheduledMeetingByBotId(botId: string): Promise<ScheduledMeeting | undefined>;
   getScheduledMeetingsByUser(userId: string): Promise<ScheduledMeeting[]>;
+  getScheduledMeetingsByCase(caseId: string, userId: string): Promise<ScheduledMeeting[]>;
   getUpcomingScheduledMeetings(userId: string, daysAhead?: number): Promise<ScheduledMeeting[]>;
   getMeetingsNeedingConsent(userId: string): Promise<ScheduledMeeting[]>;
   getMeetingsReadyForBot(userId: string): Promise<ScheduledMeeting[]>;
@@ -1792,7 +1794,15 @@ export class MemStorage implements IStorage {
     return undefined;
   }
   
+  async getScheduledMeetingByBotId(_botId: string): Promise<ScheduledMeeting | undefined> {
+    return undefined;
+  }
+  
   async getScheduledMeetingsByUser(_userId: string): Promise<ScheduledMeeting[]> {
+    return [];
+  }
+  
+  async getScheduledMeetingsByCase(_caseId: string, _userId: string): Promise<ScheduledMeeting[]> {
     return [];
   }
   
@@ -3989,6 +3999,7 @@ export class DbStorage implements IStorage {
       .insert(scheduledMeetings)
       .values({
         userId: meetingData.userId,
+        caseId: meetingData.caseId || null,
         calendarEventId: meetingData.calendarEventId,
         calendarProvider: meetingData.calendarProvider || 'google',
         title: meetingData.title,
@@ -4006,6 +4017,9 @@ export class DbStorage implements IStorage {
         recallBotId: meetingData.recallBotId || null,
         botStatus: meetingData.botStatus || null,
         meetingImportId: meetingData.meetingImportId || null,
+        status: meetingData.status || 'scheduled',
+        replacedByMeetingId: meetingData.replacedByMeetingId || null,
+        cancellationReason: meetingData.cancellationReason || null,
         lastPolledAt: meetingData.lastPolledAt || null,
       })
       .onConflictDoUpdate({
@@ -4047,11 +4061,32 @@ export class DbStorage implements IStorage {
     return result[0];
   }
   
+  async getScheduledMeetingByBotId(botId: string): Promise<ScheduledMeeting | undefined> {
+    const result = await db
+      .select()
+      .from(scheduledMeetings)
+      .where(eq(scheduledMeetings.recallBotId, botId));
+    return result[0];
+  }
+  
   async getScheduledMeetingsByUser(userId: string): Promise<ScheduledMeeting[]> {
     return await db
       .select()
       .from(scheduledMeetings)
       .where(eq(scheduledMeetings.userId, userId))
+      .orderBy(desc(scheduledMeetings.startTime));
+  }
+  
+  async getScheduledMeetingsByCase(caseId: string, userId: string): Promise<ScheduledMeeting[]> {
+    return await db
+      .select()
+      .from(scheduledMeetings)
+      .where(
+        and(
+          eq(scheduledMeetings.caseId, caseId),
+          eq(scheduledMeetings.userId, userId)
+        )
+      )
       .orderBy(desc(scheduledMeetings.startTime));
   }
   
@@ -4066,6 +4101,7 @@ export class DbStorage implements IStorage {
       .where(
         and(
           eq(scheduledMeetings.userId, userId),
+          eq(scheduledMeetings.status, 'scheduled'),
           gte(scheduledMeetings.startTime, now),
           lte(scheduledMeetings.startTime, futureDate)
         )
@@ -4086,6 +4122,7 @@ export class DbStorage implements IStorage {
           eq(scheduledMeetings.userId, userId),
           eq(scheduledMeetings.autoRecordEnabled, true),
           eq(scheduledMeetings.consentStatus, 'pending'),
+          eq(scheduledMeetings.status, 'scheduled'),
           gte(scheduledMeetings.startTime, now),
           lte(scheduledMeetings.startTime, twoDaysAhead)
         )
@@ -4106,6 +4143,7 @@ export class DbStorage implements IStorage {
           eq(scheduledMeetings.userId, userId),
           eq(scheduledMeetings.autoRecordEnabled, true),
           eq(scheduledMeetings.consentStatus, 'approved'),
+          eq(scheduledMeetings.status, 'scheduled'),
           isNull(scheduledMeetings.recallBotId),
           gte(scheduledMeetings.startTime, now),
           lte(scheduledMeetings.startTime, tenMinutesAhead)
@@ -4125,6 +4163,7 @@ export class DbStorage implements IStorage {
       .where(
         and(
           eq(scheduledMeetings.autoRecordEnabled, true),
+          eq(scheduledMeetings.status, 'scheduled'),
           gte(scheduledMeetings.startTime, now),
           lte(scheduledMeetings.startTime, twoDaysAhead)
         )

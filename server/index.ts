@@ -80,6 +80,117 @@ app.post(
   }
 );
 
+// Recall.ai webhook route BEFORE express.json() for raw body signature verification
+app.post(
+  '/api/recall/webhook/bot-status',
+  express.raw({ type: 'application/json' }),
+  async (req, res) => {
+    try {
+      const webhookSecret = process.env.RECALL_WEBHOOK_SECRET;
+      let body: Record<string, unknown>;
+      
+      if (webhookSecret) {
+        const crypto = await import("crypto");
+        const signature = req.headers['x-recall-signature'] || req.headers['x-webhook-signature'];
+        if (!signature) {
+          return res.status(401).json({ message: "Missing webhook signature" });
+        }
+        
+        const rawBytes = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body));
+        const expectedSig = crypto.createHmac('sha256', webhookSecret).update(rawBytes).digest('hex');
+        const sigStr = Array.isArray(signature) ? signature[0] : String(signature);
+        
+        const candidates = [expectedSig, `sha256=${expectedSig}`];
+        const isValid = candidates.some(candidate => {
+          if (sigStr.length !== candidate.length) return false;
+          try {
+            return crypto.timingSafeEqual(Buffer.from(sigStr, 'utf8'), Buffer.from(candidate, 'utf8'));
+          } catch {
+            return false;
+          }
+        });
+        if (!isValid) {
+          return res.status(401).json({ message: "Invalid webhook signature" });
+        }
+        body = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString()) : req.body;
+      } else if (process.env.NODE_ENV === 'production') {
+        return res.status(503).json({ message: "Webhook secret not configured" });
+      } else {
+        console.warn('[RECALL_WEBHOOK] No RECALL_WEBHOOK_SECRET configured — verification skipped (dev only)');
+        body = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString()) : req.body;
+      }
+      
+      const { bot_id, status } = body;
+      if (!bot_id || !status) {
+        return res.status(400).json({ message: "bot_id and status are required" });
+      }
+      
+      console.log(`[RECALL_WEBHOOK] Bot ${bot_id} status changed to: ${status}`);
+      
+      const { storage } = await import("./storage");
+      
+      const meeting = await storage.getScheduledMeetingByBotId(String(bot_id));
+      if (!meeting) {
+        console.log(`[RECALL_WEBHOOK] No meeting found for bot ${bot_id}`);
+        return res.json({ received: true });
+      }
+      
+      await storage.updateScheduledMeeting(meeting.id, { botStatus: String(status) });
+      
+      if (status === 'done') {
+        await storage.updateScheduledMeeting(meeting.id, {
+          botStatus: 'done',
+          status: 'completed',
+        });
+        
+        if (meeting.caseId && !meeting.meetingImportId) {
+          try {
+            const { recallService } = await import("./services/recallService");
+            const consentApproved = meeting.consentStatus === 'approved';
+            const meetingImport = await recallService.startMeetingImport(
+              meeting.userId,
+              String(bot_id),
+              meeting.caseId,
+              consentApproved,
+              meeting.preConsentEmailId || undefined,
+            );
+            await storage.updateScheduledMeeting(meeting.id, {
+              meetingImportId: meetingImport.id,
+            });
+            console.log(`[RECALL_WEBHOOK] Auto-filed recording to case ${meeting.caseId}, import ${meetingImport.id}`);
+          } catch (fileErr) {
+            console.error(`[RECALL_WEBHOOK] Auto-file failed for meeting ${meeting.id}:`, fileErr);
+          }
+        } else if (meeting.meetingImportId) {
+          console.log(`[RECALL_WEBHOOK] Meeting ${meeting.id} already has import ${meeting.meetingImportId}, skipping`);
+        }
+        
+        await storage.createAuditLog({
+          eventType: 'meeting_recording_completed',
+          userId: meeting.userId,
+          caseId: meeting.caseId || undefined,
+          metadata: { meetingId: meeting.id, botId: bot_id, meetingTitle: meeting.title, autoFiled: !!meeting.caseId },
+          severity: 'info',
+        });
+      } else if (status === 'failed') {
+        await storage.updateScheduledMeeting(meeting.id, { botStatus: 'failed' });
+        await storage.createAuditLog({
+          eventType: 'meeting_recording_failed',
+          userId: meeting.userId,
+          caseId: meeting.caseId || undefined,
+          metadata: { meetingId: meeting.id, botId: bot_id, meetingTitle: meeting.title },
+          severity: 'warning',
+        });
+      }
+      
+      res.json({ received: true });
+    } catch (error) {
+      console.error('[RECALL_WEBHOOK] Error:', error);
+      res.status(500).json({ message: 'Webhook processing error' });
+    }
+  }
+);
+
 // Now apply JSON middleware for all other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));

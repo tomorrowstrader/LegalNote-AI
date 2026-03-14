@@ -193,6 +193,11 @@ export class MeetingSchedulerService {
         a.responseStatus === 'needsAction'
       ) || attendees[0];
 
+      const validPlatforms = ['zoom', 'teams', 'meet', 'webex'] as const;
+      const validatedPlatform = validPlatforms.includes(meetingPlatform as typeof validPlatforms[number])
+        ? (meetingPlatform as typeof validPlatforms[number])
+        : undefined;
+
       const meetingData: InsertScheduledMeeting = {
         userId,
         calendarEventId: event.id,
@@ -200,12 +205,15 @@ export class MeetingSchedulerService {
         title: event.summary,
         description: event.description || undefined,
         meetingUrl: meetingUrl || undefined,
-        meetingPlatform: meetingPlatform || undefined,
+        meetingPlatform: validatedPlatform,
         startTime,
         endTime: endTime || undefined,
-        attendees: attendees as any,
+        attendees: attendees,
         clientEmail: primaryAttendee?.email || undefined,
         clientName: primaryAttendee?.name || undefined,
+        autoRecordEnabled: false,
+        consentStatus: 'pending',
+        status: 'scheduled',
         lastPolledAt: new Date(),
       };
 
@@ -264,7 +272,9 @@ Your Legal Team
       userId: meeting.userId,
       recipientEmail: meeting.clientEmail,
       recipientName: meeting.clientName,
-      meetingPlatform: meeting.meetingPlatform as any || undefined,
+      meetingPlatform: (['zoom', 'teams', 'meet', 'webex'] as const).includes(
+        meeting.meetingPlatform as 'zoom' | 'teams' | 'meet' | 'webex'
+      ) ? (meeting.meetingPlatform as 'zoom' | 'teams' | 'meet' | 'webex') : undefined,
       scheduledMeetingTime: meeting.startTime,
       meetingUrl: meeting.meetingUrl || undefined,
       emailSubject,
@@ -360,12 +370,50 @@ Your Legal Team
           botStatus = 'waiting';
       }
 
-      await storage.updateScheduledMeeting(meeting.id, { botStatus });
+      const updates: Partial<ScheduledMeeting> = { botStatus };
+      if (botStatus === 'done' && meeting.botStatus !== 'done') {
+        updates.status = 'completed';
+      }
+      await storage.updateScheduledMeeting(meeting.id, updates);
+
+      if (botStatus === 'done' && meeting.botStatus !== 'done' && meeting.caseId) {
+        try {
+          await this.autoFileRecordingToCase(meeting);
+        } catch (err) {
+          console.error(`[MEETING_SCHEDULER] Failed to auto-file recording to case:`, err);
+        }
+      }
+
       return botStatus;
     } catch (error) {
       console.error(`[MEETING_SCHEDULER] Failed to check bot status:`, error);
       return null;
     }
+  }
+
+  async autoFileRecordingToCase(meeting: ScheduledMeeting): Promise<void> {
+    if (!meeting.recallBotId || !meeting.caseId) return;
+    
+    if (meeting.meetingImportId) {
+      console.log(`[MEETING_SCHEDULER] Meeting ${meeting.id} already has import ${meeting.meetingImportId}, skipping auto-file`);
+      return;
+    }
+
+    console.log(`[MEETING_SCHEDULER] Auto-filing recording from meeting ${meeting.id} to case ${meeting.caseId}`);
+
+    const existingImport = await recallService.startMeetingImport(
+      meeting.userId,
+      meeting.recallBotId,
+      meeting.caseId,
+      meeting.consentStatus === 'approved',
+      meeting.preConsentEmailId || undefined
+    );
+
+    await storage.updateScheduledMeeting(meeting.id, {
+      meetingImportId: existingImport.id,
+    });
+
+    console.log(`[MEETING_SCHEDULER] Auto-filed recording ${existingImport.id} to case ${meeting.caseId}`);
   }
 
   async processConsentResponse(consentToken: string, approved: boolean, ipAddress: string): Promise<boolean> {

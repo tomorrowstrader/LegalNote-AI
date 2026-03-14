@@ -27,7 +27,7 @@ function resolveTemplatePath(filename: string): string {
   return possiblePaths[0];
 }
 import { storage } from "./storage";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, PRACTICE_AREAS } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, PRACTICE_AREAS, type ScheduledMeeting } from "@shared/schema";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -47,7 +47,7 @@ import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { openaiService } from "./openaiService";
 import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification } from "./email";
 import { generateSignedAuditPDF } from "./services/signedAuditExport";
-import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders } from "./calendar";
+import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent } from "./calendar";
 import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
 import { isReplitOutlookConnected, createReplitOutlookEvent, updateReplitOutlookEvent, deleteReplitOutlookEvent, getOutlookUserEmail } from "./replitOutlook";
 import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber } from "./sms";
@@ -4757,16 +4757,74 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         recordingDate: new Date().toISOString().split('T')[0],
       };
       
-      // Prepare meeting data from documents and transcript
       const attendanceNote = documents.find(d => d.type === 'attendance_note');
       const summary = documents.find(d => d.type === 'summary');
       
-      const meetings = [{
+      const meetings: Array<{ date: string; transcript: string; attendanceNote?: string; summary?: string }> = [];
+      
+      const priorImports = await storage.getMeetingImportsByCase(caseId, userId);
+      const completedImports = priorImports.filter(i => i.status === 'completed');
+      if (completedImports.length > 0) {
+        let priorSessionContext = 'PRIOR SESSION SUMMARIES:\n';
+        for (const imp of completedImports) {
+          const sessionDate = imp.meetingDate ? new Date(imp.meetingDate).toISOString().split('T')[0] : 'Prior session';
+          const platformLabel = imp.meetingPlatform ? ` (${imp.meetingPlatform})` : '';
+          priorSessionContext += `\n--- Session: ${sessionDate}${platformLabel} ---\n`;
+          priorSessionContext += `Title: ${imp.meetingTitle || 'Untitled'}\n`;
+          if (imp.participants && Array.isArray(imp.participants)) {
+            priorSessionContext += `Participants: ${(imp.participants as string[]).join(', ')}\n`;
+          }
+          if (imp.durationSeconds) {
+            priorSessionContext += `Duration: ${Math.round(imp.durationSeconds / 60)} minutes\n`;
+          }
+        }
+        meetings.push({
+          date: 'Prior sessions',
+          transcript: priorSessionContext,
+        });
+      }
+      
+      meetings.push({
         date: caseData.createdAt ? new Date(caseData.createdAt).toISOString().split('T')[0] : 'Unknown',
         transcript: transcript.content,
         attendanceNote: attendanceNote?.content,
         summary: summary?.content,
-      }];
+      });
+      
+      // Gather linked case context for enhanced briefing
+      let caseContextSuffix = '';
+      
+      // Outstanding action items
+      const actionItems = await storage.getActionItemsByCase(caseId, userId);
+      const outstandingItems = actionItems.filter(item => !item.completed && item.status === 'approved');
+      if (outstandingItems.length > 0) {
+        caseContextSuffix += '\n\nOUTSTANDING UNDERTAKINGS:\n';
+        outstandingItems.forEach(item => {
+          caseContextSuffix += `- ${item.description}${item.assignee ? ` (Assigned to: ${item.assignee})` : ''}${item.dueDate ? ` (Due: ${new Date(item.dueDate).toISOString().split('T')[0]})` : ''}\n`;
+        });
+      }
+      
+      // Client AML risk status
+      if (caseData.clientId) {
+        const client = await storage.getClient(caseData.clientId, userId);
+        if (client?.amlRiskLevel) {
+          caseContextSuffix += `\n\nCLIENT AML STATUS:\n- Risk Level: ${client.amlRiskLevel.toUpperCase()}`;
+          if (client.amlRiskLastReviewed) {
+            caseContextSuffix += ` (Last reviewed: ${new Date(client.amlRiskLastReviewed).toISOString().split('T')[0]})`;
+          }
+          caseContextSuffix += '\n';
+        }
+      }
+      
+      // Upcoming deadlines from the case
+      if (caseData.deadline) {
+        caseContextSuffix += `\n\nUPCOMING CASE DEADLINE:\n- ${new Date(caseData.deadline).toISOString().split('T')[0]}${caseData.deadlineIsAllDay ? ' (all day)' : ''}\n`;
+      }
+      
+      // Append context to the last meeting's transcript for the AI to consider
+      if (caseContextSuffix && meetings.length > 0) {
+        meetings[meetings.length - 1].transcript += caseContextSuffix;
+      }
       
       const result = await documentService.generatePreMeetingBriefing(meetings, metadata);
       
@@ -6806,6 +6864,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
   
+  // NOTE: Recall.ai webhook (POST /api/recall/webhook/bot-status) is registered in
+  // index.ts before express.json() for raw body signature verification.
+  
   // Pre-consent email routes
   app.post("/api/pre-consent", isAuthenticated, async (req: any, res, next) => {
     try {
@@ -7262,6 +7323,23 @@ ${firmName}`;
     }
   });
   
+  app.get("/api/scheduled-meetings/by-case/:caseId", isAuthenticated, async (req, res, next) => {
+    try {
+      const userId = req.user!.id;
+      const { caseId } = req.params;
+      
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      
+      const meetings = await storage.getScheduledMeetingsByCase(caseId, userId);
+      res.json(meetings);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
   // Poll calendar and sync meetings
   app.post("/api/scheduled-meetings/sync", isAuthenticated, async (req, res, next) => {
     try {
@@ -7292,25 +7370,278 @@ ${firmName}`;
     }
   });
   
-  // Update scheduled meeting (enable/disable auto-record, set client info)
+  // Update scheduled meeting (enable/disable auto-record, set client info, link case)
   app.patch("/api/scheduled-meetings/:id", isAuthenticated, async (req, res, next) => {
     try {
       const userId = req.user!.id;
       const { id } = req.params;
-      const { autoRecordEnabled, clientEmail, clientName } = req.body;
+      const { autoRecordEnabled, clientEmail, clientName, caseId } = req.body;
       
       const meeting = await storage.getScheduledMeeting(id);
       if (!meeting || meeting.userId !== userId) {
         return res.status(404).json({ message: "Meeting not found" });
       }
       
-      const updates: any = {};
-      if (autoRecordEnabled !== undefined) updates.autoRecordEnabled = autoRecordEnabled;
+      if (meeting.status === 'cancelled') {
+        return res.status(400).json({ message: "Cannot update a cancelled meeting" });
+      }
+      
+      const updates: Partial<ScheduledMeeting> = {};
+      if (autoRecordEnabled !== undefined) updates.autoRecordEnabled = !!autoRecordEnabled;
       if (clientEmail !== undefined) updates.clientEmail = clientEmail;
       if (clientName !== undefined) updates.clientName = clientName;
       
+      if (caseId !== undefined) {
+        if (caseId) {
+          const caseData = await storage.getCase(caseId, userId);
+          if (!caseData) {
+            return res.status(403).json({ message: "Case not found or not authorized" });
+          }
+          updates.caseId = caseId;
+        } else {
+          updates.caseId = null;
+        }
+      }
+      
       const updated = await storage.updateScheduledMeeting(id, updates);
       res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Cancel a scheduled meeting
+  app.post("/api/scheduled-meetings/:id/cancel", isAuthenticated, async (req, res, next) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      const { reason } = req.body;
+      
+      if (reason !== undefined && (typeof reason !== 'string' || reason.length > 1000)) {
+        return res.status(400).json({ message: "Reason must be a string of 1000 characters or less" });
+      }
+      
+      const meeting = await storage.getScheduledMeeting(id);
+      if (!meeting || meeting.userId !== userId) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      
+      if (meeting.status !== 'scheduled') {
+        return res.status(400).json({ message: `Cannot cancel a ${meeting.status} meeting` });
+      }
+      
+      let calendarDeleteResult: { success: boolean; error?: string } | null = null;
+      if (meeting.calendarEventId && !meeting.calendarEventId.startsWith('rescheduled-')) {
+        try {
+          if (meeting.calendarProvider === 'outlook') {
+            calendarDeleteResult = await deleteReplitOutlookEvent(meeting.calendarEventId);
+          } else {
+            calendarDeleteResult = await deleteCalendarEvent(userId, meeting.calendarEventId, storage);
+          }
+          if (!calendarDeleteResult.success) {
+            return res.status(502).json({ message: `Failed to cancel calendar event: ${calendarDeleteResult.error}` });
+          }
+        } catch (calErr) {
+          return res.status(502).json({ message: `Calendar sync failed: ${calErr instanceof Error ? calErr.message : String(calErr)}` });
+        }
+      }
+      
+      const updated = await storage.updateScheduledMeeting(id, {
+        status: 'cancelled',
+        cancellationReason: reason || null,
+      });
+      
+      if (meeting.clientEmail) {
+        try {
+          const { sendPreConsentEmail } = await import("./email");
+          const baseUrl = process.env.REPLIT_DOMAINS 
+            ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+            : 'http://localhost:5000';
+          await sendPreConsentEmail({
+            to: meeting.clientEmail,
+            recipientName: meeting.clientName || 'Client',
+            subject: `Meeting Cancelled: ${meeting.title}`,
+            body: `We are writing to inform you that the meeting "${meeting.title}" originally scheduled for ${meeting.startTime ? new Date(meeting.startTime).toLocaleString('en-GB') : 'the scheduled date'} has been cancelled.${reason ? `\n\nReason: ${reason}` : ''}\n\nIf you have any questions, please do not hesitate to contact us.`,
+            consentUrl: baseUrl,
+          });
+        } catch (emailErr) {
+          console.log(`[MEETING_CANCEL] Notification email failed (non-blocking): ${emailErr}`);
+        }
+      }
+      
+      await storage.createAuditLog({
+        eventType: 'meeting_cancelled',
+        userId,
+        caseId: meeting.caseId || undefined,
+        metadata: {
+          meetingId: meeting.id,
+          meetingTitle: meeting.title,
+          reason: reason || 'No reason provided',
+          startTime: meeting.startTime,
+          clientEmail: meeting.clientEmail,
+          calendarEventDeleted: !!calendarDeleteResult?.success,
+        },
+        severity: 'info',
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Reschedule a meeting
+  app.post("/api/scheduled-meetings/:id/reschedule", isAuthenticated, async (req, res, next) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      const { newStartTime, newEndTime } = req.body;
+      
+      if (!newStartTime) {
+        return res.status(400).json({ message: "New start time is required" });
+      }
+      
+      const meeting = await storage.getScheduledMeeting(id);
+      if (!meeting || meeting.userId !== userId) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      
+      if (meeting.status !== 'scheduled') {
+        return res.status(400).json({ message: `Cannot reschedule a ${meeting.status} meeting` });
+      }
+      
+      const parsedStart = new Date(newStartTime);
+      if (isNaN(parsedStart.getTime()) || parsedStart <= new Date()) {
+        return res.status(400).json({ message: "New start time must be a valid future date" });
+      }
+      
+      let calendarEventId = `rescheduled-${meeting.calendarEventId}-${Date.now()}`;
+      
+      let calendarSynced = false;
+      
+      if (meeting.calendarEventId && !meeting.calendarEventId.startsWith('rescheduled-')) {
+        try {
+          if (meeting.calendarProvider === 'outlook') {
+            const calResult = await deleteReplitOutlookEvent(meeting.calendarEventId);
+            if (!calResult.success) {
+              return res.status(502).json({ message: `Failed to void original calendar event: ${calResult.error}` });
+            }
+          } else {
+            const calResult = await deleteCalendarEvent(userId, meeting.calendarEventId, storage);
+            if (!calResult.success) {
+              return res.status(502).json({ message: `Failed to void original calendar event: ${calResult.error}` });
+            }
+          }
+        } catch (calErr) {
+          return res.status(502).json({ message: `Failed to void original calendar event: ${calErr instanceof Error ? calErr.message : String(calErr)}` });
+        }
+      }
+      
+      try {
+        const attendeesList = Array.isArray(meeting.attendees) 
+          ? (meeting.attendees as Array<{ email: string; name?: string }>).filter(a => a.email)
+          : [];
+        if (meeting.calendarProvider === 'outlook') {
+          const outlookResult = await createReplitOutlookEvent({
+            caseId: meeting.caseId || 'meeting',
+            title: meeting.title,
+            clientName: meeting.clientName || 'Client',
+            deadline: parsedStart.toISOString(),
+            notes: meeting.description || undefined,
+          });
+          if (outlookResult.success && outlookResult.eventId) {
+            calendarEventId = outlookResult.eventId;
+            calendarSynced = true;
+          } else {
+            return res.status(502).json({ message: `Failed to create replacement calendar event: ${outlookResult.error}` });
+          }
+        } else {
+          const newCalResult = await createMeetingCalendarEvent(userId, {
+            title: meeting.title,
+            description: meeting.description || undefined,
+            startTime: parsedStart,
+            endTime: newEndTime ? new Date(newEndTime) : undefined,
+            meetingUrl: meeting.meetingUrl || undefined,
+            attendees: attendeesList,
+          }, storage);
+          if (newCalResult.success && newCalResult.eventId) {
+            calendarEventId = newCalResult.eventId;
+            calendarSynced = true;
+          } else {
+            return res.status(502).json({ message: `Failed to create replacement calendar event: ${newCalResult.error}` });
+          }
+        }
+      } catch (calErr) {
+        return res.status(502).json({ message: `Calendar sync failed: ${calErr instanceof Error ? calErr.message : String(calErr)}` });
+      }
+      
+      const validPlatforms = ['zoom', 'teams', 'meet', 'webex'] as const;
+      const platform = validPlatforms.includes(meeting.meetingPlatform as typeof validPlatforms[number])
+        ? (meeting.meetingPlatform as typeof validPlatforms[number])
+        : undefined;
+      const provider = (meeting.calendarProvider === 'google' || meeting.calendarProvider === 'outlook')
+        ? meeting.calendarProvider
+        : 'google' as const;
+      
+      const newMeeting = await storage.createScheduledMeeting({
+        userId,
+        caseId: meeting.caseId || undefined,
+        calendarEventId,
+        calendarProvider: provider,
+        title: meeting.title,
+        description: meeting.description || undefined,
+        meetingUrl: meeting.meetingUrl || undefined,
+        meetingPlatform: platform,
+        startTime: parsedStart,
+        endTime: newEndTime ? new Date(newEndTime) : undefined,
+        attendees: Array.isArray(meeting.attendees) ? meeting.attendees : [],
+        clientEmail: meeting.clientEmail || undefined,
+        clientName: meeting.clientName || undefined,
+        autoRecordEnabled: meeting.autoRecordEnabled,
+        consentStatus: 'pending',
+        status: 'scheduled',
+      });
+      
+      await storage.updateScheduledMeeting(id, {
+        status: 'rescheduled',
+        replacedByMeetingId: newMeeting.id,
+      });
+      
+      if (meeting.clientEmail) {
+        try {
+          const { sendPreConsentEmail } = await import("./email");
+          const baseUrl = process.env.REPLIT_DOMAINS 
+            ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+            : 'http://localhost:5000';
+          await sendPreConsentEmail({
+            to: meeting.clientEmail,
+            recipientName: meeting.clientName || 'Client',
+            subject: `Meeting Rescheduled: ${meeting.title}`,
+            body: `We are writing to inform you that the meeting "${meeting.title}" originally scheduled for ${meeting.startTime ? new Date(meeting.startTime).toLocaleString('en-GB') : 'the scheduled date'} has been rescheduled to ${parsedStart.toLocaleString('en-GB')}.\n\nIf you have any questions, please do not hesitate to contact us.`,
+            consentUrl: baseUrl,
+          });
+        } catch (emailErr) {
+          console.log(`[MEETING_RESCHEDULE] Notification email failed (non-blocking): ${emailErr}`);
+        }
+      }
+      
+      await storage.createAuditLog({
+        eventType: 'meeting_rescheduled',
+        userId,
+        caseId: meeting.caseId || undefined,
+        metadata: {
+          originalMeetingId: meeting.id,
+          newMeetingId: newMeeting.id,
+          originalStartTime: meeting.startTime,
+          newStartTime: newStartTime,
+          meetingTitle: meeting.title,
+          clientEmail: meeting.clientEmail,
+          calendarEventCreated: calendarSynced,
+        },
+        severity: 'info',
+      });
+      
+      res.json({ originalMeeting: meeting, newMeeting });
     } catch (error) {
       next(error);
     }
