@@ -50,6 +50,7 @@ externalPort = 3000
 
 [userenv.shared]
 RECALL_REGION = "eu-central-1"
+ADMIN_USER_ID = "115111487033434827181"
 
 [userenv.production]
 VITE_PREVIEW_MODE = "true"
