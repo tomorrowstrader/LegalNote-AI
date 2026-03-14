@@ -57,7 +57,6 @@ export default function TimeRecordingModal({
         description,
         hourlyRate,
         status: "confirmed",
-        meetingSessionId: caseId,
       });
     },
     onSuccess: () => {

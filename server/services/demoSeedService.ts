@@ -118,6 +118,17 @@ async function seedCase1Patterson(userId: string) {
     createdBy: userId,
   }).returning();
 
+  const session1ExpiresAt = new Date(session1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id,
+    meetingSessionId: session1.id,
+    duration: 7800,
+    recordedAt: session1Date,
+    expiresAt: session1ExpiresAt,
+    deletedAt: session1ExpiresAt,
+    mimeType: "audio/webm",
+  });
+
   await db.insert(consentLogs).values({
     caseId: newCase.id,
     audioRecordingId: null,
@@ -365,6 +376,17 @@ Client confirmed understanding of AML obligations and agreed to provide document
     createdBy: userId,
   }).returning();
 
+  const session2ExpiresAt = new Date(session2Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id,
+    meetingSessionId: session2.id,
+    duration: 1080,
+    recordedAt: session2Date,
+    expiresAt: session2ExpiresAt,
+    deletedAt: session2ExpiresAt,
+    mimeType: "audio/webm",
+  });
+
   const transcript2Content = `Telephone call transcript — Patterson Developments Ltd
 
 SOLICITOR: Good afternoon, Mr Patterson. This call is being recorded. Is that acceptable?
@@ -451,6 +473,17 @@ Client undertook to chase Hargreaves and aims to have all documentation submitte
     notes: "AML review meeting — documentation received, clearance determination",
     createdBy: userId,
   }).returning();
+
+  const session3ExpiresAt = new Date(session3Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id,
+    meetingSessionId: session3.id,
+    duration: 5100,
+    recordedAt: session3Date,
+    expiresAt: session3ExpiresAt,
+    deletedAt: session3ExpiresAt,
+    mimeType: "audio/webm",
+  });
 
   const transcript3Content = `Meeting transcript — AML Review and Clearance
 
@@ -718,6 +751,12 @@ async function seedCase2Henderson(userId: string) {
     notes: "Initial consultation — residential purchase, first-time buyer", createdBy: userId,
   }).returning();
 
+  const s1ExpiresAt = new Date(s1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id, meetingSessionId: ses1.id, duration: 3300,
+    recordedAt: s1Date, expiresAt: s1ExpiresAt, deletedAt: s1ExpiresAt, mimeType: "audio/webm",
+  });
+
   await db.insert(consentLogs).values({
     caseId: newCase.id, solicitorId: userId, consentGiven: true, disclaimerScriptVersion: "v2.1", consentModality: "verbal_recorded",
   });
@@ -861,6 +900,12 @@ Client confirmed understanding of all matters discussed. No further questions at
     notes: "Telephone call — roof report confirmed, instruction to proceed to exchange", createdBy: userId,
   }).returning();
 
+  const s2ExpiresAt = new Date(s2Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id, meetingSessionId: ses2.id, duration: 420,
+    recordedAt: s2Date, expiresAt: s2ExpiresAt, mimeType: "audio/webm",
+  });
+
   const t2Content = `Telephone call transcript — Henderson purchase
 
 SOLICITOR: Good morning, Miss Henderson. This call is being recorded — is that alright?
@@ -984,6 +1029,12 @@ async function seedCase3Hartley(userId: string) {
     caseId: newCase.id, recordingType: "full_meeting", startedAt: s1Date, durationSeconds: 6000, status: "completed",
     notes: "Initial consultation — constructive dismissal claim", createdBy: userId,
   }).returning();
+
+  const s1ExpiresAt = new Date(s1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id, meetingSessionId: ses1.id, duration: 6000,
+    recordedAt: s1Date, expiresAt: s1ExpiresAt, deletedAt: s1ExpiresAt, mimeType: "audio/webm",
+  });
 
   await db.insert(consentLogs).values({ caseId: newCase.id, solicitorId: userId, consentGiven: true, disclaimerScriptVersion: "v2.1", consentModality: "verbal_recorded" });
 
@@ -1148,6 +1199,12 @@ Client resigned by email within 2 days of final incident, citing sustained cours
     notes: "Strategy review — ET1 sign-off, schedule of loss finalised", createdBy: userId,
   }).returning();
 
+  const s2ExpiresAt = new Date(s2Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id, meetingSessionId: ses2.id, duration: 3000,
+    recordedAt: s2Date, expiresAt: s2ExpiresAt, deletedAt: s2ExpiresAt, mimeType: "audio/webm",
+  });
+
   const t2Content = `Meeting transcript — ET1 Review and Sign-Off
 
 SOLICITOR: Good afternoon, Mr Hartley. Recording is on — you consent?
@@ -1306,6 +1363,12 @@ async function seedCase4Okafor(userId: string) {
     notes: "Initial consultation — Child Arrangements Order application", createdBy: userId,
   }).returning();
 
+  const s1ExpiresAt = new Date(s1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id, meetingSessionId: ses1.id, duration: 4500,
+    recordedAt: s1Date, expiresAt: s1ExpiresAt, deletedAt: s1ExpiresAt, mimeType: "audio/webm",
+  });
+
   await db.insert(consentLogs).values({ caseId: newCase.id, solicitorId: userId, consentGiven: true, disclaimerScriptVersion: "v2.1", consentModality: "verbal_recorded" });
 
   const t1Content = `Meeting transcript — Child Arrangements, Initial Consultation
@@ -1437,6 +1500,12 @@ MIAM certificate obtained (attended 2 weeks ago). Michael Okafor refused to atte
     notes: "Telephone call — CAFCASS allocation notification", createdBy: userId,
   }).returning();
 
+  const s2ExpiresAt = new Date(s2Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id, meetingSessionId: ses2.id, duration: 720,
+    recordedAt: s2Date, expiresAt: s2ExpiresAt, deletedAt: s2ExpiresAt, mimeType: "audio/webm",
+  });
+
   const t2Content = `Telephone call transcript — Okafor CAFCASS update
 
 SOLICITOR: Good afternoon, Mrs Okafor. Recording is on — you consent?
@@ -1491,6 +1560,12 @@ Call received from Mrs Okafor. CAFCASS officer allocated: J. Mercer. First conta
     caseId: newCase.id, recordingType: "court_hearing", startedAt: s3Date, durationSeconds: 2100, status: "completed",
     notes: "FHDRA — Bristol Family Court — District Judge Pemberton", createdBy: userId,
   }).returning();
+
+  const s3ExpiresAt = new Date(s3Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id, meetingSessionId: ses3.id, duration: 2100,
+    recordedAt: s3Date, expiresAt: s3ExpiresAt, mimeType: "audio/webm",
+  });
 
   const [tr3] = await db.insert(transcripts).values({
     caseId: newCase.id, meetingSessionId: ses3.id,
@@ -1634,6 +1709,12 @@ async function seedCase5Whitmore(userId: string) {
     caseId: newCase.id, recordingType: "full_meeting", startedAt: s1Date, durationSeconds: 6600, status: "completed",
     notes: "Will instructions meeting — mirror wills, IHT planning, four speakers", createdBy: userId,
   }).returning();
+
+  const s1ExpiresAt = new Date(s1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id, meetingSessionId: ses1.id, duration: 6600,
+    recordedAt: s1Date, expiresAt: s1ExpiresAt, deletedAt: s1ExpiresAt, mimeType: "audio/webm",
+  });
 
   await db.insert(consentLogs).values({ caseId: newCase.id, solicitorId: userId, consentGiven: true, disclaimerScriptVersion: "v2.1", consentModality: "verbal_recorded" });
 
@@ -1892,6 +1973,12 @@ async function seedCase6Treadwell(userId: string) {
     caseId: newCase.id, recordingType: "police_station", startedAt: s1Date, durationSeconds: 12300, status: "completed",
     notes: "Police station attendance — duty solicitor — s.18 OAPA 1861", createdBy: userId,
   }).returning();
+
+  const s1ExpiresAt = new Date(s1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id, meetingSessionId: ses1.id, duration: 12300,
+    recordedAt: s1Date, expiresAt: s1ExpiresAt, deletedAt: s1ExpiresAt, mimeType: "audio/webm",
+  });
 
   const t1Content = `Police station attendance record — Leon Treadwell
 
