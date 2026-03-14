@@ -1751,6 +1751,182 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  app.get("/api/cases/:id/handover-candidates", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseRecord = await storage.getCaseById(req.params.id);
+      if (!caseRecord) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const isCreator = caseRecord.createdBy === userId;
+      const isAssignee = caseRecord.assignedToUserId === userId;
+      const actingUser = await storage.getUser(userId);
+      const isAdmin = actingUser?.role === 'admin';
+      if (!isCreator && !isAssignee && !isAdmin) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const userStats = await storage.getUserStatistics();
+      const candidates = userStats
+        .filter(stat => stat.userId !== userId)
+        .map(stat => ({
+          id: stat.userId,
+          firstName: stat.firstName,
+          lastName: stat.lastName,
+        }));
+      res.json(candidates);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/handover", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { newFeeEarnerId, handoverNote } = req.body;
+
+      if (!newFeeEarnerId || typeof newFeeEarnerId !== 'string') {
+        return res.status(400).json({ message: "newFeeEarnerId is required" });
+      }
+
+      if (newFeeEarnerId === userId) {
+        return res.status(400).json({ message: "Cannot hand over a case to yourself" });
+      }
+
+      const caseRecord = await storage.getCaseById(req.params.id);
+      if (!caseRecord) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      const isCreator = caseRecord.createdBy === userId;
+      const isAssignee = caseRecord.assignedToUserId === userId;
+      const actingUser = await storage.getUser(userId);
+      const isAdmin = actingUser?.role === 'admin';
+      if (!isCreator && !isAssignee && !isAdmin) {
+        return res.status(403).json({ message: "Only the case owner, current assignee, or an admin can initiate a handover" });
+      }
+
+      const incomingUser = await storage.getUser(newFeeEarnerId);
+      if (!incomingUser) {
+        return res.status(404).json({ message: "Incoming solicitor not found" });
+      }
+
+      const outgoingUserId = caseRecord.assignedToUserId || caseRecord.createdBy;
+      let outgoingSolicitorName = outgoingUserId;
+      if (outgoingUserId) {
+        const outgoingUser = await storage.getUser(outgoingUserId);
+        if (outgoingUser) {
+          outgoingSolicitorName = [outgoingUser.firstName, outgoingUser.lastName].filter(Boolean).join(' ') || outgoingUser.email || outgoingUserId;
+        }
+      }
+      const incomingSolicitorName = [incomingUser.firstName, incomingUser.lastName].filter(Boolean).join(' ') || incomingUser.email || newFeeEarnerId;
+      const handoverTimestamp = new Date().toISOString();
+
+      const updatedCase = await storage.updateCase(req.params.id, { assignedToUserId: newFeeEarnerId }, caseRecord.createdBy);
+
+      await logAuditEvent(userId, "case_handover", {
+        caseId: req.params.id,
+        metadata: {
+          outgoingSolicitorId: outgoingUserId,
+          outgoingSolicitorName,
+          incomingSolicitorId: newFeeEarnerId,
+          incomingSolicitorName,
+          handoverNote: handoverNote || "",
+          handoverTimestamp,
+        },
+        req,
+      });
+
+      await logAuditEvent(newFeeEarnerId, "case_handover_received", {
+        caseId: req.params.id,
+        metadata: {
+          outgoingSolicitorId: outgoingUserId,
+          outgoingSolicitorName,
+          incomingSolicitorId: newFeeEarnerId,
+          incomingSolicitorName,
+          handoverNote: handoverNote || "",
+          handoverTimestamp,
+        },
+      });
+
+      res.json(updatedCase);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/cases/:id/handover-history", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseRecord = await storage.getCaseById(req.params.id);
+      if (!caseRecord) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const isCreator = caseRecord.createdBy === userId;
+      const isAssignee = caseRecord.assignedToUserId === userId;
+      const actingUser = await storage.getUser(userId);
+      const isAdmin = actingUser?.role === 'admin';
+      if (!isCreator && !isAssignee && !isAdmin) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const auditLogs = await storage.getAuditLogsByCase(req.params.id);
+      const handoverEvents = auditLogs.filter(log => log.eventType === 'case_handover');
+      res.json(handoverEvents);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/cases/:id/external-documents", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseRecord = await storage.getCase(req.params.id, userId);
+      if (!caseRecord) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const refs = await storage.getExternalDocumentRefs(req.params.id);
+      res.json(refs);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/external-documents", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseRecord = await storage.getCase(req.params.id, userId);
+      if (!caseRecord) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      const { insertExternalDocumentRefSchema } = await import("@shared/schema");
+      const body = { ...req.body, caseId: req.params.id };
+      if (body.documentDate === null || body.documentDate === "" || body.documentDate === undefined) {
+        delete body.documentDate;
+      }
+      const validated = insertExternalDocumentRefSchema.parse(body);
+
+      const ref = await storage.createExternalDocumentRef(validated, userId);
+
+      await logAuditEvent(userId, "external_document_referenced", {
+        caseId: req.params.id,
+        metadata: {
+          externalDocRefId: ref.id,
+          description: validated.description,
+          documentType: validated.documentType,
+          documentDate: validated.documentDate?.toISOString() || null,
+          providedBy: validated.providedBy,
+        },
+        req,
+      });
+
+      res.json(ref);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Quick Notes routes
   app.post("/api/cases/:id/quick-notes", isAuthenticated, async (req: any, res, next) => {
     try {
@@ -7280,7 +7456,8 @@ ${firmName}`;
       
       const notifiableEvents = [
         'transcript_generated', 'document_generated', 'document_regenerated',
-        'case_email_sent', 'audio_expiring_soon', 'deadline_approaching', 'consent_given'
+        'case_email_sent', 'audio_expiring_soon', 'deadline_approaching', 'consent_given',
+        'case_handover_received'
       ];
       
       const events = await dbConn

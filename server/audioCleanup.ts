@@ -30,8 +30,13 @@ export async function cleanupExpiredAudio(): Promise<void> {
           // Delete main audio file from Backblaze B2
           await objectStorageService.deleteObjectEntity(recording.filePath);
           
+          const deletionTimestamp = new Date();
+          
           // Mark as deleted in database (consent segment path preserved)
-          await storage.updateAudioRecording(recording.id, { deletedAt: new Date() });
+          await storage.updateAudioRecording(recording.id, { deletedAt: deletionTimestamp });
+
+          // Look up the case to get matter reference for the audit entry
+          const caseRecord = await storage.getCaseById(recording.caseId);
           
           // Log audit event (system-initiated deletion)
           await logAuditEvent("system", "audio_deleted", {
@@ -41,8 +46,23 @@ export async function cleanupExpiredAudio(): Promise<void> {
               reason: "startup_cleanup_7day_retention_policy",
               filePath: recording.filePath,
               expiresAt: recording.expiresAt.toISOString(),
-              deletedAt: new Date().toISOString(),
+              deletedAt: deletionTimestamp.toISOString(),
               storage: "backblaze_b2",
+              consentSegmentPreserved: !!(recording as any).consentSegmentPath,
+            },
+            severity: "warning",
+          });
+
+          // Write structured GDPR compliance audit entry for permanent deletion
+          await logAuditEvent("system", "audio_permanently_deleted", {
+            caseId: recording.caseId,
+            audioRecordingId: recording.id,
+            metadata: {
+              matterReference: caseRecord?.matterReference || "N/A",
+              deletionTimestamp: deletionTimestamp.toISOString(),
+              audioDurationSeconds: recording.duration || null,
+              gdprBasis: "retention_period_expired",
+              retentionDays: 7,
               consentSegmentPreserved: !!(recording as any).consentSegmentPath,
             },
             severity: "warning",

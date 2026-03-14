@@ -192,6 +192,32 @@ export async function cleanupOldAudioFiles(userId: string): Promise<{
               ipAddress: 'system',
               userAgent: 'data-retention-service',
             });
+
+            let audioDurationSeconds: number | null = null;
+            try {
+              const audioRec = await storage.getAudioRecordingByCase(caseRecord.id, userId);
+              if (audioRec?.duration) {
+                audioDurationSeconds = audioRec.duration;
+              }
+            } catch (err) {
+              console.warn('[DATA-RETENTION] Could not retrieve audio duration for GDPR audit entry:', {
+                caseId: caseRecord.id,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+
+            const { logAuditEvent } = await import('../auditMiddleware');
+            await logAuditEvent(userId, "audio_permanently_deleted", {
+              caseId: caseRecord.id,
+              metadata: {
+                matterReference: caseRecord.matterReference || "N/A",
+                deletionTimestamp: new Date().toISOString(),
+                audioDurationSeconds,
+                gdprBasis: "retention_period_expired",
+                retentionDays: AUDIO_RETENTION_DAYS,
+              },
+              severity: "warning",
+            });
           } catch (error) {
             console.error('[DATA-RETENTION] Error deleting audio file from Backblaze B2:', error);
             errors++;

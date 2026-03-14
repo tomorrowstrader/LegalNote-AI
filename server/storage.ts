@@ -30,6 +30,7 @@ import {
   type DocumentComment, type InsertDocumentComment,
   type AmlMonitoringNote, type InsertAmlMonitoringNote,
   type AmlDecisionRecord, type InsertAmlDecisionRecord,
+  type ExternalDocumentRef, type InsertExternalDocumentRef,
   users,
   cases,
   audioRecordings,
@@ -61,10 +62,11 @@ import {
   documentComments,
   amlMonitoringNotes,
   amlDecisionRecords,
+  externalDocumentRefs,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, gte, lte, desc, isNull, sql, count, inArray } from "drizzle-orm";
+import { eq, and, or, gte, lte, desc, isNull, sql, count, inArray } from "drizzle-orm";
 import { generateDocumentHash } from "./utils/documentHash";
 import { expandSearchWithSynonyms } from "./services/legalSynonyms";
 
@@ -501,6 +503,11 @@ export interface IStorage {
   createAmlDecisionRecord(data: InsertAmlDecisionRecord): Promise<AmlDecisionRecord>;
   updateUserComplianceThread(userId: string, enabled: boolean): Promise<User | undefined>;
   getLastAmlActivityDates(caseIds: string[]): Promise<Record<string, Date>>;
+
+  getCaseById(id: string): Promise<Case | undefined>;
+
+  getExternalDocumentRefs(caseId: string): Promise<ExternalDocumentRef[]>;
+  createExternalDocumentRef(data: InsertExternalDocumentRef, userId: string): Promise<ExternalDocumentRef>;
 }
 
 export class MemStorage implements IStorage {
@@ -1799,6 +1806,17 @@ export class MemStorage implements IStorage {
   async getLastAmlActivityDates(_caseIds: string[]): Promise<Record<string, Date>> {
     return {};
   }
+
+  async getCaseById(id: string): Promise<Case | undefined> {
+    return this.cases.get(id);
+  }
+
+  async getExternalDocumentRefs(_caseId: string): Promise<ExternalDocumentRef[]> {
+    return [];
+  }
+  async createExternalDocumentRef(_data: InsertExternalDocumentRef, _userId: string): Promise<ExternalDocumentRef> {
+    throw new Error("Not implemented in MemStorage");
+  }
 }
 
 export class DbStorage implements IStorage {
@@ -1974,9 +1992,10 @@ export class DbStorage implements IStorage {
   }
 
   async getCases(userId: string, includeArchived: boolean = false): Promise<Case[]> {
+    const userFilter = or(eq(cases.createdBy, userId), eq(cases.assignedToUserId, userId));
     const conditions = includeArchived 
-      ? [eq(cases.createdBy, userId)]
-      : [eq(cases.createdBy, userId), eq(cases.archived, false)];
+      ? [userFilter]
+      : [userFilter, eq(cases.archived, false)];
       
     return await db
       .select()
@@ -1986,7 +2005,9 @@ export class DbStorage implements IStorage {
   }
 
   async getCase(id: string, userId: string): Promise<Case | undefined> {
-    const result = await db.select().from(cases).where(and(eq(cases.id, id), eq(cases.createdBy, userId)));
+    const result = await db.select().from(cases).where(
+      and(eq(cases.id, id), or(eq(cases.createdBy, userId), eq(cases.assignedToUserId, userId)))
+    );
     return result[0];
   }
 
@@ -1994,7 +2015,7 @@ export class DbStorage implements IStorage {
     const result = await db
       .update(cases)
       .set(updates)
-      .where(and(eq(cases.id, id), eq(cases.createdBy, userId)))
+      .where(and(eq(cases.id, id), or(eq(cases.createdBy, userId), eq(cases.assignedToUserId, userId))))
       .returning();
     return result[0];
   }
@@ -4077,6 +4098,29 @@ export class DbStorage implements IStorage {
       }
     }
     return result;
+  }
+
+  async getCaseById(id: string): Promise<Case | undefined> {
+    const result = await db.select().from(cases).where(eq(cases.id, id));
+    return result[0];
+  }
+
+  async getExternalDocumentRefs(caseId: string): Promise<ExternalDocumentRef[]> {
+    return await db.select().from(externalDocumentRefs)
+      .where(eq(externalDocumentRefs.caseId, caseId))
+      .orderBy(desc(externalDocumentRefs.createdAt));
+  }
+
+  async createExternalDocumentRef(data: InsertExternalDocumentRef, userId: string): Promise<ExternalDocumentRef> {
+    const result = await db.insert(externalDocumentRefs).values({
+      caseId: data.caseId,
+      createdBy: userId,
+      description: data.description,
+      documentType: data.documentType,
+      documentDate: data.documentDate ?? null,
+      providedBy: data.providedBy,
+    }).returning();
+    return result[0];
   }
 }
 

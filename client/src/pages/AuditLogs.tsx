@@ -38,6 +38,10 @@ const EVENT_ICONS: Record<string, any> = {
   calendar_disconnected: Shield,
   calendar_synced: Send,
   calendar_sync_failed: Shield,
+  audio_permanently_deleted: Shield,
+  case_handover: Send,
+  case_handover_received: Send,
+  external_document_referenced: FileText,
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -65,6 +69,10 @@ const EVENT_LABELS: Record<string, string> = {
   calendar_disconnected: "Calendar Disconnected",
   calendar_synced: "Calendar Synced",
   calendar_sync_failed: "Calendar Sync Failed",
+  audio_permanently_deleted: "Audio Permanently Deleted (GDPR)",
+  case_handover: "Case Handover",
+  case_handover_received: "Case Handover Received",
+  external_document_referenced: "External Document Referenced",
 };
 
 const SEVERITY_COLORS: Record<string, string> = {

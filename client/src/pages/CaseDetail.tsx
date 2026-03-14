@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X, Phone, Lock } from "lucide-react";
+import { ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X, Phone, Lock, ArrowRightLeft } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,8 @@ import AmlTriggerBanner from "@/components/AmlTriggerBanner";
 import SharedHistoryViewer from "@/components/SharedHistoryViewer";
 import ActionItemsViewer from "@/components/ActionItemsViewer";
 import PreMeetingBriefing from "@/components/PreMeetingBriefing";
+import HandoverModal from "@/components/HandoverModal";
+import ExternalDocumentRefs from "@/components/ExternalDocumentRefs";
 import { useLocation, useParams, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -60,6 +62,7 @@ export default function CaseDetail() {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showLogCallModal, setShowLogCallModal] = useState(false);
+  const [showHandoverModal, setShowHandoverModal] = useState(false);
   const { user } = useAuth();
   const audioPlayerRef = useRef<AudioPlayerHandle>(null);
   const [hasAutoSeeked, setHasAutoSeeked] = useState(false);
@@ -393,6 +396,10 @@ export default function CaseDetail() {
                     <Download className="w-4 h-4 mr-2" />
                     Download Document
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowHandoverModal(true)} data-testid="action-handover">
+                    <ArrowRightLeft className="w-4 h-4 mr-2" />
+                    Handover Case
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => archiveMutation.mutate(true)}
@@ -719,6 +726,18 @@ export default function CaseDetail() {
               </AccordionItem>
             )}
 
+            <AccordionItem value="external-documents" className="bg-card rounded-lg border border-border px-6">
+              <AccordionTrigger className="hover:no-underline" data-testid="accordion-external-documents">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-accent" />
+                  <span className="font-semibold">External Document References</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <ExternalDocumentRefs caseId={caseId!} />
+              </AccordionContent>
+            </AccordionItem>
+
             <AccordionItem value="compliance-thread" className="bg-card rounded-lg border border-border px-6">
               <AccordionTrigger className="hover:no-underline" data-testid="accordion-compliance-thread">
                 <div className="flex items-center gap-2">
@@ -912,6 +931,14 @@ export default function CaseDetail() {
         caseTitle={caseData.title}
         clientName={caseData.clientName}
         matterReference={caseData.matterReference || undefined}
+      />
+
+      <HandoverModal
+        open={showHandoverModal}
+        onOpenChange={setShowHandoverModal}
+        caseId={caseId!}
+        caseTitle={caseData.title}
+        currentAssignee={caseData.assignedToUserId}
       />
     </div>
   );

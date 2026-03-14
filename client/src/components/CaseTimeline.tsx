@@ -295,7 +295,8 @@ export function CaseTimeline({ caseId }: CaseTimelineProps) {
     const significantAuditEvents = auditLogs.filter(log => 
       ["ai_processing_started", "ai_processing_completed", "transcription_completed", 
        "share_link_created", "document_sent", "document_approved",
-       "document_exported_pdf", "document_exported_word", "document_exported"].includes(log.eventType)
+       "document_exported_pdf", "document_exported_word", "document_exported",
+       "audio_permanently_deleted", "case_handover", "external_document_referenced"].includes(log.eventType)
     );
 
     significantAuditEvents.forEach((log) => {
@@ -308,6 +309,30 @@ export function CaseTimeline({ caseId }: CaseTimelineProps) {
         title = log.eventType === "ai_processing_started" ? "AI Processing Started" :
                 log.eventType === "ai_processing_completed" ? "AI Processing Completed" :
                 "Transcription Completed";
+      } else if (log.eventType === "case_handover") {
+        type = "audit";
+        title = "Case Handover";
+        const meta = log.metadata;
+        description = meta?.incomingSolicitorName 
+          ? `Transferred to ${String(meta.incomingSolicitorName)}` 
+          : "Case transferred to new fee earner";
+        if (meta?.handoverNote) {
+          description += ` - ${String(meta.handoverNote)}`;
+        }
+      } else if (log.eventType === "external_document_referenced") {
+        type = "document";
+        title = "External Document Referenced";
+        const meta = log.metadata;
+        description = meta?.description
+          ? `${String(meta.documentType || "Document")}: ${String(meta.description)}`
+          : "External document reference logged";
+      } else if (log.eventType === "audio_permanently_deleted") {
+        type = "consent";
+        title = "Audio Permanently Deleted (GDPR)";
+        const meta = log.metadata;
+        description = meta?.matterReference
+          ? `Matter: ${String(meta.matterReference)} - Retention period expired`
+          : "Audio deleted per GDPR retention policy";
       } else if (log.eventType.includes("share") || log.eventType.includes("sent")) {
         type = "share";
       } else if (log.eventType.includes("exported")) {

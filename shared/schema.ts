@@ -1229,3 +1229,29 @@ export const insertAmlDecisionRecordSchema = createInsertSchema(amlDecisionRecor
 
 export type InsertAmlDecisionRecord = z.infer<typeof insertAmlDecisionRecordSchema>;
 export type AmlDecisionRecord = typeof amlDecisionRecords.$inferSelect;
+
+export const externalDocumentRefs = pgTable("external_document_refs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  description: text("description").notNull(),
+  documentType: text("document_type").notNull(),
+  documentDate: timestamp("document_date"),
+  providedBy: text("provided_by").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertExternalDocumentRefSchema = createInsertSchema(externalDocumentRefs).omit({
+  id: true,
+  createdAt: true,
+  createdBy: true,
+}).extend({
+  caseId: z.string().uuid(),
+  description: z.string().min(1).max(2000),
+  documentType: z.string().min(1).max(200),
+  documentDate: z.coerce.date().optional(),
+  providedBy: z.string().min(1).max(200),
+});
+
+export type InsertExternalDocumentRef = z.infer<typeof insertExternalDocumentRefSchema>;
+export type ExternalDocumentRef = typeof externalDocumentRefs.$inferSelect;
