@@ -341,10 +341,9 @@ export default function DiarizedTranscriptViewer({
 
   return (
     <div className="space-y-4" data-testid="container-diarized-transcript">
-      {/* Sticky transcript controls header - uses CSS variable from DocumentViewer */}
+      {/* Sticky transcript controls header - sticks to top of its scroll container */}
       <div 
-        className="sticky z-30 bg-background pb-3 pt-2 border-b"
-        style={{ top: 'var(--doc-header-height, 80px)' }}
+        className="sticky top-0 z-30 bg-card pb-3 pt-2 border-b"
       >
         {/* Stats row */}
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground pb-2">

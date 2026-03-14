@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Calendar, User, Shield, ShieldCheck, Loader2, RefreshCw, Sparkles, FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Share2, Eye, Download, Archive, Video, ChevronDown, ListChecks, ClipboardList, History, ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send } from "lucide-react";
+import {
+  ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles,
+  FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle,
+  Share2, Eye, Download, Archive, Video, ListChecks, History,
+  ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send,
+  ShieldCheck, ChevronRight,
+} from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,18 +17,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import DocumentViewer from "@/components/DocumentViewer";
 import { AudioPlayer, type AudioPlayerHandle } from "@/components/AudioPlayer";
 import { AuditTrail } from "@/components/AuditTrail";
@@ -63,6 +64,28 @@ interface SessionWithDetails extends MeetingSession {
   documents: Document[];
 }
 
+type CaseSection =
+  | "documents" | "obligations" | "sessions" | "notes" | "briefing"
+  | "time" | "undertakings" | "external-refs" | "linked-calls"
+  | "consent" | "compliance" | "activity" | "sharing" | "audit";
+
+const SECTION_LABELS: Record<CaseSection, string> = {
+  documents: "Documents",
+  obligations: "Obligations",
+  sessions: "Sessions",
+  notes: "Notes",
+  briefing: "Pre-meeting Briefing",
+  time: "Time Recording",
+  undertakings: "Undertakings",
+  "external-refs": "External References",
+  "linked-calls": "Telephone Notes",
+  consent: "Consent Evidence",
+  compliance: "Compliance Thread",
+  activity: "Activity Timeline",
+  sharing: "Sharing History",
+  audit: "Audit Trail",
+};
+
 function SessionDetails({ sessionId }: { sessionId: string }) {
   const { data, isLoading } = useQuery<SessionWithDetails>({
     queryKey: ['/api/sessions', sessionId],
@@ -79,28 +102,11 @@ function SessionDetails({ sessionId }: { sessionId: string }) {
 
   if (!data) return null;
 
-  const hasTranscript = data.transcript && data.transcript.content;
   const activeDocuments = data.documents.filter(d => d.isActive);
   const previousVersions = data.documents.filter(d => !d.isActive);
 
   return (
     <div className="py-3 space-y-3" data-testid={`session-details-${sessionId}`}>
-      {hasTranscript ? (
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-            <ScrollText className="w-3.5 h-3.5" />
-            Transcript
-          </p>
-          <div className="text-sm bg-muted/30 rounded-md p-3 max-h-40 overflow-y-auto">
-            <p className="whitespace-pre-wrap line-clamp-6">{data.transcript!.content.slice(0, 500)}{data.transcript!.content.length > 500 ? "..." : ""}</p>
-          </div>
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-          <ScrollText className="w-3.5 h-3.5" />
-          No transcript linked to this session
-        </p>
-      )}
       {activeDocuments.length > 0 ? (
         <div className="space-y-1">
           <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
@@ -138,6 +144,7 @@ export default function CaseDetail() {
   const caseId = params.id;
   const { toast } = useToast();
   const { isFocusMode, toggleFocusMode, exitFocusMode } = useFocusMode();
+
   const [autoOpenComplianceNote, setAutoOpenComplianceNote] = useState(0);
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
@@ -147,38 +154,45 @@ export default function CaseDetail() {
   const [showLogCallModal, setShowLogCallModal] = useState(false);
   const [showHandoverModal, setShowHandoverModal] = useState(false);
   const [showTimeRecordingModal, setShowTimeRecordingModal] = useState(false);
-  const timeRecordingKey = `timeRecordingPrompted_${params.id}`;
-  const [hasPromptedTimeRecording, setHasPromptedTimeRecording] = useState(() => {
-    return sessionStorage.getItem(timeRecordingKey) === 'true';
-  });
-
-  useEffect(() => {
-    setHasPromptedTimeRecording(sessionStorage.getItem(timeRecordingKey) === 'true');
-  }, [timeRecordingKey]);
   const [showCareLetterModal, setShowCareLetterModal] = useState(false);
   const [showSendCareLetterDialog, setShowSendCareLetterDialog] = useState(false);
   const [sendEmail, setSendEmail] = useState("");
   const [isSendingCareLetter, setIsSendingCareLetter] = useState(false);
   const [editingPracticeArea, setEditingPracticeArea] = useState(false);
+
+  const timeRecordingKey = `timeRecordingPrompted_${params.id}`;
+  const [hasPromptedTimeRecording, setHasPromptedTimeRecording] = useState(() => {
+    return sessionStorage.getItem(timeRecordingKey) === 'true';
+  });
+  useEffect(() => {
+    setHasPromptedTimeRecording(sessionStorage.getItem(timeRecordingKey) === 'true');
+  }, [timeRecordingKey]);
+
   const { user } = useAuth();
   const audioPlayerRef = useRef<AudioPlayerHandle>(null);
   const [hasAutoSeeked, setHasAutoSeeked] = useState(false);
-  
-  // Parse URL search parameters for deep linking from search results
+
   const searchParams = new URLSearchParams(search);
   const urlTab = searchParams.get('tab') as 'attendance' | 'summary' | 'transcript' | 'compliance' | null;
   const urlTimestamp = searchParams.get('timestamp');
 
+  const [activeSection, setActiveSection] = useState<CaseSection>(() => {
+    if (urlTab === 'compliance') return 'compliance';
+    return 'documents';
+  });
+
+  useEffect(() => {
+    if (urlTab === 'compliance') setActiveSection('compliance');
+  }, [urlTab]);
+
   const handleTranscriptTimestampClick = (timeMs: number) => {
     audioPlayerRef.current?.seekTo(timeMs);
   };
-  
-  // Auto-seek to timestamp when coming from search results
+
   useEffect(() => {
     if (urlTimestamp && !hasAutoSeeked && audioPlayerRef.current) {
       const timestampMs = parseInt(urlTimestamp, 10);
       if (!isNaN(timestampMs)) {
-        // Small delay to ensure audio player is ready
         setTimeout(() => {
           audioPlayerRef.current?.seekTo(timestampMs);
           setHasAutoSeeked(true);
@@ -191,7 +205,7 @@ export default function CaseDetail() {
     queryKey: [`/api/cases/${caseId}`],
     enabled: !!caseId,
   });
-  
+
   const { data: audioData, isLoading: audioLoading } = useQuery<AudioRecording>({
     queryKey: [`/api/audio/by-case/${caseId}`],
     enabled: !!caseId && (caseData?.sourceType === 'audio' || caseData?.sourceType === 'dictation'),
@@ -208,6 +222,23 @@ export default function CaseDetail() {
   });
   const outstandingUndertakingsCount = undertakingsData.filter(u => u.status === 'outstanding').length;
 
+  const { data: actionItems = [] } = useQuery<Array<{ id: string; status: string }>>({
+    queryKey: [`/api/cases/${caseId}/action-items`],
+    enabled: !!caseId && (caseData?.status === 'review_required' || caseData?.status === 'completed'),
+  });
+  const pendingObligationsCount = actionItems.filter(a => a.status === 'draft').length;
+
+  const { data: timeEntries = [] } = useQuery<Array<{ id: string; duration: number }>>({
+    queryKey: [`/api/cases/${caseId}/time-entries`],
+    enabled: !!caseId,
+  });
+  const totalTimeMinutes = timeEntries.reduce((sum: number, t: any) => sum + (t.duration || 0), 0);
+  const totalTimeLabel = totalTimeMinutes > 0
+    ? totalTimeMinutes >= 60
+      ? `${Math.floor(totalTimeMinutes / 60)}h ${totalTimeMinutes % 60}m`
+      : `${totalTimeMinutes}m`
+    : null;
+
   const { data: allCases } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
     enabled: !!caseId,
@@ -215,62 +246,39 @@ export default function CaseDetail() {
   const linkedDictations = (allCases || []).filter(c => c.parentCaseId === caseId && c.sourceType === 'dictation');
 
   interface SpeakerUtterance {
-    speaker: string;
-    text: string;
-    start: number;
-    end: number;
-    confidence: number;
+    speaker: string; text: string; start: number; end: number; confidence: number;
   }
-  
   interface Redaction {
-    start: number;
-    end: number;
-    reason: string;
-    redactedBy: string;
-    timestamp: string;
+    start: number; end: number; reason: string; redactedBy: string; timestamp: string;
   }
-  
-  const { data: transcript } = useQuery<{ 
-    id: string; 
-    caseId: string; 
-    content: string; 
-    utterances?: SpeakerUtterance[];
-    speakerCount?: number;
-    redactions?: Redaction[];
-    createdAt: string;
+
+  const { data: transcript } = useQuery<{
+    id: string; caseId: string; content: string;
+    utterances?: SpeakerUtterance[]; speakerCount?: number;
+    redactions?: Redaction[]; createdAt: string;
   }>({
     queryKey: [`/api/cases/${caseId}/transcript`],
     enabled: !!caseId && (caseData?.status === 'review_required' || caseData?.status === 'completed'),
   });
 
   const { data: documents = [] } = useQuery<Array<{
-    id: string;
-    caseId: string;
-    type: 'attendance_note' | 'summary';
-    content: string;
-    version: number;
-    createdAt: string;
+    id: string; caseId: string; type: 'attendance_note' | 'summary';
+    content: string; version: number; createdAt: string;
   }>>({
     queryKey: [`/api/cases/${caseId}/documents`],
     enabled: !!caseId && (caseData?.status === 'review_required' || caseData?.status === 'completed'),
   });
 
-  // Poll processing status when case is being processed
   const { data: processingStatus } = useQuery<{
     status: string;
     processingMetadata: {
-      status: string;
-      progress: number;
-      currentStep: string;
-      totalCost: number;
-      totalTokens: number;
-      error?: string;
-      completedAt?: string;
+      status: string; progress: number; currentStep: string;
+      totalCost: number; totalTokens: number; error?: string; completedAt?: string;
     };
   }>({
     queryKey: [`/api/cases/${caseId}/processing-status`],
     enabled: !!caseId && caseData?.status === 'processing',
-    refetchInterval: 5000, // Poll every 5 seconds
+    refetchInterval: 5000,
   });
 
   const { data: meetingSessions = [] } = useQuery<MeetingSession[]>({
@@ -285,7 +293,6 @@ export default function CaseDetail() {
     }
   }, [processingStatus?.status, caseData?.status, caseId]);
 
-  // Prompt time recording after processing completes
   useEffect(() => {
     if (
       !hasPromptedTimeRecording &&
@@ -301,322 +308,752 @@ export default function CaseDetail() {
     }
   }, [caseData?.status, caseData?.sourceType, hasPromptedTimeRecording, timeRecordingKey]);
 
-  // Check if there's a valid consent log (consentGiven === true)
   const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
-  
+
   const processAIMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest("POST", `/api/cases/${caseId}/process`, {});
-    },
+    mutationFn: async () => apiRequest("POST", `/api/cases/${caseId}/process`, {}),
     onSuccess: () => {
-      toast({
-        title: "Processing complete",
-        description: "Documents have been produced successfully",
-        duration: 6000,
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: [`/api/cases/${caseId}`] 
-      });
+      toast({ title: "Processing complete", description: "Documents have been produced successfully", duration: 6000 });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
     },
     onError: (error: any) => {
-      toast({
-        title: "Processing failed",
-        description: error.message || "Failed to process case. Please try again.",
-        variant: "destructive",
-        duration: 6000,
-      });
+      toast({ title: "Processing failed", description: error.message || "Failed to process case. Please try again.", variant: "destructive", duration: 6000 });
     },
   });
 
   const retryProcessingMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest("POST", `/api/cases/${caseId}/retry-processing`, {});
-    },
+    mutationFn: async () => apiRequest("POST", `/api/cases/${caseId}/retry-processing`, {}),
     onSuccess: () => {
-      toast({
-        title: "Retry started",
-        description: "Processing has been queued again",
-        duration: 6000,
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: [`/api/cases/${caseId}`] 
-      });
+      toast({ title: "Retry started", description: "Processing has been queued again", duration: 6000 });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
     },
     onError: (error: any) => {
-      toast({
-        title: "Retry failed",
-        description: error.message || "Failed to retry processing. Please try again.",
-        variant: "destructive",
-        duration: 6000,
-      });
+      toast({ title: "Retry failed", description: error.message || "Failed to retry processing.", variant: "destructive", duration: 6000 });
     },
   });
 
-  // Shared hooks for case actions and export
-  const { markReviewedMutation, archiveMutation } = useCaseActions({ 
-    caseId: caseId!, 
-    onArchiveSuccess: () => setLocation('/') 
+  const { markReviewedMutation, archiveMutation } = useCaseActions({
+    caseId: caseId!,
+    onArchiveSuccess: () => setLocation('/'),
   });
-  const { handleDownload } = useCaseExport({ 
-    caseId: caseId!, 
+  const { handleDownload } = useCaseExport({
+    caseId: caseId!,
     enabled: showDownloadModal,
-    prefetchedData: {
-      caseData: caseData,
-      documents: documents,
-      transcript: transcript,
-    }
+    prefetchedData: { caseData, documents, transcript },
   });
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-4xl mx-auto px-6 lg:px-8 py-8">
-          <Skeleton className="h-10 w-48 mb-6" />
-          <div className="mb-8">
-            <Skeleton className="h-10 w-96 mb-4" />
-            <Skeleton className="h-6 w-64 mb-4" />
-            <div className="flex gap-4">
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-5 w-40" />
-            </div>
+      <div className="flex min-h-screen bg-background">
+        <div className="hidden lg:flex w-[220px] shrink-0 border-r border-border bg-muted/20 flex-col h-screen sticky top-16 overflow-y-auto">
+          <div className="px-4 pt-4 pb-3 space-y-3">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="h-3 w-20" />
           </div>
-          <Skeleton className="h-96 w-full" />
+          <div className="px-2 py-3 space-y-1">
+            {[...Array(7)].map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-md" />)}
+          </div>
         </div>
+        <main className="flex-1 min-w-0 px-8 py-8 space-y-6">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-[400px] w-full rounded-lg" />
+        </main>
       </div>
     );
   }
 
   if (error || !caseData) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-4xl mx-auto px-6 lg:px-8 py-8">
-          <Button
-            variant="ghost"
-            onClick={() => setLocation('/')}
-            className="mb-6 gap-2"
-            data-testid="button-back-to-dashboard"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">Case not found</p>
+          <Button variant="ghost" onClick={() => setLocation('/')} className="gap-2" data-testid="button-back-to-dashboard">
+            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
           </Button>
-          <div className="text-center py-12">
-            <p className="text-lg text-muted-foreground">Case not found</p>
-          </div>
         </div>
       </div>
     );
   }
 
+  const riskColors: Record<string, string> = {
+    high: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+    medium: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+    low: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  };
+
+  const matterNavItems: { id: string; label: string; icon: any; badge?: React.ReactNode; show?: boolean }[] = [
+    { id: 'documents', label: 'Documents', icon: FileText },
+    {
+      id: 'obligations', label: 'Obligations', icon: ListChecks,
+      badge: pendingObligationsCount > 0
+        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{pendingObligationsCount}</Badge>
+        : undefined,
+    },
+    {
+      id: 'sessions', label: 'Sessions', icon: History,
+      badge: meetingSessions.length > 0
+        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{meetingSessions.length}</Badge>
+        : undefined,
+    },
+    {
+      id: 'notes', label: 'Notes', icon: MessageSquarePlus,
+      badge: caseData.textNotes
+        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">1</Badge>
+        : undefined,
+    },
+    { id: 'briefing', label: 'Pre-meeting Briefing', icon: Sparkles },
+    {
+      id: 'time', label: 'Time Recording', icon: Clock,
+      badge: totalTimeLabel
+        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{totalTimeLabel}</Badge>
+        : undefined,
+    },
+    {
+      id: 'undertakings', label: 'Undertakings', icon: Shield,
+      badge: outstandingUndertakingsCount > 0
+        ? <Badge variant="destructive" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{outstandingUndertakingsCount}</Badge>
+        : undefined,
+    },
+    { id: 'external-refs', label: 'External References', icon: FileText },
+    { id: 'linked-calls', label: 'Telephone Notes', icon: Phone, show: linkedDictations.length > 0, badge: linkedDictations.length > 0 ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{linkedDictations.length}</Badge> : undefined },
+  ].filter(item => item.show !== false);
+
+  const complianceNavItems: { id: string; label: string; icon: any; badge?: React.ReactNode; show?: boolean }[] = [
+    { id: 'consent', label: 'Consent Evidence', icon: Shield, show: caseData.sourceType === 'audio' },
+    {
+      id: 'compliance', label: 'Compliance Thread', icon: ShieldCheck,
+      badge: caseData.riskLevel
+        ? <Badge className={cn("text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate", riskColors[caseData.riskLevel] || '')}>{(caseData.riskLevel as string).toUpperCase()}</Badge>
+        : undefined,
+    },
+    { id: 'activity', label: 'Activity Timeline', icon: Calendar },
+    { id: 'sharing', label: 'Sharing History', icon: Share2 },
+    { id: 'audit', label: 'Audit Trail', icon: ScrollText },
+  ].filter(item => item.show !== false);
+
+  const NavItem = ({ item, isCompliance = false }: { item: typeof matterNavItems[0]; isCompliance?: boolean }) => {
+    const isActive = activeSection === item.id;
+    const Icon = item.icon;
+    return (
+      <button
+        key={item.id}
+        onClick={() => {
+          setActiveSection(item.id as CaseSection);
+          if (item.id === 'compliance') setAutoOpenComplianceNote(0);
+        }}
+        className={cn(
+          "relative w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors duration-150 text-left group",
+          isActive
+            ? "bg-accent/10 text-accent font-medium"
+            : "text-foreground/70 hover:text-foreground hover-elevate"
+        )}
+        data-testid={`nav-${item.id}`}
+      >
+        {isActive && (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-accent rounded-r" />
+        )}
+        <Icon className={cn("w-4 h-4 shrink-0", isCompliance && !isActive ? "text-muted-foreground" : isActive ? "text-accent" : "text-muted-foreground group-hover:text-foreground")} />
+        <span className="flex-1 truncate text-xs">{item.label}</span>
+        {item.badge}
+      </button>
+    );
+  };
+
+  const mobileNavItems = [...matterNavItems, ...complianceNavItems];
+
+  const showAudioPlayer = caseData.sourceType === 'audio' && audioData?.filePath && !audioData.deletedAt;
+
+  const sectionActions: Partial<Record<CaseSection, React.ReactNode>> = {
+    documents: (
+      <Button variant="outline" size="sm" onClick={() => setShowDownloadModal(true)} className="gap-1.5" data-testid="button-download-documents">
+        <Download className="w-3.5 h-3.5" />
+        Download
+      </Button>
+    ),
+    time: (
+      <Button variant="outline" size="sm" onClick={() => setShowTimeRecordingModal(true)} className="gap-1.5" data-testid="button-record-time-top">
+        <Clock className="w-3.5 h-3.5" />
+        Record Time
+      </Button>
+    ),
+    notes: (
+      <Button variant="outline" size="sm" onClick={() => setShowAddNoteModal(true)} className="gap-1.5" data-testid="button-add-note-top">
+        <Plus className="w-3.5 h-3.5" />
+        {caseData.textNotes ? 'Edit Note' : 'Add Note'}
+      </Button>
+    ),
+  };
+
   return (
-    <div className={`min-h-screen bg-background ${isFocusMode ? 'focus-mode' : ''}`}>
-      {/* Focus Mode Exit Button - floating */}
+    <div className={cn("flex bg-background", isFocusMode ? "min-h-screen" : "")}>
       {isFocusMode && (
-        <div className="fixed top-4 right-4 z-50">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exitFocusMode}
-            className="gap-2 bg-background/80 backdrop-blur-sm shadow-lg"
-            data-testid="button-exit-focus-mode"
-          >
-            <X className="w-4 h-4" />
-            Exit Focus Mode
+        <div className="fixed top-4 right-4 z-[200]">
+          <Button variant="outline" size="sm" onClick={exitFocusMode} className="gap-2 bg-background/80 backdrop-blur-sm shadow-lg" data-testid="button-exit-focus-mode">
+            <X className="w-4 h-4" /> Exit Focus Mode
           </Button>
         </div>
       )}
-      
-      <div className={`mx-auto px-6 lg:px-8 py-8 ${isFocusMode ? 'max-w-3xl' : 'max-w-4xl'}`}>
-        {!isFocusMode && (
-          <Button
-            variant="ghost"
-            onClick={() => setLocation('/')}
-            className="mb-6 gap-2"
-            data-testid="button-back-to-dashboard"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
-          </Button>
-        )}
 
-        <div className="mb-8">
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="flex-1 min-w-0">
-              <h1 className={`font-semibold text-foreground mb-2 ${isFocusMode ? 'text-4xl' : 'text-3xl'}`}>
-                {caseData.title}
-              </h1>
-              {caseData.clientId ? (
-                <button
-                  className={`text-muted-foreground hover:text-foreground underline-offset-2 hover:underline transition-colors ${isFocusMode ? 'text-xl' : 'text-lg'}`}
-                  onClick={() => setLocation(`/clients/${caseData.clientId}`)}
-                  data-testid="link-client-profile"
-                >
-                  {caseData.clientName}
-                </button>
-              ) : (
-                <p className={`text-muted-foreground ${isFocusMode ? 'text-xl' : 'text-lg'}`}>{caseData.clientName}</p>
-              )}
-              {caseData.parentCaseId && (
-                <button
-                  className="text-sm text-accent underline underline-offset-2 mt-1 text-left"
-                  onClick={() => setLocation(`/case/${caseData.parentCaseId}`)}
-                  data-testid="link-parent-case"
-                >
-                  View parent matter
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {caseData.sourceType === 'dictation' && (
-                <Badge variant="secondary" data-testid="badge-dictation">
-                  <Phone className="w-3 h-3 mr-1" />
-                  Telephone Attendance
+      {/* ── Left Panel ── */}
+      {!isFocusMode && (
+        <aside
+          className="hidden lg:flex w-[220px] shrink-0 border-r border-border bg-muted/20 flex-col sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto z-40"
+          data-testid="case-side-nav"
+        >
+          {/* Back link */}
+          <div className="px-4 pt-4 pb-2">
+            <button
+              onClick={() => setLocation('/')}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors duration-150"
+              data-testid="link-back-all-cases"
+            >
+              <ArrowLeft className="w-3 h-3" />
+              All Cases
+            </button>
+          </div>
+
+          {/* Case identity */}
+          <div className="px-4 pb-4 border-b border-border">
+            <h1 className="font-semibold text-sm leading-snug text-foreground mb-1 line-clamp-2" data-testid="text-case-title-panel">
+              {caseData.title}
+            </h1>
+            {caseData.clientId ? (
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors duration-150 text-left"
+                onClick={() => setLocation(`/clients/${caseData.clientId}`)}
+                data-testid="link-client-profile"
+              >
+                {caseData.clientName}
+              </button>
+            ) : (
+              <p className="text-xs text-muted-foreground">{caseData.clientName}</p>
+            )}
+            {caseData.matterReference && (
+              <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate" data-testid="text-matter-ref-panel">
+                {caseData.matterReference}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-1 mt-2">
+              {caseData.riskLevel && (
+                <Badge className={cn("text-[10px] no-default-hover-elevate no-default-active-elevate", riskColors[caseData.riskLevel] || '')} data-testid="badge-risk-panel">
+                  {(caseData.riskLevel as string).toUpperCase()} RISK
                 </Badge>
               )}
-              {caseData.sourceType === 'audio' && hasValidConsent ? (
-                <Badge className="bg-accent" data-testid="badge-gdpr-compliant">
-                  <Shield className="w-3 h-3 mr-1" />
-                  GDPR Compliant
-                </Badge>
-              ) : caseData.sourceType === 'audio' ? (
-                <Badge variant="destructive" data-testid="badge-consent-missing">
-                  <Shield className="w-3 h-3 mr-1" />
-                  Consent Required
-                </Badge>
-              ) : null}
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2" data-testid="button-case-actions">
-                    <MoreVertical className="w-4 h-4" />
-                    <span className="hidden sm:inline">Actions</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={toggleFocusMode} data-testid="action-focus-mode">
-                    <Focus className="w-4 h-4 mr-2" />
-                    {isFocusMode ? "Exit Focus Mode" : "Focus Mode"}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowPriorityModal(true)} data-testid="action-set-priority">
-                    <AlertCircle className="w-4 h-4 mr-2" />
-                    Set Priority/Deadline
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowAddNoteModal(true)} data-testid="action-add-note">
-                    <MessageSquarePlus className="w-4 h-4 mr-2" />
-                    Add Quick Note
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowLogCallModal(true)} data-testid="action-log-call">
-                    <Phone className="w-4 h-4 mr-2" />
-                    Log a Phone Call
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowImportModal(true)} data-testid="action-import-recording">
-                    <Video className="w-4 h-4 mr-2" />
-                    Import Recording
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowShareModal(true)} data-testid="action-share">
-                    <Share2 className="w-4 h-4 mr-2" />
-                    Secure Share
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => markReviewedMutation.mutate(!caseData.reviewed)} 
-                    data-testid="action-mark-reviewed"
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    {caseData.reviewed ? "Unmark as Reviewed" : "Mark as Reviewed"}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowDownloadModal(true)} data-testid="action-download">
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Document
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowHandoverModal(true)} data-testid="action-handover">
-                    <ArrowRightLeft className="w-4 h-4 mr-2" />
-                    Handover Case
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => archiveMutation.mutate(true)}
-                    className="text-destructive focus:text-destructive"
-                    data-testid="action-archive"
-                  >
-                    <Archive className="w-4 h-4 mr-2" />
-                    Archive Case
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Badge variant="secondary" className="text-[10px] no-default-hover-elevate no-default-active-elevate" data-testid="badge-status-panel">
+                {caseData.status === 'review_required' ? 'For Review'
+                  : caseData.status === 'completed' ? 'Completed'
+                  : caseData.status === 'processing' ? 'Processing'
+                  : caseData.status === 'failed' ? 'Failed'
+                  : 'Pending'}
+              </Badge>
             </div>
           </div>
 
-          <div
-            className={`flex items-center gap-3 px-4 py-2.5 rounded-md border text-sm flex-wrap ${
-              caseData.riskLevel === 'high'
-                ? 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'
-                : caseData.riskLevel === 'medium'
-                ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800'
-                : caseData.riskLevel === 'low'
-                ? 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800'
-                : 'bg-muted border-border'
-            }`}
-            data-testid="banner-aml-risk"
-          >
-            <Shield className={`w-4 h-4 flex-shrink-0 ${
-              caseData.riskLevel === 'high'
-                ? 'text-red-600 dark:text-red-400'
-                : caseData.riskLevel === 'medium'
-                ? 'text-amber-600 dark:text-amber-400'
-                : caseData.riskLevel === 'low'
-                ? 'text-green-600 dark:text-green-400'
-                : 'text-muted-foreground'
-            }`} />
-            <span className={`font-semibold ${
-              caseData.riskLevel === 'high'
-                ? 'text-red-800 dark:text-red-300'
-                : caseData.riskLevel === 'medium'
-                ? 'text-amber-800 dark:text-amber-300'
-                : caseData.riskLevel === 'low'
-                ? 'text-green-800 dark:text-green-300'
-                : 'text-muted-foreground'
-            }`} data-testid="text-risk-level">
-              AML Risk: {caseData.riskLevel ? (caseData.riskLevel as string).toUpperCase() : 'Not Assessed'}
-            </span>
-            {hasValidConsent ? (
-              <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 no-default-hover-elevate no-default-active-elevate" data-testid="badge-consent-status">
-                Consent Recorded
-              </Badge>
-            ) : caseData.sourceType === 'audio' ? (
-              <Badge variant="destructive" className="no-default-hover-elevate no-default-active-elevate" data-testid="badge-consent-status">
-                Consent Required
-              </Badge>
-            ) : null}
-            {!caseData.conflictCheckCompleted && (
-              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 no-default-hover-elevate no-default-active-elevate" data-testid="badge-conflict-pending">
-                Conflict Check Pending
-              </Badge>
-            )}
-            {outstandingUndertakingsCount > 0 && (
-              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 no-default-hover-elevate no-default-active-elevate" data-testid="badge-outstanding-undertakings">
-                {outstandingUndertakingsCount} Outstanding Undertaking{outstandingUndertakingsCount !== 1 ? 's' : ''}
-              </Badge>
-            )}
-          </div>
+          {/* Matter nav */}
+          <nav className="flex-1 py-2 px-2 space-y-0.5" aria-label="Matter sections">
+            {matterNavItems.map(item => <NavItem key={item.id} item={item} />)}
 
-          <div className="flex flex-wrap gap-4 text-sm">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Calendar className="w-4 h-4" />
-              <span>{format(new Date(caseData.createdAt), "dd MMMM yyyy")}</span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <User className="w-4 h-4" />
-              <span>Created by {caseData.createdBy}</span>
-            </div>
-            {caseData.consentGiven && (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Shield className="w-4 h-4" />
-                <span>Consent recorded</span>
+            {/* Compliance divider */}
+            <div className="px-3 pt-4 pb-1">
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="w-3 h-3 text-muted-foreground" />
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Compliance</p>
               </div>
-            )}
+            </div>
+
+            {complianceNavItems.map(item => <NavItem key={item.id} item={item} isCompliance />)}
+          </nav>
+
+          {/* Bottom actions */}
+          <div className="p-3 border-t border-border space-y-1.5">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full gap-2 justify-start" data-testid="button-case-actions">
+                  <MoreVertical className="w-3.5 h-3.5" />
+                  Case Actions
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="w-52">
+                <DropdownMenuItem onClick={toggleFocusMode} data-testid="action-focus-mode">
+                  <Focus className="w-4 h-4 mr-2" />
+                  {isFocusMode ? "Exit Focus Mode" : "Focus Mode"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowPriorityModal(true)} data-testid="action-set-priority">
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  Set Priority / Deadline
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowLogCallModal(true)} data-testid="action-log-call">
+                  <Phone className="w-4 h-4 mr-2" />
+                  Log a Phone Call
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowImportModal(true)} data-testid="action-import-recording">
+                  <Video className="w-4 h-4 mr-2" />
+                  Import Recording
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowShareModal(true)} data-testid="action-share">
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Secure Share
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => markReviewedMutation.mutate(!caseData.reviewed)} data-testid="action-mark-reviewed">
+                  <Eye className="w-4 h-4 mr-2" />
+                  {caseData.reviewed ? "Unmark as Reviewed" : "Mark as Reviewed"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowDownloadModal(true)} data-testid="action-download">
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Document
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowHandoverModal(true)} data-testid="action-handover">
+                  <ArrowRightLeft className="w-4 h-4 mr-2" />
+                  Handover Case
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => archiveMutation.mutate(true)} className="text-destructive focus:text-destructive" data-testid="action-archive">
+                  <Archive className="w-4 h-4 mr-2" />
+                  Archive Case
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full gap-2 justify-start text-xs"
+              onClick={() => setShowTimeRecordingModal(true)}
+              data-testid="button-log-time-panel"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              Log Time
+            </Button>
           </div>
-          <div className="flex flex-wrap gap-2 mt-2">
+        </aside>
+      )}
+
+      {/* ── Main Content ── */}
+      <main className="flex-1 min-w-0 flex flex-col">
+
+        {/* Mobile tab bar */}
+        <div className="lg:hidden sticky top-16 z-30 bg-background border-b border-border overflow-x-auto">
+          <div className="flex items-center gap-0.5 px-4 py-2 min-w-max">
+            {mobileNavItems.map(item => {
+              const Icon = item.icon;
+              const isActive = activeSection === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveSection(item.id as CaseSection)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs whitespace-nowrap transition-colors duration-150",
+                    isActive ? "bg-accent/10 text-accent font-medium" : "text-muted-foreground hover:text-foreground"
+                  )}
+                  data-testid={`mobile-nav-${item.id}`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Section top bar */}
+        <div className="sticky top-16 lg:top-16 z-20 bg-background border-b border-border h-14 flex items-center px-6 lg:px-8 gap-4 shrink-0">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <h2 className="font-semibold text-sm text-foreground truncate">
+              {SECTION_LABELS[activeSection]}
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            {sectionActions[activeSection]}
+          </div>
+        </div>
+
+        {/* Persistent elements */}
+        <div className="px-6 lg:px-8 pt-6 space-y-4">
+          {/* GDPR / Consent alert */}
+          {caseData.sourceType === 'audio' && !consentLoading && !hasValidConsent && (
+            <div className="p-4 bg-destructive/10 border border-destructive/40 rounded-md" data-testid="alert-gdpr-required">
+              <div className="flex items-start gap-3">
+                <Shield className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">GDPR Compliance Required</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    No valid client consent has been recorded. Obtain consent before processing audio.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Recording archived */}
+          {caseData.sourceType === 'audio' && hasValidConsent && audioData?.deletedAt && (
+            <div className="bg-card border rounded-md p-4 space-y-2" data-testid="card-recording-archived">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-md border bg-muted/50 shrink-0">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <svg viewBox="0 0 200 24" preserveAspectRatio="none" className="w-full h-6" aria-hidden="true" data-testid="waveform-archived">
+                    {[0.3,0.5,0.7,0.4,0.9,0.6,0.8,0.35,0.65,0.5,0.85,0.45,0.7,0.55,0.4,0.75,0.3,0.6,0.9,0.5,0.7,0.4,0.85,0.55,0.65,0.3,0.8,0.45,0.6,0.7,0.35,0.5,0.75,0.4,0.9,0.55,0.65,0.8,0.3,0.7].map((h, i) => (
+                      <rect key={i} x={i * 5} y={24 - h * 24} width={3.5} height={h * 24} rx={1} className="fill-muted-foreground/25" />
+                    ))}
+                  </svg>
+                </div>
+                <Badge variant="secondary" className="text-[10px] shrink-0 no-default-hover-elevate no-default-active-elevate" data-testid="badge-recording-deleted">
+                  Deleted
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground" data-testid="text-archived-explanation">
+                Original audio securely deleted under 7-day GDPR retention. Transcript and documents remain on file.
+              </p>
+            </div>
+          )}
+
+          {/* No-consent text-only alert */}
+          {caseData.sourceType === 'audio' && !hasValidConsent && !consentLoading && !audioLoading && (
+            <Alert className="bg-card border-muted" data-testid="alert-no-recording-consent">
+              <FileText className="w-4 h-4" />
+              <AlertDescription>
+                <span className="font-medium">Text notes only — recording consent declined</span>
+                <p className="text-sm text-muted-foreground mt-0.5">Client declined audio recording consent.</p>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Audio player */}
+          {showAudioPlayer && (
+            <AudioPlayer
+              audioUrl={audioData!.filePath!}
+              expiresAt={new Date(audioData!.expiresAt)}
+              caseId={caseData.id}
+              audioRecordingId={audioData!.id}
+              playerRef={audioPlayerRef}
+            />
+          )}
+
+          {/* Processing card */}
+          {caseData.status === 'processing' && (
+            <div className="p-5 bg-card rounded-md border border-accent/30" data-testid="processing-status-card">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="p-1.5 bg-accent/20 rounded-md shrink-0">
+                  <Bot className="w-5 h-5 text-accent" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-semibold text-sm">Meeting-to-Matter™ Engine</p>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
+                  </div>
+                  <p className="text-xs text-muted-foreground" data-testid="text-current-step">
+                    {processingStatus?.processingMetadata?.currentStep || 'Preparing...'}
+                  </p>
+                </div>
+              </div>
+              {processingStatus?.processingMetadata && (
+                <div className="space-y-1.5">
+                  <Progress value={processingStatus.processingMetadata.progress || 0} className="h-1.5" data-testid="progress-bar" />
+                  <p className="text-xs text-muted-foreground" data-testid="text-progress-percentage">
+                    {processingStatus.processingMetadata.progress || 0}% complete
+                  </p>
+                </div>
+              )}
+              {processingStatus?.processingMetadata?.error && (
+                <Alert variant="destructive" className="mt-3" data-testid="alert-processing-error">
+                  <AlertDescription>{processingStatus.processingMetadata.error}</AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+
+          {/* Failed card */}
+          {caseData.status === 'failed' && (
+            <div className="p-5 bg-destructive/10 rounded-md border border-destructive/40" data-testid="failed-status-card">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <p className="font-semibold text-sm mb-1">Processing Failed</p>
+                  <p className="text-sm text-muted-foreground">
+                    {(caseData.aiProcessingMetadata as any)?.error || 'An error occurred during processing.'}
+                  </p>
+                </div>
+                <Button onClick={() => retryProcessingMutation.mutate()} disabled={retryProcessingMutation.isPending} variant="destructive" size="sm" className="gap-2 shrink-0" data-testid="button-retry-processing">
+                  {retryProcessingMutation.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Retrying...</> : <><RefreshCw className="w-3.5 h-3.5" />Retry</>}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Ready-to-process card */}
+          {(caseData.sourceType === 'audio' || caseData.sourceType === 'dictation') && caseData.status === 'pending' && !transcript?.content && (
+            <div className="p-5 bg-card rounded-md border border-border" data-testid="ready-to-process-card">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-semibold text-sm mb-1">
+                    {caseData.sourceType === 'dictation' ? 'Ready for Processing'
+                      : hasValidConsent ? 'Ready for Processing' : 'Consent Required Before Processing'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {caseData.sourceType === 'dictation'
+                      ? 'Your dictation is ready to transcribe and produce a telephone attendance note.'
+                      : hasValidConsent
+                        ? 'Your audio recording is ready to transcribe and produce legal documents.'
+                        : 'Valid client consent must be recorded before processing can begin.'}
+                  </p>
+                </div>
+                <Button
+                  onClick={() => processAIMutation.mutate()}
+                  disabled={processAIMutation.isPending || (caseData.sourceType !== 'dictation' && !hasValidConsent)}
+                  className="gap-2 bg-accent hover:bg-accent shrink-0"
+                  size="sm"
+                  data-testid="button-process-ai"
+                >
+                  {processAIMutation.isPending
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Processing...</>
+                    : <><RefreshCw className="w-3.5 h-3.5" />Process Case</>}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Section content ── */}
+        <div
+          key={activeSection}
+          className="flex-1 px-6 lg:px-8 py-6 animate-in fade-in duration-200"
+        >
+          {activeSection === 'documents' && (
+            <DocumentViewer
+              caseId={caseId!}
+              documents={documents as any}
+              transcript={transcript?.content}
+              transcriptUtterances={transcript?.utterances}
+              speakerCount={transcript?.speakerCount}
+              transcriptRedactions={transcript?.redactions}
+              textNotes={caseData.textNotes}
+              status={caseData.status}
+              caseTitle={caseData.title}
+              clientName={caseData.clientName}
+              matterReference={caseData.matterReference || undefined}
+              createdAt={new Date(caseData.createdAt).toISOString()}
+              onTranscriptTimestampClick={handleTranscriptTimestampClick}
+              initialTab={urlTab !== 'compliance' ? (urlTab || undefined) : undefined}
+              initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
+            />
+          )}
+
+          {activeSection === 'obligations' && (
+            <div className="max-w-3xl">
+              <ActionItemsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
+            </div>
+          )}
+
+          {activeSection === 'sessions' && (
+            <div className="max-w-3xl space-y-4">
+              {meetingSessions.length === 0 ? (
+                <div className="text-center py-16 space-y-3">
+                  <History className="w-8 h-8 mx-auto text-muted-foreground/40" />
+                  <p className="font-medium text-sm">No sessions recorded yet</p>
+                  <p className="text-xs text-muted-foreground">Sessions will appear here once a meeting is recorded for this matter.</p>
+                </div>
+              ) : (
+                <div className="space-y-3" data-testid="session-timeline-list">
+                  {meetingSessions.map((session, idx) => (
+                    <Card key={session.id} className="overflow-hidden" data-testid={`session-item-${session.id}`}>
+                      <CardContent className="p-0">
+                        <div className="p-4">
+                          <div className="flex items-start gap-4">
+                            <div className="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center text-xs font-semibold text-accent shrink-0 mt-0.5">
+                              {meetingSessions.length - idx}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`badge-recording-type-${session.id}`}>
+                                  {RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType}
+                                </Badge>
+                                <Badge
+                                  variant={session.status === "completed" ? "default" : session.status === "failed" ? "destructive" : "secondary"}
+                                  className="text-xs no-default-hover-elevate no-default-active-elevate"
+                                  data-testid={`badge-session-status-${session.id}`}
+                                >
+                                  {session.status}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {session.startedAt ? format(new Date(session.startedAt), "d MMM yyyy, HH:mm") : "—"}
+                                {session.durationSeconds != null && (
+                                  <span className="ml-2">{Math.floor(session.durationSeconds / 60)}m {session.durationSeconds % 60}s</span>
+                                )}
+                              </p>
+                              {session.notes && (
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{session.notes}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="border-t border-border px-4">
+                          <SessionDetails sessionId={session.id} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeSection === 'notes' && (
+            <div className="max-w-3xl">
+              {caseData.textNotes ? (
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <p className="text-foreground whitespace-pre-wrap leading-relaxed" data-testid="text-quick-notes-content">
+                    {caseData.textNotes}
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center py-16 space-y-3">
+                  <MessageSquarePlus className="w-8 h-8 mx-auto text-muted-foreground/40" />
+                  <p className="font-medium text-sm">No notes added yet</p>
+                  <p className="text-xs text-muted-foreground">Quick notes appear here. Use the button above to add one.</p>
+                  <Button variant="outline" size="sm" onClick={() => setShowAddNoteModal(true)} className="gap-2" data-testid="button-add-note-empty">
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Note
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeSection === 'briefing' && (
+            <div className="max-w-3xl">
+              <PreMeetingBriefing caseId={caseId!} hasTranscript={!!transcript?.content} />
+            </div>
+          )}
+
+          {activeSection === 'time' && (
+            <div className="max-w-3xl">
+              <TimeEntriesViewer
+                caseId={caseId!}
+                caseTitle={caseData.title}
+                matterReference={caseData.matterReference || undefined}
+                durationSeconds={audioData?.duration || undefined}
+              />
+            </div>
+          )}
+
+          {activeSection === 'undertakings' && (
+            <div className="max-w-3xl">
+              <UndertakingsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
+            </div>
+          )}
+
+          {activeSection === 'external-refs' && (
+            <div className="max-w-3xl">
+              <ExternalDocumentRefs caseId={caseId!} />
+            </div>
+          )}
+
+          {activeSection === 'linked-calls' && (
+            <div className="max-w-3xl space-y-2">
+              {linkedDictations.length === 0 ? (
+                <div className="text-center py-16 space-y-3">
+                  <Phone className="w-8 h-8 mx-auto text-muted-foreground/40" />
+                  <p className="font-medium text-sm">No telephone notes linked</p>
+                </div>
+              ) : linkedDictations.map(d => (
+                <Card key={d.id} className="cursor-pointer hover-elevate" onClick={() => setLocation(`/case/${d.id}`)} data-testid={`linked-call-${d.id}`}>
+                  <CardContent className="p-4 flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">{d.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(d.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={d.status === 'completed' || d.status === 'review_required' ? 'secondary' : 'outline'} className="text-xs no-default-hover-elevate no-default-active-elevate">
+                        {d.status === 'review_required' ? 'For Review' : d.status === 'completed' ? 'Completed' : d.status === 'processing' ? 'Processing' : 'Pending'}
+                      </Badge>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {activeSection === 'consent' && (
+            <div className="max-w-3xl">
+              {caseData.sourceType === 'audio' ? (
+                <ConsentEvidence caseId={caseId!} audioRecording={audioData} consentLogs={consentLogs} />
+              ) : (
+                <div className="text-center py-16 space-y-3">
+                  <Shield className="w-8 h-8 mx-auto text-muted-foreground/40" />
+                  <p className="font-medium text-sm">Consent evidence not applicable</p>
+                  <p className="text-xs text-muted-foreground">Consent evidence is only available for audio-recorded matters.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeSection === 'compliance' && (
+            <div className="max-w-3xl space-y-4">
+              {user?.complianceThread && (
+                <AmlTriggerBanner
+                  caseData={caseData}
+                  onAddMonitoringNote={() => setAutoOpenComplianceNote(prev => prev + 1)}
+                />
+              )}
+              {user?.complianceThread ? (
+                <ComplianceThread
+                  caseId={caseId!}
+                  riskLevel={caseData.riskLevel}
+                  clientName={caseData.clientName}
+                  autoOpenNoteForm={autoOpenComplianceNote}
+                />
+              ) : (
+                <div className="text-center py-16 space-y-4">
+                  <ShieldCheck className="w-10 h-10 mx-auto text-muted-foreground/40" />
+                  <div>
+                    <p className="font-medium text-sm">Compliance Thread</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                      Per-matter AML monitoring, risk assessments, and MLRO decision records. This premium feature requires activation by your account administrator.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <Button variant="default" size="sm" onClick={() => window.open("https://legalnote.ai/pricing", "_blank")} data-testid="button-upgrade-compliance">
+                      <Lock className="w-3.5 h-3.5 mr-1.5" />
+                      Upgrade to Enable
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => window.location.href = "/settings"} data-testid="button-compliance-settings">
+                      View Settings
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeSection === 'activity' && (
+            <div className="max-w-3xl">
+              <CaseTimeline caseId={caseId!} />
+            </div>
+          )}
+
+          {activeSection === 'sharing' && (
+            <div className="max-w-3xl">
+              <SharedHistoryViewer caseId={caseId!} />
+            </div>
+          )}
+
+          {activeSection === 'audit' && (
+            <div className="max-w-3xl">
+              <AuditTrail caseId={caseId!} limit={50} />
+            </div>
+          )}
+        </div>
+
+        {/* Case metadata footer strip (practice area, care letter, conflict check) */}
+        <div className="px-6 lg:px-8 pb-8">
+          <div className="flex flex-wrap gap-2 items-center pt-4 border-t border-border">
             {editingPracticeArea ? (
               <Select
                 value={caseData.practiceArea || ""}
@@ -643,709 +1080,82 @@ export default function CaseDetail() {
             ) : (
               <Badge
                 variant="secondary"
-                className={!caseData.practiceArea ? "cursor-pointer" : ""}
+                className={!caseData.practiceArea ? "cursor-pointer" : "no-default-hover-elevate no-default-active-elevate"}
                 onClick={() => !caseData.practiceArea && setEditingPracticeArea(true)}
                 data-testid="badge-practice-area"
               >
                 {caseData.practiceArea
                   ? PRACTICE_AREA_LABELS[caseData.practiceArea as keyof typeof PRACTICE_AREA_LABELS] || caseData.practiceArea
-                  : "Practice area not set (click to set)"}
+                  : "Set practice area"}
               </Badge>
             )}
             <Badge
-              variant={caseData.conflictCheckCompleted ? "secondary" : "outline"}
-              className={caseData.conflictCheckCompleted
-                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"}
+              variant="secondary"
+              className={cn(
+                "no-default-hover-elevate no-default-active-elevate",
+                caseData.conflictCheckCompleted
+                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                  : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+              )}
               data-testid="badge-conflict-check"
             >
               <Shield className="w-3 h-3 mr-1" />
               {caseData.conflictCheckCompleted ? "Conflict Check Completed" : "Conflict Check Pending"}
             </Badge>
-            {!caseData.conflictCheckCompleted && caseData.conflictCheckNote && (
-              <span className="text-xs text-muted-foreground italic" data-testid="text-conflict-note">
-                Note: {caseData.conflictCheckNote}
-              </span>
-            )}
             {caseData.clientCareLetterId ? (
               <>
                 <Badge
                   variant="secondary"
-                  className={caseData.clientCareLetterSentAt
-                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                    : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"}
+                  className={cn(
+                    "no-default-hover-elevate no-default-active-elevate",
+                    caseData.clientCareLetterSentAt
+                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                      : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                  )}
                   data-testid="badge-client-care-letter"
                 >
                   <FileText className="w-3 h-3 mr-1" />
                   {caseData.clientCareLetterSentAt ? "Client Care Letter Sent" : "Client Care Letter Ready"}
                 </Badge>
                 {!caseData.clientCareLetterSentAt && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowSendCareLetterDialog(true)}
-                    className="gap-1"
-                    data-testid="button-send-care-letter"
-                  >
+                  <Button variant="outline" size="sm" onClick={() => setShowSendCareLetterDialog(true)} className="gap-1" data-testid="button-send-care-letter">
                     <Send className="w-3 h-3" />
                     Send to Client
                   </Button>
                 )}
               </>
             ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCareLetterModal(true)}
-                className="gap-1"
-                data-testid="button-generate-care-letter"
-              >
+              <Button variant="outline" size="sm" onClick={() => setShowCareLetterModal(true)} className="gap-1" data-testid="button-generate-care-letter">
                 <FileText className="w-3 h-3" />
                 Generate Client Care Letter
               </Button>
             )}
+            <div className="flex items-center gap-3 text-xs text-muted-foreground ml-auto">
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5" />
+                {format(new Date(caseData.createdAt), "dd MMM yyyy")}
+              </span>
+              <span className="flex items-center gap-1">
+                <User className="w-3.5 h-3.5" />
+                {caseData.createdBy}
+              </span>
+            </div>
           </div>
         </div>
+      </main>
 
-        {caseData.sourceType === 'audio' && !consentLoading && !hasValidConsent && (
-          <div className="mb-8 p-6 bg-destructive/10 border-2 border-destructive rounded-lg">
-            <div className="flex items-start gap-4">
-              <Shield className="w-6 h-6 text-destructive flex-shrink-0 mt-1" />
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground mb-2">GDPR Compliance Required</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  No valid client consent has been recorded for this case. UK solicitors must obtain and document client 
-                  consent before processing audio recordings under GDPR and professional conduct rules.
-                </p>
-                <p className="text-sm font-medium text-foreground">
-                  Please contact your client to obtain consent, or delete this case if consent cannot be obtained.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Recording Archived card — shown when audio has been deleted under GDPR retention */}
-        {caseData.sourceType === 'audio' && hasValidConsent && audioData?.deletedAt && (
-          <div className="mb-8 bg-card border-2 rounded-lg p-4 space-y-3" data-testid="card-recording-archived">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-9 h-9 rounded-md border bg-muted/50">
-                <Shield className="h-4 w-4 text-muted-foreground" />
-              </div>
-
-              <div className="flex-1 space-y-1">
-                {/* Static decorative waveform (SVG bar pattern) */}
-                <svg
-                  viewBox="0 0 200 32"
-                  preserveAspectRatio="none"
-                  className="w-full h-8"
-                  aria-hidden="true"
-                  data-testid="waveform-archived"
-                >
-                  {[0.3,0.5,0.7,0.4,0.9,0.6,0.8,0.35,0.65,0.5,0.85,0.45,0.7,0.55,0.4,0.75,0.3,0.6,0.9,0.5,0.7,0.4,0.85,0.55,0.65,0.3,0.8,0.45,0.6,0.7,0.35,0.5,0.75,0.4,0.9,0.55,0.65,0.8,0.3,0.7].map((h, i) => (
-                    <rect
-                      key={i}
-                      x={i * 5}
-                      y={32 - h * 32}
-                      width={3.5}
-                      height={h * 32}
-                      rx={1}
-                      className="fill-muted-foreground/25"
-                    />
-                  ))}
-                </svg>
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span data-testid="text-archived-duration">
-                      {audioData.duration
-                        ? `${Math.floor(audioData.duration / 60)} min ${audioData.duration % 60} sec`
-                        : "Duration unavailable"}
-                    </span>
-                    <span data-testid="text-archived-date">
-                      {new Date(audioData.recordedAt).toLocaleDateString("en-GB", {
-                        day: "numeric", month: "short", year: "numeric",
-                      })}{" "}
-                      {new Date(audioData.recordedAt).toLocaleTimeString("en-GB", {
-                        hour: "2-digit", minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                  <Badge variant="secondary" className="text-[10px] no-default-hover-elevate no-default-active-elevate" data-testid="badge-recording-deleted">
-                    Recording permanently deleted
-                  </Badge>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <p className="text-xs text-muted-foreground" data-testid="text-archived-explanation">
-                The original audio has been securely deleted. The transcript and documents produced from this recording remain on file.
-              </p>
-              <Badge variant="outline" className="text-[10px] whitespace-nowrap no-default-hover-elevate no-default-active-elevate" data-testid="badge-gdpr-retention">
-                7-day retention, Article 5(1)(e) GDPR
-              </Badge>
-            </div>
-          </div>
-        )}
-
-        {caseData.sourceType === 'audio' && !hasValidConsent && !consentLoading && !audioLoading && (
-          <Alert className="mb-8 bg-card border-muted" data-testid="alert-no-recording-consent">
-            <FileText className="w-4 h-4" />
-            <AlertDescription>
-              <span className="font-medium">Text notes only - Recording consent declined</span>
-              <p className="text-sm text-muted-foreground mt-1">
-                Client declined audio recording consent. This case uses text-based notes instead.
-              </p>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {caseData.sourceType === 'audio' && audioData && audioData.filePath && !audioData.deletedAt && (
-          <div className="mb-8">
-            <AudioPlayer
-              audioUrl={audioData.filePath}
-              expiresAt={new Date(audioData.expiresAt)}
-              caseId={caseData.id}
-              audioRecordingId={audioData.id}
-              playerRef={audioPlayerRef}
-            />
-          </div>
-        )}
-
-        {caseData.status === 'processing' && (
-          <div className="mb-8 p-6 bg-card rounded-lg border-2 border-accent shadow-lg" data-testid="processing-status-card">
-            <div className="flex items-start gap-4 mb-4">
-              <div className="p-2 bg-accent/20 rounded-lg">
-                <Bot className="w-6 h-6 text-accent" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="font-semibold text-foreground">Meeting-to-Matter™ Engine</h3>
-                  {(!processingStatus || processingStatus.processingMetadata?.status === 'processing') && (
-                    <Loader2 className="w-4 h-4 animate-spin text-accent" />
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground mb-3" data-testid="text-current-step">
-                  {processingStatus?.processingMetadata?.currentStep || 'Preparing...'}
-                </p>
-                
-                {processingStatus?.processingMetadata && (
-                  <>
-                    <Progress 
-                      value={processingStatus.processingMetadata.progress || 0} 
-                      className="h-2 mb-3"
-                      data-testid="progress-bar"
-                    />
-                    
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground" data-testid="text-progress-percentage">
-                        {processingStatus.processingMetadata.progress || 0}% complete
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-            
-            {processingStatus?.processingMetadata?.error && (
-              <Alert variant="destructive" className="mt-4" data-testid="alert-processing-error">
-                <AlertDescription>
-                  {processingStatus.processingMetadata.error}
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-        )}
-
-        {caseData.status === 'failed' && (
-          <div className="mb-8 p-6 bg-destructive/10 rounded-lg border-2 border-destructive" data-testid="failed-status-card">
-            <div className="flex items-start gap-4">
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground mb-2">Processing Failed</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {(caseData.aiProcessingMetadata as any)?.error || 'An error occurred during processing. Please try again.'}
-                </p>
-                {(caseData.aiProcessingMetadata as any)?.error?.includes('quota') && (
-                  <Alert className="mb-4 bg-amber-500/10 border-amber-500/20" data-testid="alert-quota-error">
-                    <AlertDescription className="text-sm">
-                      <strong>API Credits Needed:</strong> The OpenAI API key has insufficient credits. 
-                      Please add credits to your OpenAI account and retry.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
-              <Button
-                onClick={() => retryProcessingMutation.mutate()}
-                disabled={retryProcessingMutation.isPending}
-                variant="destructive"
-                className="gap-2"
-                data-testid="button-retry-processing"
-              >
-                {retryProcessingMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Retrying...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4" />
-                    Retry Processing
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {(caseData.sourceType === 'audio' || caseData.sourceType === 'dictation') && caseData.status === 'pending' && !caseData.transcript && (
-          <div className="mb-8 p-6 bg-card rounded-lg border border-border">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground mb-1">
-                  {caseData.sourceType === 'dictation'
-                    ? 'Ready for Processing'
-                    : hasValidConsent ? 'Ready for Processing' : 'Consent Required Before Processing'}
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {caseData.sourceType === 'dictation'
-                    ? 'Your dictation is ready. Click below to transcribe and generate the telephone attendance note.'
-                    : hasValidConsent 
-                      ? 'Your audio recording is ready. Click below to transcribe and generate legal documents.'
-                      : 'Valid client consent must be recorded before processing can begin. This is required for GDPR compliance.'}
-                </p>
-              </div>
-              <Button
-                onClick={() => processAIMutation.mutate()}
-                disabled={processAIMutation.isPending || (caseData.sourceType !== 'dictation' && !hasValidConsent)}
-                className="gap-2 bg-accent hover:bg-accent"
-                data-testid="button-process-ai"
-              >
-                {processAIMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4" />
-                    Process Case
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <DocumentViewer
-          caseId={caseId!}
-          documents={documents}
-          transcript={transcript?.content}
-          transcriptUtterances={transcript?.utterances}
-          speakerCount={transcript?.speakerCount}
-          transcriptRedactions={transcript?.redactions}
-          textNotes={caseData.textNotes}
-          status={caseData.status}
-          caseTitle={caseData.title}
-          clientName={caseData.clientName}
-          matterReference={caseData.matterReference}
-          createdAt={caseData.createdAt}
-          onTranscriptTimestampClick={handleTranscriptTimestampClick}
-          initialTab={urlTab || undefined}
-          initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
-        />
-
-        {/* ── Group A: Matter ───────────────────────────────── */}
-        <div className="mt-8 space-y-6">
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Matter</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
-            <Accordion type="multiple" defaultValue={[]} className="space-y-3">
-              {meetingSessions.length > 0 && (
-                <AccordionItem value="session-timeline" className="bg-card rounded-lg border border-border px-6">
-                  <AccordionTrigger className="hover:no-underline" data-testid="accordion-session-timeline">
-                    <div className="flex items-center gap-2">
-                      <History className="w-5 h-5 text-accent" />
-                      <span className="font-semibold">Session Timeline</span>
-                      <Badge variant="secondary" className="ml-2 text-xs">{meetingSessions.length} {meetingSessions.length === 1 ? "session" : "sessions"}</Badge>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="py-4 space-y-3" data-testid="session-timeline-list">
-                      <Accordion type="multiple">
-                        {meetingSessions.map((session, idx) => (
-                          <AccordionItem
-                            key={session.id}
-                            value={`session-${session.id}`}
-                            className="border border-border rounded-md mb-3 last:mb-0 px-3"
-                            data-testid={`session-item-${session.id}`}
-                          >
-                            <AccordionTrigger className="hover:no-underline py-3">
-                              <div className="flex items-start gap-4 w-full">
-                                <div className="flex flex-col items-center gap-1 shrink-0 pt-0.5">
-                                  <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center text-xs font-semibold text-accent">
-                                    {meetingSessions.length - idx}
-                                  </div>
-                                  {idx < meetingSessions.length - 1 && (
-                                    <div className="w-px h-6 bg-border" />
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0 text-left">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <Badge variant="outline" className="text-xs" data-testid={`badge-recording-type-${session.id}`}>
-                                      {RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType}
-                                    </Badge>
-                                    <Badge
-                                      variant={session.status === "completed" ? "default" : session.status === "failed" ? "destructive" : "secondary"}
-                                      className="text-xs"
-                                      data-testid={`badge-session-status-${session.id}`}
-                                    >
-                                      {session.status}
-                                    </Badge>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {session.startedAt ? format(new Date(session.startedAt), "d MMM yyyy, HH:mm") : "—"}
-                                    {session.durationSeconds != null && (
-                                      <span className="ml-2">
-                                        {Math.floor(session.durationSeconds / 60)}m {session.durationSeconds % 60}s
-                                      </span>
-                                    )}
-                                  </p>
-                                  {session.notes && (
-                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{session.notes}</p>
-                                  )}
-                                </div>
-                              </div>
-                            </AccordionTrigger>
-                            <AccordionContent>
-                              <SessionDetails sessionId={session.id} />
-                            </AccordionContent>
-                          </AccordionItem>
-                        ))}
-                      </Accordion>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              )}
-
-              <AccordionItem value="obligations" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-obligations">
-                  <div className="flex items-center gap-2">
-                    <ListChecks className="w-5 h-5 text-accent" />
-                    <span className="font-semibold">Obligations</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <ActionItemsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="pre-meeting-briefing" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-pre-meeting-briefing">
-                  <div className="flex items-center gap-2">
-                    <ClipboardList className="w-5 h-5 text-accent" />
-                    <span className="font-semibold">Pre-meeting Briefing</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <PreMeetingBriefing caseId={caseId!} hasTranscript={!!transcript?.content} />
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="quick-notes" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-quick-notes">
-                  <div className="flex items-center gap-2">
-                    <MessageSquarePlus className="w-5 h-5 text-accent" />
-                    <span className="font-semibold">Quick Notes</span>
-                    {caseData.textNotes && (
-                      <Badge variant="secondary" className="ml-2 text-xs">Has notes</Badge>
-                    )}
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1" />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowAddNoteModal(true)}
-                      className="gap-2"
-                      data-testid="button-add-quick-note"
-                    >
-                      <Plus className="w-4 h-4" />
-                      {caseData.textNotes ? "Edit Note" : "Add Note"}
-                    </Button>
-                  </div>
-                  {caseData.textNotes ? (
-                    <div className="prose prose-sm max-w-none">
-                      <p className="text-foreground whitespace-pre-wrap" data-testid="text-quick-notes-content">
-                        {caseData.textNotes}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground italic" data-testid="text-no-quick-notes">
-                      No quick notes added yet. Click "Add Note" to add text or voice notes to this case.
-                    </p>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="time-entries" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-time-entries">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-accent" />
-                    <span className="font-semibold">Time Recording</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <TimeEntriesViewer
-                    caseId={caseId!}
-                    caseTitle={caseData.title}
-                    matterReference={caseData.matterReference || undefined}
-                    durationSeconds={audioData?.duration || undefined}
-                  />
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="undertakings" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-undertakings">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-accent" />
-                    <span className="font-semibold">Undertakings</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <UndertakingsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="external-documents" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-external-documents">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-accent" />
-                    <span className="font-semibold">External Document References</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <ExternalDocumentRefs caseId={caseId!} />
-                </AccordionContent>
-              </AccordionItem>
-
-              {linkedDictations.length > 0 && (
-                <AccordionItem value="linked-calls" className="bg-card rounded-lg border border-border px-6">
-                  <AccordionTrigger className="hover:no-underline" data-testid="accordion-linked-calls">
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-5 h-5 text-accent" />
-                      <span className="font-semibold">Telephone Attendance Notes</span>
-                      <Badge variant="secondary" className="text-xs">{linkedDictations.length}</Badge>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-2">
-                      {linkedDictations.map(d => (
-                        <Card
-                          key={d.id}
-                          className="cursor-pointer hover-elevate"
-                          onClick={() => setLocation(`/case/${d.id}`)}
-                          data-testid={`linked-call-${d.id}`}
-                        >
-                          <CardContent className="p-3 flex items-center justify-between gap-2">
-                            <div>
-                              <div className="text-sm font-medium">{d.title}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {new Date(d.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                              </div>
-                            </div>
-                            <Badge variant={d.status === 'completed' || d.status === 'review_required' ? 'secondary' : 'outline'} className="text-xs shrink-0">
-                              {d.status === 'review_required' ? 'Ready for Review' : d.status === 'completed' ? 'Completed' : d.status === 'processing' ? 'Processing' : 'Pending'}
-                            </Badge>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              )}
-            </Accordion>
-          </div>
-
-          {user?.complianceThread && (
-            <AmlTriggerBanner
-              caseData={caseData}
-              onAddMonitoringNote={() => {
-                setAutoOpenComplianceNote(prev => prev + 1);
-                const el = document.querySelector('[data-testid="accordion-compliance-thread"]');
-                if (el) {
-                  (el as HTMLElement).click();
-                  setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
-                }
-              }}
-            />
-          )}
-
-          {/* ── Group B: Compliance & Audit ────────────────────── */}
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <ShieldCheck className="w-4 h-4 text-muted-foreground" />
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Compliance & Audit</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">Your defensibility record — accessible when needed</p>
-            <Accordion type="multiple" defaultValue={[]} className="space-y-3">
-              {caseData.sourceType === 'audio' && (
-                <AccordionItem value="consent-evidence" className="bg-card rounded-lg border border-border px-6">
-                  <AccordionTrigger className="hover:no-underline" data-testid="accordion-consent-evidence">
-                    <div className="flex items-center gap-2">
-                      <Shield className="w-5 h-5 text-muted-foreground" />
-                      <span className="font-semibold">Consent Evidence</span>
-                      {hasValidConsent && (
-                        <Badge className="ml-2 text-xs bg-accent">Verified</Badge>
-                      )}
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <ConsentEvidence
-                      caseId={caseId!}
-                      audioRecording={audioData}
-                      consentLogs={consentLogs}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-              )}
-
-              <AccordionItem value="compliance-thread" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-compliance-thread">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-muted-foreground" />
-                    <span className="font-semibold">Compliance Thread</span>
-                    {user?.complianceThread && caseData.riskLevel && (
-                      <Badge className={`text-xs no-default-hover-elevate no-default-active-elevate ${
-                        caseData.riskLevel === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-                        caseData.riskLevel === 'medium' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' :
-                        'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                      }`}>
-                        {(caseData.riskLevel as string).toUpperCase()}
-                      </Badge>
-                    )}
-                    {!user?.complianceThread && (
-                      <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">
-                        Locked
-                      </Badge>
-                    )}
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  {user?.complianceThread ? (
-                    <ComplianceThread
-                      caseId={caseId!}
-                      riskLevel={caseData.riskLevel}
-                      clientName={caseData.clientName}
-                      autoOpenNoteForm={autoOpenComplianceNote}
-                    />
-                  ) : (
-                    <div className="text-center py-6 space-y-3" data-testid="compliance-locked-prompt">
-                      <Shield className="w-10 h-10 mx-auto text-muted-foreground opacity-40" />
-                      <div>
-                        <p className="font-medium text-sm">Compliance Thread</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Per-matter AML monitoring, risk assessments, and MLRO decision records.
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          This premium feature requires activation by your account administrator.
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-center gap-2 flex-wrap">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => window.open("https://legalnote.ai/pricing", "_blank")}
-                          data-testid="button-upgrade-compliance"
-                        >
-                          <Lock className="w-3.5 h-3.5 mr-1" />
-                          Upgrade to Enable
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.location.href = "/settings"}
-                          data-testid="button-compliance-settings"
-                        >
-                          View Settings
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="activity-timeline" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-activity-timeline">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-muted-foreground" />
-                    <span className="font-semibold">Activity Timeline</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <CaseTimeline caseId={caseId!} />
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="sharing-history" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-sharing-history">
-                  <div className="flex items-center gap-2">
-                    <Share2 className="w-5 h-5 text-muted-foreground" />
-                    <span className="font-semibold">Sharing History</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <SharedHistoryViewer caseId={caseId!} />
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="audit-trail" className="bg-card rounded-lg border border-border px-6">
-                <AccordionTrigger className="hover:no-underline" data-testid="accordion-audit-trail">
-                  <div className="flex items-center gap-2">
-                    <ScrollText className="w-5 h-5 text-muted-foreground" />
-                    <span className="font-semibold">Audit Trail</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <AuditTrail caseId={caseId!} limit={50} />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </div>
-        </div>
-      </div>
-
-      <AddQuickNoteModal
-        open={showAddNoteModal}
-        onOpenChange={setShowAddNoteModal}
-        caseId={caseId!}
-      />
-
+      {/* ── Modals ── */}
+      <AddQuickNoteModal open={showAddNoteModal} onOpenChange={setShowAddNoteModal} caseId={caseId!} />
       <SetPriorityDeadlineModal
-        open={showPriorityModal}
-        onOpenChange={setShowPriorityModal}
-        caseId={caseId!}
+        open={showPriorityModal} onOpenChange={setShowPriorityModal} caseId={caseId!}
         caseTitle={caseData.title}
         currentPriority={caseData.priority as "urgent" | "deadline-soon" | "normal" || "normal"}
         currentDeadline={caseData.deadline || null}
         currentDeadlineIsAllDay={caseData.deadlineIsAllDay || false}
       />
-
-      <ShareLinkModal
-        open={showShareModal}
-        onOpenChange={setShowShareModal}
-        caseId={caseId!}
-        caseTitle={caseData.title}
-        userRole="Partner"
-      />
-
+      <ShareLinkModal open={showShareModal} onOpenChange={setShowShareModal} caseId={caseId!} caseTitle={caseData.title} userRole="Partner" />
       <DownloadModal
-        open={showDownloadModal}
-        onOpenChange={setShowDownloadModal}
+        open={showDownloadModal} onOpenChange={setShowDownloadModal}
         availableDocuments={{
           hasAttendanceNote: !!documents.find((d: any) => d.isActive && d.type === 'attendance_note'),
           hasSummary: !!documents.find((d: any) => d.isActive && d.type === 'summary') || !!caseData.textNotes,
@@ -1354,49 +1164,17 @@ export default function CaseDetail() {
         sharedDocuments={['attendance_note', 'summary', 'transcript']}
         onDownload={handleDownload}
       />
-
-      <ImportRecordingModal
-        open={showImportModal}
-        onOpenChange={setShowImportModal}
-        caseId={caseId!}
-        caseTitle={caseData.title}
-      />
-
-      <LogCallModal
-        open={showLogCallModal}
-        onOpenChange={setShowLogCallModal}
-        caseId={caseId!}
-        caseTitle={caseData.title}
-        clientName={caseData.clientName}
-        clientId={caseData.clientId}
-        matterReference={caseData.matterReference || undefined}
-      />
-
-      <HandoverModal
-        open={showHandoverModal}
-        onOpenChange={setShowHandoverModal}
-        caseId={caseId!}
-        caseTitle={caseData.title}
-        currentAssignee={caseData.assignedToUserId}
-      />
-
+      <ImportRecordingModal open={showImportModal} onOpenChange={setShowImportModal} caseId={caseId!} caseTitle={caseData.title} />
+      <LogCallModal open={showLogCallModal} onOpenChange={setShowLogCallModal} caseId={caseId!} caseTitle={caseData.title} clientName={caseData.clientName} clientId={caseData.clientId || undefined} matterReference={caseData.matterReference || undefined} />
+      <HandoverModal open={showHandoverModal} onOpenChange={setShowHandoverModal} caseId={caseId!} caseTitle={caseData.title} currentAssignee={caseData.assignedToUserId || undefined} />
       <TimeRecordingModal
-        open={showTimeRecordingModal}
-        onOpenChange={setShowTimeRecordingModal}
-        caseId={caseId!}
-        caseTitle={caseData.title}
+        open={showTimeRecordingModal} onOpenChange={setShowTimeRecordingModal}
+        caseId={caseId!} caseTitle={caseData.title}
         matterReference={caseData.matterReference || undefined}
         durationSeconds={audioData?.duration || undefined}
         sessionType={caseData.sourceType === 'dictation' ? 'Telephone Attendance' : 'Meeting'}
       />
-
-      <ClientCareLetterModal
-        open={showCareLetterModal}
-        onOpenChange={setShowCareLetterModal}
-        caseId={caseId!}
-        clientName={caseData.clientName}
-        costsEstimate={caseData.costsEstimate}
-      />
+      <ClientCareLetterModal open={showCareLetterModal} onOpenChange={setShowCareLetterModal} caseId={caseId!} clientName={caseData.clientName} costsEstimate={caseData.costsEstimate} />
 
       <Dialog open={showSendCareLetterDialog} onOpenChange={setShowSendCareLetterDialog}>
         <DialogContent className="sm:max-w-md">
@@ -1411,24 +1189,16 @@ export default function CaseDetail() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="send-ccl-email">
-                Recipient Email <span className="text-destructive">*</span>
-              </Label>
+              <Label htmlFor="send-ccl-email">Recipient Email <span className="text-destructive">*</span></Label>
               <Input
-                id="send-ccl-email"
-                type="email"
-                placeholder="client@example.com"
-                value={sendEmail}
-                onChange={(e) => setSendEmail(e.target.value)}
-                disabled={isSendingCareLetter}
-                data-testid="input-send-ccl-email"
+                id="send-ccl-email" type="email" placeholder="client@example.com"
+                value={sendEmail} onChange={(e) => setSendEmail(e.target.value)}
+                disabled={isSendingCareLetter} data-testid="input-send-ccl-email"
               />
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowSendCareLetterDialog(false)} disabled={isSendingCareLetter}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setShowSendCareLetterDialog(false)} disabled={isSendingCareLetter}>Cancel</Button>
             <Button
               onClick={async () => {
                 if (!sendEmail.trim()) {
@@ -1453,14 +1223,7 @@ export default function CaseDetail() {
               disabled={isSendingCareLetter}
               data-testid="button-confirm-send-ccl"
             >
-              {isSendingCareLetter ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                "Send Letter"
-              )}
+              {isSendingCareLetter ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : "Send Letter"}
             </Button>
           </div>
         </DialogContent>
