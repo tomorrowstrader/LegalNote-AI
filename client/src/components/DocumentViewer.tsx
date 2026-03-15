@@ -505,6 +505,7 @@ export default function DocumentViewer({
   const [zoom, setZoom] = useState(100);
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>("");
+  const editContentRef = useRef<string>("");
   const [lastSavedContent, setLastSavedContent] = useState<string>("");
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -816,6 +817,7 @@ export default function DocumentViewer({
       localStorage.removeItem(`legalnote_draft_${variables.documentId}`);
       setEditingDocId(null);
       editingDocIdRef.current = null;
+      editContentRef.current = "";
       setEditContent("");
       setLastSavedContent("");
       setAutoSaveStatus('idle');
@@ -925,6 +927,7 @@ export default function DocumentViewer({
     
     setEditingDocId(document.id);
     editingDocIdRef.current = document.id;
+    editContentRef.current = contentToLoad;
     setEditContent(contentToLoad);
     setLastSavedContent(document.content);
     setAutoSaveStatus('idle');
@@ -954,6 +957,7 @@ export default function DocumentViewer({
     }
     setEditingDocId(null);
     editingDocIdRef.current = null;
+    editContentRef.current = "";
     setEditContent("");
     setLastSavedContent("");
     setAutoSaveStatus('idle');
@@ -973,6 +977,11 @@ export default function DocumentViewer({
     }
   }, [caseId]);
 
+  const handleEditContentChange = useCallback((value: string) => {
+    editContentRef.current = value;
+    setEditContent(value);
+  }, []);
+
   const handleDocumentRedact = useCallback((redactedText: string) => {
     try {
       fetch(`/api/cases/${caseId}/audit`, {
@@ -987,7 +996,8 @@ export default function DocumentViewer({
   }, [caseId]);
 
   const saveEdits = (documentId: string) => {
-    if (!editContent.trim()) {
+    const contentToSave = editContentRef.current || editContent;
+    if (!contentToSave.trim()) {
       toast({
         title: "Invalid Content",
         description: "Document content cannot be empty",
@@ -1000,7 +1010,7 @@ export default function DocumentViewer({
       clearTimeout(autoSaveTimeoutRef.current);
       autoSaveTimeoutRef.current = null;
     }
-    editMutation.mutate({ documentId, content: editContent });
+    editMutation.mutate({ documentId, content: contentToSave });
   };
 
   const autoSaveDocument = useCallback(async (documentId: string, content: string) => {
@@ -1406,7 +1416,7 @@ export default function DocumentViewer({
                     document={attendanceNote}
                     isEditing={editingDocId === attendanceNote.id}
                     editContent={editContent}
-                    onEditContentChange={setEditContent}
+                    onEditContentChange={handleEditContentChange}
                     onStartEditing={startEditing}
                     onCancelEditing={cancelEditing}
                     onSaveEdits={saveEdits}
@@ -1512,7 +1522,7 @@ export default function DocumentViewer({
                     document={summary}
                     isEditing={editingDocId === summary.id}
                     editContent={editContent}
-                    onEditContentChange={setEditContent}
+                    onEditContentChange={handleEditContentChange}
                     onStartEditing={startEditing}
                     onCancelEditing={cancelEditing}
                     onSaveEdits={saveEdits}
@@ -1678,7 +1688,7 @@ export default function DocumentViewer({
                   document={clientCareLetter}
                   isEditing={editingDocId === clientCareLetter.id}
                   editContent={editContent}
-                  onEditContentChange={setEditContent}
+                  onEditContentChange={handleEditContentChange}
                   onStartEditing={startEditing}
                   onCancelEditing={cancelEditing}
                   onSaveEdits={saveEdits}
