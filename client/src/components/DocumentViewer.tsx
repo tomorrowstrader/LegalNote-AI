@@ -437,7 +437,7 @@ function EditableDocumentContent({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap px-6">
         {isEditing ? (
           <>
             <Button
@@ -539,12 +539,13 @@ export default function DocumentViewer({
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [zoom, setZoom] = useState(100);
-  const [pageViewMode, setPageViewMode] = useState(false);
+  const [pageViewMode, setPageViewMode] = useState(true);
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>("");
   const editContentRef = useRef<string>("");
   const [lastSavedContent, setLastSavedContent] = useState<string>("");
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [dismissedReviewBanners, setDismissedReviewBanners] = useState<Set<string>>(new Set());
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const editingDocIdRef = useRef<string | null>(null);
   const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
@@ -1061,7 +1062,7 @@ export default function DocumentViewer({
 
     setAutoSaveStatus('saving');
     try {
-      await apiRequest('PATCH', `/api/documents/${documentId}`, { content });
+      await apiRequest('PATCH', `/api/documents/${documentId}`, { content, silent: true });
 
       if (editingDocIdRef.current !== documentId) {
         return;
@@ -1287,8 +1288,8 @@ export default function DocumentViewer({
       style={{ '--doc-header-height': `${headerHeight}px` } as CSSProperties}
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div ref={stickyHeaderRef} className={`sticky top-0 z-40 bg-card pt-4 pb-3 border-b ${focusMode ? 'print:hidden' : ''}`}>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+        <div ref={stickyHeaderRef} className={`sticky top-0 z-40 bg-card/95 backdrop-blur-sm pt-4 pb-3 border-b ${focusMode ? 'print:hidden' : ''}`}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 px-2">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl sm:text-2xl font-semibold">Generated Documentation</h2>
@@ -1423,6 +1424,20 @@ export default function DocumentViewer({
         </div>
 
         <TabsContent value="attendance" className="mt-6">
+          {attendanceNote?.status === 'draft' && !dismissedReviewBanners.has('attendance') && (
+            <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-attendance">
+              <div className="flex items-start gap-3">
+                <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Review Required</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">This document has been produced and requires your professional review before it can be approved or shared with clients.</p>
+                </div>
+                <Button size="icon" variant="ghost" className="flex-shrink-0 h-6 w-6" onClick={() => setDismissedReviewBanners(prev => new Set(prev).add('attendance'))} data-testid="button-dismiss-review-attendance">
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
           {showVersionDiff === 'attendance_note' && (
             <div className="mb-4">
               <VersionDiffViewer
@@ -1538,6 +1553,20 @@ export default function DocumentViewer({
         </TabsContent>
 
         <TabsContent value="summary" className="mt-6">
+          {summary?.status === 'draft' && !dismissedReviewBanners.has('summary') && (
+            <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-summary">
+              <div className="flex items-start gap-3">
+                <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Review Required</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">This document has been produced and requires your professional review before it can be approved or shared with clients.</p>
+                </div>
+                <Button size="icon" variant="ghost" className="flex-shrink-0 h-6 w-6" onClick={() => setDismissedReviewBanners(prev => new Set(prev).add('summary'))} data-testid="button-dismiss-review-summary">
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
           {showVersionDiff === 'summary' && (
             <div className="mb-4">
               <VersionDiffViewer

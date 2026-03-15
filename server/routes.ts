@@ -2670,6 +2670,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // Validate request body with Zod
       const updateDocumentSchema = z.object({
         content: z.string().min(1, "Content cannot be empty").max(100000, "Content too long"),
+        silent: z.boolean().optional(),
       });
       
       const validationResult = updateDocumentSchema.safeParse(req.body);
@@ -2680,7 +2681,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         });
       }
       
-      const { content } = validationResult.data;
+      const { content, silent } = validationResult.data;
       
       // Get the document first to check if it exists and is a draft
       const existingDoc = await storage.getDocument(req.params.id);
@@ -2694,12 +2695,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         });
       }
       
-      // Update content and increment version
+      // Update content — only increment version for explicit saves (not auto-saves)
       const updatedDocument = await storage.updateDocument(
         req.params.id, 
         { 
           content,
-          version: existingDoc.version + 1 
+          ...(silent ? {} : { version: existingDoc.version + 1 }),
         }, 
         userId
       );
@@ -2708,19 +2709,21 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(404).json({ message: "Failed to update document" });
       }
       
-      // Create audit log for document edit
-      await storage.createAuditLog({
-        eventType: 'document_edited',
-        userId,
-        caseId: existingDoc.caseId,
-        documentId: req.params.id,
-        metadata: {
-          documentType: existingDoc.type,
-          oldVersion: existingDoc.version,
-          newVersion: updatedDocument.version,
-          contentLength: content.length,
-        },
-      });
+      // Create audit log for document edit (skip for silent auto-saves)
+      if (!silent) {
+        await storage.createAuditLog({
+          eventType: 'document_edited',
+          userId,
+          caseId: existingDoc.caseId,
+          documentId: req.params.id,
+          metadata: {
+            documentType: existingDoc.type,
+            oldVersion: existingDoc.version,
+            newVersion: updatedDocument.version,
+            contentLength: content.length,
+          },
+        });
+      }
       
       res.json(updatedDocument);
     } catch (error: any) {

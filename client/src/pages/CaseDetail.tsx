@@ -488,7 +488,7 @@ export default function CaseDetail() {
   };
 
   return (
-    <div className={cn("flex bg-background", isFocusMode ? "min-h-screen" : "")}>
+    <div className={cn("flex bg-background", isFocusMode ? "min-h-screen" : "h-[calc(100vh-4rem)]")}>
       {isFocusMode && (
         <div className="fixed top-4 right-4 z-[200]">
           <Button variant="outline" size="sm" onClick={exitFocusMode} className="gap-2 bg-background/80 backdrop-blur-sm shadow-lg" data-testid="button-exit-focus-mode">
@@ -500,7 +500,7 @@ export default function CaseDetail() {
       {/* ── Left Panel ── */}
       {!isFocusMode && (
         <aside
-          className="hidden lg:flex w-[220px] shrink-0 border-r border-border bg-muted/20 flex-col sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto z-40"
+          className="hidden lg:flex w-[220px] shrink-0 border-r border-border bg-muted/20 flex-col sticky top-0 self-start h-[calc(100vh-4rem)] overflow-y-auto z-40"
           data-testid="case-side-nav"
         >
           {/* Back link */}
@@ -633,10 +633,10 @@ export default function CaseDetail() {
       )}
 
       {/* ── Main Content ── */}
-      <main className="flex-1 min-w-0 flex flex-col">
+      <main className="flex-1 min-w-0 flex flex-col overflow-y-auto">
 
         {/* Mobile tab bar */}
-        <div className="lg:hidden sticky top-16 z-30 bg-background border-b border-border overflow-x-auto">
+        <div className="lg:hidden sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border overflow-x-auto">
           <div className="flex items-center gap-0.5 px-4 py-2 min-w-max">
             {mobileNavItems.map(item => {
               const Icon = item.icon;
@@ -660,7 +660,7 @@ export default function CaseDetail() {
         </div>
 
         {/* Section top bar */}
-        <div className="sticky top-16 lg:top-16 z-20 bg-background border-b border-border h-14 flex items-center px-6 lg:px-8 gap-4 shrink-0">
+        <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border h-14 flex items-center px-6 lg:px-8 gap-4 shrink-0">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <h2 className="font-semibold text-sm text-foreground truncate">
               {SECTION_LABELS[activeSection]}

@@ -879,7 +879,7 @@ export function RichTextEditor({
       style={{ fontSize: `${zoom}%` }}
     >
       {!disabled && (
-        <div className="border border-border rounded-t-md bg-muted/40 backdrop-blur-sm">
+        <div className="border border-border rounded-t-md bg-muted/40 backdrop-blur-sm sticky top-0 z-30">
           <div className="flex items-start gap-0 p-1.5 flex-wrap">
             <RibbonGroup label="Font">
               <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} icon={Bold} tooltip="Bold (Ctrl+B)" />
