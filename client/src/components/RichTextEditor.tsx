@@ -424,6 +424,70 @@ export function RichTextEditor({
       RedactionMark,
       LegalFieldNode,
       Extension.create({
+        name: 'listKeyboardShortcuts',
+        addKeyboardShortcuts() {
+          return {
+            Backspace: ({ editor }) => {
+              const { state } = editor;
+              const { $from, empty } = state.selection;
+              if (!empty || $from.parentOffset !== 0) return false;
+
+              const isEmptyParagraphInList =
+                $from.parent.type.name === 'paragraph' &&
+                $from.parent.textContent === '' &&
+                $from.depth >= 2 &&
+                $from.node($from.depth - 1).type.name === 'listItem';
+
+              const isEmptyListItem =
+                $from.parent.type.name === 'listItem' &&
+                $from.parent.textContent === '';
+
+              if (isEmptyParagraphInList || isEmptyListItem) {
+                return editor.chain().liftListItem('listItem').run();
+              }
+              return false;
+            },
+            Delete: ({ editor }) => {
+              const { state } = editor;
+              const { $from, empty } = state.selection;
+              if (!empty || $from.parentOffset !== 0) return false;
+
+              if ($from.parent.textContent === '' && $from.depth >= 2 && $from.node($from.depth - 1).type.name === 'listItem') {
+                return editor.chain().liftListItem('listItem').run();
+              }
+              return false;
+            },
+            Enter: ({ editor }) => {
+              const { state } = editor;
+              const { $from, empty } = state.selection;
+              if (!empty) return false;
+
+              const isInList = $from.depth >= 2 && $from.node($from.depth - 1).type.name === 'listItem';
+              if (isInList && $from.parent.textContent === '') {
+                return editor.chain().liftListItem('listItem').run();
+              }
+              return false;
+            },
+            Tab: ({ editor }) => {
+              const { state } = editor;
+              const { $from } = state.selection;
+              if ($from.depth >= 2 && $from.node($from.depth - 1).type.name === 'listItem') {
+                return editor.chain().sinkListItem('listItem').run();
+              }
+              return false;
+            },
+            'Shift-Tab': ({ editor }) => {
+              const { state } = editor;
+              const { $from } = state.selection;
+              if ($from.depth >= 2 && $from.node($from.depth - 1).type.name === 'listItem') {
+                return editor.chain().liftListItem('listItem').run();
+              }
+              return false;
+            },
+          };
+        },
+      }),
+      Extension.create({
         name: 'pagination',
         addProseMirrorPlugins() {
           return [createPaginationPlugin()];
