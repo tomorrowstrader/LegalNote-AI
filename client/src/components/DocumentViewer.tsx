@@ -18,6 +18,32 @@ import remarkBreaks from 'remark-breaks';
 import { RichTextEditor, type TrackedChange } from "@/components/RichTextEditor";
 import { PageView } from "@/components/PageView";
 import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
+
+function markdownToPlainText(md: string): string {
+  if (!md) return '';
+  return md
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    .replace(/~~(.+?)~~/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^\|.*\|$/gm, (line) => {
+      if (/^[\s|:-]+$/.test(line)) return '';
+      return line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim()).join('  ');
+    })
+    .replace(/^[-*+]\s+/gm, '  ')
+    .replace(/^\d+\.\s+/gm, '  ')
+    .replace(/^>\s+/gm, '')
+    .replace(/^---+$/gm, '')
+    .replace(/\\\\/g, '')
+    .replace(/\\([#*_~`|>])/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 import { Textarea } from "@/components/ui/textarea";
 import DiffMatchPatch from 'diff-match-patch';
 
@@ -69,7 +95,9 @@ function VersionDiffViewer({
     if (!left || !right) return '';
 
     const dmp = new DiffMatchPatch();
-    const diffs = dmp.diff_main(left.content, right.content);
+    const leftText = markdownToPlainText(left.content);
+    const rightText = markdownToPlainText(right.content);
+    const diffs = dmp.diff_main(leftText, rightText);
     dmp.diff_cleanupSemantic(diffs);
 
     return diffs.map(([op, text]: [number, string]) => {

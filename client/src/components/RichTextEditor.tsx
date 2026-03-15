@@ -53,8 +53,16 @@ function ensureSectionSpacing(content: string): string {
   return result.join('\n');
 }
 
+function stripEmptyListItems(content: string): string {
+  if (!content) return content;
+  return content
+    .replace(/^[-*+]\s*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
 function ensureBoldHeadings(content: string): string {
   if (!content) return content;
+  content = stripEmptyListItems(content);
   
   const knownHeadings = [
     'ATTENDANCE NOTE', 'MEETING SUMMARY', 'MATTERS DISCUSSED', 'NEXT STEPS',
@@ -372,6 +380,7 @@ export function RichTextEditor({
   const isUpdatingRef = useRef(false);
   const isTrackingRef = useRef(trackChangesEnabled);
   const deletionBufferRef = useRef<TrackedChange[]>([]);
+  const lastEmittedContentRef = useRef<string>('');
   const [showSearch, setShowSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [replaceTerm, setReplaceTerm] = useState('');
@@ -432,6 +441,7 @@ export function RichTextEditor({
     onUpdate: ({ editor }) => {
       if (isUpdatingRef.current) return;
       const markdown = editor.storage.markdown.getMarkdown();
+      lastEmittedContentRef.current = markdown;
       onChange(markdown);
 
       const { from } = editor.state.selection;
@@ -635,8 +645,8 @@ export function RichTextEditor({
 
   useEffect(() => {
     if (!editor) return;
-    const currentMarkdown = editor.storage.markdown?.getMarkdown() ?? '';
-    if (content === currentMarkdown) return;
+    if (content === lastEmittedContentRef.current) return;
+    lastEmittedContentRef.current = content;
     isUpdatingRef.current = true;
     try {
       const processedContent = ensureBoldHeadings(content ?? '');
