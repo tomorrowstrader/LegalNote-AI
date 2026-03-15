@@ -45,7 +45,7 @@ import {
 import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { openaiService } from "./openaiService";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail } from "./email";
 import { generateSignedAuditPDF } from "./services/signedAuditExport";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent } from "./calendar";
 import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
@@ -4491,6 +4491,131 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       
       const latestVersion = await storage.getLatestClientVersion(documentId);
       res.json(latestVersion || null);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // ============================================
+  // Client Care Letter Acknowledgement Routes
+  // ============================================
+
+  // Request acknowledgement — authenticated solicitor sends email to client
+  app.post("/api/documents/:id/request-acknowledgement", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id: documentId } = req.params;
+
+      const document = await storage.getDocument(documentId);
+      if (!document) return res.status(404).json({ message: "Document not found" });
+
+      const caseData = await storage.getCase(document.caseId, userId);
+      if (!caseData) return res.status(403).json({ message: "Not authorised" });
+
+      if (document.type !== 'client_care_letter') {
+        return res.status(400).json({ message: "Acknowledgement is only available for client care letters" });
+      }
+
+      // Get the client email
+      const client = caseData.clientId ? await storage.getClient(caseData.clientId, userId) : null;
+      const clientEmail = client?.email || req.body.clientEmail;
+      if (!clientEmail) {
+        return res.status(400).json({ message: "No client email address found. Please update the client record or provide an email." });
+      }
+
+      // Generate a secure token
+      const token = crypto.randomBytes(32).toString('hex');
+
+      // Store the token on the document
+      await storage.updateDocument(documentId, {
+        acknowledgedToken: token,
+        acknowledgedAt: null,
+        acknowledgedByEmail: null,
+        acknowledgedIp: null,
+      } as any, userId);
+
+      // Get firm profile for branding
+      const firmProfile = await storage.getFirmProfile();
+
+      // Send the email
+      const emailResult = await sendAcknowledgementRequestEmail({
+        to: clientEmail,
+        clientName: client?.name || 'Client',
+        caseTitle: caseData.title,
+        matterReference: caseData.matterReference || undefined,
+        token,
+        firmProfile: firmProfile ? {
+          firmName: firmProfile.firmName,
+          phone: firmProfile.phone || undefined,
+          email: firmProfile.email || undefined,
+        } : undefined,
+      });
+
+      if (!emailResult.success) {
+        return res.status(500).json({ message: "Failed to send acknowledgement email", error: emailResult.error });
+      }
+
+      await logAuditEvent(userId, "acknowledgement_requested", {
+        documentId,
+        caseId: document.caseId,
+        clientEmail,
+        caseTitle: caseData.title,
+      });
+
+      res.json({ success: true, sentTo: clientEmail });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Public: Get document for acknowledgement (no auth required)
+  app.get("/api/documents/acknowledge/:token", async (req, res, next) => {
+    try {
+      const { token } = req.params;
+
+      const document = await storage.getDocumentByAcknowledgeToken(token);
+      if (!document) return res.status(404).json({ message: "This link is invalid or has expired." });
+
+      const caseData = await storage.getCaseById(document.caseId);
+      const firmProfile = await storage.getFirmProfile();
+
+      res.json({
+        documentId: document.id,
+        content: document.content,
+        caseTitle: caseData?.title || 'Your Matter',
+        matterReference: caseData?.matterReference || null,
+        acknowledgedAt: document.acknowledgedAt,
+        acknowledgedByEmail: document.acknowledgedByEmail,
+        firmProfile: firmProfile ? {
+          firmName: firmProfile.firmName,
+          logoUrl: firmProfile.logoUrl || null,
+        } : null,
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Public: Submit acknowledgement (no auth required)
+  app.post("/api/documents/acknowledge/:token", async (req, res, next) => {
+    try {
+      const { token } = req.params;
+      const clientEmail = req.body.email || '';
+      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+        || req.socket.remoteAddress
+        || 'unknown';
+
+      const document = await storage.getDocumentByAcknowledgeToken(token);
+      if (!document) return res.status(404).json({ message: "This link is invalid or has expired." });
+
+      if (document.acknowledgedAt) {
+        return res.json({ alreadyAcknowledged: true, acknowledgedAt: document.acknowledgedAt });
+      }
+
+      const now = new Date();
+      await storage.recordDocumentAcknowledgement(document.id, now, clientEmail, ip);
+
+      res.json({ success: true, acknowledgedAt: now.toISOString() });
     } catch (error: any) {
       next(error);
     }

@@ -253,6 +253,10 @@ export const documents = pgTable("documents", {
   approvalComment: text("approval_comment"),
   verificationWarnings: text("verification_warnings").array(),
   isShortRecording: boolean("is_short_recording").default(false),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  acknowledgedByEmail: text("acknowledged_by_email"),
+  acknowledgedIp: text("acknowledged_ip"),
+  acknowledgedToken: text("acknowledged_token"),
 });
 
 export const clientVersionTracking = pgTable("client_version_tracking", {

@@ -39,6 +39,7 @@ import Login from "@/pages/Login";
 import TimeSummary from "@/pages/TimeSummary";
 import UndertakingsDashboard from "@/pages/UndertakingsDashboard";
 import TeamManagement from "@/pages/TeamManagement";
+import AcknowledgePage from "@/pages/AcknowledgePage";
 import ScrollToTop from "@/components/ScrollToTop";
 
 function Router() {
@@ -48,6 +49,7 @@ function Router() {
     <Switch>
       {/* Public routes (accessible without authentication) */}
       <Route path="/share/:linkId" component={ShareLinkView} />
+      <Route path="/acknowledge/:token" component={AcknowledgePage} />
       <Route path="/oauth/callback" component={OAuthCallback} />
       <Route path="/calendar-sync-confirmation" component={CalendarSyncConfirmation} />
       <Route path="/landing-preview" component={Landing} />

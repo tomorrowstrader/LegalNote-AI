@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, Mail, MailCheck } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -380,6 +380,8 @@ function EditableDocumentContent({
   trackChangesEnabled,
   onTrackChangesToggle,
   onTrackChangeAction,
+  onRedact,
+  legalContext,
 }: { 
   document: Document;
   isEditing: boolean;
@@ -397,6 +399,8 @@ function EditableDocumentContent({
   trackChangesEnabled?: boolean;
   onTrackChangesToggle?: (enabled: boolean) => void;
   onTrackChangeAction?: (action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changeId?: string) => void;
+  onRedact?: (redactedText: string) => void;
+  legalContext?: { clientName?: string; matterRef?: string; solicitorName?: string; firmName?: string };
 }) {
   const isDraft = document.status === 'draft';
 
@@ -471,6 +475,8 @@ function EditableDocumentContent({
         trackChangesEnabled={isEditing ? trackChangesEnabled : false}
         onTrackChangesToggle={isEditing ? onTrackChangesToggle : undefined}
         onTrackChangeAction={isEditing ? onTrackChangeAction : undefined}
+        onRedact={isEditing ? onRedact : undefined}
+        legalContext={legalContext}
       />
     </div>
   );
@@ -733,6 +739,28 @@ export default function DocumentViewer({
     },
   });
 
+  const requestAcknowledgementMutation = useMutation({
+    mutationFn: async ({ documentId }: { documentId: string }) => {
+      return await apiRequest('POST', `/api/documents/${documentId}/request-acknowledgement`, {});
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      toast({
+        title: "Acknowledgement request sent",
+        description: `An email has been sent to ${data.sentTo || 'the client'} with a secure link to read and acknowledge the letter.`,
+        duration: 8000,
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to send request",
+        description: err.message || "Could not send the acknowledgement request. Check that the client record has an email address.",
+        variant: "destructive",
+        duration: 8000,
+      });
+    },
+  });
+
   const unlockMutation = useMutation({
     mutationFn: async ({ documentId }: { documentId: string }) => {
       return await apiRequest('POST', `/api/documents/${documentId}/unlock`);
@@ -942,6 +970,19 @@ export default function DocumentViewer({
       });
     } catch (auditError) {
       console.error('Failed to log track change audit event:', auditError);
+    }
+  }, [caseId]);
+
+  const handleDocumentRedact = useCallback((redactedText: string) => {
+    try {
+      fetch(`/api/cases/${caseId}/audit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ eventType: 'document_redacted', redactedText: redactedText.substring(0, 100) }),
+      });
+    } catch (auditError) {
+      console.error('Failed to log redaction audit event:', auditError);
     }
   }, [caseId]);
 
@@ -1595,7 +1636,38 @@ export default function DocumentViewer({
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <CardTitle>Client Care Letter</CardTitle>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {(clientCareLetter as any).acknowledgedAt ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="default" className="gap-1 bg-green-600" data-testid="badge-acknowledged">
+                            <MailCheck className="w-3 h-3" />
+                            Acknowledged
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Acknowledged on {new Date((clientCareLetter as any).acknowledgedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {(clientCareLetter as any).acknowledgedByEmail ? ` by ${(clientCareLetter as any).acknowledgedByEmail}` : ''}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => requestAcknowledgementMutation.mutate({ documentId: clientCareLetter.id })}
+                            disabled={requestAcknowledgementMutation.isPending}
+                            className="gap-1"
+                            data-testid="button-request-acknowledgement"
+                          >
+                            <Mail className="w-3 h-3" />
+                            {requestAcknowledgementMutation.isPending ? "Sending..." : "Request Acknowledgement"}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Send client a secure link to read and confirm this letter</TooltipContent>
+                      </Tooltip>
+                    )}
                     <Badge variant="outline" data-testid="badge-care-letter-ai">System Generated</Badge>
                     <DocumentStatusActions document={clientCareLetter} />
                   </div>
@@ -1619,6 +1691,12 @@ export default function DocumentViewer({
                   trackChangesEnabled={editingDocId === clientCareLetter.id ? trackChangesEnabled : false}
                   onTrackChangesToggle={setTrackChangesEnabled}
                   onTrackChangeAction={handleTrackChangeAction}
+                  onRedact={handleDocumentRedact}
+                  legalContext={{
+                    clientName: clientName || undefined,
+                    matterRef: matterReference || undefined,
+                    firmName: firmProfile?.firmName || undefined,
+                  }}
                 />
               </CardContent>
             </Card>

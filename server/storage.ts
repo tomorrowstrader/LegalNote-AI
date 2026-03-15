@@ -418,6 +418,8 @@ export interface IStorage {
   updateDocument(id: string, updates: Partial<Document>, userId: string): Promise<Document | undefined>;
   approveDocument(id: string, userId: string, comment?: string): Promise<Document | undefined>;
   unlockDocument(id: string, userId: string): Promise<Document | undefined>;
+  getDocumentByAcknowledgeToken(token: string): Promise<Document | undefined>;
+  recordDocumentAcknowledgement(id: string, acknowledgedAt: Date, acknowledgedByEmail: string, acknowledgedIp: string): Promise<void>;
   
   // Client Version Tracking methods
   createClientVersionTracking(trackingData: InsertClientVersionTracking): Promise<ClientVersionTracking>;
@@ -1373,6 +1375,14 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...updates };
     this.documents.set(id, updated);
     return updated;
+  }
+
+  async getDocumentByAcknowledgeToken(_token: string): Promise<Document | undefined> {
+    return undefined;
+  }
+
+  async recordDocumentAcknowledgement(_id: string, _acknowledgedAt: Date, _acknowledgedByEmail: string, _acknowledgedIp: string): Promise<void> {
+    // MemStorage stub
   }
 
   async approveDocument(id: string, userId: string, comment?: string): Promise<Document | undefined> {
@@ -2916,6 +2926,22 @@ export class DbStorage implements IStorage {
       .where(eq(documents.id, id))
       .returning();
     return result[0];
+  }
+
+  async getDocumentByAcknowledgeToken(token: string): Promise<Document | undefined> {
+    const result = await db
+      .select()
+      .from(documents)
+      .where(eq(documents.acknowledgedToken, token))
+      .limit(1);
+    return result[0];
+  }
+
+  async recordDocumentAcknowledgement(id: string, acknowledgedAt: Date, acknowledgedByEmail: string, acknowledgedIp: string): Promise<void> {
+    await db
+      .update(documents)
+      .set({ acknowledgedAt, acknowledgedByEmail, acknowledgedIp })
+      .where(eq(documents.id, id));
   }
 
   async approveDocument(id: string, userId: string, comment?: string): Promise<Document | undefined> {

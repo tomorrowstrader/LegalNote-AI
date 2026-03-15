@@ -9,7 +9,7 @@ import Highlight from '@tiptap/extension-highlight';
 import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import CharacterCount from '@tiptap/extension-character-count';
-import { Mark, mergeAttributes } from '@tiptap/core';
+import { Mark, Node, mergeAttributes } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Markdown } from 'tiptap-markdown';
 import { Button } from "@/components/ui/button";
@@ -20,10 +20,14 @@ import {
   AlignJustify, Highlighter, Superscript as SuperscriptIcon,
   Subscript as SubscriptIcon, Table as TableIcon, Search,
   Maximize2, Minimize2, Type, GitCompareArrows, Check, X,
-  CheckCheck, XCircle, MessageSquarePlus
+  CheckCheck, XCircle, MessageSquarePlus, EyeOff, ChevronDown, Hash,
+  User, Calendar, Briefcase, Building2
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 
 function ensureSectionSpacing(content: string): string {
   const lines = content.split('\n');
@@ -140,6 +144,56 @@ const DeletionMark = Mark.create({
   },
   renderHTML({ HTMLAttributes }) {
     return ['del', mergeAttributes(HTMLAttributes, { 'data-track-change': 'deletion', class: 'track-change-deletion' }), 0];
+  },
+});
+
+const RedactionMark = Mark.create({
+  name: 'redaction',
+  excludes: '_',
+  addAttributes() {
+    return {
+      redactedBy: { default: null },
+      redactedAt: { default: null },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'span[data-redaction]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttributes(HTMLAttributes, {
+      'data-redaction': 'true',
+      class: 'redaction-mark',
+      title: 'Redacted',
+    }), 0];
+  },
+});
+
+type LegalFieldType = 'clientName' | 'matterRef' | 'date' | 'solicitorName' | 'firmName';
+
+const LegalFieldNode = Node.create({
+  name: 'legalField',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes() {
+    return {
+      fieldType: { default: 'date' },
+      fieldLabel: { default: '' },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'span[data-legal-field]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttributes(HTMLAttributes, {
+      'data-legal-field': HTMLAttributes.fieldType,
+      class: 'legal-field-token',
+      contenteditable: 'false',
+    }), HTMLAttributes.fieldLabel || `[${HTMLAttributes.fieldType}]`];
+  },
+  renderText({ node }) {
+    return node.attrs.fieldLabel || `[${node.attrs.fieldType}]`;
   },
 });
 
@@ -286,6 +340,13 @@ export interface TrackedChange {
   to: number;
 }
 
+export interface LegalFieldContext {
+  clientName?: string;
+  matterRef?: string;
+  solicitorName?: string;
+  firmName?: string;
+}
+
 interface RichTextEditorProps {
   content: string;
   onChange: (content: string) => void;
@@ -298,11 +359,14 @@ interface RichTextEditorProps {
   onTrackChangesToggle?: (enabled: boolean) => void;
   onTrackChangeAction?: (action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changeId?: string) => void;
   onAddComment?: (selectedText: string) => void;
+  onRedact?: (redactedText: string) => void;
+  legalContext?: LegalFieldContext;
 }
 
 export function RichTextEditor({ 
   content, onChange, disabled, placeholder, focusMode, onFocusModeToggle, zoom = 100,
-  trackChangesEnabled = false, onTrackChangesToggle, onTrackChangeAction, onAddComment
+  trackChangesEnabled = false, onTrackChangesToggle, onTrackChangeAction, onAddComment,
+  onRedact, legalContext,
 }: RichTextEditorProps) {
   const isUpdatingRef = useRef(false);
   const isTrackingRef = useRef(trackChangesEnabled);
@@ -315,6 +379,8 @@ export function RichTextEditor({
   const [selectedOption, setSelectedOption] = useState(0);
   const [trackedChanges, setTrackedChanges] = useState<TrackedChange[]>([]);
   const [changeCount, setChangeCount] = useState(0);
+  const [numPageBreaks, setNumPageBreaks] = useState(0);
+  const pageCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     isTrackingRef.current = trackChangesEnabled;
@@ -347,6 +413,8 @@ export function RichTextEditor({
       CharacterCount,
       InsertionMark,
       DeletionMark,
+      RedactionMark,
+      LegalFieldNode,
     ],
     content: '',
     editable: !disabled,
@@ -649,10 +717,57 @@ export function RichTextEditor({
     }
   }, [editor]);
 
+  // ResizeObserver for paginated page break labels
+  useEffect(() => {
+    if (disabled || !pageCardRef.current) return;
+    const el = pageCardRef.current;
+    const A4_H = 1122;
+    const GUTTER_H = 32;
+    const observer = new ResizeObserver(() => {
+      const h = el.scrollHeight;
+      const breaks = Math.max(0, Math.floor(h / (A4_H + GUTTER_H)));
+      setNumPageBreaks(breaks);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [disabled]);
+
   if (!editor) return null;
 
   const wordCount = editor.storage.characterCount?.words() ?? 0;
   const charCount = editor.storage.characterCount?.characters() ?? 0;
+
+  const handleRedact = () => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    if (from === to) return;
+    const selectedText = editor.state.doc.textBetween(from, to, ' ');
+    if (!selectedText.trim()) return;
+    editor.chain().focus()
+      .setMark('redaction', {
+        redactedBy: 'Solicitor',
+        redactedAt: new Date().toISOString(),
+      })
+      .run();
+    if (onRedact) onRedact(selectedText);
+  };
+
+  const LEGAL_FIELDS: { type: LegalFieldType; label: string; icon: any; display: string }[] = [
+    { type: 'clientName', label: 'Client Name', icon: User, display: legalContext?.clientName || '[Client Name]' },
+    { type: 'matterRef', label: 'Matter Reference', icon: Hash, display: legalContext?.matterRef || '[Matter Ref]' },
+    { type: 'date', label: 'Today\'s Date', icon: Calendar, display: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }) },
+    { type: 'solicitorName', label: 'Solicitor Name', icon: Briefcase, display: legalContext?.solicitorName || '[Solicitor Name]' },
+    { type: 'firmName', label: 'Firm Name', icon: Building2, display: legalContext?.firmName || '[Firm Name]' },
+  ];
+
+  const insertLegalField = (fieldType: LegalFieldType) => {
+    const field = LEGAL_FIELDS.find(f => f.type === fieldType);
+    if (!editor || !field) return;
+    editor.chain().focus().insertContent({
+      type: 'legalField',
+      attrs: { fieldType, fieldLabel: field.display },
+    }).run();
+  };
 
   const ToolbarButton = ({ 
     onClick, active, icon: Icon, tooltip, disabled: btnDisabled 
@@ -738,6 +853,54 @@ export function RichTextEditor({
                   tooltip="Add Comment (select text first)" 
                 />
               )}
+            </RibbonGroup>
+
+            <RibbonGroup label="Legal">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={handleRedact}
+                    disabled={disabled}
+                    className="h-7 w-7"
+                    data-testid="button-redact-selection"
+                  >
+                    <EyeOff className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Redact selection (select text first)</TooltipContent>
+              </Tooltip>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={disabled}
+                    className="h-7 gap-0.5 text-xs px-1.5"
+                    data-testid="button-insert-field"
+                  >
+                    <Hash className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Field</span>
+                    <ChevronDown className="h-2.5 w-2.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-44">
+                  {LEGAL_FIELDS.map(f => (
+                    <DropdownMenuItem
+                      key={f.type}
+                      onClick={() => insertLegalField(f.type)}
+                      className="gap-2 text-xs"
+                      data-testid={`menu-item-field-${f.type}`}
+                    >
+                      <f.icon className="h-3.5 w-3.5 text-muted-foreground" />
+                      {f.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </RibbonGroup>
 
             <RibbonGroup label="Review">
@@ -831,8 +994,21 @@ export function RichTextEditor({
 
       <div className="flex">
         <div className={`relative flex-1 ${trackChangesEnabled && changeCount > 0 && !disabled ? 'min-w-0' : ''}`} onKeyDown={handleKeyDown}>
-          <div className={disabled ? 'bg-transparent' : 'bg-muted/30 dark:bg-muted/10 border-x border-border py-6 px-4 sm:px-8'}>
-            <div className={disabled ? undefined : 'bg-card dark:bg-card mx-auto max-w-[800px] shadow-md rounded-sm border border-border/30'}>
+          <div className={disabled ? 'bg-transparent' : 'bg-muted/30 dark:bg-muted/10 border-x border-border overflow-x-auto'}>
+            <div
+              ref={disabled ? undefined : pageCardRef}
+              className={disabled ? undefined : 'paginated-page-card shadow-md mx-auto'}
+            >
+              {/* Page break labels — one label per gutter, starting from page 2 */}
+              {!disabled && numPageBreaks > 0 && Array.from({ length: numPageBreaks }).map((_, i) => (
+                <div
+                  key={i}
+                  className="page-gutter-label"
+                  style={{ top: `${(i + 1) * 1122 + i * 32}px` }}
+                >
+                  <span>Page {i + 2}</span>
+                </div>
+              ))}
               <EditorContent 
                 editor={editor} 
                 className="legal-document-editor

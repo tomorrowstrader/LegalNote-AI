@@ -1270,3 +1270,99 @@ export async function sendClientCareLetterEmail(params: SendClientCareLetterEmai
     return { success: false, error: error.message || 'Unknown error' };
   }
 }
+
+interface SendAcknowledgementRequestParams {
+  to: string;
+  clientName: string;
+  caseTitle: string;
+  matterReference?: string;
+  token: string;
+  firmProfile?: {
+    firmName: string;
+    phone?: string;
+    email?: string;
+  };
+}
+
+/**
+ * Sends a client care letter acknowledgement request email with a secure one-time link
+ */
+export async function sendAcknowledgementRequestEmail(
+  params: SendAcknowledgementRequestParams
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { to, clientName, caseTitle, matterReference, token, firmProfile } = params;
+
+  const baseUrl = process.env.REPLIT_DOMAINS
+    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+    : 'http://localhost:5000';
+  const acknowledgeUrl = `${baseUrl}/acknowledge/${token}`;
+
+  const firmName = firmProfile?.firmName || 'Your Solicitors';
+  const ref = matterReference ? `<p style="color:#666;font-size:13px;margin-top:4px">Matter reference: ${matterReference}</p>` : '';
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; }
+        .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 32px 40px; }
+        .header h1 { color: #fff; margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+        .header p { color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: 13px; }
+        .content { padding: 36px 40px; background: #fff; }
+        .content h2 { font-size: 18px; margin: 0 0 8px; color: #1a1a2e; }
+        .content p { margin: 0 0 16px; color: #555; font-size: 14px; }
+        .cta-btn { display: inline-block; background: #c0552a; color: #fff !important; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 8px 0 24px; }
+        .notice { background: #f8f6f3; border-left: 3px solid #c0552a; padding: 14px 18px; border-radius: 0 6px 6px 0; font-size: 13px; color: #555; margin: 24px 0 0; }
+        .footer { padding: 20px 40px; background: #f5f5f5; font-size: 12px; color: #888; border-top: 1px solid #e8e8e8; }
+        .url-fallback { word-break: break-all; color: #888; font-size: 12px; margin-top: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>${firmName}</h1>
+        <p>Secure Document Portal</p>
+      </div>
+      <div class="content">
+        <h2>Your Client Care Letter is ready</h2>
+        <p>Dear ${clientName},</p>
+        <p>We have prepared your Client Care Letter in connection with the matter: <strong>${caseTitle}</strong>.${matterReference ? ` (Ref: ${matterReference})` : ''}</p>
+        <p>Please click the button below to read your letter and confirm that you have received and understood its contents.</p>
+        <a href="${acknowledgeUrl}" class="cta-btn">Read &amp; Acknowledge Letter</a>
+        <p>This is a one-time secure link. It will remain active until you have confirmed acknowledgement.</p>
+        <div class="notice">
+          <strong>Why are we asking you to do this?</strong><br>
+          SRA regulations require us to confirm that our clients have received and understood the terms of our engagement. Your acknowledgement creates a secure record for your protection as well as ours.
+        </div>
+        <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${acknowledgeUrl}</p>
+      </div>
+      <div class="footer">
+        <p>${firmName}${firmProfile?.phone ? ` &bull; ${firmProfile.phone}` : ''}${firmProfile?.email ? ` &bull; ${firmProfile.email}` : ''}</p>
+        <p>This email was sent to ${to}. If you believe you received this in error, please contact us immediately.</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'LegalNote <noreply@legalnote.app>',
+      to,
+      subject: `Action required: Please acknowledge your Client Care Letter — ${caseTitle}`,
+      html: emailHtml,
+    });
+
+    if (error) {
+      console.error('[EMAIL] Error sending acknowledgement request:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[EMAIL] Acknowledgement request sent successfully:', data?.id);
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending acknowledgement request:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}

@@ -692,6 +692,77 @@ nav.sticky {
   color: hsl(var(--foreground));
 }
 
+/* Paginated (Word-like) editor: A4 page simulation */
+.paginated-page-card {
+  position: relative;
+  width: 794px;
+  min-height: 1122px;
+  background-color: hsl(var(--card));
+  /* Repeating grey gutter at every A4-page boundary (1122px content + 32px gutter) */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 1122px,
+    hsl(var(--muted) / 0.8) 1122px,
+    hsl(var(--muted) / 0.8) 1154px
+  );
+  background-size: 100% 1154px;
+}
+
+.paginated-page-card .ProseMirror {
+  padding: 96px 120px;
+  min-height: 1026px; /* 1122 - 96 top = 1026, so content fills exactly one page */
+  background: transparent;
+}
+
+/* Page number labels inside gutters */
+.page-gutter-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 2;
+}
+
+.page-gutter-label span {
+  font-size: 10px;
+  color: hsl(var(--muted-foreground) / 0.7);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Redaction mark: black bar */
+.redaction-mark {
+  background-color: hsl(var(--foreground));
+  color: transparent;
+  border-radius: 2px;
+  cursor: default;
+  user-select: none;
+  display: inline-block;
+  min-width: 2em;
+}
+
+/* Legal field inline token */
+.legal-field-token {
+  display: inline-flex;
+  align-items: center;
+  background-color: hsl(var(--accent) / 0.12);
+  border: 1px solid hsl(var(--accent) / 0.35);
+  border-radius: 3px;
+  padding: 0 5px;
+  font-size: 0.8em;
+  font-weight: 500;
+  color: hsl(var(--accent));
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+}
+
 .ProseMirror h1 {
   font-size: 1.75rem;
   font-weight: 700;
