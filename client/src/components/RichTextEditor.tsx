@@ -990,7 +990,7 @@ export function RichTextEditor({
               <EditorContent 
                 editor={editor} 
                 className="legal-document-editor
-                  [&_.ProseMirror]:min-h-[400px] [&_.ProseMirror]:focus:outline-none
+                  [&_.ProseMirror]:focus:outline-none
                   [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-bold [&_.ProseMirror_h1]:mb-4 [&_.ProseMirror_h1]:mt-6
                   [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mb-3 [&_.ProseMirror_h2]:mt-5
                   [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:mt-4

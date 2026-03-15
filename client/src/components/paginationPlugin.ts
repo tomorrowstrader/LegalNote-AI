@@ -2,10 +2,14 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
 
-const A4_H = 1122;
-const GUTTER_H = 32;
-const PAGE_STRIDE = A4_H + GUTTER_H;
-const MAX_PAGES = 100;
+// A4 page layout constants (all values in px at 96dpi)
+const TOP_PAD    = 96;   // ProseMirror padding-top (first page top margin)
+const CONTENT_H  = 930;  // usable content height per page (1122 - 96 top - 96 bottom)
+const BOT_MARGIN = 96;   // white zone below last block on page N (looks like a page-bottom margin)
+const GREY_H     = 32;   // grey separator band
+const TOP_MARGIN = 96;   // white zone above first block on page N+1
+const WIDGET_H   = BOT_MARGIN + GREY_H + TOP_MARGIN; // 224px total gutter widget
+const MAX_PAGES  = 50;
 
 export const paginationPluginKey = new PluginKey('pagination');
 
@@ -18,52 +22,51 @@ function rebuildDecorations(view: EditorView): { set: DecorationSet; signature: 
   const cardTop = pageCardEl.getBoundingClientRect().top;
   const decorations: Decoration[] = [];
   const parts: string[] = [];
-  const inserted = new Set<number>();
+
+  // Track where the current page's content zone ends (y from card top).
+  // Page 0: content starts at TOP_PAD due to ProseMirror padding-top;
+  //         content zone ends at TOP_PAD + CONTENT_H = 1026.
+  // After each gutter insertion: next page content ends at
+  //         blockTop_at_insertion + WIDGET_H + CONTENT_H.
+  let pageContentEnd = TOP_PAD + CONTENT_H;
+  let gutterCount = 0;
 
   view.state.doc.forEach((node, offset) => {
     if (!node.isBlock) return;
+    if (gutterCount >= MAX_PAGES) return;
 
     const dom = view.nodeDOM(offset);
     if (!dom || !(dom instanceof HTMLElement)) return;
     if (dom.classList.contains('page-gutter-widget')) return;
 
     const rect = dom.getBoundingClientRect();
-    const nodeTop = rect.top - cardTop;
-    const nodeBottom = rect.bottom - cardTop;
+    const blockTop    = rect.top    - cardTop;
+    const blockBottom = rect.bottom - cardTop;
 
-    for (let n = 0; n < MAX_PAGES; n++) {
-      if (inserted.has(n)) continue;
+    // Block fits entirely within the current page's content zone.
+    if (blockBottom <= pageContentEnd) return;
 
-      const gutterStart = n * PAGE_STRIDE + A4_H;
-      const gutterEnd = gutterStart + GUTTER_H;
+    // Block overflows. Insert a gutter widget immediately BEFORE this block
+    // so it becomes the first block of the next page.
+    const key = `pg-gutter-${gutterCount}`;
+    parts.push(`${key}@${offset}`);
 
-      if (nodeBottom <= gutterStart) break;
-      if (nodeTop >= gutterEnd) continue;
+    const el = document.createElement('div');
+    el.className = 'page-gutter-widget';
+    el.setAttribute('contenteditable', 'false');
+    const label = document.createElement('span');
+    label.textContent = `Page ${gutterCount + 2}`;
+    el.appendChild(label);
 
-      let widgetPos: number;
-      if (nodeTop < gutterStart) {
-        widgetPos = offset + node.nodeSize;
-      } else {
-        widgetPos = offset;
-      }
+    decorations.push(
+      Decoration.widget(offset, el, { side: -1, key })
+    );
 
-      const key = `pg-gutter-${n}`;
-      parts.push(`${key}@${widgetPos}`);
-
-      const el = document.createElement('div');
-      el.className = 'page-gutter-widget';
-      el.setAttribute('contenteditable', 'false');
-      const span = document.createElement('span');
-      span.textContent = `Page ${n + 2}`;
-      el.appendChild(span);
-
-      decorations.push(
-        Decoration.widget(widgetPos, el, { side: -1, key })
-      );
-
-      inserted.add(n);
-      break;
-    }
+    // After the gutter widget (WIDGET_H px), this block begins the next page.
+    // Its shifted DOM position will be approximately blockTop + WIDGET_H.
+    // The next page's content zone ends at: blockTop + WIDGET_H + CONTENT_H.
+    pageContentEnd = blockTop + WIDGET_H + CONTENT_H;
+    gutterCount++;
   });
 
   return {

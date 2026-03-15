@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, Mail, MailCheck } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, Mail, MailCheck, BookOpen, Pencil } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -16,6 +16,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { RichTextEditor, type TrackedChange } from "@/components/RichTextEditor";
+import { PageView } from "@/components/PageView";
 import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
 import { Textarea } from "@/components/ui/textarea";
 import DiffMatchPatch from 'diff-match-patch';
@@ -382,6 +383,7 @@ function EditableDocumentContent({
   onTrackChangeAction,
   onRedact,
   legalContext,
+  pageViewMode,
 }: { 
   document: Document;
   isEditing: boolean;
@@ -401,6 +403,7 @@ function EditableDocumentContent({
   onTrackChangeAction?: (action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changeId?: string) => void;
   onRedact?: (redactedText: string) => void;
   legalContext?: { clientName?: string; matterRef?: string; solicitorName?: string; firmName?: string };
+  pageViewMode?: boolean;
 }) {
   const isDraft = document.status === 'draft';
 
@@ -463,21 +466,26 @@ function EditableDocumentContent({
         ) : null}
       </div>
 
-      <RichTextEditor
-        content={isEditing ? editContent : document.content}
-        onChange={onEditContentChange}
-        disabled={!isEditing}
-        placeholder="Document content..."
-        zoom={zoom}
-        focusMode={focusMode}
-        onFocusModeToggle={onFocusModeToggle}
-        onAddComment={onAddComment}
-        trackChangesEnabled={isEditing ? trackChangesEnabled : false}
-        onTrackChangesToggle={isEditing ? onTrackChangesToggle : undefined}
-        onTrackChangeAction={isEditing ? onTrackChangeAction : undefined}
-        onRedact={isEditing ? onRedact : undefined}
-        legalContext={legalContext}
-      />
+      {/* Page View: accurate multi-page layout renderer */}
+      {pageViewMode && !isEditing ? (
+        <PageView content={document.content} legalContext={legalContext} />
+      ) : (
+        <RichTextEditor
+          content={isEditing ? editContent : document.content}
+          onChange={onEditContentChange}
+          disabled={!isEditing}
+          placeholder="Document content..."
+          zoom={zoom}
+          focusMode={focusMode}
+          onFocusModeToggle={onFocusModeToggle}
+          onAddComment={onAddComment}
+          trackChangesEnabled={isEditing ? trackChangesEnabled : false}
+          onTrackChangesToggle={isEditing ? onTrackChangesToggle : undefined}
+          onTrackChangeAction={isEditing ? onTrackChangeAction : undefined}
+          onRedact={isEditing ? onRedact : undefined}
+          legalContext={legalContext}
+        />
+      )}
     </div>
   );
 }
@@ -503,6 +511,7 @@ export default function DocumentViewer({
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [zoom, setZoom] = useState(100);
+  const [pageViewMode, setPageViewMode] = useState(false);
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>("");
   const editContentRef = useRef<string>("");
@@ -1325,6 +1334,23 @@ export default function DocumentViewer({
                     </TooltipTrigger>
                     <TooltipContent>Print (Cmd+P)</TooltipContent>
                   </Tooltip>
+                  {/* Page View / Draft toggle — only visible outside transcript and edit modes */}
+                  {activeTab !== 'transcript' && !editingDocId && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant={pageViewMode ? 'secondary' : 'ghost'}
+                          onClick={() => setPageViewMode(m => !m)}
+                          data-testid="button-page-view-toggle"
+                          className="hidden sm:flex"
+                        >
+                          {pageViewMode ? <Pencil className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{pageViewMode ? 'Switch to Draft View' : 'Page View'}</TooltipContent>
+                    </Tooltip>
+                  )}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button size="icon" variant="ghost" onClick={() => setFocusMode(f => !f)} data-testid="button-focus-mode" className="hidden sm:flex">
@@ -1429,6 +1455,7 @@ export default function DocumentViewer({
                     trackChangesEnabled={editingDocId === attendanceNote.id ? trackChangesEnabled : false}
                     onTrackChangesToggle={setTrackChangesEnabled}
                     onTrackChangeAction={handleTrackChangeAction}
+                    pageViewMode={pageViewMode}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground italic p-6">
@@ -1535,6 +1562,7 @@ export default function DocumentViewer({
                     trackChangesEnabled={editingDocId === summary.id ? trackChangesEnabled : false}
                     onTrackChangesToggle={setTrackChangesEnabled}
                     onTrackChangeAction={handleTrackChangeAction}
+                    pageViewMode={pageViewMode}
                   />
                 ) : textNotes ? (
                   <div className="p-6">
@@ -1707,6 +1735,7 @@ export default function DocumentViewer({
                     matterRef: matterReference || undefined,
                     firmName: firmProfile?.firmName || undefined,
                   }}
+                  pageViewMode={pageViewMode}
                 />
               </CardContent>
             </Card>
