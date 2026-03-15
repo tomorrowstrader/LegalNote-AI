@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toTitleCase } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -473,7 +474,7 @@ export default function AdminDashboard() {
                           variant={entry.status === "approved" ? "default" : entry.status === "rejected" ? "destructive" : "secondary"}
                           className={entry.status === "pending" ? "bg-yellow-500/10 text-yellow-700" : ""}
                         >
-                          {entry.status}
+                          {toTitleCase(entry.status)}
                         </Badge>
                       </td>
                       <td className="py-3 px-2 text-muted-foreground text-xs">

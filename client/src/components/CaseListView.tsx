@@ -197,13 +197,13 @@ export default function CaseListView({ cases, amlActivityDates, complianceEnable
         onKeyDown={handleKeyDown}
       >
         {/* Header row */}
-        <div className="hidden sm:grid sm:grid-cols-[auto_1fr_1fr_minmax(0,140px)_100px_100px_32px] gap-3 px-4 py-2.5 bg-muted/50 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="hidden sm:grid sm:grid-cols-[auto_1fr_1fr_minmax(0,140px)_100px_100px_32px] gap-3 px-4 py-2.5 bg-muted/50 text-xs font-medium text-muted-foreground uppercase tracking-wider items-center">
           <div className="w-3"></div>
           <div>Client</div>
           <div>Case Title</div>
           <div>Practice Area</div>
-          <div>Deadline</div>
-          <div>Priority</div>
+          <div className="flex items-center">Deadline</div>
+          <div className="flex items-center">Priority</div>
           <div></div>
         </div>
 

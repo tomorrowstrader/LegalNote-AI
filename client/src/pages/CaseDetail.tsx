@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { toTitleCase } from "@/lib/utils";
 import {
   ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles,
   FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle,
@@ -521,14 +522,14 @@ export default function CaseDetail() {
             </h1>
             {caseData.clientId ? (
               <button
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors duration-150 text-left"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors duration-150 text-left truncate max-w-full block"
                 onClick={() => setLocation(`/clients/${caseData.clientId}`)}
                 data-testid="link-client-profile"
               >
                 {caseData.clientName}
               </button>
             ) : (
-              <p className="text-xs text-muted-foreground">{caseData.clientName}</p>
+              <p className="text-xs text-muted-foreground truncate">{caseData.clientName}</p>
             )}
             {caseData.matterReference && (
               <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate" data-testid="text-matter-ref-panel">
@@ -875,7 +876,7 @@ export default function CaseDetail() {
                                   className="text-xs no-default-hover-elevate no-default-active-elevate"
                                   data-testid={`badge-session-status-${session.id}`}
                                 >
-                                  {session.status}
+                                  {toTitleCase(session.status)}
                                 </Badge>
                               </div>
                               <p className="text-xs text-muted-foreground">

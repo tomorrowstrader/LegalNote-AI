@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toTitleCase } from "@/lib/utils";
 import { ArrowLeft, User, Shield, Phone, Mail, MapPin, Building, Calendar, FileText, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -298,7 +299,7 @@ export default function ClientProfile() {
                         </Badge>
                       )}
                       <Badge variant={statusBadgeVariant(c.status)} className="text-xs" data-testid={`badge-status-${c.id}`}>
-                        {c.status.replace("_", " ")}
+                        {toTitleCase(c.status)}
                       </Badge>
                     </div>
                   </button>

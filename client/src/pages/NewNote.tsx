@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { toTitleCase } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -847,7 +848,7 @@ export default function NewNote() {
                               data-testid={`option-case-${c.id}`}
                             >
                               <span className="truncate">{c.title} · {c.clientName}{c.matterReference ? ` (${c.matterReference})` : ""}</span>
-                              <Badge variant="secondary" className="text-xs shrink-0">{c.status}</Badge>
+                              <Badge variant="secondary" className="text-xs shrink-0">{toTitleCase(c.status)}</Badge>
                             </button>
                           ))
                         ) : (

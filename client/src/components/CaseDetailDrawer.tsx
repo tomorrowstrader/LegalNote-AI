@@ -152,10 +152,10 @@ export default function CaseDetailDrawer({ caseItem, open, onOpenChange }: CaseD
           <SheetHeader className="text-left pb-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <SheetTitle className="text-lg font-semibold leading-tight mb-1">
+                <SheetTitle className="text-lg font-semibold leading-tight mb-1 truncate">
                   {caseItem.clientName}
                 </SheetTitle>
-                <SheetDescription className="text-sm">
+                <SheetDescription className="text-sm truncate">
                   {caseItem.title}
                 </SheetDescription>
               </div>

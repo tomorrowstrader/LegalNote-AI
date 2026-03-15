@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import type { Case } from "@shared/schema";
+import { toTitleCase } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
@@ -97,8 +98,8 @@ export default function CaseQuickSwitch() {
                   <Badge variant="outline" className="text-xs">Current</Badge>
                 )}
               </div>
-              <div className="flex items-center gap-2 w-full pl-6">
-                <span className="text-xs text-muted-foreground truncate">
+              <div className="flex items-center gap-2 w-full pl-6 min-w-0">
+                <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">
                   {caseItem.clientName}
                 </span>
                 <span className="text-xs text-muted-foreground">
@@ -108,7 +109,7 @@ export default function CaseQuickSwitch() {
                   variant="outline" 
                   className={`text-xs ml-auto ${STATUS_COLORS[caseItem.status] || ""}`}
                 >
-                  {caseItem.status.replace("_", " ")}
+                  {toTitleCase(caseItem.status)}
                 </Badge>
               </div>
             </DropdownMenuItem>

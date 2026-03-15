@@ -139,7 +139,7 @@ export function NotificationsPanel() {
           </div>
 
           {/* Notifications list */}
-          <ScrollArea className="max-h-96">
+          <ScrollArea className="max-h-[24rem] [&_[data-radix-scroll-area-scrollbar]]:opacity-100">
             {notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center px-4">
                 <Bell className="w-8 h-8 text-muted-foreground mb-2" />
@@ -164,7 +164,7 @@ export function NotificationsPanel() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-xs font-medium text-foreground leading-tight">{notification.title}</p>
+                          <p className="text-xs font-medium text-foreground leading-tight truncate flex-1 min-w-0">{notification.title}</p>
                           {isUnread && (
                             <Button size="icon" variant="ghost" className="h-5 w-5 shrink-0 -mr-1 -mt-0.5"
                               onClick={() => markReadMutation.mutate(notification.id)}
@@ -186,7 +186,7 @@ export function NotificationsPanel() {
                                   if (!notification.readAt) markReadMutation.mutate(notification.id);
                                 }}>
                                 <ExternalLink className="w-2.5 h-2.5" />
-                                {notification.caseTitle || 'View case'}
+                                <span className="truncate max-w-[120px] inline-block align-bottom">{notification.caseTitle || 'View case'}</span>
                               </a>
                             </Link>
                           )}

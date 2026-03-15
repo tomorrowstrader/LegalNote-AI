@@ -53,6 +53,26 @@ html {
   scrollbar-width: thin;
 }
 
+/* Light mode scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
 /* LIGHT MODE */
 :root {
   --button-outline: rgba(0,0,0, .10);
@@ -185,28 +205,28 @@ html {
   --elevate-1: rgba(255, 200, 150, .06);
   --elevate-2: rgba(255, 200, 150, .12);
 
-  /* Main background - deep warm charcoal */
-  --background: 25 15% 9%;
+  /* Main background - warm charcoal, softened */
+  --background: 25 12% 12%;
 
-  /* Text - warm off-white */
-  --foreground: 30 20% 96%;
+  /* Text - soft off-white, reduced glare */
+  --foreground: 30 10% 88%;
 
-  /* Borders - warm dark */
-  --border: 25 12% 22%;
+  /* Borders - gentle warm dividers */
+  --border: 25 10% 24%;
 
-  /* Cards - slightly elevated warm dark */
-  --card: 25 12% 13%;
+  /* Cards - subtly elevated warm dark */
+  --card: 25 10% 16%;
 
-  --card-foreground: 30 20% 96%;
+  --card-foreground: 30 10% 88%;
 
-  --card-border: 25 12% 20%;
+  --card-border: 25 10% 22%;
 
   /* Sidebar - deeper warm dark */
-  --sidebar: 25 15% 7%;
+  --sidebar: 25 12% 10%;
 
-  --sidebar-foreground: 30 20% 96%;
+  --sidebar-foreground: 30 10% 88%;
 
-  --sidebar-border: 25 12% 18%;
+  --sidebar-border: 25 10% 20%;
 
   --sidebar-primary: 25 60% 55%;
 
@@ -214,45 +234,45 @@ html {
 
   --sidebar-accent: 25 12% 20%;
 
-  --sidebar-accent-foreground: 30 15% 94%;
+  --sidebar-accent-foreground: 30 10% 88%;
 
   /* Ring - terracotta brand color */
   --sidebar-ring: 18 65% 55%;
 
   /* Popover - same as card */
-  --popover: 25 12% 13%;
+  --popover: 25 10% 16%;
 
-  --popover-foreground: 30 20% 96%;
+  --popover-foreground: 30 10% 88%;
 
-  --popover-border: 25 12% 22%;
+  --popover-border: 25 10% 24%;
 
   /* Primary - warm terracotta/amber for visibility */
   --primary: 25 60% 55%;
 
-  --primary-foreground: 30 20% 96%;
+  --primary-foreground: 30 10% 96%;
 
   /* Secondary */
-  --secondary: 25 12% 20%;
+  --secondary: 25 10% 20%;
 
-  --secondary-foreground: 30 20% 96%;
+  --secondary-foreground: 30 10% 88%;
 
   /* Muted */
-  --muted: 25 10% 25%;
+  --muted: 25 8% 22%;
 
-  --muted-foreground: 30 15% 85%;
+  --muted-foreground: 30 8% 72%;
 
   /* Accent - terracotta brand color (slightly brighter for dark mode) */
   --accent: 18 65% 55%;
 
-  --accent-foreground: 30 20% 96%;
+  --accent-foreground: 30 10% 96%;
 
   /* Destructive */
   --destructive: 0 70% 50%;
 
-  --destructive-foreground: 30 20% 98%;
+  --destructive-foreground: 30 10% 98%;
 
   /* Input */
-  --input: 25 12% 22%;
+  --input: 25 10% 24%;
   
   /* Ring - terracotta */
   --ring: 18 65% 50%;
