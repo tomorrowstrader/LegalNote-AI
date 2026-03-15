@@ -97,6 +97,8 @@ export function createPaginationPlugin(): Plugin {
       let rafId: number | null = null;
       let dispatching = false;
       let lastSignature = '';
+      let resizeObserver: ResizeObserver | null = null;
+      let currentView: EditorView | null = null;
 
       const schedule = (editorView: EditorView) => {
         if (dispatching) return;
@@ -117,10 +119,21 @@ export function createPaginationPlugin(): Plugin {
 
       return {
         update(view) {
+          currentView = view;
+          if (!resizeObserver) {
+            resizeObserver = new ResizeObserver(() => {
+              if (currentView) schedule(currentView);
+            });
+            resizeObserver.observe(view.dom);
+          }
           schedule(view);
         },
         destroy() {
           if (rafId !== null) cancelAnimationFrame(rafId);
+          if (resizeObserver) {
+            resizeObserver.disconnect();
+            resizeObserver = null;
+          }
         },
       };
     },
