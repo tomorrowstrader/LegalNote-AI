@@ -163,10 +163,10 @@ export default function CaseDetail() {
 
   const timeRecordingKey = `timeRecordingPrompted_${params.id}`;
   const [hasPromptedTimeRecording, setHasPromptedTimeRecording] = useState(() => {
-    return sessionStorage.getItem(timeRecordingKey) === 'true';
+    return localStorage.getItem(timeRecordingKey) === 'true';
   });
   useEffect(() => {
-    setHasPromptedTimeRecording(sessionStorage.getItem(timeRecordingKey) === 'true');
+    setHasPromptedTimeRecording(localStorage.getItem(timeRecordingKey) === 'true');
   }, [timeRecordingKey]);
 
   const { user } = useAuth();
@@ -300,10 +300,10 @@ export default function CaseDetail() {
       caseData?.status === 'review_required' &&
       (caseData?.sourceType === 'audio' || caseData?.sourceType === 'dictation')
     ) {
+      localStorage.setItem(timeRecordingKey, 'true');
+      setHasPromptedTimeRecording(true);
       const timer = setTimeout(() => {
         setShowTimeRecordingModal(true);
-        setHasPromptedTimeRecording(true);
-        sessionStorage.setItem(timeRecordingKey, 'true');
       }, 2000);
       return () => clearTimeout(timer);
     }

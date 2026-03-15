@@ -352,7 +352,7 @@ export function RichTextEditor({
     editable: !disabled,
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none focus:outline-none min-h-[400px] p-4 text-foreground',
+        class: 'prose prose-sm max-w-none focus:outline-none min-h-[400px] text-foreground',
         spellcheck: 'true',
       },
     },
@@ -667,16 +667,23 @@ export function RichTextEditor({
           variant={active ? 'secondary' : 'ghost'}
           onClick={onClick}
           disabled={btnDisabled ?? disabled}
-          className="h-8 w-8"
+          className="h-7 w-7"
         >
-          <Icon className="h-4 w-4" />
+          <Icon className="h-3.5 w-3.5" />
         </Button>
       </TooltipTrigger>
       <TooltipContent>{tooltip}</TooltipContent>
     </Tooltip>
   );
 
-  const Sep = () => <div className="w-px h-6 bg-border mx-1" />;
+  const RibbonGroup = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div className="flex flex-col items-center gap-0.5 px-2 border-r border-border/50 last:border-r-0">
+      <div className="flex items-center gap-0.5">
+        {children}
+      </div>
+      <span className="text-[9px] text-muted-foreground/70 uppercase tracking-wider leading-none select-none">{label}</span>
+    </div>
+  );
 
   const formatTimestamp = (ts: string) => {
     try {
@@ -688,60 +695,57 @@ export function RichTextEditor({
 
   return (
     <div 
-      className={`rounded-md overflow-visible ${disabled ? 'bg-muted/20' : 'border border-input bg-background'}`}
+      className={`rounded-md overflow-visible ${disabled ? '' : ''}`}
       style={{ fontSize: `${zoom}%` }}
     >
       {!disabled && (
-        <div className="border-b border-border bg-muted/30">
-          <div className="flex items-center gap-0.5 p-1.5 flex-wrap">
-            <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} icon={Bold} tooltip="Bold (Ctrl+B)" />
-            <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} icon={Italic} tooltip="Italic (Ctrl+I)" />
-            <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} icon={UnderlineIcon} tooltip="Underline (Ctrl+U)" />
-            <ToolbarButton onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} icon={Highlighter} tooltip="Highlight" />
-            <ToolbarButton onClick={() => editor.chain().focus().toggleSuperscript().run()} active={editor.isActive('superscript')} icon={SuperscriptIcon} tooltip="Superscript" />
-            <ToolbarButton onClick={() => editor.chain().focus().toggleSubscript().run()} active={editor.isActive('subscript')} icon={SubscriptIcon} tooltip="Subscript" />
+        <div className="border border-border rounded-t-md bg-muted/40 backdrop-blur-sm">
+          <div className="flex items-start gap-0 p-1.5 flex-wrap">
+            <RibbonGroup label="Font">
+              <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} icon={Bold} tooltip="Bold (Ctrl+B)" />
+              <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} icon={Italic} tooltip="Italic (Ctrl+I)" />
+              <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} icon={UnderlineIcon} tooltip="Underline (Ctrl+U)" />
+              <ToolbarButton onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} icon={Highlighter} tooltip="Highlight" />
+              <ToolbarButton onClick={() => editor.chain().focus().toggleSuperscript().run()} active={editor.isActive('superscript')} icon={SuperscriptIcon} tooltip="Superscript" />
+              <ToolbarButton onClick={() => editor.chain().focus().toggleSubscript().run()} active={editor.isActive('subscript')} icon={SubscriptIcon} tooltip="Subscript" />
+            </RibbonGroup>
 
-            <Sep />
+            <RibbonGroup label="Style">
+              <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} icon={Heading1} tooltip="Heading 1" />
+              <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} icon={Heading2} tooltip="Heading 2" />
+              <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} icon={Heading3} tooltip="Heading 3" />
+            </RibbonGroup>
 
-            <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} icon={Heading1} tooltip="Heading 1" />
-            <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} icon={Heading2} tooltip="Heading 2" />
-            <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} icon={Heading3} tooltip="Heading 3" />
+            <RibbonGroup label="Paragraph">
+              <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} icon={List} tooltip="Bullet List" />
+              <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} icon={ListOrdered} tooltip="Numbered List" />
+              <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} icon={AlignLeft} tooltip="Align Left" />
+              <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} icon={AlignCenter} tooltip="Align Centre" />
+              <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} icon={AlignRight} tooltip="Align Right" />
+              <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' })} icon={AlignJustify} tooltip="Justify" />
+            </RibbonGroup>
 
-            <Sep />
+            <RibbonGroup label="Insert">
+              <ToolbarButton onClick={insertTable} active={false} icon={TableIcon} tooltip="Insert Table" />
+              {onAddComment && (
+                <ToolbarButton 
+                  onClick={() => {
+                    if (!editor) return;
+                    const { from, to } = editor.state.selection;
+                    if (from === to) return;
+                    const selectedText = editor.state.doc.textBetween(from, to, ' ');
+                    if (selectedText.trim()) onAddComment(selectedText.trim());
+                  }} 
+                  active={false} 
+                  icon={MessageSquarePlus} 
+                  tooltip="Add Comment (select text first)" 
+                />
+              )}
+            </RibbonGroup>
 
-            <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} icon={List} tooltip="Bullet List" />
-            <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} icon={ListOrdered} tooltip="Numbered List" />
-
-            <Sep />
-
-            <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} icon={AlignLeft} tooltip="Align Left" />
-            <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} icon={AlignCenter} tooltip="Align Centre" />
-            <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} icon={AlignRight} tooltip="Align Right" />
-            <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' })} icon={AlignJustify} tooltip="Justify" />
-
-            <Sep />
-
-            <ToolbarButton onClick={insertTable} active={false} icon={TableIcon} tooltip="Insert Table" />
-            <ToolbarButton onClick={() => setShowSearch(s => !s)} active={showSearch} icon={Search} tooltip="Find & Replace" />
-
-            {onAddComment && (
-              <ToolbarButton 
-                onClick={() => {
-                  if (!editor) return;
-                  const { from, to } = editor.state.selection;
-                  if (from === to) return;
-                  const selectedText = editor.state.doc.textBetween(from, to, ' ');
-                  if (selectedText.trim()) onAddComment(selectedText.trim());
-                }} 
-                active={false} 
-                icon={MessageSquarePlus} 
-                tooltip="Add Comment (select text first)" 
-              />
-            )}
-
-            {onTrackChangesToggle && (
-              <>
-                <Sep />
+            <RibbonGroup label="Review">
+              <ToolbarButton onClick={() => setShowSearch(s => !s)} active={showSearch} icon={Search} tooltip="Find & Replace" />
+              {onTrackChangesToggle && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -750,38 +754,37 @@ export function RichTextEditor({
                       variant={trackChangesEnabled ? 'default' : 'ghost'}
                       onClick={() => onTrackChangesToggle(!trackChangesEnabled)}
                       disabled={disabled}
-                      className="gap-1 text-xs"
+                      className="gap-1 text-xs h-7"
                       data-testid="button-toggle-track-changes"
                     >
                       <GitCompareArrows className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Track Changes</span>
+                      <span className="hidden sm:inline">Track</span>
                       {trackChangesEnabled && changeCount > 0 && (
-                        <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0" data-testid="badge-change-count">
+                        <Badge variant="secondary" className="ml-0.5 text-[10px] px-1 py-0" data-testid="badge-change-count">
                           {changeCount}
                         </Badge>
                       )}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{trackChangesEnabled ? 'Track Changes: ON — edits are being tracked' : 'Track Changes: OFF'}</TooltipContent>
+                  <TooltipContent>{trackChangesEnabled ? 'Track Changes: ON' : 'Track Changes: OFF'}</TooltipContent>
                 </Tooltip>
-              </>
-            )}
+              )}
+            </RibbonGroup>
 
             {onFocusModeToggle && (
-              <>
-                <Sep />
+              <RibbonGroup label="View">
                 <ToolbarButton 
                   onClick={onFocusModeToggle} 
                   active={focusMode} 
                   icon={focusMode ? Minimize2 : Maximize2} 
                   tooltip={focusMode ? "Exit Focus Mode (Esc)" : "Focus Mode"} 
                 />
-              </>
+              </RibbonGroup>
             )}
           </div>
 
           {trackChangesEnabled && changeCount > 0 && (
-            <div className="flex items-center gap-2 px-2 pb-2 flex-wrap" data-testid="container-track-changes-actions">
+            <div className="flex items-center gap-2 px-3 pb-2 flex-wrap" data-testid="container-track-changes-actions">
               <span className="text-xs text-muted-foreground">{changeCount} change{changeCount !== 1 ? 's' : ''} pending</span>
               <Button
                 size="sm"
@@ -807,7 +810,7 @@ export function RichTextEditor({
           )}
 
           {showSearch && (
-            <div className="flex items-center gap-2 px-2 pb-2 flex-wrap">
+            <div className="flex items-center gap-2 px-3 pb-2 flex-wrap">
               <Input
                 placeholder="Find..."
                 value={searchTerm}
@@ -831,32 +834,37 @@ export function RichTextEditor({
 
       <div className={`flex ${trackChangesEnabled && changeCount > 0 && !disabled ? '' : ''}`}>
         <div className={`relative flex-1 ${trackChangesEnabled && changeCount > 0 && !disabled ? 'min-w-0' : ''}`} onKeyDown={handleKeyDown}>
-          <EditorContent 
-            editor={editor} 
-            className="[&_.ProseMirror]:min-h-[400px] [&_.ProseMirror]:p-4 [&_.ProseMirror]:focus:outline-none
-              [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-bold [&_.ProseMirror_h1]:mb-3 [&_.ProseMirror_h1]:mt-4
-              [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mb-2 [&_.ProseMirror_h2]:mt-3
-              [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:mt-2
-              [&_.ProseMirror_p]:mb-2 [&_.ProseMirror_p]:leading-relaxed
-              [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ul]:mb-2
-              [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_ol]:mb-2
-              [&_.ProseMirror_li]:mb-1
-              [&_.ProseMirror_strong]:font-bold
-              [&_.ProseMirror_em]:italic
-              [&_.ProseMirror_u]:underline
-              [&_.ProseMirror_mark]:bg-yellow-200 [&_.ProseMirror_mark]:dark:bg-yellow-800
-              [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table]:my-3
-              [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-border [&_.ProseMirror_td]:p-2 [&_.ProseMirror_td]:text-sm
-              [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-border [&_.ProseMirror_th]:p-2 [&_.ProseMirror_th]:font-semibold [&_.ProseMirror_th]:bg-muted/40 [&_.ProseMirror_th]:text-sm
-              [&_.ProseMirror_.is-editor-empty:first-child::before]:text-muted-foreground
-              [&_.ProseMirror_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]
-              [&_.ProseMirror_.is-editor-empty:first-child::before]:float-left
-              [&_.ProseMirror_.is-editor-empty:first-child::before]:pointer-events-none
-              [&_.ProseMirror_.is-editor-empty:first-child::before]:h-0
-              [&_.track-change-insertion]:bg-green-100 [&_.track-change-insertion]:dark:bg-green-900/40 [&_.track-change-insertion]:text-green-800 [&_.track-change-insertion]:dark:text-green-200 [&_.track-change-insertion]:no-underline [&_.track-change-insertion]:border-b-2 [&_.track-change-insertion]:border-green-400 [&_.track-change-insertion]:dark:border-green-600
-              [&_.track-change-deletion]:bg-red-100 [&_.track-change-deletion]:dark:bg-red-900/40 [&_.track-change-deletion]:text-red-800 [&_.track-change-deletion]:dark:text-red-200 [&_.track-change-deletion]:line-through"
-            data-testid="editor-rich-text"
-          />
+          <div className={`${disabled ? 'bg-transparent' : 'bg-muted/30 dark:bg-muted/10 border-x border-border'} ${!disabled ? 'py-6 px-4 sm:px-8' : ''}`}>
+            <div className={`${disabled ? '' : 'bg-card dark:bg-card mx-auto max-w-[800px] shadow-md rounded-sm border border-border/30'}`}>
+              <EditorContent 
+                editor={editor} 
+                className="legal-document-editor
+                  [&_.ProseMirror]:min-h-[400px] [&_.ProseMirror]:focus:outline-none
+                  [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-bold [&_.ProseMirror_h1]:mb-4 [&_.ProseMirror_h1]:mt-6
+                  [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mb-3 [&_.ProseMirror_h2]:mt-5
+                  [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:mt-4
+                  [&_.ProseMirror_p]:mb-3 [&_.ProseMirror_p]:leading-relaxed
+                  [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ul]:mb-3
+                  [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_ol]:mb-3
+                  [&_.ProseMirror_li]:mb-1.5
+                  [&_.ProseMirror_strong]:font-bold
+                  [&_.ProseMirror_em]:italic
+                  [&_.ProseMirror_u]:underline
+                  [&_.ProseMirror_mark]:bg-yellow-200 [&_.ProseMirror_mark]:dark:bg-yellow-800
+                  [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table]:my-4
+                  [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-border [&_.ProseMirror_td]:p-2 [&_.ProseMirror_td]:text-sm
+                  [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-border [&_.ProseMirror_th]:p-2 [&_.ProseMirror_th]:font-semibold [&_.ProseMirror_th]:bg-muted/40 [&_.ProseMirror_th]:text-sm
+                  [&_.ProseMirror_.is-editor-empty:first-child::before]:text-muted-foreground
+                  [&_.ProseMirror_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]
+                  [&_.ProseMirror_.is-editor-empty:first-child::before]:float-left
+                  [&_.ProseMirror_.is-editor-empty:first-child::before]:pointer-events-none
+                  [&_.ProseMirror_.is-editor-empty:first-child::before]:h-0
+                  [&_.track-change-insertion]:bg-green-100 [&_.track-change-insertion]:dark:bg-green-900/40 [&_.track-change-insertion]:text-green-800 [&_.track-change-insertion]:dark:text-green-200 [&_.track-change-insertion]:no-underline [&_.track-change-insertion]:border-b-2 [&_.track-change-insertion]:border-green-400 [&_.track-change-insertion]:dark:border-green-600
+                  [&_.track-change-deletion]:bg-red-100 [&_.track-change-deletion]:dark:bg-red-900/40 [&_.track-change-deletion]:text-red-800 [&_.track-change-deletion]:dark:text-red-200 [&_.track-change-deletion]:line-through"
+                data-testid="editor-rich-text"
+              />
+            </div>
+          </div>
 
           {autocompleteVisible && autocompleteOptions.length > 0 && (
             <div className="absolute z-50 left-4 mt-1 bg-popover border border-border rounded-md shadow-md overflow-hidden"
@@ -933,7 +941,7 @@ export function RichTextEditor({
       </div>
 
       {!disabled && (
-        <div className="flex items-center justify-between px-3 py-1.5 border-t border-border bg-muted/20 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between px-3 py-1.5 border border-border border-t-0 rounded-b-md bg-muted/20 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
             <Type className="w-3 h-3" />
             <span>{wordCount} words</span>

@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect, useImperativeHandle, useCallback, type Ref } from "react";
-import { Play, Pause, Volume2, VolumeX, AlertTriangle, Clock } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Clock, SkipBack, SkipForward, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatDistanceToNow, differenceInDays, differenceInHours, differenceInMinutes } from "date-fns";
 import { logAuditEvent } from "@/lib/auditLogger";
 
@@ -101,18 +100,13 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
     const audio = audioRef.current;
     if (!audio) return;
 
-    console.log('AudioPlayer effect running, audioUrl:', audioUrl);
     setCurrentTime(0);
     setDuration(0);
     setIsPlaying(false);
 
     const updateDuration = () => {
-      console.log('updateDuration called, audio.duration:', audio.duration);
       if (isFinite(audio.duration) && audio.duration > 0) {
         setDuration(audio.duration);
-        console.log('Audio duration set to:', audio.duration);
-      } else {
-        console.log('Duration not ready yet:', audio.duration);
       }
     };
     
@@ -129,7 +123,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
           if (bar) {
             bar.style.backgroundColor = i < playedBars
               ? 'hsl(var(--primary))'
-              : 'hsl(var(--secondary))';
+              : 'hsl(var(--muted-foreground) / 0.25)';
           }
         });
         if (currentTimeDisplayRef.current) {
@@ -160,7 +154,6 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
 
     const handleError = (e: Event) => {
       console.error('Audio error event:', e);
-      console.error('Audio error details:', audio.error);
     };
 
     audio.addEventListener("loadedmetadata", updateDuration);
@@ -171,18 +164,13 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
     audio.addEventListener("pause", handlePause);
     audio.addEventListener("error", handleError);
     
-    // Force load to ensure metadata loads
-    console.log('Calling audio.load() to force metadata loading');
     audio.load();
     
-    // Check if duration is already loaded (after a small delay)
     const checkDuration = () => {
-      console.log('Checking duration, readyState:', audio.readyState, 'duration:', audio.duration);
       if (audio.readyState >= 1) {
         updateDuration();
       }
     };
-    
     setTimeout(checkDuration, 100);
 
     return () => {
@@ -206,7 +194,6 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
       audioRef.current.pause();
       setIsPlaying(false);
       
-      // Log audio playback paused
       await logAuditEvent({
         eventType: "audio_playback_paused",
         caseId,
@@ -222,7 +209,6 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
         await audioRef.current.play();
         setIsPlaying(true);
         
-        // Log audio playback started
         await logAuditEvent({
           eventType: "audio_playback_started",
           caseId,
@@ -238,6 +224,22 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
       }
     }
   };
+
+  const skipBy = useCallback(async (seconds: number) => {
+    if (!audioRef.current || isExpired || duration <= 0) return;
+    const prevTime = audioRef.current.currentTime;
+    const newTime = Math.max(0, Math.min(duration, prevTime + seconds));
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+
+    await logAuditEvent({
+      eventType: "audio_seeked",
+      caseId,
+      audioRecordingId,
+      metadata: { from: prevTime, to: newTime, duration, source: "skip_button" },
+      severity: "info",
+    });
+  }, [isExpired, duration, caseId, audioRecordingId]);
 
   const seekToFraction = useCallback((clientX: number) => {
     if (!audioRef.current || duration <= 0) return;
@@ -347,7 +349,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
         className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-md ${
           isUrgent 
             ? 'bg-destructive/10 text-destructive border border-destructive/20' 
-            : 'bg-muted text-muted-foreground'
+            : 'bg-muted/50 text-muted-foreground'
         }`}
         data-testid="text-retention-countdown"
       >
@@ -364,54 +366,101 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
     
     if (hoursLeft < 24) {
       return (
-        <Alert variant="destructive" className="mb-4" data-testid="alert-audio-expiring">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            Audio expires {formatDistanceToNow(expiresAt, { addSuffix: true })}. Permanent transcript will be retained.
-          </AlertDescription>
-        </Alert>
+        <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2 mb-2" data-testid="alert-audio-expiring">
+          <Clock className="h-3.5 w-3.5 shrink-0" />
+          <span>Audio expires {formatDistanceToNow(expiresAt, { addSuffix: true })}. Permanent transcript will be retained.</span>
+        </div>
       );
     }
     return null;
   };
 
-  if (isExpired) {
+  if (isExpired || !audioUrl) {
     return (
-      <Alert className="mb-4" data-testid="alert-audio-expired">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>
-          Audio recording has expired (24hr retention policy). The transcript remains available below.
-        </AlertDescription>
-      </Alert>
+      <div className="relative" data-testid="audio-player-expired">
+        <div className="bg-card border rounded-lg p-5 opacity-40 pointer-events-none select-none">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
+                <SkipBack className="h-3 w-3 text-muted-foreground/50" />
+              </div>
+              <div className="w-12 h-12 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
+                <Play className="h-5 w-5 text-muted-foreground/50 ml-0.5" />
+              </div>
+              <div className="w-8 h-8 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
+                <SkipForward className="h-3 w-3 text-muted-foreground/50" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <div className="flex items-end gap-[2px] h-8">
+                {WAVEFORM_BARS.map((height, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 rounded-sm bg-muted-foreground/15"
+                    style={{ height: `${height * 100}%`, minWidth: '2px' }}
+                  />
+                ))}
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground/50 mt-1">
+                <span>0:00</span>
+                <span>0:00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="flex items-center gap-2 bg-card/95 backdrop-blur-sm border rounded-md px-4 py-2.5 shadow-sm">
+            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground font-medium">Recording securely deleted</span>
+          </div>
+        </div>
+      </div>
     );
   }
 
-  if (!audioUrl) {
-    return null;
-  }
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {getExpirationWarning()}
       
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
       
-      <div className="bg-card border-2 rounded-lg p-4 space-y-3" data-testid="audio-player">
+      <div className="bg-card border rounded-lg p-5" data-testid="audio-player">
         <div className="flex items-center gap-4">
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={togglePlayPause}
-            data-testid="button-play-pause"
-          >
-            {isPlaying ? (
-              <Pause className="h-4 w-4" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => skipBy(-15)}
+              className="rounded-full w-8 h-8"
+              data-testid="button-skip-back"
+            >
+              <SkipBack className="h-3.5 w-3.5" />
+            </Button>
 
-          <div className="flex-1 space-y-1">
+            <button
+              onClick={togglePlayPause}
+              className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-transform active:scale-95"
+              data-testid="button-play-pause"
+            >
+              {isPlaying ? (
+                <Pause className="h-5 w-5" />
+              ) : (
+                <Play className="h-5 w-5 ml-0.5" />
+              )}
+            </button>
+
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => skipBy(15)}
+              className="rounded-full w-8 h-8"
+              data-testid="button-skip-forward"
+            >
+              <SkipForward className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          <div className="flex-1 min-w-0 space-y-1">
             <div
               ref={waveformRef}
               className="flex items-end gap-[2px] h-10 cursor-pointer select-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary touch-none"
@@ -443,7 +492,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
                       minWidth: '2px',
                       backgroundColor: isPlayed
                         ? 'hsl(var(--primary))'
-                        : 'hsl(var(--secondary))',
+                        : 'hsl(var(--muted-foreground) / 0.25)',
                     }}
                     data-testid={`waveform-bar-${i}`}
                   />
@@ -456,7 +505,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
             </div>
           </div>
 
-          <div className="flex items-center gap-2 min-w-[120px]">
+          <div className="flex items-center gap-2 shrink-0">
             <Button
               size="icon"
               variant="ghost"
@@ -480,8 +529,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
           </div>
         </div>
         
-        {/* GDPR Retention Countdown */}
-        <div className="flex justify-end">
+        <div className="flex justify-end mt-3">
           {getRetentionCountdown()}
         </div>
       </div>
