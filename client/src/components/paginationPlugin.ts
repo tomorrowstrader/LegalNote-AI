@@ -18,16 +18,12 @@ function rebuildDecorations(view: EditorView): { set: DecorationSet; signature: 
   const cardTop = pageCardEl.getBoundingClientRect().top;
   const decorations: Decoration[] = [];
   const parts: string[] = [];
+  const inserted = new Set<number>();
 
   view.state.doc.forEach((node, offset) => {
     if (!node.isBlock) return;
 
-    let dom: Node | null = null;
-    try {
-      dom = view.nodeDOM(offset);
-    } catch {
-      return;
-    }
+    const dom = view.nodeDOM(offset);
     if (!dom || !(dom instanceof HTMLElement)) return;
     if (dom.classList.contains('page-gutter-widget')) return;
 
@@ -36,6 +32,8 @@ function rebuildDecorations(view: EditorView): { set: DecorationSet; signature: 
     const nodeBottom = rect.bottom - cardTop;
 
     for (let n = 0; n < MAX_PAGES; n++) {
+      if (inserted.has(n)) continue;
+
       const gutterStart = n * PAGE_STRIDE + A4_H;
       const gutterEnd = gutterStart + GUTTER_H;
 
@@ -62,6 +60,8 @@ function rebuildDecorations(view: EditorView): { set: DecorationSet; signature: 
       decorations.push(
         Decoration.widget(widgetPos, el, { side: -1, key })
       );
+
+      inserted.add(n);
       break;
     }
   });
@@ -83,7 +83,6 @@ export function createPaginationPlugin(): Plugin {
       apply(tr, old) {
         const meta = tr.getMeta(paginationPluginKey);
         if (meta !== undefined) return meta as DecorationSet;
-        if (tr.docChanged) return DecorationSet.empty;
         return old.map(tr.mapping, tr.doc);
       },
     },
@@ -98,7 +97,6 @@ export function createPaginationPlugin(): Plugin {
       let rafId: number | null = null;
       let dispatching = false;
       let lastSignature = '';
-      let stabilizeCount = 0;
 
       const schedule = (editorView: EditorView) => {
         if (dispatching) return;
@@ -106,25 +104,14 @@ export function createPaginationPlugin(): Plugin {
         rafId = requestAnimationFrame(() => {
           rafId = null;
           if (dispatching) return;
-          try {
-            const { set, signature } = rebuildDecorations(editorView);
-            if (signature === lastSignature) {
-              stabilizeCount = 0;
-              return;
-            }
-            lastSignature = signature;
-            stabilizeCount++;
-            if (stabilizeCount > 5) {
-              stabilizeCount = 0;
-              return;
-            }
-            dispatching = true;
-            editorView.dispatch(
-              editorView.state.tr.setMeta(paginationPluginKey, set)
-            );
-          } finally {
-            dispatching = false;
-          }
+          const { set, signature } = rebuildDecorations(editorView);
+          if (signature === lastSignature) return;
+          lastSignature = signature;
+          dispatching = true;
+          editorView.dispatch(
+            editorView.state.tr.setMeta(paginationPluginKey, set)
+          );
+          dispatching = false;
         });
       };
 
