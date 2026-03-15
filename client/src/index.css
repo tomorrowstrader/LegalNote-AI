@@ -698,38 +698,29 @@ nav.sticky {
   width: 794px;
   min-height: 1122px;
   background-color: hsl(var(--card));
-  /* Repeating grey gutter at every A4-page boundary (1122px content + 32px gutter) */
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0px,
-    transparent 1122px,
-    hsl(var(--muted) / 0.8) 1122px,
-    hsl(var(--muted) / 0.8) 1154px
-  );
-  background-size: 100% 1154px;
 }
 
 .paginated-page-card .ProseMirror {
   padding: 96px 120px;
-  min-height: 1026px; /* 1122 - 96 top = 1026, so content fills exactly one page */
-  background: transparent;
+  min-height: 1026px;
 }
 
-/* Page number labels inside gutters */
-.page-gutter-label {
-  position: absolute;
-  left: 0;
-  right: 0;
+/* Page gutter widgets injected by the pagination ProseMirror plugin */
+.page-gutter-widget {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 32px;
+  background-color: hsl(var(--muted) / 0.8);
   pointer-events: none;
   user-select: none;
+  margin-left: -120px;
+  margin-right: -120px;
+  position: relative;
   z-index: 2;
 }
 
-.page-gutter-label span {
+.page-gutter-widget span {
   font-size: 10px;
   color: hsl(var(--muted-foreground) / 0.7);
   letter-spacing: 0.08em;

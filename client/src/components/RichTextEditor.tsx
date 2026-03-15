@@ -9,8 +9,9 @@ import Highlight from '@tiptap/extension-highlight';
 import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import CharacterCount from '@tiptap/extension-character-count';
-import { Mark, Node, mergeAttributes } from '@tiptap/core';
+import { Mark, Node, Extension, mergeAttributes } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { createPaginationPlugin } from './paginationPlugin';
 import { Markdown } from 'tiptap-markdown';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -379,8 +380,6 @@ export function RichTextEditor({
   const [selectedOption, setSelectedOption] = useState(0);
   const [trackedChanges, setTrackedChanges] = useState<TrackedChange[]>([]);
   const [changeCount, setChangeCount] = useState(0);
-  const [numPageBreaks, setNumPageBreaks] = useState(0);
-  const pageCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     isTrackingRef.current = trackChangesEnabled;
@@ -415,6 +414,12 @@ export function RichTextEditor({
       DeletionMark,
       RedactionMark,
       LegalFieldNode,
+      Extension.create({
+        name: 'pagination',
+        addProseMirrorPlugins() {
+          return [createPaginationPlugin()];
+        },
+      }),
     ],
     content: '',
     editable: !disabled,
@@ -717,20 +722,6 @@ export function RichTextEditor({
     }
   }, [editor]);
 
-  // ResizeObserver for paginated page break labels
-  useEffect(() => {
-    if (!pageCardRef.current) return;
-    const el = pageCardRef.current;
-    const A4_H = 1122;
-    const GUTTER_H = 32;
-    const observer = new ResizeObserver(() => {
-      const h = el.scrollHeight;
-      const breaks = Math.max(0, Math.floor(h / (A4_H + GUTTER_H)));
-      setNumPageBreaks(breaks);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   if (!editor) return null;
 
@@ -994,20 +985,8 @@ export function RichTextEditor({
 
       <div className="flex">
         <div className={`relative flex-1 ${trackChangesEnabled && changeCount > 0 && !disabled ? 'min-w-0' : ''}`} onKeyDown={handleKeyDown}>
-          <div className="bg-muted/30 dark:bg-muted/10 border-x border-border overflow-x-auto">
-            <div
-              ref={pageCardRef}
-              className="paginated-page-card shadow-md mx-auto"
-            >
-              {numPageBreaks > 0 && Array.from({ length: numPageBreaks }).map((_, i) => (
-                <div
-                  key={i}
-                  className="page-gutter-label"
-                  style={{ top: `${(i + 1) * 1122 + i * 32}px` }}
-                >
-                  <span>Page {i + 2}</span>
-                </div>
-              ))}
+          <div className="bg-muted/30 dark:bg-muted/10 border-x border-border overflow-x-auto py-8">
+            <div className="paginated-page-card shadow-md mx-auto">
               <EditorContent 
                 editor={editor} 
                 className="legal-document-editor
