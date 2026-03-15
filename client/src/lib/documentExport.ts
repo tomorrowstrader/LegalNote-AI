@@ -16,16 +16,13 @@ interface DocumentContent {
   documentId?: string;
 }
 
-// Helper to strip markdown for plain text (PDF)
-function stripMarkdown(text: string): string {
+function stripInlineMarkdown(text: string): string {
   return text
-    .replace(/\*\*(.*?)\*\*/g, '$1')  // Remove **bold**
-    .replace(/__(.*?)__/g, '$1')      // Remove __bold__
-    .replace(/\*(?!\*)(.*?)\*/g, '$1') // Remove *italic* (but not **)
-    .replace(/(?<!_)_(?!_)(.*?)_(?!_)/g, '$1') // Remove _italic_ (but not __)
-    .replace(/^#{1,6}\s+/gm, '')      // Remove # headings
-    .replace(/^\s*[-*+]\s+/gm, '• ')  // Convert markdown bullets to bullets
-    .replace(/^\s*\d+\.\s+/gm, (match) => match); // Keep numbered lists as-is
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/\*(?!\*)(.*?)\*/g, '$1')
+    .replace(/(?<!_)_(?!_)(.*?)_(?!_)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1');
 }
 
 // Parse markdown line into TextRuns for Word export
@@ -89,11 +86,18 @@ function parseMarkdownLine(line: string): TextRun[] {
 export async function exportToPDF(content: DocumentContent) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
   const maxWidth = pageWidth - (margin * 2);
   let yPosition = margin;
 
-  // Helper function to add text with word wrap
+  const checkNewPage = (lineHeight: number) => {
+    if (yPosition + lineHeight > pageHeight - margin) {
+      doc.addPage();
+      yPosition = margin;
+    }
+  };
+
   const addText = (text: string, fontSize: number = 11, isBold: boolean = false) => {
     doc.setFontSize(fontSize);
     doc.setFont('helvetica', isBold ? 'bold' : 'normal');
@@ -101,20 +105,192 @@ export async function exportToPDF(content: DocumentContent) {
     const lines = doc.splitTextToSize(text, maxWidth);
     
     lines.forEach((line: string) => {
-      // Check if we need a new page
-      if (yPosition > doc.internal.pageSize.getHeight() - margin) {
-        doc.addPage();
-        yPosition = margin;
-      }
-      
+      checkNewPage(fontSize * 0.5);
       doc.text(line, margin, yPosition);
       yPosition += fontSize * 0.5;
     });
     
-    yPosition += 5; // Add spacing after paragraph
+    yPosition += 5;
   };
 
-  // Firm Letterhead
+  const addWrappedText = (text: string, fontSize: number, isBold: boolean = false, isItalic: boolean = false, indent: number = 0) => {
+    doc.setFontSize(fontSize);
+    const fontStyle = isBold && isItalic ? 'bolditalic' : isBold ? 'bold' : isItalic ? 'italic' : 'normal';
+    doc.setFont('helvetica', fontStyle);
+    
+    const effectiveWidth = maxWidth - indent;
+    const lines = doc.splitTextToSize(text, effectiveWidth);
+    const lineHeight = fontSize * 0.5;
+    
+    lines.forEach((line: string) => {
+      checkNewPage(lineHeight);
+      doc.text(line, margin + indent, yPosition);
+      yPosition += lineHeight;
+    });
+  };
+
+  const renderMarkdownSection = (markdown: string) => {
+    const lines = markdown.split('\n');
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      if (line.trim() === '') {
+        yPosition += 4;
+        continue;
+      }
+
+      if (line.match(/^-{3,}$/) || line.match(/^\*{3,}$/) || line.match(/^_{3,}$/)) {
+        checkNewPage(10);
+        doc.setDrawColor(200);
+        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+        yPosition += 8;
+        continue;
+      }
+
+      const headingMatch = line.match(/^(#{1,6})\s+(.+)/);
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const text = stripInlineMarkdown(headingMatch[2]);
+        const fontSize = level === 1 ? 16 : level === 2 ? 13 : 11;
+        yPosition += level <= 2 ? 6 : 4;
+        checkNewPage(fontSize);
+        addWrappedText(text, fontSize, true);
+        yPosition += 3;
+        continue;
+      }
+
+      const allBoldMatch = line.trim().match(/^\*\*(.+)\*\*$/);
+      if (allBoldMatch) {
+        yPosition += 4;
+        checkNewPage(11);
+        addWrappedText(stripInlineMarkdown(allBoldMatch[1]), 11, true);
+        yPosition += 2;
+        continue;
+      }
+
+      if (line.match(/^\s*[-*+]\s+/)) {
+        const indent = (line.match(/^(\s*)/)?.[1]?.length || 0) / 2;
+        const text = stripInlineMarkdown(line.replace(/^\s*[-*+]\s+/, ''));
+        checkNewPage(6);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text('\u2022', margin + (indent * 8), yPosition);
+        addWrappedText(text, 10, false, false, 8 + (indent * 8));
+        yPosition += 1;
+        continue;
+      }
+
+      const numberedMatch = line.match(/^(\s*)(\d+)\.\s+(.+)/);
+      if (numberedMatch) {
+        const indent = (numberedMatch[1]?.length || 0) / 2;
+        const number = numberedMatch[2];
+        const text = stripInlineMarkdown(numberedMatch[3]);
+        checkNewPage(6);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${number}.`, margin + (indent * 8), yPosition);
+        addWrappedText(text, 10, false, false, 10 + (indent * 8));
+        yPosition += 1;
+        continue;
+      }
+
+      if (line.startsWith('|')) {
+        const cells = line.split('|').slice(1, -1).map(c => c.trim());
+        if (line.match(/^\|[\s-:|]+\|$/)) continue;
+        const colWidth = (maxWidth - 10) / Math.max(cells.length, 1);
+        checkNewPage(8);
+        doc.setFontSize(9);
+        cells.forEach((cell, colIndex) => {
+          const cleanCell = stripInlineMarkdown(cell);
+          const isBoldCell = cell.startsWith('**') && cell.endsWith('**');
+          doc.setFont('helvetica', isBoldCell ? 'bold' : 'normal');
+          const x = margin + 5 + (colIndex * colWidth);
+          const truncated = cleanCell.length > 30 ? cleanCell.substring(0, 27) + '...' : cleanCell;
+          doc.text(truncated, x, yPosition);
+        });
+        yPosition += 6;
+        continue;
+      }
+
+      const cleanLine = stripInlineMarkdown(line);
+      const isBoldLine = line.trim().startsWith('**') && line.trim().includes('**', 2);
+      if (isBoldLine && !allBoldMatch) {
+        renderMixedBoldLine(doc, line.trim(), 10, margin, maxWidth, checkNewPage);
+      } else {
+        addWrappedText(cleanLine, 10);
+      }
+      yPosition += 1;
+    }
+  };
+
+  const renderMixedBoldLine = (
+    pdfDoc: jsPDF, line: string, fontSize: number, leftMargin: number,
+    maxW: number, checkPage: (h: number) => void
+  ) => {
+    checkPage(fontSize * 0.5);
+    pdfDoc.setFontSize(fontSize);
+    const spans: { text: string; bold: boolean }[] = [];
+    let remaining = line;
+    while (remaining.length > 0) {
+      const boldStart = remaining.indexOf('**');
+      if (boldStart === -1) {
+        if (remaining) spans.push({ text: remaining, bold: false });
+        break;
+      }
+      if (boldStart > 0) {
+        spans.push({ text: remaining.substring(0, boldStart), bold: false });
+      }
+      const boldEnd = remaining.indexOf('**', boldStart + 2);
+      if (boldEnd === -1) {
+        spans.push({ text: remaining.substring(boldStart), bold: false });
+        break;
+      }
+      spans.push({ text: remaining.substring(boldStart + 2, boldEnd), bold: true });
+      remaining = remaining.substring(boldEnd + 2);
+    }
+
+    const chars: { ch: string; bold: boolean }[] = [];
+    for (const span of spans) {
+      for (const ch of span.text) {
+        chars.push({ ch, bold: span.bold });
+      }
+    }
+
+    const fullText = chars.map(c => c.ch).join('');
+    const wrappedLines = pdfDoc.splitTextToSize(fullText, maxW);
+    let globalIdx = 0;
+
+    for (const wLine of wrappedLines) {
+      checkPage(fontSize * 0.5);
+      let xPos = leftMargin;
+      let runStart = globalIdx;
+      let runBold = chars[globalIdx]?.bold ?? false;
+
+      for (let ci = 0; ci < wLine.length; ci++) {
+        const idx = globalIdx + ci;
+        if (idx >= chars.length) break;
+        if (chars[idx].bold !== runBold) {
+          const runText = fullText.substring(runStart, idx);
+          if (runText) {
+            pdfDoc.setFont('helvetica', runBold ? 'bold' : 'normal');
+            pdfDoc.text(runText, xPos, yPosition);
+            xPos += pdfDoc.getTextWidth(runText);
+          }
+          runStart = idx;
+          runBold = chars[idx].bold;
+        }
+      }
+      const lastRunText = fullText.substring(runStart, globalIdx + wLine.length);
+      if (lastRunText) {
+        pdfDoc.setFont('helvetica', runBold ? 'bold' : 'normal');
+        pdfDoc.text(lastRunText, xPos, yPosition);
+      }
+      globalIdx += wLine.length;
+      yPosition += fontSize * 0.5;
+    }
+  };
+
   if (content.firmProfile?.firmName) {
     addText(content.firmProfile.firmName, 14, true);
     if (content.firmProfile.addressLine1) addText(content.firmProfile.addressLine1, 9);
@@ -131,7 +307,6 @@ export async function exportToPDF(content: DocumentContent) {
     yPosition += 10;
   }
 
-  // Header
   addText('Legal Case Documentation', 18, true);
   yPosition += 5;
   
@@ -151,39 +326,35 @@ export async function exportToPDF(content: DocumentContent) {
   doc.line(margin, yPosition, pageWidth - margin, yPosition);
   yPosition += 15;
 
-  // Summary
   if (content.summary) {
     addText('CASE SUMMARY', 16, true);
     yPosition += 5;
-    addText(stripMarkdown(content.summary));
+    renderMarkdownSection(content.summary);
     yPosition += 10;
   }
 
-  // Attendance Note
   if (content.attendanceNote) {
-    if (yPosition > doc.internal.pageSize.getHeight() - 100) {
+    if (yPosition > pageHeight - 100) {
       doc.addPage();
       yPosition = margin;
     }
     addText('ATTENDANCE NOTE', 16, true);
     yPosition += 5;
-    addText(stripMarkdown(content.attendanceNote));
+    renderMarkdownSection(content.attendanceNote);
     yPosition += 10;
   }
 
-  // Transcript
   if (content.transcript) {
-    if (yPosition > doc.internal.pageSize.getHeight() - 100) {
+    if (yPosition > pageHeight - 100) {
       doc.addPage();
       yPosition = margin;
     }
     addText('FULL TRANSCRIPT', 16, true);
     yPosition += 5;
-    addText(stripMarkdown(content.transcript));
+    renderMarkdownSection(content.transcript);
   }
 
   // Master Record footer on last page
-  const pageHeight = doc.internal.pageSize.getHeight();
   const footerY = pageHeight - 10;
   const exportTimestamp = new Date().toLocaleString('en-GB', { 
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 

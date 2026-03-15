@@ -25,6 +25,29 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 
+function ensureSectionSpacing(content: string): string {
+  const lines = content.split('\n');
+  const result: string[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    const isHeadingLine = trimmed.startsWith('## ') || trimmed.startsWith('### ') ||
+      /^\*\*[A-Z]/.test(trimmed) || /^\d+\.\s+\*\*/.test(trimmed);
+    
+    if (isHeadingLine && i > 0) {
+      const prevLine = result.length > 0 ? result[result.length - 1].trim() : '';
+      if (prevLine !== '') {
+        result.push('');
+      }
+    }
+    
+    result.push(line);
+  }
+  
+  return result.join('\n');
+}
+
 function ensureBoldHeadings(content: string): string {
   if (!content) return content;
   
@@ -54,6 +77,9 @@ function ensureBoldHeadings(content: string): string {
     const standalonePattern = new RegExp(`^(?!\\*\\*)${escaped}(?!\\*\\*)(:?)$`, 'gm');
     result = result.replace(standalonePattern, `**${heading}**$1`);
   }
+  
+  result = ensureSectionSpacing(result);
+  
   return result;
 }
 

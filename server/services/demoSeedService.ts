@@ -618,6 +618,46 @@ Client confirmed understanding. Instructed to proceed to heads of terms.
     approvedBy: userId,
   });
 
+  await db.insert(documents).values({
+    caseId: newCase.id,
+    meetingSessionId: session3.id,
+    transcriptSnapshotId: t3.id,
+    type: "summary",
+    content: `**MEETING SUMMARY**
+
+**Case:** Commercial Warehouse Acquisition — Stratford
+**Client:** Richard Patterson
+**Date:** ${session3Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+
+**Key Points:**
+- Commercial property acquisition of Unit 14, Meridian Industrial Estate, Stratford (£2,400,000)
+- Three-tier corporate structure: Patterson Developments Ltd > Meridian Holdings Ltd > Patterson Family Trust (Jersey)
+- Enhanced due diligence completed — all documentation received and verified
+- AML Decision Record: CLEARED TO PROCEED
+
+**Critical Issues Identified:**
+- Offshore Jersey trust element required enhanced due diligence under Regulation 33 MLR 2017
+- Client initially declined bank statement disclosure — resolved via accountants' source of funds report
+- Beneficial ownership verified through Companies House and Jersey Financial Services Commission
+
+**Immediate Actions Required:**
+1. Review draft contract and raise preliminary enquiries
+2. Report on title to client
+3. Target exchange within 4–6 weeks
+4. Deposit on exchange: £240,000 (10% from retained profits)
+
+**Client Concerns:**
+Client concerned about commercial sensitivity of bank statements. Resolved through certified source of funds report from accountants (Hargreaves & Co) supported by audited accounts.
+
+**Solicitor Recommendations:**
+AML clearance granted. Proceed to conveyancing phase. Counter-signatory (Head of Compliance) to review and approve AML Decision Record within 24 hours. Any change in funding position must be disclosed immediately.`,
+    version: 1,
+    versionType: "ai_generated",
+    createdBy: userId,
+    status: "approved",
+    approvedBy: userId,
+  });
+
   // --- Time entries ---
   await db.insert(timeEntries).values([
     { caseId: newCase.id, meetingSessionId: session1.id, userId, durationMinutes: 130, description: "Full meeting — Matter inception, AML screening, corporate structure review", hourlyRate: "320.00", status: "confirmed" },
@@ -958,6 +998,44 @@ Call received from Miss Henderson. Client confirmed roof inspection report satis
     version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
+  await db.insert(documents).values({
+    caseId: newCase.id,
+    meetingSessionId: ses2.id,
+    transcriptSnapshotId: tr2.id,
+    type: "summary",
+    content: `**MEETING SUMMARY**
+
+**Case:** Purchase of 14 Ashfield Close, Bath
+**Client:** Sophie Henderson
+**Date:** ${s2Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+
+**Key Points:**
+- First-time buyer purchasing 14 Ashfield Close, Bath (£385,000 freehold)
+- Mortgage offer from Nationwide (£308,000) with £2,500 valuation retention pending roof inspection
+- Deposit of £77,000: £52,000 savings (bank statements reviewed) and £25,000 parental gift (gift letter obtained)
+- Title clean, all searches clear, drainage query resolved
+
+**Critical Issues Identified:**
+- Mortgage valuation retention (£2,500) pending roof inspection — now resolved, report satisfactory
+- Garden studio to be included in fixtures — specific enquiry raised with seller's solicitors
+
+**Immediate Actions Required:**
+1. Forward roof inspection report to Nationwide for retention release
+2. Contact Blake Morgan to agree exchange date (target: Friday 21st)
+3. Complete report on title
+
+**Client Concerns:**
+Client concerned about drainage search query (resolved — Wessex Water confirmed connection). Client specifically wants garden studio included in sale.
+
+**Solicitor Recommendations:**
+SDLT first-time buyer relief applicable (£9,750 payable on completion). AML check satisfied. Proceed to exchange once Nationwide confirms retention release. Target exchange within 2–3 weeks.`,
+    version: 1,
+    versionType: "ai_generated",
+    createdBy: userId,
+    status: "approved",
+    approvedBy: userId,
+  });
+
   // Undertaking — outstanding
   await db.insert(undertakings).values({
     caseId: newCase.id, meetingSessionId: ses1.id,
@@ -1284,6 +1362,46 @@ I gave an undertaking to serve the schedule of loss on the respondent within 3 w
 
 Client does not wish to settle for less than the full schedule of loss unless there is a compelling reason.`,
     version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
+  });
+
+  await db.insert(documents).values({
+    caseId: newCase.id,
+    meetingSessionId: ses2.id,
+    transcriptSnapshotId: tr2.id,
+    type: "summary",
+    content: `**MEETING SUMMARY**
+
+**Case:** Constructive Dismissal Claim — Hartley v TechLogic Solutions Ltd
+**Client:** Daniel Hartley
+**Date:** ${s2Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+
+**Key Points:**
+- Constructive dismissal claim under s.95(1)(c) Employment Rights Act 1996
+- 7 years' service as Senior Systems Engineer at TechLogic Solutions Ltd
+- Sustained course of conduct over 8 months by new CTO (Mark Salter): exclusion from meetings, effective demotion, inadequate grievance, physical isolation, public humiliation
+- ET1 drafted and approved — client instructed to file
+
+**Critical Issues Identified:**
+- Client resigned within 2 days of final incident — no affirmation risk
+- ACAS early conciliation certificate obtained
+- Inadequate grievance investigation by employer strengthens claim
+
+**Immediate Actions Required:**
+1. File ET1 this week
+2. Serve schedule of loss on respondent within 3 working days of filing
+3. Await tribunal acknowledgement and case number
+4. Monitor for early settlement approach via ACAS
+
+**Client Concerns:**
+Client does not wish to settle for less than the full schedule of loss (£31,450) unless there is a compelling reason.
+
+**Solicitor Recommendations:**
+Prospects assessed as reasonable to good. Schedule of loss totals £31,450 (basic award £3,808, compensatory award £18,900, notice pay £5,445, accrued holiday £1,750). Advise against premature settlement given strength of case.`,
+    version: 1,
+    versionType: "ai_generated",
+    createdBy: userId,
+    status: "approved",
+    approvedBy: userId,
   });
 
   // Undertaking — discharged
@@ -1652,6 +1770,46 @@ No order as to costs (standard in children proceedings).
     version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
+  await db.insert(documents).values({
+    caseId: newCase.id,
+    meetingSessionId: ses3.id,
+    transcriptSnapshotId: tr3.id,
+    type: "summary",
+    content: `**MEETING SUMMARY**
+
+**Case:** Child Arrangements Order — Okafor
+**Client:** Yasmin Okafor
+**Date:** ${s3Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+
+**Key Points:**
+- Application for Child Arrangements Order — two children: Amara (9) and Kofi (6)
+- FHDRA held at Bristol Family Court before District Judge Pemberton
+- CAFCASS safeguarding letter filed — no concerns identified for either parent
+- Respondent (Michael Okafor) appeared as litigant in person
+- Interim contact arrangement agreed by consent
+
+**Critical Issues Identified:**
+- Respondent unable to commit to fixed alternate weekend pattern due to shift work
+- Full CAFCASS Section 7 welfare report directed to recommend workable arrangement
+- Respondent ordered to file statement of shift pattern (last 6 months) within 14 days
+
+**Immediate Actions Required:**
+1. Await CAFCASS Section 7 welfare report (due by 14 March)
+2. Prepare for Dispute Resolution Appointment on 28 March at 10:30am
+3. Monitor respondent's compliance with shift pattern disclosure order
+
+**Client Concerns:**
+Client wants predictable, stable contact arrangement for children. Willing to accommodate shift patterns provided arrangements are agreed in advance and communicated to children.
+
+**Solicitor Recommendations:**
+Interim arrangement confirmed by consent — children to live with applicant, contact with respondent on alternate Saturdays 10am–6pm pending final order. No order as to costs (standard in children proceedings). Case progressing well — absence of welfare concerns is positive.`,
+    version: 1,
+    versionType: "ai_generated",
+    createdBy: userId,
+    status: "approved",
+    approvedBy: userId,
+  });
+
   // Time entries
   await db.insert(timeEntries).values([
     { caseId: newCase.id, meetingSessionId: ses1.id, userId, durationMinutes: 72, description: "Full meeting — Initial consultation, welfare checklist, C100 preparation", hourlyRate: "210.00", status: "confirmed" },
@@ -1908,6 +2066,47 @@ Verified — all statements traceable to transcript. Four speakers identified: S
     version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
+  await db.insert(documents).values({
+    caseId: newCase.id,
+    meetingSessionId: ses1.id,
+    transcriptSnapshotId: tr1.id,
+    type: "summary",
+    content: `**MEETING SUMMARY**
+
+**Case:** Mirror Wills — Whitmore
+**Client:** Margaret Whitmore & Geoffrey Whitmore
+**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+
+**Key Points:**
+- Joint mirror wills for married couple (Margaret and Geoffrey Whitmore)
+- Total estimated estate: approximately £1,970,000 (property £1.1m, investments £680k, cash £190k)
+- IHT liability estimated at £388,000 (40% on £970,000 taxable estate after combined NRB and RNRB shelter of £1,000,000)
+- Discretionary trust for three grandchildren (£50,000 each, £150,000 total) with STEP standard provisions
+- Residuary estate split equally between son (Andrew) and daughter (Claire)
+
+**Critical Issues Identified:**
+- Significant IHT exposure (£388,000) — mitigation strategies advised
+- Mutual wills discussed and rejected in favour of mirror wills (preserving surviving spouse flexibility)
+- Senior Partner (David Hughes) attended due to estate complexity and IHT considerations
+
+**Immediate Actions Required:**
+1. Draft mirror wills incorporating discretionary trust for grandchildren
+2. Draft letter of wishes (jewellery to Claire, vintage car to Andrew)
+3. Open separate LPA file (Property & Financial Affairs and Health & Welfare for each client)
+4. David Hughes to prepare IHT gifting strategy letter
+
+**Client Concerns:**
+Clients concerned about IHT liability. Both have surplus pension income available for regular gifting programme.
+
+**Solicitor Recommendations:**
+Annual exemption gifting (£6,000 combined per year). Regular gifting programme of £20,000 per year from surplus income over 7-year period. Gifts from surplus income immediately exempt — detailed income/expenditure records recommended. Executors: Andrew, Claire, and this firm as professional executor.`,
+    version: 1,
+    versionType: "ai_generated",
+    createdBy: userId,
+    status: "approved",
+    approvedBy: userId,
+  });
+
   // Client care letter
   await db.insert(documents).values({
     caseId: newCase.id, type: "client_care_letter",
@@ -2082,6 +2281,49 @@ Detention authorised to 24 hours (s.37 PACE 1984). Representations made for rele
 ---
 *Total time at station: 3 hours 25 minutes.*`,
     version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
+  });
+
+  await db.insert(documents).values({
+    caseId: newCase.id,
+    meetingSessionId: ses1.id,
+    transcriptSnapshotId: tr1.id,
+    type: "summary",
+    content: `**MEETING SUMMARY**
+
+**Case:** Police Station Attendance — Treadwell (s.18 GBH)
+**Client:** Leon Treadwell
+**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+
+**Key Points:**
+- Duty solicitor attendance at Walworth Police Station (23:47–03:12)
+- Client arrested on suspicion of s.18 Wounding with Intent (OAPA 1861)
+- Custody number: WPS/2024/08814
+- Client's account: self-defence — complainant threw glass at client first
+- No comment interview conducted (28 minutes, 14 questions, PACE Code C)
+
+**Critical Issues Identified:**
+- Disclosure limited: CCTV from pub exterior not yet available
+- Single equivocal witness statement — could not identify aggressor
+- Complainant alleges client struck him with a bottle — client denies using any weapon
+- s.18 requires proof of specific intent — high evidential threshold
+
+**Immediate Actions Required:**
+1. Await CPS charging decision
+2. Monitor forensic results (glass fragments and clothing analysis)
+3. Request CCTV footage when available
+
+**Client Concerns:**
+Client maintains he was acting in self-defence after complainant threw a glass at him. Client sustained a cut to left forearm. Denies using any weapon.
+
+**Solicitor Recommendations:**
+No comment interview was tactically appropriate given incomplete disclosure and high evidential threshold for s.18. Released under investigation with no bail conditions. If CCTV supports self-defence account, NFA likely. If charged, anticipate reduction to s.20 (GBH without intent) at most.
+
+**UPDATE:** NFA confirmed by CPS the following morning. No further action. Matter closed.`,
+    version: 1,
+    versionType: "ai_generated",
+    createdBy: userId,
+    status: "approved",
+    approvedBy: userId,
   });
 
   // Client care letter
