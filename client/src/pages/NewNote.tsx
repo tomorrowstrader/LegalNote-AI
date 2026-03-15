@@ -249,6 +249,14 @@ export default function NewNote() {
         });
         return;
       }
+      if (!practiceArea) {
+        toast({
+          title: "Practice area required",
+          description: "Please select a practice area for this matter",
+          variant: "destructive",
+        });
+        return;
+      }
     } else {
       if (!selectedCaseId) {
         toast({
@@ -348,6 +356,15 @@ export default function NewNote() {
       toast({
         title: "Matter required",
         description: "Please select an existing matter to add a session",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (noteMode === "new_matter" && !practiceArea) {
+      toast({
+        title: "Practice area required",
+        description: "Please select a practice area for this matter",
         variant: "destructive",
       });
       return;
@@ -962,7 +979,7 @@ export default function NewNote() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="practice-area">Practice Area (Optional)</Label>
+                    <Label htmlFor="practice-area">Practice Area <span className="text-red-500">*</span></Label>
                     <Select
                       value={practiceArea}
                       onValueChange={(val) => setPracticeArea(val as PracticeArea)}

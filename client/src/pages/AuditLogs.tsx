@@ -366,9 +366,17 @@ export default function AuditLogs() {
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading audit logs...</p>
             ) : !auditLogs || auditLogs.length === 0 ? (
-              <p className="text-sm text-muted-foreground" data-testid="text-no-results">
-                No audit logs found matching your filters
-              </p>
+              <div className="flex flex-col items-center justify-center py-12 text-center" data-testid="text-no-results">
+                <Shield className="w-10 h-10 text-muted-foreground/50 mb-3" />
+                <p className="text-sm font-medium text-foreground mb-1">
+                  {caseIdFilter || eventTypeFilter ? "No audit logs found matching your filters" : "No audit events recorded yet"}
+                </p>
+                <p className="text-xs text-muted-foreground max-w-sm">
+                  {caseIdFilter || eventTypeFilter
+                    ? "Try adjusting or resetting your filters to see more results."
+                    : "Your activity will appear here as you use the platform — case views, document downloads, consent events, and more are all tracked automatically."}
+                </p>
+              </div>
             ) : (
               <ScrollArea className="h-[600px] pr-4">
                 <div className="space-y-3">

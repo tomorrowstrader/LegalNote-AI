@@ -373,7 +373,7 @@ export interface IStorage {
   updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined>;
   getExpiredAudioRecordings(): Promise<AudioRecording[]>;
   getExpiringAudioCount(userId: string, withinHours: number): Promise<number>;
-  getProductivityStats(userId: string): Promise<{
+  getProductivityStats(userId: string, since?: Date): Promise<{
     totalCases: number;
     awaitingReview: number;
     evidenceCompletePercent: number;
@@ -898,7 +898,7 @@ export class MemStorage implements IStorage {
     ).length;
   }
 
-  async getProductivityStats(userId: string): Promise<{
+  async getProductivityStats(userId: string, since?: Date): Promise<{
     totalCases: number;
     awaitingReview: number;
     evidenceCompletePercent: number;
@@ -907,7 +907,10 @@ export class MemStorage implements IStorage {
     monthlyTrend: "up" | "down" | "neutral";
     monthlyChange: number;
   }> {
-    const userCases = Array.from(this.cases.values()).filter(c => c.createdBy === userId && !c.archived);
+    let userCases = Array.from(this.cases.values()).filter(c => c.createdBy === userId && !c.archived);
+    if (since) {
+      userCases = userCases.filter(c => new Date(c.createdAt) >= since);
+    }
     const userCaseIds = new Set(userCases.map(c => c.id));
     const totalCases = userCases.length;
     
@@ -2486,7 +2489,7 @@ export class DbStorage implements IStorage {
     return result[0]?.count || 0;
   }
 
-  async getProductivityStats(userId: string): Promise<{
+  async getProductivityStats(userId: string, since?: Date): Promise<{
     totalCases: number;
     awaitingReview: number;
     evidenceCompletePercent: number;
@@ -2495,10 +2498,11 @@ export class DbStorage implements IStorage {
     monthlyTrend: "up" | "down" | "neutral";
     monthlyChange: number;
   }> {
-    const userCases = await db.select().from(cases).where(and(
-      eq(cases.createdBy, userId),
-      eq(cases.archived, false)
-    ));
+    const conditions = [eq(cases.createdBy, userId), eq(cases.archived, false)];
+    if (since) {
+      conditions.push(gte(cases.createdAt, since));
+    }
+    const userCases = await db.select().from(cases).where(and(...conditions));
     const userCaseIds = userCases.map(c => c.id);
     const totalCases = userCases.length;
     

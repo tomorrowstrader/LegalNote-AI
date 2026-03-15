@@ -159,6 +159,9 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 {isAdmin && (
                   <>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild data-testid="menu-item-team-management">
+                      <Link href="/team">Team Management</Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild data-testid="menu-item-admin-dashboard">
                       <Link href="/admin">Admin Dashboard</Link>
                     </DropdownMenuItem>

@@ -1749,7 +1749,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   app.get("/api/dashboard/productivity-stats", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const stats = await storage.getProductivityStats(userId);
+      const range = req.query.range as string | undefined;
+      let since: Date | undefined;
+      if (range === "7d") {
+        since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      } else if (range === "30d") {
+        since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      }
+      const stats = await storage.getProductivityStats(userId, since);
       res.json(stats);
     } catch (error: any) {
       next(error);
@@ -5355,6 +5362,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (endDate) filters.endDate = new Date(endDate as string);
       if (limit) filters.limit = parseInt(limit as string, 10);
 
+      filters.userId = userId;
       const logs = await storage.getAuditLogs(filters);
 
       await logAuditEvent(userId, "case_viewed", {
@@ -5464,8 +5472,13 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
   app.get("/api/admin/users", isAuthenticated, isAdmin, async (req: any, res, next) => {
     try {
+      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
       const userStats = await storage.getUserStatistics();
-      res.json(userStats);
+      const enriched = userStats.map(u => ({
+        ...u,
+        isAdmin: u.userId === ADMIN_USER_ID,
+      }));
+      res.json(enriched);
     } catch (error) {
       next(error);
     }

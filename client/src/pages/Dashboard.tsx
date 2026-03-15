@@ -48,6 +48,7 @@ function getTimeBasedGreeting(): string {
 
 type StatusTab = "active" | "review" | "completed" | "archived";
 type SortOption = "deadline" | "created" | "client" | "priority";
+type StatsRange = "7d" | "30d" | "all";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -57,6 +58,7 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState<SortOption>("deadline");
   const [showCaseSelector, setShowCaseSelector] = useState(false);
   const [logCallCase, setLogCallCase] = useState<Case | null>(null);
+  const [statsRange, setStatsRange] = useState<StatsRange>("all");
 
   const { data: cases, isLoading } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
@@ -78,7 +80,13 @@ export default function Dashboard() {
   });
 
   const { data: productivityStats } = useQuery<ProductivityStats>({
-    queryKey: ["/api/dashboard/productivity-stats"],
+    queryKey: ["/api/dashboard/productivity-stats", statsRange],
+    queryFn: async () => {
+      const params = statsRange !== "all" ? `?range=${statsRange}` : "";
+      const res = await fetch(`/api/dashboard/productivity-stats${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch stats");
+      return res.json();
+    },
   });
 
   const greeting = getTimeBasedGreeting();
@@ -326,6 +334,29 @@ export default function Dashboard() {
           </div>
         </div>
 
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm text-muted-foreground">Overview</span>
+          <div className="flex items-center gap-1 bg-muted/50 rounded-md p-0.5 border border-border/50">
+            {([
+              { value: "7d", label: "Last 7 days" },
+              { value: "30d", label: "Last 30 days" },
+              { value: "all", label: "All time" },
+            ] as const).map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setStatsRange(opt.value)}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  statsRange === opt.value
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground"
+                }`}
+                data-testid={`button-stats-range-${opt.value}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="grid gap-4 sm:gap-5 grid-cols-2 lg:grid-cols-4 mb-6">
           <StatsCard
             title="Total Cases"
