@@ -502,6 +502,7 @@ export default function DocumentViewer({
   const [lastSavedContent, setLastSavedContent] = useState<string>("");
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const editingDocIdRef = useRef<string | null>(null);
   const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
   
   const [trackChangesEnabled, setTrackChangesEnabled] = useState(false);
@@ -773,14 +774,29 @@ export default function DocumentViewer({
         throw error;
       }
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+    onSuccess: async (updatedDocument, variables) => {
+      queryClient.setQueryData(
+        [`/api/cases/${caseId}/documents`],
+        (oldDocs: Document[] | undefined) => {
+          if (!oldDocs) return oldDocs;
+          return oldDocs.map((doc) =>
+            doc.id === variables.documentId ? { ...doc, ...(updatedDocument as Document) } : doc
+          );
+        }
+      );
+
       localStorage.removeItem(`legalnote_draft_${variables.documentId}`);
       setEditingDocId(null);
+      editingDocIdRef.current = null;
       setEditContent("");
       setLastSavedContent("");
       setAutoSaveStatus('idle');
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] }),
+        queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] }),
+      ]);
+
       toast({
         title: "Document Updated",
         description: "Your changes have been saved successfully",
@@ -880,6 +896,7 @@ export default function DocumentViewer({
     const contentToLoad = savedDraft ? JSON.parse(savedDraft).content : document.content;
     
     setEditingDocId(document.id);
+    editingDocIdRef.current = document.id;
     setEditContent(contentToLoad);
     setLastSavedContent(document.content);
     setAutoSaveStatus('idle');
@@ -902,11 +919,13 @@ export default function DocumentViewer({
   const cancelEditing = () => {
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
     }
     if (editingDocId) {
       localStorage.removeItem(`${DRAFT_STORAGE_KEY}${editingDocId}`);
     }
     setEditingDocId(null);
+    editingDocIdRef.current = null;
     setEditContent("");
     setLastSavedContent("");
     setAutoSaveStatus('idle');
@@ -936,6 +955,10 @@ export default function DocumentViewer({
       });
       return;
     }
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
     editMutation.mutate({ documentId, content: editContent });
   };
 
@@ -944,17 +967,28 @@ export default function DocumentViewer({
       return;
     }
 
+    if (editingDocIdRef.current !== documentId) {
+      return;
+    }
+
     setAutoSaveStatus('saving');
     try {
       await apiRequest('PATCH', `/api/documents/${documentId}`, { content });
+
+      if (editingDocIdRef.current !== documentId) {
+        return;
+      }
+
       setLastSavedContent(content);
       setAutoSaveStatus('saved');
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
       setTimeout(() => setAutoSaveStatus('idle'), 3000);
     } catch (error) {
       console.error('[AUTO-SAVE] Failed:', error);
-      setAutoSaveStatus('error');
-      setTimeout(() => setAutoSaveStatus('idle'), 5000);
+      if (editingDocIdRef.current === documentId) {
+        setAutoSaveStatus('error');
+        setTimeout(() => setAutoSaveStatus('idle'), 5000);
+      }
     }
   }, [caseId, lastSavedContent]);
 
@@ -1567,15 +1601,25 @@ export default function DocumentViewer({
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div
-                  className="prose dark:prose-invert max-w-none text-foreground"
-                  data-testid="content-care-letter"
-                >
-                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-                    {clientCareLetter.content}
-                  </ReactMarkdown>
-                </div>
+              <CardContent className="prose prose-sm max-w-none max-h-[600px] overflow-y-auto">
+                <EditableDocumentContent
+                  document={clientCareLetter}
+                  isEditing={editingDocId === clientCareLetter.id}
+                  editContent={editContent}
+                  onEditContentChange={setEditContent}
+                  onStartEditing={startEditing}
+                  onCancelEditing={cancelEditing}
+                  onSaveEdits={saveEdits}
+                  isSaving={editMutation.isPending}
+                  autoSaveStatus={editingDocId === clientCareLetter.id ? autoSaveStatus : 'idle'}
+                  zoom={zoom}
+                  focusMode={focusMode}
+                  onFocusModeToggle={() => setFocusMode(f => !f)}
+                  onAddComment={handleAddComment}
+                  trackChangesEnabled={editingDocId === clientCareLetter.id ? trackChangesEnabled : false}
+                  onTrackChangesToggle={setTrackChangesEnabled}
+                  onTrackChangeAction={handleTrackChangeAction}
+                />
               </CardContent>
             </Card>
           </TabsContent>
