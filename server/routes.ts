@@ -5330,6 +5330,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (!transcript) {
         return res.status(400).json({ message: "No transcript found for this case" });
       }
+
+      // Idempotency: skip extraction if obligations already exist
+      const existingItems = await storage.getActionItemsByCase(caseId, userId);
+      if (existingItems.length > 0) {
+        return res.json({ items: existingItems, extractionCost: 0, skipped: true });
+      }
       
       // Import document service dynamically
       const { DocumentService } = await import("./services/documentService");

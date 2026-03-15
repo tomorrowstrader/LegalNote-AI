@@ -12,6 +12,20 @@ interface LogoProps {
   className?: string;
 }
 
+const CONTAINER_SIZES = {
+  sm: { w: "w-20", h: "h-6", iconSize: "h-6 w-6" },
+  md: { w: "w-28", h: "h-8", iconSize: "h-8 w-8" },
+  lg: { w: "w-36", h: "h-10", iconSize: "h-10 w-10" },
+  xl: { w: "w-44", h: "h-12", iconSize: "h-12 w-12" },
+};
+
+const HEIGHT_CLASSES = {
+  sm: "h-6",
+  md: "h-8",
+  lg: "h-10",
+  xl: "h-12",
+};
+
 export default function Logo({ variant = "icon", size = "md", tone = "auto", animate = false, className = "" }: LogoProps) {
   const [showIcon, setShowIcon] = useState(false);
 
@@ -23,13 +37,6 @@ export default function Logo({ variant = "icon", size = "md", tone = "auto", ani
       return () => clearTimeout(timer);
     }
   }, [animate, variant]);
-
-  const sizeClasses = {
-    sm: variant === "icon" || (animate && showIcon) ? "h-6 w-6" : "h-6",
-    md: variant === "icon" || (animate && showIcon) ? "h-8 w-8" : "h-8",
-    lg: variant === "icon" || (animate && showIcon) ? "h-10 w-10" : "h-10",
-    xl: variant === "icon" || (animate && showIcon) ? "h-14 w-14" : "h-12",
-  };
 
   const iconToneClasses = {
     auto: "dark:invert",
@@ -47,7 +54,7 @@ export default function Logo({ variant = "icon", size = "md", tone = "auto", ani
     <img
       src={getIconSrc()}
       alt="LegalNote"
-      className={`${sizeClasses[size]} ${iconToneClasses[tone]} ${className}`}
+      className={`${HEIGHT_CLASSES[size]} w-auto max-w-full ${iconToneClasses[tone]} ${className}`}
       style={{ objectFit: "contain" }}
     />
   );
@@ -58,14 +65,14 @@ export default function Logo({ variant = "icon", size = "md", tone = "auto", ani
         <img
           src={logoWordWhite}
           alt="LegalNote"
-          className={`${sizeClasses[size]} ${className}`}
+          className={`${HEIGHT_CLASSES[size]} w-auto max-w-full ${className}`}
           style={{ objectFit: "contain" }}
         />
       ) : tone === "light" ? (
         <img
           src={logoWordBlack}
           alt="LegalNote"
-          className={`${sizeClasses[size]} ${className}`}
+          className={`${HEIGHT_CLASSES[size]} w-auto max-w-full ${className}`}
           style={{ objectFit: "contain" }}
         />
       ) : (
@@ -73,13 +80,13 @@ export default function Logo({ variant = "icon", size = "md", tone = "auto", ani
           <img
             src={logoWordBlack}
             alt="LegalNote"
-            className={`${sizeClasses[size]} ${className} dark:hidden`}
+            className={`${HEIGHT_CLASSES[size]} w-auto max-w-full ${className} dark:hidden`}
             style={{ objectFit: "contain" }}
           />
           <img
             src={logoWordWhite}
             alt="LegalNote"
-            className={`${sizeClasses[size]} ${className} hidden dark:block`}
+            className={`${HEIGHT_CLASSES[size]} w-auto max-w-full ${className} hidden dark:block`}
             style={{ objectFit: "contain" }}
           />
         </>
@@ -88,17 +95,26 @@ export default function Logo({ variant = "icon", size = "md", tone = "auto", ani
   );
 
   if (animate && variant === "wordmark") {
+    const { w, h, iconSize } = CONTAINER_SIZES[size];
     return (
-      <div className="relative">
+      <div className={`relative ${w} ${h} flex-none`}>
         <div
-          className={`transition-opacity duration-1000 ease-in-out ${showIcon ? "opacity-0" : "opacity-100"}`}
+          className={`absolute inset-0 flex items-center transition-opacity duration-1000 ease-in-out ${showIcon ? "opacity-0 pointer-events-none" : "opacity-100"}`}
         >
-          {wordmarkElement}
+          <img
+            src={tone === "dark" ? logoWordWhite : logoWordBlack}
+            alt="LegalNote"
+            className={`${h} w-full object-contain object-left`}
+          />
         </div>
         <div
-          className={`absolute inset-0 flex items-center transition-opacity duration-1000 ease-in-out ${showIcon ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-0 flex items-center transition-opacity duration-1000 ease-in-out ${showIcon ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         >
-          {iconElement}
+          <img
+            src={getIconSrc()}
+            alt="LegalNote"
+            className={`${iconSize} object-contain`}
+          />
         </div>
       </div>
     );

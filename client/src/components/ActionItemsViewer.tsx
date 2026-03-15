@@ -278,7 +278,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
                 )}
               </Button>
             )}
-            {hasTranscript && (
+            {hasTranscript && totalCount === 0 && (
               <Button
                 size="sm"
                 variant="outline"

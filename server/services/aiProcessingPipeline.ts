@@ -470,6 +470,37 @@ export class AIProcessingPipeline {
         console.error('[AML] Trigger detection failed (non-blocking):', amlError);
       }
 
+      // Obligations Auto-Extraction: extract obligations from transcript after processing
+      try {
+        const existingItems = await this.storage.getActionItemsByCase(caseId, userId);
+        if (existingItems.length === 0) {
+          const obligationMetadata = {
+            title: caseData.title,
+            clientName: caseData.clientName,
+            matterReference: caseData.matterReference || undefined,
+            recordingDate: new Date().toISOString().split('T')[0],
+          };
+          const obligationResult = await this.documentService.extractActionItems(transcriptForDocGen, obligationMetadata);
+          for (const item of obligationResult.items) {
+            await this.storage.createActionItem({
+              caseId,
+              transcriptId: transcript.id,
+              description: item.description,
+              originalDescription: item.description,
+              assignee: item.assignee || null,
+              dueDate: item.dueDate ? new Date(item.dueDate) : undefined,
+              priority: item.priority || "medium",
+              status: 'draft',
+            });
+          }
+          console.log(`[OBLIGATIONS] Auto-extracted ${obligationResult.items.length} obligation(s) for case ${caseId}`);
+        } else {
+          console.log(`[OBLIGATIONS] Skipping extraction - ${existingItems.length} obligation(s) already exist for case ${caseId}`);
+        }
+      } catch (obligationError) {
+        console.error('[OBLIGATIONS] Auto-extraction failed (non-blocking):', obligationError);
+      }
+
       // GDPR Compliance: Delete audio immediately after successful processing
       // This implements "whichever comes first" - 7 days OR successful processing
       try {

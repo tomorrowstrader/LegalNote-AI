@@ -332,7 +332,7 @@ export function ImportRecordingModal({
               <ul className="list-disc list-inside mt-1 space-y-0.5">
                 <li>The audio will be downloaded from your video conferencing platform</li>
                 <li>LegalNote will transcribe the recording with speaker identification</li>
-                <li>Attendance notes and other documents will be generated automatically</li>
+                <li>Attendance notes and other documents will be produced automatically</li>
                 <li>The recording will be stored securely and deleted within 7 days</li>
               </ul>
             </div>

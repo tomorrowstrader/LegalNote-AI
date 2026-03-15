@@ -984,6 +984,7 @@ export default function CaseDetail() {
                   riskLevel={caseData.riskLevel}
                   clientName={caseData.clientName}
                   autoOpenNoteForm={autoOpenComplianceNote}
+                  headless
                 />
               ) : (
                 <div className="text-center py-16 space-y-4">

@@ -19,6 +19,7 @@ interface ComplianceThreadProps {
   riskLevel?: string | null;
   clientName?: string;
   autoOpenNoteForm?: number;
+  headless?: boolean;
 }
 
 const RISK_COLORS: Record<string, string> = {
@@ -33,7 +34,7 @@ const RECORD_TYPE_LABELS: Record<string, string> = {
   completion: "Matter Completion",
 };
 
-export default function ComplianceThread({ caseId, riskLevel, clientName, autoOpenNoteForm }: ComplianceThreadProps) {
+export default function ComplianceThread({ caseId, riskLevel, clientName, autoOpenNoteForm, headless = false }: ComplianceThreadProps) {
   const { toast } = useToast();
   const [showAddNote, setShowAddNote] = useState(false);
   const [showDecisionModal, setShowDecisionModal] = useState(false);
@@ -111,140 +112,158 @@ export default function ComplianceThread({ caseId, riskLevel, clientName, autoOp
   ];
   const completenessScore = completenessItems.filter(i => i.done).length;
 
-  return (
-    <div className="space-y-4" data-testid="compliance-thread">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-2 text-left"
-          data-testid="button-toggle-compliance"
-        >
-          <Shield className="w-5 h-5 text-accent" />
-          <span className="font-semibold text-base">Compliance Thread</span>
-          {riskLevel && (
-            <Badge className={`no-default-hover-elevate no-default-active-elevate ${RISK_COLORS[riskLevel] || ""}`} data-testid="badge-risk-level">
-              {riskLevel.toUpperCase()} RISK
-            </Badge>
-          )}
-          <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate" data-testid="badge-record-count">
-            {totalRecords} record{totalRecords !== 1 ? "s" : ""}
-          </Badge>
-          {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-        </button>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowDecisionModal(true)}
-            data-testid="button-mlro-decision"
-          >
-            <FileCheck className="w-4 h-4 mr-1" />
-            MLRO Decision
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAddNote(true)}
-            data-testid="button-add-aml-note"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add Note
-          </Button>
-        </div>
+  const sortedEntries = [
+    ...monitoringNotes.map(n => ({ type: "note" as const, record: n, date: new Date(n.createdAt) })),
+    ...decisionRecords.map(d => ({ type: "decision" as const, record: d, date: new Date(d.createdAt) })),
+  ].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+  const actionButtons = (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setShowDecisionModal(true)}
+        data-testid="button-mlro-decision"
+      >
+        <FileCheck className="w-4 h-4 mr-1" />
+        MLRO Decision
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setShowAddNote(true)}
+        data-testid="button-add-aml-note"
+      >
+        <Plus className="w-4 h-4 mr-1" />
+        Add Note
+      </Button>
+    </div>
+  );
+
+  const timelineContent = (
+    <div className="space-y-3">
+      <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+        {completenessItems.map((item, i) => (
+          <span key={i} className="flex items-center gap-1">
+            <span className={item.done ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+              {item.done ? "●" : "○"}
+            </span>
+            {item.label}
+          </span>
+        ))}
+        <span className="ml-auto text-xs">{completenessScore}/{completenessItems.length} complete</span>
       </div>
 
-      {expanded && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-            {completenessItems.map((item, i) => (
-              <span key={i} className="flex items-center gap-1">
-                <span className={item.done ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
-                  {item.done ? "●" : "○"}
-                </span>
-                {item.label}
-              </span>
-            ))}
-            <span className="ml-auto text-xs">{completenessScore}/{completenessItems.length} complete</span>
-          </div>
+      {(notesLoading || decisionsLoading) && (
+        <div className="text-sm text-muted-foreground py-2">Loading compliance records...</div>
+      )}
 
-          {(notesLoading || decisionsLoading) && (
-            <div className="text-sm text-muted-foreground py-2">Loading compliance records...</div>
-          )}
-
-          {totalRecords > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-muted-foreground">Compliance Timeline</h4>
-              {[
-                ...monitoringNotes.map(n => ({ type: "note" as const, record: n, date: new Date(n.createdAt) })),
-                ...decisionRecords.map(d => ({ type: "decision" as const, record: d, date: new Date(d.createdAt) })),
-              ].sort((a, b) => b.date.getTime() - a.date.getTime()).map((entry) => (
-                entry.type === "decision" ? (
-                  <Card key={`decision-${entry.record.id}`} className="border-amber-200 dark:border-amber-800">
-                    <CardContent className="p-3 space-y-1">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                          <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs" data-testid={`badge-decision-${entry.record.id}`}>
-                            {(entry.record as AmlDecisionRecord).decision === "proceed" ? "Proceed" : (entry.record as AmlDecisionRecord).decision === "decline_to_act" ? "Decline to Act" : "SAR Considered"}
-                          </Badge>
-                          <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs">MLRO Decision</Badge>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          <Clock className="w-3 h-3 inline mr-1" />
-                          {format(entry.date, "dd MMM yyyy HH:mm")}
-                        </span>
-                      </div>
-                      <p className="text-sm"><span className="font-medium">Concern:</span> {(entry.record as AmlDecisionRecord).concernDescription}</p>
-                      <p className="text-sm text-muted-foreground">{(entry.record as AmlDecisionRecord).decisionReasoning}</p>
-                      {(entry.record as AmlDecisionRecord).signatureHash && (
-                        <p className="text-xs text-muted-foreground/60 font-mono truncate" data-testid={`signature-${entry.record.id}`}>
-                          <FileCheck className="w-3 h-3 inline mr-1" />
-                          HMAC-SHA256: {(entry.record as AmlDecisionRecord).signatureHash!.slice(0, 16)}...
-                        </p>
+      {totalRecords > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground">Compliance Timeline</h4>
+          {sortedEntries.map((entry) => (
+            entry.type === "decision" ? (
+              <Card key={`decision-${entry.record.id}`} className="border-amber-200 dark:border-amber-800">
+                <CardContent className="p-3 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs" data-testid={`badge-decision-${entry.record.id}`}>
+                        {(entry.record as AmlDecisionRecord).decision === "proceed" ? "Proceed" : (entry.record as AmlDecisionRecord).decision === "decline_to_act" ? "Decline to Act" : "SAR Considered"}
+                      </Badge>
+                      <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs">MLRO Decision</Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      <Clock className="w-3 h-3 inline mr-1" />
+                      {format(entry.date, "dd MMM yyyy HH:mm")}
+                    </span>
+                  </div>
+                  <p className="text-sm"><span className="font-medium">Concern:</span> {(entry.record as AmlDecisionRecord).concernDescription}</p>
+                  <p className="text-sm"><span className="font-medium">Reasoning:</span> {(entry.record as AmlDecisionRecord).decisionReasoning}</p>
+                  {(entry.record as AmlDecisionRecord).signatureHash && (
+                    <p className="text-xs text-muted-foreground/60 font-mono truncate" data-testid={`signature-${entry.record.id}`}>
+                      <FileCheck className="w-3 h-3 inline mr-1" />
+                      HMAC-SHA256: {(entry.record as AmlDecisionRecord).signatureHash!.slice(0, 16)}...
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <Card key={`note-${entry.record.id}`}>
+                <CardContent className="p-3 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs" data-testid={`badge-record-type-${entry.record.id}`}>
+                        {RECORD_TYPE_LABELS[(entry.record as AmlMonitoringNote).recordType] || (entry.record as AmlMonitoringNote).recordType}
+                      </Badge>
+                      {(entry.record as AmlMonitoringNote).riskLevel && (
+                        <Badge className={`no-default-hover-elevate no-default-active-elevate text-xs ${RISK_COLORS[(entry.record as AmlMonitoringNote).riskLevel!] || ""}`}>
+                          {(entry.record as AmlMonitoringNote).riskLevel!.toUpperCase()}
+                        </Badge>
                       )}
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card key={`note-${entry.record.id}`}>
-                    <CardContent className="p-3 space-y-1">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs" data-testid={`badge-record-type-${entry.record.id}`}>
-                            {RECORD_TYPE_LABELS[(entry.record as AmlMonitoringNote).recordType] || (entry.record as AmlMonitoringNote).recordType}
-                          </Badge>
-                          {(entry.record as AmlMonitoringNote).riskLevel && (
-                            <Badge className={`no-default-hover-elevate no-default-active-elevate text-xs ${RISK_COLORS[(entry.record as AmlMonitoringNote).riskLevel!] || ""}`}>
-                              {(entry.record as AmlMonitoringNote).riskLevel!.toUpperCase()}
-                            </Badge>
-                          )}
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          <Clock className="w-3 h-3 inline mr-1" />
-                          {format(entry.date, "dd MMM yyyy HH:mm")}
-                        </span>
-                      </div>
-                      {(entry.record as AmlMonitoringNote).sourceOfFundsStatus && (
-                        <p className="text-sm"><span className="font-medium">Source of Funds:</span> {(entry.record as AmlMonitoringNote).sourceOfFundsStatus}</p>
-                      )}
-                      {(entry.record as AmlMonitoringNote).eddDecision && (
-                        <p className="text-sm"><span className="font-medium">EDD:</span> {(entry.record as AmlMonitoringNote).eddDecision}</p>
-                      )}
-                      <p className="text-sm text-muted-foreground">{(entry.record as AmlMonitoringNote).notes}</p>
-                    </CardContent>
-                  </Card>
-                )
-              ))}
-            </div>
-          )}
-
-          {totalRecords === 0 && !notesLoading && !decisionsLoading && (
-            <div className="text-center py-6 text-sm text-muted-foreground">
-              <Shield className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p>No compliance records yet.</p>
-              <p className="text-xs mt-1">Add an inception note to start the compliance thread for this matter.</p>
-            </div>
-          )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      <Clock className="w-3 h-3 inline mr-1" />
+                      {format(entry.date, "dd MMM yyyy HH:mm")}
+                    </span>
+                  </div>
+                  {(entry.record as AmlMonitoringNote).sourceOfFundsStatus && (
+                    <p className="text-sm"><span className="font-medium">Source of Funds:</span> {(entry.record as AmlMonitoringNote).sourceOfFundsStatus}</p>
+                  )}
+                  {(entry.record as AmlMonitoringNote).eddDecision && (
+                    <p className="text-sm"><span className="font-medium">EDD:</span> {(entry.record as AmlMonitoringNote).eddDecision}</p>
+                  )}
+                  {(entry.record as AmlMonitoringNote).notes && (
+                    <p className="text-sm"><span className="font-medium">Notes:</span> {(entry.record as AmlMonitoringNote).notes}</p>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          ))}
         </div>
+      )}
+
+      {totalRecords === 0 && !notesLoading && !decisionsLoading && (
+        <div className="text-center py-6 text-sm text-muted-foreground">
+          <Shield className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p>No compliance records yet.</p>
+          <p className="text-xs mt-1">Add an inception note to start the compliance thread for this matter.</p>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4" data-testid="compliance-thread">
+      {headless ? (
+        <div className="space-y-3">
+          <div className="flex justify-end">{actionButtons}</div>
+          {timelineContent}
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center gap-2 text-left"
+              data-testid="button-toggle-compliance"
+            >
+              <Shield className="w-5 h-5 text-accent" />
+              <span className="font-semibold text-base">Compliance Thread</span>
+              {riskLevel && (
+                <Badge className={`no-default-hover-elevate no-default-active-elevate ${RISK_COLORS[riskLevel] || ""}`} data-testid="badge-risk-level">
+                  {riskLevel.toUpperCase()} RISK
+                </Badge>
+              )}
+              <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate" data-testid="badge-record-count">
+                {totalRecords} record{totalRecords !== 1 ? "s" : ""}
+              </Badge>
+              {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
+            {actionButtons}
+          </div>
+          {expanded && timelineContent}
+        </>
       )}
 
       <Dialog open={showAddNote} onOpenChange={setShowAddNote}>
