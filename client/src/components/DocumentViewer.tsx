@@ -1289,7 +1289,7 @@ export default function DocumentViewer({
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div ref={stickyHeaderRef} className={`sticky top-0 z-40 bg-card/95 backdrop-blur-sm pt-4 pb-3 border-b ${focusMode ? 'print:hidden' : ''}`}>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 px-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 px-4">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl sm:text-2xl font-semibold">Generated Documentation</h2>
@@ -1727,6 +1727,20 @@ export default function DocumentViewer({
 
         {clientCareLetter && (
           <TabsContent value="care_letter" className="mt-6">
+            {clientCareLetter.status === 'draft' && !dismissedReviewBanners.has('care_letter') && (
+              <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-care-letter">
+                <div className="flex items-start gap-3">
+                  <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Review Required</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">This document has been produced and requires your professional review before it can be approved or shared with clients.</p>
+                  </div>
+                  <Button size="icon" variant="ghost" className="flex-shrink-0 h-6 w-6" onClick={() => setDismissedReviewBanners(prev => new Set(prev).add('care_letter'))} data-testid="button-dismiss-review-care-letter">
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
