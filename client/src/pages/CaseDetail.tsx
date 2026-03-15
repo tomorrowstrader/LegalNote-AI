@@ -464,7 +464,7 @@ export default function CaseDetail() {
 
   const mobileNavItems = [...matterNavItems, ...complianceNavItems];
 
-  const showAudioPlayer = caseData.sourceType === 'audio' && audioData?.filePath && !audioData.deletedAt;
+  const showAudioPlayer = caseData.sourceType === 'audio' && (audioData?.filePath || audioData?.deletedAt);
 
   const sectionActions: Partial<Record<CaseSection, React.ReactNode>> = {
     documents: (
@@ -688,30 +688,6 @@ export default function CaseDetail() {
             </div>
           )}
 
-          {/* Recording archived */}
-          {caseData.sourceType === 'audio' && hasValidConsent && audioData?.deletedAt && (
-            <div className="bg-card border rounded-md p-4 space-y-2" data-testid="card-recording-archived">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-8 h-8 rounded-md border bg-muted/50 shrink-0">
-                  <Shield className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <svg viewBox="0 0 200 24" preserveAspectRatio="none" className="w-full h-6" aria-hidden="true" data-testid="waveform-archived">
-                    {[0.3,0.5,0.7,0.4,0.9,0.6,0.8,0.35,0.65,0.5,0.85,0.45,0.7,0.55,0.4,0.75,0.3,0.6,0.9,0.5,0.7,0.4,0.85,0.55,0.65,0.3,0.8,0.45,0.6,0.7,0.35,0.5,0.75,0.4,0.9,0.55,0.65,0.8,0.3,0.7].map((h, i) => (
-                      <rect key={i} x={i * 5} y={24 - h * 24} width={3.5} height={h * 24} rx={1} className="fill-muted-foreground/25" />
-                    ))}
-                  </svg>
-                </div>
-                <Badge variant="secondary" className="text-[10px] shrink-0 no-default-hover-elevate no-default-active-elevate" data-testid="badge-recording-deleted">
-                  Deleted
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground" data-testid="text-archived-explanation">
-                Original audio securely deleted under 7-day GDPR retention. Transcript and documents remain on file.
-              </p>
-            </div>
-          )}
-
           {/* No-consent text-only alert */}
           {caseData.sourceType === 'audio' && !hasValidConsent && !consentLoading && !audioLoading && (
             <Alert className="bg-card border-muted" data-testid="alert-no-recording-consent">
@@ -723,13 +699,12 @@ export default function CaseDetail() {
             </Alert>
           )}
 
-          {/* Audio player */}
           {showAudioPlayer && (
             <AudioPlayer
-              audioUrl={audioData!.filePath!}
-              expiresAt={new Date(audioData!.expiresAt)}
+              audioUrl={audioData?.deletedAt ? null : (audioData?.filePath ?? null)}
+              expiresAt={audioData?.expiresAt ? new Date(audioData.expiresAt) : null}
               caseId={caseData.id}
-              audioRecordingId={audioData!.id}
+              audioRecordingId={audioData?.id}
               playerRef={audioPlayerRef}
             />
           )}

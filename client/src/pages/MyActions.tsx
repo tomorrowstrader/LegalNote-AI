@@ -35,6 +35,7 @@ export default function MyActions() {
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("pending");
+  const [filterDue, setFilterDue] = useState<string>("all");
   const [filterCase, setFilterCase] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("dueDate");
   const [searchTerm, setSearchTerm] = useState("");
@@ -64,6 +65,8 @@ export default function MyActions() {
       if (filterStatus === "pending" && item.completed) return false;
       if (filterStatus === "completed" && !item.completed) return false;
       if (filterCase !== "all" && item.caseId !== filterCase) return false;
+      if (filterDue === "overdue" && !(item.dueDate && isPast(new Date(item.dueDate)) && !isToday(new Date(item.dueDate)) && !item.completed)) return false;
+      if (filterDue === "today" && !(item.dueDate && isToday(new Date(item.dueDate)))) return false;
       if (searchTerm && !item.description.toLowerCase().includes(searchTerm.toLowerCase())) return false;
       return true;
     })
@@ -114,16 +117,14 @@ export default function MyActions() {
     setFilterAssignee("all");
     setFilterCase("all");
     setSearchTerm("");
+    setFilterDue("all");
+    setFilterPriority("all");
+    setSortBy("dueDate");
 
-    if (statType === "total") {
-      setFilterPriority("all");
-      setSortBy("dueDate");
-    } else if (statType === "overdue") {
-      setFilterPriority("all");
-      setSortBy("dueDate");
+    if (statType === "overdue") {
+      setFilterDue("overdue");
     } else if (statType === "dueToday") {
-      setFilterPriority("all");
-      setSortBy("dueDate");
+      setFilterDue("today");
     } else if (statType === "high") {
       setFilterPriority("high");
       setSortBy("priority");
@@ -202,6 +203,16 @@ export default function MyActions() {
                 <SelectItem value="all">All items</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterDue} onValueChange={setFilterDue}>
+              <SelectTrigger className="w-32 h-8 text-sm" data-testid="select-filter-due">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All dates</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+                <SelectItem value="today">Due today</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterAssignee} onValueChange={setFilterAssignee}>
