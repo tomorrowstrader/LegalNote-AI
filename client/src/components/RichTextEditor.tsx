@@ -678,10 +678,10 @@ export function RichTextEditor({
 
   const RibbonGroup = ({ label, children }: { label: string; children: React.ReactNode }) => (
     <div className="flex flex-col items-center gap-0.5 px-2 border-r border-border/50 last:border-r-0">
+      <span className="text-[9px] text-muted-foreground/70 uppercase tracking-wider leading-none select-none">{label}</span>
       <div className="flex items-center gap-0.5">
         {children}
       </div>
-      <span className="text-[9px] text-muted-foreground/70 uppercase tracking-wider leading-none select-none">{label}</span>
     </div>
   );
 
@@ -695,7 +695,7 @@ export function RichTextEditor({
 
   return (
     <div 
-      className={`rounded-md overflow-visible ${disabled ? '' : ''}`}
+      className="rounded-md overflow-visible"
       style={{ fontSize: `${zoom}%` }}
     >
       {!disabled && (
@@ -708,9 +708,6 @@ export function RichTextEditor({
               <ToolbarButton onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} icon={Highlighter} tooltip="Highlight" />
               <ToolbarButton onClick={() => editor.chain().focus().toggleSuperscript().run()} active={editor.isActive('superscript')} icon={SuperscriptIcon} tooltip="Superscript" />
               <ToolbarButton onClick={() => editor.chain().focus().toggleSubscript().run()} active={editor.isActive('subscript')} icon={SubscriptIcon} tooltip="Subscript" />
-            </RibbonGroup>
-
-            <RibbonGroup label="Style">
               <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} icon={Heading1} tooltip="Heading 1" />
               <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} icon={Heading2} tooltip="Heading 2" />
               <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} icon={Heading3} tooltip="Heading 3" />
@@ -832,10 +829,10 @@ export function RichTextEditor({
         </div>
       )}
 
-      <div className={`flex ${trackChangesEnabled && changeCount > 0 && !disabled ? '' : ''}`}>
+      <div className="flex">
         <div className={`relative flex-1 ${trackChangesEnabled && changeCount > 0 && !disabled ? 'min-w-0' : ''}`} onKeyDown={handleKeyDown}>
-          <div className={`${disabled ? 'bg-transparent' : 'bg-muted/30 dark:bg-muted/10 border-x border-border'} ${!disabled ? 'py-6 px-4 sm:px-8' : ''}`}>
-            <div className={`${disabled ? '' : 'bg-card dark:bg-card mx-auto max-w-[800px] shadow-md rounded-sm border border-border/30'}`}>
+          <div className={disabled ? 'bg-transparent' : 'bg-muted/30 dark:bg-muted/10 border-x border-border py-6 px-4 sm:px-8'}>
+            <div className={disabled ? undefined : 'bg-card dark:bg-card mx-auto max-w-[800px] shadow-md rounded-sm border border-border/30'}>
               <EditorContent 
                 editor={editor} 
                 className="legal-document-editor
