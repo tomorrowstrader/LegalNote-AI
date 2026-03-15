@@ -113,7 +113,7 @@ export default function MyActions() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">My Actions</h1>
+        <h1 className="text-2xl font-semibold text-foreground">My Obligations</h1>
         <p className="text-sm text-muted-foreground mt-1">All outstanding obligations across your matters</p>
       </div>
 

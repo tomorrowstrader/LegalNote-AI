@@ -801,7 +801,7 @@ export class MemStorage implements IStorage {
 
   async getCase(id: string, userId: string): Promise<Case | undefined> {
     const caseRecord = this.cases.get(id);
-    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    if (!caseRecord || (caseRecord.createdBy !== userId && caseRecord.assignedToUserId !== userId)) return undefined;
     return caseRecord;
   }
 

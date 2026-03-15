@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, User, HelpCircle, Shield, Home, FileText, FolderOpen, Settings, CheckSquare, Users, Clock } from "lucide-react";
+import { Menu, User, HelpCircle, Shield, Home, FileText, FolderOpen, Settings, CheckSquare, Users, Clock, ChevronDown } from "lucide-react";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,15 +22,20 @@ interface TopNavigationProps {
   onRestartTour: () => void;
 }
 
-const navLinks = [
+const primaryNavLinks = [
   { path: "/", label: "Dashboard", icon: Home },
   { path: "/new-note", label: "New Note", icon: FileText },
   { path: "/cases", label: "Saved Cases", icon: FolderOpen },
-  { path: "/my-actions", label: "My Actions", icon: CheckSquare },
+  { path: "/my-actions", label: "My Obligations", icon: CheckSquare },
+];
+
+const moreNavLinks = [
   { path: "/clients", label: "Clients", icon: Users },
-  { path: "/time-summary", label: "Time", icon: Clock },
+  { path: "/time-summary", label: "Time Summary", icon: Clock },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
+
+const allNavLinks = [...primaryNavLinks, ...moreNavLinks];
 
 export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   const [location, setLocation] = useLocation();
@@ -43,7 +48,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   };
 
   return (
-    <nav className="sticky top-0 z-50 bg-gradient-to-r from-primary via-black to-primary border-b border-primary-border shadow-lg">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary via-black to-primary border-b border-primary-border shadow-lg">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="grid grid-cols-[auto_1fr_auto] items-center h-16 gap-4 md:gap-4">
           <Link href="/" data-testid="link-home">
@@ -53,7 +58,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
           </Link>
 
           <div className="hidden lg:flex items-center gap-1 min-w-0 overflow-hidden">
-            {navLinks.map((link) => {
+            {primaryNavLinks.map((link) => {
               const isActive = location === link.path;
               return (
                 <Link key={link.path} href={link.path} data-testid={`link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}>
@@ -69,6 +74,39 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 </Link>
               );
             })}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap flex items-center gap-1 ${
+                    moreNavLinks.some(l => location === l.path)
+                      ? "text-primary-foreground border-b-2 border-accent"
+                      : "text-primary-foreground/80 hover-elevate active-elevate-2"
+                  }`}
+                  data-testid="button-more-nav"
+                >
+                  More
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                {moreNavLinks.map((link) => {
+                  const isActive = location === link.path;
+                  const Icon = link.icon;
+                  return (
+                    <DropdownMenuItem
+                      key={link.path}
+                      onClick={() => setLocation(link.path)}
+                      className={isActive ? "bg-accent/20" : ""}
+                      data-testid={`more-link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Icon className="w-4 h-4 mr-2" />
+                      {link.label}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <div className="flex items-center gap-2 ml-auto flex-shrink-0">
@@ -153,7 +191,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                {navLinks.map((link) => {
+                {allNavLinks.map((link) => {
                   const isActive = location === link.path;
                   const Icon = link.icon;
                   return (

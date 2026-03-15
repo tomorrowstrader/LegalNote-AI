@@ -34,14 +34,15 @@ export default function CaseQuickSwitch() {
     enabled: open,
   });
 
+  const { data: currentCaseData } = useQuery<Case>({
+    queryKey: ["/api/cases", currentCaseId],
+    enabled: !!currentCaseId,
+  });
+
   const recentCases = cases
     .filter(c => !c.archived)
     .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
     .slice(0, 8);
-
-  const currentCase = currentCaseId 
-    ? cases.find(c => c.id === currentCaseId) 
-    : null;
 
   const handleCaseSelect = (caseId: string) => {
     setLocation(`/case/${caseId}`);
@@ -59,7 +60,7 @@ export default function CaseQuickSwitch() {
         >
           <Briefcase className="w-4 h-4 flex-shrink-0" />
           <span className="truncate hidden sm:inline">
-            {currentCase ? currentCase.title : "Quick Switch"}
+            {currentCaseData ? currentCaseData.title : "Switch Case"}
           </span>
           <ChevronDown className="w-3 h-3 flex-shrink-0" />
         </Button>

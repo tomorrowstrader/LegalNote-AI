@@ -103,7 +103,7 @@ function AuthenticatedAppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className={`min-h-screen bg-background ${!isLoading && isAuthenticated && !isFocusMode ? 'pt-16' : ''}`}>
       {!isLoading && isAuthenticated && !isFocusMode && <TopNavigation onRestartTour={handleRestartTour} />}
       {!isLoading && isAuthenticated && !isFocusMode && <FirmSetupPrompt />}
       {!isLoading && isAuthenticated && !isFocusMode && <OnboardingTour restartTrigger={restartTourTrigger} />}
