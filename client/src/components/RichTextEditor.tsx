@@ -719,7 +719,7 @@ export function RichTextEditor({
 
   // ResizeObserver for paginated page break labels
   useEffect(() => {
-    if (disabled || !pageCardRef.current) return;
+    if (!pageCardRef.current) return;
     const el = pageCardRef.current;
     const A4_H = 1122;
     const GUTTER_H = 32;
@@ -730,7 +730,7 @@ export function RichTextEditor({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [disabled]);
+  }, []);
 
   if (!editor) return null;
 
@@ -994,13 +994,12 @@ export function RichTextEditor({
 
       <div className="flex">
         <div className={`relative flex-1 ${trackChangesEnabled && changeCount > 0 && !disabled ? 'min-w-0' : ''}`} onKeyDown={handleKeyDown}>
-          <div className={disabled ? 'bg-transparent' : 'bg-muted/30 dark:bg-muted/10 border-x border-border overflow-x-auto'}>
+          <div className="bg-muted/30 dark:bg-muted/10 border-x border-border overflow-x-auto">
             <div
-              ref={disabled ? undefined : pageCardRef}
-              className={disabled ? undefined : 'paginated-page-card shadow-md mx-auto'}
+              ref={pageCardRef}
+              className="paginated-page-card shadow-md mx-auto"
             >
-              {/* Page break labels — one label per gutter, starting from page 2 */}
-              {!disabled && numPageBreaks > 0 && Array.from({ length: numPageBreaks }).map((_, i) => (
+              {numPageBreaks > 0 && Array.from({ length: numPageBreaks }).map((_, i) => (
                 <div
                   key={i}
                   className="page-gutter-label"

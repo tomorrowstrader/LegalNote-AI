@@ -1410,7 +1410,7 @@ export default function DocumentViewer({
                   </div>
                 </div>
               )}
-              <CardContent className="prose prose-sm max-w-none max-h-[600px] overflow-y-auto">
+              <CardContent className="p-0">
                 {attendanceNote ? (
                   <EditableDocumentContent 
                     document={attendanceNote}
@@ -1431,8 +1431,8 @@ export default function DocumentViewer({
                     onTrackChangeAction={handleTrackChangeAction}
                   />
                 ) : (
-                  <p className="text-sm text-muted-foreground italic">
-                    No attendance note available yet. Documents will be generated automatically.
+                  <p className="text-sm text-muted-foreground italic p-6">
+                    No attendance note available yet. Documents will be produced automatically.
                   </p>
                 )}
               </CardContent>
@@ -1516,7 +1516,7 @@ export default function DocumentViewer({
                   </div>
                 </div>
               )}
-              <CardContent className="prose prose-sm max-w-none max-h-[600px] overflow-y-auto">
+              <CardContent className="p-0">
                 {summary ? (
                   <EditableDocumentContent 
                     document={summary}
@@ -1537,14 +1537,14 @@ export default function DocumentViewer({
                     onTrackChangeAction={handleTrackChangeAction}
                   />
                 ) : textNotes ? (
-                  <div>
+                  <div className="p-6">
                     <p className="text-sm text-muted-foreground mb-4 italic">
                       Meeting notes (matter record will be produced once processing is complete)
                     </p>
                     <p className="text-foreground whitespace-pre-wrap">{textNotes}</p>
                   </div>
                 ) : (
-                  <div className="text-center py-8 space-y-3" data-testid="placeholder-matter-record">
+                  <div className="text-center p-6 py-8 space-y-3" data-testid="placeholder-matter-record">
                     <FileText className="w-10 h-10 mx-auto text-muted-foreground opacity-40" />
                     <div>
                       <p className="font-medium text-sm text-foreground">Matter Record</p>
@@ -1683,7 +1683,7 @@ export default function DocumentViewer({
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="prose prose-sm max-w-none max-h-[600px] overflow-y-auto">
+              <CardContent className="p-0">
                 <EditableDocumentContent
                   document={clientCareLetter}
                   isEditing={editingDocId === clientCareLetter.id}
