@@ -90,8 +90,12 @@ export class RecallService {
     if (!rawKey) {
       throw new Error('Recall.ai API key not configured');
     }
-    // Strip any "Token " or "Bearer " prefix the user may have inadvertently included
-    const apiKey = rawKey.replace(/^(Token|Bearer)\s+/i, '').trim();
+    // Strip any "Token " or "Bearer " prefix the user may have inadvertently included,
+    // then remove ALL whitespace/non-printable characters that might have crept in via copy-paste
+    const apiKey = rawKey
+      .replace(/^(Token|Bearer)\s+/i, '')
+      .replace(/[^\x21-\x7E]/g, '') // strip anything that isn't printable ASCII (no spaces)
+      .trim();
     
     const url = `${RECALL_API_BASE}${endpoint}`;
     const headers: HeadersInit = {
@@ -115,7 +119,7 @@ export class RecallService {
       } catch {
         if (rawBody) errorMessage = `${errorMessage} — ${rawBody.slice(0, 200)}`;
       }
-      console.error(`[Recall.ai] ${response.status} from ${url}: ${errorMessage} | region=${RECALL_REGION}`);
+      console.error(`[Recall.ai] ${response.status} from ${url}: ${errorMessage} | region=${RECALL_REGION} | key_len=${apiKey.length} | key_prefix=${apiKey.substring(0,4)}... | www-auth=${response.headers.get('www-authenticate') || 'none'}`);
       throw new Error(errorMessage);
     }
     
