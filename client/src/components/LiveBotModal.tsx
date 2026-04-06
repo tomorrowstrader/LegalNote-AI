@@ -174,17 +174,24 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
       setElapsed(0);
     },
     onError: (error: Error) => {
-      // Strip HTTP status prefix, HTML tags, and Replit error pages from the message
       const raw = error.message || "";
-      const stripped = raw
-        .replace(/^\d{3}:\s*/, "")   // remove "503: " prefix
-        .replace(/<[^>]+>/g, " ")    // strip HTML tags
-        .replace(/\s{2,}/g, " ")     // collapse whitespace
-        .trim();
-      const isHtmlPage = stripped.toLowerCase().includes("doctype") || stripped.toLowerCase().includes("we couldn");
-      const display = !stripped || isHtmlPage || stripped.length > 300
-        ? "Failed to deploy the bot. Please check the meeting URL and try again. If the problem persists, contact support."
-        : stripped;
+      // Strip HTTP status code prefix (e.g. "503: ")
+      const withoutStatus = raw.replace(/^\d{3}:\s*/, "");
+      // Try to extract message from a JSON body
+      let display = withoutStatus;
+      try {
+        const parsed = JSON.parse(withoutStatus);
+        if (parsed?.message) display = parsed.message;
+      } catch {
+        // Not JSON — use as-is
+      }
+      // Strip any residual HTML tags and collapse whitespace
+      display = display.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim();
+      // Replace Replit error pages or anything suspiciously long with a safe fallback
+      const isHtmlPage = display.toLowerCase().includes("doctype") || display.toLowerCase().includes("we couldn");
+      if (!display || isHtmlPage || display.length > 300) {
+        display = "Failed to deploy the bot. Please check the meeting URL and try again. If the problem persists, contact support.";
+      }
       setStep("error");
       setErrorMessage(display);
     },

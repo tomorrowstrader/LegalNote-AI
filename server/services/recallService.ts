@@ -86,10 +86,12 @@ export class RecallService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const apiKey = getRecallApiKey();
-    if (!apiKey) {
+    const rawKey = getRecallApiKey();
+    if (!rawKey) {
       throw new Error('Recall.ai API key not configured');
     }
+    // Strip any "Token " or "Bearer " prefix the user may have inadvertently included
+    const apiKey = rawKey.replace(/^(Token|Bearer)\s+/i, '').trim();
     
     const url = `${RECALL_API_BASE}${endpoint}`;
     const headers: HeadersInit = {
@@ -105,12 +107,15 @@ export class RecallService {
     
     if (!response.ok) {
       let errorMessage = `Recall API error: ${response.status}`;
+      let rawBody = '';
       try {
-        const errorData = await response.json() as RecallError;
+        rawBody = await response.text();
+        const errorData = JSON.parse(rawBody) as RecallError;
         errorMessage = errorData.message || errorData.error || errorMessage;
       } catch {
-        // Ignore JSON parse errors
+        if (rawBody) errorMessage = `${errorMessage} — ${rawBody.slice(0, 200)}`;
       }
+      console.error(`[Recall.ai] ${response.status} from ${url}: ${errorMessage} | region=${RECALL_REGION}`);
       throw new Error(errorMessage);
     }
     
