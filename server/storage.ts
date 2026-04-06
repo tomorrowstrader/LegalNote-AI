@@ -509,6 +509,7 @@ export interface IStorage {
   getMeetingImportByBotId(botId: string): Promise<MeetingImport | undefined>;
   getMeetingImportsByUser(userId: string): Promise<MeetingImport[]>;
   getMeetingImportsByCase(caseId: string, userId: string): Promise<MeetingImport[]>;
+  getLiveMeetingImports(): Promise<MeetingImport[]>;
   updateMeetingImport(id: string, updates: Partial<MeetingImport>): Promise<MeetingImport | undefined>;
   
   // Pre-Consent Email methods
@@ -1832,6 +1833,10 @@ export class MemStorage implements IStorage {
   }
   
   async getMeetingImportsByCase(_caseId: string, _userId: string): Promise<MeetingImport[]> {
+    return [];
+  }
+
+  async getLiveMeetingImports(): Promise<MeetingImport[]> {
     return [];
   }
   
@@ -4161,6 +4166,19 @@ export class DbStorage implements IStorage {
         and(
           eq(meetingImports.caseId, caseId),
           eq(meetingImports.userId, userId)
+        )
+      )
+      .orderBy(desc(meetingImports.createdAt));
+  }
+
+  async getLiveMeetingImports(): Promise<MeetingImport[]> {
+    return await db
+      .select()
+      .from(meetingImports)
+      .where(
+        and(
+          inArray(meetingImports.status, ['live', 'pending']),
+          sql`${meetingImports.recallBotId} IS NOT NULL`
         )
       )
       .orderBy(desc(meetingImports.createdAt));

@@ -5,6 +5,7 @@ import { storage } from './storage';
 import { runGlobalDataRetentionCleanup } from './services/dataRetentionCleanup';
 import { cleanupSessionTracking } from './services/securityMonitor';
 import { meetingSchedulerService } from './services/meetingSchedulerService';
+import { checkLiveImports } from './services/recallProcessing';
 
 /**
  * Initialize job queue workers on server startup
@@ -75,10 +76,21 @@ function scheduleMaintenanceTasks() {
     timezone: 'Europe/London'
   });
 
+  // Check live Recall.ai bot imports every 2 minutes — triggers processing when bot reaches 'done'
+  cron.schedule('*/2 * * * *', async () => {
+    await checkLiveImports().catch(err => {
+      console.error('[CRON] Live import check failed:', err.message);
+    });
+  }, {
+    scheduled: true,
+    timezone: 'Europe/London'
+  });
+
   console.log('[WORKERS] Scheduled maintenance tasks with cron:');
   console.log('  - Data retention cleanup: Daily at 2:00 AM (Europe/London)');
   console.log('  - Session tracking cleanup: Hourly at minute :00 (Europe/London)');
   console.log('  - Meeting scheduler: Every 5 minutes (Europe/London)');
+  console.log('  - Live bot import check: Every 2 minutes (Europe/London)');
 }
 
 /**

@@ -7093,6 +7093,28 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
   
+  // Get the active/live import for a case (used by case detail page to show processing banner)
+  app.get("/api/cases/:caseId/live-import", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId } = req.params;
+      const imports = await storage.getMeetingImportsByCase(caseId, userId);
+      // Return the most recent import that is not completed
+      const active = imports.find(i => ['live', 'pending', 'transcribing', 'failed'].includes(i.status));
+      if (!active) return res.json(null);
+      res.json({
+        importId: active.id,
+        botId: active.recallBotId,
+        status: active.status,
+        botStatus: active.botStatus,
+        errorMessage: active.errorMessage,
+        createdAt: active.createdAt,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Link import to a case
   app.patch("/api/recall/import/:importId/link-case", isAuthenticated, async (req: any, res, next) => {
     try {
@@ -7329,15 +7351,18 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(400).json({ message: "Invalid webhook payload" });
       }
 
-      // We handle bot.status_change events
       if (event !== 'bot.status_change') {
         return res.json({ received: true });
       }
 
       const botId = data?.bot?.id;
-      const statusCode = data?.status?.code;
+      // New API: status may be in data.status.code or data.status_changes[-1].code
+      const statusCode = data?.status?.code
+        || (Array.isArray(data?.status_changes) && data.status_changes.length
+          ? data.status_changes[data.status_changes.length - 1].code
+          : null);
 
-      if (!botId || !statusCode) {
+      if (!botId) {
         return res.json({ received: true });
       }
 
@@ -7346,72 +7371,52 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.json({ received: true });
       }
 
-      // Update bot status
-      await storage.updateMeetingImport(importRecord.id, { botStatus: statusCode });
+      // Update bot status if known
+      if (statusCode) {
+        await storage.updateMeetingImport(importRecord.id, { botStatus: statusCode });
+      }
 
-      // When bot is done recording, automatically trigger the processing pipeline
-      if (statusCode === 'done' && importRecord.status === 'live' && importRecord.consentConfirmed) {
-        const { recallService } = await import("./services/recallService");
-
-        try {
-          await storage.updateMeetingImport(importRecord.id, { status: 'pending' });
-
-          const recording = await recallService.getBotRecording(botId);
-          if (recording?.duration_seconds) {
-            const cost = recallService.calculateRecallCost(recording.duration_seconds);
-            await storage.updateMeetingImport(importRecord.id, {
-              recallCostUSD: cost.toFixed(4),
-              durationSeconds: recording.duration_seconds,
-              recallRecordingId: recording.id,
-            });
-          }
-
-          // Download and process (fire-and-forget like the manual import)
-          if (importRecord.caseId && recording?.media?.audio_url) {
-            const audioBuffer = await recallService.downloadAudio(recording.media.audio_url);
-            const objectStorage = await import("./objectStorage");
-            const audioPath = `.private/imports/${importRecord.id}/audio.mp3`;
-            await objectStorage.uploadObject(audioPath, audioBuffer, 'audio/mpeg');
-
-            await storage.updateMeetingImport(importRecord.id, {
-              status: 'transcribing',
-              audioStoragePath: audioPath,
-              importedAt: new Date(),
-            });
-
-            const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + 7);
-            await storage.createAudioRecording({
-              caseId: importRecord.caseId,
-              filePath: audioPath,
-              mimeType: 'audio/mpeg',
-              duration: recording.duration_seconds,
-              expiresAt,
-            });
-
-            await storage.updateCase(importRecord.caseId, { status: 'processing' }, importRecord.userId);
-
-            const { processCase } = await import("./processingService");
-            processCase(importRecord.caseId, importRecord.userId).then(async () => {
-              await storage.updateMeetingImport(importRecord.id, { status: 'completed' });
-              await storage.createAuditLog({
-                eventType: 'meeting_import_completed',
-                userId: importRecord.userId,
-                caseId: importRecord.caseId || undefined,
-                metadata: { importId: importRecord.id, source: 'webhook' },
-                severity: 'info',
-              });
-            }).catch(async (err: Error) => {
-              await storage.updateMeetingImport(importRecord.id, { status: 'failed', errorMessage: err.message });
-            });
-          }
-        } catch (err: any) {
-          console.error('[Recall webhook] Processing error:', err.message);
-          await storage.updateMeetingImport(importRecord.id, { status: 'failed', errorMessage: err.message });
-        }
+      // When bot finishes recording, trigger the processing pipeline
+      if ((statusCode === 'done' || statusCode === 'recording_done') && importRecord.status === 'live') {
+        const { processBotRecording } = await import("./services/recallProcessing");
+        processBotRecording(importRecord).catch((err: Error) => {
+          console.error('[Recall webhook] processBotRecording error:', err.message);
+        });
       }
 
       res.json({ received: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Manually trigger processing for a completed bot (fallback if webhook/cron missed it)
+  app.post("/api/recall/import/:importId/process", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { importId } = req.params;
+
+      const importRecord = await storage.getMeetingImport(importId);
+      if (!importRecord || importRecord.userId !== userId) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+      if (!['live', 'pending', 'failed'].includes(importRecord.status)) {
+        return res.status(400).json({ message: `Import is already in status "${importRecord.status}"` });
+      }
+      if (!importRecord.recallBotId) {
+        return res.status(400).json({ message: "No bot ID on this import" });
+      }
+
+      // Force back to 'live' so processBotRecording will run
+      await storage.updateMeetingImport(importId, { status: 'live' });
+      const fresh = await storage.getMeetingImport(importId);
+
+      const { processBotRecording } = await import("./services/recallProcessing");
+      processBotRecording(fresh!).catch((err: Error) => {
+        console.error('[ManualProcess] processBotRecording error:', err.message);
+      });
+
+      res.json({ message: "Processing started", importId });
     } catch (error) {
       next(error);
     }

@@ -289,6 +289,18 @@ export default function CaseDetail() {
     enabled: !!caseId,
   });
 
+  type LiveImport = { importId: string; botId: string | null; status: string; botStatus: string | null; errorMessage: string | null; createdAt: string };
+  const { data: liveImport, refetch: refetchLiveImport } = useQuery<LiveImport | null>({
+    queryKey: [`/api/cases/${caseId}/live-import`],
+    enabled: !!caseId,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      if (['live', 'pending', 'transcribing'].includes(data.status)) return 15000;
+      return false;
+    },
+  });
+
   useEffect(() => {
     const terminalStatuses = ['review_required', 'completed', 'pending', 'failed'];
     if (processingStatus?.status && terminalStatuses.includes(processingStatus.status) && caseData?.status === 'processing') {
@@ -332,6 +344,18 @@ export default function CaseDetail() {
     },
     onError: (error: any) => {
       toast({ title: "Retry failed", description: error.message || "Failed to retry processing.", variant: "destructive", duration: 6000 });
+    },
+  });
+
+  const processImportMutation = useMutation({
+    mutationFn: async (importId: string) => apiRequest("POST", `/api/recall/import/${importId}/process`, {}),
+    onSuccess: () => {
+      toast({ title: "Processing started", description: "The recording is being transcribed. This may take a few minutes.", duration: 7000 });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/live-import`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Could not start processing", description: error.message || "Please try again.", variant: "destructive" });
     },
   });
 
@@ -697,6 +721,57 @@ export default function CaseDetail() {
                   </p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Live / pending bot import banner */}
+          {liveImport && (
+            <div
+              className={`p-4 rounded-md border flex items-start gap-3 ${
+                liveImport.status === 'failed'
+                  ? 'bg-destructive/10 border-destructive/40'
+                  : 'bg-accent/10 border-accent/30'
+              }`}
+              data-testid="alert-live-import"
+            >
+              {liveImport.status === 'failed' ? (
+                <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+              ) : liveImport.status === 'transcribing' ? (
+                <Loader2 className="w-5 h-5 text-accent shrink-0 mt-0.5 animate-spin" />
+              ) : (
+                <Video className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground">
+                  {liveImport.status === 'failed' && 'Recording processing failed'}
+                  {liveImport.status === 'transcribing' && 'Transcribing recording…'}
+                  {liveImport.status === 'pending' && 'Recording ready to process'}
+                  {liveImport.status === 'live' && (
+                    liveImport.botStatus === 'done' || liveImport.botStatus === 'recording_done'
+                      ? 'Recording ready to process'
+                      : 'Bot recording in progress'
+                  )}
+                </p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {liveImport.status === 'failed' && (liveImport.errorMessage || 'An error occurred during processing.')}
+                  {liveImport.status === 'transcribing' && 'Transcript and documents will appear here when ready.'}
+                  {(liveImport.status === 'pending' || (liveImport.status === 'live' && (liveImport.botStatus === 'done' || liveImport.botStatus === 'recording_done')))
+                    && 'The recording is available — click to transcribe and produce documents.'}
+                  {liveImport.status === 'live' && liveImport.botStatus !== 'done' && liveImport.botStatus !== 'recording_done'
+                    && 'The bot is still in the meeting. Processing will start automatically once it finishes.'}
+                </p>
+              </div>
+              {(liveImport.status === 'pending' || liveImport.status === 'failed' || (liveImport.status === 'live' && (liveImport.botStatus === 'done' || liveImport.botStatus === 'recording_done'))) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={processImportMutation.isPending}
+                  onClick={() => processImportMutation.mutate(liveImport.importId)}
+                  data-testid="button-process-recording"
+                >
+                  {processImportMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Process recording'}
+                </Button>
+              )}
             </div>
           )}
 
