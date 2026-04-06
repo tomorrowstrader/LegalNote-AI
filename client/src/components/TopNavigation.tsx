@@ -23,16 +23,16 @@ interface TopNavigationProps {
 }
 
 const primaryNavLinks = [
-  { path: "/", label: "Dashboard", icon: Home },
-  { path: "/new-note", label: "New Note", icon: FileText },
-  { path: "/cases", label: "Saved Cases", icon: FolderOpen },
-  { path: "/my-actions", label: "My Obligations", icon: CheckSquare },
+  { path: "/", label: "Dashboard", mobileLabel: "Dashboard", icon: Home },
+  { path: "/new-note", label: "New Note", mobileLabel: "New Note", icon: FileText },
+  { path: "/cases", label: "Saved Cases", mobileLabel: "Saved Cases", icon: FolderOpen },
+  { path: "/my-actions", label: "Obligations", mobileLabel: "My Obligations", icon: CheckSquare },
 ];
 
 const moreNavLinks = [
-  { path: "/clients", label: "Clients", icon: Users },
-  { path: "/time-summary", label: "Time Summary", icon: Clock },
-  { path: "/settings", label: "Settings", icon: Settings },
+  { path: "/clients", label: "Clients", mobileLabel: "Clients", icon: Users },
+  { path: "/time-summary", label: "Time Summary", mobileLabel: "Time Summary", icon: Clock },
+  { path: "/settings", label: "Settings", mobileLabel: "Settings", icon: Settings },
 ];
 
 const allNavLinks = [...primaryNavLinks, ...moreNavLinks];
@@ -202,10 +202,10 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                       key={link.path}
                       onClick={() => handleNavClick(link.path)}
                       className={isActive ? "bg-accent/20" : ""}
-                      data-testid={`mobile-link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}
+                      data-testid={`mobile-link-${link.mobileLabel.toLowerCase().replace(/\s+/g, '-')}`}
                     >
                       <Icon className="w-4 h-4 mr-2" />
-                      {link.label}
+                      {link.mobileLabel}
                     </DropdownMenuItem>
                   );
                 })}

@@ -332,6 +332,81 @@ export default function NewNote() {
     setShowStopConfirmation(false);
   };
 
+  const handleOpenMatter = async () => {
+    if (!selectedClient) {
+      toast({
+        title: "Client required",
+        description: "Please select or create a client",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!caseTitle.trim()) {
+      toast({
+        title: "Case title required",
+        description: "Please enter a case title",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!practiceArea) {
+      toast({
+        title: "Practice area required",
+        description: "Please select a practice area for this matter",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!conflictCheckCompleted && !conflictCheckNote.trim()) {
+      toast({
+        title: "Conflict check required",
+        description: "Either confirm the conflict check or provide a reason for deferral",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
+        title: caseTitle,
+        clientName: selectedClient.name,
+        clientId: selectedClient.id,
+        matterReference: matterRef || undefined,
+        sourceType: "text",
+        status: "pending",
+        priority: "normal",
+        riskLevel: selectedClient.amlRiskLevel || undefined,
+        templateId: activeTemplate?.id || undefined,
+        practiceArea: practiceArea || undefined,
+        conflictCheckCompleted,
+        conflictCheckNote: conflictCheckNote || undefined,
+        costsEstimate: costsEstimate || undefined,
+      });
+
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0] as string;
+          return key?.startsWith("/api/cases");
+        },
+      });
+
+      toast({
+        title: "Matter opened",
+        description: "The matter has been created. You can now join with LegalNote or add recordings later.",
+        duration: 5000,
+      });
+
+      setLocation(`/case/${caseResult.id}`);
+    } catch (error: any) {
+      toast({
+        title: "Error creating matter",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+        duration: 8000,
+      });
+    }
+  };
+
   const saveCase = async () => {
     console.log('Saving case:', { caseTitle, clientName, matterRef, noteMode, recordingType });
     
@@ -1122,15 +1197,29 @@ export default function NewNote() {
               )}
 
               {!isRecording && countdown === null && (
-                <Button
-                  onClick={initiateRecording}
-                  className="w-full gap-2"
-                  size="lg"
-                  data-testid="button-start-recording"
-                >
-                  <Mic className="w-5 h-5" />
-                  Start Recording with Consent Capture
-                </Button>
+                <div className="space-y-3">
+                  <Button
+                    onClick={initiateRecording}
+                    className="w-full gap-2"
+                    size="lg"
+                    data-testid="button-start-recording"
+                  >
+                    <Mic className="w-5 h-5" />
+                    Start Recording with Consent Capture
+                  </Button>
+                  {noteMode === "new_matter" && (
+                    <Button
+                      variant="outline"
+                      onClick={handleOpenMatter}
+                      className="w-full gap-2"
+                      size="lg"
+                      data-testid="button-open-matter"
+                    >
+                      <FolderOpen className="w-5 h-5" />
+                      Open Matter without Recording
+                    </Button>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
