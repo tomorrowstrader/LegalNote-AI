@@ -7343,6 +7343,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   });
 
   // Recall.ai webhook — receives bot lifecycle events (no auth, validated by botId lookup)
+  // Handles both old API (bot.status_change) and new API (bot.done, bot.call_ended, etc.)
   app.post("/api/recall/webhook", async (req, res, next) => {
     try {
       const { event, data } = req.body;
@@ -7351,36 +7352,59 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(400).json({ message: "Invalid webhook payload" });
       }
 
-      if (event !== 'bot.status_change') {
+      // Ignore non-bot events
+      if (!event.startsWith('bot.')) {
         return res.json({ received: true });
       }
 
-      const botId = data?.bot?.id;
-      // New API: status may be in data.status.code or data.status_changes[-1].code
-      const statusCode = data?.status?.code
-        || (Array.isArray(data?.status_changes) && data.status_changes.length
-          ? data.status_changes[data.status_changes.length - 1].code
-          : null);
-
+      // Extract bot ID — present on all bot.* events
+      const botId = data?.bot?.id || data?.id;
       if (!botId) {
         return res.json({ received: true });
       }
 
+      console.log(`[Recall webhook] event=${event} botId=${botId}`);
+
       const importRecord = await storage.getMeetingImportByBotId(botId);
       if (!importRecord) {
+        console.log(`[Recall webhook] No import found for bot ${botId} — ignoring`);
         return res.json({ received: true });
       }
 
-      // Update bot status if known
-      if (statusCode) {
-        await storage.updateMeetingImport(importRecord.id, { botStatus: statusCode });
-      }
+      // Map new-API event names to a status code for our DB
+      const eventStatusMap: Record<string, string> = {
+        'bot.joining_call':                'joining',
+        'bot.in_waiting_room':             'in_waiting_room',
+        'bot.in_call_not_recording':       'in_call_not_recording',
+        'bot.in_call_recording':           'in_call_recording',
+        'bot.recording_permission_allowed':'in_call_recording',
+        'bot.recording_permission_denied': 'recording_permission_denied',
+        'bot.call_ended':                  'call_ended',
+        'bot.done':                        'done',
+        'bot.fatal':                       'fatal',
+        // Legacy event
+        'bot.status_change':               data?.status?.code
+          || (Array.isArray(data?.status_changes) && data.status_changes.length
+            ? data.status_changes[data.status_changes.length - 1].code
+            : 'unknown'),
+      };
 
-      // When bot finishes recording, trigger the processing pipeline
-      if ((statusCode === 'done' || statusCode === 'recording_done') && importRecord.status === 'live') {
+      const statusCode = eventStatusMap[event] || event.replace('bot.', '');
+      await storage.updateMeetingImport(importRecord.id, { botStatus: statusCode });
+
+      // bot.done = recording fully ready — trigger processing pipeline
+      if (event === 'bot.done' || statusCode === 'done') {
         const { processBotRecording } = await import("./services/recallProcessing");
         processBotRecording(importRecord).catch((err: Error) => {
           console.error('[Recall webhook] processBotRecording error:', err.message);
+        });
+      }
+
+      // bot.fatal = unrecoverable error
+      if (event === 'bot.fatal' || statusCode === 'fatal') {
+        await storage.updateMeetingImport(importRecord.id, {
+          status: 'failed',
+          errorMessage: 'The bot encountered an unrecoverable error during the meeting.',
         });
       }
 
