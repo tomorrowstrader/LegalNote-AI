@@ -1,10 +1,10 @@
 import { TranscriptionService } from './transcriptionService';
-import { AssemblyAIService, formatDiarizedTranscript, type SpeakerUtterance, type WordBoostConfig } from './assemblyAIService';
+import { AssemblyAIService, formatDiarizedTranscript, type SpeakerUtterance } from './assemblyAIService';
 import { DocumentService } from './documentService';
 import { TranscriptCorrectionService } from './transcriptCorrectionService';
 import { IStorage } from '../storage';
 import { auditLogger, AuditEventType } from '../auditLog';
-import { buildWordBoostList } from './legalVocabulary';
+import { buildKeytermsConfig } from './legalVocabulary';
 
 export interface AIProcessingResult {
   success: boolean;
@@ -130,16 +130,30 @@ export class AIProcessingPipeline {
       let speakerCount: number | undefined;
       let transcriptionCost: number;
 
-      const wordBoostList = buildWordBoostList({
+      // Resolve session type early so it can be passed to the keyterms config for native prompting
+      let earlySessionType: string | undefined;
+      if (sessionId) {
+        try {
+          const earlySession = await this.storage.getMeetingSession(sessionId);
+          earlySessionType = earlySession?.recordingType || undefined;
+        } catch {
+        }
+      }
+      if (!earlySessionType) {
+        try {
+          const sessions = await this.storage.getMeetingSessionsByCase(caseId, userId);
+          earlySessionType = sessions[0]?.recordingType || undefined;
+        } catch {
+        }
+      }
+
+      const keytermsConfig = buildKeytermsConfig({
         clientName: caseData.clientName,
         title: caseData.title,
         matterReference: caseData.matterReference || undefined,
         practiceArea: caseData.practiceArea || undefined,
+        sessionType: earlySessionType,
       });
-      const wordBoostConfig: WordBoostConfig = {
-        words: wordBoostList,
-        boost: 'high',
-      };
 
       if (this.assemblyAIService) {
         try {
@@ -147,7 +161,7 @@ export class AIProcessingPipeline {
             audio.filePath,
             audio.duration || 0,
             undefined,
-            wordBoostConfig
+            keytermsConfig
           );
           transcriptText = diarizedResult.text;
           transcriptUtterances = diarizedResult.utterances;

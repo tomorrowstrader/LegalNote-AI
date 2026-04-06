@@ -387,6 +387,67 @@ export const PRACTICE_AREA_WORD_BOOST: Record<PracticeArea, string[]> = {
   ],
 };
 
+/**
+ * Build a native context prompt for Universal-3 Pro's plain-English context injection.
+ * This replaces the old word_boost approach for practice-area context setting.
+ */
+export function buildNativePrompt(params: {
+  practiceArea?: string;
+  sessionType?: string;
+  clientName?: string;
+  matterReference?: string;
+}): string {
+  const parts: string[] = [
+    'This is a UK legal meeting recording. The speakers are legal professionals (solicitors, paralegals) and their clients.',
+  ];
+
+  if (params.practiceArea) {
+    const practiceAreaLabels: Record<string, string> = {
+      residential_conveyancing: 'residential conveyancing (property purchase, sale, or remortgage)',
+      commercial_property: 'commercial property (leases, acquisitions, or disposals)',
+      wills_probate: 'wills and probate (estate administration, inheritance)',
+      lasting_power_of_attorney: 'lasting power of attorney (LPA preparation and registration)',
+      family_divorce_financial: 'family law — divorce and financial remedy proceedings',
+      family_children_arrangements: 'family law — children arrangements and child welfare',
+      employment_employee: 'employment law (employee/claimant perspective)',
+      employment_employer: 'employment law (employer/respondent perspective)',
+      personal_injury_rta: 'personal injury and road traffic accident claims',
+      clinical_negligence: 'clinical negligence claims',
+      housing_tenancy: 'housing and tenancy law (landlord-tenant disputes, possession)',
+      debt_litigation: 'debt recovery and civil litigation',
+      criminal_defence: 'criminal defence (police station attendance, magistrates or Crown Court)',
+      immigration: 'UK immigration law (visas, leave to remain, asylum)',
+      corporate_commercial: 'corporate and commercial law (company transactions, contracts)',
+    };
+    const label = practiceAreaLabels[params.practiceArea] || params.practiceArea.replace(/_/g, ' ');
+    parts.push(`The matter relates to ${label}.`);
+  }
+
+  if (params.sessionType) {
+    const sessionTypeLabels: Record<string, string> = {
+      telephone_call: 'a telephone call between solicitor and client',
+      police_station: 'a police station attendance (interview under caution or voluntary interview)',
+      client_meeting: 'a client meeting at the solicitor\'s office',
+      court_hearing: 'a court hearing or tribunal',
+      full_meeting: 'a legal meeting',
+    };
+    const label = sessionTypeLabels[params.sessionType] || params.sessionType.replace(/_/g, ' ');
+    parts.push(`The recording is from ${label}.`);
+  }
+
+  if (params.clientName) {
+    parts.push(`The client's name is ${params.clientName}.`);
+  }
+
+  if (params.matterReference) {
+    parts.push(`The matter reference is ${params.matterReference}.`);
+  }
+
+  parts.push('Expect UK legal terminology, court names, regulatory bodies, and legal procedure references throughout.');
+
+  return parts.join(' ');
+}
+
 export function getAmlRiskDefault(practiceArea: PracticeArea): "low" | "medium" | "high" {
   switch (practiceArea) {
     case "residential_conveyancing":

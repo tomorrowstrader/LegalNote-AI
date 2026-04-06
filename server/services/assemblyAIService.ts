@@ -28,16 +28,31 @@ interface AssemblyAITranscript {
     confidence: number;
   }> | null;
   audio_duration: number | null;
+  speech_model_used: string | null;
   error: string | null;
 }
 
 // EU endpoint for GDPR compliance - data processed in AWS Dublin (Ireland)
 const ASSEMBLYAI_API_URL = 'https://api.eu.assemblyai.com/v2';
-const ASSEMBLYAI_COST_PER_HOUR = 0.27;
+const ASSEMBLYAI_COST_PER_HOUR = 0.37; // Universal-3 Pro pricing
 
+/**
+ * @deprecated Use KeytermsConfig instead. WordBoostConfig is kept for backward compatibility.
+ * Universal-3 Pro uses keyterms_prompt instead of word_boost/boost_param.
+ */
 export interface WordBoostConfig {
   words: string[];
   boost: 'low' | 'default' | 'high';
+}
+
+export interface KeytermsConfig {
+  keyterms: string[];
+  /**
+   * Plain-English context prompt for Universal-3 Pro's native prompting feature.
+   * Up to 1,500 words. Cannot be used in the same request as keyterms_prompt —
+   * when nativePrompt is set, keyterms are omitted from the request.
+   */
+  nativePrompt?: string;
 }
 
 export class AssemblyAIService {
@@ -57,11 +72,13 @@ export class AssemblyAIService {
     audioPath: string,
     audioDuration: number,
     expectedSpeakers?: number,
-    wordBoostConfig?: WordBoostConfig
+    keytermsConfig?: KeytermsConfig
   ): Promise<DiarizedTranscriptionResult> {
-    console.log(`[AssemblyAI] Starting diarized transcription for: ${audioPath}`);
-    if (wordBoostConfig?.words?.length) {
-      console.log(`[AssemblyAI] Word boost enabled with ${wordBoostConfig.words.length} terms, boost level: ${wordBoostConfig.boost}`);
+    console.log(`[AssemblyAI] Starting diarized transcription (Universal-3 Pro → Universal-2 fallback) for: ${audioPath}`);
+    if (keytermsConfig?.nativePrompt) {
+      console.log(`[AssemblyAI] Native prompting enabled (prompt field); keyterms_prompt not used in this request`);
+    } else if (keytermsConfig?.keyterms?.length) {
+      console.log(`[AssemblyAI] Keyterms prompt enabled with ${keytermsConfig.keyterms.length} terms (keyterms_prompt array)`);
     }
 
     try {
@@ -71,13 +88,28 @@ export class AssemblyAIService {
       const uploadUrl = await this.uploadAudio(buffer);
       console.log(`[AssemblyAI] Audio uploaded to: ${uploadUrl}`);
 
-      const transcriptId = await this.createTranscript(uploadUrl, expectedSpeakers, wordBoostConfig);
-      console.log(`[AssemblyAI] Transcript job created: ${transcriptId}`);
+      let transcriptId: string;
+      let modelUsed: 'universal-3-pro' | 'universal-2' = 'universal-3-pro';
+      try {
+        transcriptId = await this.createTranscript(uploadUrl, expectedSpeakers, keytermsConfig, 'universal-3-pro');
+        console.log(`[AssemblyAI] Transcript job created with Universal-3 Pro: ${transcriptId}`);
+      } catch (modelError: any) {
+        // Explicit Universal-2 fallback: retry with Universal-2 if Universal-3 Pro
+        // is unavailable. Native prompting (prompt) and keyterms_prompt are not sent on
+        // the Universal-2 fallback path since they are Universal-3 Pro exclusive features.
+        // word_boost (Universal-2's legacy vocabulary mechanism) is not restored since
+        // the Universal-2 fallback is expected to be rare and transient.
+        console.warn(`[AssemblyAI] Universal-3 Pro unavailable, falling back to Universal-2: ${modelError.message}`);
+        modelUsed = 'universal-2';
+        transcriptId = await this.createTranscript(uploadUrl, expectedSpeakers, undefined, 'universal-2');
+        console.log(`[AssemblyAI] Transcript job created with Universal-2 fallback: ${transcriptId}`);
+      }
 
       const result = await this.pollForCompletion(transcriptId);
-      console.log(`[AssemblyAI] Transcription completed with ${result.utterances?.length || 0} utterances`);
+      const reportedModel = result.speech_model_used || modelUsed;
+      console.log(`[AssemblyAI] Transcription completed with ${result.utterances?.length || 0} utterances (model: ${reportedModel})`);
 
-      const cost = this.calculateCost(result.audio_duration || audioDuration);
+      const cost = this.calculateCost(result.audio_duration || audioDuration, reportedModel);
 
       const utterances: SpeakerUtterance[] = (result.utterances || []).map(u => ({
         speaker: u.speaker,
@@ -122,12 +154,16 @@ export class AssemblyAIService {
   }
 
   private async createTranscript(
-    audioUrl: string, 
+    audioUrl: string,
     expectedSpeakers?: number,
-    wordBoostConfig?: WordBoostConfig
+    keytermsConfig?: KeytermsConfig,
+    speechModel: 'universal-3-pro' | 'universal-2' = 'universal-3-pro'
   ): Promise<string> {
     const body: Record<string, any> = {
       audio_url: audioUrl,
+      // Model selection: universal-3-pro is the primary choice; universal-2 is the
+      // explicit fallback used when universal-3-pro is unavailable (see caller).
+      speech_model: speechModel,
       speaker_labels: true,
       language_code: 'en_uk',
     };
@@ -136,9 +172,16 @@ export class AssemblyAIService {
       body.speakers_expected = expectedSpeakers;
     }
 
-    if (wordBoostConfig?.words?.length) {
-      body.word_boost = wordBoostConfig.words.slice(0, 1000);
-      body.boost_param = wordBoostConfig.boost;
+    if (keytermsConfig?.nativePrompt) {
+      // Native prompting is used as the primary vocabulary strategy for Universal-3 Pro.
+      // It replaces word_boost/boost_param (the Universal-2 API) with plain-English context
+      // injection. The `prompt` and `keyterms_prompt` parameters are mutually exclusive
+      // per the AssemblyAI API — when nativePrompt is set, keyterms_prompt is not sent.
+      body.prompt = keytermsConfig.nativePrompt;
+    } else if (keytermsConfig?.keyterms?.length) {
+      // Fallback: if native prompting is unavailable, send keyterms_prompt as an array
+      // (replaces the old word_boost array parameter). Max 1,000 terms, 6 words each.
+      body.keyterms_prompt = keytermsConfig.keyterms.slice(0, 1000);
     }
 
     const response = await fetch(`${ASSEMBLYAI_API_URL}/transcript`, {
@@ -193,9 +236,11 @@ export class AssemblyAIService {
     throw new Error('Transcription timed out after 10 minutes');
   }
 
-  private calculateCost(durationSeconds: number): number {
+  private calculateCost(durationSeconds: number, model?: string): number {
     const hours = durationSeconds / 3600;
-    return hours * ASSEMBLYAI_COST_PER_HOUR;
+    // Universal-3 Pro is priced higher than Universal-2; use the actual model cost
+    const costPerHour = (model === 'universal-2') ? 0.27 : ASSEMBLYAI_COST_PER_HOUR;
+    return hours * costPerHour;
   }
 }
 

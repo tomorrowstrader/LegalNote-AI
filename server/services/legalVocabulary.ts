@@ -205,8 +205,10 @@ export const UK_LEGAL_VOCABULARY = [
 ];
 
 /**
- * Extract boost words from case metadata
- * Combines case-specific terms with practice-area-specific vocabulary and general legal vocabulary
+ * Build the keyterms list for Universal-3 Pro's keyterms_prompt parameter.
+ * Combines case-specific terms with practice-area-specific vocabulary and general legal vocabulary.
+ * Universal-3 Pro accepts keyterms_prompt as an array of strings (up to 1,000 terms,
+ * max 6 words each). Note: keyterms_prompt and prompt are mutually exclusive in the API.
  */
 export function buildWordBoostList(caseData: {
   clientName?: string;
@@ -260,4 +262,43 @@ export function buildWordBoostList(caseData: {
   const uniqueTerms = Array.from(new Set([...caseSpecificTerms, ...practiceAreaTerms, ...UK_LEGAL_VOCABULARY]));
   
   return uniqueTerms.slice(0, 1000);
+}
+
+/**
+ * Build keyterms config for Universal-3 Pro transcription.
+ *
+ * Strategy: use Universal-3 Pro's native `prompt` field for legal context injection
+ * (practice area, session type, client name, matter reference). Because the API does
+ * not allow `prompt` and `keyterms_prompt` in the same request, this function always
+ * produces a nativePrompt and omits keyterms from the payload. The keyterms list is
+ * still populated on the returned config for diagnostic/logging purposes, but the
+ * AssemblyAIService will prefer nativePrompt and skip keyterms_prompt when it is set.
+ *
+ * If nativePrompt construction fails for any reason, the config falls back to
+ * keyterms_prompt only (no prompt field), ensuring at least term-level boosts.
+ */
+export function buildKeytermsConfig(caseData: {
+  clientName?: string;
+  title?: string;
+  matterReference?: string;
+  practiceArea?: string;
+  participants?: Array<{ name?: string }>;
+  sessionType?: string;
+}): import('./assemblyAIService').KeytermsConfig {
+  const keyterms = buildWordBoostList(caseData);
+  
+  let nativePrompt: string | undefined;
+  try {
+    const { buildNativePrompt } = require('./practiceAreaConfig');
+    nativePrompt = buildNativePrompt({
+      practiceArea: caseData.practiceArea,
+      sessionType: caseData.sessionType,
+      clientName: caseData.clientName,
+      matterReference: caseData.matterReference,
+    });
+  } catch {
+    // Fall through — nativePrompt remains undefined, keyterms_prompt will be used instead
+  }
+
+  return { keyterms, nativePrompt };
 }
