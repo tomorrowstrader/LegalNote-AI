@@ -174,14 +174,25 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
       setElapsed(0);
     },
     onError: (error: Error) => {
+      // Strip HTTP status prefix, HTML tags, and Replit error pages from the message
+      const raw = error.message || "";
+      const stripped = raw
+        .replace(/^\d{3}:\s*/, "")   // remove "503: " prefix
+        .replace(/<[^>]+>/g, " ")    // strip HTML tags
+        .replace(/\s{2,}/g, " ")     // collapse whitespace
+        .trim();
+      const isHtmlPage = stripped.toLowerCase().includes("doctype") || stripped.toLowerCase().includes("we couldn");
+      const display = !stripped || isHtmlPage || stripped.length > 300
+        ? "Failed to deploy the bot. Please check the meeting URL and try again. If the problem persists, contact support."
+        : stripped;
       setStep("error");
-      setErrorMessage(error.message || "Failed to deploy bot. Please check the meeting URL and try again.");
+      setErrorMessage(display);
     },
   });
 
   const handleSendBot = () => {
     if (!platform || !consentConfirmed) return;
-    setStep("live");
+    // Stay on consent step while deploying; onSuccess moves to "live"
     deployMutation.mutate();
   };
 

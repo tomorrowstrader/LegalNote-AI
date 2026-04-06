@@ -7217,7 +7217,17 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
 
       // Deploy the bot
-      const bot = await recallService.createBot(meetingUrl, 'LegalNote');
+      let bot;
+      try {
+        bot = await recallService.createBot(meetingUrl, 'LegalNote');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // Surface auth failures as a clear 503 so the frontend shows a readable message
+        if (msg.includes('401') || msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('authentication')) {
+          return res.status(503).json({ message: 'Unable to connect to video conferencing service. The API key may be expired — please contact support.' });
+        }
+        return res.status(502).json({ message: `Bot deployment failed: ${msg}` });
+      }
 
       // Create an import record to track this live session
       const meetingImport = await storage.createMeetingImport({
