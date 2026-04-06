@@ -452,7 +452,8 @@ export const meetingImports = pgTable("meeting_imports", {
   meetingEndTime: timestamp("meeting_end_time"),
   durationSeconds: integer("duration_seconds"),
   participants: jsonb("participants").default([]), // Array of {email, name, joined_at}
-  status: text("status").notNull().default("pending"), // pending, downloading, transcribing, completed, failed
+  status: text("status").notNull().default("pending"), // live, pending, downloading, transcribing, completed, failed
+  botStatus: text("bot_status"), // Recall.ai bot status for live workflow: joining, in_waiting_room, in_call_not_recording, in_call_recording, call_ended, done, fatal
   audioStoragePath: text("audio_storage_path"), // Path in object storage
   errorMessage: text("error_message"),
   consentConfirmed: boolean("consent_confirmed").notNull().default(false), // Whether consent was confirmed for this import
@@ -919,7 +920,8 @@ export const insertMeetingImportSchema = createInsertSchema(meetingImports).omit
   meetingUrl: z.string().url().max(1000).optional(),
   meetingTitle: z.string().max(500).transform(sanitizeString).optional(),
   durationSeconds: z.number().int().min(0).max(43200).optional(), // Max 12 hours
-  status: z.enum(["pending", "downloading", "transcribing", "completed", "failed"]).default("pending"),
+  status: z.enum(["live", "pending", "downloading", "transcribing", "completed", "failed"]).default("pending"),
+  botStatus: z.string().max(100).optional(),
   consentConfirmed: z.boolean().default(false),
 });
 

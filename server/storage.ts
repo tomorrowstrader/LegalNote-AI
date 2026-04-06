@@ -506,6 +506,7 @@ export interface IStorage {
   // Meeting Import methods
   createMeetingImport(importData: InsertMeetingImport): Promise<MeetingImport>;
   getMeetingImport(id: string): Promise<MeetingImport | undefined>;
+  getMeetingImportByBotId(botId: string): Promise<MeetingImport | undefined>;
   getMeetingImportsByUser(userId: string): Promise<MeetingImport[]>;
   getMeetingImportsByCase(caseId: string, userId: string): Promise<MeetingImport[]>;
   updateMeetingImport(id: string, updates: Partial<MeetingImport>): Promise<MeetingImport | undefined>;
@@ -1819,6 +1820,10 @@ export class MemStorage implements IStorage {
   }
   
   async getMeetingImport(_id: string): Promise<MeetingImport | undefined> {
+    return undefined;
+  }
+
+  async getMeetingImportByBotId(_botId: string): Promise<MeetingImport | undefined> {
     return undefined;
   }
   
@@ -4114,6 +4119,7 @@ export class DbStorage implements IStorage {
         durationSeconds: importData.durationSeconds || null,
         participants: importData.participants || [],
         status: importData.status || 'pending',
+        botStatus: importData.botStatus || null,
         consentConfirmed: importData.consentConfirmed || false,
         preConsentEmailId: importData.preConsentEmailId || null,
       })
@@ -4126,6 +4132,16 @@ export class DbStorage implements IStorage {
       .select()
       .from(meetingImports)
       .where(eq(meetingImports.id, id));
+    return result[0];
+  }
+
+  async getMeetingImportByBotId(botId: string): Promise<MeetingImport | undefined> {
+    const result = await db
+      .select()
+      .from(meetingImports)
+      .where(eq(meetingImports.recallBotId, botId))
+      .orderBy(desc(meetingImports.createdAt))
+      .limit(1);
     return result[0];
   }
   

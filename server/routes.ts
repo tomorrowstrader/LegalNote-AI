@@ -7186,6 +7186,195 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       next(error);
     }
   });
+
+  // ── Live Bot Workflow ──────────────────────────────────────────────────────
+
+  // Send a bot to join a live meeting right now (ad-hoc, no calendar required)
+  app.post("/api/recall/bot", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { recallService } = await import("./services/recallService");
+      const userId = req.user.claims.sub;
+      const { meetingUrl, caseId } = req.body;
+
+      if (!meetingUrl) {
+        return res.status(400).json({ message: "Meeting URL is required" });
+      }
+
+      const platform = recallService.detectMeetingPlatform(meetingUrl);
+      if (!platform) {
+        return res.status(400).json({ message: "URL must be a Zoom, Microsoft Teams, or Google Meet link" });
+      }
+
+      if (caseId) {
+        const caseData = await storage.getCase(caseId, userId);
+        if (!caseData) {
+          return res.status(404).json({ message: "Case not found" });
+        }
+      }
+
+      if (!recallService.isConfigured()) {
+        return res.status(503).json({ message: "Video conferencing integration is not configured" });
+      }
+
+      // Deploy the bot
+      const bot = await recallService.createBot(meetingUrl, 'LegalNote');
+
+      // Create an import record to track this live session
+      const meetingImport = await storage.createMeetingImport({
+        userId,
+        caseId: caseId || undefined,
+        recallBotId: bot.id,
+        meetingPlatform: platform,
+        meetingUrl,
+        status: 'live',
+        botStatus: bot.status?.code || 'joining_call',
+        consentConfirmed: false,
+      });
+
+      await storage.createAuditLog({
+        eventType: 'live_bot_deployed',
+        userId,
+        caseId: caseId || undefined,
+        metadata: { botId: bot.id, platform, meetingUrl },
+        severity: 'info',
+      });
+
+      res.json({ importId: meetingImport.id, botId: bot.id, platform, status: bot.status?.code });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Poll the current status of a live bot
+  app.get("/api/recall/bot/:botId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { recallService } = await import("./services/recallService");
+      const userId = req.user.claims.sub;
+      const { botId } = req.params;
+
+      const importRecord = await storage.getMeetingImportByBotId(botId);
+      if (!importRecord || importRecord.userId !== userId) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+
+      const bot = await recallService.getBot(botId);
+
+      // Update import record with latest bot status
+      await storage.updateMeetingImport(importRecord.id, {
+        botStatus: bot.status?.code,
+      });
+
+      res.json({
+        importId: importRecord.id,
+        botId,
+        botStatus: bot.status?.code,
+        importStatus: importRecord.status,
+        statusLabel: recallService.formatBotStatus(bot.status),
+        participants: bot.meeting_participants?.map(p => ({ name: p.name })) || [],
+        meetingTitle: bot.meeting_metadata?.title,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Recall.ai webhook — receives bot lifecycle events (no auth, validated by botId lookup)
+  app.post("/api/recall/webhook", async (req, res, next) => {
+    try {
+      const { event, data } = req.body;
+
+      if (!event || !data) {
+        return res.status(400).json({ message: "Invalid webhook payload" });
+      }
+
+      // We handle bot.status_change events
+      if (event !== 'bot.status_change') {
+        return res.json({ received: true });
+      }
+
+      const botId = data?.bot?.id;
+      const statusCode = data?.status?.code;
+
+      if (!botId || !statusCode) {
+        return res.json({ received: true });
+      }
+
+      const importRecord = await storage.getMeetingImportByBotId(botId);
+      if (!importRecord) {
+        return res.json({ received: true });
+      }
+
+      // Update bot status
+      await storage.updateMeetingImport(importRecord.id, { botStatus: statusCode });
+
+      // When bot is done recording, automatically trigger the processing pipeline
+      if (statusCode === 'done' && importRecord.status === 'live' && importRecord.consentConfirmed) {
+        const { recallService } = await import("./services/recallService");
+
+        try {
+          await storage.updateMeetingImport(importRecord.id, { status: 'pending' });
+
+          const recording = await recallService.getBotRecording(botId);
+          if (recording?.duration_seconds) {
+            const cost = recallService.calculateRecallCost(recording.duration_seconds);
+            await storage.updateMeetingImport(importRecord.id, {
+              recallCostUSD: cost.toFixed(4),
+              durationSeconds: recording.duration_seconds,
+              recallRecordingId: recording.id,
+            });
+          }
+
+          // Download and process (fire-and-forget like the manual import)
+          if (importRecord.caseId && recording?.media?.audio_url) {
+            const audioBuffer = await recallService.downloadAudio(recording.media.audio_url);
+            const objectStorage = await import("./objectStorage");
+            const audioPath = `.private/imports/${importRecord.id}/audio.mp3`;
+            await objectStorage.uploadObject(audioPath, audioBuffer, 'audio/mpeg');
+
+            await storage.updateMeetingImport(importRecord.id, {
+              status: 'transcribing',
+              audioStoragePath: audioPath,
+              importedAt: new Date(),
+            });
+
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 7);
+            await storage.createAudioRecording({
+              caseId: importRecord.caseId,
+              filePath: audioPath,
+              mimeType: 'audio/mpeg',
+              duration: recording.duration_seconds,
+              expiresAt,
+            });
+
+            await storage.updateCase(importRecord.caseId, { status: 'processing' }, importRecord.userId);
+
+            const { processCase } = await import("./processingService");
+            processCase(importRecord.caseId, importRecord.userId).then(async () => {
+              await storage.updateMeetingImport(importRecord.id, { status: 'completed' });
+              await storage.createAuditLog({
+                eventType: 'meeting_import_completed',
+                userId: importRecord.userId,
+                caseId: importRecord.caseId || undefined,
+                metadata: { importId: importRecord.id, source: 'webhook' },
+                severity: 'info',
+              });
+            }).catch(async (err: Error) => {
+              await storage.updateMeetingImport(importRecord.id, { status: 'failed', errorMessage: err.message });
+            });
+          }
+        } catch (err: any) {
+          console.error('[Recall webhook] Processing error:', err.message);
+          await storage.updateMeetingImport(importRecord.id, { status: 'failed', errorMessage: err.message });
+        }
+      }
+
+      res.json({ received: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   
   // NOTE: Recall.ai webhook (POST /api/recall/webhook/bot-status) is registered in
   // index.ts before express.json() for raw body signature verification.

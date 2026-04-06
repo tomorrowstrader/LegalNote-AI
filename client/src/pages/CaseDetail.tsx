@@ -35,6 +35,7 @@ import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
 import DownloadModal from "@/components/DownloadModal";
 import ImportRecordingModal from "@/components/ImportRecordingModal";
+import { LiveBotModal } from "@/components/LiveBotModal";
 import LogCallModal from "@/components/LogCallModal";
 import ComplianceThread from "@/components/ComplianceThread";
 import AmlTriggerBanner from "@/components/AmlTriggerBanner";
@@ -152,6 +153,7 @@ export default function CaseDetail() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showLiveBotModal, setShowLiveBotModal] = useState(false);
   const [showLogCallModal, setShowLogCallModal] = useState(false);
   const [showHandoverModal, setShowHandoverModal] = useState(false);
   const [showTimeRecordingModal, setShowTimeRecordingModal] = useState(false);
@@ -618,6 +620,16 @@ export default function CaseDetail() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full gap-2 justify-start text-xs"
+              onClick={() => setShowLiveBotModal(true)}
+              data-testid="button-join-with-bot"
+            >
+              <Video className="w-3.5 h-3.5" />
+              Join with LegalNote
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -1142,6 +1154,7 @@ export default function CaseDetail() {
         onDownload={handleDownload}
       />
       <ImportRecordingModal open={showImportModal} onOpenChange={setShowImportModal} caseId={caseId!} caseTitle={caseData.title} />
+      <LiveBotModal open={showLiveBotModal} onOpenChange={setShowLiveBotModal} caseId={caseId!} caseTitle={caseData.title} />
       <LogCallModal open={showLogCallModal} onOpenChange={setShowLogCallModal} caseId={caseId!} caseTitle={caseData.title} clientName={caseData.clientName} clientId={caseData.clientId || undefined} matterReference={caseData.matterReference || undefined} />
       <HandoverModal open={showHandoverModal} onOpenChange={setShowHandoverModal} caseId={caseId!} caseTitle={caseData.title} currentAssignee={caseData.assignedToUserId || undefined} />
       <TimeRecordingModal
