@@ -7265,7 +7265,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         meetingPlatform: platform,
         meetingUrl,
         status: 'live',
-        botStatus: bot.status?.code || 'joining_call',
+        botStatus: recallService.getBotStatusCode(bot) || 'joining_call',
         consentConfirmed: false,
       });
 
@@ -7277,7 +7277,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         severity: 'info',
       });
 
-      res.json({ importId: meetingImport.id, botId: bot.id, platform, status: bot.status?.code });
+      res.json({ importId: meetingImport.id, botId: bot.id, platform, status: recallService.getBotStatusCode(bot) });
     } catch (error) {
       next(error);
     }
@@ -7296,18 +7296,22 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
 
       const bot = await recallService.getBot(botId);
+      const botStatusCode = recallService.getBotStatusCode(bot);
 
-      // Update import record with latest bot status
-      await storage.updateMeetingImport(importRecord.id, {
-        botStatus: bot.status?.code,
-      });
+      // Only write to DB when we have a status to record
+      if (botStatusCode) {
+        await storage.updateMeetingImport(importRecord.id, {
+          botStatus: botStatusCode,
+        });
+      }
 
       res.json({
         importId: importRecord.id,
         botId,
-        botStatus: bot.status?.code,
+        botStatus: botStatusCode,
+        subCode: recallService.getBotSubCode(bot),
         importStatus: importRecord.status,
-        statusLabel: recallService.formatBotStatus(bot.status),
+        statusLabel: recallService.formatBotStatus(bot),
         participants: bot.meeting_participants?.map(p => ({ name: p.name })) || [],
         meetingTitle: bot.meeting_metadata?.title,
       });

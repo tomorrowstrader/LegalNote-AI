@@ -11,15 +11,32 @@ function getRecallApiKey(): string {
   return process.env.RECALL_API_KEY || '';
 }
 
+interface RecallBotStatusChange {
+  code: string;
+  sub_code?: string;
+  message?: string;
+  created_at: string;
+}
+
 interface RecallBotResponse {
   id: string;
-  meeting_url: string;
-  status: {
+  meeting_url: string | { meeting_id?: string; platform?: string; meeting_password?: string };
+  // New API: status_changes array replaces the single `status` field
+  status_changes: RecallBotStatusChange[];
+  // Legacy field — may be absent in v2 responses
+  status?: {
     code: string;
-    message: string;
+    message?: string;
     created_at: string;
     sub_code?: string;
   };
+  recordings?: Array<{
+    id: string;
+    media_shortcuts?: {
+      audio_only?: { data?: { url?: string } };
+      video_mixed?: { data?: { url?: string } };
+    };
+  }>;
   video_url?: string;
   audio_url?: string;
   recording?: {
@@ -81,7 +98,22 @@ export class RecallService {
   isConfigured(): boolean {
     return !!getRecallApiKey();
   }
-  
+
+  /** Extract the latest status code from a bot — handles both old `status.code` and new `status_changes[]` */
+  getBotStatusCode(bot: RecallBotResponse): string | undefined {
+    if (bot.status_changes?.length) {
+      return bot.status_changes[bot.status_changes.length - 1].code;
+    }
+    return bot.status?.code;
+  }
+
+  getBotSubCode(bot: RecallBotResponse): string | undefined {
+    if (bot.status_changes?.length) {
+      return bot.status_changes[bot.status_changes.length - 1].sub_code;
+    }
+    return bot.status?.sub_code;
+  }
+
   private async apiRequest<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -170,9 +202,45 @@ export class RecallService {
   
   async getBotRecording(botId: string): Promise<RecallRecordingResponse | null> {
     try {
+      // New API: recordings are embedded on the bot object; fall back to legacy /recording/ endpoint
+      const bot = await this.getBot(botId);
+      const recordings = bot.recordings || [];
+      if (recordings.length > 0) {
+        const rec = recordings[0];
+        const audioUrl = rec.media_shortcuts?.audio_only?.data?.url;
+        const videoUrl = rec.media_shortcuts?.video_mixed?.data?.url;
+        return {
+          id: rec.id,
+          bot_id: botId,
+          media: { audio_url: audioUrl, video_url: videoUrl },
+          created_at: new Date().toISOString(),
+        };
+      }
+      // Legacy fallback
       return await this.apiRequest<RecallRecordingResponse>(`/bot/${botId}/recording/`);
     } catch (error) {
       console.error(`Failed to get recording for bot ${botId}:`, error);
+      return null;
+    }
+  }
+
+  /** Get the media download URL for a completed bot — prefers audio, falls back to video */
+  async getBotMediaUrl(botId: string): Promise<string | null> {
+    try {
+      const key = getRecallApiKey().replace(/^(Token|Bearer)\s+/i, '').replace(/[^\x21-\x7E]/g, '').trim();
+      // Fetch recordings list for this bot
+      const r = await fetch(`${RECALL_API_BASE}/recording/?bot_id=${botId}`, {
+        headers: { 'Authorization': `Token ${key}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!r.ok) return null;
+      const data = await r.json() as { results?: Array<{ id: string; media_shortcuts?: { audio_only?: { data?: { download_url?: string } }; video_mixed?: { data?: { download_url?: string } } } }> };
+      const rec = data.results?.[0];
+      if (!rec) return null;
+      return rec.media_shortcuts?.audio_only?.data?.download_url
+        || rec.media_shortcuts?.video_mixed?.data?.download_url
+        || null;
+    } catch {
       return null;
     }
   }
@@ -253,7 +321,7 @@ export class RecallService {
     return baseCost + transcriptionCost;
   }
   
-  formatBotStatus(status: RecallBotResponse['status']): string {
+  formatBotStatus(botOrStatus: RecallBotResponse | RecallBotResponse['status']): string {
     const statusMap: Record<string, string> = {
       'ready': 'Bot ready',
       'joining_call': 'Joining meeting...',
@@ -264,8 +332,16 @@ export class RecallService {
       'done': 'Recording complete',
       'fatal': 'Error occurred',
     };
-    
-    return statusMap[status.code] || status.code;
+
+    // Accept either a full bot object or the legacy status sub-object
+    let code: string | undefined;
+    if (botOrStatus && 'status_changes' in botOrStatus) {
+      code = this.getBotStatusCode(botOrStatus as RecallBotResponse);
+    } else if (botOrStatus && 'code' in botOrStatus) {
+      code = (botOrStatus as { code: string }).code;
+    }
+    if (!code) return 'Connecting...';
+    return statusMap[code] || code;
   }
   
   async getImportableMeetings(userId: string): Promise<Array<{
