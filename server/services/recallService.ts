@@ -114,8 +114,20 @@ export class RecallService {
       let rawBody = '';
       try {
         rawBody = await response.text();
-        const errorData = JSON.parse(rawBody) as RecallError;
-        errorMessage = errorData.message || errorData.error || errorMessage;
+        const parsed = JSON.parse(rawBody);
+        if (parsed.message) {
+          errorMessage = parsed.message;
+        } else if (parsed.error) {
+          errorMessage = parsed.error;
+        } else if (parsed.detail) {
+          errorMessage = parsed.detail;
+        } else if (typeof parsed === 'object') {
+          // Field-level validation errors: { field: ["message"] }
+          const fieldErrors = Object.entries(parsed)
+            .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs[0] : msgs}`)
+            .join('; ');
+          if (fieldErrors) errorMessage = fieldErrors;
+        }
       } catch {
         if (rawBody) errorMessage = `${errorMessage} — ${rawBody.slice(0, 200)}`;
       }
@@ -132,14 +144,10 @@ export class RecallService {
       body: JSON.stringify({
         meeting_url: meetingUrl,
         bot_name: botName,
-        transcription_options: {
-          provider: 'assembly_ai',
-        },
-        recording_mode: 'audio_only',
         automatic_leave: {
           waiting_room_timeout: 600,
           noone_joined_timeout: 300,
-          everyone_left_timeout: 60,
+          everyone_left_timeout: { timeout: 60, activate_after: null },
         },
       }),
     });
