@@ -6933,161 +6933,37 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
   
-  // Process an import (download audio and trigger transcription)
+  // Process a bot recording import (download from Recall.ai and trigger AI pipeline)
   app.post("/api/recall/import/:importId/process", isAuthenticated, async (req: any, res, next) => {
     try {
-      const { recallService } = await import("./services/recallService");
       const userId = req.user.claims.sub;
-      const importData = await storage.getMeetingImport(req.params.importId);
-      
-      // Security: Verify import belongs to authenticated user
-      if (!importData || importData.userId !== userId) {
+      const { importId } = req.params;
+
+      const importRecord = await storage.getMeetingImport(importId);
+      if (!importRecord || importRecord.userId !== userId) {
         return res.status(404).json({ message: "Import not found" });
       }
-      
-      // Security: Verify case ownership if a case is linked
-      if (importData.caseId) {
-        const linkedCase = await storage.getCase(importData.caseId, userId);
-        if (!linkedCase) {
-          return res.status(403).json({ 
-            message: "Access denied: You don't have permission to process this import for the linked case" 
-          });
-        }
+      if (!['live', 'pending', 'failed'].includes(importRecord.status)) {
+        return res.status(400).json({ message: `This recording is already ${importRecord.status} and cannot be re-processed.` });
       }
-      
-      if (importData.status !== 'pending') {
-        return res.status(400).json({ message: `Import is already ${importData.status}` });
+      if (!importRecord.recallBotId) {
+        return res.status(400).json({ message: "No bot ID on this import" });
       }
-      
-      // GDPR: Server-side consent verification
-      // Don't trust client-provided consentConfirmed - verify against pre-consent emails or require explicit confirmation
-      let hasValidConsent = false;
-      
-      // Check if there's an acknowledged pre-consent email for this meeting
-      if (importData.preConsentEmailId) {
-        const consentEmail = await storage.getPreConsentEmail(importData.preConsentEmailId);
-        if (consentEmail && consentEmail.consentAcknowledged && consentEmail.userId === userId) {
-          hasValidConsent = true;
-        }
+
+      const botNotDone = importRecord.botStatus && !['done', 'recording_done', 'call_ended', 'fatal'].includes(importRecord.botStatus);
+      if (importRecord.status === 'live' && botNotDone) {
+        return res.status(400).json({ message: "The bot is still in the meeting. Processing will start automatically when it finishes." });
       }
-      
-      // If no pre-consent email, check the import's consent confirmation status
-      // This is set via the /consent endpoint which should be called after user confirms in UI
-      if (!hasValidConsent && importData.consentConfirmed) {
-        // Consent was confirmed through the UI workflow
-        hasValidConsent = true;
-      }
-      
-      if (!hasValidConsent) {
-        return res.status(400).json({ 
-          message: "Consent must be confirmed before processing",
-          requiresConsent: true 
-        });
-      }
-      
-      // Update status to downloading
-      await storage.updateMeetingImport(importData.id, { status: 'downloading' });
-      
-      try {
-        // Get the recording from Recall.ai
-        const recording = await recallService.getBotRecording(importData.recallBotId);
-        if (!recording || !recording.media?.audio_url) {
-          throw new Error('No audio recording available');
-        }
-        
-        // Download the audio
-        const audioBuffer = await recallService.downloadAudio(recording.media.audio_url);
-        
-        // Store in object storage
-        const objectStorage = await import("./objectStorage");
-        const audioPath = `.private/imports/${importData.id}/audio.mp3`;
-        await objectStorage.uploadObject(audioPath, audioBuffer, 'audio/mpeg');
-        
-        // Calculate Recall.ai cost for this import
-        const { calculateRecallAICost } = await import("./config/openai");
-        const recallCost = importData.durationSeconds 
-          ? calculateRecallAICost(importData.durationSeconds) 
-          : 0;
-        
-        // Update with audio path and cost
-        await storage.updateMeetingImport(importData.id, { 
-          status: 'transcribing',
-          audioStoragePath: audioPath,
-          importedAt: new Date(),
-        });
-        
-        // If there's a linked case, trigger transcription
-        if (importData.caseId) {
-          // Store Recall.ai cost in case metadata for billing visibility
-          const existingCase = await storage.getCase(importData.caseId, userId);
-          if (existingCase) {
-            const currentMetadata = existingCase.aiProcessingMetadata || {};
-            await storage.updateCase(importData.caseId, {
-              aiProcessingMetadata: {
-                ...currentMetadata,
-                recallAiCost: recallCost,
-                recordingSource: 'video_import',
-                meetingPlatform: importData.meetingPlatform,
-                meetingDurationSeconds: importData.durationSeconds,
-              },
-            }, userId);
-          }
-          // Create audio recording entry
-          const expiresAt = new Date();
-          expiresAt.setDate(expiresAt.getDate() + 7); // 7 day retention
-          
-          await storage.createAudioRecording({
-            caseId: importData.caseId,
-            filePath: audioPath,
-            mimeType: 'audio/mpeg',
-            duration: importData.durationSeconds || undefined,
-            expiresAt,
-          });
-          
-          // Trigger processing
-          const caseData = await storage.getCase(importData.caseId, userId);
-          if (caseData) {
-            await storage.updateCase(importData.caseId, { status: 'processing' }, userId);
-            
-            // Trigger async transcription
-            const { processCase } = await import("./processingService");
-            processCase(importData.caseId, userId).then(async () => {
-              await storage.updateMeetingImport(importData.id, { status: 'completed' });
-              await storage.createAuditLog({
-                eventType: 'meeting_import_completed',
-                userId,
-                caseId: importData.caseId || undefined,
-                metadata: { importId: importData.id },
-                severity: 'info',
-              });
-            }).catch(async (err) => {
-              console.error('Meeting import processing failed:', err);
-              await storage.updateMeetingImport(importData.id, { 
-                status: 'failed',
-                errorMessage: err.message,
-              });
-              await storage.createAuditLog({
-                eventType: 'meeting_import_failed',
-                userId,
-                caseId: importData.caseId || undefined,
-                metadata: { importId: importData.id, error: err.message },
-                severity: 'warning',
-              });
-            });
-          }
-        } else {
-          // Mark as completed (user needs to link to a case later)
-          await storage.updateMeetingImport(importData.id, { status: 'completed' });
-        }
-        
-        res.json({ success: true, status: 'processing' });
-      } catch (error: any) {
-        await storage.updateMeetingImport(importData.id, { 
-          status: 'failed',
-          errorMessage: error.message,
-        });
-        throw error;
-      }
+
+      await storage.updateMeetingImport(importId, { status: 'pending' });
+      const fresh = await storage.getMeetingImport(importId);
+
+      const { processBotRecording } = await import("./services/recallProcessing");
+      processBotRecording(fresh!).catch((err) => {
+        console.error('[ManualProcess] processBotRecording error:', err.message);
+      });
+
+      res.json({ message: "Processing started", importId });
     } catch (error) {
       next(error);
     }
@@ -7413,39 +7289,6 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       next(error);
     }
   });
-
-  // Manually trigger processing for a completed bot (fallback if webhook/cron missed it)
-  app.post("/api/recall/import/:importId/process", isAuthenticated, async (req: any, res, next) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { importId } = req.params;
-
-      const importRecord = await storage.getMeetingImport(importId);
-      if (!importRecord || importRecord.userId !== userId) {
-        return res.status(404).json({ message: "Import not found" });
-      }
-      if (!['live', 'pending', 'failed'].includes(importRecord.status)) {
-        return res.status(400).json({ message: `Import is already in status "${importRecord.status}"` });
-      }
-      if (!importRecord.recallBotId) {
-        return res.status(400).json({ message: "No bot ID on this import" });
-      }
-
-      // Force back to 'live' so processBotRecording will run
-      await storage.updateMeetingImport(importId, { status: 'live' });
-      const fresh = await storage.getMeetingImport(importId);
-
-      const { processBotRecording } = await import("./services/recallProcessing");
-      processBotRecording(fresh!).catch((err: Error) => {
-        console.error('[ManualProcess] processBotRecording error:', err.message);
-      });
-
-      res.json({ message: "Processing started", importId });
-    } catch (error) {
-      next(error);
-    }
-  });
-
   
   // NOTE: Recall.ai webhook (POST /api/recall/webhook/bot-status) is registered in
   // index.ts before express.json() for raw body signature verification.

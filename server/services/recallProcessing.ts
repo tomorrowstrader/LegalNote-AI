@@ -3,6 +3,7 @@
  * Called by: webhook, cron poller, and manual trigger route.
  */
 import { storage } from '../storage';
+import { ObjectStorageService } from '../objectStorage';
 import type { MeetingImport } from '@shared/schema';
 
 /**
@@ -97,9 +98,9 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     return;
   }
 
-  // Prevent double-processing
+  // Prevent double-processing — allow retrying failed imports
   const fresh = await storage.getMeetingImport(importId);
-  if (!fresh || !['live', 'pending'].includes(fresh.status)) {
+  if (!fresh || !['live', 'pending', 'failed'].includes(fresh.status)) {
     console.log(`[RecallProcessing] Import ${importId} already in status "${fresh?.status}" — skipping`);
     return;
   }
@@ -140,12 +141,19 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
   }
 
   // Store in object storage
-  const { uploadObject } = await import('../objectStorage');
   const isVideo = recording.url.includes('.mp4') || !recording.url.includes('.mp3');
   const ext = isVideo ? 'mp4' : 'mp3';
   const mimeType = isVideo ? 'video/mp4' : 'audio/mpeg';
   const audioPath = `.private/imports/${importId}/recording.${ext}`;
-  await uploadObject(audioPath, audioBuffer, mimeType);
+  try {
+    const storageService = new ObjectStorageService();
+    await storageService.uploadFile(audioPath, audioBuffer, mimeType);
+    console.log(`[RecallProcessing] Uploaded recording to ${audioPath}`);
+  } catch (err: any) {
+    console.error(`[RecallProcessing] Upload failed for import ${importId}:`, err.message);
+    await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Upload failed: ${err.message}` });
+    return;
+  }
 
   // Create audio recording linked to the case
   const expiresAt = new Date();
@@ -165,24 +173,35 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
 
   await storage.updateCase(caseId, { status: 'processing' }, userId);
 
-  // Fire-and-forget: transcribe → generate documents
-  const { processCase } = await import('../processingService');
-  processCase(caseId, userId)
-    .then(async () => {
-      await storage.updateMeetingImport(importId, { status: 'completed' });
-      await storage.createAuditLog({
-        eventType: 'meeting_import_completed',
-        userId,
-        caseId,
-        metadata: { importId, botId, source: 'recall_bot' },
-        severity: 'info',
-      });
-      console.log(`[RecallProcessing] Import ${importId} completed successfully`);
-    })
-    .catch(async (err: Error) => {
-      console.error(`[RecallProcessing] Processing pipeline failed for import ${importId}:`, err.message);
-      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: err.message });
+  // Enqueue the AI processing job (transcription + document generation)
+  const { jobQueue } = await import('./jobQueue');
+  const jobId = await jobQueue.addJob('ai-processing', { caseId, userId });
+  console.log(`[RecallProcessing] Enqueued AI processing job ${jobId} for import ${importId}`);
+
+  // Listen for job completion/failure to update import status
+  const onCompleted = async (job: { id: string }) => {
+    if (job.id !== jobId) return;
+    jobQueue.off('job:completed', onCompleted);
+    jobQueue.off('job:failed', onFailed);
+    await storage.updateMeetingImport(importId, { status: 'completed' });
+    await storage.createAuditLog({
+      eventType: 'meeting_import_completed',
+      userId,
+      caseId,
+      metadata: { importId, botId, source: 'recall_bot' },
+      severity: 'info',
     });
+    console.log(`[RecallProcessing] Import ${importId} completed successfully`);
+  };
+  const onFailed = async (job: { id: string; error?: string }) => {
+    if (job.id !== jobId) return;
+    jobQueue.off('job:completed', onCompleted);
+    jobQueue.off('job:failed', onFailed);
+    console.error(`[RecallProcessing] Processing pipeline failed for import ${importId}:`, job.error);
+    await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: job.error || 'Processing failed' });
+  };
+  jobQueue.on('job:completed', onCompleted);
+  jobQueue.on('job:failed', onFailed);
 }
 
 /**
