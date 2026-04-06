@@ -25,11 +25,11 @@ interface TopNavigationProps {
 const primaryNavLinks = [
   { path: "/", label: "Dashboard", mobileLabel: "Dashboard", icon: Home },
   { path: "/new-note", label: "New Note", mobileLabel: "New Note", icon: FileText },
-  { path: "/cases", label: "Saved Cases", mobileLabel: "Saved Cases", icon: FolderOpen },
-  { path: "/my-actions", label: "Obligations", mobileLabel: "My Obligations", icon: CheckSquare },
+  { path: "/cases", label: "Cases", mobileLabel: "Saved Cases", icon: FolderOpen },
 ];
 
 const moreNavLinks = [
+  { path: "/my-actions", label: "My Obligations", mobileLabel: "My Obligations", icon: CheckSquare },
   { path: "/clients", label: "Clients", mobileLabel: "Clients", icon: Users },
   { path: "/time-summary", label: "Time Summary", mobileLabel: "Time Summary", icon: Clock },
   { path: "/settings", label: "Settings", mobileLabel: "Settings", icon: Settings },
@@ -50,14 +50,14 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary via-black to-primary border-b border-primary-border shadow-lg">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
-        <div className="grid grid-cols-[auto_1fr_auto] items-center h-16 gap-4 md:gap-4">
+        <div className="flex items-center h-16 gap-2">
           <Link href="/" data-testid="link-home">
             <div className="hover-elevate active-elevate-2 rounded-md px-2 py-1 -ml-2 flex-shrink-0">
               <Logo variant="wordmark" size="md" tone="dark" animate />
             </div>
           </Link>
 
-          <div className="hidden lg:flex items-center gap-1 min-w-0 overflow-hidden">
+          <div className="hidden lg:flex items-center gap-1 flex-shrink-0">
             {primaryNavLinks.map((link) => {
               const isActive = location === link.path;
               return (
