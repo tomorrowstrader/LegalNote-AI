@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 if (!process.env.ANTHROPIC_API_KEY) {
-  console.error('[CRITICAL] ANTHROPIC_API_KEY not set — document generation will fail. Claude 3.7 Sonnet is required for attendance notes and summaries.');
+  console.error('[CRITICAL] ANTHROPIC_API_KEY not set — document generation will fail. Claude 3.5 Sonnet is required for attendance notes and summaries.');
 }
 
 export const anthropicClient = process.env.ANTHROPIC_API_KEY
@@ -9,7 +9,7 @@ export const anthropicClient = process.env.ANTHROPIC_API_KEY
   : null;
 
 export const CLAUDE_MODELS = {
-  DOCUMENT_GENERATION: 'claude-3-7-sonnet-20250219',
+  DOCUMENT_GENERATION: 'claude-3-5-sonnet-20241022',
 } as const;
 
 export const CLAUDE_PRICING = {
