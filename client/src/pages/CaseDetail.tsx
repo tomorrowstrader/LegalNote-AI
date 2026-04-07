@@ -5,7 +5,7 @@ import {
   FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle,
   Share2, Eye, Download, Archive, Video, ListChecks, History,
   ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send,
-  ShieldCheck, ChevronRight,
+  ShieldCheck, ChevronRight, ChevronDown, ChevronUp, CheckCircle2,
 } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
@@ -163,6 +163,14 @@ export default function CaseDetail() {
   const [isSendingCareLetter, setIsSendingCareLetter] = useState(false);
   const [editingPracticeArea, setEditingPracticeArea] = useState(false);
 
+  // Missing-consent banner state
+  const [showConfirmVerbalConsentDialog, setShowConfirmVerbalConsentDialog] = useState(false);
+  const [showScriptInBanner, setShowScriptInBanner] = useState(false);
+  const [showSendConsentLinkBanner, setShowSendConsentLinkBanner] = useState(false);
+  const [bannerConsentLinkContact, setBannerConsentLinkContact] = useState("");
+  const [bannerConsentLinkName, setBannerConsentLinkName] = useState("");
+  const [bannerConsentLinkSent, setBannerConsentLinkSent] = useState(false);
+
   const timeRecordingKey = `timeRecordingPrompted_${params.id}`;
   const [hasPromptedTimeRecording, setHasPromptedTimeRecording] = useState(() => {
     return localStorage.getItem(timeRecordingKey) === 'true';
@@ -289,14 +297,16 @@ export default function CaseDetail() {
     enabled: !!caseId,
   });
 
-  type LiveImport = { importId: string; botId: string | null; status: string; botStatus: string | null; errorMessage: string | null; createdAt: string };
+  type LiveImport = { importId: string; botId: string | null; status: string; botStatus: string | null; errorMessage: string | null; createdAt: string; consentMode?: string; consentConfirmed?: boolean };
   const { data: liveImport, refetch: refetchLiveImport } = useQuery<LiveImport | null>({
     queryKey: [`/api/cases/${caseId}/live-import`],
     enabled: !!caseId,
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return false;
-      if (['live', 'pending', 'transcribing'].includes(data.status)) return 15000;
+      // Keep polling for active imports or completed imports awaiting consent resolution
+      if (['live', 'pending', 'transcribing'].includes(data.status)) return 10000;
+      if (['transcribing', 'completed', 'failed'].includes(data.status) && data.consentMode === 'in_meeting' && !data.consentConfirmed) return 10000;
       return false;
     },
   });
@@ -356,6 +366,46 @@ export default function CaseDetail() {
     },
     onError: (error: any) => {
       toast({ title: "Could not start processing", description: error.message || "Please try again.", variant: "destructive" });
+    },
+  });
+
+  // Confirm verbal consent post-meeting (from CaseDetail banner)
+  const confirmBannerConsentMutation = useMutation({
+    mutationFn: async () => {
+      if (!liveImport?.importId) throw new Error("No import found");
+      return apiRequest("PATCH", `/api/recall/import/${liveImport.importId}/consent`, {
+        userConfirmsVerbalConsent: true,
+        consentSource: 'post_meeting_confirm',
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Consent recorded", description: "Verbal consent has been logged in the audit trail.", duration: 5000 });
+      setShowConfirmVerbalConsentDialog(false);
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/live-import`] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to record consent", description: error.message || "Please try again.", variant: "destructive" });
+    },
+  });
+
+  // Send consent link from CaseDetail banner
+  const sendBannerConsentLinkMutation = useMutation({
+    mutationFn: async () => {
+      if (!liveImport?.importId) throw new Error("No import found");
+      const contact = bannerConsentLinkContact.trim();
+      const isEmail = contact.includes("@");
+      return apiRequest("POST", `/api/recall/import/${liveImport.importId}/send-consent-link`, {
+        ...(isEmail ? { contactEmail: contact } : { contactMobile: contact }),
+        contactName: bannerConsentLinkName || undefined,
+        source: 'post_meeting_banner',
+      });
+    },
+    onSuccess: () => {
+      setBannerConsentLinkSent(true);
+      toast({ title: "Consent link sent", description: `A consent confirmation link has been sent to ${bannerConsentLinkContact}.`, duration: 5000 });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to send consent link", description: error.message || "Please check the email address and try again.", variant: "destructive" });
     },
   });
 
@@ -724,8 +774,8 @@ export default function CaseDetail() {
             </div>
           )}
 
-          {/* Live / pending bot import banner */}
-          {liveImport && (
+          {/* Live / pending bot import banner — suppress for completed imports returned only for unresolved consent */}
+          {liveImport && liveImport.status !== 'completed' && (
             <div
               className={`p-4 rounded-md border flex items-start gap-3 ${
                 liveImport.status === 'failed'
@@ -771,6 +821,93 @@ export default function CaseDetail() {
                 >
                   {processImportMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Process recording'}
                 </Button>
+              )}
+            </div>
+          )}
+
+          {/* Missing-consent banner for bot meetings where consent was not confirmed — shown once session has clearly ended */}
+          {liveImport && liveImport.consentMode === 'in_meeting' && liveImport.consentConfirmed === false && ['transcribing', 'completed', 'failed'].includes(liveImport.status) && (
+            <div className="p-4 rounded-md border border-amber-500/50 bg-amber-500/10 space-y-3" data-testid="banner-missing-consent">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Verbal consent for this recording was not confirmed during the session</p>
+                  <p className="text-sm text-amber-700/80 dark:text-amber-300/80 mt-0.5">You must record consent before processing. Confirm it verbally happened, or send the client a digital consent link.</p>
+                </div>
+              </div>
+
+              {/* View script toggle */}
+              <button
+                type="button"
+                onClick={() => setShowScriptInBanner(s => !s)}
+                className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 transition-colors"
+                data-testid="button-toggle-script-banner"
+              >
+                <Shield className="w-3.5 h-3.5" />
+                View consent script
+                {showScriptInBanner ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+              {showScriptInBanner && (
+                <div className="bg-background rounded-md p-3 border border-border text-sm italic leading-relaxed">
+                  "I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?"
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={() => setShowConfirmVerbalConsentDialog(true)}
+                  data-testid="button-confirm-verbal-consent-banner"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Confirm Verbal Consent
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={() => setShowSendConsentLinkBanner(s => !s)}
+                  data-testid="button-toggle-send-consent-link-banner"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Send Consent Link
+                </Button>
+              </div>
+
+              {showSendConsentLinkBanner && !bannerConsentLinkSent && (
+                <div className="space-y-2 pt-1">
+                  <Input
+                    placeholder="Client email or mobile number"
+                    value={bannerConsentLinkContact}
+                    onChange={e => setBannerConsentLinkContact(e.target.value)}
+                    data-testid="input-banner-consent-link-contact"
+                  />
+                  <Input
+                    placeholder="Client name (optional)"
+                    value={bannerConsentLinkName}
+                    onChange={e => setBannerConsentLinkName(e.target.value)}
+                    data-testid="input-banner-consent-link-name"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    disabled={!bannerConsentLinkContact.trim() || sendBannerConsentLinkMutation.isPending}
+                    onClick={() => sendBannerConsentLinkMutation.mutate()}
+                    data-testid="button-send-consent-link-banner"
+                  >
+                    {sendBannerConsentLinkMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    Send Consent Link
+                  </Button>
+                </div>
+              )}
+              {bannerConsentLinkSent && (
+                <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Consent link sent to {bannerConsentLinkContact}
+                </p>
               )}
             </div>
           )}
@@ -1289,6 +1426,46 @@ export default function CaseDetail() {
               data-testid="button-confirm-send-ccl"
             >
               {isSendingCareLetter ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : "Send Letter"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Verbal Consent Dialog */}
+      <Dialog open={showConfirmVerbalConsentDialog} onOpenChange={setShowConfirmVerbalConsentDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5" />
+              Confirm Verbal Consent
+            </DialogTitle>
+            <DialogDescription>
+              Confirm that verbal consent was obtained during the recorded session.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="bg-muted/40 rounded-md p-3 border border-border">
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">CONSENT SCRIPT (for reference):</p>
+              <p className="text-sm leading-relaxed italic">
+                "I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?"
+              </p>
+            </div>
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3">
+              <p className="text-xs text-muted-foreground">
+                By confirming, you attest that the consent script was read to the client and they verbally agreed. This will be logged in the audit trail.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowConfirmVerbalConsentDialog(false)} disabled={confirmBannerConsentMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => confirmBannerConsentMutation.mutate()}
+              disabled={confirmBannerConsentMutation.isPending}
+              data-testid="button-confirm-verbal-consent-dialog"
+            >
+              {confirmBannerConsentMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Confirming...</> : "Confirm Verbal Consent"}
             </Button>
           </div>
         </DialogContent>

@@ -457,6 +457,7 @@ export const meetingImports = pgTable("meeting_imports", {
   audioStoragePath: text("audio_storage_path"), // Path in object storage
   errorMessage: text("error_message"),
   consentConfirmed: boolean("consent_confirmed").notNull().default(false), // Whether consent was confirmed for this import
+  consentMode: text("consent_mode").notNull().default("pre_confirmed"), // pre_confirmed | in_meeting
   preConsentEmailId: varchar("pre_consent_email_id").references(() => preConsentEmails.id), // Link to pre-meeting consent email
   recallCostUSD: text("recall_cost_usd"), // Cost for this recording from Recall.ai (stored as text for precision)
   createdAt: timestamp("created_at").notNull().defaultNow(),

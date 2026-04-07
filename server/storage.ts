@@ -4129,6 +4129,7 @@ export class DbStorage implements IStorage {
         participants: importData.participants || [],
         status: importData.status || 'pending',
         botStatus: importData.botStatus || null,
+        consentMode: importData.consentMode || 'pre_confirmed',
         consentConfirmed: importData.consentConfirmed || false,
         preConsentEmailId: importData.preConsentEmailId || null,
       })

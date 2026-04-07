@@ -6,6 +6,17 @@ import fs from "fs";
 import crypto from "crypto";
 import puppeteer from "puppeteer";
 
+// Returns the canonical base URL for generating public-facing links (consent, share, etc.)
+// Prefers APP_URL env var to prevent host-header spoofing. Falls back to request-derived
+// host in development, but warns in production if APP_URL is not configured.
+function getCanonicalBaseUrl(req: any): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('[SECURITY] APP_URL is not set. Consent/share link URLs are derived from request host header — configure APP_URL in production to harden against host-header spoofing.');
+  }
+  return `${req.protocol}://${req.get('host')}`;
+}
+
 // Helper to resolve template paths in both dev and production
 function resolveTemplatePath(filename: string): string {
   // Try multiple possible locations - prioritize cwd for Autoscale deployments
@@ -7032,17 +7043,40 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const userId = req.user.claims.sub;
       const { caseId } = req.params;
       const imports = await storage.getMeetingImportsByCase(caseId, userId);
-      // Return the most recent import that is not completed
+      // Return the most recent active import first
       const active = imports.find(i => ['live', 'pending', 'transcribing', 'failed'].includes(i.status));
-      if (!active) return res.json(null);
-      res.json({
-        importId: active.id,
-        botId: active.recallBotId,
-        status: active.status,
-        botStatus: active.botStatus,
-        errorMessage: active.errorMessage,
-        createdAt: active.createdAt,
-      });
+      if (active) {
+        return res.json({
+          importId: active.id,
+          botId: active.recallBotId,
+          status: active.status,
+          botStatus: active.botStatus,
+          errorMessage: active.errorMessage,
+          createdAt: active.createdAt,
+          consentMode: active.consentMode || 'pre_confirmed',
+          consentConfirmed: active.consentConfirmed,
+        });
+      }
+      // Also return clearly-ended imports where in-meeting consent is still unresolved
+      // (transcribing → completed → failed) so the banner persists until consent is confirmed.
+      // 'pending' is excluded: it's shown via the generic live-import banner which has
+      // its own processing prompt, and the consent banner only appears once session has ended.
+      const pendingConsentCompleted = imports.find(
+        i => ['transcribing', 'completed', 'failed'].includes(i.status) && (i.consentMode || 'pre_confirmed') === 'in_meeting' && !i.consentConfirmed
+      );
+      if (pendingConsentCompleted) {
+        return res.json({
+          importId: pendingConsentCompleted.id,
+          botId: pendingConsentCompleted.recallBotId,
+          status: pendingConsentCompleted.status,
+          botStatus: pendingConsentCompleted.botStatus,
+          errorMessage: pendingConsentCompleted.errorMessage,
+          createdAt: pendingConsentCompleted.createdAt,
+          consentMode: pendingConsentCompleted.consentMode || 'pre_confirmed',
+          consentConfirmed: pendingConsentCompleted.consentConfirmed,
+        });
+      }
+      res.json(null);
     } catch (error) {
       next(error);
     }
@@ -7081,7 +7115,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   app.patch("/api/recall/import/:importId/consent", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const { preConsentEmailId, userConfirmsVerbalConsent } = req.body;
+      const { preConsentEmailId, userConfirmsVerbalConsent, elapsedSeconds, consentSource: clientConsentSource } = req.body;
       // SECURITY: Don't accept a direct "confirmed" flag - require evidence
       
       const importData = await storage.getMeetingImport(req.params.importId);
@@ -7108,8 +7142,30 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // This creates an audit trail of the user's attestation for GDPR compliance
       else if (userConfirmsVerbalConsent === true) {
         consentConfirmed = true;
-        consentSource = 'user_verbal_attestation';
         
+        // Format elapsed time label for audit trail
+        let elapsedLabel: string | undefined;
+        if (typeof elapsedSeconds === 'number' && elapsedSeconds >= 0) {
+          const m = Math.floor(elapsedSeconds / 60);
+          const s = elapsedSeconds % 60;
+          elapsedLabel = m > 0 ? `${m}m ${s}s` : `${s}s`;
+        }
+
+        // Determine source: prefer explicit clientConsentSource from caller; otherwise
+        // infer from elapsedSeconds (in-recording) or import's consentMode (post-meeting)
+        const auditSource = clientConsentSource === 'post_meeting_confirm'
+          ? 'post_meeting_confirm'
+          : clientConsentSource === 'in_meeting_live_panel'
+          ? 'in_meeting_live_panel'
+          : elapsedLabel
+          ? 'in_meeting_live_panel'
+          : (importData.consentMode || 'pre_confirmed') === 'in_meeting'
+          ? 'post_meeting_confirm'
+          : 'pre_confirmed_verbal';
+
+        // Align API response source with audit source for consistency
+        consentSource = auditSource;
+
         // Create audit log of the user's attestation
         await storage.createAuditLog({
           eventType: 'consent_attestation',
@@ -7121,6 +7177,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
             attestationType: 'verbal_consent_obtained',
             attestedAt: new Date().toISOString(),
             meetingPlatform: importData.meetingPlatform,
+            source: auditSource,
+            ...(elapsedLabel ? { elapsedIntoRecording: elapsedLabel } : {}),
           },
           severity: 'info',
         });
@@ -7138,6 +7196,169 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       });
       
       res.json({ success: true, consentSource });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Log an in-meeting consent decline — no DB flag change (solicitor can still obtain later),
+  // but creates an audit trail entry for GDPR traceability
+  app.post("/api/recall/import/:importId/consent-decline", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { elapsedSeconds } = req.body;
+      const importData = await storage.getMeetingImport(req.params.importId);
+      if (!importData || importData.userId !== userId) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+
+      let elapsedLabel: string | undefined;
+      if (typeof elapsedSeconds === 'number' && elapsedSeconds >= 0) {
+        const m = Math.floor(elapsedSeconds / 60);
+        const s = elapsedSeconds % 60;
+        elapsedLabel = m > 0 ? `${m}m ${s}s` : `${s}s`;
+      }
+
+      await storage.createAuditLog({
+        eventType: 'consent_declined',
+        userId,
+        caseId: importData.caseId || undefined,
+        metadata: {
+          importId: importData.id,
+          declinedAt: new Date().toISOString(),
+          source: 'in_meeting_live_panel',
+          ...(elapsedLabel ? { elapsedIntoRecording: elapsedLabel } : {}),
+        },
+        severity: 'warn',
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Send a consent link to client during or after a live bot meeting (email or SMS)
+  app.post("/api/recall/import/:importId/send-consent-link", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { contactEmail, contactMobile, contactName, source: callerSource } = req.body;
+
+      if (!contactEmail && !contactMobile) {
+        return res.status(400).json({ message: "Client email or mobile number is required" });
+      }
+
+      const importData = await storage.getMeetingImport(req.params.importId);
+      if (!importData || importData.userId !== userId) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+
+      const crypto = await import("crypto");
+      const consentToken = crypto.randomBytes(32).toString("hex");
+
+      const baseUrl = getCanonicalBaseUrl(req);
+      const consentUrl = `${baseUrl}/consent/${consentToken}`;
+
+      const recipientName = contactName || "Client";
+      const recipientEmail = contactEmail || `sms-${consentToken.substring(0, 8)}@placeholder.invalid`;
+      const emailSubject = "Recording Consent — Please Review and Confirm";
+      const emailBody = `Dear ${recipientName},\n\nYour solicitor would like to confirm that you consent to this meeting being recorded by LegalNote for the purpose of producing legal documentation.\n\nPlease click the button below to confirm your consent.\n\n[Acknowledge Consent Button]\n\nIf you have any questions, please contact your solicitor directly.`;
+
+      const consentEmail = await storage.createPreConsentEmail({
+        userId,
+        caseId: importData.caseId || undefined,
+        recipientEmail,
+        recipientName,
+        emailSubject,
+        emailBody,
+        consentToken,
+        emailStatus: 'pending',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      });
+
+      let deliveryMethod = contactEmail ? 'email' : 'sms';
+
+      if (contactEmail) {
+        // Send via email
+        try {
+          const { sendPreConsentEmail } = await import("./email");
+          const result = await sendPreConsentEmail({
+            to: contactEmail,
+            recipientName,
+            subject: emailSubject,
+            body: emailBody,
+            consentUrl,
+          });
+
+          if (!result.success) {
+            await storage.updatePreConsentEmail(consentEmail.id, { emailStatus: 'failed' });
+            return res.status(500).json({ message: "Failed to send consent email" });
+          }
+
+          await storage.updatePreConsentEmail(consentEmail.id, {
+            emailStatus: 'sent',
+            emailSentAt: new Date(),
+          });
+        } catch (emailErr: any) {
+          await storage.updatePreConsentEmail(consentEmail.id, { emailStatus: 'failed' });
+          return res.status(500).json({ message: "Failed to send consent email", error: emailErr.message });
+        }
+      } else if (contactMobile) {
+        // Send via SMS
+        try {
+          const { formatUKPhoneNumber } = await import("./sms");
+          const formattedPhone = formatUKPhoneNumber(contactMobile);
+          const smsBody = `${recipientName}, your solicitor requests consent to record this meeting. Tap to confirm: ${consentUrl}`;
+
+          // Use Twilio directly for custom message
+          const twilio = await import("twilio");
+          const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+            ? twilio.default(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+            : null;
+
+          if (!twilioClient || !process.env.TWILIO_PHONE_NUMBER) {
+            await storage.updatePreConsentEmail(consentEmail.id, { emailStatus: 'failed' });
+            return res.status(503).json({ message: "SMS service is not configured. Please use email instead." });
+          }
+
+          await twilioClient.messages.create({
+            body: smsBody,
+            from: process.env.TWILIO_SENDER_NAME || process.env.TWILIO_PHONE_NUMBER,
+            to: formattedPhone,
+          });
+
+          await storage.updatePreConsentEmail(consentEmail.id, {
+            emailStatus: 'sent',
+            emailSentAt: new Date(),
+          });
+          deliveryMethod = 'sms';
+        } catch (smsErr: any) {
+          await storage.updatePreConsentEmail(consentEmail.id, { emailStatus: 'failed' });
+          return res.status(500).json({ message: "Failed to send consent SMS", error: smsErr.message });
+        }
+      }
+
+      await storage.updateMeetingImport(importData.id, {
+        preConsentEmailId: consentEmail.id,
+      });
+
+      await storage.createAuditLog({
+        eventType: 'pre_consent_email_sent',
+        userId,
+        caseId: importData.caseId || undefined,
+        metadata: {
+          recipientEmail: contactEmail || undefined,
+          recipientMobile: contactMobile || undefined,
+          recipientName,
+          consentEmailId: consentEmail.id,
+          importId: importData.id,
+          deliveryMethod,
+          source: callerSource || 'live_meeting_panel',
+        },
+        severity: 'info',
+      });
+
+      res.json({ success: true, consentEmailId: consentEmail.id, deliveryMethod });
     } catch (error) {
       next(error);
     }
@@ -7178,7 +7399,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     try {
       const { recallService } = await import("./services/recallService");
       const userId = req.user.claims.sub;
-      const { meetingUrl, caseId } = req.body;
+      const { meetingUrl, caseId, consentMode } = req.body;
+      const resolvedConsentMode = consentMode === 'in_meeting' ? 'in_meeting' : 'pre_confirmed';
 
       if (!meetingUrl) {
         return res.status(400).json({ message: "Meeting URL is required" });
@@ -7223,6 +7445,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         status: 'live',
         botStatus: recallService.getBotStatusCode(bot) || 'joining_call',
         consentConfirmed: false,
+        consentMode: resolvedConsentMode,
       });
 
       await storage.createAuditLog({
@@ -7271,6 +7494,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         statusLabel: recallService.formatBotStatus(bot),
         participants: bot.meeting_participants?.map(p => ({ name: p.name })) || [],
         meetingTitle: bot.meeting_metadata?.title,
+        consentMode: importRecord.consentMode || 'pre_confirmed',
+        consentConfirmed: importRecord.consentConfirmed,
       });
     } catch (error) {
       next(error);
@@ -7423,7 +7648,7 @@ ${firmName}`;
         const resend = await import("resend");
         const resendClient = new resend.Resend(process.env.RESEND_API_KEY);
         
-        const baseUrl = `${req.protocol}://${req.headers.host}`;
+        const baseUrl = getCanonicalBaseUrl(req);
         const consentUrl = `${baseUrl}/consent/${consentToken}`;
         
         const htmlBody = emailBody
@@ -7547,6 +7772,33 @@ ${firmName}`;
         const meetingConsentStatus = status === 'granted' ? 'approved' : status === 'declined' ? 'declined' : 'declined';
         await storage.updateScheduledMeeting(linkedMeeting.id, { consentStatus: meetingConsentStatus });
       }
+
+      // Update any linked meeting import's consentConfirmed when client grants consent via digital link
+      let linkedImportId: string | undefined;
+      try {
+        const userImports = await storage.getMeetingImportsByUser(consentEmail.userId);
+        const linkedImport = userImports.find(i => i.preConsentEmailId === consentEmail.id);
+        if (linkedImport && status === 'granted' && !linkedImport.consentConfirmed) {
+          linkedImportId = linkedImport.id;
+          await storage.updateMeetingImport(linkedImport.id, { consentConfirmed: true });
+          await storage.createAuditLog({
+            eventType: 'consent_attestation',
+            userId: consentEmail.userId,
+            caseId: consentEmail.caseId || undefined,
+            metadata: {
+              importId: linkedImport.id,
+              attestationType: 'digital_consent_link',
+              consentEmailId: consentEmail.id,
+              source: 'digital_link',
+              clientIp: ipAddress,
+              grantedAt: new Date().toISOString(),
+            },
+            severity: 'info',
+          });
+        }
+      } catch (importErr) {
+        console.error('[CONSENT] Failed to update linked meeting import:', importErr);
+      }
       
       // Determine audit event type based on response
       const eventType = status === 'granted' ? 'pre_consent_acknowledged'
@@ -7563,7 +7815,9 @@ ${firmName}`;
           recipientName: consentEmail.recipientName,
           consentEmailId: consentEmail.id,
           scheduledMeetingId: linkedMeeting?.id,
+          linkedImportId: linkedImportId,
           responseStatus: status,
+          source: 'digital_link',
           clientMessage: clientMessage || undefined,
           ipAddress,
         },

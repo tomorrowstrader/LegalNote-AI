@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Loader2,
@@ -22,6 +21,11 @@ import {
   Mic,
   Clock,
   Users,
+  Check,
+  X,
+  Send,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +38,7 @@ interface LiveBotModalProps {
 }
 
 type Step = "url" | "consent" | "live" | "processing" | "done" | "error";
+type ConsentMode = "pre_confirmed" | "in_meeting";
 
 type BotStatus =
   | "joining_call"
@@ -53,6 +58,8 @@ interface BotPollResponse {
   statusLabel: string;
   participants: Array<{ name: string }>;
   meetingTitle?: string;
+  consentMode?: string;
+  consentConfirmed?: boolean;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -73,6 +80,8 @@ const ACTIVE_STATUSES = new Set([
   "call_ended",
 ]);
 
+const CONSENT_SCRIPT = `I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?`;
+
 function detectPlatform(url: string): "zoom" | "teams" | "meet" | null {
   const lower = url.toLowerCase();
   if (lower.includes("zoom.us") || lower.includes("zoom.com")) return "zoom";
@@ -92,14 +101,28 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
   const [step, setStep] = useState<Step>("url");
   const [meetingUrl, setMeetingUrl] = useState("");
   const [platform, setPlatform] = useState<string | null>(null);
-  const [consentConfirmed, setConsentConfirmed] = useState(false);
+  const [consentMode, setConsentMode] = useState<ConsentMode>("pre_confirmed");
   const [importId, setImportId] = useState<string | null>(null);
   const [botId, setBotId] = useState<string | null>(null);
   const [botPoll, setBotPoll] = useState<BotPollResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [elapsed, setElapsed] = useState(0);
+  const [recordingElapsed, setRecordingElapsed] = useState(0);
+  const [recordingStarted, setRecordingStarted] = useState(false);
+  const [consentObtained, setConsentObtained] = useState(false);
+  const [consentDeclined, setConsentDeclined] = useState(false);
+  const [consentRecordedElapsed, setConsentRecordedElapsed] = useState<number | null>(null);
+
+  // Send consent link state
+  const [showSendConsentLink, setShowSendConsentLink] = useState(false);
+  const [consentLinkContact, setConsentLinkContact] = useState("");
+  const [consentLinkName, setConsentLinkName] = useState("");
+  const [consentLinkSent, setConsentLinkSent] = useState(false);
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const consentObtainedRef = useRef(false);
 
   // URL platform detection
   useEffect(() => {
@@ -114,9 +137,22 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
           const data = await apiRequest<BotPollResponse>("GET", `/api/recall/bot/${botId}`);
           setBotPoll(data);
 
+          if (data.botStatus === "in_call_recording" && !recordingStarted) {
+            setRecordingStarted(true);
+          }
+
+          // Sync consent from server: if consent was confirmed via a digital link or another
+          // channel while this modal is open, update local state so the UI reflects it
+          if (data.consentConfirmed && !consentObtainedRef.current) {
+            consentObtainedRef.current = true;
+            setConsentObtained(true);
+            setConsentDeclined(false);
+          }
+
           if (data.importStatus === "transcribing" || data.importStatus === "completed") {
             clearInterval(pollRef.current!);
             clearInterval(timerRef.current!);
+            clearInterval(recordingTimerRef.current!);
             setStep("processing");
             queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
           }
@@ -124,6 +160,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
           if (data.botStatus === "fatal") {
             clearInterval(pollRef.current!);
             clearInterval(timerRef.current!);
+            clearInterval(recordingTimerRef.current!);
             setStep("error");
             setErrorMessage("The bot was unable to join or record the meeting. Please check the meeting URL and try again.");
           }
@@ -149,25 +186,39 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
     };
   }, [step, botId, caseId]);
 
+  // Recording elapsed timer — starts only when bot is actually recording
+  useEffect(() => {
+    if (recordingStarted && step === "live") {
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingElapsed(e => e + 1);
+      }, 1000);
+    }
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, [recordingStarted, step]);
+
   const deployMutation = useMutation({
     mutationFn: async () => {
       return apiRequest<{ importId: string; botId: string; platform: string; status: string }>(
         "POST",
         "/api/recall/bot",
-        { meetingUrl, caseId }
+        { meetingUrl, caseId, consentMode }
       );
     },
     onSuccess: async (data) => {
       setImportId(data.importId);
       setBotId(data.botId);
 
-      // Record verbal consent attestation
-      try {
-        await apiRequest("PATCH", `/api/recall/import/${data.importId}/consent`, {
-          userConfirmsVerbalConsent: true,
-        });
-      } catch {
-        // Non-fatal — consent can be added after
+      // For pre_confirmed path, log consent immediately
+      if (consentMode === "pre_confirmed") {
+        try {
+          await apiRequest("PATCH", `/api/recall/import/${data.importId}/consent`, {
+            userConfirmsVerbalConsent: true,
+          });
+        } catch {
+          // Non-fatal — consent can be added after
+        }
       }
 
       setStep("live");
@@ -175,9 +226,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
     },
     onError: (error: Error) => {
       const raw = error.message || "";
-      // Strip HTTP status code prefix (e.g. "503: ")
       const withoutStatus = raw.replace(/^\d{3}:\s*/, "");
-      // Try to extract message from a JSON body
       let display = withoutStatus;
       try {
         const parsed = JSON.parse(withoutStatus);
@@ -185,9 +234,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
       } catch {
         // Not JSON — use as-is
       }
-      // Strip any residual HTML tags and collapse whitespace
       display = display.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim();
-      // Replace Replit error pages or anything suspiciously long with a safe fallback
       const isHtmlPage = display.toLowerCase().includes("doctype") || display.toLowerCase().includes("we couldn");
       if (!display || isHtmlPage || display.length > 300) {
         display = "Failed to deploy the bot. Please check the meeting URL and try again. If the problem persists, contact support.";
@@ -197,13 +244,67 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
     },
   });
 
+  const consentMutation = useMutation({
+    mutationFn: async (consented: boolean) => {
+      if (!importId) throw new Error("No import ID");
+      if (consented) {
+        return apiRequest("PATCH", `/api/recall/import/${importId}/consent`, {
+          userConfirmsVerbalConsent: true,
+          elapsedSeconds: recordingElapsed,
+          consentSource: 'in_meeting_live_panel',
+        });
+      }
+      // Log the decline server-side for GDPR audit trail
+      return apiRequest("POST", `/api/recall/import/${importId}/consent-decline`, {
+        elapsedSeconds: recordingElapsed,
+      });
+    },
+    onSuccess: (_, consented) => {
+      if (consented) {
+        consentObtainedRef.current = true;
+        setConsentObtained(true);
+        setConsentRecordedElapsed(recordingElapsed); // freeze display time at confirmation
+        queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/live-import`] });
+      } else {
+        setConsentDeclined(true);
+      }
+    },
+  });
+
+  const sendConsentLinkMutation = useMutation({
+    mutationFn: async () => {
+      if (!importId) throw new Error("No import ID");
+      const contact = consentLinkContact.trim();
+      const isEmail = contact.includes("@");
+      return apiRequest("POST", `/api/recall/import/${importId}/send-consent-link`, {
+        ...(isEmail ? { contactEmail: contact } : { contactMobile: contact }),
+        contactName: consentLinkName || undefined,
+      });
+    },
+    onSuccess: () => {
+      setConsentLinkSent(true);
+      toast({
+        title: "Consent link sent",
+        description: `A consent confirmation link has been sent to ${consentLinkContact}.`,
+        duration: 5000,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to send consent link",
+        description: "Please check the contact details and try again.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    },
+  });
+
   const handleSendBot = () => {
-    if (!platform || !consentConfirmed) return;
-    // Stay on consent step while deploying; onSuccess moves to "live"
     deployMutation.mutate();
   };
 
   const handleClose = () => {
+    // If in-meeting consent mode and consent not yet obtained, warn but don't block
     if (step === "live") {
       toast({
         title: "Bot still running",
@@ -219,14 +320,25 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
     setStep("url");
     setMeetingUrl("");
     setPlatform(null);
-    setConsentConfirmed(false);
+    setConsentMode("pre_confirmed");
     setImportId(null);
     setBotId(null);
     setBotPoll(null);
     setErrorMessage("");
     setElapsed(0);
+    setRecordingElapsed(0);
+    setRecordingStarted(false);
+    consentObtainedRef.current = false;
+    setConsentObtained(false);
+    setConsentDeclined(false);
+    setConsentRecordedElapsed(null);
+    setShowSendConsentLink(false);
+    setConsentLinkContact("");
+    setConsentLinkName("");
+    setConsentLinkSent(false);
     if (pollRef.current) clearInterval(pollRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
   };
 
   const formatElapsed = (s: number) => {
@@ -240,6 +352,9 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
   const currentStatus = botPoll?.botStatus;
   const isRecording = currentStatus === "in_call_recording";
   const isWaiting = currentStatus === "joining_call" || currentStatus === "in_waiting_room";
+  // Prefer server-returned consentMode from poll; fall back to local selection pre-deploy
+  const effectiveConsentMode = (botPoll?.consentMode as ConsentMode | undefined) ?? consentMode;
+  const showInMeetingConsentCard = effectiveConsentMode === "in_meeting" && isRecording && !consentObtained && !consentDeclined;
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
@@ -295,7 +410,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
             <Alert>
               <Shield className="h-4 w-4" />
               <AlertDescription>
-                <strong>GDPR — Recording consent required.</strong> You must have obtained informed consent from all participants before the bot joins.
+                <strong>GDPR — Recording consent required.</strong> Choose how you will obtain consent from all participants.
               </AlertDescription>
             </Alert>
 
@@ -304,16 +419,54 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
               <p className="text-xs text-muted-foreground mt-0.5 break-all">{meetingUrl}</p>
             </div>
 
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="live-consent"
-                checked={consentConfirmed}
-                onCheckedChange={(v) => setConsentConfirmed(v === true)}
-                data-testid="checkbox-live-consent"
-              />
-              <Label htmlFor="live-consent" className="text-sm leading-relaxed cursor-pointer">
-                I confirm all participants have been informed that this meeting will be recorded by LegalNote for the purpose of producing legal documentation, and have consented to this recording.
-              </Label>
+            <div className="space-y-3">
+              <p className="text-sm font-medium">How will you obtain consent?</p>
+
+              <button
+                type="button"
+                onClick={() => setConsentMode("pre_confirmed")}
+                className={`w-full text-left p-4 rounded-md border-2 transition-colors duration-150 ${
+                  consentMode === "pre_confirmed"
+                    ? "border-accent bg-accent/5"
+                    : "border-border bg-muted/20 hover-elevate"
+                }`}
+                data-testid="option-consent-pre-confirmed"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-4 h-4 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
+                    consentMode === "pre_confirmed" ? "border-accent" : "border-muted-foreground"
+                  }`}>
+                    {consentMode === "pre_confirmed" && <div className="w-2 h-2 rounded-full bg-accent" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Consent already confirmed before this meeting</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">You have already obtained informed consent from all participants prior to this session.</p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConsentMode("in_meeting")}
+                className={`w-full text-left p-4 rounded-md border-2 transition-colors duration-150 ${
+                  consentMode === "in_meeting"
+                    ? "border-accent bg-accent/5"
+                    : "border-border bg-muted/20 hover-elevate"
+                }`}
+                data-testid="option-consent-in-meeting"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-4 h-4 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
+                    consentMode === "in_meeting" ? "border-accent" : "border-muted-foreground"
+                  }`}>
+                    {consentMode === "in_meeting" && <div className="w-2 h-2 rounded-full bg-accent" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">I will read the consent script at the start of the recording</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">The GDPR consent script will appear once recording begins. The client's verbal agreement will be captured on the recording.</p>
+                  </div>
+                </div>
+              </button>
             </div>
 
             <div className="flex gap-2">
@@ -322,7 +475,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
               </Button>
               <Button
                 className="flex-1"
-                disabled={!consentConfirmed || deployMutation.isPending}
+                disabled={deployMutation.isPending}
                 onClick={handleSendBot}
                 data-testid="button-send-bot"
               >
@@ -358,6 +511,164 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
                 </p>
               )}
             </div>
+
+            {/* In-meeting consent script card */}
+            {showInMeetingConsentCard && (
+              <div className="border-2 border-amber-500/50 bg-amber-500/5 rounded-md p-4 space-y-3" data-testid="card-in-meeting-consent">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">Read consent script to client now</p>
+                </div>
+                <div className="bg-background rounded-md p-3 border border-border">
+                  <p className="text-xs font-medium text-muted-foreground mb-1.5">READ TO CLIENT:</p>
+                  <p className="text-sm leading-relaxed italic">"{CONSENT_SCRIPT}"</p>
+                </div>
+                <div className="bg-muted/40 p-2.5 rounded-md">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Recording time:</strong> {formatElapsed(recordingElapsed)} into session. The client's verbal response is being captured on the recording.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 gap-2"
+                    disabled={consentMutation.isPending}
+                    onClick={() => consentMutation.mutate(false)}
+                    data-testid="button-client-declined"
+                  >
+                    <X className="w-4 h-4" />
+                    Client Declined
+                  </Button>
+                  <Button
+                    className="flex-1 gap-2"
+                    disabled={consentMutation.isPending}
+                    onClick={() => consentMutation.mutate(true)}
+                    data-testid="button-client-consented"
+                  >
+                    {consentMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Client Consented
+                  </Button>
+                </div>
+
+                {/* Send consent link option */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowSendConsentLink(s => !s)}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    data-testid="button-toggle-send-consent-link"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    Send a digital consent link instead
+                    {showSendConsentLink ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+                  {showSendConsentLink && !consentLinkSent && (
+                    <div className="mt-2 space-y-2">
+                      <Input
+                        placeholder="Client email or mobile number"
+                        value={consentLinkContact}
+                        onChange={e => setConsentLinkContact(e.target.value)}
+                        data-testid="input-consent-link-contact"
+                      />
+                      <Input
+                        placeholder="Client name (optional)"
+                        value={consentLinkName}
+                        onChange={e => setConsentLinkName(e.target.value)}
+                        data-testid="input-consent-link-name"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-2"
+                        disabled={!consentLinkContact.trim() || sendConsentLinkMutation.isPending}
+                        onClick={() => sendConsentLinkMutation.mutate()}
+                        data-testid="button-send-consent-link"
+                      >
+                        {sendConsentLinkMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        Send Consent Link
+                      </Button>
+                    </div>
+                  )}
+                  {consentLinkSent && (
+                    <p className="mt-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Consent link sent to {consentLinkContact}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Consent obtained indicator */}
+            {consentObtained && (
+              <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/30 rounded-md" data-testid="alert-consent-recorded">
+                <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-green-700 dark:text-green-300">Consent recorded</p>
+                  <p className="text-xs text-muted-foreground">Verbal consent confirmed {formatElapsed(consentRecordedElapsed ?? recordingElapsed)} into the recording.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Consent declined indicator + recovery send-link option */}
+            {consentDeclined && (
+              <div className="space-y-2" data-testid="alert-consent-declined">
+                <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-md">
+                  <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-destructive font-medium">Client declined consent</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">The client's refusal has been noted. You can still send a digital consent link for them to review.</p>
+                  </div>
+                </div>
+                {!consentLinkSent && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setShowSendConsentLink(s => !s)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      data-testid="button-toggle-send-consent-link-declined"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      Send a digital consent link
+                      {showSendConsentLink ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                    {showSendConsentLink && (
+                      <div className="mt-2 space-y-2">
+                        <Input
+                          placeholder="Client email or mobile number"
+                          value={consentLinkContact}
+                          onChange={e => setConsentLinkContact(e.target.value)}
+                          data-testid="input-consent-link-contact-declined"
+                        />
+                        <Input
+                          placeholder="Client name (optional)"
+                          value={consentLinkName}
+                          onChange={e => setConsentLinkName(e.target.value)}
+                          data-testid="input-consent-link-name-declined"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-2"
+                          disabled={!consentLinkContact.trim() || sendConsentLinkMutation.isPending}
+                          onClick={() => sendConsentLinkMutation.mutate()}
+                          data-testid="button-send-consent-link-declined"
+                        >
+                          {sendConsentLinkMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                          Send Consent Link
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {consentLinkSent && (
+                  <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Consent link sent to {consentLinkContact}
+                  </p>
+                )}
+              </div>
+            )}
 
             {botPoll?.participants && botPoll.participants.length > 0 && (
               <div className="space-y-1.5">
