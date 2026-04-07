@@ -36,10 +36,10 @@ export function useAuth() {
   // Supervisor: designation OR role-based
   const isSupervisor = isAdmin || designations.includes("is_supervisor") || ['supervisor', 'partner', 'colp'].includes(role);
 
-  // COLP dashboard access: COLP/partner/admin by role, or firm admin designation
+  // COLP dashboard access: COLP/partner/admin by role, or firm admin designation, or COFA, or managing partner
   const isColp = isCOLP;
   const isPartner = isAdmin || role === 'partner' || role === 'colp';
-  const canAccessFirmCompliance = isAdmin || isFirmAdmin || ['colp', 'partner', 'admin'].includes(role) || designations.includes("is_colp");
+  const canAccessFirmCompliance = isAdmin || isFirmAdmin || isCOFA || ['colp', 'partner', 'admin', 'managing_partner'].includes(role) || designations.includes("is_colp") || user?.primaryRole === 'managing_partner';
 
   return {
     user,

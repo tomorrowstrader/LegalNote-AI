@@ -6387,6 +6387,113 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     } catch (error) { next(error); }
   });
 
+  // Finance compliance overview — restricted to COFA, firm admin, and managing partner
+  app.get("/api/firm/finance-compliance", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ message: "User not found" });
+
+      const designations: string[] = user.regulatoryDesignations ?? [];
+      const primaryRole = user.primaryRole ?? "";
+      const hasAccess =
+        designations.includes("is_cofa") ||
+        designations.includes("is_firm_admin") ||
+        primaryRole === "managing_partner";
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access restricted to COFA, firm administrators, and managing partners." });
+      }
+
+      // Gather all active (non-archived) firm matters
+      const firmCases = user.firmId
+        ? await storage.getFirmCases(user.firmId, false)
+        : await storage.getCases(userId, false);
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      // Build per-matter finance compliance data
+      const matterData = await Promise.all(
+        firmCases.map(async (c) => {
+          const [caseTimeEntries, caseSessions] = await Promise.all([
+            storage.getTimeEntriesByCase(c.id),
+            storage.getMeetingSessionsByCase(c.id, userId),
+          ]);
+
+          const totalMinutes = caseTimeEntries.reduce((sum, e) => sum + e.durationMinutes, 0);
+          const billableValue = caseTimeEntries.reduce((sum, e) => {
+            const rate = parseFloat(e.hourlyRate) || 0;
+            return sum + (rate * e.durationMinutes) / 60;
+          }, 0);
+
+          const lastEntry = caseTimeEntries.length > 0
+            ? caseTimeEntries.reduce((latest, e) => new Date(e.createdAt) > new Date(latest.createdAt) ? e : latest)
+            : null;
+
+          const lastTimeEntryDate = lastEntry ? lastEntry.createdAt : null;
+          const noTimeIn30Days = caseTimeEntries.length === 0 || (lastTimeEntryDate && new Date(lastTimeEntryDate) < thirtyDaysAgo);
+
+          // Sessions with no time entry: sessions that have no time entry linked via meetingSessionId
+          const sessionIdsWithEntry = new Set(caseTimeEntries.map(e => e.meetingSessionId).filter(Boolean));
+          const sessionsWithNoEntry = caseSessions.filter(s => !sessionIdsWithEntry.has(s.id));
+
+          // Billable but not communicated: time recorded but no costsEstimate on file
+          const hasCostsEstimate = !!(c.costsEstimate && c.costsEstimate.trim().length > 0);
+
+          // Unbilled: time has been recorded but no costs communication on file (costsEstimate null or empty)
+          const hasTimeRecorded = caseTimeEntries.length > 0;
+
+          return {
+            caseId: c.id,
+            caseTitle: c.title,
+            clientName: c.clientName,
+            matterReference: c.matterReference ?? null,
+            practiceArea: c.practiceArea ?? null,
+            createdAt: c.createdAt,
+            totalMinutes,
+            billableValue: Math.round(billableValue * 100) / 100,
+            costsEstimate: c.costsEstimate ?? null,
+            hasCostsEstimate,
+            hasTimeRecorded,
+            lastTimeEntryDate,
+            noTimeIn30Days: !!noTimeIn30Days,
+            sessionCount: caseSessions.length,
+            sessionsWithNoEntryCount: sessionsWithNoEntry.length,
+            timeEntryCount: caseTimeEntries.length,
+          };
+        })
+      );
+
+      // Compute variance: costsEstimate vs billableValue
+      const mattersWithVariance = matterData.map((m) => {
+        const estimatedAmount = m.costsEstimate ? parseFloat(m.costsEstimate.replace(/[^0-9.]/g, "")) : null;
+        const variance = estimatedAmount !== null && !isNaN(estimatedAmount)
+          ? Math.round((m.billableValue - estimatedAmount) * 100) / 100
+          : null;
+        return { ...m, estimatedAmount, variance };
+      });
+
+      // Summary counts
+      const unbilledMatters = mattersWithVariance.filter(m => m.hasTimeRecorded && !m.hasCostsEstimate);
+      const costsTransparencyFlags = mattersWithVariance.filter(m => !m.hasCostsEstimate);
+      const timeGapMatters = mattersWithVariance.filter(m => m.sessionsWithNoEntryCount > 0);
+      const inactiveMatters = mattersWithVariance.filter(m => m.noTimeIn30Days && m.hasTimeRecorded);
+
+      res.json({
+        summary: {
+          totalActiveMatters: firmCases.length,
+          unbilledCount: unbilledMatters.length,
+          costsTransparencyCount: costsTransparencyFlags.length,
+          timeGapCount: timeGapMatters.length,
+          inactiveCount: inactiveMatters.length,
+        },
+        matters: mattersWithVariance,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (error) { next(error); }
+  });
+
   // Public compliance badge (no auth — embeddable on firm website)
   app.get("/api/public/badge/:slug", async (req, res, next) => {
     try {

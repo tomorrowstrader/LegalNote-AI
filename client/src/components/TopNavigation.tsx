@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, User, HelpCircle, Shield, Home, FileText, FolderOpen, Settings, CheckSquare, Users, Clock, ChevronDown } from "lucide-react";
+import { Menu, User, HelpCircle, Shield, Home, FileText, FolderOpen, Settings, CheckSquare, Users, Clock, ChevronDown, BadgePoundSterling } from "lucide-react";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -150,7 +150,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 {canAccessFirmCompliance && (
                   <DropdownMenuItem asChild data-testid="menu-item-firm-compliance">
                     <Link href="/compliance">
-                      <Shield className="w-4 h-4 mr-2" />
+                      <BadgePoundSterling className="w-4 h-4 mr-2" />
                       Firm Compliance
                     </Link>
                   </DropdownMenuItem>

@@ -47,7 +47,7 @@ import PendingApproval from "@/pages/PendingApproval";
 import ScrollToTop from "@/components/ScrollToTop";
 
 function Router() {
-  const { user, isAuthenticated, isLoading, isAdmin, isWaitlisted, isFirmAdmin } = useAuth();
+  const { user, isAuthenticated, isLoading, isAdmin, isWaitlisted, isFirmAdmin, canAccessFirmCompliance } = useAuth();
   const isPendingApproval = user?.inviteStatus === "pending_approval";
 
   return (
@@ -97,7 +97,7 @@ function Router() {
           <Route path="/time-summary" component={TimeSummary} />
           <Route path="/undertakings" component={UndertakingsDashboard} />
           {isFirmAdmin && <Route path="/team" component={TeamManagement} />}
-          <Route path="/compliance" component={FirmCompliance} />
+          {canAccessFirmCompliance && <Route path="/compliance" component={FirmCompliance} />}
           <Route path="/waitlist" component={WaitlistPage} />
         </>
       )}
