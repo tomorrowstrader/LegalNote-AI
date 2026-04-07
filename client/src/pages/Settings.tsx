@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -2146,6 +2147,25 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="demo" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Link2 className="w-5 h-5" />
+                  <CardTitle>Demo Link Generator</CardTitle>
+                </div>
+                <CardDescription>
+                  Create personalised demo links to send to prospects — each link shows a live dashboard tailored to their practice area and firm name.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/demo-generator">
+                  <Button data-testid="button-open-demo-generator">
+                    <Link2 className="w-4 h-4 mr-2" />
+                    Open Demo Link Generator
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
             <DemoDataControls />
           </TabsContent>
 

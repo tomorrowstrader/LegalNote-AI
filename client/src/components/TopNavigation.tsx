@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, User, HelpCircle, Shield, Home, FileText, FolderOpen, Settings, CheckSquare, Users, Clock, ChevronDown, BadgePoundSterling } from "lucide-react";
+import { Menu, User, HelpCircle, Shield, Home, FileText, FolderOpen, Settings, CheckSquare, Users, Clock, ChevronDown, BadgePoundSterling, Link2 } from "lucide-react";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,7 +39,7 @@ const allNavLinks = [...primaryNavLinks, ...moreNavLinks];
 
 export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   const [location, setLocation] = useLocation();
-  const { user, isAdmin, isFirmAdmin, canAccessFirmCompliance } = useAuth();
+  const { user, isAdmin, isFirmAdmin, isPartner, isSupervisor, canAccessFirmCompliance } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleNavClick = (path: string) => {
@@ -164,6 +164,17 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                     Security & Compliance
                   </Link>
                 </DropdownMenuItem>
+                {(isFirmAdmin || isPartner || isSupervisor) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild data-testid="menu-item-demo-generator">
+                      <Link href="/demo-generator">
+                        <Link2 className="w-4 h-4 mr-2" />
+                        Demo Link Generator
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
                 {(isFirmAdmin) && (
                   <>
                     <DropdownMenuSeparator />
