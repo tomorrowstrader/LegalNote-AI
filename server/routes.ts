@@ -7046,6 +7046,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // Return the most recent active import first
       const active = imports.find(i => ['live', 'pending', 'transcribing', 'failed'].includes(i.status));
       if (active) {
+        // Auto-resolve a stuck 'transcribing' import when the case already has documents
+        if (active.status === 'transcribing') {
+          const docs = await storage.getDocumentsByCase(caseId, userId);
+          if (docs && docs.length > 0) {
+            await storage.updateMeetingImport(active.id, { status: 'completed' });
+            return res.json(null);
+          }
+        }
         return res.json({
           importId: active.id,
           botId: active.recallBotId,

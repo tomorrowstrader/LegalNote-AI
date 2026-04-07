@@ -165,6 +165,7 @@ export default function CaseDetail() {
 
   // Missing-consent banner state
   const [showConfirmVerbalConsentDialog, setShowConfirmVerbalConsentDialog] = useState(false);
+  const [consentDialogMode, setConsentDialogMode] = useState<'bot' | 'direct'>('bot');
   const [showScriptInBanner, setShowScriptInBanner] = useState(false);
   const [showSendConsentLinkBanner, setShowSendConsentLinkBanner] = useState(false);
   const [bannerConsentLinkContact, setBannerConsentLinkContact] = useState("");
@@ -369,7 +370,7 @@ export default function CaseDetail() {
     },
   });
 
-  // Confirm verbal consent post-meeting (from CaseDetail banner)
+  // Confirm verbal consent post-meeting (from missing-consent bot banner — requires importId)
   const confirmBannerConsentMutation = useMutation({
     mutationFn: async () => {
       if (!liveImport?.importId) throw new Error("No import found");
@@ -382,6 +383,34 @@ export default function CaseDetail() {
       toast({ title: "Consent recorded", description: "Verbal consent has been logged in the audit trail.", duration: 5000 });
       setShowConfirmVerbalConsentDialog(false);
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/live-import`] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to record consent", description: error.message || "Please try again.", variant: "destructive" });
+    },
+  });
+
+  // Record verbal consent directly for audio cases (from GDPR banner — no importId needed)
+  const recordDirectConsentMutation = useMutation({
+    mutationFn: async (consentGiven: boolean) => {
+      return apiRequest("POST", `/api/consent`, {
+        caseId,
+        consentGiven,
+        disclaimerScriptVersion: 'v1',
+        consentModality: 'verbal_attested',
+        disclaimerWordingText: "I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?",
+        audioRecordingId: audioData?.id,
+      });
+    },
+    onSuccess: (_data, consentGiven) => {
+      toast({
+        title: consentGiven ? "Consent recorded" : "Declined recorded",
+        description: consentGiven
+          ? "Client consent has been logged in the audit trail."
+          : "Client's decline has been recorded.",
+        duration: 5000,
+      });
+      setShowConfirmVerbalConsentDialog(false);
+      queryClient.invalidateQueries({ queryKey: [`/api/consent/by-case/${caseId}`] });
     },
     onError: (error: any) => {
       toast({ title: "Failed to record consent", description: error.message || "Please try again.", variant: "destructive" });
@@ -764,18 +793,29 @@ export default function CaseDetail() {
             <div className="p-4 bg-destructive/10 border border-destructive/40 rounded-md" data-testid="alert-gdpr-required">
               <div className="flex items-start gap-3">
                 <Shield className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground">GDPR Compliance Required</p>
                   <p className="text-sm text-muted-foreground mt-0.5">
                     No valid client consent has been recorded. Obtain consent before processing audio.
                   </p>
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 gap-1.5"
+                  onClick={() => { setConsentDialogMode('direct'); setShowConfirmVerbalConsentDialog(true); }}
+                  data-testid="button-get-consent-gdpr-banner"
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  Get Consent
+                </Button>
               </div>
             </div>
           )}
 
           {/* Live / pending bot import banner — suppress for completed imports returned only for unresolved consent */}
-          {liveImport && liveImport.status !== 'completed' && (
+          {/* Also suppress if status is 'transcribing' but documents already exist (stuck import guard) */}
+          {liveImport && liveImport.status !== 'completed' && !(liveImport.status === 'transcribing' && documents.length > 0) && (
             <div
               className={`p-4 rounded-md border flex items-start gap-3 ${
                 liveImport.status === 'failed'
@@ -858,7 +898,7 @@ export default function CaseDetail() {
                   size="sm"
                   variant="outline"
                   className="gap-1.5"
-                  onClick={() => setShowConfirmVerbalConsentDialog(true)}
+                  onClick={() => { setConsentDialogMode('bot'); setShowConfirmVerbalConsentDialog(true); }}
                   data-testid="button-confirm-verbal-consent-banner"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1457,16 +1497,40 @@ export default function CaseDetail() {
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowConfirmVerbalConsentDialog(false)} disabled={confirmBannerConsentMutation.isPending}>
+            <Button
+              variant="outline"
+              onClick={() => setShowConfirmVerbalConsentDialog(false)}
+              disabled={confirmBannerConsentMutation.isPending || recordDirectConsentMutation.isPending}
+            >
               Cancel
             </Button>
-            <Button
-              onClick={() => confirmBannerConsentMutation.mutate()}
-              disabled={confirmBannerConsentMutation.isPending}
-              data-testid="button-confirm-verbal-consent-dialog"
-            >
-              {confirmBannerConsentMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Confirming...</> : "Confirm Verbal Consent"}
-            </Button>
+            {consentDialogMode === 'direct' ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => recordDirectConsentMutation.mutate(false)}
+                  disabled={recordDirectConsentMutation.isPending}
+                  data-testid="button-client-declined-consent-dialog"
+                >
+                  {recordDirectConsentMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Client Declined"}
+                </Button>
+                <Button
+                  onClick={() => recordDirectConsentMutation.mutate(true)}
+                  disabled={recordDirectConsentMutation.isPending}
+                  data-testid="button-client-consented-dialog"
+                >
+                  {recordDirectConsentMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Recording...</> : "Client Consented"}
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={() => confirmBannerConsentMutation.mutate()}
+                disabled={confirmBannerConsentMutation.isPending}
+                data-testid="button-confirm-verbal-consent-dialog"
+              >
+                {confirmBannerConsentMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Confirming...</> : "Confirm Verbal Consent"}
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>

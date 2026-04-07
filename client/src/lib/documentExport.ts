@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, NumberFormat, BorderStyle } from 'docx';
+import { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType, LineRuleType } from 'docx';
 import { saveAs } from 'file-saver';
 import type { FirmProfile } from '@shared/schema';
 
@@ -26,7 +26,8 @@ function stripInlineMarkdown(text: string): string {
 }
 
 // Parse markdown line into TextRuns for Word export
-function parseMarkdownLine(line: string): TextRun[] {
+// defaultRunOptions are merged into every TextRun (e.g. { size: 22, font: 'Calibri' })
+function parseMarkdownLine(line: string, defaultRunOptions: Partial<{ size: number; font: string }> = {}): TextRun[] {
   const runs: TextRun[] = [];
   let currentText = '';
   let i = 0;
@@ -35,7 +36,7 @@ function parseMarkdownLine(line: string): TextRun[] {
     // Check for **bold** or __bold__
     if ((line[i] === '*' && line[i + 1] === '*') || (line[i] === '_' && line[i + 1] === '_')) {
       if (currentText) {
-        runs.push(new TextRun(currentText));
+        runs.push(new TextRun({ text: currentText, ...defaultRunOptions }));
         currentText = '';
       }
       const delimiter = line[i];
@@ -46,7 +47,7 @@ function parseMarkdownLine(line: string): TextRun[] {
         i++;
       }
       if (boldText) {
-        runs.push(new TextRun({ text: boldText, bold: true }));
+        runs.push(new TextRun({ text: boldText, bold: true, ...defaultRunOptions }));
       }
       i += 2; // Skip closing ** or __
       continue;
@@ -55,7 +56,7 @@ function parseMarkdownLine(line: string): TextRun[] {
     // Check for *italic* or _italic_
     if (line[i] === '*' || line[i] === '_') {
       if (currentText) {
-        runs.push(new TextRun(currentText));
+        runs.push(new TextRun({ text: currentText, ...defaultRunOptions }));
         currentText = '';
       }
       const delimiter = line[i];
@@ -66,7 +67,7 @@ function parseMarkdownLine(line: string): TextRun[] {
         i++;
       }
       if (italicText) {
-        runs.push(new TextRun({ text: italicText, italics: true }));
+        runs.push(new TextRun({ text: italicText, italics: true, ...defaultRunOptions }));
       }
       i++; // Skip closing * or _
       continue;
@@ -77,10 +78,10 @@ function parseMarkdownLine(line: string): TextRun[] {
   }
   
   if (currentText) {
-    runs.push(new TextRun(currentText));
+    runs.push(new TextRun({ text: currentText, ...defaultRunOptions }));
   }
   
-  return runs.length > 0 ? runs : [new TextRun(line)];
+  return runs.length > 0 ? runs : [new TextRun({ text: line, ...defaultRunOptions })];
 }
 
 export async function exportToPDF(content: DocumentContent) {
@@ -129,7 +130,26 @@ export async function exportToPDF(content: DocumentContent) {
     });
   };
 
+  // Pre-scan for header field lines and compute the label column width for alignment
+  const computeLabelColumnWidth = (md: string): number => {
+    const labelPattern = /^([A-Za-z][A-Za-z\s]{0,24}):\s+\S/;
+    let maxLabelPx = 0;
+    for (const line of md.split('\n')) {
+      const m = line.match(labelPattern);
+      if (m) {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        const w = doc.getTextWidth(m[1] + ': ');
+        if (w > maxLabelPx) maxLabelPx = w;
+      }
+    }
+    return maxLabelPx > 0 ? maxLabelPx + 2 : 0;
+  };
+
   const renderMarkdownSection = (markdown: string) => {
+    const labelColWidth = computeLabelColumnWidth(markdown);
+    const labelPattern = /^([A-Za-z][A-Za-z\s]{0,24}):\s+(.+)/;
+
     const lines = markdown.split('\n');
     
     for (let i = 0; i < lines.length; i++) {
@@ -146,6 +166,27 @@ export async function exportToPDF(content: DocumentContent) {
         doc.line(margin, yPosition, pageWidth - margin, yPosition);
         yPosition += 8;
         continue;
+      }
+
+      // Label: value lines — align value at fixed column
+      if (labelColWidth > 0 && !line.startsWith('#') && !line.startsWith('-') && !line.startsWith('*') && !line.startsWith('|')) {
+        const lm = line.match(labelPattern);
+        if (lm) {
+          const label = lm[1] + ':';
+          const value = stripInlineMarkdown(lm[2]);
+          checkNewPage(6);
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.text(label, margin, yPosition);
+          doc.setFont('helvetica', 'normal');
+          const valueLines = doc.splitTextToSize(value, maxWidth - labelColWidth);
+          valueLines.forEach((vLine: string, vi: number) => {
+            if (vi > 0) { checkNewPage(5); yPosition += 5; }
+            doc.text(vLine, margin + labelColWidth, yPosition);
+          });
+          yPosition += 5.5;
+          continue;
+        }
       }
 
       const headingMatch = line.match(/^(#{1,6})\s+(.+)/);
@@ -389,7 +430,7 @@ export async function exportToPDF(content: DocumentContent) {
 }
 
 export async function exportToWord(content: DocumentContent) {
-  const children: Paragraph[] = [];
+  const children: (Paragraph | Table)[] = [];
 
   // Firm Letterhead
   if (content.firmProfile?.firmName) {
@@ -424,54 +465,40 @@ export async function exportToWord(content: DocumentContent) {
     children.push(new Paragraph({ text: '', border: { bottom: { color: "000000", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { after: 400 } }));
   }
 
-  // Header section
-  children.push(
-    new Paragraph({
-      text: 'Legal Case Documentation',
-      heading: HeadingLevel.HEADING_1,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 400 },
-    }),
-    new Paragraph({
-      children: [
-        new TextRun({ text: 'Case: ', bold: true }),
-        new TextRun(content.caseTitle),
-      ],
-      spacing: { after: 200 },
-    }),
-    new Paragraph({
-      children: [
-        new TextRun({ text: 'Client: ', bold: true }),
-        new TextRun(content.clientName),
-      ],
-      spacing: { after: 200 },
-    })
-  );
+  // Helper to create a borderless two-column table row for header fields
+  const noBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+  const makeHeaderRow = (label: string, value: string) => new TableRow({
+    children: [
+      new TableCell({
+        width: { size: 2400, type: WidthType.DXA },
+        borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+        children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 22, font: 'Calibri' })], spacing: { after: 60 } })],
+      }),
+      new TableCell({
+        width: { size: 5400, type: WidthType.DXA },
+        borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+        children: [new Paragraph({ children: [new TextRun({ text: value, size: 22, font: 'Calibri' })], spacing: { after: 60 } })],
+      }),
+    ],
+  });
 
+  // Header fields block — two-column borderless table
+  const headerRows: TableRow[] = [
+    makeHeaderRow('Case:', content.caseTitle),
+    makeHeaderRow('Client:', content.clientName),
+  ];
   if (content.matterReference) {
-    children.push(
-      new Paragraph({
-        children: [
-          new TextRun({ text: 'Matter Reference: ', bold: true }),
-          new TextRun(content.matterReference),
-        ],
-        spacing: { after: 200 },
-      })
-    );
+    headerRows.push(makeHeaderRow('Matter Reference:', content.matterReference));
   }
+  headerRows.push(makeHeaderRow('Generated:', new Date(content.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })));
 
   children.push(
-    new Paragraph({
-      children: [
-        new TextRun({ text: 'Generated: ', bold: true }),
-        new TextRun(new Date(content.createdAt).toLocaleDateString('en-GB', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        })),
-      ],
-      spacing: { after: 600 },
-    })
+    new Table({
+      width: { size: 7800, type: WidthType.DXA },
+      borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideH: noBorder, insideV: noBorder },
+      rows: headerRows,
+    }),
+    new Paragraph({ text: '', spacing: { after: 360 } })
   );
 
   // Helper to preserve formatting and paragraph breaks with markdown parsing
@@ -494,8 +521,8 @@ export async function exportToWord(content: DocumentContent) {
         const textContent = numberedMatch[2];
         paragraphs.push(
           new Paragraph({
-            children: parseMarkdownLine(textContent),
-            spacing: { after: 100 },
+            children: parseMarkdownLine(textContent, { size: 22, font: 'Calibri' }),
+            spacing: { after: 120, line: 276, lineRule: LineRuleType.AUTO },
             numbering: {
               reference: 'default-numbering',
               level: 0
@@ -511,8 +538,8 @@ export async function exportToWord(content: DocumentContent) {
         const textContent = bulletMatch[1];
         paragraphs.push(
           new Paragraph({
-            children: parseMarkdownLine(textContent),
-            spacing: { after: 100 },
+            children: parseMarkdownLine(textContent, { size: 22, font: 'Calibri' }),
+            spacing: { after: 120, line: 276, lineRule: LineRuleType.AUTO },
             bullet: {
               level: 0
             }
@@ -526,12 +553,11 @@ export async function exportToWord(content: DocumentContent) {
       if (headingMatch) {
         const level = headingMatch[1].length;
         const textContent = headingMatch[2];
+        const headingSize = level === 1 ? 24 : 22;
         paragraphs.push(
           new Paragraph({
-            children: parseMarkdownLine(textContent),
-            heading: level === 1 ? HeadingLevel.HEADING_2 : 
-                    level === 2 ? HeadingLevel.HEADING_3 : HeadingLevel.HEADING_4,
-            spacing: { before: 200, after: 100 },
+            children: [new TextRun({ text: textContent, bold: true, size: headingSize, font: 'Calibri' })],
+            spacing: { before: 240, after: 120 },
           })
         );
         continue;
@@ -544,16 +570,16 @@ export async function exportToWord(content: DocumentContent) {
         const textContent = trimmedLine.replace(/\*\*/g, '');
         paragraphs.push(
           new Paragraph({
-            children: [new TextRun({ text: textContent, bold: true })],
-            spacing: { before: 200, after: 100 },
+            children: [new TextRun({ text: textContent, bold: true, size: 24, font: 'Calibri' })],
+            spacing: { before: 240, after: 120 },
           })
         );
       } else {
-        // Regular paragraph with inline markdown
+        // Regular paragraph with inline markdown — 11pt Calibri, 1.15 line spacing, 120 twips after
         paragraphs.push(
           new Paragraph({
-            children: parseMarkdownLine(trimmedLine),
-            spacing: { after: 100 },
+            children: parseMarkdownLine(trimmedLine, { size: 22, font: 'Calibri' }),
+            spacing: { after: 120, line: 276, lineRule: LineRuleType.AUTO },
           })
         );
       }
@@ -562,40 +588,34 @@ export async function exportToWord(content: DocumentContent) {
     return paragraphs;
   };
 
+  // Helper to make a section heading paragraph — 12pt bold Calibri, not using Word's built-in heading styles
+  const makeSectionHeading = (text: string) => new Paragraph({
+    children: [new TextRun({ text, bold: true, size: 24, font: 'Calibri' })],
+    spacing: { before: 360, after: 120 },
+  });
+
   // Summary section
   if (content.summary) {
     children.push(
-      new Paragraph({
-        text: 'CASE SUMMARY',
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 400, after: 200 },
-      }),
+      makeSectionHeading('CASE SUMMARY'),
       ...formatTextSection(content.summary),
-      new Paragraph({ text: '', spacing: { after: 400 } })
+      new Paragraph({ text: '', spacing: { after: 240 } })
     );
   }
 
   // Attendance Note section
   if (content.attendanceNote) {
     children.push(
-      new Paragraph({
-        text: 'ATTENDANCE NOTE',
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 400, after: 200 },
-      }),
+      makeSectionHeading('ATTENDANCE NOTE'),
       ...formatTextSection(content.attendanceNote),
-      new Paragraph({ text: '', spacing: { after: 400 } })
+      new Paragraph({ text: '', spacing: { after: 240 } })
     );
   }
 
   // Transcript section
   if (content.transcript) {
     children.push(
-      new Paragraph({
-        text: 'FULL TRANSCRIPT',
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 400, after: 200 },
-      }),
+      makeSectionHeading('FULL TRANSCRIPT'),
       ...formatTextSection(content.transcript)
     );
   }

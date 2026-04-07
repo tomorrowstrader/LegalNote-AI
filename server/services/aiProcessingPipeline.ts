@@ -516,12 +516,15 @@ export class AIProcessingPipeline {
       }
 
       // GDPR Compliance: Delete audio immediately after successful processing
-      // This implements "whichever comes first" - 7 days OR successful processing
+      // Exception: bot recordings (stored under .private/imports/) follow the same 7-day
+      // retention window as regular in-browser recordings — they are left to expire naturally.
       try {
         const { ObjectStorageService } = await import('../objectStorage');
         const objectStorageService = new ObjectStorageService();
         
-        if (audio.filePath && !audio.deletedAt) {
+        const isBotRecording = audio.filePath?.startsWith('.private/imports/') || !!audio.meetingSessionId;
+        
+        if (audio.filePath && !audio.deletedAt && !isBotRecording) {
           await objectStorageService.deleteObjectEntity(audio.filePath);
           await this.storage.updateAudioRecording(audio.id, { deletedAt: new Date() });
           
@@ -541,6 +544,8 @@ export class AIProcessingPipeline {
           });
           
           console.log(`[GDPR] Deleted audio after successful processing: ${audio.id} (case: ${caseId})`);
+        } else if (isBotRecording) {
+          console.log(`[GDPR] Skipping immediate deletion for bot recording ${audio.id} — will expire at ${audio.expiresAt}`);
         }
       } catch (deleteError) {
         // Don't fail the processing if deletion fails - it will be cleaned up by expiration

@@ -156,7 +156,8 @@ export class DocumentService {
     };
 
     // Build metadata header based on preferences
-    let metadataFields = `File Reference:  ${metadata.matterReference || 'TBD'}
+    // Labels are padded to 16 chars so the value column aligns consistently in PDF output
+    let metadataFields = `File Reference: ${metadata.matterReference || 'TBD'}
 Date:           ${metadata.recordingDate}
 Time:           {Meeting start time in 24-hour format from transcript, or "Not recorded in this session"}
 Duration:       {Total meeting duration from transcript, or "Not recorded in this session"}`;
