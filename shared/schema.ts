@@ -166,7 +166,7 @@ export const consentLogs = pgTable("consent_logs", {
   withdrawnBy: varchar("withdrawn_by").references(() => users.id),
 });
 
-export const RECORDING_TYPES = ["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station"] as const;
+export const RECORDING_TYPES = ["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station", "internal_meeting"] as const;
 export type RecordingType = typeof RECORDING_TYPES[number];
 
 export const RECORDING_TYPE_LABELS: Record<RecordingType, string> = {
@@ -175,6 +175,7 @@ export const RECORDING_TYPE_LABELS: Record<RecordingType, string> = {
   file_note: "File Note",
   court_hearing: "Court Hearing",
   police_station: "Police Station",
+  internal_meeting: "Internal Meeting",
 };
 
 export const meetingSessions = pgTable("meeting_sessions", {
@@ -707,7 +708,7 @@ export const insertMeetingSessionSchema = createInsertSchema(meetingSessions).om
   startedAt: true,
 }).extend({
   caseId: z.string().uuid(),
-  recordingType: z.enum(["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station"]).default("full_meeting"),
+  recordingType: z.enum(["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station", "internal_meeting"]).default("full_meeting"),
   sessionTitle: z.string().max(200).optional(),
   durationSeconds: z.number().int().min(0).max(43200).optional(),
   status: z.enum(["pending", "processing", "completed", "failed"]).default("pending"),
@@ -758,7 +759,7 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   caseId: z.string().uuid(),
   meetingSessionId: z.string().uuid().optional(),
   transcriptSnapshotId: z.string().uuid().optional(),
-  type: z.enum(["attendance_note", "summary", "client_care_letter"]),
+  type: z.enum(["attendance_note", "meeting_notes", "summary", "transcript", "client_care_letter"]),
   content: z.string().max(1000000), // 1MB max for documents
   version: z.number().int().min(1).default(1),
   versionType: z.enum(["ai_generated", "manually_edited", "ai_regenerated"]),

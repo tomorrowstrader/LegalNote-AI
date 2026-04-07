@@ -7135,7 +7135,174 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       next(error);
     }
   });
-  
+
+  // Get all unassigned meeting imports (awaiting matter assignment)
+  app.get("/api/recall/imports/unassigned", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const imports = await storage.getUnassignedMeetingImports(userId);
+      res.json(imports);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Assign an unassigned meeting import to a matter and trigger processing
+  // Supports: { caseId } to link to existing case, or { createCase: true, caseData: { title, clientName } } to create a new matter inline
+  app.post("/api/recall/import/:importId/assign", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId: bodyExistingCaseId, recordingType, createCase: shouldCreateCase, caseData: newCaseData } = req.body;
+
+      if (!shouldCreateCase && !bodyExistingCaseId) {
+        return res.status(400).json({ message: "Either caseId or createCase with caseData is required" });
+      }
+      if (shouldCreateCase && (!newCaseData?.title)) {
+        return res.status(400).json({ message: "caseData.title is required when createCase is true" });
+      }
+
+      const importData = await storage.getMeetingImport(req.params.importId);
+      if (!importData || importData.userId !== userId) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+
+      if (importData.status !== 'awaiting_assignment') {
+        return res.status(400).json({ message: "This recording is not awaiting assignment" });
+      }
+
+      let caseId = bodyExistingCaseId;
+
+      if (shouldCreateCase) {
+        // Create a new matter inline
+        const resolvedTitle = (newCaseData?.title || 'Meeting recording').trim();
+        const resolvedClientName = (newCaseData?.clientName || '').trim();
+
+        // For internal meetings, client is optional — use placeholder if absent
+        const clientData = resolvedClientName
+          ? await storage.createClient({ name: resolvedClientName }, userId)
+          : null;
+
+        const newCase = await storage.createCase({
+          title: resolvedTitle,
+          clientId: clientData?.id || undefined,
+          clientName: resolvedClientName || 'Internal meeting',
+          status: 'pending',
+          priority: 'normal',
+          sourceType: 'audio',
+        }, userId);
+        caseId = newCase.id;
+      } else {
+        // Verify access to the existing case
+        const caseData = await storage.getCase(caseId, userId);
+        if (!caseData) {
+          return res.status(404).json({ message: "Case not found" });
+        }
+      }
+
+      // Determine the session type to use
+      const resolvedRecordingType = recordingType || 'full_meeting';
+
+      // Create a meeting session for this recording with all required fields
+      let createdSessionId: string | undefined;
+      try {
+        const newSession = await storage.createMeetingSession({
+          caseId,
+          createdBy: userId,
+          recordingType: resolvedRecordingType,
+          status: 'pending',
+          durationSeconds: importData.durationSeconds || undefined,
+        });
+        createdSessionId = newSession.id;
+      } catch (sessionErr) {
+        console.warn('[Assign] Failed to create meeting session:', sessionErr);
+      }
+
+      // Link the import to the case and mark as pending
+      // The processing pipeline reads audioStoragePath to use stored recording rather than re-fetching from Recall
+      await storage.updateMeetingImport(importData.id, {
+        caseId,
+        status: 'pending',
+      });
+
+      await storage.createAuditLog({
+        eventType: 'meeting_import_assigned',
+        userId,
+        caseId,
+        ipAddress: req.ip || req.socket?.remoteAddress,
+        metadata: { importId: importData.id, caseId, recordingType: resolvedRecordingType, sessionId: createdSessionId },
+        severity: 'info',
+      });
+
+      // Trigger the AI processing pipeline asynchronously
+      // The pipeline will use the stored audio at audioStoragePath to avoid relying on Recall URL availability
+      const updatedImport = await storage.getMeetingImport(importData.id);
+      if (updatedImport) {
+        const { processBotRecording } = await import('./services/recallProcessing');
+        processBotRecording(updatedImport).catch((err: Error) => {
+          console.error(`[Assign] Background processing error for import ${importData.id}:`, err.message);
+        });
+      }
+
+      res.json({ success: true, caseId, importId: importData.id });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Discard an unassigned meeting import — GDPR: deletes stored recording from object storage
+  app.post("/api/recall/import/:importId/discard", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+
+      const importData = await storage.getMeetingImport(req.params.importId);
+      if (!importData || importData.userId !== userId) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+
+      if (importData.status !== 'awaiting_assignment') {
+        return res.status(400).json({ message: "Only recordings awaiting assignment can be discarded" });
+      }
+
+      // GDPR: delete the stored recording from object storage BEFORE marking as discarded.
+      // This is transactional — if deletion fails we do NOT mark the record discarded and return an error.
+      if (importData.audioStoragePath) {
+        try {
+          const { ObjectStorageService } = await import('./objectStorage');
+          const storageService = new ObjectStorageService();
+          await storageService.deleteObjectEntity(importData.audioStoragePath);
+          console.log(`[Discard] Deleted recording from object storage: ${importData.audioStoragePath}`);
+        } catch (deleteErr: any) {
+          // Deletion failed — do NOT mark discarded; inform caller so they can retry
+          console.error(`[Discard] Storage deletion failed for import ${importData.id}:`, deleteErr.message);
+          return res.status(500).json({
+            message: 'Could not delete recording from storage — import not discarded. Please try again.',
+            retryable: true,
+          });
+        }
+      }
+
+      // Storage deletion confirmed (or there was no file to delete) — now mark as discarded
+      await storage.updateMeetingImport(importData.id, {
+        status: 'discarded',
+        audioStoragePath: null,
+        errorMessage: 'Discarded by user — no matter assigned',
+      });
+
+      await storage.createAuditLog({
+        eventType: 'meeting_import_discarded',
+        userId,
+        caseId: undefined,
+        ipAddress: req.ip || req.socket?.remoteAddress,
+        metadata: { importId: importData.id, audioDeleted: !!importData.audioStoragePath },
+        severity: 'info',
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Update consent status - requires audit log entry for GDPR compliance
   app.patch("/api/recall/import/:importId/consent", isAuthenticated, async (req: any, res, next) => {
     try {

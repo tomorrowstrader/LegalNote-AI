@@ -264,7 +264,7 @@ function VersionDiffViewer({
 interface Document {
   id: string;
   caseId: string;
-  type: 'attendance_note' | 'summary' | 'transcript' | 'client_care_letter';
+  type: 'attendance_note' | 'meeting_notes' | 'summary' | 'transcript' | 'client_care_letter';
   content: string;
   version: number;
   createdAt: string;
@@ -588,7 +588,8 @@ export default function DocumentViewer({
     queryKey: ['/api/firm-profile'],
   });
 
-  const activeDocForComments = commentDocId || documents.find(d => d.type === (activeTab === 'summary' ? 'summary' : 'attendance_note'))?.id;
+  const hasMeetingNotesDoc = !documents.some(d => d.type === 'attendance_note') && documents.some(d => d.type === 'meeting_notes');
+  const activeDocForComments = commentDocId || documents.find(d => d.type === (activeTab === 'summary' ? 'summary' : hasMeetingNotesDoc ? 'meeting_notes' : 'attendance_note'))?.id;
   
   const { data: commentsData = [] } = useQuery<DocumentComment[]>({
     queryKey: ['/api/documents', activeDocForComments, 'comments'],
@@ -678,10 +679,10 @@ export default function DocumentViewer({
     }
 
     try {
-      const attendanceNote = documents.find(d => d.type === 'attendance_note');
+      const attendanceNote = documents.find(d => d.type === 'attendance_note') ?? documents.find(d => d.type === 'meeting_notes');
       const summary = documents.find(d => d.type === 'summary');
 
-      const primaryDoc = selectedDocs.includes('attendance_note') ? attendanceNote : 
+      const primaryDoc = (selectedDocs.includes('attendance_note') || selectedDocs.includes('meeting_notes')) ? attendanceNote : 
                          selectedDocs.includes('summary') ? summary : undefined;
       const content: any = {
         caseTitle,
@@ -693,7 +694,7 @@ export default function DocumentViewer({
         documentId: primaryDoc?.id,
       };
 
-      if (selectedDocs.includes('attendance_note')) {
+      if (selectedDocs.includes('attendance_note') || selectedDocs.includes('meeting_notes')) {
         if (attendanceNote?.content) {
           content.attendanceNote = attendanceNote.content;
         }
@@ -1125,7 +1126,8 @@ export default function DocumentViewer({
     return documents.find(d => d.type === type);
   };
 
-  const attendanceNote = findDoc('attendance_note');
+  const attendanceNote = findDoc('attendance_note') ?? findDoc('meeting_notes');
+  const isMeetingNotes = !findDoc('attendance_note') && !!findDoc('meeting_notes');
   const summary = findDoc('summary');
   const transcriptDoc = findDoc('transcript');
   const clientCareLetter = findDoc('client_care_letter');
@@ -1469,8 +1471,17 @@ export default function DocumentViewer({
           </div>
           <TabsList className={`grid w-full h-auto ${clientCareLetter ? 'grid-cols-4' : 'grid-cols-3'}`}>
             <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
-              <span className="hidden sm:inline">Attendance Note</span>
-              <span className="sm:hidden">Att. Note</span>
+              {isMeetingNotes ? (
+                <>
+                  <span className="hidden sm:inline">Meeting Notes</span>
+                  <span className="sm:hidden">Notes</span>
+                </>
+              ) : (
+                <>
+                  <span className="hidden sm:inline">Attendance Note</span>
+                  <span className="sm:hidden">Att. Note</span>
+                </>
+              )}
             </TabsTrigger>
             <TabsTrigger value="summary" data-testid="tab-summary" className="text-xs sm:text-sm px-2 py-2.5 h-auto">
               Matter Record
@@ -1517,7 +1528,7 @@ export default function DocumentViewer({
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <CardTitle>{attendanceNote?.isShortRecording ? 'Brief File Note' : 'Attendance Note'}</CardTitle>
+                    <CardTitle>{isMeetingNotes ? 'Meeting Notes' : attendanceNote?.isShortRecording ? 'Brief File Note' : 'Attendance Note'}</CardTitle>
                     {attendanceNoteSessionLabel && (
                       <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="badge-doc-session-attendance">
                         {attendanceNoteSessionLabel}
@@ -1564,7 +1575,7 @@ export default function DocumentViewer({
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground italic p-6">
-                    No attendance note available yet. Documents will be produced automatically.
+                    {isMeetingNotes ? "No meeting notes available yet. Documents will be produced automatically." : "No attendance note available yet. Documents will be produced automatically."}
                   </p>
                 )}
               </CardContent>

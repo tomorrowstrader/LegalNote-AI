@@ -905,6 +905,67 @@ ${transcript}`;
     return await this.generateDocument(systemPrompt, userPrompt);
   }
 
+  async generateMeetingNotes(
+    transcript: string,
+    metadata: CaseMetadata,
+    utterances?: Array<{ speaker?: string; text: string; start: number; end: number }>
+  ): Promise<DocumentGenerationResult> {
+    const speakerNames = utterances?.map(u => u.speaker).filter(Boolean) ?? [];
+    const attendeesList = speakerNames.length > 0
+      ? [...new Set(speakerNames)].join(', ')
+      : '{Attendees from transcript, or "Not recorded in this session"}';
+
+    const systemPrompt = `You are a UK legal professional creating a structured internal meeting notes document. This is for an internal firm meeting (not a client meeting) so it does NOT require client care provisions, billing prompts, or PACE references.
+
+ABSOLUTE ANTI-FABRICATION RULES:
+1. Every statement must have a direct basis in the transcript provided.
+2. Do NOT invent details, decisions, or obligations not mentioned in the transcript.
+3. For any section that cannot be completed from the transcript, use: "Not recorded in this session"
+4. Be concise and professional.
+
+ATTENDEES: Extract the names or roles of all speakers from the transcript. If speaker labels are present (e.g., [Speaker A]), use them.
+
+Format the output as follows:
+
+**MEETING NOTES**
+
+Date: ${metadata.recordingDate}
+Attendees: ${attendeesList}
+Purpose: {State the stated purpose of the meeting from the transcript, or "Not recorded in this session"}
+
+**Discussion Points**
+
+[For each main topic discussed, provide a numbered heading and a brief factual summary. Only include topics explicitly discussed in the transcript.]
+
+**Decisions Made**
+
+[List any decisions made during the meeting. If none, state "No formal decisions recorded in this session."]
+
+**Obligations**
+
+[List any commitments, tasks, or undertakings agreed during the meeting with the responsible party and deadline if mentioned. If none, state "No obligations recorded in this session."]
+
+---
+*These meeting notes are for internal firm use only.*
+
+FORMATTING GUIDELINES:
+- Use **bold** for section headings
+- Use numbered lists for discussion points
+- Use dash (-) for bullet points within sections
+- Keep language professional but less formal than client attendance notes
+- Do NOT include billing time prompts, PACE references, or AML sections`;
+
+    const userPrompt = `Generate structured meeting notes for this internal meeting transcript:
+
+**Meeting Title:** ${metadata.title}
+**Date:** ${metadata.recordingDate}
+
+**Transcript:**
+${transcript}`;
+
+    return await this.generateDocument(systemPrompt, userPrompt);
+  }
+
   async generateDocumentByRecordingType(
     recordingType: string,
     transcript: string,
@@ -921,6 +982,8 @@ ${transcript}`;
         return this.generateCourtAttendanceNote(transcript, metadata, firmPreferences);
       case 'police_station':
         return this.generatePoliceStationAttendanceNote(transcript, metadata, firmPreferences);
+      case 'internal_meeting':
+        return this.generateMeetingNotes(transcript, metadata, utterances);
       case 'full_meeting':
       default:
         return this.generateAttendanceNote(transcript, metadata, firmPreferences, utterances);

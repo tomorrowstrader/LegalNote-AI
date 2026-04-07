@@ -93,12 +93,71 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     return;
   }
   if (!caseId) {
-    console.warn(`[RecallProcessing] Import ${importId} has no caseId — cannot process`);
-    await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: 'No case linked to this import' });
+    // No case linked yet — store the recording and await assignment
+    console.log(`[RecallProcessing] Import ${importId} has no caseId — storing recording and awaiting assignment`);
+    await storage.updateMeetingImport(importId, { status: 'pending' });
+
+    const recording = await getRecordingUrl(botId);
+    if (!recording?.url) {
+      console.error(`[RecallProcessing] No recording URL for bot ${botId} (unlinked import)`);
+      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: 'Recording not available — the call may have been too short or the bot was not admitted' });
+      return;
+    }
+
+    // Update metadata
+    const metaUpdate: Partial<MeetingImport> = { recallRecordingId: recording.recordingId, importedAt: new Date() };
+    if (recording.durationSeconds) {
+      metaUpdate.durationSeconds = recording.durationSeconds;
+      const hours = recording.durationSeconds / 3600;
+      metaUpdate.recallCostUSD = ((0.70 + 0.15) * hours).toFixed(4);
+    }
+    await storage.updateMeetingImport(importId, metaUpdate);
+
+    // Download and store the recording
+    let audioBuffer: Buffer;
+    try {
+      const resp = await fetch(recording.url, { signal: AbortSignal.timeout(120000) });
+      if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
+      audioBuffer = Buffer.from(await resp.arrayBuffer());
+    } catch (err: any) {
+      console.error(`[RecallProcessing] Download error for unlinked import ${importId}:`, err.message);
+      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Recording download failed: ${err.message}` });
+      return;
+    }
+
+    const isVideo = recording.url.includes('.mp4') || !recording.url.includes('.mp3');
+    const ext = isVideo ? 'mp4' : 'mp3';
+    const mimeType = isVideo ? 'video/mp4' : 'audio/mpeg';
+    const audioPath = `.private/imports/${importId}/recording.${ext}`;
+    try {
+      const storageService = new ObjectStorageService();
+      await storageService.uploadFile(audioPath, audioBuffer, mimeType);
+      console.log(`[RecallProcessing] Uploaded recording to ${audioPath} (awaiting assignment)`);
+    } catch (err: any) {
+      console.error(`[RecallProcessing] Upload failed for unlinked import ${importId}:`, err.message);
+      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Upload failed: ${err.message}` });
+      return;
+    }
+
+    await storage.updateMeetingImport(importId, {
+      status: 'awaiting_assignment',
+      audioStoragePath: audioPath,
+    });
+
+    await storage.createAuditLog({
+      eventType: 'meeting_import_awaiting_assignment',
+      userId,
+      caseId: undefined,
+      ipAddress: 'server-process',
+      metadata: { importId, botId, source: 'recall_bot' },
+      severity: 'info',
+    });
+
+    console.log(`[RecallProcessing] Import ${importId} stored — awaiting matter assignment`);
     return;
   }
 
-  // Prevent double-processing — allow retrying failed imports
+  // Prevent double-processing — allow retrying failed imports and newly assigned ones
   const fresh = await storage.getMeetingImport(importId);
   if (!fresh || !['live', 'pending', 'failed'].includes(fresh.status)) {
     console.log(`[RecallProcessing] Import ${importId} already in status "${fresh?.status}" — skipping`);
@@ -108,51 +167,65 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
   console.log(`[RecallProcessing] Starting processing for import ${importId} (bot ${botId})`);
   await storage.updateMeetingImport(importId, { status: 'pending' });
 
-  const recording = await getRecordingUrl(botId);
-  if (!recording?.url) {
-    console.error(`[RecallProcessing] No recording URL for bot ${botId}`);
-    await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: 'Recording not available — the call may have been too short or the bot was not admitted' });
-    return;
-  }
+  let audioPath: string;
+  let mimeType: string;
 
-  // Update import with recording metadata
-  const metaUpdate: Partial<MeetingImport> = {
-    recallRecordingId: recording.recordingId,
-    importedAt: new Date(),
-  };
-  if (recording.durationSeconds) {
-    metaUpdate.durationSeconds = recording.durationSeconds;
-    const hours = recording.durationSeconds / 3600;
-    metaUpdate.recallCostUSD = ((0.70 + 0.15) * hours).toFixed(4);
-  }
-  await storage.updateMeetingImport(importId, metaUpdate);
+  // If the recording was previously stored (e.g. was awaiting_assignment), use that file
+  // rather than trying to re-fetch from Recall (the URL may have expired)
+  if (fresh.audioStoragePath) {
+    console.log(`[RecallProcessing] Using pre-stored recording at ${fresh.audioStoragePath} for import ${importId}`);
+    audioPath = fresh.audioStoragePath;
+    mimeType = audioPath.endsWith('.mp4') ? 'video/mp4' : 'audio/mpeg';
+  } else {
+    // Fresh import — download from Recall
+    const recording = await getRecordingUrl(botId);
+    if (!recording?.url) {
+      console.error(`[RecallProcessing] No recording URL for bot ${botId}`);
+      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: 'Recording not available — the call may have been too short or the bot was not admitted' });
+      return;
+    }
 
-  // Download the recording
-  console.log(`[RecallProcessing] Downloading recording for import ${importId}`);
-  let audioBuffer: Buffer;
-  try {
-    const resp = await fetch(recording.url, { signal: AbortSignal.timeout(120000) });
-    if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
-    audioBuffer = Buffer.from(await resp.arrayBuffer());
-  } catch (err: any) {
-    console.error(`[RecallProcessing] Download error for import ${importId}:`, err.message);
-    await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Recording download failed: ${err.message}` });
-    return;
-  }
+    // Update import with recording metadata
+    const metaUpdate: Partial<MeetingImport> = {
+      recallRecordingId: recording.recordingId,
+      importedAt: new Date(),
+    };
+    if (recording.durationSeconds) {
+      metaUpdate.durationSeconds = recording.durationSeconds;
+      const hours = recording.durationSeconds / 3600;
+      metaUpdate.recallCostUSD = ((0.70 + 0.15) * hours).toFixed(4);
+    }
+    await storage.updateMeetingImport(importId, metaUpdate);
 
-  // Store in object storage
-  const isVideo = recording.url.includes('.mp4') || !recording.url.includes('.mp3');
-  const ext = isVideo ? 'mp4' : 'mp3';
-  const mimeType = isVideo ? 'video/mp4' : 'audio/mpeg';
-  const audioPath = `.private/imports/${importId}/recording.${ext}`;
-  try {
-    const storageService = new ObjectStorageService();
-    await storageService.uploadFile(audioPath, audioBuffer, mimeType);
-    console.log(`[RecallProcessing] Uploaded recording to ${audioPath}`);
-  } catch (err: any) {
-    console.error(`[RecallProcessing] Upload failed for import ${importId}:`, err.message);
-    await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Upload failed: ${err.message}` });
-    return;
+    // Download the recording
+    console.log(`[RecallProcessing] Downloading recording for import ${importId}`);
+    let audioBuffer: Buffer;
+    try {
+      const resp = await fetch(recording.url, { signal: AbortSignal.timeout(120000) });
+      if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
+      audioBuffer = Buffer.from(await resp.arrayBuffer());
+    } catch (err: any) {
+      console.error(`[RecallProcessing] Download error for import ${importId}:`, err.message);
+      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Recording download failed: ${err.message}` });
+      return;
+    }
+
+    // Store in object storage
+    const isVideo = recording.url.includes('.mp4') || !recording.url.includes('.mp3');
+    const ext = isVideo ? 'mp4' : 'mp3';
+    mimeType = isVideo ? 'video/mp4' : 'audio/mpeg';
+    audioPath = `.private/imports/${importId}/recording.${ext}`;
+    try {
+      const storageService = new ObjectStorageService();
+      await storageService.uploadFile(audioPath, audioBuffer, mimeType);
+      console.log(`[RecallProcessing] Uploaded recording to ${audioPath}`);
+    } catch (err: any) {
+      console.error(`[RecallProcessing] Upload failed for import ${importId}:`, err.message);
+      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Upload failed: ${err.message}` });
+      return;
+    }
+
+    await storage.updateMeetingImport(importId, { audioStoragePath: audioPath });
   }
 
   // Create audio recording linked to the case
@@ -162,7 +235,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     caseId,
     filePath: audioPath,
     mimeType,
-    duration: recording.durationSeconds,
+    duration: fresh.durationSeconds || undefined,
     expiresAt,
   });
 

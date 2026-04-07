@@ -350,7 +350,10 @@ export class AIProcessingPipeline {
       };
 
       const recordingType = sessionInfo.recordingType;
-      console.log(`Generating attendance note for case ${caseId} (recording type: ${recordingType}, session: ${sessionInfo.sessionId})...`);
+      const isInternalMeeting = recordingType === 'internal_meeting';
+      const docType = isInternalMeeting ? 'meeting_notes' : 'attendance_note';
+      const logLabel = isInternalMeeting ? 'meeting notes' : 'attendance note';
+      console.log(`Generating ${logLabel} for case ${caseId} (recording type: ${recordingType}, session: ${sessionInfo.sessionId})...`);
       const attendanceResult = await this.documentService.generateDocumentByRecordingType(
         recordingType,
         transcriptForDocGen,
@@ -362,7 +365,7 @@ export class AIProcessingPipeline {
       await this.updateProcessingStatus(caseId, userId, {
         status: 'generating_documents',
         progress: 75,
-        currentStep: 'Verifying attendance note against transcript...',
+        currentStep: `Verifying ${logLabel} against transcript...`,
       });
 
       const attendanceVerification = await this.documentService.verifyDocumentAgainstTranscript(
@@ -373,7 +376,7 @@ export class AIProcessingPipeline {
       const attendanceDoc = await this.storage.createDocument({
         caseId,
         transcriptSnapshotId: transcript.id,
-        type: 'attendance_note',
+        type: docType,
         content: attendanceResult.content,
         version: 1,
         versionType: 'ai_generated',
@@ -391,7 +394,7 @@ export class AIProcessingPipeline {
         resourceType: 'document',
         details: { 
           caseId,
-          documentType: 'attendance_note',
+          documentType: docType,
           inputTokens: attendanceResult.inputTokens,
           outputTokens: attendanceResult.outputTokens,
           cost: attendanceResult.cost,
@@ -460,28 +463,32 @@ export class AIProcessingPipeline {
         console.error('[UNDERTAKINGS] Detection failed (non-blocking):', undertakingError);
       }
 
-      // AML Trigger Detection: scan transcript for compliance-relevant language (only for entitled users)
-      try {
-        const pipelineUser = await this.storage.getUser(userId);
-        if (!pipelineUser?.complianceThread) {
-          console.log(`[AML] Skipping trigger detection - user ${userId} does not have compliance thread enabled`);
-        } else {
-          const { detectAmlTriggersAI, getAmlRiskSuggestion } = await import('./amlTriggerService');
-          const triggers = await detectAmlTriggersAI(transcriptText);
-          if (triggers.length > 0) {
-            const suggestedRisk = getAmlRiskSuggestion(triggers);
-            const currentCase = await this.storage.getCase(caseId, userId);
-            if (!currentCase?.riskLevel && suggestedRisk) {
-              await this.storage.updateCase(caseId, { riskLevel: suggestedRisk }, userId);
+      // AML Trigger Detection: scan transcript for compliance-relevant language (only for entitled users, skip for internal meetings)
+      if (!isInternalMeeting) {
+        try {
+          const pipelineUser = await this.storage.getUser(userId);
+          if (!pipelineUser?.complianceThread) {
+            console.log(`[AML] Skipping trigger detection - user ${userId} does not have compliance thread enabled`);
+          } else {
+            const { detectAmlTriggersAI, getAmlRiskSuggestion } = await import('./amlTriggerService');
+            const triggers = await detectAmlTriggersAI(transcriptText);
+            if (triggers.length > 0) {
+              const suggestedRisk = getAmlRiskSuggestion(triggers);
+              const currentCase = await this.storage.getCase(caseId, userId);
+              if (!currentCase?.riskLevel && suggestedRisk) {
+                await this.storage.updateCase(caseId, { riskLevel: suggestedRisk }, userId);
+              }
+              await this.updateProcessingStatus(caseId, userId, {
+                amlTriggers: triggers,
+              });
+              console.log(`[AML] Detected ${triggers.length} trigger(s) in case ${caseId}, suggested risk: ${suggestedRisk}`);
             }
-            await this.updateProcessingStatus(caseId, userId, {
-              amlTriggers: triggers,
-            });
-            console.log(`[AML] Detected ${triggers.length} trigger(s) in case ${caseId}, suggested risk: ${suggestedRisk}`);
           }
+        } catch (amlError) {
+          console.error('[AML] Trigger detection failed (non-blocking):', amlError);
         }
-      } catch (amlError) {
-        console.error('[AML] Trigger detection failed (non-blocking):', amlError);
+      } else {
+        console.log(`[AML] Skipping trigger detection for internal meeting in case ${caseId}`);
       }
 
       // Obligations Auto-Extraction: extract obligations from transcript after processing

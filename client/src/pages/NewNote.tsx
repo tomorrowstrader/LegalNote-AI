@@ -420,7 +420,7 @@ export default function NewNote() {
       return;
     }
 
-    if (noteMode === "new_matter" && !selectedClient) {
+    if (noteMode === "new_matter" && !selectedClient && recordingType !== "internal_meeting") {
       toast({
         title: "Client required",
         description: "Please select or create a client before saving",
@@ -438,7 +438,7 @@ export default function NewNote() {
       return;
     }
 
-    if (noteMode === "new_matter" && !practiceArea) {
+    if (noteMode === "new_matter" && !practiceArea && recordingType !== "internal_meeting") {
       toast({
         title: "Practice area required",
         description: "Please select a practice area for this matter",
@@ -447,7 +447,7 @@ export default function NewNote() {
       return;
     }
 
-    if (noteMode === "new_matter" && !conflictCheckCompleted && !conflictCheckNote.trim()) {
+    if (noteMode === "new_matter" && recordingType !== "internal_meeting" && !conflictCheckCompleted && !conflictCheckNote.trim()) {
       toast({
         title: "Conflict check required",
         description: "Either confirm the conflict check or provide a reason for deferral",
@@ -977,14 +977,19 @@ export default function NewNote() {
                     </Label>
                     <Input
                       id="case-title"
-                      placeholder="e.g., Estate Planning Consultation"
+                      placeholder={recordingType === "internal_meeting" ? "e.g., Firm strategy meeting, Team update" : "e.g., Estate Planning Consultation"}
                       value={caseTitle}
                       onChange={(e) => setCaseTitle(e.target.value)}
                       disabled={isRecording || countdown !== null}
                       data-testid="input-case-title"
                     />
+                    {recordingType === "internal_meeting" && (
+                      <p className="text-xs text-muted-foreground">
+                        Internal meeting — no client, billing, or AML prompts will be generated.
+                      </p>
+                    )}
                   </div>
-                  <div className="space-y-2">
+                  {recordingType !== "internal_meeting" && (<div className="space-y-2">
                     <Label htmlFor="client-name">
                       Client Name <span className="text-accent">*</span>
                     </Label>
@@ -1073,7 +1078,7 @@ export default function NewNote() {
                         </AlertDescription>
                       </Alert>
                     )}
-                  </div>
+                  </div>)}
                   <div className="space-y-2">
                     <Label htmlFor="matter-ref">Matter Reference (Optional)</Label>
                     <Input
@@ -1085,7 +1090,7 @@ export default function NewNote() {
                       data-testid="input-matter-ref"
                     />
                   </div>
-                  <div className="space-y-2">
+                  {recordingType !== "internal_meeting" && (<><div className="space-y-2">
                     <Label htmlFor="practice-area">Practice Area <span className="text-red-500">*</span></Label>
                     <Select
                       value={practiceArea}
@@ -1122,13 +1127,13 @@ export default function NewNote() {
                     <p className="text-xs text-muted-foreground">
                       Used in the client care letter.
                     </p>
-                  </div>
+                  </div></>)}
                 </>
               ) : null}
             </CardContent>
           </Card>
 
-          {noteMode === "new_matter" && (
+          {noteMode === "new_matter" && recordingType !== "internal_meeting" && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

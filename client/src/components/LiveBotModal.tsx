@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Loader2,
   Video,
@@ -26,13 +33,17 @@ import {
   Send,
   ChevronDown,
   ChevronUp,
+  FolderPlus,
+  PlusCircle,
+  Trash2,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import type { Case } from "@shared/schema";
 
 interface LiveBotModalProps {
-  caseId: string;
-  caseTitle: string;
+  caseId?: string | null;
+  caseTitle?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -119,6 +130,15 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
   const [consentLinkName, setConsentLinkName] = useState("");
   const [consentLinkSent, setConsentLinkSent] = useState(false);
 
+  // Post-meeting inline assignment state (for impromptu recordings without a case)
+  const [postMeetingMode, setPostMeetingMode] = useState<"choose" | "existing" | "create" | "discard">("choose");
+  const [postMeetingCaseId, setPostMeetingCaseId] = useState("");
+  const [postMeetingRecordingType, setPostMeetingRecordingType] = useState("full_meeting");
+  const [postMeetingTitle, setPostMeetingTitle] = useState("");
+  const [postMeetingClient, setPostMeetingClient] = useState("");
+  const [discardConfirmed, setDiscardConfirmed] = useState(false);
+  const [assignDone, setAssignDone] = useState(false);
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -149,12 +169,18 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
             setConsentDeclined(false);
           }
 
-          if (data.importStatus === "transcribing" || data.importStatus === "completed") {
+          if (data.importStatus === "transcribing" || data.importStatus === "completed" || data.importStatus === "awaiting_assignment") {
             clearInterval(pollRef.current!);
             clearInterval(timerRef.current!);
             clearInterval(recordingTimerRef.current!);
-            setStep("processing");
-            queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+            if (data.importStatus === "awaiting_assignment") {
+              setStep("done");
+              if (caseId) queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+              queryClient.invalidateQueries({ queryKey: ["/api/recall/imports/unassigned"] });
+            } else {
+              setStep("processing");
+              if (caseId) queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+            }
           }
 
           if (data.botStatus === "fatal") {
@@ -167,7 +193,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
 
           if (data.importStatus === "completed") {
             setStep("done");
-            queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+            if (caseId) queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
             queryClient.invalidateQueries({ queryKey: ["/api/recall/meetings"] });
           }
         } catch {
@@ -198,20 +224,68 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
     };
   }, [recordingStarted, step]);
 
+  // Cases for post-meeting assignment (only fetched when needed)
+  const { data: cases } = useQuery<Case[]>({
+    queryKey: ["/api/cases"],
+    enabled: step === "done" && !caseId,
+  });
+
+  const postAssignMutation = useMutation({
+    mutationFn: async ({ assignCaseId, recordingType, createCase: shouldCreate, caseData }: {
+      assignCaseId?: string;
+      recordingType: string;
+      createCase?: boolean;
+      caseData?: { title: string; clientName: string };
+    }) => {
+      if (!importId) throw new Error("No import ID");
+      return apiRequest("POST", `/api/recall/import/${importId}/assign`, {
+        caseId: assignCaseId,
+        recordingType,
+        createCase: shouldCreate,
+        caseData,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recall/imports/unassigned"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      setAssignDone(true);
+    },
+    onError: (error: any) => {
+      toast({ title: "Assignment failed", description: error.message || "Could not assign the recording. Please try again.", variant: "destructive" });
+    },
+  });
+
+  const postDiscardMutation = useMutation({
+    mutationFn: async () => {
+      if (!importId) throw new Error("No import ID");
+      return apiRequest("POST", `/api/recall/import/${importId}/discard`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recall/imports/unassigned"] });
+      setAssignDone(true);
+    },
+    onError: (error: any) => {
+      const msg = error?.message || "";
+      let display = msg;
+      try { const p = JSON.parse(msg.replace(/^\d{3}:\s*/, "")); if (p?.message) display = p.message; } catch {}
+      toast({ title: "Could not discard recording", description: display || "Storage deletion failed. Please try again.", variant: "destructive" });
+    },
+  });
+
   const deployMutation = useMutation({
     mutationFn: async () => {
       return apiRequest<{ importId: string; botId: string; platform: string; status: string }>(
         "POST",
         "/api/recall/bot",
-        { meetingUrl, caseId, consentMode }
+        { meetingUrl, ...(caseId ? { caseId } : {}), consentMode }
       );
     },
     onSuccess: async (data) => {
       setImportId(data.importId);
       setBotId(data.botId);
 
-      // For pre_confirmed path, log consent immediately
-      if (consentMode === "pre_confirmed") {
+      // For pre_confirmed path, log consent immediately (only for client meetings)
+      if (consentMode === "pre_confirmed" && caseId) {
         try {
           await apiRequest("PATCH", `/api/recall/import/${data.importId}/consent`, {
             userConfirmsVerbalConsent: true,
@@ -365,7 +439,9 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
             Join with LegalNote
           </DialogTitle>
           <DialogDescription>
-            Send the LegalNote bot to join your video call and record it for "{caseTitle}"
+            {caseTitle
+              ? `Send the LegalNote bot to join your video call and record it for "${caseTitle}"`
+              : "Send the LegalNote bot to join your video call. You can assign the recording to a matter after the call ends."}
           </DialogDescription>
         </DialogHeader>
 
@@ -708,17 +784,199 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
         )}
 
         {step === "done" && (
-          <div className="flex flex-col items-center py-8 gap-4 text-center">
+          <div className="flex flex-col items-center py-6 gap-4">
             <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
               <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
-            <div>
-              <p className="font-semibold">Documents ready</p>
-              <p className="text-sm text-muted-foreground mt-1">Your attendance note and transcript have been added to the matter record.</p>
-            </div>
-            <Button onClick={handleClose} data-testid="button-close-done">
-              View documents
-            </Button>
+            {caseId ? (
+              <div className="text-center">
+                <p className="font-semibold">Documents ready</p>
+                <p className="text-sm text-muted-foreground mt-1">Your attendance note and transcript have been added to the matter record.</p>
+                <Button onClick={handleClose} className="mt-4" data-testid="button-close-done">View documents</Button>
+              </div>
+            ) : assignDone ? (
+              <div className="text-center">
+                <p className="font-semibold">All done</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {postMeetingMode === "discard" ? "The recording has been permanently deleted." : "The recording has been assigned and is being processed."}
+                </p>
+                <Button onClick={handleClose} className="mt-4" data-testid="button-close-done">Close</Button>
+              </div>
+            ) : (
+              <div className="w-full space-y-4">
+                <div className="text-center">
+                  <p className="font-semibold">Recording saved</p>
+                  <p className="text-sm text-muted-foreground mt-1">What would you like to do with this recording?</p>
+                </div>
+
+                {postMeetingMode === "choose" && (
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      variant="default"
+                      className="w-full justify-start gap-2"
+                      onClick={() => setPostMeetingMode("existing")}
+                      data-testid="button-post-link-existing"
+                    >
+                      <FolderPlus className="w-4 h-4" />
+                      Link to an existing matter
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                      onClick={() => setPostMeetingMode("create")}
+                      data-testid="button-post-create-matter"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      Create a new matter
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-2 text-destructive"
+                      onClick={() => setPostMeetingMode("discard")}
+                      data-testid="button-post-discard"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Discard recording
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={handleClose} className="w-full text-muted-foreground" data-testid="button-post-later">
+                      Decide later (recording saved to dashboard)
+                    </Button>
+                  </div>
+                )}
+
+                {postMeetingMode === "existing" && (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="post-case-select">Select matter</Label>
+                      <Select value={postMeetingCaseId} onValueChange={setPostMeetingCaseId}>
+                        <SelectTrigger id="post-case-select" data-testid="select-post-case">
+                          <SelectValue placeholder="Choose a matter..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cases?.filter(c => !c.archived).map((c) => (
+                            <SelectItem key={c.id} value={c.id}>{c.title}{c.clientName ? ` — ${c.clientName}` : ""}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="post-rec-type">Session type</Label>
+                      <Select value={postMeetingRecordingType} onValueChange={setPostMeetingRecordingType}>
+                        <SelectTrigger id="post-rec-type" data-testid="select-post-recording-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="full_meeting">Client Meeting</SelectItem>
+                          <SelectItem value="telephone_call">Telephone Call</SelectItem>
+                          <SelectItem value="internal_meeting">Internal Meeting</SelectItem>
+                          <SelectItem value="court_hearing">Court Hearing</SelectItem>
+                          <SelectItem value="police_station">Police Station</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1" onClick={() => setPostMeetingMode("choose")} data-testid="button-post-back">Back</Button>
+                      <Button
+                        className="flex-1"
+                        disabled={!postMeetingCaseId || postAssignMutation.isPending}
+                        onClick={() => postAssignMutation.mutate({ assignCaseId: postMeetingCaseId, recordingType: postMeetingRecordingType })}
+                        data-testid="button-post-assign-existing"
+                      >
+                        {postAssignMutation.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Assigning…</> : "Assign & process"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {postMeetingMode === "create" && (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="post-matter-title">Matter title <span className="text-accent">*</span></Label>
+                      <Input
+                        id="post-matter-title"
+                        placeholder="e.g. Smith v Jones — contract dispute"
+                        value={postMeetingTitle}
+                        onChange={(e) => setPostMeetingTitle(e.target.value)}
+                        data-testid="input-post-matter-title"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="post-rec-type-create">Session type</Label>
+                      <Select value={postMeetingRecordingType} onValueChange={setPostMeetingRecordingType}>
+                        <SelectTrigger id="post-rec-type-create" data-testid="select-post-recording-type-create">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="full_meeting">Client Meeting</SelectItem>
+                          <SelectItem value="telephone_call">Telephone Call</SelectItem>
+                          <SelectItem value="internal_meeting">Internal Meeting</SelectItem>
+                          <SelectItem value="court_hearing">Court Hearing</SelectItem>
+                          <SelectItem value="police_station">Police Station</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {postMeetingRecordingType !== "internal_meeting" && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="post-matter-client">Client name <span className="text-accent">*</span></Label>
+                        <Input
+                          id="post-matter-client"
+                          placeholder="e.g. Jane Smith"
+                          value={postMeetingClient}
+                          onChange={(e) => setPostMeetingClient(e.target.value)}
+                          data-testid="input-post-matter-client"
+                        />
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1" onClick={() => setPostMeetingMode("choose")} data-testid="button-post-back-create">Back</Button>
+                      <Button
+                        className="flex-1"
+                        disabled={!postMeetingTitle.trim() || (postMeetingRecordingType !== "internal_meeting" && !postMeetingClient.trim()) || postAssignMutation.isPending}
+                        onClick={() => postAssignMutation.mutate({
+                          recordingType: postMeetingRecordingType,
+                          createCase: true,
+                          caseData: { title: postMeetingTitle.trim(), clientName: postMeetingClient.trim() },
+                        })}
+                        data-testid="button-post-create-assign"
+                      >
+                        {postAssignMutation.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Creating…</> : "Create & process"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {postMeetingMode === "discard" && (
+                  <div className="space-y-3">
+                    <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+                      This will permanently delete the stored audio recording. This cannot be undone.
+                    </div>
+                    <label className="flex items-start gap-3 cursor-pointer" htmlFor="post-discard-confirm">
+                      <input
+                        id="post-discard-confirm"
+                        type="checkbox"
+                        checked={discardConfirmed}
+                        onChange={(e) => setDiscardConfirmed(e.target.checked)}
+                        className="mt-0.5 shrink-0"
+                        data-testid="checkbox-post-discard-confirm"
+                      />
+                      <span className="text-sm">I confirm I want to permanently delete this recording and its audio.</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1" onClick={() => { setPostMeetingMode("choose"); setDiscardConfirmed(false); }} data-testid="button-post-back-discard">Back</Button>
+                      <Button
+                        variant="destructive"
+                        className="flex-1"
+                        disabled={!discardConfirmed || postDiscardMutation.isPending}
+                        onClick={() => postDiscardMutation.mutate()}
+                        data-testid="button-post-discard-confirm"
+                      >
+                        {postDiscardMutation.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Deleting…</> : "Delete permanently"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

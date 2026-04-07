@@ -129,7 +129,7 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId
 
   const sessionDocuments = data.documents;
   const activeDocuments = sessionDocuments.filter(d => d.isActive);
-  const activeAttendanceNote = activeDocuments.find(d => d.type === 'attendance_note');
+  const activeAttendanceNote = activeDocuments.find(d => d.type === 'attendance_note' || d.type === 'meeting_notes');
   const inactiveCount = sessionDocuments.filter(d => !d.isActive).length;
   const sessionIsPending = data.status === "pending" || data.status === "processing";
 
@@ -215,7 +215,7 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId
               className="gap-1.5"
             >
               <FileText className="w-3.5 h-3.5" />
-              Open Attendance Note
+              {activeAttendanceNote?.type === 'meeting_notes' ? 'Open Meeting Notes' : 'Open Attendance Note'}
             </Button>
             {inactiveCount > 0 && (
               <p className="text-xs text-muted-foreground" data-testid={`text-older-versions-${sessionId}`}>
@@ -1241,7 +1241,7 @@ export default function CaseDetail() {
                               <div className="flex gap-1.5 flex-wrap">
                                 {sessionDocs.map(doc => (
                                   <Badge key={doc.id} variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`doc-attribution-badge-${doc.id}`}>
-                                    {doc.type === 'summary' ? 'Matter Record' : 'Attendance Note'}
+                                    {doc.type === 'summary' ? 'Matter Record' : doc.type === 'meeting_notes' ? 'Meeting Notes' : 'Attendance Note'}
                                   </Badge>
                                 ))}
                               </div>
@@ -1258,7 +1258,7 @@ export default function CaseDetail() {
                           <div className="flex gap-1.5 flex-wrap">
                             {standaloneActiveDocs.map(doc => (
                               <Badge key={doc.id} variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`doc-attribution-badge-${doc.id}`}>
-                                {doc.type === 'summary' ? 'Matter Record' : 'Attendance Note'}
+                                {doc.type === 'summary' ? 'Matter Record' : doc.type === 'meeting_notes' ? 'Meeting Notes' : 'Attendance Note'}
                               </Badge>
                             ))}
                           </div>

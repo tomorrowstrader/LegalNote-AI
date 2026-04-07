@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck, Shield, Phone } from "lucide-react";
+import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck, Shield, Phone, Video, Trash2, FolderPlus, PlusCircle, ListFilter } from "lucide-react";
 import { ScheduledMeetingsViewer } from "@/components/ScheduledMeetingsViewer";
 import StatsCard from "@/components/StatsCard";
 import CaseListView from "@/components/CaseListView";
@@ -8,8 +8,8 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import type { Case } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { Case, MeetingImport } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInDays, differenceInHours, isPast } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,6 +24,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 import CaseSelectorModal from "@/components/CaseSelectorModal";
 import LogCallModal from "@/components/LogCallModal";
+import LiveBotModal from "@/components/LiveBotModal";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 
 interface AttentionStats {
   audioExpiringCount: number;
@@ -53,15 +63,68 @@ type StatsRange = "7d" | "30d" | "all";
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<StatusTab>("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("deadline");
   const [showCaseSelector, setShowCaseSelector] = useState(false);
   const [logCallCase, setLogCallCase] = useState<Case | null>(null);
   const [statsRange, setStatsRange] = useState<StatsRange>("all");
+  const [assignImport, setAssignImport] = useState<MeetingImport | null>(null);
+  const [assignCaseId, setAssignCaseId] = useState("");
+  const [assignRecordingType, setAssignRecordingType] = useState("full_meeting");
+  const [assignMode, setAssignMode] = useState<"existing" | "new">("existing");
+  const [newMatterTitle, setNewMatterTitle] = useState("");
+  const [newMatterClient, setNewMatterClient] = useState("");
+  const [discardTarget, setDiscardTarget] = useState<MeetingImport | null>(null);
+  const [discardConfirmed, setDiscardConfirmed] = useState(false);
+  const [showImpromptuBot, setShowImpromptuBot] = useState(false);
 
   const { data: cases, isLoading } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
+  });
+
+  const { data: unassignedImports } = useQuery<MeetingImport[]>({
+    queryKey: ["/api/recall/imports/unassigned"],
+    refetchInterval: 30000,
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: async ({ importId, caseId, recordingType, createCase, caseData }: {
+      importId: string;
+      caseId?: string;
+      recordingType: string;
+      createCase?: boolean;
+      caseData?: { title: string; clientName: string };
+    }) => apiRequest("POST", `/api/recall/import/${importId}/assign`, { caseId, recordingType, createCase, caseData }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recall/imports/unassigned"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      toast({ title: "Recording assigned", description: "The recording has been assigned and is now being processed.", duration: 4000 });
+      setAssignImport(null);
+      setAssignCaseId("");
+      setAssignRecordingType("full_meeting");
+      setAssignMode("existing");
+      setNewMatterTitle("");
+      setNewMatterClient("");
+    },
+    onError: () => {
+      toast({ title: "Assignment failed", description: "Could not assign the recording. Please try again.", variant: "destructive", duration: 4000 });
+    },
+  });
+
+  const discardMutation = useMutation({
+    mutationFn: async (importId: string) =>
+      apiRequest("POST", `/api/recall/import/${importId}/discard`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recall/imports/unassigned"] });
+      setDiscardTarget(null);
+      setDiscardConfirmed(false);
+      toast({ title: "Recording discarded", description: "The recording and its stored audio have been permanently deleted.", duration: 4000 });
+    },
+    onError: () => {
+      toast({ title: "Discard failed", description: "Could not discard the recording. Please try again.", variant: "destructive", duration: 4000 });
+    },
   });
 
   const { data: attentionStats } = useQuery<AttentionStats>({
@@ -323,14 +386,24 @@ export default function Dashboard() {
                 <span className="sm:hidden">New</span>
               </Button>
             </div>
-            <button
-              onClick={() => setShowCaseSelector(true)}
-              className="text-xs text-muted-foreground flex items-center gap-1"
-              data-testid="button-log-call-dashboard"
-            >
-              <Phone className="w-3 h-3" />
-              Log a Call
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowImpromptuBot(true)}
+                className="text-xs text-muted-foreground flex items-center gap-1"
+                data-testid="button-join-meeting-dashboard"
+              >
+                <Video className="w-3 h-3" />
+                Join Meeting
+              </button>
+              <button
+                onClick={() => setShowCaseSelector(true)}
+                className="text-xs text-muted-foreground flex items-center gap-1"
+                data-testid="button-log-call-dashboard"
+              >
+                <Phone className="w-3 h-3" />
+                Log a Call
+              </button>
+            </div>
           </div>
         </div>
 
@@ -577,6 +650,53 @@ export default function Dashboard() {
           </Tabs>
         </div>
 
+        {/* Unassigned Recordings Panel */}
+        {unassignedImports && unassignedImports.length > 0 && (
+          <div className="mb-6 border border-amber-500/30 bg-amber-500/5 rounded-lg overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-500/20">
+              <Video className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                {unassignedImports.length} recording{unassignedImports.length !== 1 ? 's' : ''} awaiting assignment
+              </p>
+            </div>
+            <div className="divide-y divide-amber-500/10">
+              {unassignedImports.map((imp) => (
+                <div key={imp.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" data-testid={`row-unassigned-import-${imp.id}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{imp.meetingTitle || "Untitled meeting"}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {imp.meetingStartTime ? format(new Date(imp.meetingStartTime), "d MMM yyyy, HH:mm") : format(new Date(imp.createdAt), "d MMM yyyy, HH:mm")}
+                      {imp.durationSeconds ? ` · ${Math.round(imp.durationSeconds / 60)} min` : ""}
+                      {" · "}{imp.meetingPlatform ? imp.meetingPlatform.charAt(0).toUpperCase() + imp.meetingPlatform.slice(1) : "Video call"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => { setAssignImport(imp); setAssignCaseId(""); setAssignRecordingType("full_meeting"); }}
+                      data-testid={`button-assign-import-${imp.id}`}
+                    >
+                      <FolderPlus className="w-3.5 h-3.5" />
+                      Assign to matter
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={() => { setDiscardTarget(imp); setDiscardConfirmed(false); }}
+                      disabled={discardMutation.isPending}
+                      data-testid={`button-discard-import-${imp.id}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Upcoming Meetings Section */}
         <div className="mb-6">
           <ScheduledMeetingsViewer />
@@ -601,6 +721,197 @@ export default function Dashboard() {
           matterReference={logCallCase.matterReference || undefined}
         />
       )}
+
+      {/* Impromptu Bot Modal (no case linked) */}
+      <LiveBotModal
+        open={showImpromptuBot}
+        onOpenChange={setShowImpromptuBot}
+      />
+
+      {/* Assign Recording Dialog */}
+      <Dialog open={!!assignImport} onOpenChange={(open) => { if (!open) { setAssignImport(null); setAssignMode("existing"); setNewMatterTitle(""); setNewMatterClient(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderPlus className="w-5 h-5" />
+              Assign recording to a matter
+            </DialogTitle>
+            <DialogDescription>
+              {assignImport?.meetingTitle || "Untitled meeting"} — choose which matter this recording belongs to and what type of session it was.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            {/* Mode toggle */}
+            <div className="flex rounded-md border overflow-hidden">
+              <button
+                type="button"
+                className={`flex-1 px-3 py-2 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${assignMode === "existing" ? "bg-accent text-accent-foreground" : "bg-transparent text-muted-foreground hover-elevate"}`}
+                onClick={() => setAssignMode("existing")}
+                data-testid="button-assign-mode-existing"
+              >
+                <ListFilter className="w-3.5 h-3.5" />
+                Existing matter
+              </button>
+              <button
+                type="button"
+                className={`flex-1 px-3 py-2 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${assignMode === "new" ? "bg-accent text-accent-foreground" : "bg-transparent text-muted-foreground hover-elevate"}`}
+                onClick={() => setAssignMode("new")}
+                data-testid="button-assign-mode-new"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                Create new matter
+              </button>
+            </div>
+
+            {assignMode === "existing" ? (
+              <div className="space-y-2">
+                <Label htmlFor="assign-case">Select matter</Label>
+                <Select value={assignCaseId} onValueChange={setAssignCaseId}>
+                  <SelectTrigger id="assign-case" data-testid="select-assign-case">
+                    <SelectValue placeholder="Search and select a matter..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cases?.filter(c => !c.archived).map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.title}{c.clientName ? ` — ${c.clientName}` : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="new-matter-title">Matter title <span className="text-accent">*</span></Label>
+                  <Input
+                    id="new-matter-title"
+                    placeholder="e.g. Smith v Jones — contract dispute"
+                    value={newMatterTitle}
+                    onChange={(e) => setNewMatterTitle(e.target.value)}
+                    data-testid="input-new-matter-title"
+                  />
+                </div>
+                {assignRecordingType !== "internal_meeting" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-matter-client">Client name <span className="text-accent">*</span></Label>
+                    <Input
+                      id="new-matter-client"
+                      placeholder="e.g. Jane Smith"
+                      value={newMatterClient}
+                      onChange={(e) => setNewMatterClient(e.target.value)}
+                      data-testid="input-new-matter-client"
+                    />
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">A new matter will be created and the recording will be processed against it.</p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="assign-recording-type">Session type</Label>
+              <Select value={assignRecordingType} onValueChange={setAssignRecordingType}>
+                <SelectTrigger id="assign-recording-type" data-testid="select-assign-recording-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="full_meeting">Client Meeting</SelectItem>
+                  <SelectItem value="telephone_call">Telephone Call</SelectItem>
+                  <SelectItem value="internal_meeting">Internal Meeting</SelectItem>
+                  <SelectItem value="court_hearing">Court Hearing</SelectItem>
+                  <SelectItem value="police_station">Police Station</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => { setAssignImport(null); setAssignMode("existing"); setNewMatterTitle(""); setNewMatterClient(""); }}
+                data-testid="button-assign-cancel"
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={assignMutation.isPending || (assignMode === "existing" ? !assignCaseId : !newMatterTitle.trim() || (assignRecordingType !== "internal_meeting" && !newMatterClient.trim()))}
+                onClick={() => {
+                  if (!assignImport) return;
+                  if (assignMode === "existing" && assignCaseId) {
+                    assignMutation.mutate({ importId: assignImport.id, caseId: assignCaseId, recordingType: assignRecordingType });
+                  } else if (assignMode === "new" && newMatterTitle.trim()) {
+                    assignMutation.mutate({
+                      importId: assignImport.id,
+                      recordingType: assignRecordingType,
+                      createCase: true,
+                      caseData: { title: newMatterTitle.trim(), clientName: newMatterClient.trim() },
+                    });
+                  }
+                }}
+                data-testid="button-assign-confirm"
+              >
+                {assignMutation.isPending ? "Assigning..." : "Assign & process"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Discard GDPR Confirmation Dialog */}
+      <Dialog open={!!discardTarget} onOpenChange={(open) => { if (!open) { setDiscardTarget(null); setDiscardConfirmed(false); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-destructive" />
+              Discard recording
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete the stored audio recording. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+              <p className="font-medium">{discardTarget?.meetingTitle || "Untitled meeting"}</p>
+              <p className="text-xs mt-0.5 opacity-80">
+                {discardTarget?.meetingStartTime
+                  ? format(new Date(discardTarget.meetingStartTime), "d MMM yyyy, HH:mm")
+                  : discardTarget ? format(new Date(discardTarget.createdAt), "d MMM yyyy, HH:mm") : ""}
+              </p>
+            </div>
+            <label className="flex items-start gap-3 cursor-pointer" htmlFor="discard-confirm-check">
+              <input
+                id="discard-confirm-check"
+                type="checkbox"
+                checked={discardConfirmed}
+                onChange={(e) => setDiscardConfirmed(e.target.checked)}
+                className="mt-0.5 shrink-0"
+                data-testid="checkbox-discard-confirm"
+              />
+              <span className="text-sm text-foreground">
+                I confirm I want to permanently delete this recording and its audio. This cannot be recovered.
+              </span>
+            </label>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => { setDiscardTarget(null); setDiscardConfirmed(false); }}
+                data-testid="button-discard-cancel"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                disabled={!discardConfirmed || discardMutation.isPending}
+                onClick={() => {
+                  if (discardTarget) discardMutation.mutate(discardTarget.id);
+                }}
+                data-testid="button-discard-confirm"
+              >
+                {discardMutation.isPending ? "Deleting..." : "Delete permanently"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
