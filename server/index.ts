@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { runMigrations } from 'stripe-replit-sync';
+import crypto from "crypto";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { configureSecurityHeaders } from "./securityHeaders";
@@ -10,6 +11,22 @@ import { backfillSessions } from "./sessionMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
+
+// Ensure AUDIT_SIGNING_KEY is set before any audit export routes are called.
+// In production, this should be set as a persistent secret (e.g. via Replit Secrets).
+// If absent at startup, generate a cryptographically random 64-byte hex key for this
+// process lifetime. Signatures will be valid within this session but WILL NOT match
+// across restarts, so set AUDIT_SIGNING_KEY as a persistent secret for production use.
+if (!process.env.AUDIT_SIGNING_KEY) {
+  const sessionKey = crypto.randomBytes(64).toString('hex');
+  process.env.AUDIT_SIGNING_KEY = sessionKey;
+  console.warn(
+    '[AUDIT] WARNING: AUDIT_SIGNING_KEY is not set as an environment variable. ' +
+    'A session-scoped key has been generated for this process. ' +
+    'Audit export signatures will NOT be verifiable across server restarts. ' +
+    'Set AUDIT_SIGNING_KEY as a persistent secret for production deployments.'
+  );
+}
 
 const app = express();
 
@@ -169,6 +186,7 @@ app.post(
           eventType: 'meeting_recording_completed',
           userId: meeting.userId,
           caseId: meeting.caseId || undefined,
+          ipAddress: 'server-process',
           metadata: { meetingId: meeting.id, botId: bot_id, meetingTitle: meeting.title, autoFiled: !!meeting.caseId },
           severity: 'info',
         });
@@ -178,6 +196,7 @@ app.post(
           eventType: 'meeting_recording_failed',
           userId: meeting.userId,
           caseId: meeting.caseId || undefined,
+          ipAddress: 'server-process',
           metadata: { meetingId: meeting.id, botId: bot_id, meetingTitle: meeting.title },
           severity: 'warning',
         });

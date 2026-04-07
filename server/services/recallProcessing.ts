@@ -188,6 +188,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
       eventType: 'meeting_import_completed',
       userId,
       caseId,
+      ipAddress: 'server-process',
       metadata: { importId, botId, source: 'recall_bot' },
       severity: 'info',
     });

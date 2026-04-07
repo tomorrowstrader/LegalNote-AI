@@ -13,6 +13,7 @@ export async function logAuditEvent(
     metadata?: Record<string, any>;
     severity?: "info" | "warning" | "critical";
     req?: Request;
+    ipAddress?: string;
   }
 ): Promise<void> {
   try {
@@ -23,7 +24,7 @@ export async function logAuditEvent(
       documentId: details.documentId,
       transcriptId: details.transcriptId,
       audioRecordingId: details.audioRecordingId,
-      ipAddress: details.req?.ip || details.req?.connection?.remoteAddress,
+      ipAddress: details.req?.ip || details.req?.socket?.remoteAddress || details.ipAddress,
       userAgent: details.req?.get("user-agent"),
       metadata: details.metadata || {},
       severity: details.severity || "info",

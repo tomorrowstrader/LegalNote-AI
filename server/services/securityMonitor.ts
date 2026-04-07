@@ -220,7 +220,7 @@ function logSecurityEvent(event: SecurityEvent) {
         severity: event.severity,
         ...event.metadata,
       }),
-      ipAddress: event.metadata.ipAddress || 'unknown',
+      ipAddress: event.metadata.ipAddress || 'server-process',
       userAgent: 'system',
     });
   } catch (error) {

@@ -1408,6 +1408,7 @@ export class MemStorage implements IStorage {
       userId,
       caseId: existing.caseId,
       documentId: id,
+      ipAddress: 'server-process',
       metadata: {
         documentType: existing.type,
         comment: comment ?? null,
@@ -1438,6 +1439,7 @@ export class MemStorage implements IStorage {
       userId,
       caseId: existing.caseId,
       documentId: id,
+      ipAddress: 'server-process',
       metadata: {
         documentType: existing.type,
       },
@@ -2977,6 +2979,7 @@ export class DbStorage implements IStorage {
       userId,
       caseId: document[0].caseId,
       documentId: id,
+      ipAddress: 'server-process',
       metadata: {
         documentType: document[0].type,
         comment: comment ?? null,
@@ -3009,6 +3012,7 @@ export class DbStorage implements IStorage {
       userId,
       caseId: document[0].caseId,
       documentId: id,
+      ipAddress: 'server-process',
       metadata: {
         documentType: document[0].type,
       },

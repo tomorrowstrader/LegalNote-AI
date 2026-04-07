@@ -3,7 +3,19 @@ import crypto from 'crypto';
 import { format } from 'date-fns';
 import type { AuditTrail } from '@shared/schema';
 
-const SIGNING_KEY = process.env.AUDIT_SIGNING_KEY || 'legalnote-audit-signing-key-v1';
+// AUDIT_SIGNING_KEY must be set via environment variable at startup (see server/index.ts).
+// This module reads it at call time so it picks up the auto-generated key if the env var
+// was not set before server startup.
+function getSigningKey(): string {
+  const key = process.env.AUDIT_SIGNING_KEY;
+  if (!key) {
+    throw new Error(
+      'AUDIT_SIGNING_KEY environment variable is not set. ' +
+      'Server startup should have generated one — check server/index.ts initialization.'
+    );
+  }
+  return key;
+}
 
 interface SignatureData {
   timestamp: string;
@@ -36,7 +48,7 @@ function generateDataHash(auditLogs: AuditTrail[]): string {
 
 function generateSignature(dataHash: string, timestamp: string): string {
   const payload = `${dataHash}|${timestamp}|legalnote-audit-v1`;
-  return crypto.createHmac('sha256', SIGNING_KEY).update(payload).digest('hex');
+  return crypto.createHmac('sha256', getSigningKey()).update(payload).digest('hex');
 }
 
 export function verifyAuditExportSignature(

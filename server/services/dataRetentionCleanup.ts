@@ -75,7 +75,7 @@ export async function cleanupExpiredShareLinks(userId: string): Promise<{
               expiresAt: link.expiresAt,
               reason: 'automatic_retention_cleanup',
             }),
-            ipAddress: 'system',
+            ipAddress: 'server-process',
             userAgent: 'data-retention-service',
           });
         } catch (error) {
@@ -145,7 +145,7 @@ export async function cleanupOldAudioFiles(userId: string): Promise<{
                 reason: 'litigation_hold_prevents_deletion',
                 matterOwner: userId, // Always record the matter owner for reference
               }),
-              ipAddress: 'system',
+              ipAddress: 'server-process',
               userAgent: 'data-retention-service',
             });
             continue;
@@ -189,7 +189,7 @@ export async function cleanupOldAudioFiles(userId: string): Promise<{
                 reason: 'automatic_retention_cleanup',
                 storage: 'backblaze_b2',
               }),
-              ipAddress: 'system',
+              ipAddress: 'server-process',
               userAgent: 'data-retention-service',
             });
 
@@ -209,6 +209,7 @@ export async function cleanupOldAudioFiles(userId: string): Promise<{
             const { logAuditEvent } = await import('../auditMiddleware');
             await logAuditEvent(userId, "audio_permanently_deleted", {
               caseId: caseRecord.id,
+              ipAddress: "server-process",
               metadata: {
                 matterReference: caseRecord.matterReference || "N/A",
                 deletionTimestamp: new Date().toISOString(),
@@ -310,7 +311,7 @@ export async function runDataRetentionCleanup(userId: string): Promise<{
       consentLogsArchived: consentLogs.archived,
       totalErrors,
     }),
-    ipAddress: 'system',
+    ipAddress: 'server-process',
     userAgent: 'data-retention-service',
   });
 

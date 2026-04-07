@@ -2115,6 +2115,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           handoverNote: handoverNote || "",
           handoverTimestamp,
         },
+        req,
       });
 
       res.json(updatedCase);
@@ -2716,6 +2717,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           userId,
           caseId: existingDoc.caseId,
           documentId: req.params.id,
+          ipAddress: req.ip || req.socket?.remoteAddress,
           metadata: {
             documentType: existingDoc.type,
             oldVersion: existingDoc.version,
@@ -2815,6 +2817,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         userId,
         caseId: document.caseId,
         documentId: req.params.id,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: { selectedTextPreview: selectedText.substring(0, 100) },
       });
       res.json(comment);
@@ -2852,6 +2855,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           userId,
           caseId: document.caseId,
           documentId: req.params.id,
+          ipAddress: req.ip || req.socket?.remoteAddress,
           metadata: { commentId: req.params.commentId },
         });
       }
@@ -4605,8 +4609,11 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       await logAuditEvent(userId, "acknowledgement_requested", {
         documentId,
         caseId: document.caseId,
-        clientEmail,
-        caseTitle: caseData.title,
+        metadata: {
+          clientEmail,
+          caseTitle: caseData.title,
+        },
+        req,
       });
 
       res.json({ success: true, sentTo: clientEmail });
@@ -6212,6 +6219,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         await storage.createAuditLog({
           eventType: 'calendar_connected',
           userId: stateData.userId,
+          ipAddress: req.ip || req.socket?.remoteAddress,
           metadata: {
             provider,
             email: tokenData.email || 'N/A',
@@ -6278,6 +6286,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
                   eventType: 'calendar_event_created',
                   userId: stateData.userId,
                   caseId,
+                  ipAddress: req.ip || req.socket?.remoteAddress,
                   metadata: {
                     provider,
                     eventTitle: `${caseData.clientName} - ${caseData.caseType}`,
@@ -6433,6 +6442,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       await storage.createAuditLog({
         eventType: 'calendar_disconnected',
         userId,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: {
           provider,
         },
@@ -6836,6 +6846,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         await storage.createAuditLog({
           eventType: 'recall_connected',
           userId,
+          ipAddress: req.ip || req.socket?.remoteAddress,
           metadata: { message: result.message },
           severity: 'info',
         });
@@ -6858,6 +6869,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       await storage.createAuditLog({
         eventType: 'recall_disconnected',
         userId,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: {},
         severity: 'info',
       });
@@ -6946,6 +6958,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         eventType: 'meeting_import_started',
         userId,
         caseId: caseId || undefined,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: {
           botId,
           platform: meetingImport.meetingPlatform,
@@ -7102,6 +7115,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           eventType: 'consent_attestation',
           userId,
           caseId: importData.caseId || undefined,
+          ipAddress: req.ip || req.socket?.remoteAddress,
           metadata: {
             importId: importData.id,
             attestationType: 'verbal_consent_obtained',
@@ -7215,6 +7229,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         eventType: 'live_bot_deployed',
         userId,
         caseId: caseId || undefined,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: { botId: bot.id, platform, meetingUrl },
         severity: 'info',
       });
@@ -7433,6 +7448,7 @@ ${firmName}`;
           eventType: 'pre_consent_email_sent',
           userId,
           caseId: caseId || undefined,
+          ipAddress: req.ip || req.socket?.remoteAddress,
           metadata: { 
             recipientEmail, 
             recipientName,
@@ -7541,6 +7557,7 @@ ${firmName}`;
         eventType,
         userId: consentEmail.userId,
         caseId: consentEmail.caseId || undefined,
+        ipAddress,
         metadata: { 
           recipientEmail: consentEmail.recipientEmail,
           recipientName: consentEmail.recipientName,
@@ -7821,6 +7838,7 @@ ${firmName}`;
       await storage.createAuditLog({
         eventType: 'calendar_synced',
         userId,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: { meetingsCount: meetings.length },
         severity: 'info',
       });
@@ -7943,6 +7961,7 @@ ${firmName}`;
         eventType: 'meeting_cancelled',
         userId,
         caseId: meeting.caseId || undefined,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: {
           meetingId: meeting.id,
           meetingTitle: meeting.title,
@@ -8099,6 +8118,7 @@ ${firmName}`;
         eventType: 'meeting_rescheduled',
         userId,
         caseId: meeting.caseId || undefined,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: {
           originalMeetingId: meeting.id,
           newMeetingId: newMeeting.id,
@@ -8139,6 +8159,7 @@ ${firmName}`;
         await storage.createAuditLog({
           eventType: 'pre_consent_email_sent',
           userId,
+          ipAddress: req.ip || req.socket?.remoteAddress,
           metadata: { 
             meetingId: meeting.id,
             recipientEmail: meeting.clientEmail,
@@ -8323,6 +8344,7 @@ ${firmName}`;
         await storage.createAuditLog({
           eventType: 'clio_connected',
           userId: stateData.userId,
+          ipAddress: req.ip || req.socket?.remoteAddress,
           metadata: {
             firmName: userInfo.firm.name,
             clioUserId: userInfo.user.id,
@@ -8351,6 +8373,7 @@ ${firmName}`;
       await storage.createAuditLog({
         eventType: 'clio_disconnected',
         userId,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: {},
         severity: 'info',
       });
@@ -8419,6 +8442,7 @@ ${firmName}`;
         eventType: 'clio_matter_imported',
         userId,
         caseId,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: {
           clioMatterId: matterId,
           clioMatterNumber: matter.display_number,
@@ -8472,6 +8496,7 @@ ${firmName}`;
         eventType: 'clio_matter_linked',
         userId,
         caseId,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: {
           clioMatterId: matterId,
           clioMatterNumber: matter.display_number,
@@ -8512,6 +8537,7 @@ ${firmName}`;
         eventType: 'clio_matter_unlinked',
         userId,
         caseId,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: {},
         severity: 'info',
       });
@@ -8660,6 +8686,7 @@ ${firmName}`;
       await storage.createAuditLog({
         eventType: `${provider}_connected`,
         userId,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: {
           driveId: targetDriveId,
           driveName: targetDriveName,
@@ -8698,6 +8725,7 @@ ${firmName}`;
       await storage.createAuditLog({
         eventType: `${provider}_disconnected`,
         userId,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: {},
         severity: 'info',
       });
@@ -8792,6 +8820,7 @@ ${firmName}`;
         eventType: 'document_synced_to_storage',
         userId,
         caseId,
+        ipAddress: req.ip || req.socket?.remoteAddress,
         metadata: {
           provider,
           documentId,

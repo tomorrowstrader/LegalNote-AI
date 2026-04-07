@@ -42,6 +42,7 @@ export async function cleanupExpiredAudio(): Promise<void> {
           await logAuditEvent("system", "audio_deleted", {
             caseId: recording.caseId,
             audioRecordingId: recording.id,
+            ipAddress: "server-process",
             metadata: {
               reason: "startup_cleanup_7day_retention_policy",
               filePath: recording.filePath,
@@ -57,6 +58,7 @@ export async function cleanupExpiredAudio(): Promise<void> {
           await logAuditEvent("system", "audio_permanently_deleted", {
             caseId: recording.caseId,
             audioRecordingId: recording.id,
+            ipAddress: "server-process",
             metadata: {
               matterReference: caseRecord?.matterReference || "N/A",
               deletionTimestamp: deletionTimestamp.toISOString(),
