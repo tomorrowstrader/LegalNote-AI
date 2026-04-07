@@ -5,7 +5,7 @@ import {
   FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle,
   Share2, Eye, Download, Archive, Video, ListChecks, History,
   ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send,
-  ShieldCheck, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, Mic,
+  ShieldCheck, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, Mic, FileCheck,
 } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
@@ -580,6 +580,106 @@ export default function CaseDetail() {
     prefetchedData: { caseData, documents, transcript },
   });
 
+  const [piPackLoading, setPiPackLoading] = useState(false);
+
+  const handlePiPackDownload = async () => {
+    if (!caseId || piPackLoading) return;
+    setPiPackLoading(true);
+    try {
+      const response = await fetch(`/api/cases/${caseId}/pi-pack`, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch PI pack');
+      const pack = await response.json();
+
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 18;
+      const contentW = pageW - margin * 2;
+      let y = margin;
+
+      const addText = (text: string, size: number, bold = false, color: [number, number, number] = [26, 26, 26]) => {
+        doc.setFontSize(size);
+        doc.setFont('helvetica', bold ? 'bold' : 'normal');
+        doc.setTextColor(...color);
+        const lines = doc.splitTextToSize(text, contentW);
+        if (y + lines.length * size * 0.35 > doc.internal.pageSize.getHeight() - margin) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.text(lines, margin, y);
+        y += lines.length * size * 0.45 + 2;
+      };
+
+      const addLine = () => {
+        doc.setDrawColor(200, 190, 180);
+        doc.line(margin, y, pageW - margin, y);
+        y += 4;
+      };
+
+      // Header
+      doc.setFillColor(139, 69, 19);
+      doc.rect(0, 0, pageW, 12, 'F');
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text('PI DEFENCE PACK — CONFIDENTIAL', margin, 8);
+      doc.text(`Produced: ${new Date(pack.generatedAt).toLocaleDateString('en-GB')}`, pageW - margin, 8, { align: 'right' });
+      y = 20;
+
+      addText('PI DEFENCE PACK', 18, true, [139, 69, 19]);
+      addText(pack.matter.title, 14, true);
+      if (pack.firm?.firmName) addText(pack.firm.firmName, 10, false, [100, 90, 80]);
+      y += 3;
+      addLine();
+
+      addText('Matter Details', 12, true);
+      if (pack.matter.matterReference) addText(`Reference: ${pack.matter.matterReference}`, 9);
+      if (pack.matter.practiceArea) addText(`Practice area: ${pack.matter.practiceArea.replace(/_/g, ' ')}`, 9);
+      if (pack.matter.clientName) addText(`Client: ${pack.matter.clientName}`, 9);
+      if (pack.matter.createdAt) addText(`Matter opened: ${new Date(pack.matter.createdAt).toLocaleDateString('en-GB')}`, 9);
+      if (pack.matter.riskLevel) addText(`AML risk: ${pack.matter.riskLevel.toUpperCase()}`, 9);
+      y += 2; addLine();
+
+      addText('Sessions', 12, true);
+      for (const s of pack.sessions) {
+        const label = `${s.recordingType?.replace(/_/g, ' ') ?? 'Session'}${s.sessionTitle ? ` — ${s.sessionTitle}` : ''}`;
+        const when = s.startedAt ? new Date(s.startedAt).toLocaleDateString('en-GB') : 'Date not recorded';
+        addText(`${when}: ${label}`, 9);
+      }
+      if (pack.sessions.length === 0) addText('No sessions recorded.', 9, false, [120, 110, 100]);
+      y += 2; addLine();
+
+      addText('Consent', 12, true);
+      for (const c of pack.consentLog) {
+        addText(`${c.consentGiven ? 'Consent given' : 'Consent not given'} (${c.consentModality ?? 'verbal'}) — ${c.consentTimestamp ? new Date(c.consentTimestamp).toLocaleDateString('en-GB') : 'Date not recorded'}`, 9);
+      }
+      if (pack.consentLog.length === 0) addText('No consent log entries.', 9, false, [120, 110, 100]);
+      y += 2; addLine();
+
+      addText('Documents', 12, true);
+      for (const d of pack.documents) {
+        addText(`${d.type?.replace(/_/g, ' ') ?? 'Document'} — created ${d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-GB') : 'unknown'}`, 9);
+      }
+      if (pack.documents.length === 0) addText('No documents on record.', 9, false, [120, 110, 100]);
+      y += 2; addLine();
+
+      addText('Audit Highlights', 12, true);
+      for (const a of pack.auditHighlights.slice(0, 20)) {
+        addText(`${a.timestamp ? new Date(a.timestamp).toLocaleDateString('en-GB') : ''} — ${a.eventType ?? ''}: ${a.description ?? ''}`, 8, false, [80, 70, 60]);
+      }
+      y += 4;
+      addLine();
+
+      addText(pack.disclaimer, 8, false, [120, 110, 100]);
+
+      doc.save(`PI-Defence-Pack-${pack.matter.title.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`);
+    } catch (err: any) {
+      console.error('PI pack error:', err);
+    } finally {
+      setPiPackLoading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen bg-background">
@@ -849,6 +949,10 @@ export default function CaseDetail() {
                 <DropdownMenuItem onClick={() => setShowDownloadModal(true)} data-testid="action-download">
                   <Download className="w-4 h-4 mr-2" />
                   Download Document
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handlePiPackDownload} disabled={piPackLoading} data-testid="action-pi-pack">
+                  {piPackLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileCheck className="w-4 h-4 mr-2" />}
+                  PI Defence Pack
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowHandoverModal(true)} data-testid="action-handover">
                   <ArrowRightLeft className="w-4 h-4 mr-2" />

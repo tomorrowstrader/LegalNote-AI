@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Home, Briefcase, Users, FileText, Scale, ChevronRight, ShieldCheck, CheckCircle2
+  Home, Briefcase, Users, FileText, Scale, ChevronRight, ShieldCheck, CheckCircle2, Gavel
 } from "lucide-react";
 
 export interface CaseTemplate {
@@ -164,6 +164,43 @@ const BUILT_IN_TEMPLATES: CaseTemplate[] = [
       'Review and respond to last correspondence',
       'Confirm next court hearing date',
       'Assess settlement prospects and advise',
+    ],
+  },
+  {
+    id: 'legal_aid',
+    name: 'Legal Aid Matter',
+    description: 'Criminal defence or civil legal aid meeting. Produces a Legal Aid Record section alongside the attendance note — capturing funding category, representation order, means test, and interests of justice.',
+    practiceArea: 'Criminal Defence',
+    category: 'compliance',
+    icon: Gavel,
+    estimatedDuration: '30–60 min',
+    consentLanguage: 'I would like to record this meeting to prepare an accurate attendance note for your legal aid file. The recording is stored securely and deleted after 7 days. Do you consent?',
+    documentSections: [
+      'Advice Given',
+      'Client Instructions',
+      'Next Steps',
+      'Legal Aid Record — Funding Category',
+      'Legal Aid Record — Representation Order',
+      'Legal Aid Record — Means Test Status',
+      'Legal Aid Record — Interests of Justice',
+      'Legal Aid Record — Disbursements Authorised',
+    ],
+    suggestedActionItems: [
+      'Apply for or confirm representation order',
+      'Complete means test assessment',
+      'Note interests of justice factors on file',
+      'Record CLA/DSCC reference number',
+      'Submit prior authority for disbursements if required',
+      'File attendance note on Legal Aid matter file',
+      'Update time recording for Legal Aid billing',
+    ],
+    preMeetingChecklist: [
+      'Confirm whether a representation order has been granted or is pending',
+      'Establish the Legal Aid funding category (Crime Lower / Crime Higher / Civil)',
+      'Check whether the client is passported for means or if a means test is required',
+      'Note any CLA or DSCC reference number for the file',
+      'Check whether prior authority is needed for expert evidence or interpreters',
+      'Note custody time limits if the client is in custody',
     ],
   },
 ];

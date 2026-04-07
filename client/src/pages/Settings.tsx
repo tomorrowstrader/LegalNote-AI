@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check, Mail, Briefcase, Cloud, HardDrive, FlaskConical, Trash2, RefreshCw, Database } from "lucide-react";
+import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check, Mail, Briefcase, Cloud, HardDrive, FlaskConical, Trash2, RefreshCw, Database, TrendingUp, Award, BarChart3, Link2, Send } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -1400,6 +1402,288 @@ function NotificationSettings() {
   );
 }
 
+interface ComplianceScore {
+  overall: number;
+  grade: string;
+  breakdown: Record<string, { score: number; max: number; label: string; detail: string }>;
+  lastUpdated: string;
+}
+
+interface RiskDigest {
+  generatedAt: string;
+  totalIssues: number;
+  overdueUndertakings: Array<{ id: string; wording: string; caseTitle: string; deadline: string; daysOverdue: number }>;
+  upcomingUndertakings: Array<{ id: string; wording: string; caseTitle: string; deadline: string; daysUntil: number }>;
+  highAmlCases: Array<{ id: string; title: string; riskLevel: string; clientName: string | null }>;
+  unacknowledgedLetters: Array<{ caseId: string; caseTitle: string; clientName: string | null; sentAt: string }>;
+  missingSessions: Array<{ caseId: string; caseTitle: string; completedSessions: number; documentedSessions: number }>;
+}
+
+function GrowthSettings() {
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+
+  const { data: firmProfile } = useQuery<FirmProfile>({ queryKey: ['/api/firm-profile'] });
+  const { data: score, isLoading: scoreLoading } = useQuery<ComplianceScore>({ queryKey: ['/api/firm/compliance-score'] });
+  const { data: digest, isLoading: digestLoading, refetch: refetchDigest } = useQuery<RiskDigest>({ queryKey: ['/api/firm/risk-digest'] });
+
+  const [digestEnabled, setDigestEnabled] = useState(false);
+  const [digestEmail, setDigestEmail] = useState('');
+  const [digestFrequency, setDigestFrequency] = useState('weekly');
+  const [badgeEnabled, setBadgeEnabled] = useState(false);
+  const [badgeSlug, setBadgeSlug] = useState('');
+
+  useEffect(() => {
+    if (firmProfile) {
+      setDigestEnabled(firmProfile.digestEnabled ?? false);
+      setDigestEmail(firmProfile.digestEmail ?? '');
+      setDigestFrequency(firmProfile.digestFrequency ?? 'weekly');
+      setBadgeEnabled(firmProfile.complianceBadgeEnabled ?? false);
+      setBadgeSlug(firmProfile.complianceBadgeSlug ?? '');
+    }
+  }, [firmProfile]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (updates: Partial<FirmProfile>) => {
+      return apiRequest('PUT', '/api/firm-profile', { ...firmProfile, ...updates });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/firm-profile'] });
+      toast({ title: 'Settings saved' });
+    },
+    onError: () => toast({ title: 'Failed to save settings', variant: 'destructive' }),
+  });
+
+  const gradeColor = (g: string) => g === 'A' ? 'text-green-600' : g === 'B' ? 'text-blue-600' : g === 'C' ? 'text-amber-600' : g === 'D' ? 'text-orange-600' : 'text-red-600';
+
+  const badgeEmbedCode = badgeSlug ? `<a href="https://legalnote.app/badge/${badgeSlug}" target="_blank" rel="noopener">
+  <img src="https://legalnote.app/api/public/badge/${badgeSlug}/image" alt="LegalNote Compliance Badge" />
+</a>` : '';
+
+  const copyEmbed = () => {
+    navigator.clipboard.writeText(badgeEmbedCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSaveDigest = () => {
+    saveMutation.mutate({ digestEnabled, digestEmail: digestEmail || undefined, digestFrequency } as any);
+  };
+
+  const handleSaveBadge = () => {
+    saveMutation.mutate({ complianceBadgeEnabled: badgeEnabled, complianceBadgeSlug: badgeSlug || undefined } as any);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Compliance Score */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" />
+            <CardTitle>Compliance Score</CardTitle>
+          </div>
+          <CardDescription>
+            A composite score across consent, AML, undertakings, client care, and documentation completeness.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {scoreLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Calculating score...</div>
+          ) : score ? (
+            <div className="space-y-5">
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <div className={`text-5xl font-bold ${gradeColor(score.grade)}`}>{score.grade}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Grade</div>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium">{score.overall} / 100</span>
+                    <span className="text-xs text-muted-foreground">Updated {new Date(score.lastUpdated).toLocaleDateString('en-GB')}</span>
+                  </div>
+                  <Progress value={score.overall} className="h-3" />
+                </div>
+              </div>
+              <Separator />
+              <div className="space-y-3">
+                {Object.values(score.breakdown).map((item) => (
+                  <div key={item.label} className="space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>{item.label}</span>
+                      <span className="font-medium">{item.score}/{item.max}</span>
+                    </div>
+                    <Progress value={(item.score / item.max) * 100} className="h-1.5" />
+                    <p className="text-xs text-muted-foreground">{item.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Score unavailable.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Risk Digest */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Send className="w-5 h-5" />
+            <CardTitle>Managing Partner Risk Digest</CardTitle>
+          </div>
+          <CardDescription>
+            Weekly email summary of compliance issues for senior review. Sent every Monday at 7:00 AM.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="font-medium">Enable weekly digest</Label>
+              <p className="text-sm text-muted-foreground">Receive a Monday morning risk summary by email.</p>
+            </div>
+            <Switch
+              checked={digestEnabled}
+              onCheckedChange={setDigestEnabled}
+              data-testid="switch-digest-enabled"
+            />
+          </div>
+
+          {digestEnabled && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label htmlFor="digest-email">Recipient email</Label>
+                <Input
+                  id="digest-email"
+                  type="email"
+                  placeholder="managing.partner@yourfirm.co.uk"
+                  value={digestEmail}
+                  onChange={(e) => setDigestEmail(e.target.value)}
+                  data-testid="input-digest-email"
+                />
+                <p className="text-xs text-muted-foreground">Leave blank to use the firm's registered email address.</p>
+              </div>
+            </>
+          )}
+
+          <Button onClick={handleSaveDigest} disabled={saveMutation.isPending} data-testid="button-save-digest">
+            {saveMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+            Save
+          </Button>
+
+          {digest && !digestLoading && (
+            <>
+              <Separator />
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium">Current digest preview</p>
+                  <Button variant="ghost" size="sm" onClick={() => refetchDigest()} data-testid="button-refresh-digest">
+                    <RefreshCw className="w-3 h-3 mr-1" /> Refresh
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    { label: 'Overdue undertakings', count: digest.overdueUndertakings.length, color: 'text-red-600' },
+                    { label: 'Due this week', count: digest.upcomingUndertakings.length, color: 'text-amber-600' },
+                    { label: 'AML reviews needed', count: digest.highAmlCases.length, color: 'text-purple-600' },
+                    { label: 'Unacknowledged letters', count: digest.unacknowledgedLetters.length, color: 'text-blue-600' },
+                  ].map(({ label, count, color }) => (
+                    <div key={label} className="p-3 bg-muted rounded-md text-center">
+                      <div className={`text-2xl font-bold ${color}`}>{count}</div>
+                      <div className="text-xs text-muted-foreground mt-1">{label}</div>
+                    </div>
+                  ))}
+                </div>
+                {digest.totalIssues === 0 && (
+                  <p className="text-sm text-green-600 font-medium mt-3">No outstanding issues — all clear this week.</p>
+                )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Compliance Badge */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Award className="w-5 h-5" />
+            <CardTitle>Public Compliance Badge</CardTitle>
+          </div>
+          <CardDescription>
+            Display a compliance badge on your firm's website to demonstrate your commitment to regulatory standards.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="font-medium">Enable public badge</Label>
+              <p className="text-sm text-muted-foreground">Make your compliance score publicly accessible via a unique URL.</p>
+            </div>
+            <Switch
+              checked={badgeEnabled}
+              onCheckedChange={setBadgeEnabled}
+              data-testid="switch-badge-enabled"
+            />
+          </div>
+
+          {badgeEnabled && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label htmlFor="badge-slug">Badge URL slug</Label>
+                <div className="flex gap-2">
+                  <div className="flex items-center px-3 bg-muted rounded-md text-sm text-muted-foreground border border-input whitespace-nowrap">
+                    /badge/
+                  </div>
+                  <Input
+                    id="badge-slug"
+                    placeholder="smiths-solicitors"
+                    value={badgeSlug}
+                    onChange={(e) => setBadgeSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+                    data-testid="input-badge-slug"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Use lowercase letters, numbers, and hyphens only.</p>
+              </div>
+
+              {badgeSlug && (
+                <div className="space-y-2">
+                  <Label>Public badge URL</Label>
+                  <div className="flex gap-2">
+                    <Input readOnly value={`${window.location.origin}/badge/${badgeSlug}`} className="font-mono text-sm" data-testid="input-badge-url" />
+                    <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/badge/${badgeSlug}`); toast({ title: 'URL copied' }); }} data-testid="button-copy-badge-url">
+                      <Link2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {badgeSlug && badgeEmbedCode && (
+                <div className="space-y-2">
+                  <Label>Embed code for your website</Label>
+                  <div className="relative">
+                    <Textarea readOnly value={badgeEmbedCode} className="font-mono text-xs min-h-[80px]" data-testid="textarea-embed-code" />
+                    <Button variant="outline" size="sm" className="absolute top-2 right-2" onClick={copyEmbed} data-testid="button-copy-embed">
+                      {copied ? <><Check className="w-3 h-3 mr-1" /> Copied</> : <><Copy className="w-3 h-3 mr-1" /> Copy</>}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          <Button onClick={handleSaveBadge} disabled={saveMutation.isPending} data-testid="button-save-badge">
+            {saveMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+            Save
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function DemoDataControls() {
   const { toast } = useToast();
   const [demoDataLoaded, setDemoDataLoaded] = useState(false);
@@ -1647,6 +1931,7 @@ export default function Settings() {
             <TabsTrigger value="usage" data-testid="tab-usage">Usage</TabsTrigger>
             <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
             <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
+            <TabsTrigger value="growth" data-testid="tab-growth">Growth</TabsTrigger>
             <TabsTrigger value="demo" data-testid="tab-demo">Demo</TabsTrigger>
           </TabsList>
 
@@ -1667,6 +1952,10 @@ export default function Settings() {
             <VideoConferencing />
             <StorageIntegrations />
             <ClioIntegration />
+          </TabsContent>
+
+          <TabsContent value="growth" className="space-y-6">
+            <GrowthSettings />
           </TabsContent>
 
           <TabsContent value="demo" className="space-y-6">

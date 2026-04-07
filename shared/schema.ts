@@ -166,7 +166,7 @@ export const consentLogs = pgTable("consent_logs", {
   withdrawnBy: varchar("withdrawn_by").references(() => users.id),
 });
 
-export const RECORDING_TYPES = ["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station", "internal_meeting"] as const;
+export const RECORDING_TYPES = ["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station", "internal_meeting", "supervision"] as const;
 export type RecordingType = typeof RECORDING_TYPES[number];
 
 export const RECORDING_TYPE_LABELS: Record<RecordingType, string> = {
@@ -176,6 +176,7 @@ export const RECORDING_TYPE_LABELS: Record<RecordingType, string> = {
   court_hearing: "Court Hearing",
   police_station: "Police Station",
   internal_meeting: "Internal Meeting",
+  supervision: "Supervision",
 };
 
 export const meetingSessions = pgTable("meeting_sessions", {
@@ -370,7 +371,16 @@ export const firmProfile = pgTable("firm_profile", {
   includeLocation: boolean("include_location").notNull().default(true),
   showFullSolicitorName: boolean("show_full_solicitor_name").notNull().default(true),
   includeClientConfirmation: boolean("include_client_confirmation").notNull().default(false),
-  
+
+  // Risk Digest (Managing Partner weekly email)
+  digestEnabled: boolean("digest_enabled").notNull().default(false),
+  digestEmail: text("digest_email"),
+  digestFrequency: text("digest_frequency").default("weekly"), // weekly | monthly
+
+  // Compliance Badge (public-facing score)
+  complianceBadgeEnabled: boolean("compliance_badge_enabled").notNull().default(false),
+  complianceBadgeSlug: text("compliance_badge_slug"),
+
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
 });
@@ -708,7 +718,7 @@ export const insertMeetingSessionSchema = createInsertSchema(meetingSessions).om
   startedAt: true,
 }).extend({
   caseId: z.string().uuid(),
-  recordingType: z.enum(["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station", "internal_meeting"]).default("full_meeting"),
+  recordingType: z.enum(["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station", "internal_meeting", "supervision"]).default("full_meeting"),
   sessionTitle: z.string().max(200).optional(),
   durationSeconds: z.number().int().min(0).max(43200).optional(),
   status: z.enum(["pending", "processing", "completed", "failed"]).default("pending"),
@@ -854,6 +864,11 @@ export const insertFirmProfileSchema = createInsertSchema(firmProfile).omit({
   email: z.string().email().max(255).transform(sanitizeString).optional(),
   website: z.string().url().max(500).optional(),
   sraNumber: z.string().max(50).transform(sanitizeString).optional(),
+  digestEnabled: z.boolean().optional(),
+  digestEmail: z.string().email().max(255).optional(),
+  digestFrequency: z.enum(["weekly", "monthly"]).optional(),
+  complianceBadgeEnabled: z.boolean().optional(),
+  complianceBadgeSlug: z.string().max(100).regex(/^[a-z0-9-]+$/).optional(),
   updatedBy: z.string().min(1).optional(), // Replit Auth IDs are not UUIDs
 });
 

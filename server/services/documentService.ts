@@ -347,6 +347,40 @@ The AML COMPLIANCE SUMMARY section MUST follow this exact structure:
 CRITICAL: For each field, extract ONLY what was actually said in the transcript. Where an area was not covered in the meeting, you MUST state "Not recorded in this session" — do NOT fabricate or assume compliance information.`;
     }
 
+    if (metadata.templateId === 'legal_aid') {
+      systemPrompt += `
+
+LEGAL AID TEMPLATE — MANDATORY ADDITIONAL SECTIONS:
+This matter is funded by Legal Aid. After the standard attendance note content and NEXT STEPS section, you MUST append an additional section titled "LEGAL AID RECORD". This section documents Legal Aid-specific compliance information.
+
+The LEGAL AID RECORD section MUST follow this exact structure:
+
+**LEGAL AID RECORD**
+
+**Funding Category:**
+[State the Legal Aid funding category discussed — e.g., Legal Help, Legal Representation (Crime Lower), Legal Representation (Crime Higher), Civil Legal Aid, Exceptional Case Funding. If not addressed, state: "Not recorded in this session"]
+
+**CLA/DSCC Reference:**
+[Note any Civil Legal Advice (CLA) or Defence Solicitor Call Centre (DSCC) reference numbers mentioned. If not addressed, state: "Not recorded in this session"]
+
+**Representation Order:**
+[Note whether a representation order was granted, applied for, or discussed. Include the court and any conditions if mentioned. If not addressed, state: "Not recorded in this session"]
+
+**Means Test Status:**
+[Summarise the client's means test position — passported, within means threshold, or contribution required. If not addressed, state: "Not recorded in this session"]
+
+**Interests of Justice Test:**
+[Note whether the interests of justice test was discussed and any relevant factors mentioned (e.g., risk of custody, complex law, unable to represent self). If not addressed, state: "Not recorded in this session"]
+
+**Disbursements Authorised:**
+[Note any disbursements or prior authority discussed — expert reports, counsel, interpreters. If not addressed, state: "Not recorded in this session"]
+
+**Billing / File Review Notes:**
+[Note any time-recording, billing code, or file review observations relevant to the Legal Aid assessment. If not addressed, state: "Not recorded in this session"]
+
+CRITICAL: Extract only what was actually discussed. Where an area was not covered, state: "Not recorded in this session".`;
+    }
+
     if (metadata.practiceArea) {
       try {
         const { getPracticeAreaPromptContext } = require('./practiceAreaConfig');
@@ -966,6 +1000,71 @@ ${transcript}`;
     return await this.generateDocument(systemPrompt, userPrompt);
   }
 
+  async generateSupervisionLog(
+    transcript: string,
+    metadata: CaseMetadata
+  ): Promise<DocumentGenerationResult> {
+    const systemPrompt = `You are a UK legal supervisor producing an SQE-compliant supervision log. This document records a supervision session between a supervising solicitor and a supervisee and forms part of the supervisee's training record. It must be factual, structured, and suitable for SRA inspection.
+
+ABSOLUTE ANTI-FABRICATION RULES:
+1. Every statement must have a direct basis in the transcript provided.
+2. Do NOT invent competencies discussed, feedback given, or actions not mentioned.
+3. For any section that cannot be completed from the transcript, use: "Not recorded in this session"
+4. Identify supervisor and supervisee from context or speaker labels where possible.
+
+Format the output as follows:
+
+**SUPERVISION LOG**
+
+Date: ${metadata.recordingDate}
+Supervisor: {Name or role from transcript, or "Not identified in transcript"}
+Supervisee: {Name or role from transcript, or "Not identified in transcript"}
+Session type: Supervision session
+
+---
+
+**Matters Reviewed**
+
+[List each matter or legal issue discussed. For each, provide: matter reference if mentioned, brief description of the issue reviewed, and any guidance given by the supervisor.]
+
+**Competencies Addressed**
+
+[List the SQE or SRA competency areas covered in this session, based on topics discussed. E.g.: Legal research, Client communication, Professional conduct, Drafting, Advocacy. Only include areas explicitly evidenced in the transcript.]
+
+**Supervisor Feedback**
+
+[Summarise any feedback, observations, or guidance given by the supervisor. If praise or criticism was given, record it factually.]
+
+**Agreed Development Actions**
+
+[List any specific actions, reading, training, or targets agreed for the supervisee. Include any deadlines mentioned. If none, state "No development actions recorded in this session."]
+
+**Supervisee Reflections**
+
+[Summarise any reflections or concerns raised by the supervisee. If none recorded, state "Not recorded in this session."]
+
+---
+*This supervision log has been produced from a recording of the supervision session. It forms part of the supervisee's continuing professional development record and training portfolio.*
+
+FORMATTING GUIDELINES:
+- Use **bold** for section headings
+- Use numbered lists for matters reviewed
+- Use dash (-) for bullet points within sections
+- Maintain professional, objective language throughout
+- Do NOT include client care provisions or PACE references`;
+
+    const userPrompt = `Generate an SQE-compliant supervision log from this supervision session transcript:
+
+**Session Reference:** ${metadata.title}
+**Date:** ${metadata.recordingDate}
+${metadata.clientName ? `**Practice context:** ${metadata.clientName}` : ''}
+
+**Transcript:**
+${transcript}`;
+
+    return await this.generateDocument(systemPrompt, userPrompt);
+  }
+
   async generateDocumentByRecordingType(
     recordingType: string,
     transcript: string,
@@ -984,6 +1083,8 @@ ${transcript}`;
         return this.generatePoliceStationAttendanceNote(transcript, metadata, firmPreferences);
       case 'internal_meeting':
         return this.generateMeetingNotes(transcript, metadata, utterances);
+      case 'supervision':
+        return this.generateSupervisionLog(transcript, metadata);
       case 'full_meeting':
       default:
         return this.generateAttendanceNote(transcript, metadata, firmPreferences, utterances);

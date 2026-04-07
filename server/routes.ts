@@ -5849,6 +5849,84 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  // Firm risk digest (managing partner weekly snapshot)
+  app.get("/api/firm/risk-digest", isAuthenticated, async (_req, res, next) => {
+    try {
+      const digest = await storage.getFirmRiskDigest();
+      res.json(digest);
+    } catch (error) { next(error); }
+  });
+
+  // Compliance score
+  app.get("/api/firm/compliance-score", isAuthenticated, async (_req, res, next) => {
+    try {
+      const score = await storage.getComplianceScore();
+      res.json(score);
+    } catch (error) { next(error); }
+  });
+
+  // Public compliance badge (no auth — embeddable on firm website)
+  app.get("/api/public/badge/:slug", async (req, res, next) => {
+    try {
+      const { slug } = req.params;
+      const profile = await storage.getFirmProfile();
+      if (!profile || profile.complianceBadgeSlug !== slug || !profile.complianceBadgeEnabled) {
+        return res.status(404).json({ message: "Badge not found" });
+      }
+      const score = await storage.getComplianceScore();
+      res.json({ firmName: profile.firmName, score: score.overall, grade: score.grade, lastUpdated: score.lastUpdated });
+    } catch (error) { next(error); }
+  });
+
+  // PI Defence Pack — PDF bundle of all matter documentation for one case
+  app.get("/api/cases/:id/pi-pack", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const caseRecord = await storage.getCase(caseId, userId);
+      if (!caseRecord) return res.status(404).json({ message: "Matter not found" });
+
+      const [docs, consentLogs, auditEntries, sessions] = await Promise.all([
+        storage.getDocumentsByCase(caseId, userId),
+        storage.getConsentLogsByCase(caseId, userId),
+        storage.getAuditLogsByCase(caseId, 50),
+        storage.getSessionsByCase(caseId),
+      ]);
+      const firmProfile = await storage.getFirmProfile();
+
+      // Return structured JSON bundle for client-side PDF generation
+      res.json({
+        matter: {
+          title: caseRecord.title,
+          matterReference: caseRecord.matterReference,
+          practiceArea: caseRecord.practiceArea,
+          clientName: caseRecord.clientName,
+          createdAt: caseRecord.createdAt,
+          riskLevel: caseRecord.riskLevel,
+        },
+        firm: firmProfile ? { firmName: firmProfile.firmName, sraNumber: firmProfile.sraNumber, email: firmProfile.email } : null,
+        sessions: sessions.map(s => ({
+          id: s.id, recordingType: s.recordingType, sessionTitle: s.sessionTitle,
+          startedAt: s.startedAt, durationSeconds: s.durationSeconds, status: s.status,
+        })),
+        documents: docs.filter(d => d.isActive).map(d => ({
+          id: d.id, type: d.type, sessionId: d.meetingSessionId,
+          createdAt: d.createdAt, content: d.content,
+        })),
+        consentLog: consentLogs.map(c => ({
+          consentGiven: c.consentGiven, consentModality: c.consentModality,
+          consentTimestamp: c.consentTimestamp, disclaimerWordingText: c.disclaimerWordingText,
+        })),
+        auditHighlights: auditEntries.slice(0, 50).map(a => ({
+          eventType: a.eventType, timestamp: a.timestamp, description: a.description,
+          userId: a.userId, ipAddress: a.ipAddress,
+        })),
+        generatedAt: new Date().toISOString(),
+        disclaimer: "This document pack is produced by LegalNote for professional indemnity defence purposes. It contains tamper-evident records of solicitor-client interactions.",
+      });
+    } catch (error) { next(error); }
+  });
+
   // Get user preferences
   app.get("/api/user-preferences", isAuthenticated, async (req: any, res, next) => {
     try {

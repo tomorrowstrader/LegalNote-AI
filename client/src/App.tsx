@@ -40,6 +40,7 @@ import TimeSummary from "@/pages/TimeSummary";
 import UndertakingsDashboard from "@/pages/UndertakingsDashboard";
 import TeamManagement from "@/pages/TeamManagement";
 import AcknowledgePage from "@/pages/AcknowledgePage";
+import ComplianceBadge from "@/pages/ComplianceBadge";
 import ScrollToTop from "@/components/ScrollToTop";
 
 function Router() {
@@ -50,6 +51,7 @@ function Router() {
       {/* Public routes (accessible without authentication) */}
       <Route path="/share/:linkId" component={ShareLinkView} />
       <Route path="/acknowledge/:token" component={AcknowledgePage} />
+      <Route path="/badge/:slug" component={ComplianceBadge} />
       <Route path="/oauth/callback" component={OAuthCallback} />
       <Route path="/calendar-sync-confirmation" component={CalendarSyncConfirmation} />
       <Route path="/landing-preview" component={Landing} />

@@ -339,6 +339,29 @@ export interface UserStatistics {
   joinedDate: Date;
 }
 
+export interface FirmRiskDigest {
+  generatedAt: Date;
+  overdueUndertakings: Array<{ id: string; wording: string; caseTitle: string; deadline: Date; daysOverdue: number }>;
+  upcomingUndertakings: Array<{ id: string; wording: string; caseTitle: string; deadline: Date; daysUntil: number }>;
+  highAmlCases: Array<{ id: string; title: string; riskLevel: string; clientName: string | null }>;
+  unacknowledgedLetters: Array<{ caseId: string; caseTitle: string; clientName: string | null; sentAt: Date }>;
+  missingSessions: Array<{ caseId: string; caseTitle: string; completedSessions: number; documentedSessions: number }>;
+  totalIssues: number;
+}
+
+export interface ComplianceScore {
+  overall: number;
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  breakdown: {
+    consentCompliance: { score: number; max: number; label: string; detail: string };
+    amlCompletion: { score: number; max: number; label: string; detail: string };
+    undertakingsOnTime: { score: number; max: number; label: string; detail: string };
+    clientCareAcknowledgement: { score: number; max: number; label: string; detail: string };
+    documentationCompletion: { score: number; max: number; label: string; detail: string };
+  };
+  lastUpdated: Date;
+}
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -448,7 +471,9 @@ export interface IStorage {
   // Firm Profile methods
   getFirmProfile(): Promise<FirmProfile | undefined>;
   upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile>;
-  
+  getFirmRiskDigest(): Promise<FirmRiskDigest>;
+  getComplianceScore(): Promise<ComplianceScore>;
+
   // User Preferences methods
   getUserPreferences(userId: string): Promise<UserPreferences | undefined>;
   updateUserPreferences(userId: string, updates: Partial<UserPreferences>): Promise<UserPreferences>;
@@ -1618,12 +1643,32 @@ export class MemStorage implements IStorage {
   }
   
   async upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile> {
-    // MemStorage: In-memory implementation - not used in production
     throw new Error('Firm profile operations require database storage');
   }
-  
+
+  async getFirmRiskDigest(): Promise<FirmRiskDigest> {
+    return {
+      generatedAt: new Date(), overdueUndertakings: [], upcomingUndertakings: [],
+      highAmlCases: [], unacknowledgedLetters: [], missingSessions: [], totalIssues: 0,
+    };
+  }
+
+  async getComplianceScore(): Promise<ComplianceScore> {
+    const empty = (label: string, max: number) => ({ score: max, max, label, detail: 'No data available' });
+    return {
+      overall: 100, grade: 'A',
+      breakdown: {
+        consentCompliance: empty('Consent Compliance', 25),
+        amlCompletion: empty('AML Completion', 25),
+        undertakingsOnTime: empty('Undertakings On Time', 20),
+        clientCareAcknowledgement: empty('Client Care Acknowledged', 15),
+        documentationCompletion: empty('Documentation Complete', 15),
+      },
+      lastUpdated: new Date(),
+    };
+  }
+
   async getUserPreferences(userId: string): Promise<UserPreferences | undefined> {
-    // MemStorage: In-memory implementation - not used in production
     return undefined;
   }
   
@@ -3288,33 +3333,159 @@ export class DbStorage implements IStorage {
   }
   
   async upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile> {
-    // First, check if a profile exists
     const existing = await this.getFirmProfile();
-    
     if (existing) {
-      // Update existing profile
-      const updated = await db
-        .update(firmProfile)
-        .set({
-          ...profileData,
-          updatedAt: new Date(),
-        })
-        .where(eq(firmProfile.id, existing.id))
-        .returning();
+      const updated = await db.update(firmProfile).set({ ...profileData, updatedAt: new Date() }).where(eq(firmProfile.id, existing.id)).returning();
       return updated[0];
     } else {
-      // Insert new profile
-      const inserted = await db
-        .insert(firmProfile)
-        .values({
-          ...profileData,
-          updatedAt: new Date(),
-        })
-        .returning();
+      const inserted = await db.insert(firmProfile).values({ ...profileData, updatedAt: new Date() }).returning();
       return inserted[0];
     }
   }
-  
+
+  async getFirmRiskDigest(): Promise<FirmRiskDigest> {
+    const now = new Date();
+    const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    // 1. Overdue undertakings
+    const overdueRows = await db
+      .select({ id: undertakings.id, wording: undertakings.wording, deadline: undertakings.deadline, caseTitle: cases.title })
+      .from(undertakings).leftJoin(cases, eq(undertakings.caseId, cases.id))
+      .where(and(eq(undertakings.status, 'outstanding'), lte(undertakings.deadline, now)));
+
+    const overdueUndertakings = overdueRows.filter(r => r.deadline).map(r => ({
+      id: r.id, wording: r.wording ?? '', caseTitle: r.caseTitle ?? 'Unknown matter',
+      deadline: r.deadline!, daysOverdue: Math.floor((now.getTime() - r.deadline!.getTime()) / 86400000),
+    }));
+
+    // 2. Upcoming undertakings (next 7 days)
+    const upcomingRows = await db
+      .select({ id: undertakings.id, wording: undertakings.wording, deadline: undertakings.deadline, caseTitle: cases.title })
+      .from(undertakings).leftJoin(cases, eq(undertakings.caseId, cases.id))
+      .where(and(eq(undertakings.status, 'outstanding'), gte(undertakings.deadline, now), lte(undertakings.deadline, sevenDaysLater)));
+
+    const upcomingUndertakings = upcomingRows.filter(r => r.deadline).map(r => ({
+      id: r.id, wording: r.wording ?? '', caseTitle: r.caseTitle ?? 'Unknown matter',
+      deadline: r.deadline!, daysUntil: Math.ceil((r.deadline!.getTime() - now.getTime()) / 86400000),
+    }));
+
+    // 3. High/medium AML risk cases with no decision record in last 30 days
+    const allHighRisk = await db
+      .select({ id: cases.id, title: cases.title, riskLevel: cases.riskLevel, clientName: clients.name })
+      .from(cases).leftJoin(clients, eq(cases.clientId, clients.id))
+      .where(sql`${cases.riskLevel} IN ('high', 'medium')`);
+
+    const recentDecisions = await db
+      .select({ caseId: amlDecisionRecords.caseId })
+      .from(amlDecisionRecords)
+      .where(gte(amlDecisionRecords.createdAt, thirtyDaysAgo));
+    const caseIdsWithRecentDecision = new Set(recentDecisions.map(r => r.caseId));
+
+    const highAmlCases = allHighRisk.filter(c => !caseIdsWithRecentDecision.has(c.id)).map(c => ({
+      id: c.id, title: c.title, riskLevel: c.riskLevel ?? 'medium', clientName: c.clientName ?? null,
+    }));
+
+    // 4. Unacknowledged client care letters
+    const sentLetterCases = await db
+      .select({ id: cases.id, title: cases.title, clientCareLetterSentAt: cases.clientCareLetterSentAt, clientName: clients.name })
+      .from(cases).leftJoin(clients, eq(cases.clientId, clients.id))
+      .where(sql`${cases.clientCareLetterSentAt} IS NOT NULL`);
+
+    const acknowledgedDocs = await db
+      .select({ caseId: documents.caseId })
+      .from(documents)
+      .where(and(eq(documents.type, 'client_care_letter'), sql`${documents.acknowledgedAt} IS NOT NULL`));
+    const acknowledgedCaseIds = new Set(acknowledgedDocs.map(d => d.caseId));
+
+    const unacknowledgedLetters = sentLetterCases.filter(c => !acknowledgedCaseIds.has(c.id)).map(c => ({
+      caseId: c.id, caseTitle: c.title, clientName: c.clientName ?? null, sentAt: c.clientCareLetterSentAt!,
+    }));
+
+    // 5. Completed sessions missing attendance notes
+    const completedSessions = await db
+      .select({ id: meetingSessions.id, caseId: meetingSessions.caseId, caseTitle: cases.title })
+      .from(meetingSessions).leftJoin(cases, eq(meetingSessions.caseId, cases.id))
+      .where(eq(meetingSessions.status, 'completed'));
+
+    const sessionIds = completedSessions.map(s => s.id);
+    const documentedSessionIds = sessionIds.length > 0 ? new Set(
+      (await db.select({ sid: documents.meetingSessionId }).from(documents)
+        .where(and(eq(documents.type, 'attendance_note'), eq(documents.isActive, true), inArray(documents.meetingSessionId as any, sessionIds)))
+      ).map(d => d.sid)
+    ) : new Set();
+
+    // Group by case
+    const caseSessionMap = new Map<string, { caseTitle: string; total: number; documented: number }>();
+    for (const s of completedSessions) {
+      if (!s.caseId) continue;
+      const entry = caseSessionMap.get(s.caseId) ?? { caseTitle: s.caseTitle ?? 'Unknown matter', total: 0, documented: 0 };
+      entry.total++;
+      if (documentedSessionIds.has(s.id)) entry.documented++;
+      caseSessionMap.set(s.caseId, entry);
+    }
+    const missingSessions = Array.from(caseSessionMap.entries())
+      .filter(([, v]) => v.documented < v.total)
+      .map(([caseId, v]) => ({ caseId, caseTitle: v.caseTitle, completedSessions: v.total, documentedSessions: v.documented }));
+
+    const totalIssues = overdueUndertakings.length + highAmlCases.length + unacknowledgedLetters.length + missingSessions.length;
+
+    return { generatedAt: now, overdueUndertakings, upcomingUndertakings, highAmlCases, unacknowledgedLetters, missingSessions, totalIssues };
+  }
+
+  async getComplianceScore(): Promise<ComplianceScore> {
+    const now = new Date();
+
+    // 1. Consent compliance (25 pts): audio cases with valid consent / total audio cases
+    const audioCases = await db.select({ id: cases.id }).from(cases).where(eq(cases.sourceType, 'audio'));
+    const consentedCaseIds = audioCases.length > 0 ? new Set(
+      (await db.select({ caseId: consentLogs.caseId }).from(consentLogs).where(and(eq(consentLogs.consentGiven, true), inArray(consentLogs.caseId, audioCases.map(c => c.id))))).map(r => r.caseId)
+    ) : new Set();
+    const consentPct = audioCases.length === 0 ? 1 : consentedCaseIds.size / audioCases.length;
+    const consentScore = Math.round(consentPct * 25);
+
+    // 2. AML completion (25 pts): high/medium risk cases with AML decision record / total high/medium risk
+    const amlCases = await db.select({ id: cases.id }).from(cases).where(sql`${cases.riskLevel} IN ('high', 'medium')`);
+    const amlDecided = amlCases.length > 0 ? new Set(
+      (await db.select({ caseId: amlDecisionRecords.caseId }).from(amlDecisionRecords).where(inArray(amlDecisionRecords.caseId, amlCases.map(c => c.id)))).map(r => r.caseId)
+    ) : new Set();
+    const amlPct = amlCases.length === 0 ? 1 : amlDecided.size / amlCases.length;
+    const amlScore = Math.round(amlPct * 25);
+
+    // 3. Undertakings on time (20 pts): discharged by deadline / total discharged
+    const dischargedRows = await db.select({ dischargedAt: undertakings.dischargedAt, deadline: undertakings.deadline }).from(undertakings).where(eq(undertakings.status, 'discharged'));
+    const onTime = dischargedRows.filter(r => r.dischargedAt && r.deadline && r.dischargedAt <= r.deadline).length;
+    const undertakingsPct = dischargedRows.length === 0 ? 1 : onTime / dischargedRows.length;
+    const undertakingsScore = Math.round(undertakingsPct * 20);
+
+    // 4. Client care acknowledgement (15 pts): acknowledged CCLs / sent CCLs
+    const sentCCL = await db.select({ id: cases.id }).from(cases).where(sql`${cases.clientCareLetterSentAt} IS NOT NULL`);
+    const ackCCL = sentCCL.length > 0 ? (await db.select({ caseId: documents.caseId }).from(documents).where(and(eq(documents.type, 'client_care_letter'), sql`${documents.acknowledgedAt} IS NOT NULL`, inArray(documents.caseId, sentCCL.map(c => c.id))))).length : 0;
+    const cclPct = sentCCL.length === 0 ? 1 : ackCCL / sentCCL.length;
+    const cclScore = Math.round(cclPct * 15);
+
+    // 5. Documentation completion (15 pts): completed sessions with attendance note / total completed sessions
+    const completedSess = await db.select({ id: meetingSessions.id }).from(meetingSessions).where(eq(meetingSessions.status, 'completed'));
+    const documentedCount = completedSess.length > 0 ? (await db.select({ sid: documents.meetingSessionId }).from(documents).where(and(eq(documents.type, 'attendance_note'), eq(documents.isActive, true), inArray(documents.meetingSessionId as any, completedSess.map(s => s.id))))).length : 0;
+    const docPct = completedSess.length === 0 ? 1 : documentedCount / completedSess.length;
+    const docScore = Math.round(docPct * 15);
+
+    const overall = consentScore + amlScore + undertakingsScore + cclScore + docScore;
+    const grade: ComplianceScore['grade'] = overall >= 90 ? 'A' : overall >= 75 ? 'B' : overall >= 60 ? 'C' : overall >= 45 ? 'D' : 'F';
+
+    return {
+      overall, grade,
+      breakdown: {
+        consentCompliance: { score: consentScore, max: 25, label: 'Consent Compliance', detail: `${consentedCaseIds.size} of ${audioCases.length} audio matters have valid consent` },
+        amlCompletion: { score: amlScore, max: 25, label: 'AML Completion', detail: `${amlDecided.size} of ${amlCases.length} high/medium risk matters have an AML decision` },
+        undertakingsOnTime: { score: undertakingsScore, max: 20, label: 'Undertakings On Time', detail: `${onTime} of ${dischargedRows.length} discharged undertakings completed by deadline` },
+        clientCareAcknowledgement: { score: cclScore, max: 15, label: 'Client Care Acknowledged', detail: `${ackCCL} of ${sentCCL.length} client care letters acknowledged` },
+        documentationCompletion: { score: docScore, max: 15, label: 'Documentation Complete', detail: `${documentedCount} of ${completedSess.length} completed sessions have an attendance note` },
+      },
+      lastUpdated: now,
+    };
+  }
+
   async getUserPreferences(userId: string): Promise<UserPreferences | undefined> {
     const result = await db.select().from(userPreferences).where(eq(userPreferences.userId, userId)).limit(1);
     return result[0];

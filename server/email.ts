@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import type { FirmRiskDigest } from './storage';
 
 if (!process.env.RESEND_API_KEY) {
   throw new Error('RESEND_API_KEY environment variable is not set');
@@ -1363,6 +1364,120 @@ export async function sendAcknowledgementRequestEmail(
     return { success: true, messageId: data?.id };
   } catch (error: any) {
     console.error('[EMAIL] Exception sending acknowledgement request:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+export async function sendRiskDigestEmail(params: {
+  to: string;
+  firmName: string;
+  digest: FirmRiskDigest;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { to, firmName, digest } = params;
+
+  const rowStyle = 'padding: 10px 0; border-bottom: 1px solid #f0ede8;';
+  const badgeStyle = (color: string) => `display:inline-block; padding:2px 8px; border-radius:3px; background:${color}; color:#fff; font-size:12px; font-weight:600;`;
+
+  const overdueSection = digest.overdueUndertakings.length > 0 ? `
+    <h3 style="color:#c0392b; margin:20px 0 10px;">Overdue Undertakings (${digest.overdueUndertakings.length})</h3>
+    <table style="width:100%; border-collapse:collapse;">
+      ${digest.overdueUndertakings.map(u => `
+        <tr style="${rowStyle}">
+          <td style="padding-right:12px;"><strong>${u.caseTitle}</strong><br/><span style="color:#666; font-size:13px;">${u.wording.slice(0, 120)}${u.wording.length > 120 ? '...' : ''}</span></td>
+          <td style="white-space:nowrap; text-align:right;"><span style="${badgeStyle('#c0392b')}">${u.daysOverdue}d overdue</span></td>
+        </tr>`).join('')}
+    </table>` : '';
+
+  const upcomingSection = digest.upcomingUndertakings.length > 0 ? `
+    <h3 style="color:#d68910; margin:20px 0 10px;">Upcoming Undertakings — Next 7 Days (${digest.upcomingUndertakings.length})</h3>
+    <table style="width:100%; border-collapse:collapse;">
+      ${digest.upcomingUndertakings.map(u => `
+        <tr style="${rowStyle}">
+          <td><strong>${u.caseTitle}</strong><br/><span style="color:#666; font-size:13px;">${u.wording.slice(0, 120)}${u.wording.length > 120 ? '...' : ''}</span></td>
+          <td style="white-space:nowrap; text-align:right;"><span style="${badgeStyle('#d68910')}">${u.daysUntil}d</span></td>
+        </tr>`).join('')}
+    </table>` : '';
+
+  const amlSection = digest.highAmlCases.length > 0 ? `
+    <h3 style="color:#884ea0; margin:20px 0 10px;">High/Medium AML Risk — No Recent Review (${digest.highAmlCases.length})</h3>
+    <table style="width:100%; border-collapse:collapse;">
+      ${digest.highAmlCases.map(c => `
+        <tr style="${rowStyle}">
+          <td><strong>${c.title}</strong>${c.clientName ? ` &mdash; ${c.clientName}` : ''}</td>
+          <td style="white-space:nowrap; text-align:right;"><span style="${badgeStyle(c.riskLevel === 'high' ? '#c0392b' : '#d68910')}">${c.riskLevel.toUpperCase()}</span></td>
+        </tr>`).join('')}
+    </table>` : '';
+
+  const cclSection = digest.unacknowledgedLetters.length > 0 ? `
+    <h3 style="color:#1a5276; margin:20px 0 10px;">Unacknowledged Client Care Letters (${digest.unacknowledgedLetters.length})</h3>
+    <table style="width:100%; border-collapse:collapse;">
+      ${digest.unacknowledgedLetters.map(l => `
+        <tr style="${rowStyle}">
+          <td><strong>${l.caseTitle}</strong>${l.clientName ? ` &mdash; ${l.clientName}` : ''}</td>
+          <td style="white-space:nowrap; text-align:right; color:#666; font-size:13px;">Sent ${new Date(l.sentAt).toLocaleDateString('en-GB')}</td>
+        </tr>`).join('')}
+    </table>` : '';
+
+  const docSection = digest.missingSessions.length > 0 ? `
+    <h3 style="color:#117a65; margin:20px 0 10px;">Matters With Undocumented Sessions (${digest.missingSessions.length})</h3>
+    <table style="width:100%; border-collapse:collapse;">
+      ${digest.missingSessions.map(m => `
+        <tr style="${rowStyle}">
+          <td><strong>${m.caseTitle}</strong></td>
+          <td style="white-space:nowrap; text-align:right; color:#666; font-size:13px;">${m.documentedSessions}/${m.completedSessions} documented</td>
+        </tr>`).join('')}
+    </table>` : '';
+
+  const allClear = digest.totalIssues === 0 ? '<p style="color:#117a65; font-weight:600;">No outstanding compliance issues this week.</p>' : '';
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><title>Weekly Risk Digest</title></head>
+    <body style="font-family: Georgia, serif; max-width: 680px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a; background: #fafaf8;">
+      <div style="border-bottom: 3px solid #8b4513; padding-bottom: 20px; margin-bottom: 28px;">
+        <p style="color:#8b4513; font-size:12px; text-transform:uppercase; letter-spacing:1px; margin:0 0 6px;">Weekly Risk Digest</p>
+        <h1 style="margin:0; font-size:22px; font-weight:700;">${firmName}</h1>
+        <p style="margin:6px 0 0; color:#666; font-size:13px;">Week ending ${new Date(digest.generatedAt).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      </div>
+
+      <div style="background:#f5f0ea; border-radius:6px; padding:16px 20px; margin-bottom:24px;">
+        <strong style="font-size:16px;">${digest.totalIssues} item${digest.totalIssues !== 1 ? 's' : ''} requiring attention</strong>
+        ${digest.totalIssues === 0 ? ' &mdash; all clear this week.' : ''}
+      </div>
+
+      ${allClear}
+      ${overdueSection}
+      ${upcomingSection}
+      ${amlSection}
+      ${cclSection}
+      ${docSection}
+
+      <div style="margin-top:36px; padding-top:20px; border-top:1px solid #e8e0d8; color:#999; font-size:12px;">
+        <p>This digest was produced by LegalNote. Log in to your dashboard to take action on these items.</p>
+        <p>${firmName}</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'LegalNote Compliance <noreply@legalnote.app>',
+      to,
+      subject: `Weekly Risk Digest — ${digest.totalIssues} item${digest.totalIssues !== 1 ? 's' : ''} — ${firmName}`,
+      html: emailHtml,
+    });
+
+    if (error) {
+      console.error('[EMAIL] Error sending risk digest:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[EMAIL] Risk digest sent successfully:', data?.id);
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending risk digest:', error);
     return { success: false, error: error.message || 'Unknown error' };
   }
 }
