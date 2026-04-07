@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -45,6 +45,8 @@ import ComplianceBadge from "@/pages/ComplianceBadge";
 import InviteAccept from "@/pages/InviteAccept";
 import PendingApproval from "@/pages/PendingApproval";
 import ScrollToTop from "@/components/ScrollToTop";
+import PublicDemo from "@/pages/PublicDemo";
+import DemoGenerator from "@/pages/DemoGenerator";
 
 function Router() {
   const { user, isAuthenticated, isLoading, isAdmin, isWaitlisted, isFirmAdmin, canAccessFirmCompliance } = useAuth();
@@ -53,6 +55,7 @@ function Router() {
   return (
     <Switch>
       {/* Public routes (accessible without authentication) */}
+      <Route path="/demo/:practiceArea" component={PublicDemo} />
       <Route path="/share/:linkId" component={ShareLinkView} />
       <Route path="/acknowledge/:token" component={AcknowledgePage} />
       <Route path="/badge/:slug" component={ComplianceBadge} />
@@ -98,6 +101,7 @@ function Router() {
           <Route path="/undertakings" component={UndertakingsDashboard} />
           {isFirmAdmin && <Route path="/team" component={TeamManagement} />}
           {canAccessFirmCompliance && <Route path="/compliance" component={FirmCompliance} />}
+          <Route path="/demo-generator" component={DemoGenerator} />
           <Route path="/waitlist" component={WaitlistPage} />
         </>
       )}
@@ -112,6 +116,7 @@ function AuthenticatedAppContent() {
   const { isFocusMode } = useFocusMode();
   const [restartTourTrigger, setRestartTourTrigger] = useState(0);
   const { showRecoveryModal, setShowRecoveryModal } = useRecordingRecovery();
+  const [location] = useLocation();
 
   useNewNoteShortcut();
 
@@ -119,12 +124,14 @@ function AuthenticatedAppContent() {
     setRestartTourTrigger(prev => prev + 1);
   };
 
+  const isPublicDemoRoute = location.startsWith("/demo/");
+
   return (
-    <div className={`min-h-screen bg-background ${!isLoading && isAuthenticated && !isFocusMode ? 'pt-16' : ''}`}>
-      {!isLoading && isAuthenticated && !isFocusMode && <TopNavigation onRestartTour={handleRestartTour} />}
-      {!isLoading && isAuthenticated && !isFocusMode && <FirmSetupPrompt />}
-      {!isLoading && isAuthenticated && !isFocusMode && <OnboardingTour restartTrigger={restartTourTrigger} />}
-      {!isLoading && isAuthenticated && (
+    <div className={`min-h-screen bg-background ${!isLoading && isAuthenticated && !isFocusMode && !isPublicDemoRoute ? 'pt-16' : ''}`}>
+      {!isLoading && isAuthenticated && !isFocusMode && !isPublicDemoRoute && <TopNavigation onRestartTour={handleRestartTour} />}
+      {!isLoading && isAuthenticated && !isFocusMode && !isPublicDemoRoute && <FirmSetupPrompt />}
+      {!isLoading && isAuthenticated && !isFocusMode && !isPublicDemoRoute && <OnboardingTour restartTrigger={restartTourTrigger} />}
+      {!isLoading && isAuthenticated && !isPublicDemoRoute && (
         <RecordingRecoveryModal
           open={showRecoveryModal}
           onOpenChange={setShowRecoveryModal}
