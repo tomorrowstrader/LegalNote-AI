@@ -131,9 +131,9 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
       target: "body",
       content: (
         <div className="space-y-3">
-          <h2 className="text-2xl font-bold tracking-tight">Quick Tip: Double-Tap L</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Quick Tip: Ctrl+Alt+N</h2>
           <p className="text-base leading-relaxed text-muted-foreground">
-            Press <kbd className="px-2 py-1 bg-muted border border-border rounded text-sm font-mono">L</kbd> twice quickly from anywhere to instantly start a new recording. It's the fastest way to capture your LegalNotes.
+            Press <kbd className="px-2 py-1 bg-muted border border-border rounded text-sm font-mono">Ctrl+Alt+N</kbd> from anywhere to instantly start a new recording. It's the fastest way to capture your LegalNotes.
           </p>
         </div>
       ),
@@ -146,7 +146,7 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
         <div className="space-y-3">
           <h2 className="text-2xl font-bold tracking-tight">You're All Set!</h2>
           <p className="text-base leading-relaxed text-muted-foreground">
-            Start by creating your first case or double-tap L to begin recording. Use the dashboard tabs to manage your cases and the search feature to find clients quickly.
+            Start by creating your first case or press Ctrl+Alt+N to begin recording. Use the dashboard tabs to manage your cases and the search feature to find clients quickly.
           </p>
         </div>
       ),

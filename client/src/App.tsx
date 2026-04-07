@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { FocusModeProvider, useFocusMode } from "@/contexts/FocusModeContext";
-import { useDoubleTapL } from "@/hooks/useDoubleTapL";
+import { useNewNoteShortcut } from "@/hooks/useNewNoteShortcut";
 import TopNavigation from "@/components/TopNavigation";
 import FirmSetupPrompt from "@/components/FirmSetupPrompt";
 import OnboardingTour from "@/components/OnboardingTour";
@@ -100,7 +100,7 @@ function AuthenticatedAppContent() {
   const [restartTourTrigger, setRestartTourTrigger] = useState(0);
   const { showRecoveryModal, setShowRecoveryModal } = useRecordingRecovery();
 
-  useDoubleTapL();
+  useNewNoteShortcut();
 
   const handleRestartTour = () => {
     setRestartTourTrigger(prev => prev + 1);
