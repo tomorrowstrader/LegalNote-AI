@@ -35,6 +35,9 @@ import {
   type MeetingSession, type InsertMeetingSession,
   type TimeEntry, type InsertTimeEntry,
   type Undertaking, type InsertUndertaking,
+  type Firm, type InsertFirm,
+  type FirmInvitation, type InsertFirmInvitation,
+  type RoleChangeLog, type InsertRoleChangeLog,
   users,
   clients,
   cases,
@@ -71,6 +74,9 @@ import {
   meetingSessions,
   timeEntries,
   undertakings,
+  firms,
+  firmInvitations,
+  roleChangeLogs,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -383,6 +389,8 @@ export interface IStorage {
 
   createCase(caseData: InsertCase, userId: string): Promise<Case>;
   getCases(userId: string, includeArchived?: boolean): Promise<Case[]>;
+  getFirmCases(firmId: string, includeArchived?: boolean): Promise<Case[]>;
+  getCasesAssignedToUser(assignedUserId: string, includeArchived?: boolean): Promise<Case[]>;
   getCase(id: string, userId: string): Promise<Case | undefined>;
   updateCase(id: string, updates: Partial<Case>, userId: string): Promise<Case | undefined>;
   markCaseAsReviewed(id: string, reviewed: boolean, userId: string): Promise<Case | undefined>;
@@ -637,6 +645,37 @@ export interface IStorage {
   createUndertaking(data: InsertUndertaking): Promise<Undertaking>;
   updateUndertaking(id: string, updates: Partial<Undertaking>): Promise<Undertaking | undefined>;
   getAllOutstandingUndertakings(): Promise<(Undertaking & { caseTitle?: string; clientName?: string })[]>;
+
+  // Firm methods
+  createFirm(data: InsertFirm): Promise<Firm>;
+  getFirm(id: string): Promise<Firm | undefined>;
+  updateFirm(id: string, updates: Partial<Firm>): Promise<Firm | undefined>;
+  ensureUserHasFirm(userId: string): Promise<Firm>;
+
+  // Team member methods
+  getFirmMembers(firmId: string): Promise<User[]>;
+  updateUserFirmRole(userId: string, updates: {
+    primaryRole?: string | null;
+    customRoleLabel?: string | null;
+    regulatoryDesignations?: string[];
+    inviteStatus?: string;
+    firmId?: string | null;
+    invitedAt?: Date | null;
+  }): Promise<User | undefined>;
+  removeUserFromFirm(userId: string, removedAt: Date): Promise<User | undefined>;
+  getFormerFirmMembers(firmId: string): Promise<User[]>;
+
+  // Invitation methods
+  createFirmInvitation(data: InsertFirmInvitation): Promise<FirmInvitation>;
+  getFirmInvitation(id: string): Promise<FirmInvitation | undefined>;
+  getFirmInvitationByToken(token: string): Promise<FirmInvitation | undefined>;
+  getFirmInvitations(firmId: string): Promise<FirmInvitation[]>;
+  updateFirmInvitation(id: string, updates: Partial<FirmInvitation>): Promise<FirmInvitation | undefined>;
+
+  // Role change log methods
+  createRoleChangeLog(data: InsertRoleChangeLog): Promise<RoleChangeLog>;
+  getRoleChangeLogs(userId: string): Promise<RoleChangeLog[]>;
+  getFirmRoleChangeLogs(firmId: string): Promise<RoleChangeLog[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -827,6 +866,18 @@ export class MemStorage implements IStorage {
   async getCases(userId: string, includeArchived: boolean = false): Promise<Case[]> {
     return Array.from(this.cases.values())
       .filter(c => c.createdBy === userId && (includeArchived || !c.archived))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getFirmCases(firmId: string, includeArchived: boolean = false): Promise<Case[]> {
+    return Array.from(this.cases.values())
+      .filter(c => c.firmId === firmId && (includeArchived || !c.archived))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getCasesAssignedToUser(assignedUserId: string, includeArchived: boolean = false): Promise<Case[]> {
+    return Array.from(this.cases.values())
+      .filter(c => c.assignedToUserId === assignedUserId && (includeArchived || !c.archived))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
@@ -2184,6 +2235,22 @@ export class MemStorage implements IStorage {
   async getAllOutstandingUndertakings(): Promise<(Undertaking & { caseTitle?: string; clientName?: string })[]> {
     return [];
   }
+  async createFirm(_data: InsertFirm): Promise<Firm> { throw new Error("Not implemented in MemStorage"); }
+  async getFirm(_id: string): Promise<Firm | undefined> { return undefined; }
+  async updateFirm(_id: string, _updates: Partial<Firm>): Promise<Firm | undefined> { throw new Error("Not implemented"); }
+  async ensureUserHasFirm(_userId: string): Promise<Firm> { throw new Error("Not implemented"); }
+  async getFirmMembers(_firmId: string): Promise<User[]> { return []; }
+  async updateUserFirmRole(_userId: string, _updates: { primaryRole?: string | null; customRoleLabel?: string | null; regulatoryDesignations?: string[]; inviteStatus?: string; firmId?: string | null; invitedAt?: Date | null; }): Promise<User | undefined> { throw new Error("Not implemented"); }
+  async removeUserFromFirm(_userId: string, _removedAt: Date): Promise<User | undefined> { throw new Error("Not implemented"); }
+  async getFormerFirmMembers(_firmId: string): Promise<User[]> { return []; }
+  async createFirmInvitation(_data: InsertFirmInvitation): Promise<FirmInvitation> { throw new Error("Not implemented"); }
+  async getFirmInvitation(_id: string): Promise<FirmInvitation | undefined> { return undefined; }
+  async getFirmInvitationByToken(_token: string): Promise<FirmInvitation | undefined> { return undefined; }
+  async getFirmInvitations(_firmId: string): Promise<FirmInvitation[]> { return []; }
+  async updateFirmInvitation(_id: string, _updates: Partial<FirmInvitation>): Promise<FirmInvitation | undefined> { throw new Error("Not implemented"); }
+  async createRoleChangeLog(_data: InsertRoleChangeLog): Promise<RoleChangeLog> { throw new Error("Not implemented"); }
+  async getRoleChangeLogs(_userId: string): Promise<RoleChangeLog[]> { return []; }
+  async getFirmRoleChangeLogs(_firmId: string): Promise<RoleChangeLog[]> { return []; }
 }
 
 export class DbStorage implements IStorage {
@@ -2339,6 +2406,7 @@ export class DbStorage implements IStorage {
   }
 
   async createClient(clientData: InsertClient, userId: string): Promise<Client> {
+    const creator = await this.getUser(userId);
     const result = await db
       .insert(clients)
       .values({
@@ -2352,30 +2420,44 @@ export class DbStorage implements IStorage {
         amlRiskLastReviewed: clientData.amlRiskLastReviewed ?? null,
         clioClientId: clientData.clioClientId ?? null,
         createdBy: userId,
+        firmId: creator?.firmId ?? null,
       })
       .returning();
     return result[0];
   }
 
   async getClient(id: string, userId: string): Promise<Client | undefined> {
+    const user = await this.getUser(userId);
+    if (user?.firmId) {
+      const result = await db.select().from(clients).where(and(eq(clients.id, id), eq(clients.firmId, user.firmId)));
+      if (result[0]) return result[0];
+    }
     const result = await db.select().from(clients).where(and(eq(clients.id, id), eq(clients.createdBy, userId)));
     return result[0];
   }
 
   async updateClient(id: string, updates: Partial<Client>, userId: string): Promise<Client | undefined> {
+    const user = await this.getUser(userId);
+    const ownerFilter = user?.firmId
+      ? eq(clients.firmId, user.firmId)
+      : eq(clients.createdBy, userId);
     const result = await db
       .update(clients)
       .set({ ...updates, updatedAt: new Date() })
-      .where(and(eq(clients.id, id), eq(clients.createdBy, userId)))
+      .where(and(eq(clients.id, id), ownerFilter))
       .returning();
     return result[0];
   }
 
   async searchClients(query: string, userId: string): Promise<Client[]> {
+    const user = await this.getUser(userId);
     const lower = `%${query.toLowerCase()}%`;
+    const ownerFilter = user?.firmId
+      ? eq(clients.firmId, user.firmId)
+      : eq(clients.createdBy, userId);
     return await db.select().from(clients)
       .where(and(
-        eq(clients.createdBy, userId),
+        ownerFilter,
         sql`(LOWER(${clients.name}) LIKE ${lower} OR LOWER(${clients.email}) LIKE ${lower})`
       ))
       .orderBy(clients.name)
@@ -2383,12 +2465,24 @@ export class DbStorage implements IStorage {
   }
 
   async getClientsByUser(userId: string): Promise<Client[]> {
+    const user = await this.getUser(userId);
+    if (user?.firmId) {
+      return await db.select().from(clients)
+        .where(eq(clients.firmId, user.firmId))
+        .orderBy(desc(clients.createdAt));
+    }
     return await db.select().from(clients)
       .where(eq(clients.createdBy, userId))
       .orderBy(desc(clients.createdAt));
   }
 
   async getCasesByClientId(clientId: string, userId: string): Promise<Case[]> {
+    const user = await this.getUser(userId);
+    if (user?.firmId) {
+      return await db.select().from(cases)
+        .where(and(eq(cases.clientId, clientId), eq(cases.firmId, user.firmId)))
+        .orderBy(desc(cases.createdAt));
+    }
     return await db.select().from(cases)
       .where(and(eq(cases.clientId, clientId), eq(cases.createdBy, userId)))
       .orderBy(desc(cases.createdAt));
@@ -2427,6 +2521,7 @@ export class DbStorage implements IStorage {
   }
 
   async createCase(insertCase: InsertCase, userId: string): Promise<Case> {
+    const creator = await this.getUser(userId);
     const result = await db
       .insert(cases)
       .values({
@@ -2436,6 +2531,7 @@ export class DbStorage implements IStorage {
         matterReference: insertCase.matterReference ?? null,
         createdBy: userId,
         assignedToUserId: insertCase.assignedToUserId ?? null,
+        firmId: creator?.firmId ?? null,
         status: insertCase.status || "pending",
         priority: insertCase.priority || "normal",
         sourceType: insertCase.sourceType,
@@ -2465,7 +2561,38 @@ export class DbStorage implements IStorage {
       .orderBy(desc(cases.createdAt));
   }
 
+  async getFirmCases(firmId: string, includeArchived: boolean = false): Promise<Case[]> {
+    const firmFilter = eq(cases.firmId, firmId);
+    const conditions = includeArchived
+      ? [firmFilter]
+      : [firmFilter, eq(cases.archived, false)];
+    return await db
+      .select()
+      .from(cases)
+      .where(and(...conditions))
+      .orderBy(desc(cases.createdAt));
+  }
+
+  async getCasesAssignedToUser(assignedUserId: string, includeArchived: boolean = false): Promise<Case[]> {
+    const assignedFilter = eq(cases.assignedToUserId, assignedUserId);
+    const conditions = includeArchived
+      ? [assignedFilter]
+      : [assignedFilter, eq(cases.archived, false)];
+    return await db
+      .select()
+      .from(cases)
+      .where(and(...conditions))
+      .orderBy(desc(cases.createdAt));
+  }
+
   async getCase(id: string, userId: string): Promise<Case | undefined> {
+    const user = await this.getUser(userId);
+    if (user?.firmId) {
+      const result = await db.select().from(cases).where(
+        and(eq(cases.id, id), eq(cases.firmId, user.firmId))
+      );
+      if (result[0]) return result[0];
+    }
     const result = await db.select().from(cases).where(
       and(eq(cases.id, id), or(eq(cases.createdBy, userId), eq(cases.assignedToUserId, userId)))
     );
@@ -2473,10 +2600,14 @@ export class DbStorage implements IStorage {
   }
 
   async updateCase(id: string, updates: Partial<Case>, userId: string): Promise<Case | undefined> {
+    const user = await this.getUser(userId);
+    const ownerFilter = user?.firmId
+      ? eq(cases.firmId, user.firmId)
+      : or(eq(cases.createdBy, userId), eq(cases.assignedToUserId, userId));
     const result = await db
       .update(cases)
       .set(updates)
-      .where(and(eq(cases.id, id), or(eq(cases.createdBy, userId), eq(cases.assignedToUserId, userId))))
+      .where(and(eq(cases.id, id), ownerFilter))
       .returning();
     return result[0];
   }
@@ -5139,6 +5270,165 @@ export class DbStorage implements IStorage {
       caseTitle: r.caseTitle ?? undefined,
       clientName: r.clientName ?? undefined,
     }));
+  }
+
+  // Firm methods
+  async createFirm(data: InsertFirm): Promise<Firm> {
+    const result = await db.insert(firms).values({
+      name: data.name,
+      sraNumber: data.sraNumber ?? null,
+      addressLine1: data.addressLine1 ?? null,
+      addressLine2: data.addressLine2 ?? null,
+      city: data.city ?? null,
+      postcode: data.postcode ?? null,
+      country: data.country ?? "United Kingdom",
+      phone: data.phone ?? null,
+      email: data.email ?? null,
+      website: data.website ?? null,
+      logoUrl: data.logoUrl ?? null,
+    }).returning();
+    return result[0];
+  }
+
+  async getFirm(id: string): Promise<Firm | undefined> {
+    const result = await db.select().from(firms).where(eq(firms.id, id));
+    return result[0];
+  }
+
+  async updateFirm(id: string, updates: Partial<Firm>): Promise<Firm | undefined> {
+    const result = await db.update(firms).set(updates).where(eq(firms.id, id)).returning();
+    return result[0];
+  }
+
+  async ensureUserHasFirm(userId: string): Promise<Firm> {
+    const user = await db.select().from(users).where(eq(users.id, userId));
+    const u = user[0];
+    if (!u) throw new Error("User not found");
+    if (u.firmId) {
+      const firm = await this.getFirm(u.firmId);
+      if (firm) return firm;
+    }
+    // Create a new firm for the user
+    const displayName = u.firstName && u.lastName
+      ? `${u.firstName} ${u.lastName}'s Firm`
+      : u.email
+        ? `${u.email.split('@')[0]}'s Firm`
+        : "My Firm";
+    const firm = await this.createFirm({ name: displayName });
+    // Assign user to firm with is_firm_admin designation
+    await db.update(users).set({
+      firmId: firm.id,
+      inviteStatus: "active",
+      regulatoryDesignations: ["is_firm_admin"],
+      primaryRole: u.primaryRole ?? "solicitor",
+      updatedAt: new Date(),
+    }).where(eq(users.id, userId));
+    return firm;
+  }
+
+  // Team member methods
+  async getFirmMembers(firmId: string): Promise<User[]> {
+    return await db.select().from(users)
+      .where(and(eq(users.firmId, firmId), isNull(users.removedAt)))
+      .orderBy(users.createdAt);
+  }
+
+  async updateUserFirmRole(userId: string, updates: {
+    primaryRole?: string | null;
+    customRoleLabel?: string | null;
+    regulatoryDesignations?: string[];
+    inviteStatus?: string;
+    firmId?: string | null;
+    invitedAt?: Date | null;
+  }): Promise<User | undefined> {
+    const setData: Partial<typeof users.$inferInsert> & { updatedAt: Date } = { updatedAt: new Date() };
+    if (updates.primaryRole !== undefined) setData.primaryRole = updates.primaryRole;
+    if (updates.customRoleLabel !== undefined) setData.customRoleLabel = updates.customRoleLabel;
+    if (updates.regulatoryDesignations !== undefined) setData.regulatoryDesignations = updates.regulatoryDesignations;
+    if (updates.inviteStatus !== undefined) setData.inviteStatus = updates.inviteStatus;
+    if (updates.firmId !== undefined) setData.firmId = updates.firmId;
+    if (updates.invitedAt !== undefined) setData.invitedAt = updates.invitedAt;
+    const result = await db.update(users).set(setData).where(eq(users.id, userId)).returning();
+    return result[0];
+  }
+
+  async removeUserFromFirm(userId: string, removedAt: Date): Promise<User | undefined> {
+    const result = await db.update(users)
+      .set({ removedAt, inviteStatus: "suspended", updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
+  }
+
+  async getFormerFirmMembers(firmId: string): Promise<User[]> {
+    return await db.select().from(users)
+      .where(and(eq(users.firmId, firmId), sql`${users.removedAt} IS NOT NULL`))
+      .orderBy(desc(users.removedAt));
+  }
+
+  // Invitation methods
+  async createFirmInvitation(data: InsertFirmInvitation): Promise<FirmInvitation> {
+    const result = await db.insert(firmInvitations).values({
+      firmId: data.firmId,
+      invitingUserId: data.invitingUserId,
+      email: data.email,
+      suggestedRole: data.suggestedRole ?? null,
+      suggestedCustomRoleLabel: data.suggestedCustomRoleLabel ?? null,
+      token: data.token,
+      status: data.status ?? "pending",
+      expiresAt: data.expiresAt,
+    }).returning();
+    return result[0];
+  }
+
+  async getFirmInvitation(id: string): Promise<FirmInvitation | undefined> {
+    const result = await db.select().from(firmInvitations).where(eq(firmInvitations.id, id));
+    return result[0];
+  }
+
+  async getFirmInvitationByToken(token: string): Promise<FirmInvitation | undefined> {
+    const result = await db.select().from(firmInvitations).where(eq(firmInvitations.token, token));
+    return result[0];
+  }
+
+  async getFirmInvitations(firmId: string): Promise<FirmInvitation[]> {
+    return await db.select().from(firmInvitations)
+      .where(eq(firmInvitations.firmId, firmId))
+      .orderBy(desc(firmInvitations.createdAt));
+  }
+
+  async updateFirmInvitation(id: string, updates: Partial<FirmInvitation>): Promise<FirmInvitation | undefined> {
+    const result = await db.update(firmInvitations).set(updates).where(eq(firmInvitations.id, id)).returning();
+    return result[0];
+  }
+
+  // Role change log methods
+  async createRoleChangeLog(data: InsertRoleChangeLog): Promise<RoleChangeLog> {
+    const result = await db.insert(roleChangeLogs).values({
+      userId: data.userId,
+      firmId: data.firmId,
+      changedByUserId: data.changedByUserId,
+      previousRole: data.previousRole ?? null,
+      newRole: data.newRole ?? null,
+      previousDesignations: data.previousDesignations ?? [],
+      newDesignations: data.newDesignations ?? [],
+      previousCustomRoleLabel: data.previousCustomRoleLabel ?? null,
+      newCustomRoleLabel: data.newCustomRoleLabel ?? null,
+      reason: data.reason ?? null,
+    }).returning();
+    return result[0];
+  }
+
+  async getRoleChangeLogs(userId: string): Promise<RoleChangeLog[]> {
+    return await db.select().from(roleChangeLogs)
+      .where(eq(roleChangeLogs.userId, userId))
+      .orderBy(desc(roleChangeLogs.changedAt));
+  }
+
+  async getFirmRoleChangeLogs(firmId: string): Promise<RoleChangeLog[]> {
+    return await db.select().from(roleChangeLogs)
+      .where(eq(roleChangeLogs.firmId, firmId))
+      .orderBy(desc(roleChangeLogs.changedAt));
   }
 }
 

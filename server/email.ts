@@ -1481,3 +1481,105 @@ export async function sendRiskDigestEmail(params: {
     return { success: false, error: error.message || 'Unknown error' };
   }
 }
+
+interface SendInvitationEmailParams {
+  to: string;
+  invitingUserName: string;
+  firmName: string;
+  suggestedRole?: string | null;
+  inviteToken: string;
+}
+
+/**
+ * Sends a team invitation email to a prospective team member
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+export async function sendInvitationEmail(params: SendInvitationEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { to, invitingUserName, firmName, suggestedRole, inviteToken } = params;
+
+  const baseUrl = process.env.REPLIT_DOMAINS
+    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+    : 'http://localhost:5000';
+
+  const acceptUrl = `${baseUrl}/invite/accept/${inviteToken}`;
+
+  const safeInvitingName = escapeHtml(invitingUserName);
+  const safeFirmName = escapeHtml(firmName);
+  const safeRole = suggestedRole ? escapeHtml(suggestedRole) : null;
+  const safeEmail = escapeHtml(to);
+
+  const roleText = safeRole ? `<p>You have been invited to join as: <strong>${safeRole}</strong></p>` : '';
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5; }
+        .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .header { background: #1e3a5f; color: #fff; padding: 32px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
+        .header p { margin: 8px 0 0; opacity: 0.85; font-size: 14px; }
+        .body { padding: 32px; }
+        .cta-btn { display: inline-block; background: #1e3a5f; color: #fff !important; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 600; font-size: 15px; margin: 24px 0; }
+        .notice { background: #f0f4f8; border-radius: 6px; padding: 16px; margin-top: 24px; font-size: 13px; color: #555; }
+        .url-fallback { font-size: 12px; color: #888; word-break: break-all; margin-top: 16px; }
+        .footer { padding: 20px 32px; background: #f8f8f8; border-top: 1px solid #eee; font-size: 12px; color: #999; text-align: center; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>LegalNote</h1>
+          <p>Team Invitation</p>
+        </div>
+        <div class="body">
+          <p>Hello,</p>
+          <p><strong>${safeInvitingName}</strong> has invited you to join <strong>${safeFirmName}</strong> on LegalNote, the UK law firm compliance and case management platform.</p>
+          ${roleText}
+          <p>Click the button below to accept the invitation and set up your account. Once accepted, a firm administrator will activate your account before you gain full access.</p>
+          <a href="${acceptUrl}" class="cta-btn">Accept Invitation</a>
+          <div class="notice">
+            <strong>This invitation expires in 7 days.</strong><br>
+            If you were not expecting this invitation, you can safely ignore this email. No account will be created without your action.
+          </div>
+          <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${acceptUrl}</p>
+        </div>
+        <div class="footer">
+          <p>${safeFirmName} via LegalNote &bull; legalnote.app</p>
+          <p>This email was sent to ${safeEmail}. If you believe you received this in error, please disregard it.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'LegalNote <noreply@legalnote.app>',
+      to,
+      subject: `You have been invited to join ${firmName} on LegalNote`,
+      html: emailHtml,
+    });
+
+    if (error) {
+      console.error('[EMAIL] Error sending invitation email:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[EMAIL] Invitation email sent successfully:', data?.id);
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending invitation email:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}

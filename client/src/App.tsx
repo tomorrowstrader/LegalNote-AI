@@ -41,10 +41,13 @@ import UndertakingsDashboard from "@/pages/UndertakingsDashboard";
 import TeamManagement from "@/pages/TeamManagement";
 import AcknowledgePage from "@/pages/AcknowledgePage";
 import ComplianceBadge from "@/pages/ComplianceBadge";
+import InviteAccept from "@/pages/InviteAccept";
+import PendingApproval from "@/pages/PendingApproval";
 import ScrollToTop from "@/components/ScrollToTop";
 
 function Router() {
-  const { isAuthenticated, isLoading, isAdmin, isWaitlisted } = useAuth();
+  const { user, isAuthenticated, isLoading, isAdmin, isWaitlisted, isFirmAdmin } = useAuth();
+  const isPendingApproval = user?.inviteStatus === "pending_approval";
 
   return (
     <Switch>
@@ -52,6 +55,7 @@ function Router() {
       <Route path="/share/:linkId" component={ShareLinkView} />
       <Route path="/acknowledge/:token" component={AcknowledgePage} />
       <Route path="/badge/:slug" component={ComplianceBadge} />
+      <Route path="/invite/accept/:token" component={InviteAccept} />
       <Route path="/oauth/callback" component={OAuthCallback} />
       <Route path="/calendar-sync-confirmation" component={CalendarSyncConfirmation} />
       <Route path="/landing-preview" component={Landing} />
@@ -65,6 +69,11 @@ function Router() {
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
+      ) : isPendingApproval && !isAdmin ? (
+        <>
+          <Route path="/pending-approval" component={PendingApproval} />
+          <Route component={PendingApproval} />
+        </>
       ) : isWaitlisted && !isAdmin ? (
         <>
           <Route path="/waitlist" component={WaitlistPage} />
@@ -86,7 +95,7 @@ function Router() {
           <Route path="/clients/:id" component={ClientProfile} />
           <Route path="/time-summary" component={TimeSummary} />
           <Route path="/undertakings" component={UndertakingsDashboard} />
-          <Route path="/team" component={TeamManagement} />
+          {isFirmAdmin && <Route path="/team" component={TeamManagement} />}
           <Route path="/waitlist" component={WaitlistPage} />
         </>
       )}

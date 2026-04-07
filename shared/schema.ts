@@ -3,6 +3,91 @@ import { pgTable, pgEnum, text, varchar, timestamp, boolean, integer, jsonb, uni
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Firms table — one record per independent law firm
+export const firms = pgTable("firms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  sraNumber: text("sra_number"),
+  addressLine1: text("address_line_1"),
+  addressLine2: text("address_line_2"),
+  city: text("city"),
+  postcode: text("postcode"),
+  country: text("country").default("United Kingdom"),
+  phone: text("phone"),
+  email: text("email"),
+  website: text("website"),
+  logoUrl: text("logo_url"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Primary role enum values
+export const PRIMARY_ROLES = [
+  "managing_partner",
+  "partner",
+  "legal_director",
+  "senior_solicitor",
+  "solicitor",
+  "associate",
+  "trainee_solicitor",
+  "legal_executive",
+  "consultant",
+  "paralegal",
+  "licensed_conveyancer",
+  "costs_lawyer",
+  "practice_manager",
+  "compliance_manager",
+  "accounts_finance",
+  "legal_secretary",
+  "firm_admin_only",
+  "custom",
+] as const;
+
+export type PrimaryRole = typeof PRIMARY_ROLES[number];
+
+export const PRIMARY_ROLE_LABELS: Record<PrimaryRole, string> = {
+  managing_partner: "Managing Partner",
+  partner: "Partner",
+  legal_director: "Legal Director",
+  senior_solicitor: "Senior Solicitor",
+  solicitor: "Solicitor",
+  associate: "Associate",
+  trainee_solicitor: "Trainee Solicitor",
+  legal_executive: "Legal Executive (CILEx)",
+  consultant: "Consultant Solicitor",
+  paralegal: "Paralegal",
+  licensed_conveyancer: "Licensed Conveyancer",
+  costs_lawyer: "Costs Lawyer",
+  practice_manager: "Practice Manager",
+  compliance_manager: "Compliance Manager",
+  accounts_finance: "Accounts and Finance",
+  legal_secretary: "Legal Secretary",
+  firm_admin_only: "Firm Administrator",
+  custom: "Custom",
+};
+
+// Regulatory designation flags
+export const REGULATORY_DESIGNATIONS = [
+  "is_colp",
+  "is_cofa",
+  "is_mlro",
+  "is_supervisor",
+  "is_firm_admin",
+] as const;
+
+export type RegulatoryDesignation = typeof REGULATORY_DESIGNATIONS[number];
+
+export const REGULATORY_DESIGNATION_LABELS: Record<RegulatoryDesignation, string> = {
+  is_colp: "Compliance Officer for Legal Practice (COLP)",
+  is_cofa: "Compliance Officer for Finance and Administration (COFA)",
+  is_mlro: "Money Laundering Reporting Officer (MLRO)",
+  is_supervisor: "Designated Supervisor",
+  is_firm_admin: "Firm Administrator",
+};
+
+// Invite/member status
+export const INVITE_STATUSES = ["pending_approval", "active", "suspended"] as const;
+export type InviteStatus = typeof INVITE_STATUSES[number];
+
 // Session storage table (Required for Replit Auth)
 export const sessions = pgTable(
   "sessions",
@@ -13,7 +98,7 @@ export const sessions = pgTable(
   },
 );
 
-// Users table (Updated for Replit Auth + Stripe)
+// Users table (Updated for Replit Auth + Stripe + Firm roles)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
@@ -27,12 +112,23 @@ export const users = pgTable("users", {
   trialEndsAt: timestamp("trial_ends_at"),
   complianceThread: boolean("compliance_thread").notNull().default(false),
   hourlyRate: text("hourly_rate"),
+  // Firm membership fields
+  firmId: varchar("firm_id").references(() => firms.id),
+  primaryRole: text("primary_role"), // One of PRIMARY_ROLES
+  customRoleLabel: text("custom_role_label"), // When primaryRole === 'custom'
+  regulatoryDesignations: text("regulatory_designations").array().notNull().default(sql`ARRAY[]::text[]`),
+  inviteStatus: text("invite_status").default("active"), // pending_approval, active, suspended
+  invitedBy: varchar("invited_by"), // userId who sent the invite
+  invitedAt: timestamp("invited_at"),
+  removedAt: timestamp("removed_at"),
+  lastActiveAt: timestamp("last_active_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const clients = pgTable("clients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firmId: varchar("firm_id").references(() => firms.id),
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
@@ -89,6 +185,7 @@ export const practiceAreaEnum = pgEnum("practice_area_enum", PRACTICE_AREAS as u
 
 export const cases = pgTable("cases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firmId: varchar("firm_id").references(() => firms.id),
   title: text("title").notNull(),
   clientName: text("client_name").notNull(),
   clientId: varchar("client_id").references(() => clients.id),
@@ -1497,3 +1594,92 @@ export const insertUndertakingSchema = createInsertSchema(undertakings).omit({
 
 export type InsertUndertaking = z.infer<typeof insertUndertakingSchema>;
 export type Undertaking = typeof undertakings.$inferSelect;
+
+// Firm invitations — sent by a firm admin to invite new members
+export const firmInvitations = pgTable("firm_invitations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firmId: varchar("firm_id").notNull().references(() => firms.id),
+  invitingUserId: varchar("inviting_user_id").notNull().references(() => users.id),
+  email: text("email").notNull(),
+  suggestedRole: text("suggested_role"), // One of PRIMARY_ROLES
+  suggestedCustomRoleLabel: text("suggested_custom_role_label"),
+  token: text("token").notNull().unique(),
+  status: text("status").notNull().default("pending"), // pending, accepted, declined, cancelled, expired
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  acceptedAt: timestamp("accepted_at"),
+  acceptedByUserId: varchar("accepted_by_user_id").references(() => users.id),
+});
+
+export const insertFirmInvitationSchema = createInsertSchema(firmInvitations).omit({
+  id: true,
+  createdAt: true,
+  acceptedAt: true,
+  acceptedByUserId: true,
+}).extend({
+  firmId: z.string().uuid(),
+  invitingUserId: z.string().min(1),
+  email: z.string().email().max(255),
+  suggestedRole: z.enum(PRIMARY_ROLES).optional(),
+  suggestedCustomRoleLabel: z.string().max(200).optional(),
+  token: z.string().min(1),
+  status: z.enum(["pending", "accepted", "declined", "cancelled", "expired"]).default("pending"),
+  expiresAt: z.date(),
+});
+
+export type InsertFirmInvitation = z.infer<typeof insertFirmInvitationSchema>;
+export type FirmInvitation = typeof firmInvitations.$inferSelect;
+
+// Role change log — audit trail for role and designation changes
+export const roleChangeLogs = pgTable("role_change_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  firmId: varchar("firm_id").notNull().references(() => firms.id),
+  changedByUserId: varchar("changed_by_user_id").notNull().references(() => users.id),
+  previousRole: text("previous_role"),
+  newRole: text("new_role"),
+  previousDesignations: text("previous_designations").array().notNull().default(sql`ARRAY[]::text[]`),
+  newDesignations: text("new_designations").array().notNull().default(sql`ARRAY[]::text[]`),
+  previousCustomRoleLabel: text("previous_custom_role_label"),
+  newCustomRoleLabel: text("new_custom_role_label"),
+  reason: text("reason"),
+  changedAt: timestamp("changed_at").notNull().defaultNow(),
+});
+
+export const insertRoleChangeLogSchema = createInsertSchema(roleChangeLogs).omit({
+  id: true,
+  changedAt: true,
+}).extend({
+  userId: z.string().min(1),
+  firmId: z.string().uuid(),
+  changedByUserId: z.string().min(1),
+  previousRole: z.string().optional(),
+  newRole: z.string().optional(),
+  previousDesignations: z.array(z.string()).default([]),
+  newDesignations: z.array(z.string()).default([]),
+  reason: z.string().max(2000).optional(),
+});
+
+export type InsertRoleChangeLog = z.infer<typeof insertRoleChangeLogSchema>;
+export type RoleChangeLog = typeof roleChangeLogs.$inferSelect;
+
+// Firms insert schema
+export const insertFirmSchema = createInsertSchema(firms).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  name: z.string().min(1).max(300),
+  sraNumber: z.string().max(50).optional(),
+  addressLine1: z.string().max(200).optional(),
+  addressLine2: z.string().max(200).optional(),
+  city: z.string().max(100).optional(),
+  postcode: z.string().max(20).optional(),
+  country: z.string().max(100).default("United Kingdom"),
+  phone: z.string().max(50).optional(),
+  email: z.string().email().max(255).optional(),
+  website: z.string().url().max(500).optional(),
+  logoUrl: z.string().url().max(500).optional(),
+});
+
+export type InsertFirm = z.infer<typeof insertFirmSchema>;
+export type Firm = typeof firms.$inferSelect;

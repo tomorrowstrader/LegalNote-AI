@@ -10,6 +10,11 @@ export interface User {
   waitlistStatus?: "pending" | "approved" | null;
   complianceThread?: boolean;
   hourlyRate?: string;
+  firmId?: string | null;
+  primaryRole?: string | null;
+  customRoleLabel?: string | null;
+  regulatoryDesignations?: string[];
+  inviteStatus?: string | null;
 }
 
 export function useAuth() {
@@ -18,11 +23,18 @@ export function useAuth() {
     retry: false,
   });
 
+  const designations = user?.regulatoryDesignations ?? [];
+
   return {
     user,
     isLoading,
     isAuthenticated: !!user,
     isAdmin: user?.isAdmin ?? false,
     isWaitlisted: !user?.isAdmin && user?.waitlistStatus === "pending",
+    isFirmAdmin: designations.includes("is_firm_admin"),
+    isCOLP: designations.includes("is_colp"),
+    isCOFA: designations.includes("is_cofa"),
+    isMLRO: designations.includes("is_mlro"),
+    isSupervisor: designations.includes("is_supervisor"),
   };
 }

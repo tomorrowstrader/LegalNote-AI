@@ -38,7 +38,7 @@ function resolveTemplatePath(filename: string): string {
   return possiblePaths[0];
 }
 import { storage } from "./storage";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, PRACTICE_AREAS, type ScheduledMeeting } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation } from "@shared/schema";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -56,7 +56,7 @@ import {
 import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { openaiService } from "./openaiService";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail } from "./email";
 import { generateSignedAuditPDF } from "./services/signedAuditExport";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent } from "./calendar";
 import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
@@ -10054,6 +10054,575 @@ ${firmName}`;
       console.error("[Sessions] Error updating session:", error);
       res.status(500).json({ message: "Failed to update session" });
     }
+  });
+
+  // ========================
+  // Team management routes
+  // ========================
+
+  /**
+   * Middleware factory: ensures the authenticated user holds at least one of the given
+   * primary roles or regulatory designations, and that their account is in the given firm.
+   * Sets req.firmUser to the resolved user object on success.
+   */
+  const requireRole = (allowedRoles: string[], allowedDesignations: string[] = []) => {
+    return async (req: any, res: any, next: any) => {
+      try {
+        const userId = req.user?.claims?.sub;
+        if (!userId) return res.status(401).json({ message: "Not authenticated" });
+        const user = await storage.getUser(userId);
+        if (!user?.firmId) return res.status(400).json({ message: "No firm associated with your account" });
+
+        const designations = user.regulatoryDesignations ?? [];
+        // Access is granted if the user satisfies at least one non-empty check list.
+        // An empty list is NOT a wildcard — it means that criteria is not being tested.
+        // At least one non-empty list must be provided; the user must satisfy one of them.
+        const roleOk = allowedRoles.length > 0 && allowedRoles.includes(user.primaryRole ?? "");
+        const designationOk = allowedDesignations.length > 0 && allowedDesignations.some(d => designations.includes(d));
+
+        if (!roleOk && !designationOk) {
+          return res.status(403).json({ message: "You do not have permission to perform this action" });
+        }
+        req.firmUser = user;
+        next();
+      } catch (err) {
+        next(err);
+      }
+    };
+  };
+
+  /** Middleware: ensures the authenticated user is a firm admin */
+  const requireFirmAdmin = async (req: any, res: any, next: any) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const user = await storage.getUser(userId);
+      if (!user?.firmId) return res.status(400).json({ message: "No firm associated with your account" });
+      if (!(user.regulatoryDesignations ?? []).includes("is_firm_admin")) {
+        return res.status(403).json({ message: "Only firm administrators can perform this action" });
+      }
+      req.firmAdminUser = user;
+      req.firmUser = user;
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  // Get current user's firm (or create one if they don't have one)
+  app.get("/api/firm", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const firm = await storage.ensureUserHasFirm(userId);
+      res.json(firm);
+    } catch (error: any) {
+      console.error("[Firm] Error getting firm:", error);
+      res.status(500).json({ message: "Failed to get firm" });
+    }
+  });
+
+  // Update firm details (firm admin only)
+  app.patch("/api/firm", isAuthenticated, requireFirmAdmin, async (req: any, res) => {
+    try {
+      const adminUser = req.firmAdminUser;
+
+      const schema = z.object({
+        name: z.string().min(1).max(200).optional(),
+        sraNumber: z.string().max(20).optional().nullable(),
+        addressLine1: z.string().max(200).optional().nullable(),
+        addressLine2: z.string().max(200).optional().nullable(),
+        city: z.string().max(100).optional().nullable(),
+        postcode: z.string().max(20).optional().nullable(),
+        phone: z.string().max(30).optional().nullable(),
+        email: z.string().email().optional().nullable(),
+        website: z.string().url().optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+
+      const updated = await storage.updateFirm(adminUser.firmId, parsed.data);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[Firm] Error updating firm:", error);
+      res.status(500).json({ message: "Failed to update firm" });
+    }
+  });
+
+  // Get team members (available to all firm members; firm admins get full details including inviteStatus)
+  app.get("/api/team/members", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.firmId) return res.status(400).json({ message: "No firm associated with your account" });
+      const isAdminView = (user.regulatoryDesignations ?? []).includes("is_firm_admin");
+
+      const members = await storage.getFirmMembers(user.firmId);
+      const sanitized = members.map(m => {
+        const base = {
+          id: m.id,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          profileImageUrl: m.profileImageUrl,
+          primaryRole: m.primaryRole,
+          customRoleLabel: m.customRoleLabel,
+          regulatoryDesignations: m.regulatoryDesignations,
+          createdAt: m.createdAt,
+        };
+        if (isAdminView) {
+          return {
+            ...base,
+            email: m.email,
+            inviteStatus: m.inviteStatus,
+            invitedAt: m.invitedAt,
+            lastActiveAt: m.lastActiveAt,
+          };
+        }
+        return base;
+      });
+      res.json(sanitized);
+    } catch (error: any) {
+      console.error("[Team] Error getting members:", error);
+      res.status(500).json({ message: "Failed to get team members" });
+    }
+  });
+
+  // Get former team members
+  app.get("/api/team/members/former", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.firmId) return res.status(400).json({ message: "No firm associated with your account" });
+
+      const isFirmAdmin = (user.regulatoryDesignations ?? []).includes("is_firm_admin");
+      if (!isFirmAdmin) return res.status(403).json({ message: "Only firm administrators can view former members" });
+
+      const members = await storage.getFormerFirmMembers(user.firmId);
+      const sanitized = members.map(m => ({
+        id: m.id,
+        email: m.email,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        profileImageUrl: m.profileImageUrl,
+        primaryRole: m.primaryRole,
+        customRoleLabel: m.customRoleLabel,
+        removedAt: m.removedAt,
+      }));
+      res.json(sanitized);
+    } catch (error: any) {
+      console.error("[Team] Error getting former members:", error);
+      res.status(500).json({ message: "Failed to get former members" });
+    }
+  });
+
+  // Update team member's role (firm admin only)
+  app.patch("/api/team/members/:memberId/role", isAuthenticated, requireFirmAdmin, async (req: any, res) => {
+    try {
+      const adminUser = req.firmAdminUser;
+      const { memberId } = req.params;
+      const targetUser = await storage.getUser(memberId);
+      if (!targetUser || targetUser.firmId !== adminUser.firmId) {
+        return res.status(404).json({ message: "Team member not found" });
+      }
+
+      const schema = z.object({
+        primaryRole: z.string().optional().nullable(),
+        customRoleLabel: z.string().max(100).optional().nullable(),
+        regulatoryDesignations: z.array(z.string()).optional(),
+        reason: z.string().max(500).optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+
+      const newDesignations = parsed.data.regulatoryDesignations ?? targetUser.regulatoryDesignations ?? [];
+      const warnings: string[] = [];
+
+      // Designation governance: warn if unique designations are being assigned to multiple people
+      if (newDesignations.length > 0) {
+        const allMembers = await storage.getFirmMembers(adminUser.firmId);
+        const uniqueDesignations = ["is_colp", "is_cofa", "is_mlro"] as const;
+        for (const des of uniqueDesignations) {
+          const alreadyHolders = allMembers.filter(
+            m => m.id !== memberId && (m.regulatoryDesignations ?? []).includes(des)
+          );
+          if (newDesignations.includes(des) && alreadyHolders.length > 0) {
+            const holderName = alreadyHolders[0].firstName
+              ? `${alreadyHolders[0].firstName} ${alreadyHolders[0].lastName}`
+              : alreadyHolders[0].email ?? "another member";
+            const desLabel = REGULATORY_DESIGNATION_LABELS[des];
+            warnings.push(`${desLabel} is already assigned to ${holderName}. Each firm should typically have only one person in this role.`);
+          }
+        }
+
+        // Prevent removing is_firm_admin if this is the last one
+        const currentlyFirmAdmin = (targetUser.regulatoryDesignations ?? []).includes("is_firm_admin");
+        const becomingFirmAdmin = newDesignations.includes("is_firm_admin");
+        if (currentlyFirmAdmin && !becomingFirmAdmin) {
+          const otherAdmins = allMembers.filter(
+            m => m.id !== memberId && (m.regulatoryDesignations ?? []).includes("is_firm_admin")
+          );
+          if (otherAdmins.length === 0) {
+            return res.status(400).json({
+              message: "Cannot remove Firm Administrator from the last administrator. Assign another firm admin first.",
+            });
+          }
+        }
+      }
+
+      // Log the role change (role_change_log table + audit trail)
+      await storage.createRoleChangeLog({
+        userId: memberId,
+        firmId: adminUser.firmId,
+        changedByUserId: adminUser.id,
+        previousRole: targetUser.primaryRole ?? null,
+        newRole: parsed.data.primaryRole ?? null,
+        previousDesignations: targetUser.regulatoryDesignations ?? [],
+        newDesignations,
+        previousCustomRoleLabel: targetUser.customRoleLabel ?? null,
+        newCustomRoleLabel: parsed.data.customRoleLabel ?? null,
+        reason: parsed.data.reason ?? null,
+      });
+      await storage.createAuditLog({
+        eventType: "team_role_changed",
+        userId: adminUser.id,
+        severity: "info",
+        metadata: {
+          targetUserId: memberId,
+          firmId: adminUser.firmId,
+          previousRole: targetUser.primaryRole ?? null,
+          newRole: parsed.data.primaryRole ?? null,
+          previousDesignations: targetUser.regulatoryDesignations ?? [],
+          newDesignations,
+          reason: parsed.data.reason ?? null,
+        },
+      }).catch(() => {});
+
+      const updated = await storage.updateUserFirmRole(memberId, {
+        primaryRole: parsed.data.primaryRole,
+        customRoleLabel: parsed.data.customRoleLabel,
+        regulatoryDesignations: newDesignations,
+      });
+      res.json({ user: updated, warnings });
+    } catch (err) {
+      console.error("[Team] Error updating member role:", err);
+      res.status(500).json({ message: "Failed to update role" });
+    }
+  });
+
+  // Offboard a team member (firm admin only)
+  app.post("/api/team/members/:memberId/offboard", isAuthenticated, requireFirmAdmin, async (req: any, res) => {
+    try {
+      const adminUser = req.firmAdminUser;
+      const { memberId } = req.params;
+      if (memberId === adminUser.id) return res.status(400).json({ message: "You cannot offboard yourself" });
+
+      const targetUser = await storage.getUser(memberId);
+      if (!targetUser || targetUser.firmId !== adminUser.firmId) {
+        return res.status(404).json({ message: "Team member not found" });
+      }
+
+      // Check for open matters assigned to this member (non-archived)
+      const allMemberCases = await storage.getCases(memberId, false).catch(() => []);
+      const activeCaseCount = allMemberCases.length;
+
+      const schema = z.object({
+        /**
+         * Optional map of caseId → new assignee userId.
+         * If omitted (or partial) while active cases exist, returns 409 with case list.
+         * Pass ALL cases to proceed with offboarding.
+         */
+        reassignments: z.record(z.string(), z.string()).optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      const reassignments = (parsed.success && parsed.data.reassignments) || {};
+      const unassignedCases = allMemberCases.filter(c => !reassignments[c.id]);
+
+      if (activeCaseCount > 0 && unassignedCases.length > 0) {
+        return res.status(409).json({
+          message: `This team member has ${activeCaseCount} open matter${activeCaseCount === 1 ? "" : "s"} that must be reassigned before offboarding.`,
+          activeCaseCount,
+          requiresConfirmation: true,
+          cases: allMemberCases.map(c => ({ id: c.id, title: c.title, matterReference: c.matterReference })),
+        });
+      }
+
+      // Apply reassignments for open cases, validating new assignees belong to the same firm
+      const firmMembers = await storage.getFirmMembers(adminUser.firmId);
+      const firmMemberIds = new Set(firmMembers.map(m => m.id));
+      for (const [caseId, newAssignee] of Object.entries(reassignments)) {
+        if (newAssignee && !firmMemberIds.has(newAssignee)) {
+          return res.status(400).json({ message: `Assignee ${newAssignee} does not belong to your firm` });
+        }
+        const targetCase = allMemberCases.find(c => c.id === caseId);
+        if (targetCase) {
+          await storage.updateCase(caseId, { assignedToUserId: newAssignee || null }, memberId).catch(() => {});
+        }
+      }
+
+      // Ensure at least one other firm admin remains
+      const otherFirmAdmins = firmMembers.filter(
+        m => m.id !== memberId && (m.regulatoryDesignations ?? []).includes("is_firm_admin")
+      );
+      if ((targetUser.regulatoryDesignations ?? []).includes("is_firm_admin") && otherFirmAdmins.length === 0) {
+        return res.status(400).json({
+          message: "Cannot offboard the last firm administrator. Please assign another firm admin first.",
+        });
+      }
+
+      const removed = await storage.removeUserFromFirm(memberId, new Date());
+      await storage.createAuditLog({
+        eventType: "team_member_offboarded",
+        userId: adminUser.id,
+        severity: "info",
+        metadata: {
+          targetUserId: memberId,
+          firmId: adminUser.firmId,
+          reassignmentsApplied: Object.keys(reassignments).length,
+        },
+      }).catch(() => {});
+      res.json({ message: "Team member offboarded successfully", user: removed });
+    } catch (err) {
+      console.error("[Team] Error offboarding member:", err);
+      res.status(500).json({ message: "Failed to offboard member" });
+    }
+  });
+
+  // Send team invitation (firm admin only)
+  app.post("/api/team/invite", isAuthenticated, requireFirmAdmin, async (req: any, res) => {
+    try {
+      const invitingUser = req.firmAdminUser;
+      const userId = invitingUser.id;
+
+      const schema = z.object({
+        email: z.string().email(),
+        suggestedRole: z.string().optional().nullable(),
+        suggestedCustomRoleLabel: z.string().max(100).optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+
+      const { email, suggestedRole, suggestedCustomRoleLabel } = parsed.data;
+      const firmId = invitingUser.firmId!;
+
+      // Check for existing pending invitation
+      const existingInvitations = await storage.getFirmInvitations(firmId);
+      const existingPending = existingInvitations.find(
+        inv => inv.email.toLowerCase() === email.toLowerCase() && inv.status === "pending"
+      );
+      if (existingPending) {
+        return res.status(400).json({ message: "A pending invitation already exists for this email address" });
+      }
+
+      const firm = await storage.getFirm(firmId);
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      const invitation = await storage.createFirmInvitation({
+        firmId,
+        invitingUserId: userId,
+        email,
+        suggestedRole: suggestedRole ?? null,
+        suggestedCustomRoleLabel: suggestedCustomRoleLabel ?? null,
+        token,
+        status: "pending",
+        expiresAt,
+      });
+
+      // Send email
+      const invitingName = invitingUser.firstName && invitingUser.lastName
+        ? `${invitingUser.firstName} ${invitingUser.lastName}`
+        : invitingUser.email ?? "A team member";
+
+      const roleLabel = suggestedRole
+        ? (PRIMARY_ROLE_LABELS[suggestedRole as keyof typeof PRIMARY_ROLE_LABELS] ?? suggestedRole)
+        : undefined;
+
+      await sendInvitationEmail({
+        to: email,
+        invitingUserName: invitingName,
+        firmName: firm?.name ?? "Your Firm",
+        suggestedRole: roleLabel,
+        inviteToken: token,
+      });
+
+      await storage.createAuditLog({
+        eventType: "team_invitation_sent",
+        userId: invitingUser.id,
+        severity: "info",
+        metadata: {
+          invitedEmail: email,
+          firmId: invitingUser.firmId,
+          suggestedRole: roleLabel ?? null,
+        },
+      }).catch(() => {});
+      res.json({ message: "Invitation sent successfully", invitation });
+    } catch (error: any) {
+      console.error("[Team] Error sending invitation:", error);
+      res.status(500).json({ message: "Failed to send invitation" });
+    }
+  });
+
+  // Get firm invitations (firm admin only)
+  app.get("/api/team/invitations", isAuthenticated, requireFirmAdmin, async (req: any, res) => {
+    try {
+      const adminUser = req.firmAdminUser;
+      const invitations = await storage.getFirmInvitations(adminUser.firmId);
+      res.json(invitations);
+    } catch (error: any) {
+      console.error("[Team] Error getting invitations:", error);
+      res.status(500).json({ message: "Failed to get invitations" });
+    }
+  });
+
+  // Cancel an invitation (firm admin only)
+  app.post("/api/team/invitations/:invitationId/cancel", isAuthenticated, requireFirmAdmin, async (req: any, res) => {
+    try {
+      const adminUser = req.firmAdminUser;
+      const { invitationId } = req.params;
+      const invitation = await storage.getFirmInvitation(invitationId);
+      if (!invitation || invitation.firmId !== adminUser.firmId) {
+        return res.status(404).json({ message: "Invitation not found" });
+      }
+      if (invitation.status !== "pending") {
+        return res.status(400).json({ message: "Only pending invitations can be cancelled" });
+      }
+
+      const updated = await storage.updateFirmInvitation(invitationId, { status: "cancelled" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[Team] Error cancelling invitation:", error);
+      res.status(500).json({ message: "Failed to cancel invitation" });
+    }
+  });
+
+  // Get invitation details by token (public route for the accept flow)
+  app.get("/api/invite/:token", async (req: any, res) => {
+    try {
+      const { token } = req.params;
+      const invitation = await storage.getFirmInvitationByToken(token);
+      if (!invitation) return res.status(404).json({ message: "Invitation not found" });
+      if (invitation.status !== "pending") {
+        return res.status(400).json({ message: "This invitation is no longer valid", status: invitation.status });
+      }
+      if (new Date() > invitation.expiresAt) {
+        await storage.updateFirmInvitation(invitation.id, { status: "expired" });
+        return res.status(400).json({ message: "This invitation has expired", status: "expired" });
+      }
+      const firm = await storage.getFirm(invitation.firmId);
+      res.json({
+        email: invitation.email,
+        firmName: firm?.name ?? "the firm",
+        suggestedRole: invitation.suggestedRole,
+        suggestedCustomRoleLabel: invitation.suggestedCustomRoleLabel,
+        expiresAt: invitation.expiresAt,
+      });
+    } catch (err) {
+      console.error("[Invite] Error getting invitation:", err);
+      res.status(500).json({ message: "Failed to get invitation" });
+    }
+  });
+
+  // Accept an invitation (requires authentication — user must sign in with matching email)
+  app.post("/api/invite/:token/accept", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { token } = req.params;
+      const invitation = await storage.getFirmInvitationByToken(token);
+      if (!invitation) return res.status(404).json({ message: "Invitation not found" });
+      if (invitation.status !== "pending") {
+        return res.status(400).json({ message: "This invitation is no longer valid", status: invitation.status });
+      }
+      if (new Date() > invitation.expiresAt) {
+        await storage.updateFirmInvitation(invitation.id, { status: "expired" });
+        return res.status(400).json({ message: "This invitation has expired" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      // Security: authenticated user's email must match invitation email
+      if (!user.email || user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+        return res.status(403).json({
+          message: "This invitation was sent to a different email address. Please sign in with the account matching the invited email.",
+        });
+      }
+
+      // If user already has a firm (other than the one being joined), deny
+      if (user.firmId && user.firmId !== invitation.firmId) {
+        return res.status(400).json({ message: "You are already a member of another firm" });
+      }
+
+      // Assign user to firm in pending_approval state (awaiting firm admin activation)
+      await storage.updateUserFirmRole(userId, {
+        firmId: invitation.firmId,
+        inviteStatus: "pending_approval",
+        primaryRole: invitation.suggestedRole ?? user.primaryRole ?? "solicitor",
+        customRoleLabel: invitation.suggestedCustomRoleLabel ?? null,
+        invitedAt: new Date(),
+      });
+
+      // Mark invitation as accepted
+      await storage.updateFirmInvitation(invitation.id, { status: "accepted" });
+
+      const firm = await storage.getFirm(invitation.firmId);
+      res.json({
+        message: "Invitation accepted. Your membership is pending approval by your firm administrator.",
+        firm,
+        pendingApproval: true,
+      });
+    } catch (err) {
+      console.error("[Invite] Error accepting invitation:", err);
+      res.status(500).json({ message: "Failed to accept invitation" });
+    }
+  });
+
+  // Activate a pending member (firm admin only — completes onboarding after invitation acceptance)
+  app.post("/api/team/members/:memberId/activate", isAuthenticated, requireFirmAdmin, async (req: any, res) => {
+    try {
+      const adminUser = req.firmAdminUser;
+      const { memberId } = req.params;
+      const targetUser = await storage.getUser(memberId);
+      if (!targetUser || targetUser.firmId !== adminUser.firmId) {
+        return res.status(404).json({ message: "Team member not found" });
+      }
+      if (targetUser.inviteStatus !== "pending_approval") {
+        return res.status(400).json({ message: "This member is not awaiting approval" });
+      }
+
+      const updated = await storage.updateUserFirmRole(memberId, { inviteStatus: "active" });
+      await storage.createAuditLog({
+        eventType: "team_member_activated",
+        userId: adminUser.id,
+        severity: "info",
+        metadata: {
+          targetUserId: memberId,
+          firmId: adminUser.firmId,
+        },
+      }).catch(() => {});
+      res.json({ message: "Member activated successfully", user: updated });
+    } catch (err) {
+      console.error("[Team] Error activating member:", err);
+      res.status(500).json({ message: "Failed to activate member" });
+    }
+  });
+
+  // Get role change logs for a firm (firm admin only)
+  app.get("/api/team/role-logs", isAuthenticated, requireFirmAdmin, async (req: any, res) => {
+    try {
+      const adminUser = req.firmAdminUser;
+      const logs = await storage.getFirmRoleChangeLogs(adminUser.firmId);
+      res.json(logs);
+    } catch (error: any) {
+      console.error("[Team] Error getting role change logs:", error);
+      res.status(500).json({ message: "Failed to get role change logs" });
+    }
+  });
+
+  // Get available roles metadata (for dropdowns)
+  app.get("/api/team/roles", isAuthenticated, async (_req: any, res) => {
+    res.json({
+      primaryRoles: PRIMARY_ROLES.map(role => ({ value: role, label: PRIMARY_ROLE_LABELS[role] })),
+      regulatoryDesignations: REGULATORY_DESIGNATIONS.map(d => ({ value: d, label: REGULATORY_DESIGNATION_LABELS[d] })),
+    });
   });
 
   const httpServer = createServer(app);
