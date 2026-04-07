@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
+import { extractLetterhead, formatLetterheadAddress } from "@shared/letterhead";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile, DocumentComment } from "@shared/schema";
@@ -402,6 +403,40 @@ function CommentsPanel({
   );
 }
 
+function LetterheadPreview({ firmProfile }: { firmProfile?: FirmProfile | null }) {
+  const lh = extractLetterhead(firmProfile);
+  if (!lh) return null;
+  const addressLines = formatLetterheadAddress(lh);
+  return (
+    <div className="mb-4 px-6 pt-6 pb-4 border-b border-border" data-testid="letterhead-preview">
+      {lh.logoUrl && (
+        <img
+          src={lh.logoUrl}
+          alt={`${lh.firmName} logo`}
+          className="h-10 mb-3 object-contain object-left"
+          data-testid="letterhead-logo"
+        />
+      )}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+        <div>
+          <p className="text-base font-bold text-foreground leading-tight" data-testid="letterhead-firm-name">{lh.firmName}</p>
+          {addressLines.map((line, i) => (
+            <p key={i} className="text-xs text-muted-foreground">{line}</p>
+          ))}
+        </div>
+        <div className="text-xs text-muted-foreground sm:text-right space-y-0.5">
+          {lh.phone && <p data-testid="letterhead-phone">Tel: {lh.phone}</p>}
+          {lh.email && <p data-testid="letterhead-email">Email: {lh.email}</p>}
+          {lh.website && <p data-testid="letterhead-website">{lh.website}</p>}
+          {lh.sraNumber && (
+            <p className="font-medium" data-testid="letterhead-sra">SRA No: {lh.sraNumber}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EditableDocumentContent({ 
   document,
   isEditing,
@@ -707,13 +742,19 @@ export default function DocumentViewer({
         }
       }
 
+      if (selectedDocs.includes('client_care_letter')) {
+        if (clientCareLetter?.content) {
+          content.clientCareLetter = clientCareLetter.content;
+        }
+      }
+
       if (selectedDocs.includes('transcript')) {
         if (transcriptContent) {
           content.transcript = transcriptContent;
         }
       }
 
-      const hasAnyContent = content.attendanceNote || content.summary || content.transcript;
+      const hasAnyContent = content.attendanceNote || content.summary || content.clientCareLetter || content.transcript;
       if (!hasAnyContent) {
         toast({
           title: "No Content Available",
@@ -1552,6 +1593,7 @@ export default function DocumentViewer({
                   </div>
                 </div>
               )}
+              {attendanceNote && <LetterheadPreview firmProfile={firmProfile} />}
               <CardContent className="p-0">
                 {attendanceNote ? (
                   <EditableDocumentContent 
@@ -1670,6 +1712,7 @@ export default function DocumentViewer({
                   testIdPrefix="summary"
                 />
               )}
+              {summary && <LetterheadPreview firmProfile={firmProfile} />}
               <CardContent className="p-0">
                 {summary ? (
                   <EditableDocumentContent 
@@ -1852,6 +1895,7 @@ export default function DocumentViewer({
                   </div>
                 </div>
               </CardHeader>
+              <LetterheadPreview firmProfile={firmProfile} />
               <CardContent className="p-0">
                 <EditableDocumentContent
                   document={clientCareLetter}
@@ -1892,8 +1936,9 @@ export default function DocumentViewer({
           hasAttendanceNote: !!attendanceNote,
           hasSummary: !!summary || !!textNotes,
           hasTranscript: !!transcriptContent,
+          hasCareLetter: !!clientCareLetter,
         }}
-        sharedDocuments={['attendance_note', 'summary', 'transcript']}
+        sharedDocuments={['attendance_note', 'summary', 'client_care_letter', 'transcript']}
         onDownload={handleDownload}
       />
     </div>

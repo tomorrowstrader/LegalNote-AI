@@ -5641,6 +5641,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         },
         recordCount: logs.length,
         firmName: firmProfile?.firmName || undefined,
+        sraNumber: firmProfile?.sraNumber || undefined,
       });
 
       await logAuditEvent(userId, "document_downloaded", {
@@ -5849,6 +5850,22 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  // Patch only the logoUrl on firm profile — works even when other required fields are not yet set.
+  // Used by the logo upload flow so upload always persists independently of profile completeness.
+  app.patch("/api/firm-profile/logo-url", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { logoUrl } = req.body;
+      if (typeof logoUrl !== 'string') {
+        return res.status(400).json({ message: 'logoUrl must be a string (empty string to remove logo)' });
+      }
+      const updated = await storage.patchFirmProfileLogoUrl(logoUrl, userId);
+      res.json(updated);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Firm risk digest (managing partner weekly snapshot)
   app.get("/api/firm/risk-digest", isAuthenticated, async (_req, res, next) => {
     try {
@@ -5925,6 +5942,67 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         disclaimer: "This document pack is produced by LegalNote for professional indemnity defence purposes. It contains tamper-evident records of solicitor-client interactions.",
       });
     } catch (error) { next(error); }
+  });
+
+  // Upload firm logo (admin only) — stores as public object, returns URL
+  app.post("/api/firm-profile/logo", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const multerMod = await import('multer');
+      const logoUpload = multerMod.default({
+        storage: multerMod.default.memoryStorage(),
+        limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+        fileFilter: (_req: any, file: any, cb: any) => {
+          const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'];
+          if (allowed.includes(file.mimetype)) {
+            cb(null, true);
+          } else {
+            cb(new Error('Only PNG, JPG, and SVG files are allowed'));
+          }
+        },
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        logoUpload.single('logo')(req, res as any, (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      const objectStorageService = new ObjectStorageService();
+      const ext = req.file.mimetype === 'image/svg+xml' ? 'svg' : req.file.mimetype === 'image/png' ? 'png' : 'jpg';
+      const fileKey = `public/logos/firm-logo-${Date.now()}.${ext}`;
+      await objectStorageService.uploadFile(fileKey, req.file.buffer, req.file.mimetype);
+
+      // Build a proxy URL for the logo (served through our /api/logo/serve route)
+      const logoUrl = `/api/firm-profile/logo/serve?key=${encodeURIComponent(fileKey)}`;
+
+      res.json({ logoUrl, fileKey });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Serve firm logo from object storage (public proxy)
+  app.get("/api/firm-profile/logo/serve", async (req: any, res, next) => {
+    try {
+      const key = req.query.key as string;
+      if (!key || !key.startsWith('public/logos/')) {
+        return res.status(400).json({ message: 'Invalid logo key' });
+      }
+      const objectStorageService = new ObjectStorageService();
+      const fileBuffer = await objectStorageService.getObjectEntityFile(key);
+      const ext = key.split('.').pop()?.toLowerCase();
+      const contentType = ext === 'svg' ? 'image/svg+xml' : ext === 'png' ? 'image/png' : 'image/jpeg';
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.send(fileBuffer);
+    } catch (error: any) {
+      next(error);
+    }
   });
 
   // Get user preferences

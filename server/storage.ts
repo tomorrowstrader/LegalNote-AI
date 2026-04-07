@@ -471,6 +471,7 @@ export interface IStorage {
   // Firm Profile methods
   getFirmProfile(): Promise<FirmProfile | undefined>;
   upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile>;
+  patchFirmProfileLogoUrl(logoUrl: string, updatedBy: string): Promise<FirmProfile>;
   getFirmRiskDigest(): Promise<FirmRiskDigest>;
   getComplianceScore(): Promise<ComplianceScore>;
 
@@ -1643,6 +1644,11 @@ export class MemStorage implements IStorage {
   }
   
   async upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile> {
+    throw new Error('Firm profile operations require database storage');
+  }
+
+  async patchFirmProfileLogoUrl(_logoUrl: string, _updatedBy: string): Promise<FirmProfile> {
+    // MemStorage: In-memory implementation - not used in production
     throw new Error('Firm profile operations require database storage');
   }
 
@@ -3339,6 +3345,25 @@ export class DbStorage implements IStorage {
       return updated[0];
     } else {
       const inserted = await db.insert(firmProfile).values({ ...profileData, updatedAt: new Date() }).returning();
+      return inserted[0];
+    }
+  }
+
+  async patchFirmProfileLogoUrl(logoUrl: string, updatedBy: string): Promise<FirmProfile> {
+    const existing = await this.getFirmProfile();
+    if (existing) {
+      const updated = await db
+        .update(firmProfile)
+        .set({ logoUrl, updatedBy, updatedAt: new Date() })
+        .where(eq(firmProfile.id, existing.id))
+        .returning();
+      return updated[0];
+    } else {
+      // No profile yet — create a minimal one with just the logo URL
+      const inserted = await db
+        .insert(firmProfile)
+        .values({ firmName: '', logoUrl, updatedBy, updatedAt: new Date() })
+        .returning();
       return inserted[0];
     }
   }

@@ -19,6 +19,7 @@ interface DownloadModalProps {
     hasAttendanceNote: boolean;
     hasSummary: boolean;
     hasTranscript: boolean;
+    hasCareLetter?: boolean;
   };
   sharedDocuments: string[];
   onDownload: (selectedDocs: string[], format: 'pdf' | 'word') => Promise<void>;
@@ -74,8 +75,9 @@ export default function DownloadModal({
   const getDocumentLabel = (type: string) => {
     switch (type) {
       case "attendance_note": return "Attendance Note";
-      case "summary": return "Summary";
+      case "summary": return "Matter Record";
       case "transcript": return "Full Transcript";
+      case "client_care_letter": return "Client Care Letter";
       default: return type;
     }
   };
@@ -135,6 +137,24 @@ export default function DownloadModal({
                 >
                   <FileText className="w-4 h-4 text-muted-foreground" />
                   {getDocumentLabel("summary")}
+                </Label>
+              </div>
+            )}
+
+            {availableDocuments.hasCareLetter && (
+              <div className="flex items-center space-x-3">
+                <Checkbox
+                  id="doc-care-letter"
+                  checked={selectedDocuments.includes("client_care_letter")}
+                  onCheckedChange={() => toggleDocument("client_care_letter")}
+                  data-testid="checkbox-care-letter"
+                />
+                <Label 
+                  htmlFor="doc-care-letter" 
+                  className="flex items-center gap-2 cursor-pointer font-normal"
+                >
+                  <FileText className="w-4 h-4 text-muted-foreground" />
+                  {getDocumentLabel("client_care_letter")}
                 </Label>
               </div>
             )}

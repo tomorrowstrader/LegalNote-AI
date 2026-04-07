@@ -1,19 +1,86 @@
 import jsPDF from 'jspdf';
-import { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType, LineRuleType } from 'docx';
+import { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType, LineRuleType, ImageRun } from 'docx';
 import { saveAs } from 'file-saver';
 import type { FirmProfile } from '@shared/schema';
+import { extractLetterhead, resolveBrandingMode, formatLetterheadAddress } from '@shared/letterhead';
 
 interface DocumentContent {
   summary?: string;
   attendanceNote?: string;
   transcript?: string;
+  clientCareLetter?: string;
   caseTitle: string;
   clientName: string;
   matterReference?: string;
   createdAt: string;
-  documentType?: 'attendance_note' | 'summary' | 'transcript' | 'full_case';
+  documentType?: 'attendance_note' | 'summary' | 'transcript' | 'full_case' | 'client_care_letter' | 'selected';
   firmProfile?: FirmProfile;
   documentId?: string;
+}
+
+// Resolve branding mode using the shared utility from letterhead.ts
+function getBrandingMode(docType?: string, content?: Partial<DocumentContent>) {
+  return resolveBrandingMode(docType, content ? {
+    hasAttendance: !!content.attendanceNote,
+    hasSummary: !!content.summary,
+    hasCareLetter: !!content.clientCareLetter,
+    hasTranscript: !!content.transcript,
+  } : undefined);
+}
+
+// Load image as base64 data URL for embedding
+async function loadImageAsDataUrl(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+// jsPDF supported image format types
+type JsPdfImageFormat = 'PNG' | 'JPEG' | 'WEBP';
+
+// Derive jsPDF-compatible image format from a data URL
+function getImageFormatFromDataUrl(dataUrl: string): JsPdfImageFormat | null {
+  const mime = dataUrl.split(';')[0].split(':')[1] || '';
+  if (mime === 'image/jpeg' || mime === 'image/jpg') return 'JPEG';
+  if (mime === 'image/png') return 'PNG';
+  if (mime === 'image/webp') return 'WEBP';
+  // SVG is not natively supported by jsPDF addImage; return null to skip
+  return null;
+}
+
+// docx ImageRun supported image format types
+type DocxImageType = 'png' | 'jpg' | 'jpeg' | 'gif' | 'bmp';
+
+// Derive docx ImageRun-compatible type from a data URL; null means unsupported (e.g. SVG)
+function getDocxImageTypeFromDataUrl(dataUrl: string): DocxImageType | null {
+  const mime = dataUrl.split(';')[0].split(':')[1] || '';
+  if (mime === 'image/jpeg' || mime === 'image/jpg') return 'jpg';
+  if (mime === 'image/png') return 'png';
+  if (mime === 'image/gif') return 'gif';
+  if (mime === 'image/bmp') return 'bmp';
+  // SVG not natively supported by docx ImageRun; return null to skip
+  return null;
+}
+
+// Generate a short integrity hash from document content for footer
+function generateIntegrityHash(content: string): string {
+  let hash = 0;
+  for (let i = 0; i < content.length; i++) {
+    const char = content.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(16).padStart(8, '0').toUpperCase();
 }
 
 function stripInlineMarkdown(text: string): string {
@@ -89,11 +156,35 @@ export async function exportToPDF(content: DocumentContent) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
+  const footerHeight = 12; // Reserved at bottom for per-page footer
   const maxWidth = pageWidth - (margin * 2);
   let yPosition = margin;
 
+  const brandingMode = getBrandingMode(content.documentType, content);
+  const showLetterhead = brandingMode === 'full';
+  const showNameSra = brandingMode === 'name_sra';
+
+  // Pre-load firm logo if available and full letterhead is needed
+  let logoDataUrl: string | null = null;
+  if (showLetterhead && content.firmProfile?.logoUrl) {
+    logoDataUrl = await loadImageAsDataUrl(content.firmProfile.logoUrl);
+  }
+
+  // Compute integrity hash from all exported content for per-page footer
+  const allContent = [content.attendanceNote, content.summary, content.clientCareLetter, content.transcript].filter(Boolean).join('|');
+  const integrityHash = allContent ? generateIntegrityHash(allContent) : '';
+
+  // Document type label for footer
+  const docTypeLabel = content.documentType === 'attendance_note' ? 'Attendance Note' :
+                        content.documentType === 'summary' ? 'Matter Record' :
+                        content.documentType === 'client_care_letter' ? 'Client Care Letter' :
+                        content.documentType === 'transcript' ? 'Transcript' :
+                        'Legal Document';
+
+  const dateProduced = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
   const checkNewPage = (lineHeight: number) => {
-    if (yPosition + lineHeight > pageHeight - margin) {
+    if (yPosition + lineHeight > pageHeight - footerHeight - margin) {
       doc.addPage();
       yPosition = margin;
     }
@@ -332,16 +423,44 @@ export async function exportToPDF(content: DocumentContent) {
     }
   };
 
-  if (content.firmProfile?.firmName) {
-    addText(content.firmProfile.firmName, 14, true);
-    if (content.firmProfile.addressLine1) addText(content.firmProfile.addressLine1, 9);
-    if (content.firmProfile.addressLine2) addText(content.firmProfile.addressLine2, 9);
-    if (content.firmProfile.city || content.firmProfile.postcode) {
-      addText(`${content.firmProfile.city || ''} ${content.firmProfile.postcode || ''}`.trim(), 9);
+  const lhData = showLetterhead ? extractLetterhead(content.firmProfile) : null;
+  if (lhData) {
+    // Render logo if available
+    if (logoDataUrl) {
+      try {
+        const logoWidth = 40;
+        const logoHeight = 20;
+        const logoFormat = getImageFormatFromDataUrl(logoDataUrl);
+        if (logoFormat) {
+          doc.addImage(logoDataUrl, logoFormat, margin, yPosition, logoWidth, logoHeight);
+          yPosition += logoHeight + 4;
+        }
+        // If null (e.g. SVG), skip silently — firm name still shown below
+      } catch {
+        // Logo embedding failed, skip silently
+      }
     }
-    if (content.firmProfile.phone) addText(`Tel: ${content.firmProfile.phone}`, 9);
-    if (content.firmProfile.email) addText(`Email: ${content.firmProfile.email}`, 9);
-    if (content.firmProfile.sraNumber) addText(`SRA No: ${content.firmProfile.sraNumber}`, 9);
+
+    addText(lhData.firmName, 14, true);
+    for (const line of formatLetterheadAddress(lhData)) {
+      addText(line, 9);
+    }
+    if (lhData.phone) addText(`Tel: ${lhData.phone}`, 9);
+    if (lhData.email) addText(`Email: ${lhData.email}`, 9);
+    if (lhData.website) addText(`Web: ${lhData.website}`, 9);
+    if (lhData.sraNumber) addText(`SRA No: ${lhData.sraNumber}`, 9);
+    yPosition += 5;
+    doc.setDrawColor(0, 0, 0);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+  }
+
+  // 'name_sra' mode: firm name + SRA number only (no logo, no address block)
+  if (showNameSra && content.firmProfile?.firmName) {
+    addText(content.firmProfile.firmName, 13, true);
+    if (content.firmProfile.sraNumber) {
+      addText(`SRA No: ${content.firmProfile.sraNumber}`, 9);
+    }
     yPosition += 5;
     doc.setDrawColor(0, 0, 0);
     doc.line(margin, yPosition, pageWidth - margin, yPosition);
@@ -385,6 +504,17 @@ export async function exportToPDF(content: DocumentContent) {
     yPosition += 10;
   }
 
+  if (content.clientCareLetter) {
+    if (yPosition > pageHeight - 100) {
+      doc.addPage();
+      yPosition = margin;
+    }
+    addText('CLIENT CARE LETTER', 16, true);
+    yPosition += 5;
+    renderMarkdownSection(content.clientCareLetter);
+    yPosition += 10;
+  }
+
   if (content.transcript) {
     if (yPosition > pageHeight - 100) {
       doc.addPage();
@@ -395,21 +525,24 @@ export async function exportToPDF(content: DocumentContent) {
     renderMarkdownSection(content.transcript);
   }
 
-  // Master Record footer on last page
-  const footerY = pageHeight - 10;
-  const exportTimestamp = new Date().toLocaleString('en-GB', { 
-    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 
-  });
-  const docId = content.documentId || '';
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'italic');
-  doc.setTextColor(150, 150, 150);
-  doc.text(
-    `Working copy — Master record held in LegalNote as at ${exportTimestamp}.${docId ? ` Document ID: ${docId}` : ''}`,
-    margin,
-    footerY
-  );
-  doc.setTextColor(0, 0, 0);
+  // Add per-page footer to every page
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    const footerY = pageHeight - 7;
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(150, 150, 150);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
+
+    const leftText = `${docTypeLabel}${content.matterReference ? ` | Ref: ${content.matterReference}` : ''}`;
+    const rightText = `${dateProduced}${integrityHash ? ` | Hash: ${integrityHash}` : ''} | Page ${p} of ${totalPages}`;
+
+    doc.text(leftText, margin, footerY);
+    doc.text(rightText, pageWidth - margin, footerY, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+  }
 
   // Generate descriptive filename
   const sanitize = (str: string) => {
@@ -432,33 +565,86 @@ export async function exportToPDF(content: DocumentContent) {
 export async function exportToWord(content: DocumentContent) {
   const children: (Paragraph | Table)[] = [];
 
-  // Firm Letterhead
-  if (content.firmProfile?.firmName) {
+  const wordBrandingMode = getBrandingMode(content.documentType, content);
+  const showWordLetterhead = wordBrandingMode === 'full';
+  const showWordNameSra = wordBrandingMode === 'name_sra';
+
+  // Word doc type label for footer
+  const wordDocTypeLabel = content.documentType === 'attendance_note' ? 'Attendance Note' :
+                            content.documentType === 'summary' ? 'Matter Record' :
+                            content.documentType === 'client_care_letter' ? 'Client Care Letter' :
+                            content.documentType === 'transcript' ? 'Transcript' :
+                            'Legal Document';
+
+  // Pre-load logo for Word embed if needed
+  let wordLogoData: string | null = null;
+  if (showWordLetterhead && content.firmProfile?.logoUrl) {
+    wordLogoData = await loadImageAsDataUrl(content.firmProfile.logoUrl);
+  }
+
+  // Firm Letterhead (full letterhead for appropriate document types)
+  const wordLhData = showWordLetterhead ? extractLetterhead(content.firmProfile) : null;
+  if (wordLhData) {
+    // Embed logo if available
+    if (wordLogoData) {
+      try {
+        const base64Data = wordLogoData.split(',')[1];
+        const docxType = getDocxImageTypeFromDataUrl(wordLogoData);
+        if (base64Data && docxType) {
+          const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+          children.push(
+            new Paragraph({
+              children: [
+                new ImageRun({
+                  data: buffer,
+                  transformation: { width: 150, height: 60 },
+                  type: docxType,
+                }),
+              ],
+              spacing: { after: 100 },
+            })
+          );
+        }
+        // If null (e.g. SVG), skip silently — firm name still shown below
+      } catch {
+        // Logo embed failed, skip silently
+      }
+    }
+
     children.push(
       new Paragraph({
-        children: [new TextRun({ text: content.firmProfile.firmName, bold: true, size: 28 })],
+        children: [new TextRun({ text: wordLhData.firmName, bold: true, size: 28 })],
         alignment: AlignmentType.LEFT,
         spacing: { after: 100 },
       })
     );
-    if (content.firmProfile.addressLine1) {
-      children.push(new Paragraph({ text: content.firmProfile.addressLine1, spacing: { after: 80 } }));
+    for (const line of formatLetterheadAddress(wordLhData)) {
+      children.push(new Paragraph({ text: line, spacing: { after: 80 } }));
     }
-    if (content.firmProfile.addressLine2) {
-      children.push(new Paragraph({ text: content.firmProfile.addressLine2, spacing: { after: 80 } }));
+    if (wordLhData.phone) {
+      children.push(new Paragraph({ text: `Tel: ${wordLhData.phone}`, spacing: { after: 80 } }));
     }
-    if (content.firmProfile.city || content.firmProfile.postcode) {
-      children.push(new Paragraph({ 
-        text: `${content.firmProfile.city || ''} ${content.firmProfile.postcode || ''}`.trim(), 
-        spacing: { after: 80 } 
-      }));
+    if (wordLhData.email) {
+      children.push(new Paragraph({ text: `Email: ${wordLhData.email}`, spacing: { after: 80 } }));
     }
-    if (content.firmProfile.phone) {
-      children.push(new Paragraph({ text: `Tel: ${content.firmProfile.phone}`, spacing: { after: 80 } }));
+    if (wordLhData.website) {
+      children.push(new Paragraph({ text: `Web: ${wordLhData.website}`, spacing: { after: 80 } }));
     }
-    if (content.firmProfile.email) {
-      children.push(new Paragraph({ text: `Email: ${content.firmProfile.email}`, spacing: { after: 80 } }));
+    if (wordLhData.sraNumber) {
+      children.push(new Paragraph({ text: `SRA No: ${wordLhData.sraNumber}`, spacing: { after: 200 } }));
     }
+    children.push(new Paragraph({ text: '', border: { bottom: { color: "000000", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { after: 400 } }));
+  }
+
+  // 'name_sra' mode for Word: firm name + SRA only (no logo, no address)
+  if (showWordNameSra && content.firmProfile?.firmName) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: content.firmProfile.firmName, bold: true, size: 26 })],
+        alignment: AlignmentType.LEFT,
+        spacing: { after: 80 },
+      })
+    );
     if (content.firmProfile.sraNumber) {
       children.push(new Paragraph({ text: `SRA No: ${content.firmProfile.sraNumber}`, spacing: { after: 200 } }));
     }
@@ -612,6 +798,15 @@ export async function exportToWord(content: DocumentContent) {
     );
   }
 
+  // Client Care Letter section
+  if (content.clientCareLetter) {
+    children.push(
+      makeSectionHeading('CLIENT CARE LETTER'),
+      ...formatTextSection(content.clientCareLetter),
+      new Paragraph({ text: '', spacing: { after: 240 } })
+    );
+  }
+
   // Transcript section
   if (content.transcript) {
     children.push(
@@ -620,16 +815,23 @@ export async function exportToWord(content: DocumentContent) {
     );
   }
 
-  const exportTimestamp = new Date().toLocaleString('en-GB', { 
-    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 
-  });
-  const docId = content.documentId || '';
+  // Footer: document type, matter reference, date produced, integrity hash
+  const wordAllContent = [content.attendanceNote, content.summary, content.clientCareLetter, content.transcript].filter(Boolean).join('|');
+  const wordIntegrityHash = wordAllContent ? generateIntegrityHash(wordAllContent) : '';
+  const wordDateProduced = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const wordFooterText = [
+    wordDocTypeLabel,
+    content.matterReference ? `Ref: ${content.matterReference}` : null,
+    `Produced: ${wordDateProduced}`,
+    wordIntegrityHash ? `Hash: ${wordIntegrityHash}` : null,
+  ].filter(Boolean).join(' | ');
+
   children.push(
     new Paragraph({ text: '', spacing: { before: 600 } }),
     new Paragraph({
       children: [
         new TextRun({
-          text: `Working copy — Master record held in LegalNote as at ${exportTimestamp}.${docId ? ` Document ID: ${docId}` : ''}`,
+          text: wordFooterText,
           italics: true,
           size: 14,
           color: '999999',
@@ -667,6 +869,7 @@ export async function exportToWord(content: DocumentContent) {
   
   const documentTypeLabel = content.documentType === 'attendance_note' ? 'Attendance_Note' :
                            content.documentType === 'summary' ? 'Summary' :
+                           content.documentType === 'client_care_letter' ? 'Client_Care_Letter' :
                            content.documentType === 'transcript' ? 'Transcript' :
                            'Full_Case_Documentation';
   

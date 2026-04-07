@@ -62,6 +62,7 @@ export function useCaseExport({ caseId, enabled, prefetchedData }: UseCaseExport
     const activeDocuments = documents.filter((doc: any) => doc.isActive);
     const attendanceNote = activeDocuments.find((doc: any) => doc.type === 'attendance_note');
     const summary = activeDocuments.find((doc: any) => doc.type === 'summary');
+    const careLetterDoc = activeDocuments.find((doc: any) => doc.type === 'client_care_letter');
     const transcriptDoc = activeDocuments.find((doc: any) => doc.type === 'transcript');
     
     let transcriptContent: string | undefined;
@@ -82,11 +83,14 @@ export function useCaseExport({ caseId, enabled, prefetchedData }: UseCaseExport
     if (selectedDocs.includes('summary') && summaryContent) {
       content.summary = summaryContent;
     }
+    if (selectedDocs.includes('client_care_letter') && careLetterDoc) {
+      content.clientCareLetter = careLetterDoc.content;
+    }
     if (selectedDocs.includes('transcript') && transcriptContent) {
       content.transcript = transcriptContent;
     }
 
-    const hasAnyContent = content.attendanceNote || content.summary || content.transcript;
+    const hasAnyContent = content.attendanceNote || content.summary || content.clientCareLetter || content.transcript;
     if (!hasAnyContent) {
       toast({
         title: "No content available",
@@ -96,6 +100,12 @@ export function useCaseExport({ caseId, enabled, prefetchedData }: UseCaseExport
       return;
     }
 
+    // Determine single document type for branding; 'selected' when multiple
+    const knownSingleTypes = ['attendance_note', 'summary', 'transcript', 'client_care_letter'] as const;
+    type KnownSingleType = typeof knownSingleTypes[number];
+    const isSingleKnownType = (t: string): t is KnownSingleType => (knownSingleTypes as readonly string[]).includes(t);
+    const singleDocType = selectedDocs.length === 1 && isSingleKnownType(selectedDocs[0]) ? selectedDocs[0] : ('selected' as const);
+
     try {
       const exportFn = format === 'pdf' ? exportToPDF : exportToWord;
       await exportFn({
@@ -103,7 +113,7 @@ export function useCaseExport({ caseId, enabled, prefetchedData }: UseCaseExport
         clientName: caseData.clientName,
         matterReference: caseData.matterReference,
         createdAt: caseData.createdAt,
-        documentType: 'selected',
+        documentType: singleDocType,
         firmProfile: firmProfile,
         ...content,
       });

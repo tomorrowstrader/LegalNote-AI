@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import crypto from 'crypto';
 import { format } from 'date-fns';
 import type { AuditTrail } from '@shared/schema';
+import { resolveBrandingMode } from '@shared/letterhead';
 
 // AUDIT_SIGNING_KEY must be set via environment variable at startup (see server/index.ts).
 // This module reads it at call time so it picks up the auto-generated key if the env var
@@ -35,7 +36,10 @@ interface ExportMetadata {
     endDate?: string;
   };
   recordCount: number;
+  /** Firm name shown in audit header (firm name + SRA only per branding rules) */
   firmName?: string;
+  /** SRA number shown below firm name in audit header */
+  sraNumber?: string;
 }
 
 function generateDataHash(auditLogs: AuditTrail[]): string {
@@ -108,20 +112,37 @@ export function generateSignedAuditPDF(
     version: 'legalnote-audit-v1',
   };
 
+  // Branding rule: audit exports use 'name_sra' mode — firm name + SRA identifier only.
+  // Logo and full address block are intentionally excluded from audit trail PDFs.
+  const auditBrandingMode = resolveBrandingMode('audit');
+  const showAuditBranding = auditBrandingMode === 'name_sra';
+  const auditFirmName = showAuditBranding ? metadata.firmName : undefined;
+  const auditSraNumber = showAuditBranding ? metadata.sraNumber : undefined;
+
   pdf.setFillColor(0, 0, 0);
   pdf.rect(0, 0, pageWidth, 45, 'F');
 
   pdf.setTextColor(255, 255, 255);
-  pdf.setFontSize(20);
+  pdf.setFontSize(18);
   pdf.setFont('helvetica', 'bold');
-  pdf.text(metadata.firmName || 'LegalNote', margin, 20);
+  pdf.text(auditFirmName || 'LegalNote', margin, 18);
 
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text('AUDIT TRAIL EXPORT', margin, 30);
-
-  pdf.setFontSize(8);
-  pdf.text(`Generated: ${format(new Date(metadata.generatedAt), "dd MMMM yyyy 'at' HH:mm:ss")}`, margin, 38);
+  if (auditSraNumber) {
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`SRA No: ${auditSraNumber}`, margin, 26);
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('AUDIT TRAIL EXPORT', margin, 34);
+    pdf.setFontSize(7);
+    pdf.text(`Generated: ${format(new Date(metadata.generatedAt), "dd MMMM yyyy 'at' HH:mm:ss")}`, margin, 41);
+  } else {
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('AUDIT TRAIL EXPORT', margin, 30);
+    pdf.setFontSize(8);
+    pdf.text(`Generated: ${format(new Date(metadata.generatedAt), "dd MMMM yyyy 'at' HH:mm:ss")}`, margin, 38);
+  }
 
   yPos = 55;
 

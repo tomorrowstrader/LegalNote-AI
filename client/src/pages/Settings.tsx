@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check, Mail, Briefcase, Cloud, HardDrive, FlaskConical, Trash2, RefreshCw, Database, TrendingUp, Award, BarChart3, Link2, Send } from "lucide-react";
+import { Shield, Users, Building2, Bell, Activity, Download, Loader2, Calendar, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, Copy, Check, Mail, Briefcase, Cloud, HardDrive, FlaskConical, Trash2, RefreshCw, Database, TrendingUp, Award, BarChart3, Link2, Send, Upload, ImageIcon } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -37,9 +37,72 @@ interface UserStatistics {
   joinedDate: string;
 }
 
+function FirmCompletenessChecklist({ firmProfile }: { firmProfile?: FirmProfile | null }) {
+  if (!firmProfile) {
+    return (
+      <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-md space-y-2" data-testid="panel-profile-missing">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-500 flex-shrink-0" />
+          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Firm profile not yet set up</p>
+        </div>
+        <p className="text-xs text-amber-800 dark:text-amber-200">Complete all fields below to enable firm letterhead on client-facing documents (attendance notes, matter records, client care letters) and SRA compliance on audit exports.</p>
+      </div>
+    );
+  }
+
+  const fields = [
+    { key: 'firmName', label: 'Firm Name', reason: 'Required for all document letterheads', value: firmProfile.firmName },
+    { key: 'addressLine1', label: 'Address', reason: 'Required for full letterhead on client-facing documents', value: firmProfile.addressLine1 },
+    { key: 'phone', label: 'Phone Number', reason: 'Appears in document contact line', value: firmProfile.phone },
+    { key: 'email', label: 'Firm Email', reason: 'Appears in document contact line', value: firmProfile.email },
+    { key: 'sraNumber', label: 'SRA Number', reason: 'Required for compliant document footers and audit exports', value: firmProfile.sraNumber },
+    { key: 'logoUrl', label: 'Firm Logo', reason: 'Displayed at the top of all client-facing document letterheads', value: firmProfile.logoUrl },
+  ];
+
+  const missing = fields.filter(f => !f.value);
+  const complete = fields.filter(f => !!f.value);
+
+  if (missing.length === 0) {
+    return (
+      <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md text-sm text-green-800 dark:text-green-200" data-testid="panel-profile-complete">
+        <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+        <span>Firm profile is complete. All document exports will include full letterhead branding.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-md space-y-3" data-testid="panel-profile-incomplete">
+      <div className="flex items-center gap-2">
+        <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-500 flex-shrink-0" />
+        <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+          {missing.length} field{missing.length !== 1 ? 's' : ''} incomplete — documents will still export but missing fields will be omitted from letterheads
+        </p>
+      </div>
+      <ul className="space-y-1.5">
+        {missing.map(f => (
+          <li key={f.key} className="flex items-start gap-2 text-xs text-amber-800 dark:text-amber-200" data-testid={`item-missing-${f.key}`}>
+            <XCircle className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
+            <span><span className="font-medium">{f.label}</span> — {f.reason}</span>
+          </li>
+        ))}
+        {complete.map(f => (
+          <li key={f.key} className="flex items-start gap-2 text-xs text-green-700 dark:text-green-400" data-testid={`item-complete-${f.key}`}>
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 mt-0.5 flex-shrink-0" />
+            <span className="font-medium">{f.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function FirmProfileForm() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const { data: firmProfile, isLoading } = useQuery<FirmProfile>({
     queryKey: ['/api/firm-profile'],
@@ -82,8 +145,63 @@ function FirmProfileForm() {
         showFullSolicitorName: firmProfile.showFullSolicitorName ?? true,
         includeClientConfirmation: firmProfile.includeClientConfirmation ?? false,
       });
+      if (firmProfile.logoUrl) {
+        setLogoPreview(firmProfile.logoUrl);
+      }
     }
   }, [firmProfile, form]);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'];
+    if (!allowed.includes(file.type)) {
+      toast({ title: "Invalid file type", description: "Only PNG, JPG, and SVG files are allowed", variant: "destructive", duration: 5000 });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Logo must be 2MB or smaller", variant: "destructive", duration: 5000 });
+      return;
+    }
+
+    setLogoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('logo', file);
+      const response = await fetch('/api/firm-profile/logo', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || 'Upload failed');
+      }
+      const { logoUrl } = await response.json();
+      form.setValue('logoUrl', logoUrl);
+      setLogoPreview(logoUrl);
+      // Immediately persist logoUrl using the dedicated logo-url endpoint.
+      // This works even when other firm profile fields are not yet filled in.
+      const persistResponse = await fetch('/api/firm-profile/logo-url', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ logoUrl }),
+      });
+      if (!persistResponse.ok) {
+        const persistErr = await persistResponse.json().catch(() => ({}));
+        throw new Error(persistErr.message || 'Logo uploaded but could not be saved to firm profile');
+      }
+      queryClient.invalidateQueries({ queryKey: ['/api/firm-profile'] });
+      toast({ title: "Logo uploaded", description: "Your firm logo has been saved and will appear on all client-facing documents.", duration: 4000 });
+    } catch (error: any) {
+      toast({ title: "Upload failed", description: error.message || "Failed to upload logo. Please try again.", variant: "destructive", duration: 5000 });
+    } finally {
+      setLogoUploading(false);
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  };
 
   const updateMutation = useMutation({
     mutationFn: async (data: InsertFirmProfile) => {
@@ -146,9 +264,78 @@ function FirmProfileForm() {
           Manage your law firm information. These details will appear on all exported documents.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
+        <FirmCompletenessChecklist firmProfile={firmProfile} />
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Firm Logo</Label>
+              <div className="flex items-start gap-4">
+                <div className="w-24 h-24 rounded-md border border-border flex items-center justify-center bg-muted/30 flex-shrink-0 overflow-hidden" data-testid="container-logo-preview">
+                  {logoPreview ? (
+                    <img src={logoPreview} alt="Firm logo" className="w-full h-full object-contain p-1" data-testid="img-logo-preview" />
+                  ) : (
+                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="space-y-2 flex-1">
+                  <p className="text-sm text-muted-foreground">
+                    Upload your firm logo. It will appear on all client-facing document letterheads. PNG, JPG, or SVG, max 2MB.
+                  </p>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                    data-testid="input-logo-file"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => logoInputRef.current?.click()}
+                    disabled={logoUploading}
+                    data-testid="button-upload-logo"
+                  >
+                    {logoUploading ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Uploading...</>
+                    ) : (
+                      <><Upload className="w-4 h-4 mr-2" />{logoPreview ? 'Change Logo' : 'Upload Logo'}</>
+                    )}
+                  </Button>
+                  {logoPreview && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        setLogoPreview(null);
+                        form.setValue('logoUrl', '');
+                        try {
+                          await fetch('/api/firm-profile/logo-url', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ logoUrl: '' }),
+                          });
+                          queryClient.invalidateQueries({ queryKey: ['/api/firm-profile'] });
+                        } catch {
+                          // Non-blocking — logo removal will apply on next profile save
+                        }
+                      }}
+                      data-testid="button-remove-logo"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />Remove Logo
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
             <FormField
               control={form.control}
               name="firmName"

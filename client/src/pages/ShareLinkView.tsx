@@ -221,6 +221,11 @@ export default function ShareLinkView() {
         if (doc) documentContent.summary = doc.content;
       }
 
+      if (selectedDocs.includes('client_care_letter') && sharedDocs.includes('client_care_letter')) {
+        const doc = data.documents.find(d => d.type === 'client_care_letter');
+        if (doc) documentContent.clientCareLetter = doc.content;
+      }
+
       if (selectedDocs.includes('transcript') && sharedDocs.includes('transcript') && data.transcript) {
         documentContent.transcript = data.transcript.content;
       }
@@ -520,10 +525,12 @@ export default function ShareLinkView() {
   const summary = documents?.find(doc => doc.type === "summary");
 
   const sharedDocs = shareLink?.sharedDocuments || [];
+  const careLetter = documents?.find(doc => doc.type === "client_care_letter");
   const availableDocuments = {
     hasAttendanceNote: !!attendanceNote && sharedDocs.includes("attendance_note"),
     hasSummary: !!summary && sharedDocs.includes("summary"),
     hasTranscript: !!transcript && sharedDocs.includes("transcript"),
+    hasCareLetter: !!careLetter && sharedDocs.includes("client_care_letter"),
   };
 
   const canDownload = shareLink?.accessLevel === "download";
