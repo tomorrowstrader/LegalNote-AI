@@ -788,7 +788,7 @@ export default function CaseDetail() {
 
           {showAudioPlayer && (
             <AudioPlayer
-              audioUrl={audioData?.deletedAt ? null : (audioData?.filePath ?? null)}
+              audioUrl={audioData?.deletedAt ? null : (audioData?.id ? `/api/audio/${audioData.id}/stream` : null)}
               expiresAt={audioData?.expiresAt ? new Date(audioData.expiresAt) : null}
               caseId={caseData.id}
               audioRecordingId={audioData?.id}

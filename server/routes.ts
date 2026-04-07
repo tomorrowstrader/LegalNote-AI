@@ -3774,6 +3774,50 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  // Stream audio recording file directly (supports all storage path formats including recall imports)
+  app.get("/api/audio/:audioId/stream", isAuthenticated, async (req: any, res, next) => {
+    const objectStorageService = new ObjectStorageService();
+    try {
+      const userId = req.user.claims.sub;
+      const { audioId } = req.params;
+
+      const audioRecording = await storage.getAudioRecording(audioId);
+      if (!audioRecording) {
+        return res.status(404).json({ message: "Audio recording not found" });
+      }
+
+      // Verify ownership via the case
+      const caseRecord = await storage.getCase(audioRecording.caseId, userId);
+      if (!caseRecord) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      if (audioRecording.deletedAt) {
+        return res.status(410).json({ message: "Recording securely deleted" });
+      }
+
+      if (!audioRecording.filePath) {
+        return res.status(404).json({ message: "Audio file not available" });
+      }
+
+      if (new Date() > audioRecording.expiresAt) {
+        if (!audioRecording.deletedAt) {
+          try {
+            await objectStorageService.deleteObjectEntity(audioRecording.filePath);
+            await storage.updateAudioRecording(audioRecording.id, { deletedAt: new Date() });
+          } catch (deleteError) {
+            console.error("Failed to delete expired audio:", deleteError);
+          }
+        }
+        return res.status(410).json({ message: "Audio recording has expired (retention policy)" });
+      }
+
+      await objectStorageService.downloadObject(audioRecording.filePath, res);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Get presigned URL for consent segment audio (preserved indefinitely for compliance)
   app.get("/api/audio/:audioId/consent-segment", isAuthenticated, async (req: any, res, next) => {
     try {
