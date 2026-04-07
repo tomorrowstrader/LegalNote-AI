@@ -39,6 +39,7 @@ import Login from "@/pages/Login";
 import TimeSummary from "@/pages/TimeSummary";
 import UndertakingsDashboard from "@/pages/UndertakingsDashboard";
 import TeamManagement from "@/pages/TeamManagement";
+import FirmCompliance from "@/pages/FirmCompliance";
 import AcknowledgePage from "@/pages/AcknowledgePage";
 import ComplianceBadge from "@/pages/ComplianceBadge";
 import InviteAccept from "@/pages/InviteAccept";
@@ -96,6 +97,7 @@ function Router() {
           <Route path="/time-summary" component={TimeSummary} />
           <Route path="/undertakings" component={UndertakingsDashboard} />
           {isFirmAdmin && <Route path="/team" component={TeamManagement} />}
+          <Route path="/compliance" component={FirmCompliance} />
           <Route path="/waitlist" component={WaitlistPage} />
         </>
       )}

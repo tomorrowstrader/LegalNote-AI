@@ -39,6 +39,7 @@ import {
   type FirmInvitation, type InsertFirmInvitation,
   type RoleChangeLog, type InsertRoleChangeLog,
   type ConflictCheck, type InsertConflictCheck,
+  type SupervisionSignoff, type InsertSupervisionSignoff,
   users,
   clients,
   cases,
@@ -79,6 +80,7 @@ import {
   firmInvitations,
   roleChangeLogs,
   conflictChecks,
+  supervisionSignoffs,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -368,6 +370,56 @@ export interface ComplianceScore {
     documentationCompletion: { score: number; max: number; label: string; detail: string };
   };
   lastUpdated: Date;
+}
+
+export interface MatterComplianceStatus {
+  caseId: string;
+  caseTitle: string;
+  clientName: string;
+  matterReference: string | null;
+  practiceArea: string | null;
+  createdAt: Date;
+  feeEarnerName: string;
+  feeEarnerId: string;
+  supervisorId: string | null;
+  supervisorName: string | null;
+  ragStatus: 'red' | 'amber' | 'green';
+  outstandingItems: number;
+  outstandingUndertakings: number;
+  lastSignoffDate: Date | null;
+  daysSinceSignoff: number | null;
+  issues: string[];
+}
+
+export interface ComplianceOverview {
+  totalActiveMatters: number;
+  redMatters: number;
+  amberMatters: number;
+  greenMatters: number;
+  totalOutstandingUndertakings: number;
+  matters: MatterComplianceStatus[];
+  undertakings: Array<{
+    id: string;
+    caseId: string;
+    caseTitle: string;
+    matterReference: string | null;
+    wording: string;
+    feeEarnerName: string;
+    dateGiven: Date;
+    daysOutstanding: number;
+  }>;
+  supervisionByFeeEarner: Array<{
+    feeEarnerId: string;
+    feeEarnerName: string;
+    supervisorName: string | null;
+    matters: Array<{
+      caseId: string;
+      caseTitle: string;
+      lastSignoffDate: Date | null;
+      daysSinceSignoff: number | null;
+      needsSignoff: boolean;
+    }>;
+  }>;
 }
 
 export interface IStorage {
@@ -680,6 +732,12 @@ export interface IStorage {
   getFirmRoleChangeLogs(firmId: string): Promise<RoleChangeLog[]>;
   getConflictChecksByCase(caseId: string): Promise<ConflictCheck[]>;
   createConflictCheck(data: InsertConflictCheck): Promise<ConflictCheck>;
+
+  // Supervision sign-off methods
+  getSupervisionSignoffsByCase(caseId: string): Promise<SupervisionSignoff[]>;
+  createSupervisionSignoff(data: InsertSupervisionSignoff): Promise<SupervisionSignoff>;
+  getComplianceOverview(): Promise<ComplianceOverview>;
+  updateUserRole(userId: string, role: string): Promise<User | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -2255,13 +2313,21 @@ export class MemStorage implements IStorage {
   async createRoleChangeLog(_data: InsertRoleChangeLog): Promise<RoleChangeLog> { throw new Error("Not implemented"); }
   async getRoleChangeLogs(_userId: string): Promise<RoleChangeLog[]> { return []; }
   async getFirmRoleChangeLogs(_firmId: string): Promise<RoleChangeLog[]> { return []; }
-
-  async getConflictChecksByCase(_caseId: string): Promise<ConflictCheck[]> {
-    return [];
-  }
-
+  async getConflictChecksByCase(_caseId: string): Promise<ConflictCheck[]> { return []; }
   async createConflictCheck(_data: InsertConflictCheck): Promise<ConflictCheck> {
     throw new Error("MemStorage: createConflictCheck not implemented");
+  }
+  async getSupervisionSignoffsByCase(_caseId: string): Promise<SupervisionSignoff[]> {
+    return [];
+  }
+  async createSupervisionSignoff(_data: InsertSupervisionSignoff): Promise<SupervisionSignoff> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getComplianceOverview(): Promise<ComplianceOverview> {
+    return { totalActiveMatters: 0, redMatters: 0, amberMatters: 0, greenMatters: 0, totalOutstandingUndertakings: 0, matters: [], undertakings: [], supervisionByFeeEarner: [] };
+  }
+  async updateUserRole(_userId: string, _role: string): Promise<User | undefined> {
+    throw new Error("Not implemented in MemStorage");
   }
 }
 
@@ -5320,14 +5386,12 @@ export class DbStorage implements IStorage {
       const firm = await this.getFirm(u.firmId);
       if (firm) return firm;
     }
-    // Create a new firm for the user
     const displayName = u.firstName && u.lastName
       ? `${u.firstName} ${u.lastName}'s Firm`
       : u.email
         ? `${u.email.split('@')[0]}'s Firm`
         : "My Firm";
     const firm = await this.createFirm({ name: displayName });
-    // Assign user to firm with is_firm_admin designation
     await db.update(users).set({
       firmId: firm.id,
       inviteStatus: "active",
@@ -5372,6 +5436,14 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async updateUserRole(userId: string, role: string): Promise<User | undefined> {
+    const result = await db.update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
+  }
+
   async getFormerFirmMembers(firmId: string): Promise<User[]> {
     return await db.select().from(users)
       .where(and(eq(users.firmId, firmId), sql`${users.removedAt} IS NOT NULL`))
@@ -5395,6 +5467,24 @@ export class DbStorage implements IStorage {
 
   async getFirmInvitation(id: string): Promise<FirmInvitation | undefined> {
     const result = await db.select().from(firmInvitations).where(eq(firmInvitations.id, id));
+    return result[0];
+  }
+
+  async getSupervisionSignoffsByCase(caseId: string): Promise<SupervisionSignoff[]> {
+    return await db.select().from(supervisionSignoffs)
+      .where(eq(supervisionSignoffs.caseId, caseId))
+      .orderBy(desc(supervisionSignoffs.signoffDate));
+  }
+
+  async createSupervisionSignoff(data: InsertSupervisionSignoff): Promise<SupervisionSignoff> {
+    const result = await db.insert(supervisionSignoffs).values({
+      caseId: data.caseId,
+      supervisorUserId: data.supervisorUserId,
+      supervisorName: data.supervisorName,
+      supervisorRole: data.supervisorRole,
+      signoffDate: data.signoffDate,
+      reviewNotes: data.reviewNotes,
+    }).returning();
     return result[0];
   }
 
@@ -5441,6 +5531,8 @@ export class DbStorage implements IStorage {
     return await db.select().from(roleChangeLogs)
       .where(eq(roleChangeLogs.firmId, firmId))
       .orderBy(desc(roleChangeLogs.changedAt));
+  }
+
   async getConflictChecksByCase(caseId: string): Promise<ConflictCheck[]> {
     return await db.select().from(conflictChecks)
       .where(eq(conflictChecks.caseId, caseId))
@@ -5450,6 +5542,150 @@ export class DbStorage implements IStorage {
   async createConflictCheck(data: InsertConflictCheck): Promise<ConflictCheck> {
     const [created] = await db.insert(conflictChecks).values(data).returning();
     return created;
+  }
+
+  async getComplianceOverview(): Promise<ComplianceOverview> {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    // Get all active (non-archived) cases with user info
+    const activeCases = await db.select({
+      case: cases,
+      feeEarner: users,
+    }).from(cases)
+      .leftJoin(users, eq(cases.createdBy, users.id))
+      .where(eq(cases.archived, false))
+      .orderBy(desc(cases.createdAt));
+
+    // Get all outstanding undertakings
+    const outstandingUnds = await db.select({
+      undertaking: undertakings,
+      caseTitle: cases.title,
+      matterReference: cases.matterReference,
+      caseCreatedBy: cases.createdBy,
+      feeEarner: users,
+    }).from(undertakings)
+      .leftJoin(cases, eq(undertakings.caseId, cases.id))
+      .leftJoin(users, eq(cases.createdBy, users.id))
+      .where(eq(undertakings.status, "outstanding"));
+
+    // Get latest signoff per case
+    const signoffRows = await db.select({
+      caseId: supervisionSignoffs.caseId,
+      signoffDate: supervisionSignoffs.signoffDate,
+    }).from(supervisionSignoffs)
+      .orderBy(desc(supervisionSignoffs.signoffDate));
+
+    // Build latest signoff map
+    const latestSignoffMap = new Map<string, Date>();
+    for (const row of signoffRows) {
+      if (!latestSignoffMap.has(row.caseId)) {
+        latestSignoffMap.set(row.caseId, row.signoffDate);
+      }
+    }
+
+    // Get outstanding count per case
+    const undertakingCountMap = new Map<string, number>();
+    for (const r of outstandingUnds) {
+      const caseId = r.undertaking.caseId;
+      undertakingCountMap.set(caseId, (undertakingCountMap.get(caseId) ?? 0) + 1);
+    }
+
+    // Build matter statuses
+    const matters: MatterComplianceStatus[] = activeCases.map(({ case: c, feeEarner }) => {
+      const lastSignoff = latestSignoffMap.get(c.id) ?? null;
+      const daysSinceSignoff = lastSignoff
+        ? Math.floor((now.getTime() - lastSignoff.getTime()) / (24 * 60 * 60 * 1000))
+        : null;
+      const outstandingUndsCount = undertakingCountMap.get(c.id) ?? 0;
+      const issues: string[] = [];
+
+      // RAG logic
+      let ragStatus: 'red' | 'amber' | 'green' = 'green';
+
+      // Red flags
+      if (!c.conflictCheckCompleted) { issues.push("Conflict check not completed"); ragStatus = 'red'; }
+      if (!c.clientCareLetterId) { issues.push("Client care letter not sent"); ragStatus = 'red'; }
+
+      // Amber flags (only if not already red)
+      if (ragStatus !== 'red') {
+        if (outstandingUndsCount > 0) { issues.push(`${outstandingUndsCount} outstanding undertaking${outstandingUndsCount > 1 ? 's' : ''}`); ragStatus = 'amber'; }
+        if (daysSinceSignoff === null || daysSinceSignoff > 30) { issues.push("No supervision sign-off in 30 days"); ragStatus = 'amber'; }
+      }
+
+      const feeEarnerName = feeEarner
+        ? [feeEarner.firstName, feeEarner.lastName].filter(Boolean).join(' ') || feeEarner.email || 'Unknown'
+        : 'Unknown';
+
+      return {
+        caseId: c.id,
+        caseTitle: c.title,
+        clientName: c.clientName,
+        matterReference: c.matterReference ?? null,
+        practiceArea: c.practiceArea ?? null,
+        createdAt: c.createdAt,
+        feeEarnerName,
+        feeEarnerId: c.createdBy,
+        supervisorId: c.supervisorId ?? null,
+        supervisorName: c.supervisorName ?? null,
+        ragStatus,
+        outstandingItems: issues.length,
+        outstandingUndertakings: outstandingUndsCount,
+        lastSignoffDate: lastSignoff,
+        daysSinceSignoff,
+        issues,
+      };
+    });
+
+    const outstandingUndertakingsList = outstandingUnds.map(r => {
+      const feeEarnerName = r.feeEarner
+        ? [r.feeEarner.firstName, r.feeEarner.lastName].filter(Boolean).join(' ') || r.feeEarner.email || 'Unknown'
+        : 'Unknown';
+      const daysOutstanding = Math.floor((now.getTime() - r.undertaking.dateGiven.getTime()) / (24 * 60 * 60 * 1000));
+      return {
+        id: r.undertaking.id,
+        caseId: r.undertaking.caseId,
+        caseTitle: r.caseTitle ?? '',
+        matterReference: r.matterReference ?? null,
+        wording: r.undertaking.wording,
+        feeEarnerName,
+        dateGiven: r.undertaking.dateGiven,
+        daysOutstanding,
+      };
+    });
+
+    // Group by fee earner for supervision tab
+    const feeEarnerMap = new Map<string, { name: string; supervisorName: string | null; matters: typeof matters }>();
+    for (const m of matters) {
+      if (!feeEarnerMap.has(m.feeEarnerId)) {
+        feeEarnerMap.set(m.feeEarnerId, { name: m.feeEarnerName, supervisorName: m.supervisorName, matters: [] });
+      }
+      feeEarnerMap.get(m.feeEarnerId)!.matters.push(m);
+    }
+
+    const supervisionByFeeEarner = Array.from(feeEarnerMap.entries()).map(([feeEarnerId, data]) => ({
+      feeEarnerId,
+      feeEarnerName: data.name,
+      supervisorName: data.supervisorName,
+      matters: data.matters.map(m => ({
+        caseId: m.caseId,
+        caseTitle: m.caseTitle,
+        lastSignoffDate: m.lastSignoffDate,
+        daysSinceSignoff: m.daysSinceSignoff,
+        needsSignoff: m.daysSinceSignoff === null || m.daysSinceSignoff > 30,
+      })),
+    }));
+
+    return {
+      totalActiveMatters: matters.length,
+      redMatters: matters.filter(m => m.ragStatus === 'red').length,
+      amberMatters: matters.filter(m => m.ragStatus === 'amber').length,
+      greenMatters: matters.filter(m => m.ragStatus === 'green').length,
+      totalOutstandingUndertakings: outstandingUndertakingsList.length,
+      matters,
+      undertakings: outstandingUndertakingsList,
+      supervisionByFeeEarner,
+    };
   }
 }
 

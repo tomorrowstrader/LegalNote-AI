@@ -50,6 +50,7 @@ import TimeEntriesViewer from "@/components/TimeEntriesViewer";
 import TimeRecordingModal from "@/components/TimeRecordingModal";
 import ClientCareLetterModal from "@/components/ClientCareLetterModal";
 import UndertakingsViewer from "@/components/UndertakingsViewer";
+import SupervisionSection from "@/components/SupervisionSection";
 import { useLocation, useParams, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -75,7 +76,7 @@ interface SessionWithDetails extends MeetingSession {
 type CaseSection =
   | "documents" | "obligations" | "sessions" | "notes" | "briefing"
   | "time" | "undertakings" | "external-refs" | "linked-calls"
-  | "consent" | "compliance" | "activity" | "sharing" | "audit";
+  | "consent" | "compliance" | "activity" | "sharing" | "audit" | "supervision";
 
 const SECTION_LABELS: Record<CaseSection, string> = {
   documents: "Documents",
@@ -92,6 +93,7 @@ const SECTION_LABELS: Record<CaseSection, string> = {
   activity: "Activity Timeline",
   sharing: "Sharing History",
   audit: "Audit Trail",
+  supervision: "Supervision",
 };
 
 function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void }) {
@@ -847,6 +849,7 @@ export default function CaseDetail() {
         ? <Badge className={cn("text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate", riskColors[caseData.riskLevel] || '')}>{(caseData.riskLevel as string).toUpperCase()}</Badge>
         : undefined,
     },
+    { id: 'supervision', label: 'Supervision', icon: ShieldCheck },
     { id: 'activity', label: 'Activity Timeline', icon: Calendar },
     { id: 'sharing', label: 'Sharing History', icon: Share2 },
     { id: 'audit', label: 'Audit Trail', icon: ScrollText },
@@ -1811,6 +1814,12 @@ export default function CaseDetail() {
           {activeSection === 'audit' && (
             <div className="max-w-3xl">
               <AuditTrail caseId={caseId!} limit={50} />
+            </div>
+          )}
+
+          {activeSection === 'supervision' && (
+            <div className="max-w-3xl">
+              <SupervisionSection caseId={caseId!} />
             </div>
           )}
         </div>

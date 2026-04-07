@@ -1343,6 +1343,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         ...user,
         isAdmin,
         waitlistStatus,
+        role: isAdmin ? 'admin' : (user?.role || 'solicitor'),
       };
       
       res.json(userWithFlags);
@@ -5800,6 +5801,90 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  // Supervision sign-offs
+  app.get("/api/cases/:id/supervision-signoffs", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+      const isAdminUser = userId === ADMIN_USER_ID;
+      const user = await storage.getUser(userId);
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData && !isAdminUser && !['partner', 'colp', 'admin'].includes(user?.role || '')) {
+        return res.status(403).json({ message: "Not authorised" });
+      }
+      const signoffs = await storage.getSupervisionSignoffsByCase(caseId);
+      res.json(signoffs);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/supervision-signoffs", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+      const isAdminUser = userId === ADMIN_USER_ID;
+      const user = await storage.getUser(userId);
+
+      const allowedRoles = ['supervisor', 'partner', 'colp', 'admin'];
+      if (!isAdminUser && !allowedRoles.includes(user?.role || '')) {
+        return res.status(403).json({ message: "Supervision sign-off requires supervisor, partner, or COLP role" });
+      }
+
+      const caseRecord = await storage.getCase(caseId, userId);
+      if (!caseRecord && !isAdminUser) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      const { signoffDate, reviewNotes } = req.body;
+      if (!reviewNotes || !reviewNotes.trim()) {
+        return res.status(400).json({ message: "Review notes are required" });
+      }
+
+      const supervisorName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || userId;
+      const supervisorRole = user?.role || 'supervisor';
+
+      const signoff = await storage.createSupervisionSignoff({
+        caseId,
+        supervisorUserId: userId,
+        supervisorName,
+        supervisorRole,
+        signoffDate: signoffDate ? new Date(signoffDate) : new Date(),
+        reviewNotes: reviewNotes.trim(),
+      });
+
+      await logAuditEvent(userId, "supervision_signoff_recorded", {
+        caseId,
+        metadata: { signoffId: signoff.id, supervisorName, supervisorRole },
+        req,
+      });
+
+      res.status(201).json(signoff);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Firm compliance overview (COLP/partner/admin only)
+  app.get("/api/firm/compliance-overview", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+      const isAdminUser = userId === ADMIN_USER_ID;
+      const user = await storage.getUser(userId);
+      const allowedRoles = ['colp', 'partner', 'admin'];
+      if (!isAdminUser && !allowedRoles.includes(user?.role || '')) {
+        return res.status(403).json({ message: "Firm compliance overview requires COLP, partner, or admin role" });
+      }
+      const overview = await storage.getComplianceOverview();
+      res.json(overview);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Extract action items from transcript using AI
   app.post("/api/cases/:id/extract-action-items", isAuthenticated, async (req: any, res, next) => {
     try {
@@ -6076,6 +6161,23 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
     next();
   };
+
+  // Update user role (admin only)
+  app.patch("/api/admin/users/:id/role", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const { id } = req.params;
+      const { role } = req.body;
+      const validRoles = ['solicitor', 'supervisor', 'partner', 'colp', 'admin'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ message: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
+      }
+      const updated = await storage.updateUserRole(id, role);
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
 
   // Admin statistics endpoints
   app.get("/api/admin/statistics", isAuthenticated, isAdmin, async (req: any, res, next) => {

@@ -122,6 +122,7 @@ export const users = pgTable("users", {
   invitedAt: timestamp("invited_at"),
   removedAt: timestamp("removed_at"),
   lastActiveAt: timestamp("last_active_at"),
+  role: varchar("role").default("solicitor"), // solicitor, supervisor, partner, colp, admin
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -218,6 +219,8 @@ export const cases = pgTable("cases", {
   litigationHoldReason: text("litigation_hold_reason"),
   litigationHoldReleasedAt: timestamp("litigation_hold_released_at"),
   litigationHoldReleasedBy: varchar("litigation_hold_released_by").references(() => users.id),
+  supervisorId: varchar("supervisor_id").references(() => users.id),
+  supervisorName: text("supervisor_name"),
 });
 
 export const quickNotes = pgTable("quick_notes", {
@@ -1708,3 +1711,30 @@ export const insertConflictCheckSchema = createInsertSchema(conflictChecks).omit
 
 export type InsertConflictCheck = z.infer<typeof insertConflictCheckSchema>;
 export type ConflictCheck = typeof conflictChecks.$inferSelect;
+
+// Supervision sign-offs - immutable records of supervisor oversight on each matter
+export const supervisionSignoffs = pgTable("supervision_signoffs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  supervisorUserId: varchar("supervisor_user_id").notNull().references(() => users.id),
+  supervisorName: text("supervisor_name").notNull(),
+  supervisorRole: text("supervisor_role").notNull(),
+  signoffDate: timestamp("signoff_date").notNull(),
+  reviewNotes: text("review_notes").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertSupervisionSignoffSchema = createInsertSchema(supervisionSignoffs).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  supervisorUserId: z.string().min(1),
+  supervisorName: z.string().min(1).max(200),
+  supervisorRole: z.string().min(1).max(100),
+  signoffDate: z.coerce.date(),
+  reviewNotes: z.string().min(1).max(10000),
+});
+
+export type InsertSupervisionSignoff = z.infer<typeof insertSupervisionSignoffSchema>;
+export type SupervisionSignoff = typeof supervisionSignoffs.$inferSelect;

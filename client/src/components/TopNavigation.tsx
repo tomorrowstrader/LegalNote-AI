@@ -39,7 +39,7 @@ const allNavLinks = [...primaryNavLinks, ...moreNavLinks];
 
 export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   const [location, setLocation] = useLocation();
-  const { user, isAdmin, isFirmAdmin } = useAuth();
+  const { user, isAdmin, isFirmAdmin, canAccessFirmCompliance } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleNavClick = (path: string) => {
@@ -147,6 +147,14 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 <DropdownMenuItem asChild data-testid="menu-item-undertakings">
                   <Link href="/undertakings">Undertakings Register</Link>
                 </DropdownMenuItem>
+                {canAccessFirmCompliance && (
+                  <DropdownMenuItem asChild data-testid="menu-item-firm-compliance">
+                    <Link href="/compliance">
+                      <Shield className="w-4 h-4 mr-2" />
+                      Firm Compliance
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem asChild data-testid="menu-item-audit-logs">
                   <Link href="/audit-logs">Audit Logs</Link>
                 </DropdownMenuItem>
