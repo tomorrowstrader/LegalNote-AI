@@ -10,6 +10,7 @@ import { exportToPDF, exportToWord } from "@/lib/documentExport";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile, DocumentComment } from "@shared/schema";
+import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import DownloadModal from "@/components/DownloadModal";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import ReactMarkdown from 'react-markdown';
@@ -271,6 +272,13 @@ interface Document {
   approvedBy?: string | null;
   approvedAt?: string | null;
   approvalComment?: string | null;
+  meetingSessionId?: string | null;
+}
+
+interface SessionInfo {
+  id: string;
+  sessionTitle: string | null;
+  recordingType: string;
 }
 
 interface DocumentViewerProps {
@@ -289,6 +297,8 @@ interface DocumentViewerProps {
   onTranscriptTimestampClick?: (timestampMs: number) => void;
   initialTab?: 'attendance' | 'summary' | 'transcript';
   initialTimestamp?: number;
+  sessions?: SessionInfo[];
+  focusSessionId?: string | null;
 }
 
 function CommentsPanel({ 
@@ -534,6 +544,8 @@ export default function DocumentViewer({
   onTranscriptTimestampClick,
   initialTab,
   initialTimestamp,
+  sessions,
+  focusSessionId,
 }: DocumentViewerProps) {
   const { toast } = useToast();
   const [showDownloadModal, setShowDownloadModal] = useState(false);
@@ -1104,10 +1116,29 @@ export default function DocumentViewer({
     };
   }, [editingDocId, editContent, autoSaveDocument, DRAFT_STORAGE_KEY]);
 
-  const attendanceNote = documents.find(d => d.type === 'attendance_note');
-  const summary = documents.find(d => d.type === 'summary');
-  const transcriptDoc = documents.find(d => d.type === 'transcript');
-  const clientCareLetter = documents.find(d => d.type === 'client_care_letter');
+  // When focusSessionId is set, prefer the document tied to that session; fall back to latest
+  const findDoc = (type: Document['type']) => {
+    if (focusSessionId) {
+      return documents.find(d => d.type === type && d.meetingSessionId === focusSessionId)
+        ?? documents.find(d => d.type === type);
+    }
+    return documents.find(d => d.type === type);
+  };
+
+  const attendanceNote = findDoc('attendance_note');
+  const summary = findDoc('summary');
+  const transcriptDoc = findDoc('transcript');
+  const clientCareLetter = findDoc('client_care_letter');
+
+  const getSessionLabel = (doc: Document | undefined): string | null => {
+    if (!doc?.meetingSessionId || !sessions || sessions.length === 0) return null;
+    const session = sessions.find(s => s.id === doc.meetingSessionId);
+    if (!session) return null;
+    return session.sessionTitle || RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType;
+  };
+
+  const attendanceNoteSessionLabel = getSessionLabel(attendanceNote);
+  const summarySessionLabel = getSessionLabel(summary);
   
   const transcriptContent = transcriptDoc?.content ?? transcript;
 
@@ -1485,7 +1516,14 @@ export default function DocumentViewer({
             <Card className={showComments ? 'flex-1 min-w-0' : 'w-full'}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <CardTitle>{attendanceNote?.isShortRecording ? 'Brief File Note' : 'Attendance Note'}</CardTitle>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <CardTitle>{attendanceNote?.isShortRecording ? 'Brief File Note' : 'Attendance Note'}</CardTitle>
+                    {attendanceNoteSessionLabel && (
+                      <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="badge-doc-session-attendance">
+                        {attendanceNoteSessionLabel}
+                      </Badge>
+                    )}
+                  </div>
                   <DocumentStatusActions document={attendanceNote} />
                 </div>
               </CardHeader>
@@ -1604,7 +1642,14 @@ export default function DocumentViewer({
             <Card className={showComments ? 'flex-1 min-w-0' : 'w-full'}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <CardTitle>Matter Record</CardTitle>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <CardTitle>Matter Record</CardTitle>
+                    {summarySessionLabel && (
+                      <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="badge-doc-session-summary">
+                        {summarySessionLabel}
+                      </Badge>
+                    )}
+                  </div>
                   <DocumentStatusActions document={summary} />
                 </div>
               </CardHeader>

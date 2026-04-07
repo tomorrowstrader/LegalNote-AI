@@ -5,7 +5,7 @@ import {
   FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle,
   Share2, Eye, Download, Archive, Video, ListChecks, History,
   ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send,
-  ShieldCheck, ChevronRight, ChevronDown, ChevronUp, CheckCircle2,
+  ShieldCheck, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, Mic,
 } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,7 @@ import SharedHistoryViewer from "@/components/SharedHistoryViewer";
 import ActionItemsViewer from "@/components/ActionItemsViewer";
 import PreMeetingBriefing from "@/components/PreMeetingBriefing";
 import HandoverModal from "@/components/HandoverModal";
+import NewSessionModal from "@/components/NewSessionModal";
 import ExternalDocumentRefs from "@/components/ExternalDocumentRefs";
 import TimeEntriesViewer from "@/components/TimeEntriesViewer";
 import TimeRecordingModal from "@/components/TimeRecordingModal";
@@ -61,8 +62,12 @@ import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREA_LABELS, PRACTICE_AREAS, type PracticeArea } from "@shared/schema";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+interface SessionTranscript extends Omit<Transcript, 'utterances'> {
+  utterances: Array<{ speaker: string; text: string; start: number; end: number }> | null;
+}
+
 interface SessionWithDetails extends MeetingSession {
-  transcript: Transcript | null;
+  transcript: SessionTranscript | null;
   documents: Document[];
 }
 
@@ -88,14 +93,33 @@ const SECTION_LABELS: Record<CaseSection, string> = {
   audit: "Audit Trail",
 };
 
-function SessionDetails({ sessionId }: { sessionId: string }) {
+function SessionDetails({ sessionId, caseId }: { sessionId: string; caseId: string }) {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const { data, isLoading } = useQuery<SessionWithDetails>({
     queryKey: ['/api/sessions', sessionId],
   });
 
+  const { data: sessionAudio } = useQuery<{ id: string; filePath: string | null; deletedAt: string | null; expiresAt: string | null } | undefined>({
+    queryKey: [`/api/audio/by-session/${sessionId}`],
+    enabled: !!sessionId,
+  });
+
+  const generateDocsMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/cases/${caseId}/process`, { sessionId }),
+    onSuccess: () => {
+      toast({ title: "Documents generated", description: "Session documents are being produced.", duration: 5000 });
+      queryClient.invalidateQueries({ queryKey: ['/api/sessions', sessionId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to generate documents", description: error.message || "Please try again.", variant: "destructive", duration: 5000 });
+    },
+  });
+
   if (isLoading) {
     return (
-      <div className="py-3 flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="w-4 h-4 animate-spin" />
         Loading session details...
       </div>
@@ -104,37 +128,102 @@ function SessionDetails({ sessionId }: { sessionId: string }) {
 
   if (!data) return null;
 
-  const activeDocuments = data.documents.filter(d => d.isActive);
-  const previousVersions = data.documents.filter(d => !d.isActive);
+  const sessionDocuments = data.documents;
+  const currentDocuments = sessionDocuments.filter(d => d.isActive);
+  const sessionIsPending = data.status === "pending" || data.status === "processing";
 
   return (
-    <div className="py-3 space-y-3" data-testid={`session-details-${sessionId}`}>
-      {activeDocuments.length > 0 ? (
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5" />
-            Documents ({activeDocuments.length})
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {activeDocuments.map(doc => (
-              <Badge key={doc.id} variant="outline" className="text-xs" data-testid={`session-doc-${doc.id}`}>
-                {doc.type === "summary" ? "Summary" : "Attendance Note"}
-                {doc.version > 1 && ` v${doc.version}`}
-              </Badge>
-            ))}
-          </div>
-          {previousVersions.length > 0 && (
-            <p className="text-xs text-muted-foreground mt-1" data-testid={`session-version-history-${sessionId}`}>
-              {previousVersions.length} previous version{previousVersions.length !== 1 ? "s" : ""} available
+    <div className="p-4 space-y-4" data-testid={`session-details-${sessionId}`}>
+      {/* Audio */}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Audio</p>
+        {sessionAudio ? (
+          sessionAudio.deletedAt ? (
+            <p className="text-xs text-muted-foreground italic" data-testid={`session-audio-deleted-${sessionId}`}>
+              Recording securely deleted{sessionAudio.expiresAt ? ` · retained until ${format(new Date(sessionAudio.expiresAt), "d MMM yyyy")}` : ""}
             </p>
+          ) : sessionAudio.filePath ? (
+            <AudioPlayer
+              audioUrl={`/api/audio/${sessionAudio.id}/stream`}
+              expiresAt={sessionAudio.expiresAt ? new Date(sessionAudio.expiresAt) : null}
+              caseId={caseId}
+              audioRecordingId={sessionAudio.id}
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">Audio not yet available.</p>
+          )
+        ) : (
+          <p className="text-xs text-muted-foreground">No audio recording linked to this session.</p>
+        )}
+      </div>
+
+      {/* Transcript */}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Transcript</p>
+        {sessionIsPending && !data.transcript ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid={`session-transcript-pending-${sessionId}`}>
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Transcript is being processed…
+          </div>
+        ) : data.transcript ? (() => {
+          const utterances = data.transcript.utterances;
+          const hasUtterances = Array.isArray(utterances) && utterances.length > 0;
+          return (
+            <div className="max-h-48 overflow-y-auto rounded-md bg-muted/30 p-3 text-xs space-y-2" data-testid={`session-transcript-${sessionId}`}>
+              {hasUtterances ? utterances!.map((u, i) => (
+                <div key={i} className="flex gap-2">
+                  <span className="font-semibold text-accent shrink-0 w-16 truncate">{u.speaker}</span>
+                  <span className="leading-relaxed text-foreground/80">{u.text}</span>
+                </div>
+              )) : (
+                <p className="leading-relaxed whitespace-pre-wrap text-foreground/80">{data.transcript!.content}</p>
+              )}
+            </div>
+          );
+        })() : (
+          <p className="text-xs text-muted-foreground">No transcript for this session.</p>
+        )}
+      </div>
+
+      {/* Documents */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Documents</p>
+          {data.transcript && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => generateDocsMutation.mutate()}
+              disabled={generateDocsMutation.isPending}
+              data-testid={`button-generate-docs-${sessionId}`}
+              className="gap-1.5"
+            >
+              {generateDocsMutation.isPending
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</>
+                : <><FileText className="w-3.5 h-3.5" />{currentDocuments.length > 0 ? "Regenerate" : "Generate documents"}</>}
+            </Button>
           )}
         </div>
-      ) : (
-        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-          <FileText className="w-3.5 h-3.5" />
-          No documents linked to this session
-        </p>
-      )}
+        {sessionDocuments.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {sessionDocuments.map(doc => (
+              <button
+                key={doc.id}
+                onClick={() => setLocation(`/case/${caseId}?tab=${doc.type === "summary" ? "summary" : "attendance"}&sessionId=${sessionId}`)}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border bg-card hover-elevate"
+                data-testid={`session-doc-${doc.id}`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                {doc.type === "summary" ? "Matter Record" : "Attendance Note"}
+                {doc.version > 1 && <span className="text-muted-foreground">v{doc.version}</span>}
+                {!doc.isActive && <span className="text-muted-foreground">(prev)</span>}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No documents linked to this session.</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -158,6 +247,8 @@ export default function CaseDetail() {
   const [showHandoverModal, setShowHandoverModal] = useState(false);
   const [showTimeRecordingModal, setShowTimeRecordingModal] = useState(false);
   const [showCareLetterModal, setShowCareLetterModal] = useState(false);
+  const [showNewSessionModal, setShowNewSessionModal] = useState(false);
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [showSendCareLetterDialog, setShowSendCareLetterDialog] = useState(false);
   const [sendEmail, setSendEmail] = useState("");
   const [isSendingCareLetter, setIsSendingCareLetter] = useState(false);
@@ -187,6 +278,7 @@ export default function CaseDetail() {
   const searchParams = new URLSearchParams(search);
   const urlTab = searchParams.get('tab') as 'attendance' | 'summary' | 'transcript' | 'compliance' | null;
   const urlTimestamp = searchParams.get('timestamp');
+  const urlSessionId = searchParams.get('sessionId');
 
   const [activeSection, setActiveSection] = useState<CaseSection>(() => {
     if (urlTab === 'compliance') return 'compliance';
@@ -275,7 +367,8 @@ export default function CaseDetail() {
 
   const { data: documents = [] } = useQuery<Array<{
     id: string; caseId: string; type: 'attendance_note' | 'summary';
-    content: string; version: number; createdAt: string;
+    content: string; version: number; createdAt: string; isActive?: boolean;
+    meetingSessionId?: string | null;
   }>>({
     queryKey: [`/api/cases/${caseId}/documents`],
     enabled: !!caseId && (caseData?.status === 'review_required' || caseData?.status === 'completed'),
@@ -576,6 +669,12 @@ export default function CaseDetail() {
       <Button variant="outline" size="sm" onClick={() => setShowDownloadModal(true)} className="gap-1.5" data-testid="button-download-documents">
         <Download className="w-3.5 h-3.5" />
         Download
+      </Button>
+    ),
+    sessions: (
+      <Button size="sm" onClick={() => setShowNewSessionModal(true)} className="gap-1.5" data-testid="button-record-new-session">
+        <Mic className="w-3.5 h-3.5" />
+        Record New Session
       </Button>
     ),
     time: (
@@ -1061,25 +1160,86 @@ export default function CaseDetail() {
           key={activeSection}
           className="flex-1 px-6 lg:px-8 py-6 animate-in fade-in duration-200"
         >
-          {activeSection === 'documents' && (
-            <DocumentViewer
-              caseId={caseId!}
-              documents={documents as any}
-              transcript={transcript?.content}
-              transcriptUtterances={transcript?.utterances}
-              speakerCount={transcript?.speakerCount}
-              transcriptRedactions={transcript?.redactions}
-              textNotes={caseData.textNotes}
-              status={caseData.status}
-              caseTitle={caseData.title}
-              clientName={caseData.clientName}
-              matterReference={caseData.matterReference || undefined}
-              createdAt={new Date(caseData.createdAt).toISOString()}
-              onTranscriptTimestampClick={handleTranscriptTimestampClick}
-              initialTab={urlTab !== 'compliance' ? (urlTab || undefined) : undefined}
-              initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
-            />
-          )}
+          {activeSection === 'documents' && (() => {
+            const activeDocs = documents.filter(d => d.isActive !== false);
+            const sessionMap = new Map<string, typeof meetingSessions[0]>();
+            meetingSessions.forEach(s => sessionMap.set(s.id, s));
+
+            const docsWithSession = activeDocs.filter(d => d.meetingSessionId && sessionMap.has(d.meetingSessionId));
+            const standaloneActiveDocs = activeDocs.filter(d => !d.meetingSessionId || !sessionMap.has(d.meetingSessionId));
+
+            const showSessionGroups = meetingSessions.length >= 3 && docsWithSession.length > 0;
+
+            return (
+              <div className="space-y-6">
+                {showSessionGroups && (
+                  <div className="space-y-3">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Session attribution</p>
+                    <div className="space-y-2">
+                      {meetingSessions
+                        .filter(s => docsWithSession.some(d => d.meetingSessionId === s.id))
+                        .map((session, idx, arr) => {
+                          const sessionDocs = docsWithSession.filter(d => d.meetingSessionId === session.id);
+                          const sessionLabel = session.sessionTitle || RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType;
+                          const sessionNum = arr.length - idx;
+                          return (
+                            <div key={session.id} className="flex items-center gap-3 text-sm" data-testid={`doc-session-row-${session.id}`}>
+                              <div className="w-5 h-5 rounded-full bg-accent/10 flex items-center justify-center text-xs font-semibold text-accent shrink-0">
+                                {sessionNum}
+                              </div>
+                              <span className="font-medium truncate" data-testid={`doc-session-label-${session.id}`}>{sessionLabel}</span>
+                              <span className="text-muted-foreground shrink-0">·</span>
+                              <div className="flex gap-1.5 flex-wrap">
+                                {sessionDocs.map(doc => (
+                                  <Badge key={doc.id} variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`doc-attribution-badge-${doc.id}`}>
+                                    {doc.type === 'summary' ? 'Matter Record' : 'Attendance Note'}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      {standaloneActiveDocs.length > 0 && (
+                        <div className="flex items-center gap-3 text-sm" data-testid="doc-session-row-standalone">
+                          <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0">
+                            <FileText className="w-3 h-3 text-muted-foreground" />
+                          </div>
+                          <span className="font-medium text-muted-foreground">Standalone documents</span>
+                          <span className="text-muted-foreground shrink-0">·</span>
+                          <div className="flex gap-1.5 flex-wrap">
+                            {standaloneActiveDocs.map(doc => (
+                              <Badge key={doc.id} variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`doc-attribution-badge-${doc.id}`}>
+                                {doc.type === 'summary' ? 'Matter Record' : 'Attendance Note'}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <DocumentViewer
+                  caseId={caseId!}
+                  documents={documents as any}
+                  sessions={meetingSessions.map(s => ({ id: s.id, sessionTitle: s.sessionTitle, recordingType: s.recordingType }))}
+                  transcript={transcript?.content}
+                  transcriptUtterances={transcript?.utterances}
+                  speakerCount={transcript?.speakerCount}
+                  transcriptRedactions={transcript?.redactions}
+                  textNotes={caseData.textNotes}
+                  status={caseData.status}
+                  caseTitle={caseData.title}
+                  clientName={caseData.clientName}
+                  matterReference={caseData.matterReference || undefined}
+                  createdAt={new Date(caseData.createdAt).toISOString()}
+                  onTranscriptTimestampClick={handleTranscriptTimestampClick}
+                  initialTab={urlTab !== 'compliance' ? (urlTab || undefined) : undefined}
+                  initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
+                  focusSessionId={urlSessionId || undefined}
+                />
+              </div>
+            );
+          })()}
 
           {activeSection === 'obligations' && (
             <div className="max-w-3xl">
@@ -1094,48 +1254,85 @@ export default function CaseDetail() {
                   <History className="w-8 h-8 mx-auto text-muted-foreground/40" />
                   <p className="font-medium text-sm">No sessions recorded yet</p>
                   <p className="text-xs text-muted-foreground">Sessions will appear here once a meeting is recorded for this matter.</p>
+                  <Button size="sm" onClick={() => setShowNewSessionModal(true)} className="gap-2 mt-2" data-testid="button-record-new-session-empty">
+                    <Mic className="w-4 h-4" />
+                    Record New Session
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-3" data-testid="session-timeline-list">
-                  {meetingSessions.map((session, idx) => (
-                    <Card key={session.id} className="overflow-hidden" data-testid={`session-item-${session.id}`}>
-                      <CardContent className="p-0">
-                        <div className="p-4">
-                          <div className="flex items-start gap-4">
-                            <div className="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center text-xs font-semibold text-accent shrink-0 mt-0.5">
-                              {meetingSessions.length - idx}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`badge-recording-type-${session.id}`}>
-                                  {RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType}
-                                </Badge>
-                                <Badge
-                                  variant={session.status === "completed" ? "default" : session.status === "failed" ? "destructive" : "secondary"}
-                                  className="text-xs no-default-hover-elevate no-default-active-elevate"
-                                  data-testid={`badge-session-status-${session.id}`}
-                                >
-                                  {toTitleCase(session.status)}
-                                </Badge>
+                  {[...meetingSessions].sort((a, b) => new Date(b.startedAt ?? 0).getTime() - new Date(a.startedAt ?? 0).getTime()).map((session, idx, sorted) => {
+                    const isExpanded = expandedSessionId === session.id;
+                    const sessionNumber = sorted.length - idx;
+                    const primaryLabel = session.sessionTitle || RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType;
+                    const hasTitle = !!session.sessionTitle;
+                    return (
+                      <Card key={session.id} className="overflow-hidden" data-testid={`session-item-${session.id}`}>
+                        <CardContent className="p-0">
+                          <button
+                            className="w-full p-4 text-left hover-elevate"
+                            onClick={() => setExpandedSessionId(isExpanded ? null : session.id)}
+                            data-testid={`button-expand-session-${session.id}`}
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center text-xs font-semibold text-accent shrink-0 mt-0.5">
+                                {sessionNumber}
                               </div>
-                              <p className="text-xs text-muted-foreground">
-                                {session.startedAt ? format(new Date(session.startedAt), "d MMM yyyy, HH:mm") : "—"}
-                                {session.durationSeconds != null && (
-                                  <span className="ml-2">{Math.floor(session.durationSeconds / 60)}m {session.durationSeconds % 60}s</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-foreground truncate" data-testid={`text-session-title-${session.id}`}>{primaryLabel}</p>
+                                    {hasTitle && (
+                                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                        <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`badge-recording-type-${session.id}`}>
+                                          {RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType}
+                                        </Badge>
+                                        <Badge
+                                          variant={session.status === "completed" ? "default" : session.status === "failed" ? "destructive" : "secondary"}
+                                          className="text-xs no-default-hover-elevate no-default-active-elevate"
+                                          data-testid={`badge-session-status-${session.id}`}
+                                        >
+                                          {toTitleCase(session.status)}
+                                        </Badge>
+                                      </div>
+                                    )}
+                                    {!hasTitle && (
+                                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                        <Badge
+                                          variant={session.status === "completed" ? "default" : session.status === "failed" ? "destructive" : "secondary"}
+                                          className="text-xs no-default-hover-elevate no-default-active-elevate"
+                                          data-testid={`badge-session-status-${session.id}`}
+                                        >
+                                          {toTitleCase(session.status)}
+                                        </Badge>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <p className="text-xs text-muted-foreground">
+                                      {session.startedAt ? format(new Date(session.startedAt), "d MMM yyyy, HH:mm") : "—"}
+                                      {session.durationSeconds != null && (
+                                        <span className="ml-2">{Math.floor(session.durationSeconds / 60)}m {session.durationSeconds % 60}s</span>
+                                      )}
+                                    </p>
+                                    {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                                  </div>
+                                </div>
+                                {session.notes && !isExpanded && (
+                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{session.notes}</p>
                                 )}
-                              </p>
-                              {session.notes && (
-                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{session.notes}</p>
-                              )}
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                        <div className="border-t border-border px-4">
-                          <SessionDetails sessionId={session.id} />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                          </button>
+                          {isExpanded && (
+                            <div className="border-t border-border">
+                              <SessionDetails sessionId={session.id} caseId={caseId!} />
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1417,6 +1614,7 @@ export default function CaseDetail() {
         sessionType={caseData.sourceType === 'dictation' ? 'Telephone Attendance' : 'Meeting'}
       />
       <ClientCareLetterModal open={showCareLetterModal} onOpenChange={setShowCareLetterModal} caseId={caseId!} clientName={caseData.clientName} costsEstimate={caseData.costsEstimate} />
+      <NewSessionModal open={showNewSessionModal} onOpenChange={setShowNewSessionModal} caseId={caseId!} caseTitle={caseData.title} />
 
       <Dialog open={showSendCareLetterDialog} onOpenChange={setShowSendCareLetterDialog}>
         <DialogContent className="sm:max-w-md">

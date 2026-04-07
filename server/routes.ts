@@ -3789,6 +3789,23 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  // Get audio by meeting session
+  app.get("/api/audio/by-session/:sessionId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+      const session = await storage.getMeetingSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const caseRecord = await storage.getCase(session.caseId, userId);
+      if (!caseRecord) return res.status(404).json({ message: "Session not found" });
+      const audioRecording = await storage.getAudioRecordingBySession(sessionId);
+      if (!audioRecording) return res.status(404).json({ message: "Audio recording not found" });
+      res.json(audioRecording);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Stream audio recording file directly (supports all storage path formats including recall imports)
   app.get("/api/audio/:audioId/stream", isAuthenticated, async (req: any, res, next) => {
     const objectStorageService = new ObjectStorageService();
@@ -9641,6 +9658,7 @@ ${firmName}`;
       const sessionData = {
         caseId,
         recordingType,
+        sessionTitle: typeof req.body.sessionTitle === "string" && req.body.sessionTitle.trim() ? req.body.sessionTitle.trim() : undefined,
         status: "pending" as const,
         notes: typeof req.body.notes === "string" ? req.body.notes : null,
         createdBy: userId,
@@ -9701,6 +9719,9 @@ ${firmName}`;
       }
       if (typeof req.body.notes === "string") {
         updates.notes = req.body.notes;
+      }
+      if (typeof req.body.sessionTitle === "string") {
+        updates.sessionTitle = req.body.sessionTitle.trim() || null;
       }
 
       const updated = await storage.updateMeetingSession(sessionId, updates);

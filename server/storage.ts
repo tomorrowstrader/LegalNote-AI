@@ -2064,6 +2064,7 @@ export class MemStorage implements IStorage {
       id,
       caseId: sessionData.caseId,
       recordingType: sessionData.recordingType || "full_meeting",
+      sessionTitle: sessionData.sessionTitle ?? null,
       startedAt: new Date(),
       durationSeconds: sessionData.durationSeconds ?? null,
       status: sessionData.status || "pending",

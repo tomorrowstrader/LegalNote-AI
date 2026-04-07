@@ -181,6 +181,7 @@ export const meetingSessions = pgTable("meeting_sessions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
   recordingType: text("recording_type").notNull().default("full_meeting"),
+  sessionTitle: text("session_title"),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   durationSeconds: integer("duration_seconds"),
   status: text("status").notNull().default("pending"),
@@ -707,6 +708,7 @@ export const insertMeetingSessionSchema = createInsertSchema(meetingSessions).om
 }).extend({
   caseId: z.string().uuid(),
   recordingType: z.enum(["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station"]).default("full_meeting"),
+  sessionTitle: z.string().max(200).optional(),
   durationSeconds: z.number().int().min(0).max(43200).optional(),
   status: z.enum(["pending", "processing", "completed", "failed"]).default("pending"),
   notes: z.string().max(50000).optional(),

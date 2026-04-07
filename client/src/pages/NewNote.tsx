@@ -91,6 +91,7 @@ export default function NewNote() {
   const [conflictCheckCompleted, setConflictCheckCompleted] = useState(false);
   const [conflictCheckNote, setConflictCheckNote] = useState("");
   const [costsEstimate, setCostsEstimate] = useState("");
+  const [sessionLabel, setSessionLabel] = useState("");
 
   const { data: clientSearchResults = [] } = useQuery<Client[]>({
     queryKey: [`/api/clients/search?q=${encodeURIComponent(clientSearchQuery)}`],
@@ -494,6 +495,7 @@ export default function NewNote() {
 
       const sessionResult = await apiRequest<{ id: string }>("POST", `/api/cases/${targetCaseId}/sessions`, {
         recordingType,
+        sessionTitle: sessionLabel.trim() || undefined,
       });
       
       const audioResult = await apiRequest<AudioResponse>("POST", "/api/audio", {
@@ -686,6 +688,7 @@ export default function NewNote() {
 
       await apiRequest("POST", `/api/cases/${targetCaseId}/sessions`, {
         recordingType,
+        sessionTitle: sessionLabel.trim() || undefined,
       });
 
       queryClient.invalidateQueries({ 
@@ -938,7 +941,22 @@ export default function NewNote() {
                     </p>
                   )}
                 </div>
-              ) : (
+              ) : null}
+
+              {/* Session label — shown for both modes */}
+              <div className="space-y-2">
+                <Label htmlFor="session-label">Session Label <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input
+                  id="session-label"
+                  placeholder="e.g. Bail hearing, Manchester Crown Court"
+                  value={sessionLabel}
+                  onChange={(e) => setSessionLabel(e.target.value)}
+                  disabled={isRecording || countdown !== null}
+                  data-testid="input-session-label"
+                />
+              </div>
+
+              {noteMode === "new_matter" ? (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="case-title">
@@ -1093,7 +1111,7 @@ export default function NewNote() {
                     </p>
                   </div>
                 </>
-              )}
+              ) : null}
             </CardContent>
           </Card>
 
