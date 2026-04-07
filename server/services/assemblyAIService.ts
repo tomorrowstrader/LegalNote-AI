@@ -163,7 +163,7 @@ export class AssemblyAIService {
       audio_url: audioUrl,
       // Model selection: universal-3-pro is the primary choice; universal-2 is the
       // explicit fallback used when universal-3-pro is unavailable (see caller).
-      speech_model: speechModel,
+      speech_models: speechModel,
       speaker_labels: true,
       language_code: 'en_uk',
     };

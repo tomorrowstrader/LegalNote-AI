@@ -533,19 +533,17 @@ This file note is subject to legal professional privilege.`;
     document: string,
     transcript: string
   ): Promise<{ warnings: string[]; inputTokens: number; outputTokens: number; cost: number }> {
-    if (!anthropicClient) {
-      console.warn('Anthropic client not available — marking verification as not performed');
-      return { warnings: ['Automated verification could not be performed — solicitor review is required before this document is added to the client file'], inputTokens: 0, outputTokens: 0, cost: 0 };
-    }
-
     try {
       console.log('Running post-generation verification against transcript...');
 
-      const response = await anthropicClient.messages.create({
-        model: CLAUDE_MODELS.DOCUMENT_GENERATION,
+      const response = await openaiClient.chat.completions.create({
+        model: MODELS.DOCUMENT_GENERATION,
         max_tokens: 2000,
         temperature: 0,
-        system: `You are a legal document auditor. Your task is to compare a generated legal document against the source transcript and identify any statements in the document that CANNOT be traced to specific content in the transcript.
+        messages: [
+          {
+            role: 'system',
+            content: `You are a legal document auditor. Your task is to compare a generated legal document against the source transcript and identify any statements in the document that CANNOT be traced to specific content in the transcript.
 
 For each unverifiable statement, provide a brief description of the claim and why it cannot be found in the transcript.
 
@@ -559,7 +557,7 @@ Return your response as a JSON object with this structure:
 {"unverifiable_statements": ["description of statement 1 not found in transcript", "description of statement 2 not found in transcript"]}
 
 If all substantive statements are traceable to the transcript, return: {"unverifiable_statements": []}`,
-        messages: [
+          },
           {
             role: 'user',
             content: `TRANSCRIPT:\n${transcript}\n\n---\n\nGENERATED DOCUMENT:\n${document}\n\nIdentify any substantive statements in the document that cannot be traced to the transcript. Return JSON only.`,
@@ -567,10 +565,10 @@ If all substantive statements are traceable to the transcript, return: {"unverif
         ],
       });
 
-      const content = response.content[0]?.type === 'text' ? response.content[0].text : '';
-      const inputTokens = response.usage?.input_tokens || 0;
-      const outputTokens = response.usage?.output_tokens || 0;
-      const cost = calculateClaudeCost(inputTokens, outputTokens);
+      const content = response.choices[0]?.message?.content || '';
+      const inputTokens = response.usage?.prompt_tokens || 0;
+      const outputTokens = response.usage?.completion_tokens || 0;
+      const cost = calculateGPT4oCost(inputTokens, outputTokens);
 
       let warnings: string[] = [];
       try {
@@ -599,31 +597,27 @@ If all substantive statements are traceable to the transcript, return: {"unverif
     systemPrompt: string,
     userPrompt: string
   ): Promise<DocumentGenerationResult> {
-    if (!anthropicClient) {
-      throw new Error('Document generation requires ANTHROPIC_API_KEY. Claude 3.7 Sonnet is the only approved model for document generation to prevent hallucination.');
-    }
-
     try {
-      console.log('Generating document with Claude 3.7 Sonnet...');
+      console.log('Generating document with GPT-4o...');
 
-      const response = await anthropicClient.messages.create({
-        model: CLAUDE_MODELS.DOCUMENT_GENERATION,
+      const response = await openaiClient.chat.completions.create({
+        model: MODELS.DOCUMENT_GENERATION,
         max_tokens: 4000,
         temperature: 0,
-        system: systemPrompt,
         messages: [
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
       });
 
-      const rawContent = response.content[0]?.type === 'text' ? response.content[0].text : '';
-      const inputTokens = response.usage?.input_tokens || 0;
-      const outputTokens = response.usage?.output_tokens || 0;
-      const cost = calculateClaudeCost(inputTokens, outputTokens);
+      const rawContent = response.choices[0]?.message?.content || '';
+      const inputTokens = response.usage?.prompt_tokens || 0;
+      const outputTokens = response.usage?.completion_tokens || 0;
+      const cost = calculateGPT4oCost(inputTokens, outputTokens);
 
       const content = ensureBoldHeadings(rawContent);
 
-      console.log(`Document generated with Claude. Input tokens: ${inputTokens}, Output tokens: ${outputTokens}, Cost: $${cost.toFixed(4)}`);
+      console.log(`Document generated with GPT-4o. Input tokens: ${inputTokens}, Output tokens: ${outputTokens}, Cost: $${cost.toFixed(4)}`);
 
       return {
         content,
@@ -632,7 +626,7 @@ If all substantive statements are traceable to the transcript, return: {"unverif
         cost,
       };
     } catch (error: any) {
-      console.error('Claude document generation failed:', error);
+      console.error('GPT-4o document generation failed:', error);
       throw new Error(`Document generation failed: ${error.message}`);
     }
   }
