@@ -93,8 +93,7 @@ const SECTION_LABELS: Record<CaseSection, string> = {
   audit: "Audit Trail",
 };
 
-function SessionDetails({ sessionId, caseId }: { sessionId: string; caseId: string }) {
-  const [, setLocation] = useLocation();
+function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void }) {
   const { toast } = useToast();
   const { data, isLoading } = useQuery<SessionWithDetails>({
     queryKey: ['/api/sessions', sessionId],
@@ -129,7 +128,9 @@ function SessionDetails({ sessionId, caseId }: { sessionId: string; caseId: stri
   if (!data) return null;
 
   const sessionDocuments = data.documents;
-  const currentDocuments = sessionDocuments.filter(d => d.isActive);
+  const activeDocuments = sessionDocuments.filter(d => d.isActive);
+  const activeAttendanceNote = activeDocuments.find(d => d.type === 'attendance_note');
+  const inactiveCount = sessionDocuments.filter(d => !d.isActive).length;
   const sessionIsPending = data.status === "pending" || data.status === "processing";
 
   return (
@@ -186,7 +187,7 @@ function SessionDetails({ sessionId, caseId }: { sessionId: string; caseId: stri
       </div>
 
       {/* Documents */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Documents</p>
           {data.transcript && (
@@ -200,29 +201,38 @@ function SessionDetails({ sessionId, caseId }: { sessionId: string; caseId: stri
             >
               {generateDocsMutation.isPending
                 ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</>
-                : <><FileText className="w-3.5 h-3.5" />{currentDocuments.length > 0 ? "Regenerate" : "Generate documents"}</>}
+                : <><FileText className="w-3.5 h-3.5" />{activeDocuments.length > 0 ? "Regenerate" : "Generate documents"}</>}
             </Button>
           )}
         </div>
-        {sessionDocuments.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {sessionDocuments.map(doc => (
-              <button
-                key={doc.id}
-                onClick={() => setLocation(`/case/${caseId}?tab=${doc.type === "summary" ? "summary" : "attendance"}&sessionId=${sessionId}`)}
-                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border bg-card hover-elevate"
-                data-testid={`session-doc-${doc.id}`}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                {doc.type === "summary" ? "Matter Record" : "Attendance Note"}
-                {doc.version > 1 && <span className="text-muted-foreground">v{doc.version}</span>}
-                {!doc.isActive && <span className="text-muted-foreground">(prev)</span>}
-              </button>
-            ))}
+        {activeAttendanceNote ? (
+          <div className="space-y-1.5">
+            <Button
+              size="sm"
+              variant="default"
+              onClick={onOpenAttendanceNote}
+              data-testid={`button-open-attendance-note-${sessionId}`}
+              className="gap-1.5"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Open Attendance Note
+            </Button>
+            {inactiveCount > 0 && (
+              <p className="text-xs text-muted-foreground" data-testid={`text-older-versions-${sessionId}`}>
+                {inactiveCount} previous {inactiveCount === 1 ? "version" : "versions"}
+              </p>
+            )}
           </div>
-        ) : (
+        ) : activeDocuments.length === 0 ? (
           <p className="text-xs text-muted-foreground">No documents linked to this session.</p>
-        )}
+        ) : null}
+        <button
+          onClick={onOpenAttendanceNote}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors duration-150 underline-offset-2 hover:underline"
+          data-testid={`link-view-all-session-docs-${sessionId}`}
+        >
+          View all documents for this session
+        </button>
       </div>
     </div>
   );
@@ -249,6 +259,7 @@ export default function CaseDetail() {
   const [showCareLetterModal, setShowCareLetterModal] = useState(false);
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const [focusSessionId, setFocusSessionId] = useState<string | null>(null);
   const [showSendCareLetterDialog, setShowSendCareLetterDialog] = useState(false);
   const [sendEmail, setSendEmail] = useState("");
   const [isSendingCareLetter, setIsSendingCareLetter] = useState(false);
@@ -392,16 +403,44 @@ export default function CaseDetail() {
   });
 
   type LiveImport = { importId: string; botId: string | null; status: string; botStatus: string | null; errorMessage: string | null; createdAt: string; consentMode?: string; consentConfirmed?: boolean };
+  const liveImportConsecutive429Ref = useRef(0);
+  const liveImportPollIntervalRef = useRef(20000);
+
+  const liveImportQueryFn = async (): Promise<LiveImport | null> => {
+    const res = await fetch(`/api/cases/${caseId}/live-import`, { credentials: 'include' });
+    if (res.status === 429) {
+      liveImportConsecutive429Ref.current += 1;
+      // First 429 → 30s, subsequent → double up to 60s
+      liveImportPollIntervalRef.current = liveImportConsecutive429Ref.current === 1
+        ? 30000
+        : Math.min(liveImportPollIntervalRef.current * 2, 60000);
+      const err = Object.assign(new Error('429: Too Many Requests'), { status: 429 });
+      throw err;
+    }
+    if (!res.ok) {
+      const text = (await res.text()) || res.statusText;
+      throw new Error(`${res.status}: ${text}`);
+    }
+    // Reset backoff on successful response
+    liveImportConsecutive429Ref.current = 0;
+    liveImportPollIntervalRef.current = 20000;
+    return res.json();
+  };
+
   const { data: liveImport, refetch: refetchLiveImport } = useQuery<LiveImport | null>({
     queryKey: [`/api/cases/${caseId}/live-import`],
     enabled: !!caseId,
+    queryFn: liveImportQueryFn,
+    retry: false,
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return false;
-      // Keep polling for active imports or completed imports awaiting consent resolution
-      if (['live', 'pending', 'transcribing'].includes(data.status)) return 10000;
-      if (['transcribing', 'completed', 'failed'].includes(data.status) && data.consentMode === 'in_meeting' && !data.consentConfirmed) return 10000;
-      return false;
+      if (liveImportConsecutive429Ref.current >= 3) return false;
+      const shouldPoll =
+        ['live', 'pending', 'transcribing'].includes(data.status) ||
+        (['transcribing', 'completed', 'failed'].includes(data.status) && data.consentMode === 'in_meeting' && !data.consentConfirmed);
+      if (!shouldPoll) return false;
+      return liveImportPollIntervalRef.current;
     },
   });
 
@@ -915,53 +954,63 @@ export default function CaseDetail() {
           {/* Live / pending bot import banner — suppress for completed imports returned only for unresolved consent */}
           {/* Also suppress if status is 'transcribing' but documents already exist (stuck import guard) */}
           {liveImport && liveImport.status !== 'completed' && !(liveImport.status === 'transcribing' && documents.length > 0) && (
-            <div
-              className={`p-4 rounded-md border flex items-start gap-3 ${
-                liveImport.status === 'failed'
-                  ? 'bg-destructive/10 border-destructive/40'
-                  : 'bg-accent/10 border-accent/30'
-              }`}
-              data-testid="alert-live-import"
-            >
-              {liveImport.status === 'failed' ? (
-                <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-              ) : liveImport.status === 'transcribing' ? (
-                <Loader2 className="w-5 h-5 text-accent shrink-0 mt-0.5 animate-spin" />
-              ) : (
-                <Video className="w-5 h-5 text-accent shrink-0 mt-0.5" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">
-                  {liveImport.status === 'failed' && 'Recording processing failed'}
-                  {liveImport.status === 'transcribing' && 'Transcribing recording…'}
-                  {liveImport.status === 'pending' && 'Recording ready to process'}
-                  {liveImport.status === 'live' && (
-                    liveImport.botStatus === 'done' || liveImport.botStatus === 'recording_done'
-                      ? 'Recording ready to process'
-                      : 'Bot recording in progress'
-                  )}
-                </p>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  {liveImport.status === 'failed' && (liveImport.errorMessage || 'An error occurred during processing.')}
-                  {liveImport.status === 'transcribing' && 'Transcript and documents will appear here when ready.'}
-                  {(liveImport.status === 'pending' || (liveImport.status === 'live' && (liveImport.botStatus === 'done' || liveImport.botStatus === 'recording_done')))
-                    && 'The recording is available — click to transcribe and produce documents.'}
-                  {liveImport.status === 'live' && liveImport.botStatus !== 'done' && liveImport.botStatus !== 'recording_done'
-                    && 'The bot is still in the meeting. Processing will start automatically once it finishes.'}
-                </p>
+            liveImportConsecutive429Ref.current >= 3 && liveImport.status === 'transcribing' ? (
+              <div className="p-4 rounded-md border bg-muted/40 border-border flex items-start gap-3" data-testid="alert-live-import-stalled">
+                <Clock className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">Processing — check back later</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">Transcription is taking longer than expected. The page will update when it completes.</p>
+                </div>
               </div>
-              {(liveImport.status === 'pending' || liveImport.status === 'failed' || (liveImport.status === 'live' && (liveImport.botStatus === 'done' || liveImport.botStatus === 'recording_done'))) && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={processImportMutation.isPending}
-                  onClick={() => processImportMutation.mutate(liveImport.importId)}
-                  data-testid="button-process-recording"
-                >
-                  {processImportMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Process recording'}
-                </Button>
-              )}
-            </div>
+            ) : (
+              <div
+                className={`p-4 rounded-md border flex items-start gap-3 ${
+                  liveImport.status === 'failed'
+                    ? 'bg-destructive/10 border-destructive/40'
+                    : 'bg-accent/10 border-accent/30'
+                }`}
+                data-testid="alert-live-import"
+              >
+                {liveImport.status === 'failed' ? (
+                  <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                ) : liveImport.status === 'transcribing' ? (
+                  <Loader2 className="w-5 h-5 text-accent shrink-0 mt-0.5 animate-spin" />
+                ) : (
+                  <Video className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">
+                    {liveImport.status === 'failed' && 'Recording processing failed'}
+                    {liveImport.status === 'transcribing' && 'Transcribing recording…'}
+                    {liveImport.status === 'pending' && 'Recording ready to process'}
+                    {liveImport.status === 'live' && (
+                      liveImport.botStatus === 'done' || liveImport.botStatus === 'recording_done'
+                        ? 'Recording ready to process'
+                        : 'Bot recording in progress'
+                    )}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {liveImport.status === 'failed' && (liveImport.errorMessage || 'An error occurred during processing.')}
+                    {liveImport.status === 'transcribing' && 'Transcript and documents will appear here when ready.'}
+                    {(liveImport.status === 'pending' || (liveImport.status === 'live' && (liveImport.botStatus === 'done' || liveImport.botStatus === 'recording_done')))
+                      && 'The recording is available — click to transcribe and produce documents.'}
+                    {liveImport.status === 'live' && liveImport.botStatus !== 'done' && liveImport.botStatus !== 'recording_done'
+                      && 'The bot is still in the meeting. Processing will start automatically once it finishes.'}
+                  </p>
+                </div>
+                {(liveImport.status === 'pending' || liveImport.status === 'failed' || (liveImport.status === 'live' && (liveImport.botStatus === 'done' || liveImport.botStatus === 'recording_done'))) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={processImportMutation.isPending}
+                    onClick={() => processImportMutation.mutate(liveImport.importId)}
+                    data-testid="button-process-recording"
+                  >
+                    {processImportMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Process recording'}
+                  </Button>
+                )}
+              </div>
+            )
           )}
 
           {/* Missing-consent banner for bot meetings where consent was not confirmed — shown once session has clearly ended */}
@@ -1235,7 +1284,7 @@ export default function CaseDetail() {
                   onTranscriptTimestampClick={handleTranscriptTimestampClick}
                   initialTab={urlTab !== 'compliance' ? (urlTab || undefined) : undefined}
                   initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
-                  focusSessionId={urlSessionId || undefined}
+                  focusSessionId={focusSessionId || urlSessionId || undefined}
                 />
               </div>
             );
@@ -1266,67 +1315,74 @@ export default function CaseDetail() {
                     const sessionNumber = sorted.length - idx;
                     const primaryLabel = session.sessionTitle || RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType;
                     const hasTitle = !!session.sessionTitle;
+                    const navigateToSessionDocs = () => {
+                      setFocusSessionId(session.id);
+                      setActiveSection('documents');
+                    };
                     return (
                       <Card key={session.id} className="overflow-hidden" data-testid={`session-item-${session.id}`}>
                         <CardContent className="p-0">
-                          <button
-                            className="w-full p-4 text-left hover-elevate"
-                            onClick={() => setExpandedSessionId(isExpanded ? null : session.id)}
-                            data-testid={`button-expand-session-${session.id}`}
-                          >
-                            <div className="flex items-start gap-4">
-                              <div className="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center text-xs font-semibold text-accent shrink-0 mt-0.5">
-                                {sessionNumber}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium text-foreground truncate" data-testid={`text-session-title-${session.id}`}>{primaryLabel}</p>
-                                    {hasTitle && (
-                                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                        <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`badge-recording-type-${session.id}`}>
-                                          {RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType}
-                                        </Badge>
-                                        <Badge
-                                          variant={session.status === "completed" ? "default" : session.status === "failed" ? "destructive" : "secondary"}
-                                          className="text-xs no-default-hover-elevate no-default-active-elevate"
-                                          data-testid={`badge-session-status-${session.id}`}
-                                        >
-                                          {toTitleCase(session.status)}
-                                        </Badge>
-                                      </div>
-                                    )}
-                                    {!hasTitle && (
-                                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                        <Badge
-                                          variant={session.status === "completed" ? "default" : session.status === "failed" ? "destructive" : "secondary"}
-                                          className="text-xs no-default-hover-elevate no-default-active-elevate"
-                                          data-testid={`badge-session-status-${session.id}`}
-                                        >
-                                          {toTitleCase(session.status)}
-                                        </Badge>
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <p className="text-xs text-muted-foreground">
-                                      {session.startedAt ? format(new Date(session.startedAt), "d MMM yyyy, HH:mm") : "—"}
-                                      {session.durationSeconds != null && (
-                                        <span className="ml-2">{Math.floor(session.durationSeconds / 60)}m {session.durationSeconds % 60}s</span>
-                                      )}
-                                    </p>
-                                    {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-                                  </div>
-                                </div>
-                                {session.notes && !isExpanded && (
-                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{session.notes}</p>
-                                )}
-                              </div>
+                          <div className="w-full p-4 text-left flex items-start gap-4">
+                            <div className="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center text-xs font-semibold text-accent shrink-0 mt-0.5">
+                              {sessionNumber}
                             </div>
-                          </button>
+                            <button
+                              className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
+                              onClick={navigateToSessionDocs}
+                              data-testid={`button-open-session-docs-${session.id}`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-foreground truncate" data-testid={`text-session-title-${session.id}`}>{primaryLabel}</p>
+                                  {hasTitle && (
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                      <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`badge-recording-type-${session.id}`}>
+                                        {RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType}
+                                      </Badge>
+                                      <Badge
+                                        variant={session.status === "completed" ? "default" : session.status === "failed" ? "destructive" : "secondary"}
+                                        className="text-xs no-default-hover-elevate no-default-active-elevate"
+                                        data-testid={`badge-session-status-${session.id}`}
+                                      >
+                                        {toTitleCase(session.status)}
+                                      </Badge>
+                                    </div>
+                                  )}
+                                  {!hasTitle && (
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                      <Badge
+                                        variant={session.status === "completed" ? "default" : session.status === "failed" ? "destructive" : "secondary"}
+                                        className="text-xs no-default-hover-elevate no-default-active-elevate"
+                                        data-testid={`badge-session-status-${session.id}`}
+                                      >
+                                        {toTitleCase(session.status)}
+                                      </Badge>
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground shrink-0">
+                                  {session.startedAt ? format(new Date(session.startedAt), "d MMM yyyy, HH:mm") : "—"}
+                                  {session.durationSeconds != null && (
+                                    <span className="ml-2">{Math.floor(session.durationSeconds / 60)}m {session.durationSeconds % 60}s</span>
+                                  )}
+                                </p>
+                              </div>
+                              {session.notes && !isExpanded && (
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{session.notes}</p>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => setExpandedSessionId(isExpanded ? null : session.id)}
+                              className="text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5"
+                              data-testid={`button-expand-session-${session.id}`}
+                              aria-label={isExpanded ? "Collapse session" : "Expand session"}
+                            >
+                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+                          </div>
                           {isExpanded && (
                             <div className="border-t border-border">
-                              <SessionDetails sessionId={session.id} caseId={caseId!} />
+                              <SessionDetails sessionId={session.id} caseId={caseId!} onOpenAttendanceNote={navigateToSessionDocs} />
                             </div>
                           )}
                         </CardContent>

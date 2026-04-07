@@ -522,6 +522,19 @@ export default function NewNote() {
         }
         
         console.log('Audio upload completed successfully');
+
+        if (noteMode === "add_session") {
+          apiRequest("POST", `/api/cases/${targetCaseId}/process`, { sessionId: sessionResult.id })
+            .then(() => console.log('Processing triggered for new session'))
+            .catch((processError: unknown) => {
+              console.error('Failed to auto-trigger processing:', processError);
+              toast({
+                title: "Recording saved — tap Process to generate documents",
+                description: "The recording was saved but processing could not start automatically.",
+                duration: 8000,
+              });
+            });
+        }
       }
       
       if (consentGiven !== null) {
