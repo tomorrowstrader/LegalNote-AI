@@ -38,7 +38,7 @@ function resolveTemplatePath(filename: string): string {
   return possiblePaths[0];
 }
 import { storage } from "./storage";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation } from "@shared/schema";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -58,6 +58,8 @@ import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { openaiService } from "./openaiService";
 import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail } from "./email";
 import { generateSignedAuditPDF } from "./services/signedAuditExport";
+import { assembleSraReportData, buildSraReportPreview } from "./services/sraReportService";
+import { compileSraReportPdf } from "./services/sraReportPdf";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent } from "./calendar";
 import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
 import { isReplitOutlookConnected, createReplitOutlookEvent, updateReplitOutlookEvent, deleteReplitOutlookEvent, getOutlookUserEmail } from "./replitOutlook";
@@ -5392,6 +5394,407 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
       const items = await storage.getAllOutstandingUndertakings();
       res.json(items);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ---- Conflict Check (singular path per spec) ----
+  app.get("/api/cases/:id/conflict-check", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(403).json({ message: "Not authorized" });
+      const records = await storage.getConflictChecksByCase(caseId);
+      res.json(records);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/conflict-check", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(403).json({ message: "Not authorized" });
+      const parsed = insertConflictCheckSchema.safeParse({ ...req.body, caseId, performedBy: userId });
+      if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+      const record = await storage.createConflictCheck(parsed.data);
+      await logAuditEvent(userId, "conflict_check_recorded", { caseId, metadata: { outcome: record.outcome }, req });
+      res.status(201).json(record);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ---- Conflict Checks (plural alias retained for backwards compatibility) ----
+  app.get("/api/cases/:id/conflict-checks", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(403).json({ message: "Not authorized" });
+      const records = await storage.getConflictChecksByCase(caseId);
+      res.json(records);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/conflict-checks", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(403).json({ message: "Not authorized" });
+      const parsed = insertConflictCheckSchema.safeParse({ ...req.body, caseId, performedBy: userId });
+      if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+      const record = await storage.createConflictCheck(parsed.data);
+      await logAuditEvent(userId, "conflict_check_recorded", { caseId, metadata: { outcome: record.outcome }, req });
+      res.status(201).json(record);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ---- SRA Compliance Readiness ----
+  app.get("/api/cases/:id/sra-readiness", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(403).json({ message: "Not authorized" });
+
+      const [
+        client,
+        consentLogs,
+        amlDecisions,
+        amlMonitoringNotes,
+        conflictChecks,
+        documents,
+        obligations,
+        undertakings,
+        sessions,
+        timeEntries,
+      ] = await Promise.all([
+        caseData.clientId ? storage.getClient(caseData.clientId) : Promise.resolve(undefined),
+        storage.getConsentLogsByCase(caseId),
+        storage.getAmlDecisionRecords(caseId),
+        storage.getAmlMonitoringNotes(caseId),
+        storage.getConflictChecksByCase(caseId),
+        storage.getDocumentsByCase(caseId, userId),
+        storage.getActionItemsByCase(caseId, userId),
+        storage.getUndertakingsByCase(caseId),
+        storage.getMeetingSessionsByCase(caseId),
+        storage.getTimeEntriesByCase(caseId),
+      ]);
+
+      type ReadinessCriterion = {
+        key: string;
+        label: string;
+        status: "green" | "amber" | "red";
+        detail: string;
+        sraRef: string;
+        actionRoute: string | null;
+        externalNote: string | null;
+      };
+      const criteria: ReadinessCriterion[] = [];
+      const now = new Date();
+
+      // 1. Client identity verification and AML (SRA Standard 4, MLR 2017)
+      // Red: No AML risk level assigned to the client/matter record
+      // Red: No AML monitoring notes or decisions recorded at all
+      // Amber: AML monitoring notes recorded but no formal AML decision (trigger assessment)
+      // Amber: High-risk matter with no EDD rationale recorded
+      // Green: AML risk level assigned and monitoring on record
+      // amlDecisions = AmlDecisionRecord[] (trigger event/concern decisions)
+      // amlMonitoringNotes = AmlMonitoringNote[] (monitoring entries including EDD)
+      const hasAmlDecision = amlDecisions && amlDecisions.length > 0;
+      const hasAmlMonitoring = amlMonitoringNotes && amlMonitoringNotes.length > 0;
+      const latestMonitoring = hasAmlMonitoring
+        ? [...amlMonitoringNotes].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())[0]
+        : null;
+      const clientTyped = client as ({ amlRiskLevel?: string | null } | undefined);
+      const amlRiskAssigned = !!(clientTyped?.amlRiskLevel || caseData.riskLevel);
+      const clientIsHighRisk = clientTyped?.amlRiskLevel === "high" || caseData.riskLevel === "high";
+      const amlHasEddRationale = hasAmlMonitoring && amlMonitoringNotes.some((n) => n.eddDecision || n.eddReasoning);
+      const latestRisk = latestMonitoring?.riskLevel ?? caseData.riskLevel ?? "standard";
+      let amlStatus: "green" | "amber" | "red" = "green";
+      let amlDetail = `AML monitoring on record. Risk level: ${latestRisk}.`;
+      if (!amlRiskAssigned) {
+        amlStatus = "red";
+        amlDetail = "No AML risk level assigned to this matter or client. SRA AML compliance requires risk classification before acting.";
+      } else if (!hasAmlMonitoring) {
+        amlStatus = "red";
+        amlDetail = "No AML monitoring records on file. Identity verification and source of funds must be documented before acting.";
+      } else if (!hasAmlDecision && hasAmlMonitoring && amlMonitoringNotes.some(n => n.recordType === "inception")) {
+        // Inception note present but no formal AML trigger decision — green if risk is assigned and inception recorded
+        amlStatus = "green";
+        amlDetail = `AML inception check recorded. Risk level: ${latestRisk}.`;
+        if (clientIsHighRisk && !amlHasEddRationale) {
+          amlStatus = "amber";
+          amlDetail = "High-risk matter. Enhanced due diligence (EDD) rationale should be recorded in the monitoring notes.";
+        }
+      } else if (!hasAmlDecision && hasAmlMonitoring) {
+        amlStatus = "amber";
+        amlDetail = "AML monitoring notes recorded but no formal AML trigger decision found.";
+      } else if (clientIsHighRisk && !amlHasEddRationale) {
+        amlStatus = "amber";
+        amlDetail = "High-risk matter. Enhanced due diligence (EDD) rationale should be recorded in the monitoring notes.";
+      }
+      criteria.push({
+        key: "client_identity",
+        label: "Client Identity and AML",
+        status: amlStatus,
+        detail: amlDetail,
+        sraRef: "SRA AML Practice Note 2023, r.28 MLR 2017",
+        actionRoute: `/cases/${caseId}?tab=compliance`,
+        externalNote: "Identity verification documents held externally are not reflected here.",
+      });
+
+      // 2. Conflict of interest check (SRA Code 6.1)
+      // Red: No conflict check recorded
+      // Amber: Conflict identified and managed (requires ongoing review)
+      const hasConflictCheck = conflictChecks && conflictChecks.length > 0;
+      const latestConflict = hasConflictCheck
+        ? [...conflictChecks].sort((a, b) => new Date(b.datePerformed ?? 0).getTime() - new Date(a.datePerformed ?? 0).getTime())[0]
+        : null;
+      criteria.push({
+        key: "conflict_check",
+        label: "Conflict of Interest Check",
+        status: !hasConflictCheck ? "red" : latestConflict?.outcome === "conflict_managed" ? "amber" : "green",
+        detail: !hasConflictCheck
+          ? "No conflict check recorded. SRA Code requires a check before acting."
+          : latestConflict?.outcome === "conflict_managed"
+          ? "Conflict identified and managed. Management measures should be reviewed."
+          : "Conflict check recorded: no conflict identified.",
+        sraRef: "SRA Code of Conduct 2019, para 6.1-6.2",
+        actionRoute: null,
+        externalNote: "Conflicts held in a separate firm register are not reflected here.",
+      });
+
+      // 3a. Client care letter - independent Red/Amber/Green criterion
+      // Red: No client care letter recorded
+      // Amber: Care letter recorded but not yet acknowledged by client
+      // Green: Care letter recorded and acknowledged
+      const careLetterDoc = documents && documents.find((d) => d.type === "client_care_letter" && d.isActive);
+      const careLetterAcknowledged = !!careLetterDoc?.acknowledgedAt;
+      let careLetterStatus: "green" | "amber" | "red" = !careLetterDoc ? "red"
+        : !careLetterAcknowledged ? "amber"
+        : "green";
+      const careLetterDetail = !careLetterDoc
+        ? "No client care letter recorded in LegalNote. A care letter is required before substantive work."
+        : !careLetterAcknowledged
+        ? `Client care letter issued on ${careLetterDoc.createdAt ? new Date(careLetterDoc.createdAt as string).toLocaleDateString("en-GB") : "unknown date"} but not yet acknowledged by client.`
+        : `Client care letter issued and acknowledged by client.`;
+      criteria.push({
+        key: "client_care_letter",
+        label: "Client Care Letter",
+        status: careLetterStatus,
+        detail: careLetterDetail,
+        sraRef: "SRA Code of Conduct 2019, para 8.6; SRA Transparency Rules",
+        actionRoute: `/cases/${caseId}?tab=documents`,
+        externalNote: "Letters held in paper or external DMS are not reflected here.",
+      });
+
+      // 3b. Consent for recording - independent Red/Amber/Green criterion
+      // Red: No consent records at all
+      // Red: Any consent log records a declined consent (regardless of other logs)
+      // Amber: Consent has been withdrawn for at least one session
+      // Green: Consent given and not withdrawn, with no declined records
+      const givenConsent = consentLogs && consentLogs.some((c) => c.consentGiven === true && !c.consentWithdrawn);
+      const declinedConsent = consentLogs && consentLogs.some((c) => c.consentGiven === false);
+      const withdrawnConsent = consentLogs && consentLogs.some((c) => c.consentWithdrawn === true);
+      let consentStatus: "green" | "amber" | "red" = "green";
+      let consentDetail = "Consent recorded and confirmed for this matter.";
+      if (!consentLogs || consentLogs.length === 0) {
+        consentStatus = "red";
+        consentDetail = "No consent records found for this matter. Consent must be recorded before any session recording.";
+      } else if (declinedConsent) {
+        // Any declined consent record is Red — regardless of whether other sessions have consent
+        consentStatus = "red";
+        consentDetail = "Consent was declined for at least one session. Recording must not proceed without documented lawful basis.";
+      } else if (withdrawnConsent) {
+        consentStatus = "amber";
+        consentDetail = "Consent has been withdrawn for at least one session. Recordings after withdrawal should not be retained.";
+      } else if (givenConsent) {
+        // Amber if consent is verbal/attested only AND no care letter has been acknowledged
+        // (no documentary evidence of client acknowledgement in that case)
+        const allVerbalAttested = consentLogs!.filter(c => c.consentGiven === true && !c.consentWithdrawn)
+          .every(c => c.consentModality === "verbal_attested");
+        if (allVerbalAttested && !careLetterAcknowledged) {
+          consentStatus = "amber";
+          consentDetail = "Consent recorded verbally (attested) but no client acknowledgement document is on file. Consider obtaining written or electronically confirmed consent to strengthen the record.";
+        } else {
+          consentStatus = "green";
+        }
+      }
+      criteria.push({
+        key: "client_consent",
+        label: "Consent for Recording",
+        status: consentStatus,
+        detail: consentDetail,
+        sraRef: "GDPR Art. 6 / Art. 9; SRA Code of Conduct 2019, para 8.6",
+        actionRoute: `/cases/${caseId}?tab=consent`,
+        externalNote: null,
+      });
+
+      // 4. Matter record and attendance notes (SRA Code 8.7)
+      // Red: Sessions exist but NO session has an attendance note
+      // Amber: Sessions exist but only some have an attendance note; or no sessions at all
+      // Green: All sessions have an associated attendance note
+      const hasSessionNotes = sessions && sessions.length > 0;
+      const sessionsWithAttendanceNotes = sessions
+        ? sessions.filter((s) => documents && documents.some(
+            (d) => d.isActive && d.type === "attendance_note" && d.meetingSessionId === s.id
+          )).length
+        : 0;
+      let attendanceStatus: "green" | "amber" | "red" = "green";
+      let attendanceDetail = `${sessions?.length ?? 0} session(s), each with an attendance note on file.`;
+      if (!hasSessionNotes) {
+        attendanceStatus = "amber";
+        attendanceDetail = "No session records on file. Attendance notes should be created for all client contact.";
+      } else if (sessionsWithAttendanceNotes === 0) {
+        attendanceStatus = "red";
+        attendanceDetail = `${sessions?.length ?? 0} session(s) recorded but no attendance notes found for any session.`;
+      } else if (sessionsWithAttendanceNotes < (sessions?.length ?? 0)) {
+        attendanceStatus = "amber";
+        attendanceDetail = `${sessionsWithAttendanceNotes} of ${sessions?.length} session(s) have an attendance note on file.`;
+      }
+      criteria.push({
+        key: "matter_record",
+        label: "Matter Record (Attendance Notes)",
+        status: attendanceStatus,
+        detail: attendanceDetail,
+        sraRef: "SRA Code of Conduct 2019, para 8.7",
+        actionRoute: `/cases/${caseId}?tab=attendance`,
+        externalNote: "Paper attendance notes or telephone records held externally are not reflected here.",
+      });
+
+      // 5. Open obligations (SRA Code 8.7)
+      // Green: No open/overdue obligations
+      // Green: Open obligations that are not overdue (future-dated or undated)
+      // Amber: Any obligations past their due date
+      const openObligations = (obligations || []).filter(
+        (o) => o.status !== "completed" && o.status !== "done" && o.status !== "rejected"
+      );
+      const overdueObligations = openObligations.filter(
+        (o) => o.dueDate && new Date(o.dueDate as string) < now
+      );
+      criteria.push({
+        key: "obligations",
+        label: "Open Obligations",
+        status: overdueObligations.length > 0 ? "amber" : "green",
+        detail: overdueObligations.length > 0
+          ? `${overdueObligations.length} obligation(s) past due date. Prompt attention required.`
+          : openObligations.length === 0
+          ? "All obligations complete or closed."
+          : `${openObligations.length} open obligation(s), none currently overdue.`,
+        sraRef: "SRA Code of Conduct 2019, para 8.7",
+        actionRoute: `/cases/${caseId}?tab=obligations`,
+        externalNote: null,
+      });
+
+      // 6. Undertakings (SRA Code 1.3, Law Society Undertakings Practice Note)
+      // Green: No outstanding undertakings, or all recently given (under 30 days)
+      // Amber: Any undertaking outstanding for more than 30 days (requires review)
+      const openUndertakings = (undertakings || []).filter((u) => u.status === "outstanding");
+      const longStandingUndertakings = openUndertakings.filter((u) => {
+        if (!u.dateGiven) return false;
+        return (now.getTime() - new Date(u.dateGiven as string).getTime()) > 30 * 24 * 60 * 60 * 1000;
+      });
+      criteria.push({
+        key: "undertakings",
+        label: "Undertakings",
+        status: longStandingUndertakings.length > 0 ? "amber" : "green",
+        detail: longStandingUndertakings.length > 0
+          ? `${longStandingUndertakings.length} undertaking(s) outstanding for over 30 days. Prompt discharge required.`
+          : openUndertakings.length > 0
+          ? `${openUndertakings.length} undertaking(s) outstanding (all given within the last 30 days).`
+          : "No outstanding undertakings.",
+        sraRef: "SRA Code of Conduct 2019, para 1.3; Law Society Undertakings Practice Note",
+        actionRoute: `/cases/${caseId}?tab=undertakings`,
+        externalNote: null,
+      });
+
+      // 7. Time recording (SRA Transparency Rules)
+      // Amber: No time entries recorded where sessions exist
+      const hasTimeEntries = timeEntries && timeEntries.length > 0;
+      criteria.push({
+        key: "time_recording",
+        label: "Time Recording",
+        status: hasSessionNotes && !hasTimeEntries ? "amber" : "green",
+        detail: !hasTimeEntries && hasSessionNotes
+          ? "Sessions recorded but no time entries found. Time recording is expected for billing transparency."
+          : !hasTimeEntries
+          ? "No time entries recorded for this matter."
+          : `${timeEntries.length} time entr${timeEntries.length === 1 ? "y" : "ies"} recorded.`,
+        sraRef: "SRA Transparency Rules 2018; SRA Code of Conduct 2019, para 8.7",
+        actionRoute: `/cases/${caseId}?tab=time`,
+        externalNote: "Time entries held in external billing systems are not reflected here.",
+      });
+
+      // Overall status and outstanding count
+      const hasRed = criteria.some((c) => c.status === "red");
+      const hasAmber = criteria.some((c) => c.status === "amber");
+      const overall: "green" | "amber" | "red" = hasRed ? "red" : hasAmber ? "amber" : "green";
+      const outstandingCount = criteria.filter((c) => c.status !== "green").length;
+
+      res.json({
+        overall,
+        outstandingCount,
+        criteria,
+        disclaimer: "This readiness check is based solely on records held in LegalNote for this matter. Records held in external systems, paper files, or other practice management systems are not reflected. This check does not constitute legal advice and is not a substitute for professional regulatory review.",
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ---- SRA Matter Report Preview (section counts for modal) ----
+  app.get("/api/cases/:id/sra-report/preview", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(403).json({ message: "Not authorized" });
+      const reportData = await assembleSraReportData(caseId, userId);
+      const preview = buildSraReportPreview(reportData);
+      res.json({
+        ...preview,
+        disclaimer: "This report is a complete extract of records held in LegalNote for this matter. Records held in external systems, paper files, or other practice management systems are not included. Compile only for the purpose of SRA regulatory review or file audit.",
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ---- SRA Matter Report (compile PDF) ----
+  app.post("/api/cases/:id/sra-report", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(403).json({ message: "Not authorized" });
+
+      const reportData = await assembleSraReportData(caseId, userId);
+      const pdfBytes = compileSraReportPdf(reportData);
+
+      await logAuditEvent(userId, "sra_report_compiled", {
+        caseId,
+        metadata: { reportTitle: `SRA Matter Report - ${caseData.title}` },
+        req,
+        severity: "high",
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="SRA-Matter-Report-${caseId}.pdf"`
+      );
+      res.end(pdfBytes);
     } catch (error) {
       next(error);
     }

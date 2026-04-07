@@ -1683,3 +1683,28 @@ export const insertFirmSchema = createInsertSchema(firms).omit({
 
 export type InsertFirm = z.infer<typeof insertFirmSchema>;
 export type Firm = typeof firms.$inferSelect;
+
+// Conflict of Interest checks (per-matter, standalone record)
+export const conflictChecks = pgTable("conflict_checks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  performedBy: varchar("performed_by").notNull().references(() => users.id),
+  datePerformed: timestamp("date_performed").notNull().defaultNow(),
+  outcome: text("outcome").notNull(), // no_conflict | conflict_managed
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertConflictCheckSchema = createInsertSchema(conflictChecks).omit({
+  id: true,
+  createdAt: true,
+  datePerformed: true,
+}).extend({
+  caseId: z.string().uuid(),
+  performedBy: z.string().min(1),
+  outcome: z.enum(["no_conflict", "conflict_managed"]),
+  notes: z.string().max(5000).optional(),
+});
+
+export type InsertConflictCheck = z.infer<typeof insertConflictCheckSchema>;
+export type ConflictCheck = typeof conflictChecks.$inferSelect;

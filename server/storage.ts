@@ -38,6 +38,7 @@ import {
   type Firm, type InsertFirm,
   type FirmInvitation, type InsertFirmInvitation,
   type RoleChangeLog, type InsertRoleChangeLog,
+  type ConflictCheck, type InsertConflictCheck,
   users,
   clients,
   cases,
@@ -77,6 +78,7 @@ import {
   firms,
   firmInvitations,
   roleChangeLogs,
+  conflictChecks,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -676,6 +678,8 @@ export interface IStorage {
   createRoleChangeLog(data: InsertRoleChangeLog): Promise<RoleChangeLog>;
   getRoleChangeLogs(userId: string): Promise<RoleChangeLog[]>;
   getFirmRoleChangeLogs(firmId: string): Promise<RoleChangeLog[]>;
+  getConflictChecksByCase(caseId: string): Promise<ConflictCheck[]>;
+  createConflictCheck(data: InsertConflictCheck): Promise<ConflictCheck>;
 }
 
 export class MemStorage implements IStorage {
@@ -2251,6 +2255,14 @@ export class MemStorage implements IStorage {
   async createRoleChangeLog(_data: InsertRoleChangeLog): Promise<RoleChangeLog> { throw new Error("Not implemented"); }
   async getRoleChangeLogs(_userId: string): Promise<RoleChangeLog[]> { return []; }
   async getFirmRoleChangeLogs(_firmId: string): Promise<RoleChangeLog[]> { return []; }
+
+  async getConflictChecksByCase(_caseId: string): Promise<ConflictCheck[]> {
+    return [];
+  }
+
+  async createConflictCheck(_data: InsertConflictCheck): Promise<ConflictCheck> {
+    throw new Error("MemStorage: createConflictCheck not implemented");
+  }
 }
 
 export class DbStorage implements IStorage {
@@ -5429,6 +5441,15 @@ export class DbStorage implements IStorage {
     return await db.select().from(roleChangeLogs)
       .where(eq(roleChangeLogs.firmId, firmId))
       .orderBy(desc(roleChangeLogs.changedAt));
+  async getConflictChecksByCase(caseId: string): Promise<ConflictCheck[]> {
+    return await db.select().from(conflictChecks)
+      .where(eq(conflictChecks.caseId, caseId))
+      .orderBy(desc(conflictChecks.datePerformed));
+  }
+
+  async createConflictCheck(data: InsertConflictCheck): Promise<ConflictCheck> {
+    const [created] = await db.insert(conflictChecks).values(data).returning();
+    return created;
   }
 }
 

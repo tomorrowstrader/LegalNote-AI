@@ -7,7 +7,7 @@ import { resolveBrandingMode } from '@shared/letterhead';
 // AUDIT_SIGNING_KEY must be set via environment variable at startup (see server/index.ts).
 // This module reads it at call time so it picks up the auto-generated key if the env var
 // was not set before server startup.
-function getSigningKey(): string {
+export function getSigningKey(): string {
   const key = process.env.AUDIT_SIGNING_KEY;
   if (!key) {
     throw new Error(
@@ -50,9 +50,13 @@ function generateDataHash(auditLogs: AuditTrail[]): string {
   return crypto.createHash('sha256').update(dataString).digest('hex');
 }
 
-function generateSignature(dataHash: string, timestamp: string): string {
+export function generateAuditSignature(dataHash: string, timestamp: string): string {
   const payload = `${dataHash}|${timestamp}|legalnote-audit-v1`;
   return crypto.createHmac('sha256', getSigningKey()).update(payload).digest('hex');
+}
+
+function generateSignature(dataHash: string, timestamp: string): string {
+  return generateAuditSignature(dataHash, timestamp);
 }
 
 export function verifyAuditExportSignature(

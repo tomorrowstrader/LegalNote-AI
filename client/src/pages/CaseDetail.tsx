@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -264,6 +265,11 @@ export default function CaseDetail() {
   const [sendEmail, setSendEmail] = useState("");
   const [isSendingCareLetter, setIsSendingCareLetter] = useState(false);
   const [editingPracticeArea, setEditingPracticeArea] = useState(false);
+  const [showReadinessPanel, setShowReadinessPanel] = useState(false);
+  const [isCompilingReport, setIsCompilingReport] = useState(false);
+  const [showConflictCheckDialog, setShowConflictCheckDialog] = useState(false);
+  const [conflictCheckOutcome, setConflictCheckOutcome] = useState<"no_conflict" | "conflict_managed">("no_conflict");
+  const [conflictCheckNotes, setConflictCheckNotes] = useState("");
 
   // Missing-consent banner state
   const [showConfirmVerbalConsentDialog, setShowConfirmVerbalConsentDialog] = useState(false);
@@ -400,6 +406,34 @@ export default function CaseDetail() {
   const { data: meetingSessions = [] } = useQuery<MeetingSession[]>({
     queryKey: [`/api/cases/${caseId}/sessions`],
     enabled: !!caseId,
+  });
+
+  type ReadinessCriterion = { key: string; label: string; status: "green" | "amber" | "red"; detail: string; sraRef: string; actionRoute: string | null; externalNote: string | null };
+  type ReadinessData = { overall: "green" | "amber" | "red"; outstandingCount: number; criteria: ReadinessCriterion[]; disclaimer: string };
+  const { data: sraReadiness, isLoading: readinessLoading } = useQuery<ReadinessData>({
+    queryKey: [`/api/cases/${caseId}/sra-readiness`],
+    enabled: !!caseId,
+  });
+
+  const [showSraReportModal, setShowSraReportModal] = useState(false);
+  type SraReportPreview = {
+    sections: {
+      matterOverview: { clientName: string | null; matterRef: string | null; practiceArea: string | null };
+      aml: { riskLevel: string | null; notesCount: number; decisionsCount: number };
+      clientCare: { hasCareLetter: boolean; hasConsent: boolean; consentCount: number };
+      communications: { sessionCount: number; noteCount: number; totalDurationSeconds: number };
+      obligationsAndUndertakings: { obligationCount: number; undertakingCount: number; outstandingCount: number };
+      documents: { documentCount: number };
+      timeRecording: { entryCount: number; totalMinutes: number };
+      dataProtection: { consentCount: number; dsarCount: number };
+      supervision: { supervisor: string | null };
+      auditTrail: { entryCount: number };
+    };
+    disclaimer: string;
+  };
+  const { data: sraReportPreview, isLoading: previewLoading } = useQuery<SraReportPreview>({
+    queryKey: [`/api/cases/${caseId}/sra-report/preview`],
+    enabled: !!caseId && showSraReportModal,
   });
 
   type LiveImport = { importId: string; botId: string | null; status: string; botStatus: string | null; errorMessage: string | null; createdAt: string; consentMode?: string; consentConfirmed?: boolean };
@@ -680,6 +714,53 @@ export default function CaseDetail() {
     }
   };
 
+  const recordConflictCheckMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/cases/${caseId}/conflict-check`, {
+        outcome: conflictCheckOutcome,
+        notes: conflictCheckNotes || undefined,
+        datePerformed: new Date().toISOString(),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Conflict check recorded", description: "The conflict of interest check has been recorded.", duration: 4000 });
+      setShowConflictCheckDialog(false);
+      setConflictCheckNotes("");
+      setConflictCheckOutcome("no_conflict");
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/sra-readiness`] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to record conflict check", description: error.message || "Please try again.", variant: "destructive" });
+    },
+  });
+
+  const compileSraReport = async () => {
+    if (!caseId || isCompilingReport) return;
+    setIsCompilingReport(true);
+    try {
+      const res = await fetch(`/api/cases/${caseId}/sra-report`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `SRA-Matter-Report-${caseId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Report compiled", description: "SRA Matter Report has been downloaded.", duration: 5000 });
+    } catch (err: any) {
+      toast({ title: "Report failed", description: err.message || "Could not compile report.", variant: "destructive", duration: 6000 });
+    } finally {
+      setIsCompilingReport(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen bg-background">
@@ -892,7 +973,87 @@ export default function CaseDetail() {
                   : caseData.status === 'failed' ? 'Failed'
                   : 'Pending'}
               </Badge>
+              {!readinessLoading && sraReadiness && (
+                <button
+                  onClick={() => setShowReadinessPanel(prev => !prev)}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium border transition-colors duration-150",
+                    sraReadiness.overall === "green" && "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700",
+                    sraReadiness.overall === "amber" && "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
+                    sraReadiness.overall === "red" && "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700",
+                  )}
+                  data-testid="badge-sra-readiness"
+                >
+                  <ShieldCheck className="w-2.5 h-2.5" />
+                  {sraReadiness.overall === "green"
+                    ? "SRA Ready"
+                    : sraReadiness.overall === "amber"
+                    ? `SRA Amber (${sraReadiness.outstandingCount})`
+                    : `SRA Attention (${sraReadiness.outstandingCount})`}
+                </button>
+              )}
             </div>
+            {showReadinessPanel && sraReadiness && (
+              <div className="mt-3 rounded-md border border-border bg-background p-3 space-y-2" data-testid="panel-sra-readiness">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide">Compliance Readiness</p>
+                  <button onClick={() => setShowReadinessPanel(false)} className="text-muted-foreground hover:text-foreground" data-testid="button-close-readiness-panel">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                {sraReadiness.criteria.map((c) => (
+                  <div key={c.key} className="flex items-start gap-2" data-testid={`readiness-criterion-${c.key}`}>
+                    <span className={cn(
+                      "mt-0.5 w-2 h-2 rounded-full shrink-0",
+                      c.status === "green" && "bg-green-500",
+                      c.status === "amber" && "bg-amber-500",
+                      c.status === "red" && "bg-red-500",
+                    )} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-medium text-foreground leading-tight">{c.label}</p>
+                      <p className="text-[10px] text-muted-foreground leading-tight">{c.detail}</p>
+                      {c.sraRef && (
+                        <p className="text-[9px] text-muted-foreground/70 leading-tight mt-0.5 font-mono">{c.sraRef}</p>
+                      )}
+                      {c.externalNote && c.status !== "green" && (
+                        <p className="text-[9px] text-muted-foreground/60 leading-tight mt-0.5 italic">{c.externalNote}</p>
+                      )}
+                      {c.status !== "green" && c.key === "conflict_check" && (
+                        <button
+                          onClick={() => { setShowReadinessPanel(false); setShowConflictCheckDialog(true); }}
+                          className="mt-1 text-[9px] font-medium text-accent underline-offset-2 underline"
+                          data-testid="link-readiness-action-conflict-check"
+                        >
+                          Record conflict check
+                        </button>
+                      )}
+                      {c.status !== "green" && c.actionRoute && c.key !== "conflict_check" && (
+                        <a
+                          href={c.actionRoute}
+                          className="mt-1 inline-block text-[9px] font-medium text-accent underline-offset-2 underline"
+                          data-testid={`link-readiness-action-${c.key}`}
+                        >
+                          Go to {c.label.toLowerCase()}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {sraReadiness.disclaimer && (
+                  <p className="text-[9px] text-muted-foreground/60 leading-tight pt-1 border-t border-border" data-testid="text-readiness-disclaimer">
+                    {sraReadiness.disclaimer}
+                  </p>
+                )}
+                <button
+                  onClick={() => { setShowReadinessPanel(false); setShowSraReportModal(true); }}
+                  className="mt-1 w-full flex items-center justify-center gap-1.5 text-[10px] font-medium text-accent hover:text-accent/80 transition-colors duration-150 py-1"
+                  data-testid="button-open-report-modal-from-panel"
+                >
+                  <FileText className="w-3 h-3" />
+                  Prepare SRA Matter Report
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Matter nav */}
@@ -957,6 +1118,11 @@ export default function CaseDetail() {
                 <DropdownMenuItem onClick={() => setShowHandoverModal(true)} data-testid="action-handover">
                   <ArrowRightLeft className="w-4 h-4 mr-2" />
                   Handover Case
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowSraReportModal(true)} data-testid="action-sra-report">
+                  <ShieldCheck className="w-4 h-4 mr-2" />
+                  Prepare SRA Matter Report
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => archiveMutation.mutate(true)} className="text-destructive focus:text-destructive" data-testid="action-archive">
@@ -1687,19 +1853,39 @@ export default function CaseDetail() {
                   : "Set practice area"}
               </Badge>
             )}
-            <Badge
-              variant="secondary"
-              className={cn(
-                "no-default-hover-elevate no-default-active-elevate",
-                caseData.conflictCheckCompleted
-                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                  : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-              )}
-              data-testid="badge-conflict-check"
-            >
-              <Shield className="w-3 h-3 mr-1" />
-              {caseData.conflictCheckCompleted ? "Conflict Check Completed" : "Conflict Check Pending"}
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              {(() => {
+                const ccCriterion = sraReadiness?.criteria?.find((c) => c.key === "conflict_check");
+                const ccStatus = ccCriterion?.status ?? (caseData.conflictCheckCompleted ? "green" : "amber");
+                return (
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      "no-default-hover-elevate no-default-active-elevate",
+                      ccStatus === "green"
+                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                        : ccStatus === "amber"
+                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                        : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                    )}
+                    data-testid="badge-conflict-check"
+                  >
+                    <Shield className="w-3 h-3 mr-1" />
+                    {ccStatus === "green" ? "Conflict Check Completed" : ccStatus === "amber" ? "Conflict Managed" : "Conflict Check Pending"}
+                  </Badge>
+                );
+              })()}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowConflictCheckDialog(true)}
+                className="gap-1 text-xs"
+                data-testid="button-record-conflict-check"
+              >
+                <Shield className="w-3 h-3" />
+                Record Conflict Check
+              </Button>
+            </div>
             {caseData.clientCareLetterId ? (
               <>
                 <Badge
@@ -1889,6 +2075,136 @@ export default function CaseDetail() {
                 {confirmBannerConsentMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Confirming...</> : "Confirm Verbal Consent"}
               </Button>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* SRA Matter Report Modal */}
+      <Dialog open={showSraReportModal} onOpenChange={setShowSraReportModal}>
+        <DialogContent className="max-w-lg" data-testid="dialog-sra-report">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-accent" />
+              Prepare SRA Matter Report
+            </DialogTitle>
+            <DialogDescription>
+              Review the scope of this report before compiling.
+            </DialogDescription>
+          </DialogHeader>
+          {previewLoading ? (
+            <div className="space-y-2 py-4">
+              {[...Array(5)].map((_, i) => <div key={i} className="h-4 bg-muted rounded animate-pulse" />)}
+            </div>
+          ) : sraReportPreview ? (
+            <div className="space-y-4">
+              <div className="space-y-1.5" data-testid="sra-report-preview-sections">
+                {[
+                  { label: "Matter Overview", value: sraReportPreview.sections.matterOverview.clientName ? `${sraReportPreview.sections.matterOverview.clientName}` : "No client linked" },
+                  { label: "AML and Client Identity", value: `${sraReportPreview.sections.aml.decisionsCount} decision(s), ${sraReportPreview.sections.aml.notesCount} monitoring note(s)` },
+                  { label: "Client Care and Consent", value: `${sraReportPreview.sections.clientCare.consentCount} consent record(s)${sraReportPreview.sections.clientCare.hasCareLetter ? ", care letter on file" : ""}` },
+                  { label: "Communications and Attendance", value: `${sraReportPreview.sections.communications.sessionCount} session(s), ${sraReportPreview.sections.communications.noteCount} quick note(s)` },
+                  { label: "Obligations and Undertakings", value: `${sraReportPreview.sections.obligationsAndUndertakings.obligationCount} obligation(s), ${sraReportPreview.sections.obligationsAndUndertakings.undertakingCount} undertaking(s)` },
+                  { label: "Documents", value: `${sraReportPreview.sections.documents.documentCount} active document(s)` },
+                  { label: "Time Recording", value: `${sraReportPreview.sections.timeRecording.entryCount} entr${sraReportPreview.sections.timeRecording.entryCount === 1 ? "y" : "ies"}, ${sraReportPreview.sections.timeRecording.totalMinutes} min total` },
+                  { label: "Data Protection", value: `${sraReportPreview.sections.dataProtection.consentCount} consent(s), ${sraReportPreview.sections.dataProtection.dsarCount} DSAR(s)` },
+                  { label: "Supervision", value: sraReportPreview.sections.supervision.supervisor || "Not recorded" },
+                  { label: "Audit Trail", value: `${sraReportPreview.sections.auditTrail.entryCount} event(s)` },
+                ].map((row, i) => (
+                  <div key={i} className="flex items-baseline justify-between gap-3 text-sm" data-testid={`sra-preview-row-${i}`}>
+                    <span className="text-muted-foreground shrink-0">{row.label}</span>
+                    <span className="text-foreground text-right text-xs font-mono">{row.value}</span>
+                  </div>
+                ))}
+              </div>
+              {sraReportPreview.disclaimer && (
+                <div className="bg-muted/40 rounded-md p-3 border border-border" data-testid="sra-report-disclaimer">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">{sraReportPreview.disclaimer}</p>
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowSraReportModal(false)} data-testid="button-cancel-sra-report">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => { setShowSraReportModal(false); await compileSraReport(); }}
+                  disabled={isCompilingReport}
+                  className="gap-1.5"
+                  data-testid="button-confirm-compile-report"
+                >
+                  {isCompilingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                  Compile Report
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="py-6 text-center text-sm text-muted-foreground" data-testid="sra-report-preview-error">
+              Unable to load report preview. You may still compile the report.
+              <div className="mt-4 flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowSraReportModal(false)}>Cancel</Button>
+                <Button onClick={async () => { setShowSraReportModal(false); await compileSraReport(); }} disabled={isCompilingReport} className="gap-1.5" data-testid="button-compile-anyway">
+                  {isCompilingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                  Compile Anyway
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Conflict of Interest Check Dialog */}
+      <Dialog open={showConflictCheckDialog} onOpenChange={setShowConflictCheckDialog}>
+        <DialogContent className="max-w-md" data-testid="dialog-conflict-check">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5" />
+              Record Conflict of Interest Check
+            </DialogTitle>
+            <DialogDescription>
+              Record the outcome of a conflict of interest check for this matter. SRA Code of Conduct 2019, para 6.1.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="conflict-outcome">Outcome <span className="text-destructive">*</span></Label>
+              <Select
+                value={conflictCheckOutcome}
+                onValueChange={(v) => setConflictCheckOutcome(v as "no_conflict" | "conflict_managed")}
+              >
+                <SelectTrigger id="conflict-outcome" data-testid="select-conflict-outcome">
+                  <SelectValue placeholder="Select outcome..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no_conflict">No conflict identified</SelectItem>
+                  <SelectItem value="conflict_managed">Conflict identified and managed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="conflict-notes">Notes (optional)</Label>
+              <Textarea
+                id="conflict-notes"
+                placeholder="Record details of the check performed and any relevant considerations..."
+                value={conflictCheckNotes}
+                onChange={(e) => setConflictCheckNotes(e.target.value)}
+                className="resize-none text-sm"
+                rows={3}
+                data-testid="textarea-conflict-notes"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowConflictCheckDialog(false)} disabled={recordConflictCheckMutation.isPending} data-testid="button-cancel-conflict-check">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => recordConflictCheckMutation.mutate()}
+              disabled={recordConflictCheckMutation.isPending}
+              className="gap-1.5"
+              data-testid="button-submit-conflict-check"
+            >
+              {recordConflictCheckMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+              Record Check
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
