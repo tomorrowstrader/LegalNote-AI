@@ -1738,3 +1738,21 @@ export const insertSupervisionSignoffSchema = createInsertSchema(supervisionSign
 
 export type InsertSupervisionSignoff = z.infer<typeof insertSupervisionSignoffSchema>;
 export type SupervisionSignoff = typeof supervisionSignoffs.$inferSelect;
+
+export const demoLeads = pgTable("demo_leads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  firmName: text("firm_name"),
+  practiceArea: text("practice_area"),
+  firmSize: text("firm_size"),
+  region: text("region"),
+  sraNumber: text("sra_number"),
+  billingRate: integer("billing_rate"),
+  demoUrl: text("demo_url"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertDemoLeadSchema = createInsertSchema(demoLeads).omit({ id: true, createdAt: true });
+export type InsertDemoLead = z.infer<typeof insertDemoLeadSchema>;
+export type DemoLead = typeof demoLeads.$inferSelect;

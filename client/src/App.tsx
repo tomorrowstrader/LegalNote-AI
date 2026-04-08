@@ -55,6 +55,7 @@ function Router() {
   return (
     <Switch>
       {/* Public routes (accessible without authentication) */}
+      <Route path="/demo/:practiceArea/:rest*" component={PublicDemo} />
       <Route path="/demo/:practiceArea" component={PublicDemo} />
       <Route path="/share/:linkId" component={ShareLinkView} />
       <Route path="/acknowledge/:token" component={AcknowledgePage} />

@@ -46,6 +46,7 @@ const schema = z.object({
   region: z.string().optional(),
   firmSize: z.string().min(1, "Firm size is required"),
   sraNumber: z.string().optional(),
+  billingRate: z.coerce.number().min(0).optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -66,7 +67,30 @@ function buildDemoUrl(values: FormValues): string {
   if (values.region) params.set("region", values.region);
   if (values.firmSize) params.set("size", values.firmSize);
   if (values.sraNumber) params.set("sraNumber", values.sraNumber);
+  if (values.billingRate) params.set("rate", String(values.billingRate));
   return `${base}?${params.toString()}`;
+}
+
+async function captureLead(values: FormValues, url: string) {
+  try {
+    await fetch("/api/demo/capture-lead", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        firstName: values.firstName,
+        lastName: values.lastName,
+        firmName: values.firmName,
+        practiceArea: values.practiceArea,
+        firmSize: values.firmSize,
+        region: values.region || null,
+        sraNumber: values.sraNumber || null,
+        billingRate: values.billingRate || null,
+        demoUrl: url,
+      }),
+    });
+  } catch {
+    // Non-critical: silently ignore capture failures
+  }
 }
 
 function buildLinkedInSnippet(values: FormValues, url: string): string {
@@ -132,6 +156,7 @@ export default function DemoGenerator() {
       region: "",
       firmSize: "",
       sraNumber: "",
+      billingRate: 220,
     },
   });
 
@@ -157,6 +182,7 @@ export default function DemoGenerator() {
     const snippet = buildLinkedInSnippet(values, url);
     setGeneratedUrl(url);
     setGeneratedSnippet(snippet);
+    captureLead(values, url);
   };
 
   return (
@@ -297,19 +323,40 @@ export default function DemoGenerator() {
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="sraNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>SRA Number (optional)</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="e.g. 123456" data-testid="input-sra-number" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="sraNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SRA Number (optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="e.g. 123456" data-testid="input-sra-number" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="billingRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Billing Rate (£/hr, optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="number"
+                          min={0}
+                          placeholder="e.g. 220"
+                          data-testid="input-billing-rate"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <Button type="submit" className="w-full" data-testid="button-generate-link">
                 <Link2 className="w-4 h-4 mr-2" />

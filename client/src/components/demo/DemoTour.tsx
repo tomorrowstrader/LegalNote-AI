@@ -1,85 +1,85 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
-import type { DemoScreen } from "./DemoShell";
+import { X, ArrowRight } from "lucide-react";
 
 export interface TourStep {
   id: number;
   target: string;
-  screen: DemoScreen;
   title: string;
   description: string;
   placement?: "top" | "bottom" | "left" | "right";
+  requiresNavigation?: boolean;
+  navigationHint?: string;
 }
 
 const TOUR_STEPS: TourStep[] = [
   {
     id: 1,
-    target: "card-compliance-score",
-    screen: "dashboard",
-    title: "Your compliance score, at a glance",
-    description: "LegalNote calculates your firm's compliance readiness in real time — from active obligations, overdue items, and matter risk levels. No manual checking required.",
-    placement: "right",
+    target: "attention-overdue",
+    title: "Overdue items — flagged automatically",
+    description: "LegalNote tracks every obligation against its deadline. Overdue items surface here immediately — no manual checking required.",
+    placement: "bottom",
   },
   {
     id: 2,
-    target: "card-obligations",
-    screen: "dashboard",
-    title: "Overdue obligations — flagged automatically",
-    description: "Every obligation is tracked against its deadline. When something is overdue, LegalNote surfaces it here so nothing slips through.",
-    placement: "left",
+    target: "tab-review",
+    title: "Cases ready for review",
+    description: "When a recording is processed and documents are generated, the case moves here for your approval. One click to review — no chasing.",
+    placement: "bottom",
   },
   {
     id: 3,
-    target: "case-session-card-first",
-    screen: "case-detail",
-    title: "Every meeting, captured and linked",
-    description: "Each session card shows the date, duration, attendees, and a summary produced automatically from the recording. The lead session for this matter has a full diarized transcript.",
+    target: "row-case-demo-case-family-001",
+    title: "Open the demo matter",
+    description: "Click the case row to open the full matter — transcript, attendance note, audit trail, and compliance readiness all in one place.",
     placement: "bottom",
   },
   {
     id: 4,
-    target: "case-transcript-preview",
-    screen: "case-detail",
-    title: "AI produces the full transcript — instantly",
-    description: "Click 'Transcript' to see LegalNote's AI transcription in action: 2,000+ words, diarized by speaker, HMAC-signed for tamper-evidence. No manual transcription. Solicitor reviews, not types.",
-    placement: "bottom",
+    target: "nav-sessions",
+    title: "Every meeting, captured and linked",
+    description: "Each session shows the date, duration, and a full diarized transcript produced automatically from the recording.",
+    placement: "right",
+    requiresNavigation: true,
+    navigationHint: "Open the demo case to see this step.",
   },
   {
     id: 5,
-    target: "attendance-note-body",
-    screen: "document",
-    title: "This attendance note was produced automatically",
-    description: "From a recording, LegalNote generated this structured attendance note — no manual typing. Your solicitor reviewed and approved it in two clicks.",
-    placement: "top",
+    target: "nav-documents",
+    title: "AI-generated attendance note",
+    description: "From a 55-minute recording, LegalNote produced this structured attendance note — no typing required. Review and approve in two clicks.",
+    placement: "right",
+    requiresNavigation: true,
+    navigationHint: "Open the demo case to see this step.",
   },
   {
     id: 6,
-    target: "document-toolbar",
-    screen: "document",
-    title: "Export in any format — one click",
-    description: "Export to PDF or Word, print, or share via a secure read-only link — directly from the attendance note. In your live environment these are fully functional.",
-    placement: "bottom",
+    target: "nav-audit",
+    title: "Tamper-evident audit trail",
+    description: "Every event — consent, recording, transcript, approval, share — is logged with an HMAC-SHA256 fingerprint. Cryptographic proof if anything is ever disputed.",
+    placement: "right",
+    requiresNavigation: true,
+    navigationHint: "Open the demo case to see this step.",
   },
   {
     id: 7,
-    target: "audit-trail-list",
-    screen: "audit",
-    title: "Tamper-evident audit trail",
-    description: "Every event — recording, transcript, approval, share — is logged with an HMAC-SHA256 fingerprint. If anything is disputed, you have cryptographic proof.",
-    placement: "top",
+    target: "nav-undertakings",
+    title: "Undertakings tracked automatically",
+    description: "Undertakings given to clients and third parties are extracted from recordings and tracked. Outstanding items are flagged until resolved.",
+    placement: "right",
+    requiresNavigation: true,
+    navigationHint: "Open the demo case to see this step.",
   },
   {
     id: 8,
     target: "demo-cta-bar",
-    screen: "audit",
     title: "Ready to see this in your firm?",
-    description: "Book a personalised 20-minute walkthrough with a LegalNote solicitor. We'll show you exactly how it works for your practice area — no obligation.",
+    description: "Book a personalised 15-minute walkthrough with a LegalNote solicitor. We'll show you exactly how it works for your practice area — no obligation.",
     placement: "top",
   },
 ];
 
-const TOUR_KEY = "legalnote_demo_tour_complete_v4";
+const TOUR_KEY = "legalnote_demo_tour_complete_v5";
 
 interface TooltipPosition {
   top?: number;
@@ -87,30 +87,31 @@ interface TooltipPosition {
 }
 
 interface DemoTourProps {
-  currentScreen: DemoScreen;
-  onNavigate: (screen: DemoScreen) => void;
   restartTrigger: number;
   practiceArea?: string;
 }
 
-export function DemoTour({ currentScreen, onNavigate, restartTrigger, practiceArea }: DemoTourProps) {
+export function DemoTour({ restartTrigger, practiceArea }: DemoTourProps) {
   const tourKey = practiceArea ? `${TOUR_KEY}_${practiceArea}` : TOUR_KEY;
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [tooltipPos, setTooltipPos] = useState<TooltipPosition>({ top: 100, left: 20 });
   const [visible, setVisible] = useState(false);
+  const [elementMissing, setElementMissing] = useState(false);
   const positionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentStep = TOUR_STEPS[stepIndex];
 
   const positionTooltip = useCallback(() => {
     if (!currentStep) return;
-    const el = document.querySelector(`[data-demo-target="${currentStep.target}"]`);
+    const el = document.querySelector(`[data-testid="${currentStep.target}"]`);
     if (!el) {
+      setElementMissing(true);
       setTooltipPos({ top: 80, left: 20 });
       setVisible(true);
       return;
     }
+    setElementMissing(false);
     const rect = el.getBoundingClientRect();
     const tooltipWidth = 320;
     const tooltipHeight = 180;
@@ -160,20 +161,29 @@ export function DemoTour({ currentScreen, onNavigate, restartTrigger, practiceAr
 
   useEffect(() => {
     if (!active || !currentStep) return;
-    if (currentStep.screen !== currentScreen) {
-      onNavigate(currentStep.screen);
-      setVisible(false);
-      return;
-    }
     setVisible(false);
+    setElementMissing(false);
     if (positionTimerRef.current) clearTimeout(positionTimerRef.current);
     positionTimerRef.current = setTimeout(() => {
       positionTooltip();
-    }, 500);
+    }, 600);
     return () => {
       if (positionTimerRef.current) clearTimeout(positionTimerRef.current);
     };
-  }, [active, currentStep, currentScreen, positionTooltip, onNavigate]);
+  }, [active, currentStep, positionTooltip]);
+
+  useEffect(() => {
+    if (!active || !currentStep || !elementMissing) return;
+    const interval = setInterval(() => {
+      const el = document.querySelector(`[data-testid="${currentStep.target}"]`);
+      if (el) {
+        setElementMissing(false);
+        positionTooltip();
+        clearInterval(interval);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [active, currentStep, elementMissing, positionTooltip]);
 
   const handleNext = () => {
     if (stepIndex < TOUR_STEPS.length - 1) {
@@ -199,12 +209,10 @@ export function DemoTour({ currentScreen, onNavigate, restartTrigger, practiceAr
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 z-[60] pointer-events-none"
         style={{ background: "rgba(0,0,0,0.10)" }}
       />
-      {/* Tooltip */}
       <div
         className="fixed z-[70] w-80 bg-background border border-border rounded-md shadow-lg p-4"
         style={{ top: tooltipPos.top, left: tooltipPos.left }}
@@ -225,9 +233,18 @@ export function DemoTour({ currentScreen, onNavigate, restartTrigger, practiceAr
             <X className="w-4 h-4" />
           </button>
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-          {currentStep.description}
-        </p>
+
+        {elementMissing && currentStep.navigationHint ? (
+          <div className="flex items-start gap-2 mb-3 p-2 rounded-md bg-muted/50 border border-border">
+            <ArrowRight className="w-3.5 h-3.5 text-primary mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-muted-foreground leading-relaxed">{currentStep.navigationHint}</p>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+            {currentStep.description}
+          </p>
+        )}
+
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">
             {stepIndex + 1} of {TOUR_STEPS.length}
@@ -250,7 +267,6 @@ export function DemoTour({ currentScreen, onNavigate, restartTrigger, practiceAr
             </Button>
           </div>
         </div>
-        {/* Progress dots */}
         <div className="flex gap-1 justify-center mt-3">
           {TOUR_STEPS.map((_, i) => (
             <div
