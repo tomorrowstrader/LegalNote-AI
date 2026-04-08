@@ -10193,10 +10193,10 @@ ${firmName}`;
           const { Resend } = await import("resend");
           const resend = new Resend(process.env.RESEND_API_KEY);
           await resend.emails.send({
-            from: "Counsel AI <demo@lawscribe.ai>",
+            from: "LegalNote <noreply@legalnote.app>",
             to: recipientEmail,
-            subject: `${senderName} shared a case with you via Counsel AI`,
-            html: `<p>Hello,</p><p><strong>${senderName}</strong> from <strong>${firmName}</strong> has shared a demo case (<em>${caseTitle}</em>) with you using Counsel AI.</p><p>Counsel AI is an AI-powered legal case management platform that automates transcription, summarisation, and compliance documentation for law firms.</p>${demoUrl ? `<p><a href="${demoUrl}">View demo</a></p>` : ""}<p>To explore the full platform, <a href="https://lawscribe.ai">learn more here</a>.</p>`,
+            subject: `${senderName} shared a matter record with you`,
+            html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#222;max-width:600px;margin:0 auto;padding:24px"><p>Hello,</p><p><strong>${senderName}</strong> at <strong>${firmName}</strong> has shared access to a matter record via LegalNote.</p><p>This record includes a session transcript, attendance note, and audit trail.</p>${demoUrl ? `<p style="margin:28px 0"><a href="${demoUrl}" style="background:#c0714f;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">View Matter Record</a></p>` : ""}<hr style="margin:32px 0;border:none;border-top:1px solid #e0e0e0"><p style="font-size:12px;color:#888">Sent via LegalNote Compliance Documentation Platform.</p></body></html>`,
           });
         } catch (emailErr) {
           console.error("[DEMO] Email send failed:", emailErr);
@@ -10210,10 +10210,25 @@ ${firmName}`;
 
   app.post("/api/demo/send-consent-sms", generalApiLimiter, async (req, res, next) => {
     try {
-      const { phone, clientName, solicitorName } = req.body;
+      const { phone, clientName, solicitorName, firmName } = req.body;
       if (!phone) return res.status(400).json({ message: "phone required" });
       console.log(`[DEMO] Consent SMS request: ${solicitorName} → ${clientName} at ${phone}`);
-      res.json({ success: true, message: "Demo consent SMS recorded — SMS delivery requires Twilio configuration." });
+      const smsBody = `${solicitorName} at ${firmName || "the firm"} is requesting your consent to record your upcoming meeting. Reply YES to consent. Sent via LegalNote.`;
+      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+        try {
+          const twilio = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+          await twilio.messages.create({
+            body: smsBody,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            to: phone,
+          });
+          console.log(`[DEMO] Consent SMS delivered to ${phone}`);
+          return res.json({ success: true, delivered: true, message: "Consent request sent to " + phone });
+        } catch (smsErr) {
+          console.error("[DEMO] Twilio SMS send failed:", smsErr);
+        }
+      }
+      res.json({ success: false, delivered: false, message: "SMS delivery requires Twilio configuration." });
     } catch (error) {
       next(error);
     }
@@ -10229,10 +10244,10 @@ ${firmName}`;
           const { Resend } = await import("resend");
           const resend = new Resend(process.env.RESEND_API_KEY);
           await resend.emails.send({
-            from: "Counsel AI <demo@lawscribe.ai>",
+            from: "LegalNote <noreply@legalnote.app>",
             to: email,
-            subject: `${senderName} invited you to try Counsel AI`,
-            html: `<p>Hello,</p><p><strong>${senderName}</strong> from <strong>${firmName}</strong> thought you'd be interested in Counsel AI — an AI-powered legal case management platform.</p>${demoUrl ? `<p><a href="${demoUrl}">Explore the interactive demo</a></p>` : ""}<p>Counsel AI automates meeting transcription, AI summarisation, and compliance documentation so your team can focus on clients rather than admin.</p><p>To learn more, visit <a href="https://lawscribe.ai">lawscribe.ai</a>.</p>`,
+            subject: `${senderName} thought you should see this`,
+            html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#222;max-width:600px;margin:0 auto;padding:24px"><p>Hello,</p><p><strong>${senderName}</strong> from <strong>${firmName}</strong> sent you this because they believe LegalNote is relevant to your firm's compliance obligations.</p>${demoUrl ? `<p style="margin:28px 0"><a href="${demoUrl}" style="background:#c0714f;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">See the interactive walkthrough</a></p>` : ""}<hr style="margin:32px 0;border:none;border-top:1px solid #e0e0e0"><p style="font-size:12px;color:#888">Sent via LegalNote Compliance Documentation Platform.</p></body></html>`,
           });
         } catch (emailErr) {
           console.error("[DEMO] Colleague link email failed:", emailErr);
