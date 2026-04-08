@@ -211,6 +211,13 @@ ADDITIONAL INSTRUCTIONS:
 - Use UK legal terminology and practice conventions throughout
 - Format the document professionally with clean spacing (use white space for visual separation, NO horizontal lines or underscores)
 
+REASONING AND THINKING — MANDATORY REQUIREMENT:
+The SRA expects attendance notes to record not just what was discussed and what advice was given, but also the reasoning and thinking behind the advice and behind any decisions made. You MUST comply with this requirement in every section:
+1. For every piece of advice recorded, you MUST state the reasoning behind it — the factors the solicitor weighed, the legal position considered, or the client's circumstances that informed it. Do NOT write "I advised the client to proceed." Write "I advised the client to proceed, having considered [the specific factors evident from the transcript]."
+2. For every decision recorded (next steps, referrals, further investigation, no action), you MUST record the thinking behind that decision where it is evident from the transcript.
+3. Where the transcript does not capture the reasoning (for example in a brief exchange or telephone call), you MUST include the note: "Reasoning behind advice not recorded in this session."
+4. You MUST NEVER invent reasoning that is not evident from the transcript. If reasoning was not discussed or evident from the recording, state "Reasoning behind advice not recorded in this session" — do not fabricate it.
+
 SPEAKER-LABELED TRANSCRIPTS:
 - The transcript may include speaker labels in the format "[Speaker A]: text" or "[Speaker B]: text"
 - Use these labels to distinguish between client statements and solicitor advice
@@ -239,36 +246,44 @@ ${metadataFields}
 
 **1. [FIRST MAJOR TOPIC - USE CLEAR PROFESSIONAL HEADING IN CAPS]**
 
-   [Opening paragraph describing the issue or matter discussed - based strictly on transcript. Use professional legal narrative style.]
-   
-   [Client's position/situation - describe what the client disclosed using formal language]
-   
+   What was discussed:
+   [Opening paragraph describing the issue or matter discussed - based strictly on transcript. Use professional legal narrative style. Describe what the client disclosed using formal language.]
+
+   Advice given:
    [Legal advice provided - use professional terminology. Always write: "I advised the client that..." NOT "We discussed..." or "I told them..."]
    
    Key points advised:
    - [Advice point 1]
    - [Advice point 2]
    - [Advice point 3]
-   
-   [Client's response: "The client confirmed understanding and instructed..." or "The client requested..."]
+
+   Reasoning behind advice and decisions:
+   [State the reasoning and thinking behind the advice given and any decisions made — as evident from the transcript. For example: "I advised the client to [action], having considered [factor 1], [factor 2], and [factor 3]." If the reasoning was not captured in the recording, state: "Reasoning behind advice not recorded in this session."]
+
+   Client's instructions and response:
+   [The client confirmed understanding and instructed... / The client requested... / The client's response to the advice given]
 
 **2. [SECOND MAJOR TOPIC - IN CAPS]**
 
-   [Continue same professional structure for each topic discussed]
-   
-   Facts established:
+   What was discussed:
+   [Continue same professional structure for each topic discussed. Include facts established:]
    - [Fact 1 from transcript]
    - [Fact 2 from transcript]
-   
-   Legal position explained:
+
+   Advice given:
    I advised the client that [legal principle or position]. Specifically:
-   
    - [Advice point 1]
    - [Advice point 2]
 
+   Reasoning behind advice and decisions:
+   [State the reasoning and thinking behind the advice — as evident from the transcript. If not captured, state: "Reasoning behind advice not recorded in this session."]
+
+   Client's instructions and response:
+   [Client's instructions and response to advice given]
+
 **3. [ADDITIONAL TOPICS AS NEEDED]**
 
-   [Continue for each major discussion point]
+   [Continue for each major discussion point, using the same four-part structure: What was discussed / Advice given / Reasoning behind advice and decisions / Client's instructions and response]
 
 **[FINAL NUMBERED SECTION]. NEXT STEPS**
 
@@ -471,6 +486,9 @@ Structure your summary as follows:
 **Solicitor Recommendations:**
 [Key advice or recommendations provided during the meeting - do not add additional legal advice]
 
+**Reasoning and Approach:**
+[For each recommendation or decision recorded above, state the reasoning and thinking behind it as evident from the transcript — the factors weighed, the legal position considered, or the client's circumstances that informed the advice. Do not fabricate reasoning. If reasoning was not captured in the transcript, state: "Reasoning behind advice not recorded in this session."]
+
 **IMPORTANT:** This summary is based solely on the meeting transcript and must be reviewed by the supervising solicitor. All legal advice should be verified against current UK law and updated legal authorities before relying on it.
 
 Keep it brief (1-2 pages maximum), prioritize urgency and importance, use clear UK legal language, and adhere strictly to the facts presented in the transcript.`;
@@ -541,6 +559,9 @@ ABSOLUTE ANTI-FABRICATION RULES:
 3. For anything not in the transcript, use: "Not recorded in this session"
 4. Do NOT add legal advice, case law, or procedural guidance not explicitly stated in the transcript.
 
+REASONING AND THINKING — MANDATORY REQUIREMENT:
+Where the recording captures any advice given or decisions made, you MUST record the reasoning behind them as evident from the transcript. If the reasoning was not captured in this brief recording, include the note: "Reasoning behind advice not recorded in this session." Do NOT fabricate reasoning.
+
 This recording was brief and contained limited substantive content. Generate a short file note (not a full attendance note) that captures only what was actually discussed.
 
 Format:
@@ -554,7 +575,7 @@ Matter: ${metadata.title}
 **Note:** This is a brief file note generated from a short recording with limited substantive legal content.
 
 **Content:**
-[Brief summary of what was actually said — only from the transcript]
+[Brief summary of what was actually said — only from the transcript. Where advice was given, record the reasoning behind it as evident from the transcript, or state "Reasoning behind advice not recorded in this session."]
 
 This file note is subject to legal professional privilege.`;
 
@@ -578,24 +599,30 @@ This file note is subject to legal professional privilege.`;
         messages: [
           {
             role: 'system',
-            content: `You are a legal document auditor. Your task is to compare a generated legal document against the source transcript and identify any statements in the document that CANNOT be traced to specific content in the transcript.
+            content: `You are a legal document auditor. Your task is to compare a generated legal document against the source transcript and identify two categories of issues:
 
-For each unverifiable statement, provide a brief description of the claim and why it cannot be found in the transcript.
+CATEGORY 1 — UNVERIFIABLE STATEMENTS: Any substantive statement in the document that CANNOT be traced to specific content in the transcript.
+
+CATEGORY 2 — ADVICE WITHOUT REASONING: Any instance where advice is recorded in the document without either (a) a statement of the reasoning behind it, or (b) the note "Reasoning behind advice not recorded in this session." The SRA requires attendance notes to capture not just the advice but the reasoning behind it. Flag any advice statement that lacks this.
 
 RULES:
 - Standard formatting elements (headings, boilerplate disclaimers like "subject to legal professional privilege") are NOT considered fabrications.
-- "Not recorded in this session" placeholder entries are NOT fabrications.
+- "Not recorded in this session" and "Reasoning behind advice not recorded in this session" placeholder entries are NOT fabrications.
 - Focus on substantive claims: legal advice, factual assertions, action items, dates, amounts, and recommendations.
 - A statement is unverifiable if the transcript does not contain content that directly supports it.
+- For Category 2: if the document records advice (e.g. "I advised the client to...") but neither states reasoning nor includes "Reasoning behind advice not recorded in this session", flag it.
 
 Return your response as a JSON object with this structure:
-{"unverifiable_statements": ["description of statement 1 not found in transcript", "description of statement 2 not found in transcript"]}
+{
+  "unverifiable_statements": ["description of statement 1 not found in transcript", "description of statement 2 not found in transcript"],
+  "advice_without_reasoning": ["description of advice statement 1 that lacks reasoning", "description of advice statement 2 that lacks reasoning"]
+}
 
-If all substantive statements are traceable to the transcript, return: {"unverifiable_statements": []}`,
+If there are no issues in a category, return an empty array for that category.`,
           },
           {
             role: 'user',
-            content: `TRANSCRIPT:\n${transcript}\n\n---\n\nGENERATED DOCUMENT:\n${document}\n\nIdentify any substantive statements in the document that cannot be traced to the transcript. Return JSON only.`,
+            content: `TRANSCRIPT:\n${transcript}\n\n---\n\nGENERATED DOCUMENT:\n${document}\n\nIdentify unverifiable statements and any advice recorded without reasoning. Return JSON only.`,
           },
         ],
       });
@@ -610,7 +637,11 @@ If all substantive statements are traceable to the transcript, return: {"unverif
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
-          warnings = parsed.unverifiable_statements || [];
+          const unverifiable: string[] = parsed.unverifiable_statements || [];
+          const missingReasoning: string[] = (parsed.advice_without_reasoning || []).map(
+            (s: string) => `[Advice without reasoning] ${s}`
+          );
+          warnings = [...unverifiable, ...missingReasoning];
         } else {
           warnings = ['Verification response could not be parsed — solicitor review is required before this document is added to the client file'];
         }
@@ -688,6 +719,12 @@ CRITICAL INSTRUCTIONS:
 - Keep the note concise and factual — telephone calls produce shorter notes than full meetings
 - Use UK legal terminology throughout
 
+REASONING AND THINKING — MANDATORY REQUIREMENT:
+The SRA expects attendance notes to record not just the advice given but the reasoning and thinking behind it. For any advice or decisions recorded in this telephone note:
+1. State the reasoning behind the advice as evident from the transcript — the factors weighed or circumstances that informed it. For example: "I advised the client to [action], having considered [the specific factors from the transcript]."
+2. Where the call did not capture the reasoning (common in brief telephone exchanges), include the note: "Reasoning behind advice not recorded in this session."
+3. Do NOT fabricate reasoning. If it is not evident from the transcript, use the phrase above.
+
 Format:
 
 **TELEPHONE ATTENDANCE NOTE**
@@ -703,7 +740,7 @@ Solicitor:      ${solicitorFormat}
 
 **CALL SUMMARY**
 
-[Brief factual account of what was discussed, advice given, and instructions received. Use "I advised the client that..." phrasing. Keep to 2-4 paragraphs maximum.]
+[Brief factual account of what was discussed, advice given, and instructions received. Use "I advised the client that..." phrasing. For each piece of advice, include the reasoning behind it as evident from the transcript, or state "Reasoning behind advice not recorded in this session." Keep to 2-4 paragraphs maximum.]
 
 **ACTION POINTS**
 
@@ -744,6 +781,9 @@ CRITICAL INSTRUCTIONS:
 - A file note is a single-paragraph internal record — keep it brief and factual
 - Use UK legal terminology
 
+REASONING AND THINKING — MANDATORY REQUIREMENT:
+Where any advice or decision is recorded, you MUST include the reasoning behind it as evident from the transcript. If the reasoning was not captured, state: "Reasoning behind advice not recorded in this session." Do NOT fabricate reasoning.
+
 Format:
 
 **FILE NOTE**
@@ -753,7 +793,7 @@ Date: ${metadata.recordingDate}
 Matter: ${metadata.title}
 Client: ${metadata.clientName}
 
-[Single paragraph summarising the key point being recorded. This should be 3-6 sentences maximum, capturing the essential facts, any decision made, and any follow-up required.]
+[Single paragraph summarising the key point being recorded. This should be 3-6 sentences maximum, capturing the essential facts, any decision made, the reasoning behind that decision as evident from the transcript (or "Reasoning behind advice not recorded in this session" if not captured), and any follow-up required.]
 
 This file note is subject to legal professional privilege.`;
 
@@ -788,6 +828,12 @@ CRITICAL INSTRUCTIONS:
 - Do NOT invent or fabricate details
 - If information is missing, state "Not specified in hearing" rather than guessing
 - Use UK legal terminology and court conventions throughout
+
+REASONING AND THINKING — MANDATORY REQUIREMENT:
+The SRA requires attendance notes to capture not only what submissions were made and what orders were obtained, but the reasoning and strategic thinking behind them. For any advice given to the client or any decision made (e.g. regarding submissions, appeal, or next steps):
+1. Record the reasoning as evident from the transcript — e.g. "I advised the client to accept the order, having considered the judge's indications regarding costs and the likely outcome at trial."
+2. Where reasoning was not captured in the hearing transcript, state: "Reasoning behind advice not recorded in this session."
+3. Do NOT fabricate reasoning not evident from the transcript.
 
 Format:
 
@@ -873,6 +919,12 @@ CRITICAL INSTRUCTIONS:
 - Do NOT invent or fabricate details
 - This record must be PACE-compliant — accuracy is paramount
 - Use UK criminal law terminology throughout
+
+REASONING AND THINKING — MANDATORY REQUIREMENT:
+The SRA and the PI insurer need to see the reasoning behind advice given at the police station, not just the conclusion. For the "ADVICE GIVEN" section and any decisions recorded:
+1. Record the reasoning behind each piece of advice as evident from the transcript — e.g. "I advised the client to exercise the right to silence, having considered the adequacy of disclosure, the nature of the alleged offence, and the client's instructions."
+2. Where the reasoning was not captured on the recording, state: "Reasoning behind advice not recorded in this session."
+3. Do NOT fabricate reasoning not evident from the transcript.
 
 Format:
 
@@ -1011,6 +1063,12 @@ ABSOLUTE ANTI-FABRICATION RULES:
 2. Do NOT invent competencies discussed, feedback given, or actions not mentioned.
 3. For any section that cannot be completed from the transcript, use: "Not recorded in this session"
 4. Identify supervisor and supervisee from context or speaker labels where possible.
+
+REASONING AND THINKING — MANDATORY REQUIREMENT:
+For any guidance or direction given by the supervisor on legal matters or case handling, you MUST record the reasoning and thinking behind it as evident from the transcript. This is particularly important for competency evidence:
+1. Where the supervisor gives guidance on a legal matter, record the reasoning behind that guidance — e.g. "The supervisor directed [action], having considered [the specific factors from the session]."
+2. Where reasoning behind guidance was not captured in the session, state: "Reasoning behind guidance not recorded in this session."
+3. Do NOT fabricate reasoning not evident from the transcript.
 
 Format the output as follows:
 
