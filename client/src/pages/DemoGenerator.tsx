@@ -415,7 +415,7 @@ export default function DemoGenerator() {
                   src={generatedUrl}
                   className="w-full h-full"
                   title="Demo preview"
-                  sandbox="allow-scripts allow-same-origin allow-popups"
+                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
                   data-testid="iframe-demo-preview"
                 />
               </div>
