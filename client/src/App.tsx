@@ -56,6 +56,7 @@ function Router() {
     <Switch>
       {/* Public routes (accessible without authentication) */}
       <Route path="/demo/:practiceArea/:rest*" component={PublicDemo} />
+      <Route path="/demo-generator" component={DemoGenerator} />
       <Route path="/share/:linkId" component={ShareLinkView} />
       <Route path="/acknowledge/:token" component={AcknowledgePage} />
       <Route path="/badge/:slug" component={ComplianceBadge} />
@@ -101,7 +102,6 @@ function Router() {
           <Route path="/undertakings" component={UndertakingsDashboard} />
           {isFirmAdmin && <Route path="/team" component={TeamManagement} />}
           {canAccessFirmCompliance && <Route path="/compliance" component={FirmCompliance} />}
-          <Route path="/demo-generator" component={DemoGenerator} />
           <Route path="/waitlist" component={WaitlistPage} />
         </>
       )}
