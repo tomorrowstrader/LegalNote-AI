@@ -290,6 +290,14 @@ export default function CaseDetail() {
     setHasPromptedTimeRecording(localStorage.getItem(timeRecordingKey) === 'true');
   }, [timeRecordingKey]);
 
+  const [isDemoJustRevealed, setIsDemoJustRevealed] = useState(() => {
+    const flag = localStorage.getItem("legalnote_demo_case_just_revealed") === "1";
+    if (flag) localStorage.removeItem("legalnote_demo_case_just_revealed");
+    return flag;
+  });
+  const [showDemoJustProducedBadge, setShowDemoJustProducedBadge] = useState(false);
+  const demoJustProducedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { user } = useAuth();
   const audioPlayerRef = useRef<AudioPlayerHandle>(null);
   const [hasAutoSeeked, setHasAutoSeeked] = useState(false);
@@ -805,7 +813,12 @@ export default function CaseDetail() {
   };
 
   const matterNavItems: { id: string; label: string; icon: any; badge?: React.ReactNode; show?: boolean }[] = [
-    { id: 'documents', label: 'Documents', icon: FileText },
+    {
+      id: 'documents', label: 'Documents', icon: FileText,
+      badge: isDemoJustRevealed
+        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate animate-pulse">2</Badge>
+        : undefined,
+    },
     {
       id: 'obligations', label: 'Obligations', icon: ListChecks,
       badge: pendingObligationsCount > 0
@@ -864,6 +877,12 @@ export default function CaseDetail() {
         onClick={() => {
           setActiveSection(item.id as CaseSection);
           if (item.id === 'compliance') setAutoOpenComplianceNote(0);
+          if (item.id === 'documents' && isDemoJustRevealed) {
+            setIsDemoJustRevealed(false);
+            setShowDemoJustProducedBadge(true);
+            if (demoJustProducedTimerRef.current) clearTimeout(demoJustProducedTimerRef.current);
+            demoJustProducedTimerRef.current = setTimeout(() => setShowDemoJustProducedBadge(false), 5000);
+          }
         }}
         className={cn(
           "relative w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors duration-150 text-left group",
@@ -1170,7 +1189,15 @@ export default function CaseDetail() {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveSection(item.id as CaseSection)}
+                  onClick={() => {
+                    setActiveSection(item.id as CaseSection);
+                    if (item.id === 'documents' && isDemoJustRevealed) {
+                      setIsDemoJustRevealed(false);
+                      setShowDemoJustProducedBadge(true);
+                      if (demoJustProducedTimerRef.current) clearTimeout(demoJustProducedTimerRef.current);
+                      demoJustProducedTimerRef.current = setTimeout(() => setShowDemoJustProducedBadge(false), 5000);
+                    }
+                  }}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs whitespace-nowrap transition-colors duration-150",
                     isActive ? "bg-accent/10 text-accent font-medium" : "text-muted-foreground hover:text-foreground"
@@ -1540,6 +1567,12 @@ export default function CaseDetail() {
                     </div>
                   </div>
                 )}
+                {showDemoJustProducedBadge && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm animate-in fade-in duration-300" data-testid="demo-just-produced-banner">
+                    <Sparkles className="w-4 h-4 shrink-0" />
+                    <span>Just produced — your attendance notes are ready to review.</span>
+                  </div>
+                )}
                 <DocumentViewer
                   caseId={caseId!}
                   documents={documents as any}
@@ -1570,7 +1603,7 @@ export default function CaseDetail() {
           )}
 
           {activeSection === 'sessions' && (
-            <div className="max-w-3xl space-y-4">
+            <div className={cn("max-w-3xl space-y-4", isDemoJustRevealed && "animate-in fade-in duration-300")}>
               {meetingSessions.length === 0 ? (
                 <div className="text-center py-16 space-y-3">
                   <History className="w-8 h-8 mx-auto text-muted-foreground/40" />

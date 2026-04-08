@@ -15,9 +15,9 @@ export interface TourStep {
 const TOUR_STEPS: TourStep[] = [
   {
     id: 1,
-    target: "attention-overdue",
-    title: "Overdue items — flagged automatically",
-    description: "LegalNote tracks every obligation against its deadline. Overdue items surface here immediately — no manual checking required.",
+    target: "button-join-meeting-dashboard",
+    title: "Your next client meeting is in 10 minutes",
+    description: "Click Join Meeting to connect LegalNote to the call — it will record, transcribe, and document the session automatically.",
     placement: "bottom",
   },
   {
@@ -36,6 +36,15 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 4,
+    target: "nav-audit",
+    title: "Consent confirmed in audit trail",
+    description: "Your verbal consent confirmation was logged automatically when you clicked 'Yes, consent confirmed' — timestamped and HMAC-sealed. Every consent event is cryptographically verifiable.",
+    placement: "right",
+    requiresNavigation: true,
+    navigationHint: "Open the demo case and navigate to the Audit Trail tab.",
+  },
+  {
+    id: 5,
     target: "nav-sessions",
     title: "Every meeting, captured and linked",
     description: "Each session shows the date, duration, and a full diarized transcript produced automatically from the recording.",
@@ -44,16 +53,16 @@ const TOUR_STEPS: TourStep[] = [
     navigationHint: "Open the demo case to see this step.",
   },
   {
-    id: 5,
+    id: 6,
     target: "nav-documents",
-    title: "AI-generated attendance note",
-    description: "From a 55-minute recording, LegalNote produced this structured attendance note — no typing required. Review and approve in two clicks.",
+    title: "Attendance note produced from the recording",
+    description: "From a recorded meeting, LegalNote compiled this structured attendance note — no typing required. Review and approve in two clicks.",
     placement: "right",
     requiresNavigation: true,
     navigationHint: "Open the demo case to see this step.",
   },
   {
-    id: 6,
+    id: 7,
     target: "nav-audit",
     title: "Tamper-evident audit trail",
     description: "Every event — consent, recording, transcript, approval, share — is logged with an HMAC-SHA256 fingerprint. Cryptographic proof if anything is ever disputed.",
@@ -62,7 +71,7 @@ const TOUR_STEPS: TourStep[] = [
     navigationHint: "Open the demo case to see this step.",
   },
   {
-    id: 7,
+    id: 8,
     target: "nav-undertakings",
     title: "Undertakings tracked automatically",
     description: "Undertakings given to clients and third parties are extracted from recordings and tracked. Outstanding items are flagged until resolved.",
@@ -71,7 +80,7 @@ const TOUR_STEPS: TourStep[] = [
     navigationHint: "Open the demo case to see this step.",
   },
   {
-    id: 8,
+    id: 9,
     target: "demo-cta-bar",
     title: "Ready to see this in your firm?",
     description: "Book a personalised 15-minute walkthrough with a LegalNote solicitor. We'll show you exactly how it works for your practice area — no obligation.",
@@ -79,7 +88,7 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-const TOUR_KEY = "legalnote_demo_tour_complete_v5";
+const TOUR_KEY = "legalnote_demo_tour_complete_v6";
 
 interface TooltipPosition {
   top?: number;
@@ -89,9 +98,11 @@ interface TooltipPosition {
 interface DemoTourProps {
   restartTrigger: number;
   practiceArea?: string;
+  startAtStep?: number;
+  resumeTrigger?: number;
 }
 
-export function DemoTour({ restartTrigger, practiceArea }: DemoTourProps) {
+export function DemoTour({ restartTrigger, practiceArea, startAtStep, resumeTrigger }: DemoTourProps) {
   const tourKey = practiceArea ? `${TOUR_KEY}_${practiceArea}` : TOUR_KEY;
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
@@ -158,6 +169,15 @@ export function DemoTour({ restartTrigger, practiceArea }: DemoTourProps) {
       setStepIndex(0);
     }
   }, [restartTrigger, tourKey]);
+
+  useEffect(() => {
+    if (resumeTrigger && resumeTrigger > 0) {
+      const idx = startAtStep !== undefined ? startAtStep : 0;
+      localStorage.removeItem(tourKey);
+      setActive(true);
+      setStepIndex(idx);
+    }
+  }, [resumeTrigger, tourKey, startAtStep]);
 
   useEffect(() => {
     if (!active || !currentStep) return;

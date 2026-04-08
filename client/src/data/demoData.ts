@@ -291,7 +291,7 @@ Solicitor:
 
 ---
 
-This attendance note was produced automatically from a 55-minute recorded meeting. Verified and approved by Rachel Thornton.`,
+Compiled from session recording. Manual compilation typically takes 45-60 minutes per hour of meeting. Verified and approved by Rachel Thornton.`,
   undertakings: [
     {
       id: "fu1",
@@ -559,7 +559,7 @@ Solicitor:
 
 ---
 
-This attendance note was produced automatically from a 60-minute recorded meeting. Verified and approved by James Whitmore.`,
+Compiled from session recording. Manual compilation typically takes 45-60 minutes per hour of meeting. Verified and approved by James Whitmore.`,
   undertakings: [
     { id: "eu1", description: "Submit ACAS early conciliation notification on behalf of client", givenBy: "James Whitmore (Solicitor)", givenTo: "[Client Name]", dueDate: relDate(-39), status: "completed" },
     { id: "eu2", description: "Prepare draft ET1 claim form", givenBy: "James Whitmore (Solicitor)", givenTo: "[Client Name]", dueDate: relDate(-34), status: "completed" },
@@ -721,7 +721,7 @@ Solicitor:
 
 ---
 
-This attendance note was produced automatically from a 50-minute recorded meeting. Verified and approved by Patricia Holden.`,
+Compiled from session recording. Manual compilation typically takes 45-60 minutes per hour of meeting. Verified and approved by Patricia Holden.`,
   undertakings: [
     { id: "cvu1", description: "Provide client care letter and cost schedule", givenBy: "Patricia Holden (Solicitor)", givenTo: "[Client Name]", dueDate: relDate(-49), status: "completed" },
     { id: "cvu2", description: "Verify AML documents and source of funds before exchange", givenBy: "Patricia Holden (Solicitor)", givenTo: "Halifax (Lender)", dueDate: relDate(-10), status: "overdue" },

@@ -114,7 +114,7 @@ export const DEMO_TRANSCRIPT_ID = "demo-transcript-001";
 export const DEMO_USER_ID = "demo-user";
 export const DEMO_FIRM_ID = "demo-firm";
 
-export function createDemoQueryClient(params: DemoParams): QueryClient {
+export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; revealCase: () => void } {
   const clientName = params.lastName
     ? `S. ${params.lastName}`
     : params.name
@@ -193,8 +193,7 @@ export function createDemoQueryClient(params: DemoParams): QueryClient {
     supervisorName: null,
   };
 
-  const demoCases = [
-    demoCaseBase,
+  const lockedCases = [
     {
       ...demoCaseBase,
       id: "demo-case-002",
@@ -383,7 +382,7 @@ Solicitor:
 
 ---
 
-This attendance note was produced automatically from a 55-minute recorded meeting. Verified and approved by ${solicitorName}.`,
+Compiled from session recording. Manual compilation typically takes 45-60 minutes per hour of meeting. Verified and approved by ${solicitorName}.`,
     contentHash: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
     version: 1,
     versionType: "ai_generated",
@@ -897,7 +896,7 @@ ${firmName}`,
 
   setData(["/api/auth/user"], demoUser);
   setData(["/api/firm-profile"], demoFirmProfile);
-  setData(["/api/cases"], demoCases);
+  setData(["/api/cases"], lockedCases);
   setData([`/api/cases/${DEMO_CASE_ID}`], demoCaseBase);
   setData(["/api/cases", DEMO_CASE_ID], demoCaseBase);
   setData([`/api/cases/${DEMO_CASE_ID}/sessions`], demoSessions);
@@ -937,12 +936,16 @@ ${firmName}`,
     "demo-case-003": relDateTime(-1),
     "demo-case-005": relDateTime(-3),
   });
-  setData(["/api/cases/demo-case-002"], demoCases[1]);
-  setData(["/api/cases/demo-case-003"], demoCases[2]);
-  setData(["/api/cases/demo-case-004"], demoCases[3]);
-  setData(["/api/cases/demo-case-005"], demoCases[4]);
-  setData(["/api/cases/demo-case-006"], demoCases[5]);
-  setData(["/api/cases/demo-case-007"], demoCases[6]);
+  setData(["/api/cases/demo-case-002"], lockedCases[0]);
+  setData(["/api/cases/demo-case-003"], lockedCases[1]);
+  setData(["/api/cases/demo-case-004"], lockedCases[2]);
+  setData(["/api/cases/demo-case-005"], lockedCases[3]);
+  setData(["/api/cases/demo-case-006"], lockedCases[4]);
+  setData(["/api/cases/demo-case-007"], lockedCases[5]);
 
-  return qc;
+  function revealCase() {
+    qc.setQueryData(["/api/cases"], [...lockedCases, demoCaseBase]);
+  }
+
+  return { qc, revealCase };
 }
