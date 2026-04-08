@@ -349,9 +349,28 @@ export default function DemoGenerator() {
                 >
                   <a href={generatedUrl} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                    Preview Demo
+                    Open in new tab
                   </a>
                 </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Inline iframe preview */}
+            <div className="space-y-2" data-testid="demo-iframe-preview">
+              <p className="text-sm font-medium">Preview</p>
+              <p className="text-xs text-muted-foreground">
+                This is exactly what the prospect will see. The full interactive demo loads below.
+              </p>
+              <div className="rounded-md border border-border overflow-hidden bg-muted" style={{ height: "480px" }}>
+                <iframe
+                  src={generatedUrl}
+                  className="w-full h-full"
+                  title="Demo preview"
+                  sandbox="allow-scripts allow-same-origin allow-popups"
+                  data-testid="iframe-demo-preview"
+                />
               </div>
             </div>
 

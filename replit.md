@@ -64,3 +64,25 @@ LegalNote is a professional legal documentation platform designed for solicitors
 - **Document Export**: jsPDF (PDF generation), docx (Word document generation).
 - **Testing**: Vitest with happy-dom.
 - **Cloud Storage (SharePoint/OneDrive)**: Firm-wide integration via Replit connector.
+
+## Public Demo System (Task #61)
+
+The public demo at `/demo/:practiceArea` has been fully rebuilt as a multi-screen interactive experience:
+
+### New Files
+- `client/src/components/demo/DemoShell.tsx` — Navigation shell with 5-screen tab bar, firm name, practice area badge, "Demo" watermark, sticky CTA
+- `client/src/components/demo/DemoTour.tsx` — 8-step coach mark tour system with localStorage state, anchored tooltip bubbles, step navigation
+- `client/src/components/demo/DemoDashboard.tsx` — Full dashboard screen (greeting, 4 stat cards, compliance score gauge, obligations, matters list, documents)
+- `client/src/components/demo/DemoCaseDetail.tsx` — Tabbed case detail (Sessions, Documents, Transcript, Compliance/Undertakings/Time, Audit)
+- `client/src/components/demo/DemoDocumentViewer.tsx` — A4-framed attendance note with letterhead, formatted content, export toolbar (demo-only toasts)
+- `client/src/components/demo/DemoTranscript.tsx` — Diarized transcript with speaker labels, timestamps, 2000+ word content
+- `client/src/components/demo/DemoAuditTrail.tsx` — Chronological audit log with HMAC-SHA256 fingerprints, event icons
+
+### Extended Data Layer (`client/src/data/demoData.ts`)
+- Added `DemoLeadMatter`, `DemoSession`, `DemoTranscriptTurn`, `DemoUndertaking`, `DemoTimeEntry`, `DemoAuditEntry` interfaces
+- Added `personaliseLeadMatter()` function for full personalisation
+- Rich lead matter content for Family (child arrangements), Employment (constructive dismissal), and Conveyancing (purchase) — each with 2000+ word diarized transcripts, full audit trails, undertakings, time entries, attendance note body
+- All other practice areas fall back to the family lead matter
+
+### DemoGenerator Update
+- Added inline iframe preview of the generated demo URL so sender can see exactly what the prospect will see
