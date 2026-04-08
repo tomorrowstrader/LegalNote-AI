@@ -21,6 +21,7 @@ import CaseDetail from "@/pages/CaseDetail";
 import { DemoMeetingSetupModal } from "@/demo/DemoMeetingSetupModal";
 import { DemoCinematicProcessing } from "@/demo/DemoCinematicProcessing";
 import { useDemoFlow } from "@/demo/useDemoFlow";
+import { DemoProblemIntro } from "@/demo/DemoProblemIntro";
 
 export const DemoModeContext = createContext<{
   isDemoMode: boolean;
@@ -249,7 +250,26 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   );
 }
 
+const INTRO_SEEN_KEY = "legalnote_demo_intro_seen_v1";
+
 export default function PublicDemo() {
+  const [introSeen, setIntroSeen] = useState(
+    () => !!localStorage.getItem(INTRO_SEEN_KEY)
+  );
+
+  const handleIntroComplete = () => {
+    localStorage.setItem(INTRO_SEEN_KEY, "1");
+    setIntroSeen(true);
+  };
+
+  if (!introSeen) {
+    return <DemoProblemIntro onComplete={handleIntroComplete} />;
+  }
+
+  return <DemoApp />;
+}
+
+function DemoApp() {
   const params = useParams<{ practiceArea: string }>();
   const searchStr = useSearch();
 

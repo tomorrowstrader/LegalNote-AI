@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { X, ArrowRight, Volume2, VolumeX } from "lucide-react";
+import { ArrowRight, Volume2, VolumeX } from "lucide-react";
 
 export interface TourStep {
   id: number;
@@ -265,10 +265,6 @@ export function DemoTour({ restartTrigger, practiceArea, startAtStep, resumeTrig
     }
   };
 
-  const handleSkip = () => {
-    handleComplete();
-  };
-
   const handleComplete = () => {
     stopAudio();
     setActive(false);
@@ -302,20 +298,11 @@ export function DemoTour({ restartTrigger, practiceArea, startAtStep, resumeTrig
         style={{ top: tooltipPos.top, left: tooltipPos.left }}
         data-testid="tour-tooltip"
       >
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex-shrink-0">
-              {currentStep.id}
-            </span>
-            <p className="text-sm font-semibold leading-tight">{currentStep.title}</p>
-          </div>
-          <button
-            onClick={handleSkip}
-            className="text-muted-foreground hover:text-foreground flex-shrink-0"
-            data-testid="button-tour-skip"
-          >
-            <X className="w-4 h-4" />
-          </button>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex-shrink-0">
+            {currentStep.id}
+          </span>
+          <p className="text-sm font-semibold leading-tight">{currentStep.title}</p>
         </div>
 
         {elementMissing && currentStep.navigationHint ? (
@@ -347,23 +334,13 @@ export function DemoTour({ restartTrigger, practiceArea, startAtStep, resumeTrig
               )}
             </button>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleSkip}
-              data-testid="button-tour-close"
-            >
-              Skip tour
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleNext}
-              data-testid="button-tour-next"
-            >
-              {isLast ? "Finish" : "Next"}
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            onClick={handleNext}
+            data-testid="button-tour-next"
+          >
+            {isLast ? "Finish" : "Next"}
+          </Button>
         </div>
         <div className="flex gap-1 justify-center mt-3">
           {TOUR_STEPS.map((_, i) => (
