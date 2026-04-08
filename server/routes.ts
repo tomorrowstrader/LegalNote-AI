@@ -53,6 +53,7 @@ import {
   audioUploadLimiter,
   authLimiter,
   pollingLimiter,
+  demoTtsLimiter,
 } from "./rateLimiting";
 import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
@@ -10238,6 +10239,70 @@ ${firmName}`;
         }
       }
       res.json({ success: true, message: "Colleague invitation sent" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Demo TTS: generate spoken narration for tour steps
+  const demoTtsCache = new Map<string, { buffer: Buffer; expires: number }>();
+
+  app.post("/api/demo/tts", demoTtsLimiter, async (req, res, next) => {
+    try {
+      const { stepId, name, firmName } = req.body;
+      const sid = Number(stepId);
+      if (!Number.isInteger(sid) || sid < 1 || sid > 9) {
+        return res.status(400).json({ message: "stepId must be 1-9" });
+      }
+
+      const resolvedName = typeof name === "string" && name.trim() ? name.trim() : "";
+      const resolvedFirm = typeof firmName === "string" && firmName.trim() ? firmName.trim() : "your firm";
+      const namePrefix = resolvedName ? `${resolvedName}, ` : "";
+
+      const SCRIPTS: Record<number, string> = {
+        1: `${namePrefix}your next client meeting is in ten minutes. When you click Join Meeting, LegalNote connects to the call and handles everything automatically — recording, transcription, and documentation. No setup required.`,
+        2: `Once a session is processed and documents are ready, the case moves straight to this Review tab. No manual sorting, no chasing colleagues. Everything ready for your approval in one place.`,
+        3: `Here is the demo matter — a child arrangements consultation. Click the case row to open it. Inside you will find the full attendance note, the session transcript, the audit trail, and the complete compliance record, all in one place.`,
+        4: `When you confirmed consent during the call, LegalNote logged it automatically — timestamped and sealed with a cryptographic fingerprint. Every consent event is recorded here the moment it happens, verifiable and tamper-evident.`,
+        5: `Each session is captured separately, with the date, duration, and a full transcript that identifies each speaker throughout. Nothing is lost between meetings — every word is accounted for.`,
+        6: `From a recorded consultation, LegalNote produced this structured attendance note — no typing, no prompts required. Review it here and approve in two clicks. This is precisely the document your professional indemnity insurer and the SRA would ask to see.`,
+        7: `Every event in the case lifecycle is logged here with a cryptographic fingerprint — consent, recording, transcript completion, document approval, client share. If any record is altered after the fact, the fingerprint will not match. That is your defence in any dispute.`,
+        8: `Undertakings given to clients or third parties during the session are extracted and tracked here, with the exact wording from the transcript as evidence. Outstanding items remain flagged until they are formally discharged.`,
+        9: `That is LegalNote in practice — compliance, defensibility, and documentation, all from a single recording. Book a fifteen-minute walkthrough with a LegalNote solicitor and we will show you exactly how this works for ${resolvedFirm}.`,
+      };
+
+      const script = SCRIPTS[sid];
+      const cacheKey = `${sid}|${resolvedName}|${resolvedFirm}`;
+      const now = Date.now();
+
+      // Prune expired entries on each write cycle
+      for (const [key, entry] of demoTtsCache) {
+        if (entry.expires <= now) demoTtsCache.delete(key);
+      }
+
+      const cached = demoTtsCache.get(cacheKey);
+      if (cached && cached.expires > now) {
+        res.setHeader("Content-Type", "audio/mpeg");
+        res.setHeader("Cache-Control", "no-store");
+        return res.send(cached.buffer);
+      }
+
+      const { openaiClient } = await import("./config/openai");
+      const mp3Response = await openaiClient.audio.speech.create({
+        model: "gpt-4o-mini-tts",
+        voice: "coral",
+        input: script,
+        instructions: "Speak with a calm, warm, and confident British accent. You are a professional woman presenting a legal software demonstration to solicitors. Maintain a measured, assured pace — clear enough to follow but never rushed.",
+      });
+
+      const arrayBuffer = await mp3Response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      demoTtsCache.set(cacheKey, { buffer, expires: now + 60 * 60 * 1000 });
+
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Cache-Control", "no-store");
+      res.send(buffer);
     } catch (error) {
       next(error);
     }

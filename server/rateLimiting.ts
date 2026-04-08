@@ -81,6 +81,15 @@ export const strictLimiter = rateLimit({
   skip: (req: any) => !req.user,
 });
 
+// Demo TTS rate limit: 30 requests per hour per IP (public endpoint)
+export const demoTtsLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 30, // 30 TTS requests per hour per IP
+  message: "TTS rate limit exceeded. Please try again later",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Polling endpoint rate limit: Very lenient for status checks
 export const pollingLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute

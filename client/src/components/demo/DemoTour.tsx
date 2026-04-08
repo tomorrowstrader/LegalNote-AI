@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { X, ArrowRight } from "lucide-react";
+import { X, ArrowRight, Volume2, VolumeX } from "lucide-react";
 
 export interface TourStep {
   id: number;
@@ -89,6 +89,7 @@ const TOUR_STEPS: TourStep[] = [
 ];
 
 const TOUR_KEY = "legalnote_demo_tour_complete_v6";
+const VOICE_KEY = "legalnote_demo_voice";
 
 interface TooltipPosition {
   top?: number;
@@ -100,18 +101,53 @@ interface DemoTourProps {
   practiceArea?: string;
   startAtStep?: number;
   resumeTrigger?: number;
+  name?: string;
+  firmName?: string;
 }
 
-export function DemoTour({ restartTrigger, practiceArea, startAtStep, resumeTrigger }: DemoTourProps) {
+export function DemoTour({ restartTrigger, practiceArea, startAtStep, resumeTrigger, name, firmName }: DemoTourProps) {
   const tourKey = practiceArea ? `${TOUR_KEY}_${practiceArea}` : TOUR_KEY;
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [tooltipPos, setTooltipPos] = useState<TooltipPosition>({ top: 100, left: 20 });
   const [visible, setVisible] = useState(false);
   const [elementMissing, setElementMissing] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(() => localStorage.getItem(VOICE_KEY) !== "off");
   const positionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioBlobUrlRef = useRef<string | null>(null);
 
   const currentStep = TOUR_STEPS[stepIndex];
+
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (audioBlobUrlRef.current) {
+      URL.revokeObjectURL(audioBlobUrlRef.current);
+      audioBlobUrlRef.current = null;
+    }
+  }, []);
+
+  const playStepAudio = useCallback(async (stepId: number) => {
+    stopAudio();
+    try {
+      const response = await fetch("/api/demo/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stepId, name, firmName }),
+      });
+      if (!response.ok) return;
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      audioBlobUrlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.play().catch(() => {});
+    } catch {
+    }
+  }, [stopAudio, name, firmName]);
 
   const positionTooltip = useCallback(() => {
     if (!currentStep) return;
@@ -193,6 +229,16 @@ export function DemoTour({ restartTrigger, practiceArea, startAtStep, resumeTrig
   }, [active, currentStep, positionTooltip]);
 
   useEffect(() => {
+    if (!active || !currentStep || !visible) return;
+    if (voiceEnabled) {
+      playStepAudio(currentStep.id);
+    }
+    return () => {
+      stopAudio();
+    };
+  }, [active, currentStep, visible, voiceEnabled, playStepAudio, stopAudio]);
+
+  useEffect(() => {
     if (!active || !currentStep || !elementMissing) return;
     const interval = setInterval(() => {
       const el = document.querySelector(`[data-testid="${currentStep.target}"]`);
@@ -204,6 +250,12 @@ export function DemoTour({ restartTrigger, practiceArea, startAtStep, resumeTrig
     }, 500);
     return () => clearInterval(interval);
   }, [active, currentStep, elementMissing, positionTooltip]);
+
+  useEffect(() => {
+    return () => {
+      stopAudio();
+    };
+  }, [stopAudio]);
 
   const handleNext = () => {
     if (stepIndex < TOUR_STEPS.length - 1) {
@@ -218,9 +270,21 @@ export function DemoTour({ restartTrigger, practiceArea, startAtStep, resumeTrig
   };
 
   const handleComplete = () => {
+    stopAudio();
     setActive(false);
     setVisible(false);
     localStorage.setItem(tourKey, "1");
+  };
+
+  const toggleVoice = () => {
+    const next = !voiceEnabled;
+    setVoiceEnabled(next);
+    localStorage.setItem(VOICE_KEY, next ? "on" : "off");
+    if (!next) {
+      stopAudio();
+    } else if (active && currentStep && visible) {
+      playStepAudio(currentStep.id);
+    }
   };
 
   if (!active || !currentStep || !visible) return null;
@@ -266,9 +330,23 @@ export function DemoTour({ restartTrigger, practiceArea, startAtStep, resumeTrig
         )}
 
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-muted-foreground">
-            {stepIndex + 1} of {TOUR_STEPS.length}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">
+              {stepIndex + 1} of {TOUR_STEPS.length}
+            </span>
+            <button
+              onClick={toggleVoice}
+              className="text-muted-foreground hover:text-foreground"
+              data-testid="button-tour-voice-toggle"
+              title={voiceEnabled ? "Mute voice guidance" : "Enable voice guidance"}
+            >
+              {voiceEnabled ? (
+                <Volume2 className="w-3.5 h-3.5" />
+              ) : (
+                <VolumeX className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
           <div className="flex gap-2">
             <Button
               variant="ghost"

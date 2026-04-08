@@ -156,9 +156,11 @@ interface DemoInnerProps {
   practiceArea: string;
   caseTitle: string;
   revealCaseInCache: () => void;
+  name?: string;
+  firmName?: string;
 }
 
-function DemoInner({ practiceArea, caseTitle, revealCaseInCache }: DemoInnerProps) {
+function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName }: DemoInnerProps) {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const { flowState, advanceFlow, markCaseVisible } = useDemoFlow();
@@ -220,6 +222,8 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache }: DemoInnerProp
           practiceArea={practiceArea}
           resumeTrigger={tourResumeTrigger}
           startAtStep={POST_CINEMATIC_TOUR_STEP_INDEX}
+          name={name}
+          firmName={firmName}
         />
         <DemoLockedOverlayManager />
         <div className="pt-16">
@@ -301,6 +305,8 @@ export default function PublicDemo() {
               practiceArea={practiceArea}
               revealCaseInCache={revealCaseInCache}
               caseTitle={caseTitle}
+              name={firstName || undefined}
+              firmName={firmName || undefined}
             />
             <Toaster />
           </FocusModeProvider>
