@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, createContext, useContext } from "react";
-import { useParams, useSearch, Router, Route, useLocation } from "wouter";
+import { useParams, useSearch, Router, Route } from "wouter";
 import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
@@ -153,6 +153,12 @@ function DemoFetchInterceptor() {
 
 const POST_CINEMATIC_TOUR_STEP_INDEX = 3;
 
+// Static location hook for CaseDetail in demo mode — keeps the outer URL unchanged.
+// Wouter's Router accepts a custom `hook` that must return [pathname, navigate].
+function useDemoCaseDetailLocation(): [string, (to: string) => void] {
+  return [`/case/${DEMO_CASE_ID}`, () => {}];
+}
+
 interface DemoInnerProps {
   practiceArea: string;
   caseTitle: string;
@@ -162,11 +168,11 @@ interface DemoInnerProps {
 }
 
 function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName }: DemoInnerProps) {
-  const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const { flowState, advanceFlow, markCaseVisible } = useDemoFlow();
   const [tourRestartTrigger, setTourRestartTrigger] = useState(0);
   const [tourResumeTrigger, setTourResumeTrigger] = useState(0);
+  const [demoScreen, setDemoScreen] = useState<"dashboard" | "case">("dashboard");
   const handleRestartTour = useCallback(() => setTourRestartTrigger((v) => v + 1), []);
 
   const handleJoinMeeting = useCallback(() => {
@@ -205,11 +211,11 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     revealCaseInCache();
     markCaseVisible();
     localStorage.setItem("legalnote_demo_case_just_revealed", "1");
-    setLocation(`/demo/${practiceArea}/case/${DEMO_CASE_ID}`);
+    setDemoScreen("case");
     setTimeout(() => {
       setTourResumeTrigger((v) => v + 1);
     }, 800);
-  }, [revealCaseInCache, markCaseVisible, setLocation, practiceArea]);
+  }, [revealCaseInCache, markCaseVisible]);
 
   return (
     <>
@@ -228,10 +234,13 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
         />
         <DemoLockedOverlayManager />
         <div className="pt-16">
-          <Router base={`/demo/${practiceArea}`}>
-            <Route path="/" component={Dashboard} />
-            <Route path="/case/:id" component={CaseDetail} />
-          </Router>
+          {demoScreen === "dashboard" ? (
+            <Dashboard />
+          ) : (
+            <Router hook={useDemoCaseDetailLocation}>
+              <Route path="/case/:id" component={CaseDetail} />
+            </Router>
+          )}
         </div>
       </div>
 

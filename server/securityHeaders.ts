@@ -144,10 +144,30 @@ export function configureSecurityHeaders(app: Express) {
     })
   );
 
+  // Override frame-blocking headers for demo routes so the demo-generator preview iframe works (same-origin)
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/demo/')) {
+      // Allow same-origin iframe embedding for demo pages (frame-ancestors)
+      const csp = res.getHeader('Content-Security-Policy') as string || '';
+      if (csp) {
+        res.setHeader('Content-Security-Policy', csp.replace(/frame-ancestors [^;]+/, "frame-ancestors 'self'"));
+      }
+    } else if (req.path === '/demo-generator' || req.path.startsWith('/demo-generator?')) {
+      // Allow the demo-generator page to render same-origin iframes (frame-src)
+      const csp = res.getHeader('Content-Security-Policy') as string || '';
+      if (csp) {
+        res.setHeader('Content-Security-Policy', csp.replace(/frame-src [^;]+/, "frame-src 'self'"));
+      }
+    }
+    next();
+  });
+
   // Additional security headers not covered by Helmet
   app.use((req, res, next) => {
-    // Prevent clickjacking
-    res.setHeader('X-Frame-Options', 'DENY');
+    // Prevent clickjacking — allow demo pages to be embedded same-origin (for demo-generator preview)
+    if (!req.path.startsWith('/demo/')) {
+      res.setHeader('X-Frame-Options', 'DENY');
+    }
     
     // Browser feature permissions
     res.setHeader('Permissions-Policy', 
