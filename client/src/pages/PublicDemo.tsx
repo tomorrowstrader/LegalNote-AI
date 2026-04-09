@@ -64,8 +64,7 @@ interface DemoInteractionGuardProps {
   currentTourTarget: string | null;
   tourActive: boolean;
   onJoinMeeting: () => void;
-  onTabReview: () => void;
-  onCaseRow: () => void;
+  onNavSessions: () => void;
   onNavDocuments: () => void;
   onActionShare: () => void;
   onNavUndertakings: () => void;
@@ -76,8 +75,7 @@ function DemoInteractionGuard({
   currentTourTarget,
   tourActive,
   onJoinMeeting,
-  onTabReview,
-  onCaseRow,
+  onNavSessions,
   onNavDocuments,
   onActionShare,
   onNavUndertakings,
@@ -99,13 +97,8 @@ function DemoInteractionGuard({
           return;
         }
 
-        if (testId === "tab-review") {
-          onTabReview();
-          return;
-        }
-
-        if (testId === "row-case-demo-case-family-001") {
-          onCaseRow();
+        if (testId === "nav-sessions") {
+          onNavSessions();
           return;
         }
 
@@ -184,7 +177,7 @@ function DemoInteractionGuard({
     };
     document.addEventListener("click", handleClick, { capture: true });
     return () => document.removeEventListener("click", handleClick, { capture: true });
-  }, [toast, currentTourTarget, tourActive, onJoinMeeting, onTabReview, onCaseRow, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit]);
+  }, [toast, currentTourTarget, tourActive, onJoinMeeting, onNavSessions, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit]);
 
   return null;
 }
@@ -276,22 +269,18 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     revealCaseInCache();
     markCaseVisible();
     localStorage.setItem("legalnote_demo_case_just_revealed", "1");
+    setDemoScreen("case");
     setTimeout(() => {
       setTourResumeTrigger((v) => v + 1);
     }, 800);
   }, [revealCaseInCache, markCaseVisible]);
 
-  const handleTabReview = useCallback(() => {
+  const handleNavSessions = useCallback(() => {
     advanceTo(6);
   }, [advanceTo]);
 
-  const handleCaseRow = useCallback(() => {
-    setDemoScreen("case");
-    advanceTo(7);
-  }, [advanceTo]);
-
   const handleNavDocuments = useCallback(() => {
-    advanceTo(8);
+    advanceTo(7);
   }, [advanceTo]);
 
   const handleActionShare = useCallback(() => {
@@ -313,15 +302,15 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
       hmacFingerprint: `share${Date.now().toString(16)}`,
     };
     qc.setQueryData(["/api/audit/case", DEMO_CASE_ID], [shareEntry, ...existingCaseLogs]);
-    advanceTo(9);
+    advanceTo(8);
   }, [qc, advanceTo]);
 
   const handleNavUndertakings = useCallback(() => {
-    advanceTo(10);
+    advanceTo(9);
   }, [advanceTo]);
 
   const handleNavAudit = useCallback(() => {
-    advanceTo(11);
+    advanceTo(10);
   }, [advanceTo]);
 
   const isProcessing = flowState === "processing";
@@ -333,8 +322,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
         currentTourTarget={currentTourTarget}
         tourActive={tourActive}
         onJoinMeeting={handleJoinMeeting}
-        onTabReview={handleTabReview}
-        onCaseRow={handleCaseRow}
+        onNavSessions={handleNavSessions}
         onNavDocuments={handleNavDocuments}
         onActionShare={handleActionShare}
         onNavUndertakings={handleNavUndertakings}

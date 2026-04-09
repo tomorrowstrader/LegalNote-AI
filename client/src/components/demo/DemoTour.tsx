@@ -35,8 +35,8 @@ const TOUR_STEPS: TourStep[] = [
     id: 3,
     target: "demo-meeting-connect",
     title: "Platform-enforced consent capture, every session",
-    description: "No other practice management tool does this. LegalNote enforces an identical, GDPR-compliant consent capture workflow across every fee earner and every session, with the script locked by the platform so nothing gets missed or improvised. Tap Connect to join and start recording.",
-    placement: "bottom",
+    description: "Every fee earner in your firm reads the same GDPR-compliant wording, in every session, logged to the same evidence standard, by default. No variation, no gaps. Tap Connect to join and start recording.",
+    placement: "top",
     actionRequired: true,
   },
   {
@@ -57,30 +57,22 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 6,
-    target: "tab-review",
-    title: "Ready for your review",
-    description: "Your matter has moved to Review, compiled from the recording in under 5 minutes. Tap the Review tab above the case list (look for the orange number badge).",
-    placement: "bottom",
-    actionRequired: true,
-  },
-  {
-    id: 7,
-    target: "row-case-demo-case-family-001",
-    title: "Open the matter",
-    description: "Tap the highlighted matter row to see your documents, extracted obligations, full transcript, and audit trail, everything compiled from the session.",
-    placement: "bottom",
-    actionRequired: true,
-  },
-  {
-    id: 8,
-    target: "nav-documents",
-    title: "Attendance note, from the recording",
-    description: "Compiled in under 5 minutes. No typing, no dictation. Tap Documents in the left panel to open it.",
+    target: "nav-sessions",
+    title: "Recording retained for 7 days, then deleted",
+    description: "Your recording is accessible here for 7 days per GDPR Article 17, then permanently and automatically deleted. Audio, diarized transcript, and full speaker log all live in Sessions, compiled in under 60 seconds. Tap Sessions.",
     placement: "right",
     actionRequired: true,
   },
   {
-    id: 9,
+    id: 7,
+    target: "nav-documents",
+    title: "Attendance note, from the recording",
+    description: "Compiled in under 60 seconds. No typing, no dictation. Tap Documents to open the compiled attendance note.",
+    placement: "right",
+    actionRequired: true,
+  },
+  {
+    id: 8,
     target: "button-case-actions",
     title: "Send it securely, with SMS verification",
     description: "Tap Case Actions to share this attendance note with your client. They verify by SMS before accessing it, delivery confirmed, access timestamped, and the entire chain logged to the audit trail.",
@@ -88,7 +80,7 @@ const TOUR_STEPS: TourStep[] = [
     actionRequired: true,
   },
   {
-    id: 10,
+    id: 9,
     target: "nav-undertakings",
     title: "Obligations captured from the recording",
     description: "Any undertakings or obligations given during the session were captured from the transcript. Each one is tracked until discharged, flagged, logged, and verifiable. Tap Undertakings.",
@@ -96,7 +88,7 @@ const TOUR_STEPS: TourStep[] = [
     actionRequired: true,
   },
   {
-    id: 11,
+    id: 10,
     target: "nav-audit",
     title: "Tamper-evident audit trail",
     description: "Every event, consent, recording, document approval, and secure share access, is logged with a cryptographic fingerprint. Proof of everything, if it's ever disputed. Tap Audit Trail.",
@@ -104,15 +96,15 @@ const TOUR_STEPS: TourStep[] = [
     actionRequired: true,
   },
   {
-    id: 12,
+    id: 11,
     target: "action-pi-pack",
-    title: "5-minute SRA-ready defence pack",
-    description: "If the SRA investigates or a PI claim is made, generate a complete defence pack: sessions, consent log, documents, audit trail, and a tamper-evidence declaration. Everything bundled in under 5 minutes.",
+    title: "SRA-ready defence pack",
+    description: "If the SRA investigates or a PI claim is made, generate a complete defence pack: sessions, consent log, documents, audit trail, and a tamper-evidence declaration. Everything bundled in under 60 seconds.",
     placement: "bottom",
     actionRequired: false,
   },
   {
-    id: 13,
+    id: 12,
     target: "demo-cta-bar",
     title: "The gap is real. Most firms don't know it.",
     description: "Solo practitioners and boutique firms are most exposed when things go wrong, and least likely to have the documented processes that protect them. You've just seen what protection looks like in practice. Book a 15-minute call.",
@@ -207,13 +199,15 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       setSpotlightRect(null);
       return;
     }
-    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    const rect = el.getBoundingClientRect();
-    setSpotlightRect({
-      top: rect.top + window.scrollY,
-      left: rect.left,
-      width: rect.width,
-      height: rect.height,
+    el.scrollIntoView({ behavior: "instant", block: "nearest" });
+    requestAnimationFrame(() => {
+      const rect = el.getBoundingClientRect();
+      setSpotlightRect({
+        top: rect.top + window.scrollY,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      });
     });
   }, []);
 
@@ -225,7 +219,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
     if (isMobile) {
       const el = document.querySelector(`[data-testid="${s.target}"]`);
       if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.scrollIntoView({ behavior: "instant", block: "center" });
       }
       setElementMissing(false);
       setTooltipPos({ isMobileSheet: true });
@@ -243,42 +237,44 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       return;
     }
     setElementMissing(false);
-    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    const rect = el.getBoundingClientRect();
-    const tooltipWidth = 300;
-    const tooltipHeight = 200;
-    const margin = 14;
-    const placement = s.placement || "bottom";
-    let top = 0;
-    let left = 0;
+    el.scrollIntoView({ behavior: "instant", block: "nearest" });
+    requestAnimationFrame(() => {
+      const rect = el.getBoundingClientRect();
+      const tooltipWidth = 300;
+      const tooltipHeight = 200;
+      const margin = 14;
+      const placement = s.placement || "bottom";
+      let top = 0;
+      let left = 0;
 
-    if (placement === "bottom") {
-      top = rect.bottom + margin + window.scrollY;
-      left = rect.left + rect.width / 2 - tooltipWidth / 2;
-    } else if (placement === "top") {
-      top = rect.top - tooltipHeight - margin + window.scrollY;
-      left = rect.left + rect.width / 2 - tooltipWidth / 2;
-    } else if (placement === "right") {
-      top = rect.top + window.scrollY;
-      left = rect.right + margin;
-    } else if (placement === "left") {
-      top = rect.top + window.scrollY;
-      left = rect.left - tooltipWidth - margin;
-    }
+      if (placement === "bottom") {
+        top = rect.bottom + margin + window.scrollY;
+        left = rect.left + rect.width / 2 - tooltipWidth / 2;
+      } else if (placement === "top") {
+        top = rect.top - tooltipHeight - margin + window.scrollY;
+        left = rect.left + rect.width / 2 - tooltipWidth / 2;
+      } else if (placement === "right") {
+        top = rect.top + window.scrollY;
+        left = rect.right + margin;
+      } else if (placement === "left") {
+        top = rect.top + window.scrollY;
+        left = rect.left - tooltipWidth - margin;
+      }
 
-    left = Math.min(left, window.innerWidth - tooltipWidth - 8);
-    left = Math.max(8, left);
-    top = Math.max(70, top);
-    top = Math.min(top, window.innerHeight - tooltipHeight - 24 + window.scrollY);
+      left = Math.min(left, window.innerWidth - tooltipWidth - 8);
+      left = Math.max(8, left);
+      top = Math.max(70, top);
+      top = Math.min(top, window.innerHeight - tooltipHeight - 24 + window.scrollY);
 
-    setTooltipPos({ top, left });
-    setVisible(true);
+      setTooltipPos({ top, left });
+      setVisible(true);
 
-    setSpotlightRect({
-      top: rect.top + window.scrollY,
-      left: rect.left,
-      width: rect.width,
-      height: rect.height,
+      setSpotlightRect({
+        top: rect.top + window.scrollY,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      });
     });
   }, [currentStep]);
 

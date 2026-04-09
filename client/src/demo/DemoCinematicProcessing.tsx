@@ -73,7 +73,7 @@ export function DemoCinematicProcessing({ onComplete }: DemoCinematicProcessingP
           <>
             <div className="text-center space-y-2">
               <h2 className="text-xl font-semibold tracking-tight">Processing your session</h2>
-              <p className="text-sm text-muted-foreground">This takes just a few seconds in a real session</p>
+              <p className="text-sm text-muted-foreground">In your account this compiles in under 60 seconds, in the background</p>
             </div>
 
             <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
