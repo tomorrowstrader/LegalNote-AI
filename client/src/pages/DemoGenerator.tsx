@@ -24,14 +24,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
-import { useLocation } from "wouter";
 import {
   Link2,
   Copy,
   Check,
   ExternalLink,
-  Shield,
   MessageSquare,
   ChevronDown,
   ChevronUp,
@@ -140,8 +137,6 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 export default function DemoGenerator() {
-  const { isAdmin, isFirmAdmin, isPartner, isSupervisor } = useAuth();
-  const [, setLocation] = useLocation();
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [generatedSnippet, setGeneratedSnippet] = useState<string | null>(null);
   const [showSnippet, setShowSnippet] = useState(false);
@@ -159,23 +154,6 @@ export default function DemoGenerator() {
       billingRate: 220,
     },
   });
-
-  const canAccess = isAdmin || isFirmAdmin || isPartner || isSupervisor;
-
-  if (!canAccess) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center" data-testid="access-denied">
-        <Shield className="w-10 h-10 text-muted-foreground mx-auto mb-4" />
-        <h2 className="text-xl font-semibold mb-2">Access restricted</h2>
-        <p className="text-muted-foreground text-sm">
-          The demo link generator is available to firm admins, partners, and supervisors.
-        </p>
-        <Button variant="outline" className="mt-6" onClick={() => setLocation("/")}>
-          Return to dashboard
-        </Button>
-      </div>
-    );
-  }
 
   const onSubmit = (values: FormValues) => {
     const url = buildDemoUrl(values);
