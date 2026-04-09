@@ -276,7 +276,6 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     revealCaseInCache();
     markCaseVisible();
     localStorage.setItem("legalnote_demo_case_just_revealed", "1");
-    setDemoScreen("case");
     setTimeout(() => {
       setTourResumeTrigger((v) => v + 1);
     }, 800);
@@ -287,6 +286,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   }, [advanceTo]);
 
   const handleCaseRow = useCallback(() => {
+    setDemoScreen("case");
     advanceTo(7);
   }, [advanceTo]);
 

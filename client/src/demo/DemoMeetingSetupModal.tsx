@@ -149,7 +149,12 @@ export function DemoMeetingSetupModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="sm:max-w-[500px] gap-0 p-0 overflow-hidden" data-testid="demo-meeting-modal">
+      <DialogContent
+        className="sm:max-w-[500px] gap-0 p-0 overflow-hidden"
+        data-testid="demo-meeting-modal"
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
           <DialogTitle data-testid="demo-meeting-title">
             {step === "setup" && "Join a meeting"}

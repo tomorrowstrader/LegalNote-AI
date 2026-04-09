@@ -19,7 +19,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 1,
     target: "dashboard-welcome-header",
     title: "No more post-meeting scramble",
-    description: "This is your LegalNote dashboard — every active matter, upcoming meeting, and compliance obligation in one place. No post-meeting typing, no dictation, no missed obligations.",
+    description: "This is your LegalNote dashboard: every active matter, upcoming meeting, and compliance obligation in one place. No post-meeting typing, no dictation, no missed obligations.",
     placement: "bottom",
     actionRequired: false,
   },
@@ -27,15 +27,15 @@ const TOUR_STEPS: TourStep[] = [
     id: 2,
     target: "button-join-meeting-dashboard",
     title: "Run this consultation through Meeting-to-Matter™",
-    description: "Tap Join Meeting to run this session through Meeting-to-Matter™. One recording becomes a compliance-ready attendance note, a sealed consent record, and a defensible matter trail — while you stay focused on the client.",
+    description: "Tap Join Meeting to run this session through Meeting-to-Matter™. One recording becomes a compliance-ready attendance note, a sealed consent record, and a defensible matter trail, while you stay focused on the client.",
     placement: "bottom",
     actionRequired: true,
   },
   {
     id: 3,
     target: "demo-meeting-connect",
-    title: "The same script, every time",
-    description: "The consent script above is standardised by the platform — identical GDPR-compliant wording, every fee earner, every session. Tap Connect to join and start recording.",
+    title: "Platform-enforced consent capture, every session",
+    description: "No other practice management tool does this. LegalNote enforces an identical, GDPR-compliant consent capture workflow across every fee earner and every session, with the script locked by the platform so nothing gets missed or improvised. Tap Connect to join and start recording.",
     placement: "bottom",
     actionRequired: true,
   },
@@ -43,7 +43,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 4,
     target: "demo-consent-confirm",
     title: "Log consent in one tap",
-    description: "Your client has agreed. Tap to log it — timestamped, GDPR Article 7 compliant, sealed to the audit trail. The same evidence standard every time.",
+    description: "Your client has agreed. Tap to log it: timestamped, GDPR Article 7 compliant, sealed to the audit trail. The same evidence standard every time.",
     placement: "bottom",
     actionRequired: true,
   },
@@ -54,13 +54,12 @@ const TOUR_STEPS: TourStep[] = [
     description: "Tap End Recording when your session is complete. Meeting-to-Matter™ compiles your attendance note, extracts obligations, flags AML indicators, and seals the full audit trail from one recording.",
     placement: "top",
     actionRequired: true,
-    delayMs: 2000,
   },
   {
     id: 6,
     target: "tab-review",
     title: "Ready for your review",
-    description: "Your matter has moved to Review — compiled from the recording in under 5 minutes. Tap the Review tab above the case list (look for the orange number badge).",
+    description: "Your matter has moved to Review, compiled from the recording in under 5 minutes. Tap the Review tab above the case list (look for the orange number badge).",
     placement: "bottom",
     actionRequired: true,
   },
@@ -68,14 +67,14 @@ const TOUR_STEPS: TourStep[] = [
     id: 7,
     target: "row-case-demo-case-family-001",
     title: "Open the matter",
-    description: "Tap the highlighted matter row to see your documents, extracted obligations, full transcript, and audit trail — everything compiled from the session.",
+    description: "Tap the highlighted matter row to see your documents, extracted obligations, full transcript, and audit trail, everything compiled from the session.",
     placement: "bottom",
     actionRequired: true,
   },
   {
     id: 8,
     target: "nav-documents",
-    title: "Attendance note — from the recording",
+    title: "Attendance note, from the recording",
     description: "Compiled in under 5 minutes. No typing, no dictation. Tap Documents in the left panel to open it.",
     placement: "right",
     actionRequired: true,
@@ -83,8 +82,8 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 9,
     target: "button-case-actions",
-    title: "Send it securely — with SMS verification",
-    description: "Tap Case Actions to share this attendance note with your client. They verify by SMS before accessing it — delivery confirmed, access timestamped, and the entire chain logged to the audit trail.",
+    title: "Send it securely, with SMS verification",
+    description: "Tap Case Actions to share this attendance note with your client. They verify by SMS before accessing it, delivery confirmed, access timestamped, and the entire chain logged to the audit trail.",
     placement: "top",
     actionRequired: true,
   },
@@ -92,7 +91,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 10,
     target: "nav-undertakings",
     title: "Obligations captured from the recording",
-    description: "Any undertakings or obligations given during the session were captured from the transcript. Each one is tracked until discharged — flagged, logged, and verifiable. Tap Undertakings.",
+    description: "Any undertakings or obligations given during the session were captured from the transcript. Each one is tracked until discharged, flagged, logged, and verifiable. Tap Undertakings.",
     placement: "right",
     actionRequired: true,
   },
@@ -100,7 +99,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 11,
     target: "nav-audit",
     title: "Tamper-evident audit trail",
-    description: "Every event — consent, recording, document approval, secure share access — is logged with a cryptographic fingerprint. Proof of everything, if it's ever disputed. Tap Audit Trail.",
+    description: "Every event, consent, recording, document approval, and secure share access, is logged with a cryptographic fingerprint. Proof of everything, if it's ever disputed. Tap Audit Trail.",
     placement: "right",
     actionRequired: true,
   },
@@ -108,7 +107,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 12,
     target: "action-pi-pack",
     title: "5-minute SRA-ready defence pack",
-    description: "If the SRA investigates or a PI claim is made, generate a complete defence pack — sessions, consent log, documents, audit trail, and a tamper-evidence declaration. Everything bundled in under 5 minutes.",
+    description: "If the SRA investigates or a PI claim is made, generate a complete defence pack: sessions, consent log, documents, audit trail, and a tamper-evidence declaration. Everything bundled in under 5 minutes.",
     placement: "bottom",
     actionRequired: false,
   },
@@ -116,7 +115,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 13,
     target: "demo-cta-bar",
     title: "The gap is real. Most firms don't know it.",
-    description: "Solo practitioners and boutique firms are most exposed when things go wrong — and least likely to have the documented processes that protect them. You've just seen what protection looks like in practice. Book a 15-minute call.",
+    description: "Solo practitioners and boutique firms are most exposed when things go wrong, and least likely to have the documented processes that protect them. You've just seen what protection looks like in practice. Book a 15-minute call.",
     placement: "top",
     actionRequired: false,
   },
@@ -208,6 +207,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       setSpotlightRect(null);
       return;
     }
+    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
     const rect = el.getBoundingClientRect();
     setSpotlightRect({
       top: rect.top + window.scrollY,
@@ -243,6 +243,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       return;
     }
     setElementMissing(false);
+    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
     const rect = el.getBoundingClientRect();
     const tooltipWidth = 300;
     const tooltipHeight = 200;
@@ -272,7 +273,6 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
 
     setTooltipPos({ top, left });
     setVisible(true);
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
 
     setSpotlightRect({
       top: rect.top + window.scrollY,
