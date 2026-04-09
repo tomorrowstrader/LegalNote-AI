@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -48,6 +48,12 @@ import ScrollToTop from "@/components/ScrollToTop";
 import PublicDemo from "@/pages/PublicDemo";
 import DemoGenerator from "@/pages/DemoGenerator";
 
+function RedirectTo({ to }: { to: string }) {
+  const [, setLocation] = useLocation();
+  useEffect(() => { setLocation(to); }, []);
+  return null;
+}
+
 function Router() {
   const { user, isAuthenticated, isLoading, isAdmin, isWaitlisted, isFirmAdmin, canAccessFirmCompliance } = useAuth();
   const isPendingApproval = user?.inviteStatus === "pending_approval";
@@ -57,6 +63,7 @@ function Router() {
       {/* Public routes (accessible without authentication) */}
       <Route path="/demo/:practiceArea" component={PublicDemo} />
       <Route path="/demo-generator" component={DemoGenerator} />
+      <Route path="/demo-generation" component={() => <RedirectTo to="/demo-generator" />} />
       <Route path="/share/:linkId" component={ShareLinkView} />
       <Route path="/acknowledge/:token" component={AcknowledgePage} />
       <Route path="/badge/:slug" component={ComplianceBadge} />
