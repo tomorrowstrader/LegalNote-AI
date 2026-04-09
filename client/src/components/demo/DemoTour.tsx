@@ -14,22 +14,20 @@ export interface TourStep {
   delayMs?: number;
 }
 
-const CONSENT_SCRIPT = `"I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and deleted after 7 days. Do you consent?"`;
-
 const TOUR_STEPS: TourStep[] = [
   {
     id: 1,
     target: "dashboard-welcome-header",
     title: "No more post-meeting scramble",
-    description: "This is your LegalNote dashboard — every active matter, upcoming meeting, and compliance obligation in one place. For neurodivergent fee earners and every solicitor under caseload pressure, no more post-meeting scramble. Removing the documentation burden is both good practice and a reasonable adjustment under the Equality Act 2010.",
+    description: "This is your LegalNote dashboard — every active matter, upcoming meeting, and compliance obligation in one place. No post-meeting typing, no dictation, no missed obligations.",
     placement: "bottom",
     actionRequired: false,
   },
   {
     id: 2,
     target: "button-join-meeting-dashboard",
-    title: "Run this session through Meeting-to-Matter™",
-    description: "Tap Join Meeting to run this session through LegalNote's Meeting-to-Matter™ engine. It converts a client conversation into a compliance-ready attendance note, a sealed consent record, and a defensible matter trail. Running entirely in the background while you stay focused on the client.",
+    title: "Run this consultation through Meeting-to-Matter™",
+    description: "Tap Join Meeting to run this session through Meeting-to-Matter™. One recording becomes a compliance-ready attendance note, a sealed consent record, and a defensible matter trail — while you stay focused on the client.",
     placement: "bottom",
     actionRequired: true,
   },
@@ -37,7 +35,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 3,
     target: "demo-meeting-connect",
     title: "The same script, every time",
-    description: CONSENT_SCRIPT,
+    description: "The consent script above is standardised by the platform — identical GDPR-compliant wording, every fee earner, every session. Tap Connect to join and start recording.",
     placement: "bottom",
     actionRequired: true,
   },
@@ -45,24 +43,24 @@ const TOUR_STEPS: TourStep[] = [
     id: 4,
     target: "demo-consent-confirm",
     title: "Log consent in one tap",
-    description: "Your client has just agreed. Tap to log it — timestamped, GDPR Article 7 compliant, HMAC-sealed to the audit trail. The same evidence standard every time, regardless of who runs the meeting.",
+    description: "Your client has agreed. Tap to log it — timestamped, GDPR Article 7 compliant, sealed to the audit trail. The same evidence standard every time.",
     placement: "bottom",
     actionRequired: true,
   },
   {
     id: 5,
     target: "demo-end-recording",
-    title: "Meeting complete",
-    description: "Tap End Recording when your session is complete. Meeting-to-Matter™ produces your attendance note, extracts obligations, flags any AML risk indicators and conflict of interest changes from the session, and seals the full audit trail — all from one recording.",
+    title: "Wrap up the session",
+    description: "Tap End Recording when your session is complete. Meeting-to-Matter™ compiles your attendance note, extracts obligations, flags AML indicators, and seals the full audit trail from one recording.",
     placement: "top",
     actionRequired: true,
-    delayMs: 5000,
+    delayMs: 2000,
   },
   {
     id: 6,
     target: "tab-review",
     title: "Ready for your review",
-    description: "Your case has moved to Review. LegalNote compiled your attendance note from the recording in under 5 minutes — no typing, no dictation. Click the Review tab.",
+    description: "Your matter has moved to Review — compiled from the recording in under 5 minutes. Tap the Review tab above the case list (look for the orange number badge).",
     placement: "bottom",
     actionRequired: true,
   },
@@ -70,31 +68,31 @@ const TOUR_STEPS: TourStep[] = [
     id: 7,
     target: "row-case-demo-case-family-001",
     title: "Open the matter",
-    description: "Click the case to see your documents, extracted obligations, full transcript, and audit trail — everything in one place.",
+    description: "Tap the highlighted matter row to see your documents, extracted obligations, full transcript, and audit trail — everything compiled from the session.",
     placement: "bottom",
     actionRequired: true,
   },
   {
     id: 8,
     target: "nav-documents",
-    title: "Attendance note compiled from the recording",
-    description: "Produced in under 5 minutes. No typing. For neurodivergent fee earners — and every solicitor under caseload pressure — removing the transcription burden is a meaningful cognitive load reduction and a reasonable adjustment under the Equality Act 2010.",
+    title: "Attendance note — from the recording",
+    description: "Compiled in under 5 minutes. No typing, no dictation. Tap Documents in the left panel to open it.",
     placement: "right",
     actionRequired: true,
   },
   {
     id: 9,
-    target: "action-share",
-    title: "Send it securely — with SMS authentication",
-    description: "Share this attendance note with your client via a secure link. They verify by SMS before accessing it — delivery confirmed, access timestamped, and the entire chain logged to the audit trail.",
-    placement: "bottom",
+    target: "button-case-actions",
+    title: "Send it securely — with SMS verification",
+    description: "Tap Case Actions to share this attendance note with your client. They verify by SMS before accessing it — delivery confirmed, access timestamped, and the entire chain logged to the audit trail.",
+    placement: "top",
     actionRequired: true,
   },
   {
     id: 10,
     target: "nav-undertakings",
-    title: "Obligations extracted from the recording",
-    description: "Any undertakings or obligations given during the session were captured automatically from the transcript. Each one is tracked until discharged — flagged, logged, and verifiable.",
+    title: "Obligations captured from the recording",
+    description: "Any undertakings or obligations given during the session were captured from the transcript. Each one is tracked until discharged — flagged, logged, and verifiable. Tap Undertakings.",
     placement: "right",
     actionRequired: true,
   },
@@ -102,7 +100,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 11,
     target: "nav-audit",
     title: "Tamper-evident audit trail",
-    description: "Every event — consent, recording, document approval, secure share access — is logged here with a cryptographic fingerprint. The share link access from the previous step is already in this trail. Proof of everything, if it's ever disputed.",
+    description: "Every event — consent, recording, document approval, secure share access — is logged with a cryptographic fingerprint. Proof of everything, if it's ever disputed. Tap Audit Trail.",
     placement: "right",
     actionRequired: true,
   },
@@ -110,7 +108,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 12,
     target: "action-pi-pack",
     title: "5-minute SRA-ready defence pack",
-    description: "If the SRA investigates or a PI claim is made, generate a complete defence pack here — sessions, consent log, documents, audit trail, and a tamper-evidence declaration. Everything bundled in under 5 minutes.",
+    description: "If the SRA investigates or a PI claim is made, generate a complete defence pack — sessions, consent log, documents, audit trail, and a tamper-evidence declaration. Everything bundled in under 5 minutes.",
     placement: "bottom",
     actionRequired: false,
   },
@@ -118,7 +116,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 13,
     target: "demo-cta-bar",
     title: "The gap is real. Most firms don't know it.",
-    description: "Solo practitioners and boutique firms are most exposed when things go wrong — and least likely to have the documented processes that protect them. You've just seen what protection looks like in practice. This isn't a nice-to-have. Book a 15-minute call.",
+    description: "Solo practitioners and boutique firms are most exposed when things go wrong — and least likely to have the documented processes that protect them. You've just seen what protection looks like in practice. Book a 15-minute call.",
     placement: "top",
     actionRequired: false,
   },
@@ -133,6 +131,13 @@ interface TooltipPosition {
   isMobileSheet?: boolean;
 }
 
+interface SpotlightRect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
 export interface DemoTourHandle {
   advanceTourToStep: (index: number) => void;
 }
@@ -145,10 +150,11 @@ interface DemoTourProps {
   name?: string;
   firmName?: string;
   hidden?: boolean;
+  onStepTargetChange?: (target: string | null) => void;
 }
 
 export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoTour(
-  { restartTrigger, practiceArea, startAtStep, resumeTrigger, name, firmName, hidden },
+  { restartTrigger, practiceArea, startAtStep, resumeTrigger, name, firmName, hidden, onStepTargetChange },
   ref
 ) {
   const tourKey = practiceArea ? `${TOUR_KEY}_${practiceArea}` : TOUR_KEY;
@@ -158,7 +164,9 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   const [visible, setVisible] = useState(false);
   const [elementMissing, setElementMissing] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(() => localStorage.getItem(VOICE_KEY) !== "off");
+  const [spotlightRect, setSpotlightRect] = useState<SpotlightRect | null>(null);
   const positionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spotlightTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioBlobUrlRef = useRef<string | null>(null);
 
@@ -194,6 +202,21 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
     }
   }, [stopAudio, name, firmName]);
 
+  const updateSpotlight = useCallback((step: TourStep) => {
+    const el = document.querySelector(`[data-testid="${step.target}"]`);
+    if (!el) {
+      setSpotlightRect(null);
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    setSpotlightRect({
+      top: rect.top + window.scrollY,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+    });
+  }, []);
+
   const positionTooltip = useCallback((step?: TourStep) => {
     const s = step ?? currentStep;
     if (!s) return;
@@ -207,6 +230,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       setElementMissing(false);
       setTooltipPos({ isMobileSheet: true });
       setVisible(true);
+      setSpotlightRect(null);
       return;
     }
 
@@ -215,12 +239,13 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       setElementMissing(true);
       setTooltipPos({ top: 80, left: 20 });
       setVisible(true);
+      setSpotlightRect(null);
       return;
     }
     setElementMissing(false);
     const rect = el.getBoundingClientRect();
-    const tooltipWidth = 320;
-    const tooltipHeight = 220;
+    const tooltipWidth = 300;
+    const tooltipHeight = 200;
     const margin = 14;
     const placement = s.placement || "bottom";
     let top = 0;
@@ -248,6 +273,13 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
     setTooltipPos({ top, left });
     setVisible(true);
     el.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    setSpotlightRect({
+      top: rect.top + window.scrollY,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+    });
   }, [currentStep]);
 
   useImperativeHandle(ref, () => ({
@@ -256,9 +288,11 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       const step = TOUR_STEPS[index];
       if (!step) return;
       stopAudio();
+      onStepTargetChange?.(step.target);
 
       if (step.delayMs && step.delayMs > 0) {
         setVisible(false);
+        setSpotlightRect(null);
         setStepIndex(index);
         positionTimerRef.current = setTimeout(() => {
           positionTooltip(step);
@@ -267,7 +301,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
         setStepIndex(index);
       }
     },
-  }), [active, stopAudio, positionTooltip]);
+  }), [active, stopAudio, positionTooltip, onStepTargetChange]);
 
   useEffect(() => {
     const done = localStorage.getItem(tourKey);
@@ -295,11 +329,20 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   }, [resumeTrigger, tourKey, startAtStep]);
 
   useEffect(() => {
+    if (!active || !currentStep) {
+      onStepTargetChange?.(null);
+      return;
+    }
+    onStepTargetChange?.(currentStep.target);
+  }, [active, currentStep, onStepTargetChange]);
+
+  useEffect(() => {
     if (!active || !currentStep) return;
     if (currentStep.delayMs && currentStep.delayMs > 0) {
       return;
     }
     setVisible(false);
+    setSpotlightRect(null);
     setElementMissing(false);
     if (positionTimerRef.current) clearTimeout(positionTimerRef.current);
     positionTimerRef.current = setTimeout(() => {
@@ -311,14 +354,14 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   }, [active, currentStep, positionTooltip]);
 
   useEffect(() => {
-    if (!active || !currentStep || !visible) return;
+    if (!active || !currentStep || !visible || hidden) return;
     if (voiceEnabled) {
       playStepAudio(currentStep.id);
     }
     return () => {
       stopAudio();
     };
-  }, [active, currentStep, visible, voiceEnabled, playStepAudio, stopAudio]);
+  }, [active, currentStep, visible, voiceEnabled, playStepAudio, stopAudio, hidden]);
 
   useEffect(() => {
     if (!active || !currentStep || !elementMissing) return;
@@ -334,8 +377,23 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   }, [active, currentStep, elementMissing, positionTooltip]);
 
   useEffect(() => {
+    if (!active || !currentStep || !visible || hidden) {
+      if (spotlightTimerRef.current) clearInterval(spotlightTimerRef.current);
+      return;
+    }
+    if (spotlightTimerRef.current) clearInterval(spotlightTimerRef.current);
+    spotlightTimerRef.current = setInterval(() => {
+      updateSpotlight(currentStep);
+    }, 300);
+    return () => {
+      if (spotlightTimerRef.current) clearInterval(spotlightTimerRef.current);
+    };
+  }, [active, currentStep, visible, hidden, updateSpotlight]);
+
+  useEffect(() => {
     return () => {
       stopAudio();
+      if (spotlightTimerRef.current) clearInterval(spotlightTimerRef.current);
     };
   }, [stopAudio]);
 
@@ -351,6 +409,8 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
     stopAudio();
     setActive(false);
     setVisible(false);
+    setSpotlightRect(null);
+    onStepTargetChange?.(null);
     localStorage.setItem(tourKey, "1");
   };
 
@@ -370,8 +430,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   const isLast = stepIndex === TOUR_STEPS.length - 1;
   const isFirst = stepIndex === 0;
   const isActionRequired = currentStep.actionRequired === true;
-
-  const isConsentStep = currentStep.id === 3;
+  const isMobile = tooltipPos.isMobileSheet;
 
   const tooltipContent = (
     <>
@@ -387,18 +446,8 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
           <ArrowRight className="w-3.5 h-3.5 text-primary mt-0.5 flex-shrink-0" />
           <p className="text-xs text-muted-foreground leading-relaxed">{currentStep.navigationHint}</p>
         </div>
-      ) : isConsentStep ? (
-        <div className="mb-3 space-y-2">
-          <div className="rounded-md bg-muted/60 border border-border px-3 py-2.5">
-            <p className="text-xs text-muted-foreground font-medium mb-1.5">Standardized consent script:</p>
-            <p className="text-xs text-foreground leading-relaxed italic">{currentStep.description}</p>
-          </div>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            This script is standardized by the platform — every fee earner reads identical GDPR-compliant wording, every time. No guesswork, no variation. Tap Connect to continue.
-          </p>
-        </div>
       ) : (
-        <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+        <p className={`text-xs text-muted-foreground leading-relaxed mb-3 ${isMobile ? "line-clamp-3" : ""}`}>
           {currentStep.description}
         </p>
       )}
@@ -427,7 +476,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary/70" />
             </span>
-            Waiting...
+            Tap the highlighted area
           </div>
         ) : (
           <Button
@@ -452,13 +501,28 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
     </>
   );
 
-  if (tooltipPos.isMobileSheet) {
+  const spotlightPad = 6;
+
+  if (isMobile) {
     return (
       <>
         <div
           className="fixed inset-0 z-[60] pointer-events-none"
-          style={{ background: "rgba(0,0,0,0.10)" }}
+          style={{ background: "rgba(0,0,0,0.35)" }}
         />
+        {spotlightRect && (
+          <div
+            className="fixed z-[61] pointer-events-none rounded-md"
+            style={{
+              top: spotlightRect.top - spotlightPad,
+              left: spotlightRect.left - spotlightPad,
+              width: spotlightRect.width + spotlightPad * 2,
+              height: spotlightRect.height + spotlightPad * 2,
+              boxShadow: "0 0 0 3px hsl(var(--primary)), 0 0 16px 4px hsl(var(--primary) / 0.45)",
+              animation: "demo-spotlight-pulse 1.8s ease-in-out infinite",
+            }}
+          />
+        )}
         <div
           className="fixed z-[70] bottom-0 left-0 right-0 bg-background border-t border-border rounded-t-lg shadow-lg p-4"
           data-testid="tour-tooltip"
@@ -471,12 +535,31 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
 
   return (
     <>
+      <style>{`
+        @keyframes demo-spotlight-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+      `}</style>
       <div
         className="fixed inset-0 z-[60] pointer-events-none"
-        style={{ background: "rgba(0,0,0,0.10)" }}
+        style={{ background: "rgba(0,0,0,0.35)" }}
       />
+      {spotlightRect && (
+        <div
+          className="fixed z-[61] pointer-events-none rounded-md"
+          style={{
+            top: spotlightRect.top - spotlightPad,
+            left: spotlightRect.left - spotlightPad,
+            width: spotlightRect.width + spotlightPad * 2,
+            height: spotlightRect.height + spotlightPad * 2,
+            boxShadow: "0 0 0 3px hsl(var(--primary)), 0 0 20px 6px hsl(var(--primary) / 0.45)",
+            animation: "demo-spotlight-pulse 1.8s ease-in-out infinite",
+          }}
+        />
+      )}
       <div
-        className="fixed z-[70] w-80 bg-background border border-border rounded-md shadow-lg p-4"
+        className="fixed z-[70] w-[300px] bg-background border border-border rounded-md shadow-lg p-4"
         style={{ top: tooltipPos.top, left: tooltipPos.left }}
         data-testid="tour-tooltip"
       >

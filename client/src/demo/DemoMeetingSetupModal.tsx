@@ -187,12 +187,6 @@ export function DemoMeetingSetupModal({
                 </p>
               </div>
 
-              <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2.5">
-                <p className="text-xs text-foreground/80 leading-relaxed">
-                  <span className="font-semibold">Guided demo:</span> The meeting URL is pre-filled. Click <span className="font-semibold">Connect</span> to continue.
-                </p>
-              </div>
-
               <div className="flex gap-2 pt-1">
                 <Button
                   variant="outline"

@@ -362,7 +362,7 @@ export function AuditTrail({ caseId, limit = 20 }: AuditTrailProps) {
         ) : (
           <ScrollArea className="h-[400px] pr-4">
             <div className="space-y-3">
-              {auditLogs.map((log) => {
+              {[...auditLogs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((log) => {
                 const Icon = EVENT_ICONS[log.eventType] || FileText;
                 return (
                   <div

@@ -39,74 +39,30 @@ export function useDemoMode() {
   return useContext(DemoModeContext);
 }
 
-const DEMO_CLICK_GUARDS: Record<string, { title: string; description: string }> = {
-  "button-new-note": {
-    title: "Demo mode",
-    description: "Start by recording a meeting in your live account.",
-  },
-  "button-log-call-dashboard": {
-    title: "Demo mode",
-    description: "Start by recording a meeting in your live account.",
-  },
-  "button-record-new-session": {
-    title: "Demo mode",
-    description: "Recording is not available in the demo environment.",
-  },
-  "button-download-documents": {
-    title: "Demo mode",
-    description: "Document export is available in your live account.",
-  },
-  "link-new-note": {
-    title: "Demo mode",
-    description: "Start by recording a meeting in your live account.",
-  },
-  "link-cases": {
-    title: "Demo mode",
-    description: "Case management is available in your live account. Explore the cases in the demo dashboard.",
-  },
-  "link-home": {
-    title: "Demo mode",
-    description: "You are viewing an interactive demo. Sign up to access the full platform.",
-  },
-  "more-link-new-note": {
-    title: "Demo mode",
-    description: "Start by recording a meeting in your live account.",
-  },
-  "more-link-cases": {
-    title: "Demo mode",
-    description: "Case management is available in your live account.",
-  },
-  "mobile-link-new-note": {
-    title: "Demo mode",
-    description: "Start by recording a meeting in your live account.",
-  },
-  "mobile-link-saved-cases": {
-    title: "Demo mode",
-    description: "Case management is available in your live account.",
-  },
-  "button-quick-record": {
-    title: "Demo mode",
-    description: "Recording is not available in the demo — try it in your live account.",
-  },
-  "button-stop-quick-record": {
-    title: "Demo mode",
-    description: "Recording is not available in the demo — try it in your live account.",
-  },
-  "button-download-word": {
-    title: "Demo mode",
-    description: "Document export to Word is available in your live account.",
-  },
-  "button-download-pdf": {
-    title: "Demo mode",
-    description: "Document export to PDF is available in your live account.",
-  },
-  "button-export": {
-    title: "Demo mode",
-    description: "Export is available in your live account.",
-  },
+const DEMO_CLICK_GUARDS: Record<string, string> = {
+  "button-new-note": "Recording is available in your firm's live account — follow the walkthrough to continue.",
+  "button-log-call-dashboard": "Call logging is available in your firm's live account.",
+  "button-record-new-session": "Recording is available in your firm's live account.",
+  "button-download-documents": "Document export is available in your firm's live account.",
+  "link-new-note": "Follow the walkthrough to see how recording works in this showroom.",
+  "link-cases": "Explore the cases shown in this showroom — follow the walkthrough to continue.",
+  "link-home": "You are exploring the LegalNote showroom. Follow the steps to see the full experience.",
+  "more-link-new-note": "Follow the walkthrough to see how recording works.",
+  "more-link-cases": "Case management is available in your firm's live account.",
+  "mobile-link-new-note": "Follow the walkthrough to see how recording works.",
+  "mobile-link-saved-cases": "Case management is available in your firm's live account.",
+  "button-quick-record": "Follow the walkthrough — recording is demonstrated through Join Meeting.",
+  "button-stop-quick-record": "Follow the walkthrough — recording is demonstrated through Join Meeting.",
+  "button-download-word": "Document export to Word is available in your firm's live account.",
+  "button-download-pdf": "Document export to PDF is available in your firm's live account.",
+  "button-export": "Export is available in your firm's live account.",
 };
 
+const SHOWROOM_TOAST_TITLE = "Showroom access";
+
 interface DemoInteractionGuardProps {
+  currentTourTarget: string | null;
+  tourActive: boolean;
   onJoinMeeting: () => void;
   onTabReview: () => void;
   onCaseRow: () => void;
@@ -117,6 +73,8 @@ interface DemoInteractionGuardProps {
 }
 
 function DemoInteractionGuard({
+  currentTourTarget,
+  tourActive,
   onJoinMeeting,
   onTabReview,
   onCaseRow,
@@ -130,6 +88,7 @@ function DemoInteractionGuard({
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       let el = e.target as HTMLElement | null;
+
       while (el) {
         const testId = el.getAttribute("data-testid") || "";
 
@@ -155,12 +114,24 @@ function DemoInteractionGuard({
           return;
         }
 
+        if (testId === "button-case-actions") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          toast({
+            title: "Secure share sent",
+            description: "A secure link was sent to your client. They verify by SMS before accessing it — access timestamped and logged to the audit trail.",
+            duration: 4000,
+          });
+          onActionShare();
+          return;
+        }
+
         if (testId === "action-share") {
           e.preventDefault();
           e.stopImmediatePropagation();
           toast({
             title: "Secure share sent",
-            description: "A secure link was sent to the client. They will verify by SMS before accessing the document. Access logged to the audit trail.",
+            description: "A secure link was sent to your client. They verify by SMS before accessing it — access timestamped and logged to the audit trail.",
             duration: 4000,
           });
           onActionShare();
@@ -181,11 +152,31 @@ function DemoInteractionGuard({
           e.preventDefault();
           e.stopImmediatePropagation();
           toast({
-            title: DEMO_CLICK_GUARDS[testId].title,
-            description: DEMO_CLICK_GUARDS[testId].description,
-            duration: 3500,
+            title: SHOWROOM_TOAST_TITLE,
+            description: DEMO_CLICK_GUARDS[testId],
+            duration: 3000,
           });
           return;
+        }
+
+        if (tourActive && currentTourTarget) {
+          const isOnTourCard = !!el.closest("[data-testid='tour-tooltip']");
+          if (isOnTourCard) return;
+
+          const isOnTarget = !!el.closest(`[data-testid="${currentTourTarget}"]`);
+          if (isOnTarget) return;
+
+          const isInteractive = el.tagName === "BUTTON" || el.tagName === "A" || el.tagName === "INPUT" || el.tagName === "SELECT" || el.tagName === "TEXTAREA";
+          if (isInteractive) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            toast({
+              title: SHOWROOM_TOAST_TITLE,
+              description: "Follow the highlighted step to continue your walkthrough.",
+              duration: 2500,
+            });
+            return;
+          }
         }
 
         el = el.parentElement;
@@ -193,21 +184,18 @@ function DemoInteractionGuard({
     };
     document.addEventListener("click", handleClick, { capture: true });
     return () => document.removeEventListener("click", handleClick, { capture: true });
-  }, [toast, onJoinMeeting, onTabReview, onCaseRow, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit]);
+  }, [toast, currentTourTarget, tourActive, onJoinMeeting, onTabReview, onCaseRow, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit]);
 
   return null;
 }
 
 function DemoFetchInterceptor() {
-  const { toast } = useToast();
   useEffect(() => {
-    installDemoFetchInterceptor((msg) => {
-      toast({ title: "Demo mode", description: msg, duration: 3000 });
-    });
+    installDemoFetchInterceptor(() => {});
     return () => {
       uninstallDemoFetchInterceptor();
     };
-  }, [toast]);
+  }, []);
   return null;
 }
 
@@ -231,9 +219,16 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   const [tourRestartTrigger, setTourRestartTrigger] = useState(0);
   const [tourResumeTrigger, setTourResumeTrigger] = useState(0);
   const [demoScreen, setDemoScreen] = useState<"dashboard" | "case">("dashboard");
+  const [currentTourTarget, setCurrentTourTarget] = useState<string | null>(null);
+  const [tourActive, setTourActive] = useState(true);
   const tourRef = useRef<DemoTourHandle>(null);
 
   const handleRestartTour = useCallback(() => setTourRestartTrigger((v) => v + 1), []);
+
+  const handleStepTargetChange = useCallback((target: string | null) => {
+    setCurrentTourTarget(target);
+    setTourActive(target !== null);
+  }, []);
 
   const advanceTo = useCallback((stepIndex: number) => {
     tourRef.current?.advanceTourToStep(stepIndex);
@@ -335,6 +330,8 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     <>
       <DemoFetchInterceptor />
       <DemoInteractionGuard
+        currentTourTarget={currentTourTarget}
+        tourActive={tourActive}
         onJoinMeeting={handleJoinMeeting}
         onTabReview={handleTabReview}
         onCaseRow={handleCaseRow}
@@ -355,6 +352,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
           name={name}
           firmName={firmName}
           hidden={isProcessing}
+          onStepTargetChange={handleStepTargetChange}
         />
         <DemoLockedOverlayManager />
         <div className="pt-16">
