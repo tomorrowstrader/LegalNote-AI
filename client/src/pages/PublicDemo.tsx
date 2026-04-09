@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect, createContext, useContext } from "react";
+import { useMemo, useState, useCallback, useEffect, createContext, useContext, useRef } from "react";
 import { useParams, useSearch, Router, Route } from "wouter";
 import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,7 +13,7 @@ import {
   uninstallDemoFetchInterceptor,
 } from "@/demo/createDemoQueryClient";
 import { DemoBadge } from "@/demo/DemoBadge";
-import { DemoTour } from "@/components/demo/DemoTour";
+import { DemoTour, DemoTourHandle } from "@/components/demo/DemoTour";
 import { LOCKED_CASE_IDS, DemoLockedOverlayManager } from "@/demo/DemoLockedOverlay";
 import TopNavigation from "@/components/TopNavigation";
 import Dashboard from "@/pages/Dashboard";
@@ -106,19 +106,77 @@ const DEMO_CLICK_GUARDS: Record<string, { title: string; description: string }> 
   },
 };
 
-function DemoInteractionGuard({ onJoinMeeting }: { onJoinMeeting: () => void }) {
+interface DemoInteractionGuardProps {
+  onJoinMeeting: () => void;
+  onTabReview: () => void;
+  onCaseRow: () => void;
+  onNavDocuments: () => void;
+  onActionShare: () => void;
+  onNavUndertakings: () => void;
+  onNavAudit: () => void;
+}
+
+function DemoInteractionGuard({
+  onJoinMeeting,
+  onTabReview,
+  onCaseRow,
+  onNavDocuments,
+  onActionShare,
+  onNavUndertakings,
+  onNavAudit,
+}: DemoInteractionGuardProps) {
   const { toast } = useToast();
+
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       let el = e.target as HTMLElement | null;
       while (el) {
         const testId = el.getAttribute("data-testid") || "";
+
         if (testId === "button-join-meeting-dashboard") {
           e.preventDefault();
           e.stopImmediatePropagation();
           onJoinMeeting();
           return;
         }
+
+        if (testId === "tab-review") {
+          onTabReview();
+          return;
+        }
+
+        if (testId === "row-case-demo-case-family-001") {
+          onCaseRow();
+          return;
+        }
+
+        if (testId === "nav-documents") {
+          onNavDocuments();
+          return;
+        }
+
+        if (testId === "action-share") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          toast({
+            title: "Secure share sent",
+            description: "A secure link was sent to the client. They will verify by SMS before accessing the document. Access logged to the audit trail.",
+            duration: 4000,
+          });
+          onActionShare();
+          return;
+        }
+
+        if (testId === "nav-undertakings") {
+          onNavUndertakings();
+          return;
+        }
+
+        if (testId === "nav-audit") {
+          onNavAudit();
+          return;
+        }
+
         if (DEMO_CLICK_GUARDS[testId]) {
           e.preventDefault();
           e.stopImmediatePropagation();
@@ -129,12 +187,14 @@ function DemoInteractionGuard({ onJoinMeeting }: { onJoinMeeting: () => void }) 
           });
           return;
         }
+
         el = el.parentElement;
       }
     };
     document.addEventListener("click", handleClick, { capture: true });
     return () => document.removeEventListener("click", handleClick, { capture: true });
-  }, [toast, onJoinMeeting]);
+  }, [toast, onJoinMeeting, onTabReview, onCaseRow, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit]);
+
   return null;
 }
 
@@ -151,10 +211,8 @@ function DemoFetchInterceptor() {
   return null;
 }
 
-const POST_CINEMATIC_TOUR_STEP_INDEX = 3;
+const POST_CINEMATIC_TOUR_STEP_INDEX = 5;
 
-// Static location hook for CaseDetail in demo mode — keeps the outer URL unchanged.
-// Wouter's Router accepts a custom `hook` that must return [pathname, navigate].
 function useDemoCaseDetailLocation(): [string, (to: string) => void] {
   return [`/case/${DEMO_CASE_ID}`, () => {}];
 }
@@ -173,11 +231,22 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   const [tourRestartTrigger, setTourRestartTrigger] = useState(0);
   const [tourResumeTrigger, setTourResumeTrigger] = useState(0);
   const [demoScreen, setDemoScreen] = useState<"dashboard" | "case">("dashboard");
+  const tourRef = useRef<DemoTourHandle>(null);
+
   const handleRestartTour = useCallback(() => setTourRestartTrigger((v) => v + 1), []);
+
+  const advanceTo = useCallback((stepIndex: number) => {
+    tourRef.current?.advanceTourToStep(stepIndex);
+  }, []);
 
   const handleJoinMeeting = useCallback(() => {
     advanceFlow("meeting_setup");
-  }, [advanceFlow]);
+    advanceTo(2);
+  }, [advanceFlow, advanceTo]);
+
+  const handleConnectClick = useCallback(() => {
+    advanceTo(3);
+  }, [advanceTo]);
 
   const handleEndRecording = useCallback(() => {
     advanceFlow("processing");
@@ -205,7 +274,8 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     qc.setQueryData(["/api/audit/logs"], [newEntry, ...existingLogs]);
     qc.setQueryData(["/api/audit/logs", DEMO_CASE_ID], [newEntry, ...existingCaseLogs]);
     qc.setQueryData(["/api/audit/case", DEMO_CASE_ID], [newEntry, ...existingCaseLogs]);
-  }, [qc]);
+    advanceTo(4);
+  }, [qc, advanceTo]);
 
   const handleProcessingComplete = useCallback(() => {
     revealCaseInCache();
@@ -217,20 +287,74 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     }, 800);
   }, [revealCaseInCache, markCaseVisible]);
 
+  const handleTabReview = useCallback(() => {
+    advanceTo(6);
+  }, [advanceTo]);
+
+  const handleCaseRow = useCallback(() => {
+    advanceTo(7);
+  }, [advanceTo]);
+
+  const handleNavDocuments = useCallback(() => {
+    advanceTo(8);
+  }, [advanceTo]);
+
+  const handleActionShare = useCallback(() => {
+    const now = new Date().toISOString();
+    const existingCaseLogs: unknown[] = (qc.getQueryData(["/api/audit/case", DEMO_CASE_ID]) as unknown[]) ?? [];
+    const shareEntry = {
+      id: `audit-share-demo-${Date.now()}`,
+      eventType: "document_shared",
+      userId: DEMO_USER_ID,
+      caseId: DEMO_CASE_ID,
+      documentId: "fd1",
+      transcriptId: null,
+      audioRecordingId: null,
+      timestamp: now,
+      ipAddress: "192.168.1.1",
+      userAgent: "LegalNote/2.0 (Demo)",
+      metadata: { shareMethod: "secure_link", smsVerification: true, recipientNotified: true },
+      severity: "info",
+      hmacFingerprint: `share${Date.now().toString(16)}`,
+    };
+    qc.setQueryData(["/api/audit/case", DEMO_CASE_ID], [shareEntry, ...existingCaseLogs]);
+    advanceTo(9);
+  }, [qc, advanceTo]);
+
+  const handleNavUndertakings = useCallback(() => {
+    advanceTo(10);
+  }, [advanceTo]);
+
+  const handleNavAudit = useCallback(() => {
+    advanceTo(11);
+  }, [advanceTo]);
+
+  const isProcessing = flowState === "processing";
+
   return (
     <>
       <DemoFetchInterceptor />
-      <DemoInteractionGuard onJoinMeeting={handleJoinMeeting} />
+      <DemoInteractionGuard
+        onJoinMeeting={handleJoinMeeting}
+        onTabReview={handleTabReview}
+        onCaseRow={handleCaseRow}
+        onNavDocuments={handleNavDocuments}
+        onActionShare={handleActionShare}
+        onNavUndertakings={handleNavUndertakings}
+        onNavAudit={handleNavAudit}
+      />
       <div className="min-h-screen bg-background pb-16">
         <TopNavigation onRestartTour={handleRestartTour} />
         <DemoBadge />
         <DemoTour
+          ref={tourRef}
           restartTrigger={tourRestartTrigger}
           practiceArea={practiceArea}
           resumeTrigger={tourResumeTrigger}
           startAtStep={POST_CINEMATIC_TOUR_STEP_INDEX}
           name={name}
           firmName={firmName}
+          hidden={isProcessing}
         />
         <DemoLockedOverlayManager />
         <div className="pt-16">
@@ -250,6 +374,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
         onEndRecording={handleEndRecording}
         onClose={() => advanceFlow("dashboard")}
         onConsentConfirmed={handleConsentConfirmed}
+        onConnectClick={handleConnectClick}
       />
 
       {flowState === "processing" && (

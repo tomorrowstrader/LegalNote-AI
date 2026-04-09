@@ -10266,8 +10266,8 @@ ${firmName}`;
     try {
       const { stepId, name, firmName } = req.body;
       const sid = Number(stepId);
-      if (!Number.isInteger(sid) || sid < 1 || sid > 9) {
-        return res.status(400).json({ message: "stepId must be 1-9" });
+      if (!Number.isInteger(sid) || sid < 1 || sid > 13) {
+        return res.status(400).json({ message: "stepId must be 1-13" });
       }
 
       const resolvedName = typeof name === "string" && name.trim() ? name.trim() : "";
@@ -10275,15 +10275,19 @@ ${firmName}`;
       const namePrefix = resolvedName ? `${resolvedName}, ` : "";
 
       const SCRIPTS: Record<number, string> = {
-        1: `${namePrefix}your next client meeting is in ten minutes. When you click Join Meeting, LegalNote connects to the call and handles everything automatically — recording, transcription, and documentation. No setup required.`,
-        2: `Once a session is processed and documents are ready, the case moves straight to this Review tab. No manual sorting, no chasing colleagues. Everything ready for your approval in one place.`,
-        3: `Here is the demo matter — a child arrangements consultation. Click the case row to open it. Inside you will find the full attendance note, the session transcript, the audit trail, and the complete compliance record, all in one place.`,
-        4: `When you confirmed consent during the call, LegalNote logged it automatically — timestamped and sealed with a cryptographic fingerprint. Every consent event is recorded here the moment it happens, verifiable and tamper-evident.`,
-        5: `Each session is captured separately, with the date, duration, and a full transcript that identifies each speaker throughout. Nothing is lost between meetings — every word is accounted for.`,
-        6: `From a recorded consultation, LegalNote produced this structured attendance note — no typing, no prompts required. Review it here and approve in two clicks. This is precisely the document your professional indemnity insurer and the SRA would ask to see.`,
-        7: `Every event in the case lifecycle is logged here with a cryptographic fingerprint — consent, recording, transcript completion, document approval, client share. If any record is altered after the fact, the fingerprint will not match. That is your defence in any dispute.`,
-        8: `Undertakings given to clients or third parties during the session are extracted and tracked here, with the exact wording from the transcript as evidence. Outstanding items remain flagged until they are formally discharged.`,
-        9: `That is LegalNote in practice — compliance, defensibility, and documentation, all from a single recording. Book a fifteen-minute walkthrough with a LegalNote solicitor and we will show you exactly how this works for ${resolvedFirm}.`,
+        1: `${namePrefix}this is your LegalNote dashboard — every active matter, upcoming meeting, and compliance obligation in one place. For neurodivergent fee earners and every solicitor under caseload pressure, no more post-meeting scramble. Removing the documentation burden is both good practice and a reasonable adjustment under the Equality Act 2010.`,
+        2: `Tap Join Meeting to run this session through LegalNote's Meeting-to-Matter engine. It converts a client conversation into a compliance-ready attendance note, a sealed consent record, and a defensible matter trail — running entirely in the background while you stay focused on the client.`,
+        3: `This script is standardised by the platform. Every fee earner reads identical GDPR-compliant wording, every time. No guesswork, no variation. Tap Connect to continue.`,
+        4: `Your client has just agreed. Tap to log it — timestamped, GDPR Article 7 compliant, HMAC-sealed to the audit trail. The same evidence standard every time, regardless of who runs the meeting.`,
+        5: `Tap End Recording when your session is complete. Meeting-to-Matter produces your attendance note, extracts obligations, flags any AML risk indicators and conflict of interest changes from the session, and seals the full audit trail — all from one recording.`,
+        6: `Your case has moved to Review. LegalNote compiled your attendance note from the recording in under five minutes — no typing, no dictation. Click the Review tab.`,
+        7: `Click the case to see your documents, extracted obligations, full transcript, and audit trail — everything in one place.`,
+        8: `Produced in under five minutes. No typing. For neurodivergent fee earners — and every solicitor under caseload pressure — removing the transcription burden is a meaningful cognitive load reduction and a reasonable adjustment under the Equality Act 2010.`,
+        9: `Share this attendance note with your client via a secure link. They verify by SMS before accessing it — delivery confirmed, access timestamped, and the entire chain logged to the audit trail.`,
+        10: `Any undertakings or obligations given during the session were captured automatically from the transcript. Each one is tracked until discharged — flagged, logged, and verifiable.`,
+        11: `Every event — consent, recording, document approval, secure share access — is logged here with a cryptographic fingerprint. The share link access from the previous step is already in this trail. Proof of everything, if it is ever disputed.`,
+        12: `If the SRA investigates or a professional indemnity claim is made, generate a complete defence pack here — sessions, consent log, documents, audit trail, and a tamper-evidence declaration. Everything bundled in under five minutes.`,
+        13: `Solo practitioners and boutique firms are most exposed when things go wrong — and least likely to have the documented processes that protect them. You have just seen what protection looks like in practice. This is not a nice-to-have. Book a fifteen-minute call with a LegalNote solicitor today.`,
       };
 
       const script = SCRIPTS[sid];
