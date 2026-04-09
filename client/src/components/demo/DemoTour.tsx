@@ -34,8 +34,8 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 3,
     target: "demo-meeting-connect",
-    title: "Platform-enforced consent capture, every session",
-    description: "Every fee earner in your firm reads the same GDPR-compliant wording, in every session, logged to the same evidence standard, by default. No variation, no gaps. Tap Connect to join and start recording.",
+    title: "Join through a compliance-ready environment",
+    description: "Your meeting connects through a platform built for compliance: consent capture, GDPR retention, sealed audit trail, all handled by default. Tap Connect to join.",
     placement: "top",
     actionRequired: true,
   },
