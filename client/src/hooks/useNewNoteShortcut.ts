@@ -5,6 +5,7 @@ export function useNewNoteShortcut() {
   const [, setLocation] = useLocation();
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if (!event.key) return;
     if (event.key.toLowerCase() === "n" && event.ctrlKey && event.altKey) {
       event.preventDefault();
       setLocation("/new-note");

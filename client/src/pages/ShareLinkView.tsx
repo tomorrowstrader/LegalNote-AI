@@ -80,15 +80,37 @@ export default function ShareLinkView() {
       setSmsStep("code");
     },
     onError: (error: any) => {
-      const isPhoneMismatch = error.message?.includes("does not match") || error.message?.includes("expected recipient");
+      let errorMsg = error.message || "";
+      try {
+        const jsonMatch = errorMsg.match(/\d+:\s*(.*)/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[1]);
+          errorMsg = parsed.message || errorMsg;
+        }
+      } catch {}
+      
+      const isPhoneMismatch = errorMsg.includes("does not match") || errorMsg.includes("expected recipient");
+      const isRateLimit = errorMsg.includes("Maximum SMS send attempts");
+      
+      let title = "Failed to Send Code";
+      let description = "We could not send a verification code. Please check your number and try again, or contact the sender directly.";
+      let duration = 8000;
+      
+      if (isPhoneMismatch) {
+        title = "Incorrect Phone Number";
+        description = `Please use the mobile number that ${data?.recipientName || "the solicitor"} specified when sharing these documents with you. If you're unsure, please contact them directly.`;
+        duration = 10000;
+      } else if (isRateLimit) {
+        title = "Too Many Attempts";
+        description = "Maximum verification attempts exceeded. Please contact the sender directly.";
+        duration = 10000;
+      }
       
       toast({
-        title: isPhoneMismatch ? "Incorrect Phone Number" : "Failed to Send Code",
-        description: isPhoneMismatch 
-          ? `Please use the mobile number that ${data?.recipientName || "the solicitor"} specified when sharing these documents with you. If you're unsure, please contact them directly.`
-          : error.message || "Please try again",
+        title,
+        description,
         variant: "destructive",
-        duration: isPhoneMismatch ? 10000 : 8000,
+        duration,
       });
     },
   });

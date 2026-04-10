@@ -4879,7 +4879,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(403).json({ message: "Not authorized" });
       }
       
-      const items = await storage.getActionItems(caseId, userId);
+      const items = await storage.getActionItemsByCase(caseId, userId);
       const draftItems = items.filter(item => (item as any).status === 'draft');
       
       let approvedCount = 0;
