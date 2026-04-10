@@ -242,21 +242,15 @@ Date: ${relDate(-44)}
 Duration: 55 minutes
 Attendees: Rachel Thornton (Solicitor), [Client Name] (Client)
 
----
-
 PURPOSE OF MEETING
 
 Initial consultation to advise on the client's position following separation and to discuss the appropriate steps to secure a Child Arrangements Order regarding two minor children.
-
----
 
 BACKGROUND
 
 The client and her husband separated approximately three months ago. The husband vacated the former matrimonial home. There are two children of the relationship: Emily (aged 7, currently in Year 3) and Oliver (aged 5, currently in Reception). Both children reside with the client following the separation.
 
 The husband has proposed a week-on week-off shared care arrangement. The client does not consider this to be in the children's best interests given: (a) the disruption to the children's established school routine; and (b) the fact that the client was the primary carer throughout the marriage.
-
----
 
 KEY DISCUSSION POINTS
 
@@ -275,8 +269,6 @@ The solicitor advised that once proceedings are issued, an automatic stay preven
 5. Costs
 The solicitor provided a costs estimate. Court fee: £232. MIAM: approximately £100–£150. Solicitor fees to resolution at FHDRA: approximately £2,000–£3,000 plus VAT. Legal aid eligibility noted as unlikely given the absence of any domestic abuse history.
 
----
-
 ACTION POINTS
 
 Client:
@@ -289,9 +281,7 @@ Solicitor:
 - Provide list of approved MIAM mediators
 - Commence drafting of C100 application
 
----
-
-Compiled from session recording. Manual compilation typically takes 45-60 minutes per hour of meeting. Verified and approved by Rachel Thornton.`,
+Compiled from session recording. Verified and approved by Rachel Thornton.`,
   undertakings: [
     {
       id: "fu1",

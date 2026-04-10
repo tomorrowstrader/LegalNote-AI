@@ -12,6 +12,10 @@ export interface TourStep {
   navigationHint?: string;
   actionRequired?: boolean;
   delayMs?: number;
+  autoAdvanceMs?: number;
+  animatedCursor?: boolean;
+  autoClick?: boolean;
+  autoAction?: boolean;
 }
 
 const TOUR_STEPS: TourStep[] = [
@@ -59,28 +63,81 @@ const TOUR_STEPS: TourStep[] = [
     id: 6,
     target: "nav-sessions",
     title: "Recording retained for 7 days, then deleted",
-    description: "Your recording is accessible here for 7 days per GDPR Article 17, then permanently and automatically deleted. Audio, diarized transcript, and full speaker log all live in Sessions, compiled in under 60 seconds. Tap Sessions.",
+    description: "Your recording is accessible here for 7 days per GDPR Article 17, then permanently and automatically deleted. Audio, diarized transcript, and full speaker log all live in Sessions, compiled in under 60 seconds.",
     placement: "right",
-    actionRequired: true,
+    actionRequired: false,
+    animatedCursor: true,
+    autoClick: true,
   },
   {
     id: 7,
-    target: "nav-documents",
-    title: "Attendance note, from the recording",
-    description: "Compiled in under 60 seconds. No typing, no dictation. Tap Documents to open the compiled attendance note.",
-    placement: "right",
-    actionRequired: true,
+    target: "session-timeline-list",
+    title: "Diarized transcript, ready in under 60 seconds",
+    description: "Every word, every speaker, timestamped and attributed. The full diarized transcript is compiled automatically from your recording and stored here alongside the session audio.",
+    placement: "bottom",
+    actionRequired: false,
+    autoAdvanceMs: 3500,
+    delayMs: 600,
   },
   {
     id: 8,
-    target: "button-case-actions",
-    title: "Send it securely, with SMS verification",
-    description: "Tap Case Actions to share this attendance note with your client. They verify by SMS before accessing it, delivery confirmed, access timestamped, and the entire chain logged to the audit trail.",
-    placement: "top",
-    actionRequired: true,
+    target: "tab-transcript",
+    title: "Full speaker log with timestamps",
+    description: "Every utterance attributed to its speaker, with timestamps. The complete diarized record of your session, stored alongside the audio. Opening the transcript now.",
+    placement: "bottom",
+    actionRequired: false,
+    animatedCursor: true,
+    autoClick: true,
+    autoAdvanceMs: 3500,
+    delayMs: 400,
   },
   {
     id: 9,
+    target: "nav-documents",
+    title: "Attendance note, from the recording",
+    description: "Compiled in under 60 seconds. No typing, no dictation. Opening Documents now to show the compiled attendance note.",
+    placement: "right",
+    actionRequired: false,
+    animatedCursor: true,
+    autoClick: true,
+    delayMs: 600,
+  },
+  {
+    id: 10,
+    target: "tab-attendance",
+    title: "Compliance-ready attendance note",
+    description: "Structured, accurate, and ready to approve. Every section compiled directly from what was said in the meeting — not typed, not dictated.",
+    placement: "bottom",
+    actionRequired: false,
+    animatedCursor: true,
+    autoClick: true,
+    autoAdvanceMs: 4500,
+    delayMs: 600,
+  },
+  {
+    id: 11,
+    target: "button-case-actions",
+    title: "Send it securely, with SMS verification",
+    description: "The attendance note is ready to share. Opening the case actions menu to send a secure link — the client verifies by SMS before accessing, access is timestamped and logged.",
+    placement: "top",
+    actionRequired: false,
+    animatedCursor: true,
+    autoClick: true,
+    autoAction: true,
+  },
+  {
+    id: 12,
+    target: "action-share",
+    title: "Secure share — SMS-verified client access",
+    description: "Tapping Secure Share now. Your client receives a link and must verify by SMS before viewing. Every access attempt is timestamped and logged to the tamper-evident audit trail.",
+    placement: "top",
+    actionRequired: false,
+    animatedCursor: true,
+    autoAction: true,
+    delayMs: 400,
+  },
+  {
+    id: 13,
     target: "nav-undertakings",
     title: "Obligations captured from the recording",
     description: "Any undertakings or obligations given during the session were captured from the transcript. Each one is tracked until discharged, flagged, logged, and verifiable. Tap Undertakings.",
@@ -88,7 +145,7 @@ const TOUR_STEPS: TourStep[] = [
     actionRequired: true,
   },
   {
-    id: 10,
+    id: 14,
     target: "nav-audit",
     title: "Tamper-evident audit trail",
     description: "Every event, consent, recording, document approval, and secure share access, is logged with a cryptographic fingerprint. Proof of everything, if it's ever disputed. Tap Audit Trail.",
@@ -96,7 +153,7 @@ const TOUR_STEPS: TourStep[] = [
     actionRequired: true,
   },
   {
-    id: 11,
+    id: 15,
     target: "action-pi-pack",
     title: "SRA-ready defence pack",
     description: "If the SRA investigates or a PI claim is made, generate a complete defence pack: sessions, consent log, documents, audit trail, and a tamper-evidence declaration. Everything bundled in under 60 seconds.",
@@ -104,7 +161,7 @@ const TOUR_STEPS: TourStep[] = [
     actionRequired: false,
   },
   {
-    id: 12,
+    id: 16,
     target: "demo-cta-bar",
     title: "The gap is real. Most firms don't know it.",
     description: "Solo practitioners and boutique firms are most exposed when things go wrong, and least likely to have the documented processes that protect them. You've just seen what protection looks like in practice. Book a 15-minute call.",
@@ -113,7 +170,7 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-const TOUR_KEY = "legalnote_demo_tour_complete_v7";
+const TOUR_KEY = "legalnote_demo_tour_complete_v8";
 const VOICE_KEY = "legalnote_demo_voice";
 
 interface TooltipPosition {
@@ -142,10 +199,11 @@ interface DemoTourProps {
   firmName?: string;
   hidden?: boolean;
   onStepTargetChange?: (target: string | null) => void;
+  onStepAutoAction?: (stepId: number) => void;
 }
 
 export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoTour(
-  { restartTrigger, practiceArea, startAtStep, resumeTrigger, name, firmName, hidden, onStepTargetChange },
+  { restartTrigger, practiceArea, startAtStep, resumeTrigger, name, firmName, hidden, onStepTargetChange, onStepAutoAction },
   ref
 ) {
   const tourKey = practiceArea ? `${TOUR_KEY}_${practiceArea}` : TOUR_KEY;
@@ -156,8 +214,11 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   const [elementMissing, setElementMissing] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(() => localStorage.getItem(VOICE_KEY) !== "off");
   const [spotlightRect, setSpotlightRect] = useState<SpotlightRect | null>(null);
+  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
+  const [cursorAnimating, setCursorAnimating] = useState(false);
   const positionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const spotlightTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cursorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioBlobUrlRef = useRef<string | null>(null);
 
@@ -393,6 +454,76 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
     };
   }, [stopAudio]);
 
+  // Auto-advance for steps with autoAdvanceMs
+  const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (autoAdvanceTimerRef.current) clearTimeout(autoAdvanceTimerRef.current);
+    if (!active || !currentStep || !visible || hidden) return;
+    if (!currentStep.autoAdvanceMs) return;
+    const isLast = stepIndex === TOUR_STEPS.length - 1;
+    autoAdvanceTimerRef.current = setTimeout(() => {
+      if (!isLast) {
+        setStepIndex((i) => i + 1);
+      } else {
+        setActive(false);
+        setVisible(false);
+        setSpotlightRect(null);
+        onStepTargetChange?.(null);
+        localStorage.setItem(tourKey, "1");
+      }
+    }, currentStep.autoAdvanceMs);
+    return () => {
+      if (autoAdvanceTimerRef.current) clearTimeout(autoAdvanceTimerRef.current);
+    };
+  }, [active, currentStep, visible, hidden, stepIndex, onStepTargetChange, tourKey]);
+
+  // Animated cursor for steps with animatedCursor: true
+  useEffect(() => {
+    if (cursorTimerRef.current) clearTimeout(cursorTimerRef.current);
+    setCursorPos(null);
+    setCursorAnimating(false);
+    if (!active || !currentStep || !visible || hidden) return;
+    if (!currentStep.animatedCursor) return;
+
+    const el = document.querySelector(`[data-testid="${currentStep.target}"]`);
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const targetX = rect.left + rect.width / 2;
+    const targetY = rect.top + rect.height / 2;
+
+    // Start cursor offset from target, then animate to target
+    setCursorPos({ x: targetX - 100, y: targetY + 60 });
+    setCursorAnimating(false);
+
+    // Phase 1: move cursor to target after short delay
+    cursorTimerRef.current = setTimeout(() => {
+      setCursorPos({ x: targetX, y: targetY });
+      setCursorAnimating(true);
+
+      // Phase 2: after cursor arrives (~600ms), trigger click and/or action
+      if (currentStep.autoClick || currentStep.autoAction) {
+        const stepAtTrigger = currentStep;
+        cursorTimerRef.current = setTimeout(() => {
+          if (stepAtTrigger.autoClick) {
+            // Dispatch a real click event on the target element
+            const target = document.querySelector(`[data-testid="${stepAtTrigger.target}"]`);
+            if (target) {
+              (target as HTMLElement).click();
+            }
+          }
+          if (stepAtTrigger.autoAction) {
+            onStepAutoAction?.(stepAtTrigger.id);
+          }
+        }, 800);
+      }
+    }, 600);
+
+    return () => {
+      if (cursorTimerRef.current) clearTimeout(cursorTimerRef.current);
+    };
+  }, [active, currentStep, visible, hidden, onStepAutoAction]);
+
   const handleNext = () => {
     if (stepIndex < TOUR_STEPS.length - 1) {
       setStepIndex((i) => i + 1);
@@ -536,6 +667,11 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
           0%, 100% { opacity: 1; }
           50% { opacity: 0.6; }
         }
+        @keyframes demo-cursor-click {
+          0% { transform: scale(1); }
+          50% { transform: scale(0.75); }
+          100% { transform: scale(1); }
+        }
       `}</style>
       <div
         className="fixed inset-0 z-[60] pointer-events-none"
@@ -553,6 +689,36 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
             animation: "demo-spotlight-pulse 1.8s ease-in-out infinite",
           }}
         />
+      )}
+      {cursorPos && currentStep?.animatedCursor && (
+        <div
+          className="fixed z-[80] pointer-events-none"
+          style={{
+            top: cursorPos.y,
+            left: cursorPos.x,
+            transition: cursorAnimating ? "top 0.6s cubic-bezier(0.4,0,0.2,1), left 0.6s cubic-bezier(0.4,0,0.2,1)" : undefined,
+            transform: "translate(-4px, -4px)",
+          }}
+        >
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            style={{
+              filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
+              animation: cursorAnimating ? "demo-cursor-click 0.5s ease-in-out 0.7s 1" : undefined,
+            }}
+          >
+            <path
+              d="M5 3L19 12L12 13L9 20L5 3Z"
+              fill="white"
+              stroke="black"
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
       )}
       <div
         className="fixed z-[70] w-[300px] bg-background border border-border rounded-md shadow-lg p-4"

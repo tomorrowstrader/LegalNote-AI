@@ -10266,8 +10266,8 @@ ${firmName}`;
     try {
       const { stepId, name, firmName } = req.body;
       const sid = Number(stepId);
-      if (!Number.isInteger(sid) || sid < 1 || sid > 13) {
-        return res.status(400).json({ message: "stepId must be 1-13" });
+      if (!Number.isInteger(sid) || sid < 1 || sid > 16) {
+        return res.status(400).json({ message: "stepId must be 1-16" });
       }
 
       const resolvedName = typeof name === "string" && name.trim() ? name.trim() : "";
@@ -10280,14 +10280,17 @@ ${firmName}`;
         3: `This script is standardised by the platform. Every fee earner reads identical GDPR-compliant wording, every time. No guesswork, no variation. Tap Connect to continue.`,
         4: `Your client has just agreed. Tap to log it — timestamped, GDPR Article 7 compliant, HMAC-sealed to the audit trail. The same evidence standard every time, regardless of who runs the meeting.`,
         5: `Tap End Recording when your session is complete. Meeting-to-Matter produces your attendance note, extracts obligations, flags any AML risk indicators and conflict of interest changes from the session, and seals the full audit trail — all from one recording.`,
-        6: `Your case has moved to Review. LegalNote compiled your attendance note from the recording in under five minutes — no typing, no dictation. Click the Review tab.`,
-        7: `Click the case to see your documents, extracted obligations, full transcript, and audit trail — everything in one place.`,
-        8: `Produced in under five minutes. No typing. For neurodivergent fee earners — and every solicitor under caseload pressure — removing the transcription burden is a meaningful cognitive load reduction and a reasonable adjustment under the Equality Act 2010.`,
-        9: `Share this attendance note with your client via a secure link. They verify by SMS before accessing it — delivery confirmed, access timestamped, and the entire chain logged to the audit trail.`,
-        10: `Any undertakings or obligations given during the session were captured automatically from the transcript. Each one is tracked until discharged — flagged, logged, and verifiable.`,
-        11: `Every event — consent, recording, document approval, secure share access — is logged here with a cryptographic fingerprint. The share link access from the previous step is already in this trail. Proof of everything, if it is ever disputed.`,
-        12: `If the SRA investigates or a professional indemnity claim is made, generate a complete defence pack here — sessions, consent log, documents, audit trail, and a tamper-evidence declaration. Everything bundled in under five minutes.`,
-        13: `Solo practitioners and boutique firms are most exposed when things go wrong — and least likely to have the documented processes that protect them. You have just seen what protection looks like in practice. This is not a nice-to-have. Book a fifteen-minute call with a LegalNote solicitor today.`,
+        6: `Your recording is accessible here for seven days, then permanently and automatically deleted — GDPR Article 17 by default, not by choice. The full diarized transcript and audio log live in Sessions, compiled in under sixty seconds.`,
+        7: `Every word, every speaker, timestamped and attributed. The diarized transcript is compiled automatically from your recording and stored here alongside the session audio. Ready in under sixty seconds.`,
+        8: `The complete speaker log — every utterance attributed, every timestamp preserved. This is the verbatim record of your session, available alongside the audio for review or export.`,
+        9: `Produced in under sixty seconds. No typing, no dictation. For neurodivergent fee earners and every solicitor under caseload pressure, removing the transcription burden is a meaningful cognitive reduction and a reasonable adjustment under the Equality Act 2010.`,
+        10: `Structured, accurate, and ready to approve. Every section compiled directly from what was said in the meeting — not typed, not dictated. Compliance-ready from the first draft.`,
+        11: `The attendance note is ready to share. Opening the case actions menu now to send a secure link to your client. They will need to verify by SMS before accessing it.`,
+        12: `Tapping Secure Share. Your client receives a link and must verify by SMS before viewing. Every access attempt is timestamped and logged to the tamper-evident audit trail — the full chain of custody, preserved automatically.`,
+        13: `Any undertakings or obligations given during the session were captured automatically from the transcript. Each one is tracked until discharged — flagged, logged, and verifiable.`,
+        14: `Every event — consent, recording, document approval, secure share access — is logged here with a cryptographic fingerprint. The share link access from the previous step is already in this trail. Proof of everything, if it is ever disputed.`,
+        15: `If the SRA investigates or a professional indemnity claim is made, generate a complete defence pack here — sessions, consent log, documents, audit trail, and a tamper-evidence declaration. Everything bundled in under five minutes.`,
+        16: `Solo practitioners and boutique firms are most exposed when things go wrong — and least likely to have the documented processes that protect them. You have just seen what protection looks like in practice. This is not a nice-to-have. Book a fifteen-minute call with a LegalNote solicitor today.`,
       };
 
       const script = SCRIPTS[sid];

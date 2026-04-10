@@ -486,7 +486,21 @@ export async function exportToPDF(content: DocumentContent) {
   doc.line(margin, yPosition, pageWidth - margin, yPosition);
   yPosition += 15;
 
-  if (content.summary) {
+  const isPdfPlaceholder = (text: string): boolean => {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) return true;
+    // Ignore structural/heading lines (bold markdown, all-caps headings, colon-terminated labels)
+    const isStructuralLine = (line: string) =>
+      /^\*\*.*\*\*$/.test(line) || /^#{1,3}\s/.test(line) || /^[A-Z][A-Z\s]+:?$/.test(line) || /^[A-Za-z\s]+:$/.test(line);
+    const contentLines = lines.filter(l => !isStructuralLine(l));
+    if (contentLines.length === 0) return true;
+    return contentLines.every(line => {
+      const lower = line.toLowerCase().replace(/[^a-z\s]/g, '').trim();
+      return lower === 'not recorded' || lower.includes('not recorded in this session');
+    });
+  };
+
+  if (content.summary && !isPdfPlaceholder(content.summary)) {
     addText('CASE SUMMARY', 16, true);
     yPosition += 5;
     renderMarkdownSection(content.summary);
@@ -780,8 +794,31 @@ export async function exportToWord(content: DocumentContent) {
     spacing: { before: 360, after: 120 },
   });
 
-  // Summary section
-  if (content.summary) {
+  // Helper to detect if a block of text is entirely placeholder content.
+  // Structural/heading lines (bold markdown, all-caps labels, colon-terminated labels) are
+  // ignored when evaluating whether substantive content is all placeholder.
+  const isEntirelyPlaceholder = (text: string): boolean => {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) return true;
+    const isStructuralLine = (line: string) =>
+      /^\*\*.*\*\*$/.test(line) || /^#{1,3}\s/.test(line) || /^[A-Z][A-Z\s]+:?$/.test(line) || /^[A-Za-z\s]+:$/.test(line);
+    const contentLines = lines.filter(l => !isStructuralLine(l));
+    if (contentLines.length === 0) return true;
+    const placeholderPhrases = [
+      'not recorded in this session',
+      'not recorded',
+      'n/a',
+      'none',
+      'none recorded',
+    ];
+    return contentLines.every(line => {
+      const lower = line.toLowerCase().replace(/[^a-z\s]/g, '').trim();
+      return placeholderPhrases.some(p => lower === p || lower.includes('not recorded in this session'));
+    });
+  };
+
+  // Summary section — skip if all fields are placeholder text
+  if (content.summary && !isEntirelyPlaceholder(content.summary)) {
     children.push(
       makeSectionHeading('CASE SUMMARY'),
       ...formatTextSection(content.summary),

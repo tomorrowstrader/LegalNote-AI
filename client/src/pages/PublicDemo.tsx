@@ -108,26 +108,34 @@ function DemoInteractionGuard({
         }
 
         if (testId === "button-case-actions") {
+          if (currentTourTarget === "button-case-actions") {
+            // Tour is on this step — let the dropdown open naturally; tour advances via onStepAutoAction
+            return;
+          }
+          // Otherwise block and show toast
           e.preventDefault();
           e.stopImmediatePropagation();
           toast({
-            title: "Secure share sent",
-            description: "A secure link was sent to your client. They verify by SMS before accessing it — access timestamped and logged to the audit trail.",
-            duration: 4000,
+            title: SHOWROOM_TOAST_TITLE,
+            description: "Follow the walkthrough to reach the secure share step.",
+            duration: 3000,
           });
-          onActionShare();
           return;
         }
 
         if (testId === "action-share") {
           e.preventDefault();
           e.stopImmediatePropagation();
-          toast({
-            title: "Secure share sent",
-            description: "A secure link was sent to your client. They verify by SMS before accessing it — access timestamped and logged to the audit trail.",
-            duration: 4000,
-          });
-          onActionShare();
+          if (currentTourTarget === "action-share") {
+            // Tour is spotlighting action-share — call onActionShare to advance
+            onActionShare();
+          } else {
+            toast({
+              title: SHOWROOM_TOAST_TITLE,
+              description: "Follow the walkthrough to reach the secure share step.",
+              duration: 3000,
+            });
+          }
           return;
         }
 
@@ -208,6 +216,7 @@ interface DemoInnerProps {
 
 function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName }: DemoInnerProps) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const { flowState, advanceFlow, markCaseVisible } = useDemoFlow();
   const [tourRestartTrigger, setTourRestartTrigger] = useState(0);
   const [tourResumeTrigger, setTourResumeTrigger] = useState(0);
@@ -226,6 +235,41 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   const advanceTo = useCallback((stepIndex: number) => {
     tourRef.current?.advanceTourToStep(stepIndex);
   }, []);
+
+  const handleStepAutoAction = useCallback((stepId: number) => {
+    if (stepId === 11) {
+      // Auto-action for button-case-actions: dropdown is now open, advance tour to action-share step
+      advanceTo(11);
+    } else if (stepId === 12) {
+      // Auto-action for action-share: trigger the secure share, show toast, advance tour
+      // Close the dropdown first by dispatching Escape
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      toast({
+        title: "Secure share sent",
+        description: "A secure link was sent to your client. They verify by SMS before accessing it — access timestamped and logged to the audit trail.",
+        duration: 4000,
+      });
+      const now = new Date().toISOString();
+      const existingCaseLogs: unknown[] = (qc.getQueryData(["/api/audit/case", DEMO_CASE_ID]) as unknown[]) ?? [];
+      const shareEntry = {
+        id: `audit-share-demo-${Date.now()}`,
+        eventType: "document_shared",
+        userId: DEMO_USER_ID,
+        caseId: DEMO_CASE_ID,
+        documentId: "fd1",
+        transcriptId: null,
+        audioRecordingId: null,
+        timestamp: now,
+        ipAddress: "192.168.1.1",
+        userAgent: "LegalNote/2.0 (Demo)",
+        metadata: { shareMethod: "secure_link", smsVerification: true, recipientNotified: true },
+        severity: "info",
+        hmacFingerprint: `share${Date.now().toString(16)}`,
+      };
+      qc.setQueryData(["/api/audit/case", DEMO_CASE_ID], [shareEntry, ...existingCaseLogs]);
+      advanceTo(12);
+    }
+  }, [qc, advanceTo, toast]);
 
   const handleJoinMeeting = useCallback(() => {
     advanceFlow("meeting_setup");
@@ -280,7 +324,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   }, [advanceTo]);
 
   const handleNavDocuments = useCallback(() => {
-    advanceTo(7);
+    advanceTo(9);
   }, [advanceTo]);
 
   const handleActionShare = useCallback(() => {
@@ -302,15 +346,15 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
       hmacFingerprint: `share${Date.now().toString(16)}`,
     };
     qc.setQueryData(["/api/audit/case", DEMO_CASE_ID], [shareEntry, ...existingCaseLogs]);
-    advanceTo(8);
+    advanceTo(12);
   }, [qc, advanceTo]);
 
   const handleNavUndertakings = useCallback(() => {
-    advanceTo(9);
+    advanceTo(13);
   }, [advanceTo]);
 
   const handleNavAudit = useCallback(() => {
-    advanceTo(10);
+    advanceTo(14);
   }, [advanceTo]);
 
   const isProcessing = flowState === "processing";
@@ -341,6 +385,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
           firmName={firmName}
           hidden={isProcessing}
           onStepTargetChange={handleStepTargetChange}
+          onStepAutoAction={handleStepAutoAction}
         />
         <DemoLockedOverlayManager />
         <div className="pt-16">
