@@ -280,7 +280,7 @@ export default function ShareLinkModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4 overflow-y-auto flex-1">
+        <div className="space-y-4 py-4 overflow-y-auto flex-1" data-testid="secure-share-modal-fields">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="recipient-email">
@@ -494,7 +494,7 @@ export default function ShareLinkModal({
             />
           </div>
 
-          <div className="border-t pt-4">
+          <div className="border-t pt-4" data-testid="secure-share-sms-section">
             <div className="flex items-center space-x-2 mb-3">
               <Checkbox
                 id="sms-protection"

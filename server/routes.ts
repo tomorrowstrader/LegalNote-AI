@@ -10183,6 +10183,30 @@ ${firmName}`;
     }
   });
 
+  app.post("/api/demo/leads", generalApiLimiter, async (req, res, next) => {
+    try {
+      const demoLeadSchema = z.object({
+        email: z.string().max(255).optional().nullable(),
+        name: z.string().max(255).optional().nullable(),
+        mobile: z.string().max(50).optional().nullable(),
+        practiceArea: z.string().max(100).optional().nullable(),
+        practiceAreaLabel: z.string().max(255).optional().nullable(),
+      });
+      const parsed = demoLeadSchema.parse(req.body);
+      await db.insert(demoLeads).values({
+        email: parsed.email || null,
+        name: parsed.name || null,
+        mobile: parsed.mobile || null,
+        practiceArea: parsed.practiceArea || null,
+        practiceAreaLabel: parsed.practiceAreaLabel || null,
+      });
+      console.log(`[DEMO] Tour lead captured (practiceArea: ${parsed.practiceArea || 'unknown'})`);
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post("/api/demo/send-share", generalApiLimiter, async (req, res, next) => {
     try {
       const { recipientEmail, caseTitle, senderName, firmName, demoUrl } = req.body;

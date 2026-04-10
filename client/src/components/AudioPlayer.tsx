@@ -331,17 +331,22 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
 
   const getRetentionCountdown = () => {
     if (!expiresAt || isExpired) return null;
+    const isDemoMode = window.location.pathname.startsWith("/demo/");
     const now = new Date();
     const days = differenceInDays(expiresAt, now);
     const hours = differenceInHours(expiresAt, now) % 24;
     const minutes = differenceInMinutes(expiresAt, now) % 60;
     
-    const parts: string[] = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0) parts.push(`${hours}h`);
-    if (minutes > 0 && days === 0) parts.push(`${minutes}m`);
-    
-    const timeString = parts.join(' ') || 'less than 1 minute';
+    let timeString: string;
+    if (isDemoMode) {
+      timeString = "6d 23hrs 58mins";
+    } else {
+      const parts: string[] = [];
+      if (days > 0) parts.push(`${days}d`);
+      if (hours > 0) parts.push(`${hours}h`);
+      if (minutes > 0 && days === 0) parts.push(`${minutes}m`);
+      timeString = parts.join(' ') || 'less than 1 minute';
+    }
     const isUrgent = days === 0 && hours < 24;
     
     return (
@@ -351,7 +356,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
             ? 'bg-destructive/10 text-destructive border border-destructive/20' 
             : 'bg-muted/50 text-muted-foreground'
         }`}
-        data-testid="text-retention-countdown"
+        data-testid="audio-retention-countdown"
       >
         <Clock className="h-3 w-3" />
         <span>Audio retained for: <strong>{timeString}</strong></span>

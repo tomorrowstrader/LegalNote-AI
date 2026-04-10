@@ -22,6 +22,9 @@ import { DemoMeetingSetupModal } from "@/demo/DemoMeetingSetupModal";
 import { DemoCinematicProcessing } from "@/demo/DemoCinematicProcessing";
 import { useDemoFlow } from "@/demo/useDemoFlow";
 import { DemoProblemIntro } from "@/demo/DemoProblemIntro";
+import ShareLinkModal from "@/components/ShareLinkModal";
+
+const CALENDLY_URL = "https://calendly.com/legalnote/demo";
 
 export const DemoModeContext = createContext<{
   isDemoMode: boolean;
@@ -40,19 +43,19 @@ export function useDemoMode() {
 }
 
 const DEMO_CLICK_GUARDS: Record<string, string> = {
-  "button-new-note": "Recording is available in your firm's live account — follow the walkthrough to continue.",
+  "button-new-note": "Recording is available in your firm's live account, follow the walkthrough to continue.",
   "button-log-call-dashboard": "Call logging is available in your firm's live account.",
   "button-record-new-session": "Recording is available in your firm's live account.",
   "button-download-documents": "Document export is available in your firm's live account.",
   "link-new-note": "Follow the walkthrough to see how recording works in this showroom.",
-  "link-cases": "Explore the cases shown in this showroom — follow the walkthrough to continue.",
+  "link-cases": "Explore the cases shown in this showroom, follow the walkthrough to continue.",
   "link-home": "You are exploring the LegalNote showroom. Follow the steps to see the full experience.",
   "more-link-new-note": "Follow the walkthrough to see how recording works.",
   "more-link-cases": "Case management is available in your firm's live account.",
   "mobile-link-new-note": "Follow the walkthrough to see how recording works.",
   "mobile-link-saved-cases": "Case management is available in your firm's live account.",
-  "button-quick-record": "Follow the walkthrough — recording is demonstrated through Join Meeting.",
-  "button-stop-quick-record": "Follow the walkthrough — recording is demonstrated through Join Meeting.",
+  "button-quick-record": "Follow the walkthrough, recording is demonstrated through Join Meeting.",
+  "button-stop-quick-record": "Follow the walkthrough, recording is demonstrated through Join Meeting.",
   "button-download-word": "Document export to Word is available in your firm's live account.",
   "button-download-pdf": "Document export to PDF is available in your firm's live account.",
   "button-export": "Export is available in your firm's live account.",
@@ -69,6 +72,8 @@ interface DemoInteractionGuardProps {
   onActionShare: () => void;
   onNavUndertakings: () => void;
   onNavAudit: () => void;
+  onNavObligations: () => void;
+  onNavConsent: () => void;
 }
 
 function DemoInteractionGuard({
@@ -80,6 +85,8 @@ function DemoInteractionGuard({
   onActionShare,
   onNavUndertakings,
   onNavAudit,
+  onNavObligations,
+  onNavConsent,
 }: DemoInteractionGuardProps) {
   const { toast } = useToast();
 
@@ -107,12 +114,20 @@ function DemoInteractionGuard({
           return;
         }
 
+        if (testId === "nav-obligations") {
+          onNavObligations();
+          return;
+        }
+
+        if (testId === "nav-consent") {
+          onNavConsent();
+          return;
+        }
+
         if (testId === "button-case-actions") {
           if (currentTourTarget === "button-case-actions") {
-            // Tour is on this step — let the dropdown open naturally; tour advances via onStepAutoAction
             return;
           }
-          // Otherwise block and show toast
           e.preventDefault();
           e.stopImmediatePropagation();
           toast({
@@ -127,7 +142,6 @@ function DemoInteractionGuard({
           e.preventDefault();
           e.stopImmediatePropagation();
           if (currentTourTarget === "action-share") {
-            // Tour is spotlighting action-share — call onActionShare to advance
             onActionShare();
           } else {
             toast({
@@ -164,6 +178,9 @@ function DemoInteractionGuard({
           const isOnTourCard = !!el.closest("[data-testid='tour-tooltip']");
           if (isOnTourCard) return;
 
+          const isOnFinalImpact = !!el.closest("[data-testid='demo-final-impact']");
+          if (isOnFinalImpact) return;
+
           const isOnTarget = !!el.closest(`[data-testid="${currentTourTarget}"]`);
           if (isOnTarget) return;
 
@@ -185,7 +202,7 @@ function DemoInteractionGuard({
     };
     document.addEventListener("click", handleClick, { capture: true });
     return () => document.removeEventListener("click", handleClick, { capture: true });
-  }, [toast, currentTourTarget, tourActive, onJoinMeeting, onNavSessions, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit]);
+  }, [toast, currentTourTarget, tourActive, onJoinMeeting, onNavSessions, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit, onNavObligations, onNavConsent]);
 
   return null;
 }
@@ -230,25 +247,27 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   const handleStepTargetChange = useCallback((target: string | null) => {
     setCurrentTourTarget(target);
     setTourActive(target !== null);
-  }, []);
-
-  const advanceTo = useCallback((stepIndex: number) => {
-    tourRef.current?.advanceTourToStep(stepIndex);
-  }, []);
-
-  const handleStepAutoAction = useCallback((stepId: number) => {
-    if (stepId === 11) {
-      // Auto-action for button-case-actions: dropdown is now open, advance tour to action-share step
-      advanceTo(11);
-    } else if (stepId === 12) {
-      // Auto-action for action-share: trigger the secure share, show toast, advance tour
-      // Close the dropdown first by dispatching Escape
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-      toast({
-        title: "Secure share sent",
-        description: "A secure link was sent to your client. They verify by SMS before accessing it — access timestamped and logged to the audit trail.",
-        duration: 4000,
-      });
+    if (target === "button-send-link") {
+      const emailInput = document.querySelector('[data-testid="input-recipient-email"]') as HTMLInputElement | null;
+      const nameInput = document.querySelector('[data-testid="input-recipient-name"]') as HTMLInputElement | null;
+      const capturedEmail = emailInput?.value || null;
+      const capturedName = nameInput?.value || null;
+      const smsInput = document.querySelector('[data-testid="input-sms-phone"]') as HTMLInputElement | null;
+      const capturedMobile = smsInput?.value || null;
+      fetch("/api/demo/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          practiceArea,
+          practiceAreaLabel: practiceArea,
+          name: capturedName || name || null,
+          email: capturedEmail,
+          mobile: capturedMobile,
+        }),
+      }).catch(() => {});
+    }
+    if (target === "nav-obligations") {
+      setShareModalOpen(false);
       const now = new Date().toISOString();
       const existingCaseLogs: unknown[] = (qc.getQueryData(["/api/audit/case", DEMO_CASE_ID]) as unknown[]) ?? [];
       const shareEntry = {
@@ -267,9 +286,38 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
         hmacFingerprint: `share${Date.now().toString(16)}`,
       };
       qc.setQueryData(["/api/audit/case", DEMO_CASE_ID], [shareEntry, ...existingCaseLogs]);
-      advanceTo(12);
     }
-  }, [qc, advanceTo, toast]);
+  }, [qc, practiceArea, name]);
+
+  const advanceTo = useCallback((stepIndex: number) => {
+    tourRef.current?.advanceTourToStep(stepIndex);
+  }, []);
+
+  const handleStepAutoAction = useCallback((stepId: number) => {
+    if (stepId === 6) {
+      setTimeout(() => {
+        const firstExpandBtn = document.querySelector('[data-testid^="button-expand-session-"]') as HTMLElement | null;
+        if (firstExpandBtn) {
+          firstExpandBtn.click();
+        }
+      }, 600);
+      advanceTo(6);
+    } else if (stepId === 11) {
+      const mainContent = document.querySelector('[data-testid="case-detail-main"]') || document.querySelector('main');
+      if (mainContent) mainContent.scrollTop = 0;
+      window.scrollTo(0, 0);
+      advanceTo(11);
+    } else if (stepId === 12) {
+      setShareModalOpen(true);
+      advanceTo(12);
+    } else if (stepId === 20) {
+      advanceTo(20);
+    } else if (stepId === 21) {
+      setTimeout(() => {
+        advanceTo(21);
+      }, 1500);
+    }
+  }, [qc, advanceTo, practiceArea, name]);
 
   const handleJoinMeeting = useCallback(() => {
     advanceFlow("meeting_setup");
@@ -320,42 +368,39 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   }, [revealCaseInCache, markCaseVisible]);
 
   const handleNavSessions = useCallback(() => {
-    advanceTo(6);
+    advanceTo(5);
   }, [advanceTo]);
 
   const handleNavDocuments = useCallback(() => {
-    advanceTo(9);
+    advanceTo(8);
   }, [advanceTo]);
 
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+
   const handleActionShare = useCallback(() => {
-    const now = new Date().toISOString();
-    const existingCaseLogs: unknown[] = (qc.getQueryData(["/api/audit/case", DEMO_CASE_ID]) as unknown[]) ?? [];
-    const shareEntry = {
-      id: `audit-share-demo-${Date.now()}`,
-      eventType: "document_shared",
-      userId: DEMO_USER_ID,
-      caseId: DEMO_CASE_ID,
-      documentId: "fd1",
-      transcriptId: null,
-      audioRecordingId: null,
-      timestamp: now,
-      ipAddress: "192.168.1.1",
-      userAgent: "LegalNote/2.0 (Demo)",
-      metadata: { shareMethod: "secure_link", smsVerification: true, recipientNotified: true },
-      severity: "info",
-      hmacFingerprint: `share${Date.now().toString(16)}`,
-    };
-    qc.setQueryData(["/api/audit/case", DEMO_CASE_ID], [shareEntry, ...existingCaseLogs]);
+    setShareModalOpen(true);
     advanceTo(12);
-  }, [qc, advanceTo]);
+  }, [advanceTo]);
 
   const handleNavUndertakings = useCallback(() => {
-    advanceTo(13);
+    advanceTo(15);
+  }, [advanceTo]);
+
+  const handleNavObligations = useCallback(() => {
+    advanceTo(15);
+  }, [advanceTo]);
+
+  const handleNavConsent = useCallback(() => {
+    advanceTo(16);
   }, [advanceTo]);
 
   const handleNavAudit = useCallback(() => {
-    advanceTo(14);
+    advanceTo(17);
   }, [advanceTo]);
+
+  const handleTourComplete = useCallback(() => {
+    window.open(CALENDLY_URL, "_blank");
+  }, []);
 
   const isProcessing = flowState === "processing";
 
@@ -371,6 +416,8 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
         onActionShare={handleActionShare}
         onNavUndertakings={handleNavUndertakings}
         onNavAudit={handleNavAudit}
+        onNavObligations={handleNavObligations}
+        onNavConsent={handleNavConsent}
       />
       <div className="min-h-screen bg-background pb-16">
         <TopNavigation onRestartTour={handleRestartTour} />
@@ -386,6 +433,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
           hidden={isProcessing}
           onStepTargetChange={handleStepTargetChange}
           onStepAutoAction={handleStepAutoAction}
+          onComplete={handleTourComplete}
         />
         <DemoLockedOverlayManager />
         <div className="pt-16">
@@ -411,6 +459,14 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
       {flowState === "processing" && (
         <DemoCinematicProcessing onComplete={handleProcessingComplete} />
       )}
+
+      <ShareLinkModal
+        open={shareModalOpen}
+        onOpenChange={setShareModalOpen}
+        caseId={DEMO_CASE_ID}
+        caseTitle={caseTitle}
+        userRole="Partner"
+      />
     </>
   );
 }
@@ -472,7 +528,7 @@ function DemoApp() {
     return {
       demoQueryClient: qc,
       revealCaseInCache: revealCase,
-      caseTitle: `Child Arrangements Order — ${clientName}`,
+      caseTitle: `Child Arrangements Order \u2014 ${clientName}`,
     };
   }, []);
 

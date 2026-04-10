@@ -5,6 +5,7 @@ const DEMO_ALLOWED_WRITE_PATHS = [
   "/api/demo/send-consent-sms",
   "/api/demo/send-colleague-link",
   "/api/demo/capture-lead",
+  "/api/demo/leads",
 ];
 
 interface DemoUrlRewrite {
@@ -2064,7 +2065,7 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
     mimeType: "audio/webm",
     duration: 780,
     recordedAt: relDateTime(-44),
-    expiresAt: relDateTime(365),
+    expiresAt: relDateTime(7),
     deletedAt: null,
   });
   setData(["/api/sessions", DEMO_SESSION_ID], demoSessionWithDetails);

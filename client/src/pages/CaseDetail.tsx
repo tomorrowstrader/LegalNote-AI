@@ -137,7 +137,7 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId
   return (
     <div className="p-4 space-y-4" data-testid={`session-details-${sessionId}`}>
       {/* Audio */}
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" data-testid="audio-player-container">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Audio</p>
         {sessionAudio ? (
           sessionAudio.deletedAt ? (
@@ -160,7 +160,7 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId
       </div>
 
       {/* Transcript */}
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" data-testid="session-transcript-preview">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Transcript</p>
         {sessionIsPending && !data.transcript ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid={`session-transcript-pending-${sessionId}`}>
@@ -898,75 +898,88 @@ export default function CaseDetail() {
 
   const showAudioPlayer = caseData.sourceType === 'audio' && (audioData?.filePath || audioData?.deletedAt);
 
+  const sharedCaseActionsGroup = (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="gap-1.5"
+        onClick={() => setShowLiveBotModal(true)}
+        data-testid="button-join-with-bot"
+      >
+        <Video className="w-3.5 h-3.5" />
+        Join with LegalNote
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-1.5" data-testid="button-case-actions">
+            <MoreVertical className="w-3.5 h-3.5" />
+            Case Actions
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuItem onClick={toggleFocusMode} data-testid="action-focus-mode">
+            <Focus className="w-4 h-4 mr-2" />
+            {isFocusMode ? "Exit Focus Mode" : "Focus Mode"}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setShowPriorityModal(true)} data-testid="action-set-priority">
+            <AlertCircle className="w-4 h-4 mr-2" />
+            Set Priority / Deadline
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setShowLogCallModal(true)} data-testid="action-log-call">
+            <Phone className="w-4 h-4 mr-2" />
+            Log a Phone Call
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setShowImportModal(true)} data-testid="action-import-recording">
+            <Video className="w-4 h-4 mr-2" />
+            Import Recording
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setShowShareModal(true)} data-testid="action-share">
+            <Share2 className="w-4 h-4 mr-2" />
+            Secure Share
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => markReviewedMutation.mutate(!caseData.reviewed)} data-testid="action-mark-reviewed">
+            <Eye className="w-4 h-4 mr-2" />
+            {caseData.reviewed ? "Unmark as Reviewed" : "Mark as Reviewed"}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handlePiPackDownload} disabled={piPackLoading} data-testid="action-pi-pack">
+            {piPackLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileCheck className="w-4 h-4 mr-2" />}
+            PI Defence Pack
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setShowHandoverModal(true)} data-testid="action-handover">
+            <ArrowRightLeft className="w-4 h-4 mr-2" />
+            Handover Case
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setShowSraReportModal(true)} data-testid="action-sra-report">
+            <ShieldCheck className="w-4 h-4 mr-2" />
+            Prepare SRA Matter Report
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => archiveMutation.mutate(true)} className="text-destructive focus:text-destructive" data-testid="action-archive">
+            <Archive className="w-4 h-4 mr-2" />
+            Archive Case
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+
   const sectionActions: Partial<Record<CaseSection, React.ReactNode>> = {
-    documents: (
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => setShowLiveBotModal(true)}
-          data-testid="button-join-with-bot"
-        >
-          <Video className="w-3.5 h-3.5" />
-          Join with LegalNote
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5" data-testid="button-case-actions">
-              <MoreVertical className="w-3.5 h-3.5" />
-              Case Actions
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuItem onClick={toggleFocusMode} data-testid="action-focus-mode">
-              <Focus className="w-4 h-4 mr-2" />
-              {isFocusMode ? "Exit Focus Mode" : "Focus Mode"}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setShowPriorityModal(true)} data-testid="action-set-priority">
-              <AlertCircle className="w-4 h-4 mr-2" />
-              Set Priority / Deadline
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setShowLogCallModal(true)} data-testid="action-log-call">
-              <Phone className="w-4 h-4 mr-2" />
-              Log a Phone Call
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setShowImportModal(true)} data-testid="action-import-recording">
-              <Video className="w-4 h-4 mr-2" />
-              Import Recording
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setShowShareModal(true)} data-testid="action-share">
-              <Share2 className="w-4 h-4 mr-2" />
-              Secure Share
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => markReviewedMutation.mutate(!caseData.reviewed)} data-testid="action-mark-reviewed">
-              <Eye className="w-4 h-4 mr-2" />
-              {caseData.reviewed ? "Unmark as Reviewed" : "Mark as Reviewed"}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handlePiPackDownload} disabled={piPackLoading} data-testid="action-pi-pack">
-              {piPackLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileCheck className="w-4 h-4 mr-2" />}
-              PI Defence Pack
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setShowHandoverModal(true)} data-testid="action-handover">
-              <ArrowRightLeft className="w-4 h-4 mr-2" />
-              Handover Case
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setShowSraReportModal(true)} data-testid="action-sra-report">
-              <ShieldCheck className="w-4 h-4 mr-2" />
-              Prepare SRA Matter Report
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => archiveMutation.mutate(true)} className="text-destructive focus:text-destructive" data-testid="action-archive">
-              <Archive className="w-4 h-4 mr-2" />
-              Archive Case
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    ),
+    documents: sharedCaseActionsGroup,
+    obligations: sharedCaseActionsGroup,
+    briefing: sharedCaseActionsGroup,
+    compliance: sharedCaseActionsGroup,
+    consent: sharedCaseActionsGroup,
+    supervision: sharedCaseActionsGroup,
+    activity: sharedCaseActionsGroup,
+    sharing: sharedCaseActionsGroup,
+    audit: sharedCaseActionsGroup,
+    "external-refs": sharedCaseActionsGroup,
+    undertakings: sharedCaseActionsGroup,
+    "linked-calls": sharedCaseActionsGroup,
     sessions: (
       <Button size="sm" onClick={() => setShowNewSessionModal(true)} className="gap-1.5" data-testid="button-record-new-session">
         <Mic className="w-3.5 h-3.5" />
@@ -1776,7 +1789,7 @@ export default function CaseDetail() {
           )}
 
           {activeSection === 'audit' && (
-            <div className="max-w-3xl">
+            <div className="max-w-3xl" data-testid="audit-trail-content">
               <AuditTrail caseId={caseId!} limit={50} />
             </div>
           )}

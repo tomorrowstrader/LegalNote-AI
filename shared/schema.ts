@@ -1745,11 +1745,15 @@ export const demoLeads = pgTable("demo_leads", {
   lastName: text("last_name"),
   firmName: text("firm_name"),
   practiceArea: text("practice_area"),
+  practiceAreaLabel: text("practice_area_label"),
   firmSize: text("firm_size"),
   region: text("region"),
   sraNumber: text("sra_number"),
   billingRate: integer("billing_rate"),
   demoUrl: text("demo_url"),
+  email: text("email"),
+  mobile: text("mobile"),
+  name: text("name"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
