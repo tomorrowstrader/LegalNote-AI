@@ -1,0 +1,415 @@
+#74 - Three Active Bugs to Fix
+
+What and Why
+
+Three bugs are causing visible failures in the live application. All three must be fixed before any further demo work proceeds.
+
+Done Looks Like
+Demo Generator form loads and accepts input without a JavaScript crash overlay
+Obligations Approve All button in the main app works without errors
+SMS Verification Send Code button on share links fails gracefully, rather than exposing a raw 500 JSON error to the user
+Out of Scope
+Changes to the demo tour flow
+Changes to the share link creation UI
+Twilio credentials management, assume credentials already exist in environment variables
+Tasks
+1) Fix useNewNoteShortcut crash
+Issue
+
+event.key can be undefined on synthetic or accessibility keyboard events. The current code calls event.key.toLowerCase() without guarding for that case, causing a TypeError and blocking the Demo Generator form.
+
+Required Fix
+
+Add a guard before calling toLowerCase():
+
+if (!event.key) return;
+Expected Outcome
+
+This prevents the crash overlay and allows the Demo Generator form to load and accept input normally.
+
+2) Fix Obligations approval error
+Issue
+
+The Obligations section uses ActionItemsViewer. The Approve All button calls:
+
+POST /api/cases/:id/action-items/approve-all
+
+This is currently returning a 500 error.
+
+Required Fix
+
+Investigate and resolve the failure in the bulk-approve route handler and/or the related storage method.
+
+Likely causes include:
+
+missing null checks
+invalid assumptions about returned records
+database constraint issues
+attempting to update records that do not meet approval conditions
+Required Behaviour
+Fix the underlying 500 error
+Add defensive error handling in the route and storage layer
+Ensure the UI surfaces a meaningful error message rather than crashing or failing opaquely
+Expected Outcome
+
+Clicking Approve All in Obligations works successfully in the main app without a server error.
+
+3) Improve SMS verification error handling
+Issue
+
+When POST /api/share/:linkId/send-sms fails, for example if Twilio returns an error, the UI currently surfaces a raw 500 JSON-style toast:
+
+{"message":"Failed to send SMS. Please try again later."}
+
+This is not acceptable user-facing behaviour.
+
+Required Fix
+
+Keep the underlying SMS send attempt exactly as it is. This is a UX improvement only.
+
+Replace the raw error exposure with the following user-friendly message on the share link SMS verification page:
+
+"We could not send a verification code. Please check your number and try again, or contact the sender directly."
+
+Expected Outcome
+
+If SMS sending fails, the user sees a clean, helpful message rather than raw server output.
+
+#75 - Demo Tour Overhaul, Full Guided Flow
+
+What and Why
+
+The guided demo at /demo/:practiceArea requires a full rework of its highlight behaviour, step sequencing, visual treatment, lead capture, and cross-section button visibility.
+
+The current 16-step tour has several critical UX issues, including:
+
+spotlight drift on scroll
+the guide appearing before modal content has settled
+missing dual highlight treatment on left-panel items
+no proper walkthrough of the audio player
+no guided Secure Share modal flow
+no auto-launch booking at the final conversion moment
+
+This task addresses the full guided experience end-to-end.
+
+Done Looks Like
+Highlight Stability
+Black spotlight ring stays locked to its target element on page scroll, sidebar scroll, and across layout changes
+Step 4, Log Consent, guide only appears after the modal has fully rendered and settled
+No top-left jump artefact
+Left-Panel Highlight Treatment
+
+Every step that spotlights a left-nav item shows:
+
+a yellow semi-transparent highlight wash over the nav item
+the existing black spotlight ring around it
+
+This applies to:
+
+Documents
+Obligations
+Sessions
+Undertakings
+Consent Evidence
+Audit Trail
+Step Flow, Correct Sequence From Step 6 Onward
+Step 6: nav-sessions is spotlighted and auto-clicked, first session card auto-expands to show audio player
+Step 7: audio player is highlighted, guide explains playback availability, cursor moves to Play button, retention countdown reads exactly: 6d 23hrs 58mins
+Step 8: cursor moves to transcript expand area within the expanded session, guide explains diarised transcript stored alongside audio
+Step 9: nav-documents is spotlighted and auto-clicked, guide explains attendance note compiled in under 60 seconds
+Step 10: Attendance Note tab is spotlighted and auto-clicked
+Step 11: screen scrolls back to top, button-case-actions is spotlighted, guide says: “Opening case actions to send a secure link”, cursor animates to button, dropdown auto-opens
+Step 12: action-share in dropdown is spotlighted, cursor animates to it, auto-action fires
+Step 13: Secure Share modal guided walkthrough, email/name fields highlighted, then SMS checkbox highlighted, then Send Secure Link button highlighted, lead data captured to backend
+Step 14: nav-obligations is spotlighted and auto-clicked, yellow wash plus black ring, guide explains obligations captured from the recording, Extract button highlighted
+Step 15: nav-consent is spotlighted and auto-clicked, yellow wash plus black ring, guide explains consent is sealed
+Step 16: nav-audit is spotlighted and auto-clicked, yellow wash plus black ring, full audit trail region highlighted including scroll area, guide explains tamper-evident log
+Step 17: Case Actions opened again, cursor animates to Prepare SRA Matter Report, modal appears, guide explains what the report covers, cursor highlights Compile Report button
+Step 18: “The gap is real” appears as a full-screen centred impact moment, booking flow auto-launches immediately after user taps Finish
+Cross-Section Button Visibility
+
+Join with LegalNote and Case Actions remain visible in the top-right action bar across all left-panel sections except:
+
+Sessions
+Notes
+Time Recording
+
+Those three keep their own section-specific actions.
+
+Lead Capture
+
+When the guided flow walks through the Secure Share modal in Step 13, the entered:
+
+email
+name
+mobile number
+
+are stored in a new demo_leads table with:
+
+email
+name
+mobile
+practiceArea
+createdAt
+
+If the table does not exist, create it via schema migration.
+
+Final Conversion
+
+After Step 18 Finish is pressed, the Calendly or booking modal already present through DemoCtaBar or the existing Book a call link launches automatically. The prospect should not need to manually notice and click it.
+
+Copy Tone
+No AI-sounding language anywhere in the tour copy
+Do not use words like generated or automatically extracted
+Prefer: compiled, captured from the recording, assembled
+No em dashes
+Keep Meeting-to-Matter™ where appropriate
+Out of Scope
+Changes to the TTS voice scripts, keep existing endpoint, update visible copy only
+Changes to actual Twilio SMS send during the demo, mock is acceptable
+Rebuilding the Demo Generator itself
+Tasks
+1) Fix spotlight coordinate bug
+Issue
+
+The spotlight ring uses position: fixed but currently adds window.scrollY to rect.top, which is incorrect for fixed-position overlays.
+
+The tooltip position calculation has the same issue.
+
+Required Fix
+
+Use raw viewport-relative coordinates only:
+
+use rect.top
+do not add window.scrollY
+
+Apply the same correction to tooltip positioning.
+
+Keep the existing 300ms polling interval in place so the spotlight remains locked to elements inside scrollable sidebar containers.
+
+Expected Outcome
+
+Spotlight ring and tooltip remain correctly aligned during page scroll, sidebar scroll, and layout changes.
+
+2) Fix Step 4 modal timing
+Issue
+
+Step 4 targets demo-consent-confirm, which sits inside the meeting setup modal.
+
+The guide currently appears before the modal has rendered at its final position, causing a visible jump from top-left into place.
+
+Required Fix
+
+Delay Step 4 guide mount until:
+
+the target element is confirmed visible
+its bounding rect is non-zero
+
+Use the existing elementMissing polling loop rather than a hardcoded timeout.
+
+Expected Outcome
+
+The guide appears only once the modal has fully settled, with no jump artefact.
+
+3) Add yellow wash highlight for left-panel nav items
+Requirement
+
+For any tour step targeting a left-panel nav item:
+
+nav-sessions
+nav-documents
+nav-obligations
+nav-undertakings
+nav-consent
+nav-audit
+
+render a semi-transparent yellow wash in addition to the existing black spotlight ring.
+
+Style
+
+Use:
+
+background: rgba(253, 224, 71, 0.35);
+Implementation Rules
+overlay must be position: fixed
+must match the element’s bounding rect exactly
+must update on the same 300ms polling cycle as the spotlight ring
+Expected Outcome
+
+Left-panel spotlight steps feel visually deliberate and consistent.
+
+4) Rebuild tour step sequence, Steps 6 to 18
+Requirement
+
+Redesign the post-cinematic tour to follow the sequence below exactly.
+
+Step 6
+Spotlight nav-sessions
+Auto-click it
+Dispatch a programmatic click on the expand button of the first session card
+Delay guide render until SessionDetails panel is mounted
+Step 7
+Spotlight audio-player-container
+Add this test ID to the SessionDetails AudioPlayer wrapper if missing
+Show retention text exactly: 6d 23hrs 58mins
+Add data-testid="audio-retention-countdown" inside SessionDetails
+In demo mode, this span must always display that exact fixed string
+Step 8
+Spotlight session-transcript-preview
+This should be the inline transcript snippet inside SessionDetails when expanded
+Add test ID if missing
+Step 9
+Spotlight nav-documents
+Auto-click it
+Guide explains attendance note compiled in under 60 seconds
+Step 10
+Spotlight tab-attendance
+Auto-click it
+Step 11
+Scroll to top
+Spotlight button-case-actions
+Use animatedCursor, autoClick, and autoAction
+Guide says: “Opening case actions to send a secure link”
+Step 12
+Spotlight action-share
+Animate cursor to it
+Fire auto-action
+Auto-close dropdown
+Advance to Secure Share modal guide
+Step 13a to 13c, Secure Share modal
+
+Use three sub-steps:
+
+13a: email and name fields
+13b: SMS checkbox
+13c: Send button
+
+Each advances on a Got it click.
+
+For the final sub-step, use autoAdvanceMs after a simulated send.
+
+Step 14
+Spotlight nav-obligations
+Auto-click it
+Yellow wash plus black ring
+Guide explains obligations are captured from the recording
+Highlight Extract button
+Step 15
+Spotlight nav-consent
+Auto-click it
+Yellow wash plus black ring
+Guide explains consent is sealed
+Step 16
+Spotlight nav-audit
+Auto-click it
+Yellow wash plus black ring
+Highlight full audit trail region including scroll area
+Guide explains tamper-evident log
+Step 17
+Re-open Case Actions
+Animate cursor to Prepare SRA Matter Report
+Show modal
+Explain what report covers
+Highlight Compile Report button
+Step 18
+Render “The gap is real” as a full-screen centred impact card
+Not a tooltip
+Tapping Finish auto-triggers booking flow
+Versioning
+
+Bump TOUR_KEY to v9.
+
+5) Cross-section Case Actions visibility
+Issue
+
+In CaseDetail, Join with LegalNote and Case Actions currently only appear for the Documents section.
+
+Required Fix
+
+In sectionActions, extract the Join with LegalNote plus Case Actions button group into a shared variable.
+
+Apply it as the action bar for all sections that do not already define their own distinct action.
+
+Apply To
+obligations
+briefing
+compliance
+consent
+supervision
+activity
+sharing
+audit
+external
+undertakings
+aml
+Do Not Change
+sessions
+notes
+time
+
+These sections should keep their own specific actions.
+
+Expected Outcome
+
+The final tour can reliably return the user to Case Actions from later sections.
+
+6) Lead capture backend and frontend
+Requirement
+
+Add a new demo_leads table to the Drizzle schema with:
+
+id serial primary key
+email
+name
+mobile
+practiceArea
+practiceAreaLabel
+createdAt
+API
+
+Add:
+
+POST /api/demo/leads
+
+Requirements:
+
+no auth required
+rate-limited
+Frontend
+
+In PublicDemo, when the user advances past the Secure Share modal guide step:
+
+extract the values typed into the email, name, and mobile fields
+POST them to the new endpoint
+
+Capture values through React state held in a new DemoLeadCaptureContext wrapping the modal sub-steps.
+
+Expected Outcome
+
+Lead details are silently stored during the guided flow without interrupting the demo.
+
+7) Final conversion auto-launch
+Issue
+
+At present, the user is expected to manually click the CTA bar or booking link after the final tour step.
+
+Required Fix
+
+In the tour’s handleComplete function, immediately trigger the booking flow.
+
+Use the existing booking mechanism:
+
+if there is a Calendly modal or handler, call it directly
+if the CTA opens a URL, call:
+window.open(url, "_blank")
+Expected Outcome
+
+When the user taps Finish on the final step, booking launches immediately and naturally.
+
+Implementation Rules
+Do not compress the sequence
+Do not reorder the guided flow unless explicitly stated above
+Do not replace specified copy tone with AI-sounding language
+Do not use em dashes in tour copy
+Reuse existing infrastructure where possible, but prioritise correct behaviour over minimal changes
+Validate each task against the Done Looks Like section before considering it complete

@@ -1,0 +1,461 @@
+Demo Generator and Guided Flow Implementation Checklist
+Core Instruction
+
+Implement the following exactly as described. These are not loose suggestions.
+
+Previous attempts have not correctly actioned what was requested, so this needs to be handled in a more literal and structured way.
+
+Priority should be:
+
+correct behaviour
+stable guided experience
+clean sequencing
+faithful implementation of described flow
+
+Do not unnecessarily reinterpret the intended UX.
+Do not reorder steps unless explicitly instructed below.
+
+Priority 1: Fix Highlight Stability and Guide Rendering Issues
+Ticket 1.1: Fixed highlight behaviour on scroll
+Issue
+
+Black outline highlights are not remaining attached to their intended UI targets when the prospect scrolls.
+
+Required Behaviour
+
+Any black outline / target highlight must remain locked to the correct UI element even while the page is being scrolled.
+
+The highlight must not:
+
+drift
+detach
+float independently
+remain in an old screen position
+lag behind the target element
+Applies To
+Step 1: outline around “Good Morning, [their name]”
+Step 2: outline around “Join Meeting”
+Acceptance Criteria
+On scroll, the outline remains visually attached to the target element
+No floating or detached highlight behaviour occurs
+Highlight position updates correctly as the viewport changes
+Notes
+
+This should be treated as a reusable behaviour rule for any guided highlight that targets a live UI element.
+
+Ticket 1.2: Step 4 guide render timing fix
+Issue
+
+The guide appears before the modal has fully appeared, causing the guide to visibly move from the top-left corner to the intended central-bottom position.
+
+Required Behaviour
+
+The guide should only render once the modal is fully visible and settled.
+
+It must appear directly in its correct final position.
+
+Acceptance Criteria
+No guide appears before modal render is complete
+No visible movement from top-left to centre-bottom
+No flicker or glitch during guide appearance
+Notes
+
+Delay guide mount until modal layout is complete and target position is known.
+
+Priority 2: Correct Review Matter Guided Flow Order
+Ticket 2.1: Change first highlighted section from Sessions to Documents
+Issue
+
+The Review Matter flow is currently highlighting Sessions first.
+
+Required Behaviour
+
+The flow must begin with Document / Documents, not Sessions.
+
+Correct Sequence
+Arrow goes to Document first
+Documents is highlighted first
+The movement and pacing should feel slow and intentional so the prospect can follow clearly
+Acceptance Criteria
+Sessions is no longer the first highlighted item in this flow
+Documents becomes the first highlighted item
+The transition is visually paced, not rushed
+Notes
+
+The overall feel here should be deliberate, not overly fast or abrupt.
+
+Priority 3: Audio Player Walkthrough
+Ticket 3.1: Audio player highlight and playback guidance
+Required Behaviour
+
+After Documents is highlighted:
+
+Cursor moves to the audio player UI
+Audio player receives black fixed highlight
+Cursor moves to the Play button
+Guide step appears explaining playback / review availability
+Acceptance Criteria
+Audio player is highlighted correctly
+Cursor visibly moves to Play button
+Guide copy appears after correct cursor positioning
+Ticket 3.2: Audio retention highlight and copy
+Required Behaviour
+
+After the playback step:
+
+Cursor moves to Audio Retained For
+Section receives black fixed highlight
+Guide explains retention policy and GDPR-related retention point
+The retention text displayed must read exactly:
+
+6d 23hrs 58mins
+
+Acceptance Criteria
+Audio Retained For is separately highlighted
+Retention text matches exactly
+Guide appears at the correct moment
+Priority 4: Scroll to Transcript / Attendance Note Area
+Ticket 4.1: Controlled downward scroll after audio section
+Required Behaviour
+
+After the prospect presses Next / Got it following the audio section:
+
+Screen scrolls down slowly
+Scroll stops at the intended screenshot position
+Document is no longer visible
+Attendance Note, Transcript, Case Matter, etc. are visible
+Acceptance Criteria
+Scroll is smooth and slow enough to follow
+Document section is no longer visible
+Required headings are visible at stop point
+Notes
+
+This needs to match the intended screenshot position as closely as possible.
+
+Priority 5: Transcript and Attendance Note Guided Flow
+Ticket 5.1: Transcript step
+Required Behaviour
+Cursor moves to Transcript
+Transcript button receives black fixed highlight
+Guide instructs prospect to click Transcript
+Once clicked, a substantial portion of transcript content becomes visible
+Guide explains that the transcript is the real evidence
+Acceptance Criteria
+Transcript button is highlighted correctly
+Transcript content is meaningfully visible, not just a tiny excerpt
+Guide copy reinforces transcript importance
+Interaction Rule
+
+During this step, unrelated buttons / text should not be clickable.
+
+Ticket 5.2: Attendance Note step
+Required Behaviour
+After Transcript step, prospect is prompted to click Attendance Note
+Attendance Note button receives black fixed highlight
+Interaction remains constrained so unrelated UI cannot be clicked
+Acceptance Criteria
+Attendance Note button is highlighted correctly
+Focused interaction is preserved
+User cannot break flow by clicking unrelated controls
+Priority 6: Return to Top and Case Action Flow
+Ticket 6.1: Scroll back to Case Action area
+Required Behaviour
+
+After Attendance Note step:
+
+Screen scrolls back up to top
+Case Action button becomes visible
+Cursor travels to Case Action button in top-right area
+Guide instructs user to click Case Action
+Guide explains transition to Secure Share
+Acceptance Criteria
+Scroll returns user to top smoothly
+Case Action button is visible before prompt appears
+Cursor movement is easy to follow
+Ticket 6.2: Secure Share submenu targeting
+Required Behaviour
+
+Once user clicks Case Action:
+
+Animated cursor moves to Secure Share inside the menu
+User is directed to click it
+Acceptance Criteria
+Cursor correctly targets Secure Share in dropdown / menu
+Flow remains visually clear and stable
+Priority 7: Secure Share Modal and Lead Capture
+Ticket 7.1: Secure Share modal guided flow
+Required Behaviour
+
+Once Secure Share modal launches:
+
+Prompt prospect to enter email and name
+Allow Next or equivalent progression action
+Scroll modal as needed to next fields
+Apply black highlight around relevant areas
+Acceptance Criteria
+Email and name fields are highlighted clearly
+Guide progression works in correct order
+Modal scroll behaviour is stable and intentional
+Ticket 7.2: SMS verification flow
+Required Behaviour
+
+Guide must then:
+
+Prompt user to check Require SMS Verification
+Instruct them to enter their mobile number
+After valid mobile number is entered, prompt them to click Send Secure Link
+Acceptance Criteria
+SMS verification checkbox is clearly highlighted
+Mobile number field is shown and works correctly
+Send Secure Link step occurs only after valid input
+Ticket 7.3: Backend capture of lead data
+Issue
+
+Email and mobile data need to be captured for backend lead procurement.
+
+Required Behaviour
+
+Store entered:
+
+email
+mobile number
+ideally name as well, since it is already being collected in this flow
+Acceptance Criteria
+Data is successfully captured and persisted in backend database
+Capture occurs during Secure Share process
+No loss of values during modal progression
+Notes
+
+If this does not already exist, it needs to be implemented.
+
+Ticket 7.4: Secure Share error investigation
+Issue
+
+An error is occurring when testing Secure Share Access.
+
+Required Behaviour
+
+Investigate and resolve the error shown in the attached screenshot.
+
+Acceptance Criteria
+Secure Share completes successfully without current error
+Correct completion visual appears after success
+Priority 8: Left Menu Highlight Consistency
+Ticket 8.1: Standardise left-side menu highlighting behaviour
+Requirement
+
+Whenever directing attention to the left-side panel menu, use both:
+
+yellow half-transparent highlighter treatment
+black outline highlight
+Applies To
+Documents
+Obligations
+Undertakings
+Consent Evidence
+Audit Trail
+any other left-panel item used in guided flow where this treatment is intended
+Acceptance Criteria
+Left-panel guidance uses consistent visual treatment
+Both highlight styles appear together where required
+Effect feels deliberate and consistent
+Priority 9: Obligations and Undertakings Flow
+Ticket 9.1: Obligations walkthrough
+Required Behaviour
+Cursor goes to Obligations
+Obligations is highlighted using:
+yellow translucent highlight
+black outline
+Prompt user to press Extract
+Guide explains obligations are being automatically extracted from the conference / meeting
+Acceptance Criteria
+Obligations is highlighted correctly
+Extract action is clearly guided
+Explanation appears at correct moment
+Ticket 9.2: Obligations approval error
+Issue
+
+There is an error when attempting to approve obligations on the main version of the app.
+
+Required Behaviour
+
+Investigate and resolve.
+
+Acceptance Criteria
+Approving obligations no longer throws the current error
+Main version of app behaves correctly
+Ticket 9.3: Undertakings walkthrough
+Required Behaviour
+Move to Undertakings
+Apply same highlight treatment
+Explain the same concept as Obligations, adapted for undertakings
+Acceptance Criteria
+Undertakings flow is implemented with same quality and clarity
+Highlight treatment is consistent
+Explanation is accurate and clear
+Priority 10: Compliance Section Walkthrough
+Ticket 10.1: Consent Evidence step
+Required Behaviour
+Direct user to Consent Evidence via left menu
+Highlight clearly
+Show consent evidence section
+Explain what it is and why it matters
+Acceptance Criteria
+Consent Evidence is visited before Audit Trail
+Highlighting is clear and stable
+Explanation is shown at correct time
+Ticket 10.2: Audit Trail step
+Required Behaviour
+Direct user to Audit Trail via left menu
+Highlight the entire Audit Trail section
+Black highlight should include the outer section boundary, including area around scrollbar
+Explain function and benefit
+Allow user to scroll up and down within audit trail for realistic feel
+Acceptance Criteria
+Full Audit Trail region is highlighted, not just an internal subsection
+Scroll area is included in highlight treatment
+Prospect can scroll within Audit Trail during this step
+Explanation supports practical understanding of feature
+Priority 11: Top Right Button Visibility Across Tabs
+Ticket 11.1: Preserve Join with LegalNote and Case Action visibility across relevant sections
+Issue
+
+Join with LegalNote and Case Action are currently only visible when Document is selected.
+
+Required Behaviour
+
+These buttons should remain visible in the same top-right location across all relevant left-panel sections.
+
+Exception
+
+Do not interfere with sections that already have their own top-right button arrangement.
+
+Leave unchanged:
+
+Session
+Notes
+Time Recording
+Acceptance Criteria
+Join with LegalNote and Case Action remain visible on all relevant sections
+Session / Notes / Time Recording remain unchanged
+Final guided flow can reliably return user to Case Action from later sections
+Priority 12: Prepare SRA Matter Report Final Flow
+Ticket 12.1: Case Action to Prepare SRA Matter Report guided sequence
+Required Behaviour
+Direct user back to Case Action
+Animate / guide them to Prepare SRA Matter Report
+Relevant modal appears
+Guide explains modal using black highlighted treatment
+User is instructed to Compile Report
+Acceptance Criteria
+Flow reaches Prepare SRA Matter Report cleanly
+Modal appears correctly
+Highlighting is clear
+Compile Report action is clearly guided
+Ticket 12.2: Remove AI-sounding wording such as “generated”
+Issue
+
+The SRA Defence Pack step-by-step guide still includes wording like generated.
+
+Required Behaviour
+
+Replace AI-sounding wording with more natural, professional alternatives.
+
+Avoid
+generated
+AI-generated
+machine-generated
+Acceptance Criteria
+AI-sounding wording removed from relevant guide copy
+Replacement wording feels professional and natural
+Priority 13: Final Conversion Moment and Booking Flow
+Ticket 13.1: “The gap is real” final impact screen
+Required Behaviour
+
+Wherever “the gap is real” now sits in the updated sequence, it should appear:
+
+centrally on screen
+as a strong concluding moment
+as the final high-impact emotional beat
+Acceptance Criteria
+Message appears in centre of screen
+Presentation feels intentional and high-impact
+Ticket 13.2: Low-friction booking launch after final guide completion
+Issue
+
+Booking a call should not depend on the user manually noticing and pressing a separate Book Meeting button after the final guide step.
+
+Required Behaviour
+
+After the final Finish action in the guided flow, the booking flow should launch automatically or near-automatically.
+
+The next action should feel seamless and obvious.
+
+Acceptance Criteria
+Booking flow begins immediately or near-immediately after final guide completion
+User does not need to search for what to do next
+End-of-flow conversion friction is reduced materially
+Priority 14: Active Bug Investigation List
+Ticket 14.1: Demo Generator form error
+Issue
+
+An error occurs when filling out Demo Generator.
+
+Required Behaviour
+
+Investigate and resolve.
+
+Acceptance Criteria
+Demo Generator can be completed without current error
+Ticket 14.2: Secure Share Access error
+Issue
+
+Error appears during Secure Share Access testing.
+
+Required Behaviour
+
+Investigate and resolve.
+
+Acceptance Criteria
+Secure Share Access flow works successfully without current error
+Ticket 14.3: Obligations approval error
+Issue
+
+Error appears when approving obligations on main app.
+
+Required Behaviour
+
+Investigate and resolve.
+
+Acceptance Criteria
+Obligations approval succeeds without error
+Global Implementation Rules
+Rule 1: Highlight attachment
+
+Any guided outline targeting a UI element must remain attached to that element during scrolling and layout changes.
+
+Rule 2: Modal sequencing
+
+Guide overlays must not appear before modal render / placement is complete.
+
+Rule 3: Guided pacing
+
+Cursor movement, section changes, and scroll behaviour should be intentionally paced so the prospect can clearly follow what is happening.
+
+Rule 4: Focus control
+
+During guided steps, unrelated controls should be non-interactable where needed to preserve flow integrity.
+
+Rule 5: Copy tone
+
+Avoid AI-sounding language. Use natural, professional wording throughout.
+
+Rule 6: Left-panel guidance
+
+Where specified, left menu items should use both:
+
+yellow translucent highlight
+black outline highlight
+Rule 7: Final conversion
+
+The end of the flow should make booking a call feel like the natural and immediate next step.
