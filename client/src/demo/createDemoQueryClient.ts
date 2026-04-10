@@ -2054,7 +2054,19 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
   setData([`/api/cases/${DEMO_CASE_ID}/sra-report/preview`], null);
   setData([`/api/cases/${DEMO_CASE_ID}/compliance`], demoComplianceData);
   setData([`/api/consent/by-case/${DEMO_CASE_ID}`], demoConsentLogs);
-  setData([`/api/audio/by-case/${DEMO_CASE_ID}`], null);
+  setData([`/api/audio/by-case/${DEMO_CASE_ID}`], {
+    id: "demo-audio-001",
+    caseId: DEMO_CASE_ID,
+    meetingSessionId: null,
+    filePath: "demo/audio/initial-consultation.webm",
+    consentSegmentPath: null,
+    consentDurationSeconds: 18,
+    mimeType: "audio/webm",
+    duration: 780,
+    recordedAt: relDateTime(-44),
+    expiresAt: relDateTime(365),
+    deletedAt: null,
+  });
   setData(["/api/sessions", DEMO_SESSION_ID], demoSessionWithDetails);
   if (demoSessionWithDetails2) setData(["/api/sessions", DEMO_SESSION_ID_2], demoSessionWithDetails2);
   if (demoSessionWithDetails3) setData(["/api/sessions", DEMO_SESSION_ID_3], demoSessionWithDetails3);

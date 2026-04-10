@@ -3,7 +3,7 @@ import { toTitleCase } from "@/lib/utils";
 import {
   ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles,
   FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle,
-  Share2, Eye, Download, Archive, Video, ListChecks, History,
+  Share2, Eye, Archive, Video, ListChecks, History,
   ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send,
   ShieldCheck, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, Mic, FileCheck,
 } from "lucide-react";
@@ -34,7 +34,6 @@ import CaseTimeline from "@/components/CaseTimeline";
 import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
-import DownloadModal from "@/components/DownloadModal";
 import ImportRecordingModal from "@/components/ImportRecordingModal";
 import { LiveBotModal } from "@/components/LiveBotModal";
 import LogCallModal from "@/components/LogCallModal";
@@ -56,7 +55,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useCaseActions } from "@/hooks/useCaseActions";
-import { useCaseExport } from "@/hooks/useCaseExport";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import type { Case, AudioRecording, ConsentLog, MeetingSession, Transcript, Document } from "@shared/schema";
@@ -253,7 +251,6 @@ export default function CaseDetail() {
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showLiveBotModal, setShowLiveBotModal] = useState(false);
   const [showLogCallModal, setShowLogCallModal] = useState(false);
@@ -618,11 +615,6 @@ export default function CaseDetail() {
     caseId: caseId!,
     onArchiveSuccess: () => setLocation('/'),
   });
-  const { handleDownload } = useCaseExport({
-    caseId: caseId!,
-    enabled: showDownloadModal,
-    prefetchedData: { caseData, documents, transcript },
-  });
 
   const [piPackLoading, setPiPackLoading] = useState(false);
 
@@ -908,10 +900,72 @@ export default function CaseDetail() {
 
   const sectionActions: Partial<Record<CaseSection, React.ReactNode>> = {
     documents: (
-      <Button variant="outline" size="sm" onClick={() => setShowDownloadModal(true)} className="gap-1.5" data-testid="button-download-documents">
-        <Download className="w-3.5 h-3.5" />
-        Download
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setShowLiveBotModal(true)}
+          data-testid="button-join-with-bot"
+        >
+          <Video className="w-3.5 h-3.5" />
+          Join with LegalNote
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5" data-testid="button-case-actions">
+              <MoreVertical className="w-3.5 h-3.5" />
+              Case Actions
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem onClick={toggleFocusMode} data-testid="action-focus-mode">
+              <Focus className="w-4 h-4 mr-2" />
+              {isFocusMode ? "Exit Focus Mode" : "Focus Mode"}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setShowPriorityModal(true)} data-testid="action-set-priority">
+              <AlertCircle className="w-4 h-4 mr-2" />
+              Set Priority / Deadline
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowLogCallModal(true)} data-testid="action-log-call">
+              <Phone className="w-4 h-4 mr-2" />
+              Log a Phone Call
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowImportModal(true)} data-testid="action-import-recording">
+              <Video className="w-4 h-4 mr-2" />
+              Import Recording
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setShowShareModal(true)} data-testid="action-share">
+              <Share2 className="w-4 h-4 mr-2" />
+              Secure Share
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => markReviewedMutation.mutate(!caseData.reviewed)} data-testid="action-mark-reviewed">
+              <Eye className="w-4 h-4 mr-2" />
+              {caseData.reviewed ? "Unmark as Reviewed" : "Mark as Reviewed"}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handlePiPackDownload} disabled={piPackLoading} data-testid="action-pi-pack">
+              {piPackLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileCheck className="w-4 h-4 mr-2" />}
+              PI Defence Pack
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowHandoverModal(true)} data-testid="action-handover">
+              <ArrowRightLeft className="w-4 h-4 mr-2" />
+              Handover Case
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setShowSraReportModal(true)} data-testid="action-sra-report">
+              <ShieldCheck className="w-4 h-4 mr-2" />
+              Prepare SRA Matter Report
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => archiveMutation.mutate(true)} className="text-destructive focus:text-destructive" data-testid="action-archive">
+              <Archive className="w-4 h-4 mr-2" />
+              Archive Case
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     ),
     sessions: (
       <Button size="sm" onClick={() => setShowNewSessionModal(true)} className="gap-1.5" data-testid="button-record-new-session">
@@ -1095,74 +1149,6 @@ export default function CaseDetail() {
 
           {/* Bottom actions */}
           <div className="p-3 border-t border-border space-y-1.5">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="w-full gap-2 justify-start" data-testid="button-case-actions">
-                  <MoreVertical className="w-3.5 h-3.5" />
-                  Case Actions
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" className="w-52">
-                <DropdownMenuItem onClick={toggleFocusMode} data-testid="action-focus-mode">
-                  <Focus className="w-4 h-4 mr-2" />
-                  {isFocusMode ? "Exit Focus Mode" : "Focus Mode"}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setShowPriorityModal(true)} data-testid="action-set-priority">
-                  <AlertCircle className="w-4 h-4 mr-2" />
-                  Set Priority / Deadline
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowLogCallModal(true)} data-testid="action-log-call">
-                  <Phone className="w-4 h-4 mr-2" />
-                  Log a Phone Call
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowImportModal(true)} data-testid="action-import-recording">
-                  <Video className="w-4 h-4 mr-2" />
-                  Import Recording
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setShowShareModal(true)} data-testid="action-share">
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Secure Share
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => markReviewedMutation.mutate(!caseData.reviewed)} data-testid="action-mark-reviewed">
-                  <Eye className="w-4 h-4 mr-2" />
-                  {caseData.reviewed ? "Unmark as Reviewed" : "Mark as Reviewed"}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowDownloadModal(true)} data-testid="action-download">
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Document
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handlePiPackDownload} disabled={piPackLoading} data-testid="action-pi-pack">
-                  {piPackLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileCheck className="w-4 h-4 mr-2" />}
-                  PI Defence Pack
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowHandoverModal(true)} data-testid="action-handover">
-                  <ArrowRightLeft className="w-4 h-4 mr-2" />
-                  Handover Case
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setShowSraReportModal(true)} data-testid="action-sra-report">
-                  <ShieldCheck className="w-4 h-4 mr-2" />
-                  Prepare SRA Matter Report
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => archiveMutation.mutate(true)} className="text-destructive focus:text-destructive" data-testid="action-archive">
-                  <Archive className="w-4 h-4 mr-2" />
-                  Archive Case
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full gap-2 justify-start text-xs"
-              onClick={() => setShowLiveBotModal(true)}
-              data-testid="button-join-with-bot"
-            >
-              <Video className="w-3.5 h-3.5" />
-              Join with LegalNote
-            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -1510,63 +1496,8 @@ export default function CaseDetail() {
           className="flex-1 px-6 lg:px-8 py-6 animate-in fade-in duration-200"
         >
           {activeSection === 'documents' && (() => {
-            const activeDocs = documents.filter(d => d.isActive !== false);
-            const sessionMap = new Map<string, typeof meetingSessions[0]>();
-            meetingSessions.forEach(s => sessionMap.set(s.id, s));
-
-            const docsWithSession = activeDocs.filter(d => d.meetingSessionId && sessionMap.has(d.meetingSessionId));
-            const standaloneActiveDocs = activeDocs.filter(d => !d.meetingSessionId || !sessionMap.has(d.meetingSessionId));
-
-            const showSessionGroups = meetingSessions.length >= 3 && docsWithSession.length > 0;
-
             return (
               <div className="space-y-6">
-                {showSessionGroups && (
-                  <div className="space-y-3">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Session attribution</p>
-                    <div className="space-y-2">
-                      {meetingSessions
-                        .filter(s => docsWithSession.some(d => d.meetingSessionId === s.id))
-                        .map((session, idx, arr) => {
-                          const sessionDocs = docsWithSession.filter(d => d.meetingSessionId === session.id);
-                          const sessionLabel = session.sessionTitle || RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType;
-                          const sessionNum = arr.length - idx;
-                          return (
-                            <div key={session.id} className="flex items-center gap-3 text-sm" data-testid={`doc-session-row-${session.id}`}>
-                              <div className="w-5 h-5 rounded-full bg-accent/10 flex items-center justify-center text-xs font-semibold text-accent shrink-0">
-                                {sessionNum}
-                              </div>
-                              <span className="font-medium truncate" data-testid={`doc-session-label-${session.id}`}>{sessionLabel}</span>
-                              <span className="text-muted-foreground shrink-0">·</span>
-                              <div className="flex gap-1.5 flex-wrap">
-                                {sessionDocs.map(doc => (
-                                  <Badge key={doc.id} variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`doc-attribution-badge-${doc.id}`}>
-                                    {doc.type === 'summary' ? 'Matter Record' : doc.type === 'meeting_notes' ? 'Meeting Notes' : 'Attendance Note'}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      {standaloneActiveDocs.length > 0 && (
-                        <div className="flex items-center gap-3 text-sm" data-testid="doc-session-row-standalone">
-                          <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0">
-                            <FileText className="w-3 h-3 text-muted-foreground" />
-                          </div>
-                          <span className="font-medium text-muted-foreground">Standalone documents</span>
-                          <span className="text-muted-foreground shrink-0">·</span>
-                          <div className="flex gap-1.5 flex-wrap">
-                            {standaloneActiveDocs.map(doc => (
-                              <Badge key={doc.id} variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`doc-attribution-badge-${doc.id}`}>
-                                {doc.type === 'summary' ? 'Matter Record' : doc.type === 'meeting_notes' ? 'Meeting Notes' : 'Attendance Note'}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
                 {showDemoJustProducedBadge && (
                   <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm animate-in fade-in duration-300" data-testid="demo-just-produced-banner">
                     <Sparkles className="w-4 h-4 shrink-0" />
@@ -1980,16 +1911,6 @@ export default function CaseDetail() {
         currentDeadlineIsAllDay={caseData.deadlineIsAllDay || false}
       />
       <ShareLinkModal open={showShareModal} onOpenChange={setShowShareModal} caseId={caseId!} caseTitle={caseData.title} userRole="Partner" />
-      <DownloadModal
-        open={showDownloadModal} onOpenChange={setShowDownloadModal}
-        availableDocuments={{
-          hasAttendanceNote: !!documents.find((d: any) => d.isActive && d.type === 'attendance_note'),
-          hasSummary: !!documents.find((d: any) => d.isActive && d.type === 'summary') || !!caseData.textNotes,
-          hasTranscript: !!documents.find((d: any) => d.isActive && d.type === 'transcript') || !!transcript?.content,
-        }}
-        sharedDocuments={['attendance_note', 'summary', 'transcript']}
-        onDownload={handleDownload}
-      />
       <ImportRecordingModal open={showImportModal} onOpenChange={setShowImportModal} caseId={caseId!} caseTitle={caseData.title} />
       <LiveBotModal open={showLiveBotModal} onOpenChange={setShowLiveBotModal} caseId={caseId!} caseTitle={caseData.title} />
       <LogCallModal open={showLogCallModal} onOpenChange={setShowLogCallModal} caseId={caseId!} caseTitle={caseData.title} clientName={caseData.clientName} clientId={caseData.clientId || undefined} matterReference={caseData.matterReference || undefined} />

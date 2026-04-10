@@ -1400,7 +1400,7 @@ export default function DocumentViewer({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 px-4">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl sm:text-2xl font-semibold">Generated Documentation</h2>
+                <h2 className="text-xl sm:text-2xl font-semibold">Documents</h2>
                 {/* Master Record badge */}
                 {(attendanceNote?.status === 'approved' || summary?.status === 'approved') && (
                   <Tooltip>
@@ -1589,7 +1589,7 @@ export default function DocumentViewer({
                 <div className="mx-6 mb-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md" data-testid="panel-short-recording-attendance">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                    <p className="text-xs text-blue-700 dark:text-blue-400">This recording was brief with limited substantive content. A short file note has been generated instead of a full attendance note.</p>
+                    <p className="text-xs text-blue-700 dark:text-blue-400">This recording was brief with limited substantive content. A short file note has been prepared instead of a full attendance note.</p>
                   </div>
                 </div>
               )}
