@@ -586,7 +586,9 @@ export default function DocumentViewer({
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [zoom, setZoom] = useState(100);
-  const [pageViewMode, setPageViewMode] = useState(true);
+  const [pageViewMode, setPageViewMode] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 768 : true
+  );
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>("");
   const editContentRef = useRef<string>("");

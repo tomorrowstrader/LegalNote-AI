@@ -82,17 +82,17 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 8,
-    target: "tab-transcript",
-    title: "Tap Script to read the full diarized record",
-    description: "Every word, every speaker, timestamped and attributed. Tap Script to read the full diarized record compiled from the recording.",
+    target: "tab-attendance",
+    title: "Compliance-ready attendance note",
+    description: "Structured, accurate, and ready to approve. Every section compiled directly from what was said in the meeting. Tap Att. Note to read it.",
     placement: "bottom",
     actionRequired: false,
   },
   {
     id: 9,
-    target: "tab-attendance",
-    title: "Compliance-ready attendance note",
-    description: "Structured, accurate, and ready to approve. Every section compiled directly from what was said in the meeting, not typed, not dictated. Tap Att. Note to read it.",
+    target: "tab-transcript",
+    title: "Tap Script to read the full diarized record",
+    description: "Every word, every speaker, timestamped and attributed. Risk flags, undertakings, and obligations spotted in the recording are captured and tracked automatically. Nothing falls through.",
     placement: "bottom",
     actionRequired: false,
   },
@@ -208,7 +208,7 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-const TOUR_KEY = "legalnote_demo_tour_complete_v15";
+const TOUR_KEY = "legalnote_demo_tour_complete_v16";
 const VOICE_KEY = "legalnote_demo_voice";
 
 interface TooltipPosition {
