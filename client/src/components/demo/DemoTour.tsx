@@ -66,40 +66,30 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 6,
-    target: "nav-sessions",
-    title: "Recording retained for 7 days, then deleted",
-    description: "Your recording is accessible here for 7 days per GDPR Article 17, then permanently deleted. Audio, diarized transcript, and full speaker log all live in Sessions. Tap Sessions to explore.",
-    placement: "right",
-    actionRequired: false,
-    yellowWash: true,
-  },
-  {
-    id: 7,
-    target: "audio-player-container",
-    title: "Audio playback, retained for 7 days",
-    description: "The full session recording is stored here. Playback is available for the GDPR retention window, then the audio is permanently deleted.",
+    target: "audio-player",
+    title: "Full session recording, ready to review",
+    description: "The complete meeting recording is stored here. Tap play to hear any part of the session. Available for your full GDPR retention window.",
     placement: "bottom",
     actionRequired: false,
   },
   {
+    id: 7,
+    target: "audio-retention-countdown",
+    title: "Recording retained for 7 days, then deleted",
+    description: "Audio is retained for 7 days per GDPR Article 17, then permanently and automatically deleted. The diarized transcript stays on record. No manual action needed.",
+    placement: "top",
+    actionRequired: false,
+  },
+  {
     id: 8,
-    target: "session-transcript-preview",
-    title: "Diarized transcript stored alongside audio",
-    description: "Every word, every speaker, timestamped and attributed. The full diarized transcript is compiled from your recording and stored here alongside the session audio.",
+    target: "tab-transcript",
+    title: "Tap Transcript to view the full diarized record",
+    description: "Every word, every speaker, timestamped and attributed. Tap the Transcript tab to read the full diarized record compiled from the recording.",
     placement: "bottom",
     actionRequired: false,
   },
   {
     id: 9,
-    target: "nav-documents",
-    title: "Documents compiled from the recording",
-    description: "The full attendance note, matter record, and client care letter are all compiled from the recording in under 60 seconds. Tap Documents to see them.",
-    placement: "right",
-    actionRequired: false,
-    yellowWash: true,
-  },
-  {
-    id: 10,
     target: "tab-attendance",
     title: "Compliance-ready attendance note",
     description: "Structured, accurate, and ready to approve. Every section compiled directly from what was said in the meeting, not typed, not dictated. Tap Att. Note to read it.",
@@ -218,7 +208,7 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-const TOUR_KEY = "legalnote_demo_tour_complete_v14";
+const TOUR_KEY = "legalnote_demo_tour_complete_v15";
 const VOICE_KEY = "legalnote_demo_voice";
 
 interface TooltipPosition {

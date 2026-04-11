@@ -105,12 +105,39 @@ function DemoInteractionGuard({
         }
 
         if (testId === "nav-sessions") {
-          onNavSessions();
           return;
         }
 
         if (testId === "nav-documents") {
           onNavDocuments();
+          return;
+        }
+
+        if (testId === "tab-transcript") {
+          if (currentTourTarget === "tab-transcript" || currentTourTarget === "tab-attendance") {
+            return;
+          }
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          toast({
+            title: SHOWROOM_TOAST_TITLE,
+            description: "Follow the walkthrough to reach the transcript step.",
+            duration: 3000,
+          });
+          return;
+        }
+
+        if (testId === "tab-attendance") {
+          if (currentTourTarget === "tab-attendance" || currentTourTarget === "tab-transcript") {
+            return;
+          }
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          toast({
+            title: SHOWROOM_TOAST_TITLE,
+            description: "Follow the walkthrough to reach the attendance note.",
+            duration: 3000,
+          });
           return;
         }
 
@@ -390,38 +417,33 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   }, [revealCaseInCache, markCaseVisible]);
 
   const handleNavSessions = useCallback(() => {
-    advanceTo(6);
-    setTimeout(() => {
-      const expandBtn = document.querySelector('[data-testid^="button-expand-session-"]') as HTMLElement | null;
-      if (expandBtn) expandBtn.click();
-    }, 350);
-  }, [advanceTo]);
+  }, []);
 
   const handleNavDocuments = useCallback(() => {
-    advanceTo(9);
+    advanceTo(8);
   }, [advanceTo]);
 
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
   const handleActionShare = useCallback(() => {
     setShareModalOpen(true);
-    advanceTo(12);
+    advanceTo(11);
   }, [advanceTo]);
 
   const handleNavUndertakings = useCallback(() => {
-    advanceTo(15);
+    advanceTo(14);
   }, [advanceTo]);
 
   const handleNavObligations = useCallback(() => {
-    advanceTo(15);
+    advanceTo(14);
   }, [advanceTo]);
 
   const handleNavConsent = useCallback(() => {
-    advanceTo(16);
+    advanceTo(15);
   }, [advanceTo]);
 
   const handleNavAudit = useCallback(() => {
-    advanceTo(17);
+    advanceTo(16);
   }, [advanceTo]);
 
   const handleTourComplete = useCallback(() => {
