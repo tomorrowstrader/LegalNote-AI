@@ -218,7 +218,7 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-const TOUR_KEY = "legalnote_demo_tour_complete_v13";
+const TOUR_KEY = "legalnote_demo_tour_complete_v14";
 const VOICE_KEY = "legalnote_demo_voice";
 
 interface TooltipPosition {

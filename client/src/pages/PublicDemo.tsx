@@ -192,6 +192,10 @@ function DemoInteractionGuard({
           return;
         }
 
+        if (testId.startsWith("button-expand-session-") || testId.startsWith("button-open-session-docs-")) {
+          return;
+        }
+
         if (tourActive && currentTourTarget) {
           const isOnTourCard = !!el.closest("[data-testid='tour-tooltip']");
           if (isOnTourCard) return;
@@ -235,7 +239,7 @@ function DemoFetchInterceptor() {
   return null;
 }
 
-const POST_CINEMATIC_TOUR_STEP_INDEX = 8;
+const POST_CINEMATIC_TOUR_STEP_INDEX = 5;
 
 function useDemoCaseDetailLocation(): [string, (to: string) => void] {
   return [`/case/${DEMO_CASE_ID}`, () => {}];
@@ -386,11 +390,15 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   }, [revealCaseInCache, markCaseVisible]);
 
   const handleNavSessions = useCallback(() => {
-    advanceTo(5);
+    advanceTo(6);
+    setTimeout(() => {
+      const expandBtn = document.querySelector('[data-testid^="button-expand-session-"]') as HTMLElement | null;
+      if (expandBtn) expandBtn.click();
+    }, 350);
   }, [advanceTo]);
 
   const handleNavDocuments = useCallback(() => {
-    advanceTo(8);
+    advanceTo(9);
   }, [advanceTo]);
 
   const [shareModalOpen, setShareModalOpen] = useState(false);
