@@ -80,7 +80,6 @@ const TOUR_STEPS: TourStep[] = [
     description: "The full session recording is stored here. Playback is available for the GDPR retention window, then the audio is permanently deleted.",
     placement: "bottom",
     actionRequired: false,
-    delayMs: 600,
   },
   {
     id: 8,
@@ -89,7 +88,6 @@ const TOUR_STEPS: TourStep[] = [
     description: "Every word, every speaker, timestamped and attributed. The full diarized transcript is compiled from your recording and stored here alongside the session audio.",
     placement: "bottom",
     actionRequired: false,
-    delayMs: 400,
   },
   {
     id: 9,
@@ -101,37 +99,18 @@ const TOUR_STEPS: TourStep[] = [
     yellowWash: true,
   },
   {
-    id: 91,
-    target: "audio-player-container",
-    title: "Session audio, stored and accessible",
-    description: "The full recording is stored here and available for playback. Every word, every speaker, accessible during the GDPR retention window for review or dispute.",
-    placement: "bottom",
-    actionRequired: false,
-    delayMs: 600,
-  },
-  {
-    id: 92,
-    target: "audio-retention-countdown",
-    title: "Deleted on schedule. GDPR Article 17.",
-    description: "The countdown shows exactly when this audio is permanently deleted. No manual steps, no data left behind. The deletion event is logged to the tamper-evident audit trail.",
-    placement: "bottom",
-    actionRequired: false,
-    delayMs: 400,
-  },
-  {
     id: 10,
     target: "tab-attendance",
     title: "Compliance-ready attendance note",
     description: "Structured, accurate, and ready to approve. Every section compiled directly from what was said in the meeting, not typed, not dictated. Tap Att. Note to read it.",
     placement: "bottom",
     actionRequired: false,
-    delayMs: 400,
   },
   {
     id: 11,
     target: "button-case-actions",
-    title: "Tap Case Actions to share the attendance note",
-    description: "The attendance note is ready to share with your client. Tap Case Actions to open the menu, then select Secure Share. The client verifies by SMS before accessing.",
+    title: "Share the attendance note securely",
+    description: "Tap Case Actions to open the menu. You will see a Secure Share option. Your client verifies by SMS before viewing, and every access is timestamped and logged.",
     placement: "top",
     actionRequired: false,
   },
@@ -142,7 +121,7 @@ const TOUR_STEPS: TourStep[] = [
     description: "Tap Secure Share. Your client receives a link and must verify by SMS before viewing. Every access attempt is timestamped and logged to the tamper-evident audit trail.",
     placement: "top",
     actionRequired: false,
-    delayMs: 400,
+    navigationHint: "Open Case Actions above to reveal the Secure Share option.",
   },
   {
     id: 13,
@@ -151,7 +130,6 @@ const TOUR_STEPS: TourStep[] = [
     description: "Add the client's email, name, and mobile number. The secure link will be sent to them with SMS verification before they can access any documents.",
     placement: "right",
     actionRequired: false,
-    delayMs: 600,
   },
   {
     id: 14,
@@ -160,7 +138,6 @@ const TOUR_STEPS: TourStep[] = [
     description: "Enable SMS verification so your client must confirm their identity before viewing any shared documents. Every access attempt is logged to the audit trail.",
     placement: "right",
     actionRequired: false,
-    delayMs: 400,
   },
   {
     id: 15,
@@ -169,7 +146,6 @@ const TOUR_STEPS: TourStep[] = [
     description: "Once details are confirmed, send the secure link. Your client receives an email, verifies by SMS, and every access event is sealed to the tamper-evident audit trail.",
     placement: "top",
     actionRequired: false,
-    delayMs: 400,
   },
   {
     id: 16,
@@ -179,7 +155,6 @@ const TOUR_STEPS: TourStep[] = [
     placement: "right",
     actionRequired: false,
     yellowWash: true,
-    delayMs: 400,
   },
   {
     id: 17,
@@ -189,7 +164,6 @@ const TOUR_STEPS: TourStep[] = [
     placement: "right",
     actionRequired: false,
     yellowWash: true,
-    delayMs: 400,
   },
   {
     id: 18,
@@ -199,7 +173,6 @@ const TOUR_STEPS: TourStep[] = [
     placement: "right",
     actionRequired: false,
     yellowWash: true,
-    delayMs: 400,
   },
   {
     id: 19,
@@ -208,16 +181,14 @@ const TOUR_STEPS: TourStep[] = [
     description: "Every entry is sealed with a cryptographic fingerprint. If a record is ever altered, the fingerprint breaks. This is the evidence standard that protects you if anything is disputed.",
     placement: "top",
     actionRequired: false,
-    delayMs: 600,
   },
   {
     id: 20,
     target: "button-case-actions",
-    title: "Tap Case Actions for SRA report",
-    description: "Tap Case Actions to compile a complete SRA-ready defence report: sessions, consent log, documents, audit trail, and a tamper-evidence declaration, everything bundled in under 60 seconds.",
+    title: "Compile a full SRA defence report",
+    description: "Tap Case Actions to open the menu. You will see an SRA Report option that bundles sessions, consent log, documents, audit trail, and a tamper-evidence declaration.",
     placement: "top",
     actionRequired: false,
-    delayMs: 400,
   },
   {
     id: 21,
@@ -226,7 +197,7 @@ const TOUR_STEPS: TourStep[] = [
     description: "If the SRA investigates or a PI claim is made, compile a complete defence report: sessions, consent log, documents, audit trail, and a tamper-evidence declaration. Everything bundled in under 60 seconds. Tap to compile.",
     placement: "bottom",
     actionRequired: false,
-    delayMs: 600,
+    navigationHint: "Open Case Actions above to reveal the SRA Report option.",
   },
   {
     id: 22,
@@ -235,8 +206,6 @@ const TOUR_STEPS: TourStep[] = [
     description: "Tap Compile Report to bundle every session, consent log, document, audit entry, and tamper-evidence declaration into one SRA-ready PDF. Everything compiled in under 60 seconds.",
     placement: "top",
     actionRequired: false,
-    animatedCursor: true,
-    delayMs: 800,
   },
   {
     id: 23,
@@ -249,7 +218,7 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-const TOUR_KEY = "legalnote_demo_tour_complete_v12";
+const TOUR_KEY = "legalnote_demo_tour_complete_v13";
 const VOICE_KEY = "legalnote_demo_voice";
 
 interface TooltipPosition {
@@ -546,9 +515,6 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
 
   useEffect(() => {
     if (!active || !currentStep) return;
-    if (currentStep.delayMs && currentStep.delayMs > 0) {
-      return;
-    }
     setVisible(false);
     setSpotlightRect(null);
     setYellowWashRect(null);

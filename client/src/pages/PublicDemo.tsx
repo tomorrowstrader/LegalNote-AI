@@ -125,7 +125,11 @@ function DemoInteractionGuard({
         }
 
         if (testId === "button-case-actions") {
-          if (currentTourTarget === "button-case-actions") {
+          if (
+            currentTourTarget === "button-case-actions" ||
+            currentTourTarget === "action-share" ||
+            currentTourTarget === "action-sra-report"
+          ) {
             return;
           }
           e.preventDefault();
@@ -141,7 +145,7 @@ function DemoInteractionGuard({
         if (testId === "action-share") {
           e.preventDefault();
           e.stopImmediatePropagation();
-          if (currentTourTarget === "action-share") {
+          if (currentTourTarget === "action-share" || currentTourTarget === "button-case-actions") {
             onActionShare();
           } else {
             toast({
@@ -150,6 +154,20 @@ function DemoInteractionGuard({
               duration: 3000,
             });
           }
+          return;
+        }
+
+        if (testId === "action-sra-report") {
+          if (currentTourTarget === "action-sra-report" || currentTourTarget === "button-case-actions") {
+            return;
+          }
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          toast({
+            title: SHOWROOM_TOAST_TITLE,
+            description: "Follow the walkthrough to reach the SRA report step.",
+            duration: 3000,
+          });
           return;
         }
 
@@ -306,15 +324,15 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
       const mainContent = document.querySelector('[data-testid="case-detail-main"]') || document.querySelector('main');
       if (mainContent) mainContent.scrollTop = 0;
       window.scrollTo(0, 0);
-      advanceTo(13);
+      advanceTo(11);
     } else if (stepId === 12) {
       setShareModalOpen(true);
-      advanceTo(14);
+      advanceTo(12);
     } else if (stepId === 20) {
-      advanceTo(22);
+      advanceTo(20);
     } else if (stepId === 21) {
       setTimeout(() => {
-        advanceTo(23);
+        advanceTo(21);
       }, 1500);
     }
   }, [qc, advanceTo, practiceArea, name]);
@@ -379,23 +397,23 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
 
   const handleActionShare = useCallback(() => {
     setShareModalOpen(true);
-    advanceTo(14);
+    advanceTo(12);
   }, [advanceTo]);
 
   const handleNavUndertakings = useCallback(() => {
-    advanceTo(17);
+    advanceTo(15);
   }, [advanceTo]);
 
   const handleNavObligations = useCallback(() => {
-    advanceTo(17);
+    advanceTo(15);
   }, [advanceTo]);
 
   const handleNavConsent = useCallback(() => {
-    advanceTo(18);
+    advanceTo(16);
   }, [advanceTo]);
 
   const handleNavAudit = useCallback(() => {
-    advanceTo(19);
+    advanceTo(17);
   }, [advanceTo]);
 
   const handleTourComplete = useCallback(() => {
