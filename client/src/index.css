@@ -707,6 +707,20 @@ nav.sticky {
   min-height: 930px;
 }
 
+/* On mobile, collapse the fixed A4 width to fill the available container */
+@media (max-width: 767px) {
+  .paginated-page-card {
+    width: 100%;
+    min-height: unset;
+  }
+  .paginated-page-card .ProseMirror {
+    padding: 24px 16px;
+    min-height: unset;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+}
+
 /* Page gutter widgets injected by the pagination ProseMirror plugin.
    Total height 224px = 96px white (bottom margin of page N)
                        + 32px grey separator band

@@ -1567,7 +1567,7 @@ export default function DocumentViewer({
             </div>
           )}
           <div className={`flex gap-4 ${showComments ? 'flex-col lg:flex-row' : ''}`}>
-            <Card className={showComments ? 'flex-1 min-w-0' : 'w-full'}>
+            <Card className={showComments ? 'flex-1 min-w-0' : 'w-full'} data-testid="attendance-note-card">
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">

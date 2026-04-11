@@ -137,6 +137,14 @@ function DemoInteractionGuard({
 
         if (testId === "tab-attendance") {
           if (currentTourTarget === "tab-attendance" || currentTourTarget === "tab-transcript") {
+            if (currentTourTarget === "tab-attendance") {
+              setTimeout(() => {
+                const attendanceCard = document.querySelector('[data-testid="attendance-note-card"]');
+                if (attendanceCard) {
+                  attendanceCard.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+                }
+              }, 200);
+            }
             return;
           }
           e.preventDefault();
