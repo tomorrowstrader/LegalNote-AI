@@ -217,7 +217,7 @@ function DemoFetchInterceptor() {
   return null;
 }
 
-const POST_CINEMATIC_TOUR_STEP_INDEX = 5;
+const POST_CINEMATIC_TOUR_STEP_INDEX = 8;
 
 function useDemoCaseDetailLocation(): [string, (to: string) => void] {
   return [`/case/${DEMO_CASE_ID}`, () => {}];

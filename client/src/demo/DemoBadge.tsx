@@ -9,16 +9,6 @@ export function DemoBadge() {
     <>
       {createPortal(
         <div
-          className="fixed top-3 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
-          style={{ background: "#c05640", color: "#fff", letterSpacing: "0.05em" }}
-          data-testid="demo-badge"
-        >
-          DEMO
-        </div>,
-        document.body
-      )}
-      {createPortal(
-        <div
           className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-between gap-4 px-6 py-3"
           style={{ background: "linear-gradient(90deg, #1a1a2e 0%, #16213e 100%)", borderTop: "1px solid rgba(255,255,255,0.08)" }}
           data-testid="demo-cta-bar"

@@ -65,7 +65,7 @@ export function DemoCinematicProcessing({ onComplete }: DemoCinematicProcessingP
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-background/98 backdrop-blur-sm"
+      className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-background"
       data-testid="demo-cinematic-processing"
     >
       <div className="w-full max-w-md px-8 py-10 space-y-8">
