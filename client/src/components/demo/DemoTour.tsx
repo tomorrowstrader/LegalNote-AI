@@ -118,7 +118,6 @@ const TOUR_STEPS: TourStep[] = [
     placement: "bottom",
     actionRequired: false,
     delayMs: 600,
-    autoAdvanceMs: 4000,
   },
   {
     id: 92,
@@ -128,7 +127,6 @@ const TOUR_STEPS: TourStep[] = [
     placement: "bottom",
     actionRequired: false,
     delayMs: 400,
-    autoAdvanceMs: 3500,
   },
   {
     id: 10,
