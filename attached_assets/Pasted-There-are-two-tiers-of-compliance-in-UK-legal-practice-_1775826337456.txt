@@ -1,0 +1,69 @@
+There are two tiers of compliance in UK legal practice.
+
+Most boutique solicitors are in the wrong one without knowing it.
+
+Tier one: Clifford Chance. Charles Russell Speechly. 
+Compliance departments, risk functions, infrastructure embedded before a file is opened.
+
+Tier two: a folder and a calendar.
+
+The SRA holds both to the same standard.
+Then provides infrastructure for neither.
+
+Which leaves boutique solicitors doing what they've always done. Finding their own way.
+
+A tool recommended in a WhatsApp group. 
+Something passed around after a CPD event.
+
+Copilot. Fireflies. Shared openly, generously, by colleagues who found them useful.
+
+Some do their due diligence. They ask. They check.
+But even then, what exactly are you looking for?
+
+The gaps aren't on the surface. They're built into the architecture of tools never designed with UK legal practice in mind. None of it visible without knowing precisely where to look.
+
+What makes it worse?
+The recommendations keep spreading.
+So the gap quietly multiplies.
+
+Most boutique solicitors consider themselves compliant. They are. Just not at the level they think.
+
+Zoom isn't GDPR compliant out of the box. Neither is Teams, yet youuse them every day for client meetings and never think twice.
+
+Working inside Clifford Chance, compliance seemed invisible, so embedded, nobody ever had to think about it.
+
+But as a client at smaller firms, I've watched solicitors search through folders, visibly uncertain whether everything was where it needed to be.
+
+The work was good. The intention was genuine. 
+The infrastructure just wasn't there to match.
+
+Immigration solicitors holding someone's entire future in a file. 
+
+M&A solicitors stewarding the sale of someone's life's work. 
+
+Family solicitors present at the most painful moments people ever go through.
+
+All of you doing work that matters enormously.
+With infrastructure that doesn't come close to matching it.
+
+That needs to change.
+
+Boutique firms and sole practitioners are already quietly closing that gap with LegalNote. 
+Most haven't heard about it yet.
+
+Not a broad fix.
+Not another "save time on admin" platform.
+
+Built for the compliance and defensibility requirements of boutique practice. The kind that anticipates the SRA's expectations, not just meets them.
+
+The standard Clifford Chance has never had to think twice about. Now built for the firms it was always meant for.
+
+Comment PROTECTED below or send me a DM.
+
+Inside: your firm. your matter types, waiting for you in LegalNote.
+
+Step inside.
+
+Not a sales call. Not a generic demo.
+
+The infrastructure you should have had from day one.

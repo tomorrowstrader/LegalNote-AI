@@ -270,6 +270,7 @@ interface TooltipPosition {
   top?: number;
   left?: number;
   isMobileSheet?: boolean;
+  mobileSheetAtTop?: boolean;
 }
 
 interface SpotlightRect {
@@ -400,10 +401,24 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
         el.scrollIntoView({ behavior: "instant", block: "center" });
       }
       setElementMissing(false);
-      setTooltipPos({ isMobileSheet: true });
-      setVisible(true);
-      setSpotlightRect(null);
-      setYellowWashRect(null);
+      requestAnimationFrame(() => {
+        const SHEET_HEIGHT = 220;
+        let atTop = false;
+        let sRect: SpotlightRect | null = null;
+        if (el) {
+          const rect = (el as HTMLElement).getBoundingClientRect();
+          // If element centre is in the bottom portion that the sheet would cover, flip to top
+          const elCentre = rect.top + rect.height / 2;
+          atTop = elCentre > window.innerHeight - SHEET_HEIGHT - 20;
+          if (rect.width > 0 && rect.height > 0) {
+            sRect = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+          }
+        }
+        setTooltipPos({ isMobileSheet: true, mobileSheetAtTop: atTop });
+        setSpotlightRect(sRect);
+        setYellowWashRect(null);
+        setVisible(true);
+      });
       return;
     }
 
@@ -829,10 +844,17 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   );
 
   const spotlightPad = 6;
+  const mobileAtTop = tooltipPos.mobileSheetAtTop === true;
 
   if (isMobile) {
     return (
       <>
+        <style>{`
+          @keyframes demo-spotlight-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+          }
+        `}</style>
         <div
           className="fixed inset-0 z-[60] pointer-events-none"
           style={{ background: "rgba(0,0,0,0.35)" }}
@@ -863,7 +885,11 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
           />
         )}
         <div
-          className="fixed z-[70] bottom-0 left-0 right-0 bg-background border-t border-border rounded-t-lg shadow-lg p-4"
+          className={`fixed z-[70] left-0 right-0 bg-background shadow-lg p-4 ${
+            mobileAtTop
+              ? "top-0 border-b border-border rounded-b-lg"
+              : "bottom-0 border-t border-border rounded-t-lg"
+          }`}
           data-testid="tour-tooltip"
         >
           {tooltipContent}
