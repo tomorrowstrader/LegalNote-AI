@@ -83,8 +83,8 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 8,
     target: "tab-transcript",
-    title: "Tap Transcript to view the full diarized record",
-    description: "Every word, every speaker, timestamped and attributed. Tap the Transcript tab to read the full diarized record compiled from the recording.",
+    title: "Tap Script to read the full diarized record",
+    description: "Every word, every speaker, timestamped and attributed. Tap Script to read the full diarized record compiled from the recording.",
     placement: "bottom",
     actionRequired: false,
   },
@@ -304,7 +304,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       setYellowWashRect(null);
       return;
     }
-    el.scrollIntoView({ behavior: "instant", block: "nearest" });
+    el.scrollIntoView({ behavior: "instant", block: "nearest", inline: "nearest" });
     requestAnimationFrame(() => {
       const rect = el.getBoundingClientRect();
       setSpotlightRect({
@@ -396,7 +396,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
     }
 
     setElementMissing(false);
-    el.scrollIntoView({ behavior: "instant", block: "nearest" });
+    el.scrollIntoView({ behavior: "instant", block: "nearest", inline: "nearest" });
     requestAnimationFrame(() => {
       const rect = el.getBoundingClientRect();
       const tooltipWidth = 300;

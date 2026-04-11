@@ -115,6 +115,14 @@ function DemoInteractionGuard({
 
         if (testId === "tab-transcript") {
           if (currentTourTarget === "tab-transcript" || currentTourTarget === "tab-attendance") {
+            if (currentTourTarget === "tab-transcript") {
+              setTimeout(() => {
+                const transcriptContent = document.querySelector('[data-testid="badge-diarized"]');
+                if (transcriptContent) {
+                  transcriptContent.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+                }
+              }, 200);
+            }
             return;
           }
           e.preventDefault();
@@ -467,7 +475,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
         onNavObligations={handleNavObligations}
         onNavConsent={handleNavConsent}
       />
-      <div className="min-h-screen bg-background pb-16">
+      <div className="min-h-screen bg-background pb-16 overflow-x-hidden">
         <TopNavigation onRestartTour={handleRestartTour} />
         <DemoBadge />
         <DemoTour

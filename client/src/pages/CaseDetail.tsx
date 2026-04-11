@@ -996,7 +996,7 @@ export default function CaseDetail() {
   };
 
   return (
-    <div className={cn("flex bg-background", isFocusMode ? "min-h-screen" : "h-[calc(100vh-4rem)]")}>
+    <div className={cn("flex bg-background overflow-x-hidden", isFocusMode ? "min-h-screen" : "h-[calc(100vh-4rem)]")}>
       {isFocusMode && (
         <div className="fixed top-4 right-4 z-[200]">
           <Button variant="outline" size="sm" onClick={exitFocusMode} className="gap-2 bg-background/80 backdrop-blur-sm shadow-lg" data-testid="button-exit-focus-mode">
@@ -1172,7 +1172,7 @@ export default function CaseDetail() {
       )}
 
       {/* ── Main Content ── */}
-      <main className="flex-1 min-w-0 flex flex-col overflow-y-auto">
+      <main className="flex-1 min-w-0 flex flex-col overflow-y-auto overflow-x-hidden">
 
         {/* Mobile tab bar */}
         <div className="lg:hidden sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border overflow-x-auto">
