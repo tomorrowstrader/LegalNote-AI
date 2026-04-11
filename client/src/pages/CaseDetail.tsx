@@ -900,16 +900,6 @@ export default function CaseDetail() {
 
   const sharedCaseActionsGroup = (
     <div className="flex items-center gap-2">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="gap-1.5"
-        onClick={() => setShowLiveBotModal(true)}
-        data-testid="button-join-with-bot"
-      >
-        <Video className="w-3.5 h-3.5" />
-        Join with LegalNote
-      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" className="gap-1.5" data-testid="button-case-actions">
@@ -918,6 +908,11 @@ export default function CaseDetail() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuItem onClick={() => setShowLiveBotModal(true)} data-testid="button-join-with-bot">
+            <Video className="w-4 h-4 mr-2" />
+            Join with LegalNote
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={toggleFocusMode} data-testid="action-focus-mode">
             <Focus className="w-4 h-4 mr-2" />
             {isFocusMode ? "Exit Focus Mode" : "Focus Mode"}

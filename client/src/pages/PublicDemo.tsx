@@ -306,15 +306,15 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
       const mainContent = document.querySelector('[data-testid="case-detail-main"]') || document.querySelector('main');
       if (mainContent) mainContent.scrollTop = 0;
       window.scrollTo(0, 0);
-      advanceTo(11);
+      advanceTo(13);
     } else if (stepId === 12) {
       setShareModalOpen(true);
-      advanceTo(12);
+      advanceTo(14);
     } else if (stepId === 20) {
-      advanceTo(20);
+      advanceTo(22);
     } else if (stepId === 21) {
       setTimeout(() => {
-        advanceTo(21);
+        advanceTo(23);
       }, 1500);
     }
   }, [qc, advanceTo, practiceArea, name]);
@@ -379,23 +379,23 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
 
   const handleActionShare = useCallback(() => {
     setShareModalOpen(true);
-    advanceTo(12);
+    advanceTo(14);
   }, [advanceTo]);
 
   const handleNavUndertakings = useCallback(() => {
-    advanceTo(15);
+    advanceTo(17);
   }, [advanceTo]);
 
   const handleNavObligations = useCallback(() => {
-    advanceTo(15);
+    advanceTo(17);
   }, [advanceTo]);
 
   const handleNavConsent = useCallback(() => {
-    advanceTo(16);
+    advanceTo(18);
   }, [advanceTo]);
 
   const handleNavAudit = useCallback(() => {
-    advanceTo(17);
+    advanceTo(19);
   }, [advanceTo]);
 
   const handleTourComplete = useCallback(() => {

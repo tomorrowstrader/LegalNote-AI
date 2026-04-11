@@ -101,14 +101,34 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 9,
     target: "nav-documents",
-    title: "Attendance note, compiled from the recording",
-    description: "Compiled in under 60 seconds. No typing, no dictation. Opening Documents now to show the compiled attendance note.",
+    title: "Documents compiled from the recording",
+    description: "Opening Documents now. The full attendance note, matter record, and client care letter are all compiled from the recording. Compiled in under 60 seconds.",
     placement: "right",
     actionRequired: false,
     animatedCursor: true,
     autoClick: true,
     delayMs: 600,
     yellowWash: true,
+  },
+  {
+    id: 91,
+    target: "audio-player-container",
+    title: "Session audio, stored and accessible",
+    description: "The full recording is stored here and available for playback. Every word, every speaker — accessible during the GDPR retention window for review or dispute.",
+    placement: "bottom",
+    actionRequired: false,
+    delayMs: 600,
+    autoAdvanceMs: 4000,
+  },
+  {
+    id: 92,
+    target: "audio-retention-countdown",
+    title: "Deleted on schedule. GDPR Article 17.",
+    description: "The countdown shows exactly when this audio is permanently deleted. No manual steps, no data left behind. The deletion event is logged to the tamper-evident audit trail.",
+    placement: "bottom",
+    actionRequired: false,
+    delayMs: 400,
+    autoAdvanceMs: 3500,
   },
   {
     id: 10,
@@ -263,7 +283,7 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-const TOUR_KEY = "legalnote_demo_tour_complete_v10";
+const TOUR_KEY = "legalnote_demo_tour_complete_v11";
 const VOICE_KEY = "legalnote_demo_voice";
 
 interface TooltipPosition {
