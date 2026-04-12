@@ -86,7 +86,7 @@ const TOUR_STEPS: TourStep[] = [
     title: "Compliance-ready attendance note",
     description: "Structured, accurate, and ready to approve. Every section compiled directly from what was said in the meeting. Tap Att. Note to read it.",
     placement: "bottom",
-    actionRequired: false,
+    actionRequired: true,
   },
   {
     id: 9,
@@ -628,6 +628,9 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   }, [active, currentStep, visible, hidden, onStepAutoAction]);
 
   const handleNext = () => {
+    setVisible(false);
+    setSpotlightRect(null);
+    setYellowWashRect(null);
     if (stepIndex < TOUR_STEPS.length - 1) {
       setStepIndex((i) => i + 1);
     } else {

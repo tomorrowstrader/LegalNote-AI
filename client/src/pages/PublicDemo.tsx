@@ -74,6 +74,7 @@ interface DemoInteractionGuardProps {
   onNavAudit: () => void;
   onNavObligations: () => void;
   onNavConsent: () => void;
+  onNavAttendanceTab: () => void;
 }
 
 function DemoInteractionGuard({
@@ -87,6 +88,7 @@ function DemoInteractionGuard({
   onNavAudit,
   onNavObligations,
   onNavConsent,
+  onNavAttendanceTab,
 }: DemoInteractionGuardProps) {
   const { toast } = useToast();
 
@@ -138,12 +140,13 @@ function DemoInteractionGuard({
         if (testId === "tab-attendance") {
           if (currentTourTarget === "tab-attendance" || currentTourTarget === "tab-transcript") {
             if (currentTourTarget === "tab-attendance") {
+              onNavAttendanceTab();
               setTimeout(() => {
-                const attendanceCard = document.querySelector('[data-testid="attendance-note-card"]');
-                if (attendanceCard) {
-                  attendanceCard.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+                const tabEl = document.querySelector('[data-testid="tab-attendance"]');
+                if (tabEl) {
+                  tabEl.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
                 }
-              }, 200);
+              }, 150);
             }
             return;
           }
@@ -439,6 +442,10 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     advanceTo(8);
   }, [advanceTo]);
 
+  const handleNavAttendanceTab = useCallback(() => {
+    advanceTo(9);
+  }, [advanceTo]);
+
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
   const handleActionShare = useCallback(() => {
@@ -482,6 +489,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
         onNavAudit={handleNavAudit}
         onNavObligations={handleNavObligations}
         onNavConsent={handleNavConsent}
+        onNavAttendanceTab={handleNavAttendanceTab}
       />
       <div className="min-h-screen bg-background pb-16 overflow-x-hidden">
         <TopNavigation onRestartTour={handleRestartTour} />
