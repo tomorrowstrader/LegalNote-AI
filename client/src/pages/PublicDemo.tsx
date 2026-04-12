@@ -440,7 +440,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     }, 600);
     setTimeout(() => {
       const main = document.querySelector("main");
-      if (main) main.scrollBy({ top: 300, behavior: "smooth" });
+      if (main) main.scrollBy({ top: 520, behavior: "smooth" });
     }, 1400);
   }, []);
 
