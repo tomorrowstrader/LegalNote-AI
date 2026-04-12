@@ -144,9 +144,11 @@ function DemoInteractionGuard({
               setTimeout(() => {
                 const cardEl = document.querySelector('[data-testid="attendance-note-card"]');
                 if (cardEl) {
-                  cardEl.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+                  const rect = (cardEl as HTMLElement).getBoundingClientRect();
+                  const absoluteTop = rect.top + window.scrollY;
+                  window.scrollTo({ top: Math.max(0, absoluteTop - 80), behavior: "smooth" });
                 }
-              }, 250);
+              }, 300);
             }
             return;
           }
