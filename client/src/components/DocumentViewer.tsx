@@ -1542,7 +1542,7 @@ export default function DocumentViewer({
           </TabsList>
         </div>
 
-        <TabsContent value="attendance" className="mt-6">
+        <TabsContent value="attendance" className="mt-6 overflow-x-hidden overscroll-x-none touch-pan-y">
           {attendanceNote?.status === 'draft' && !dismissedReviewBanners.has('attendance') && (
             <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-attendance">
               <div className="flex items-start gap-3">

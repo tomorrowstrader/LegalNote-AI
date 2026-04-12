@@ -142,11 +142,11 @@ function DemoInteractionGuard({
             if (currentTourTarget === "tab-attendance") {
               onNavAttendanceTab();
               setTimeout(() => {
-                const tabEl = document.querySelector('[data-testid="tab-attendance"]');
-                if (tabEl) {
-                  tabEl.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+                const cardEl = document.querySelector('[data-testid="attendance-note-card"]');
+                if (cardEl) {
+                  cardEl.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
                 }
-              }, 150);
+              }, 250);
             }
             return;
           }

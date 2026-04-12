@@ -788,7 +788,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
     </>
   );
 
-  const spotlightPad = 6;
+  const spotlightPad = 3;
   const mobileAtTop = tooltipPos.mobileSheetAtTop === true;
 
   if (isMobile) {
