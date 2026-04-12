@@ -102,12 +102,9 @@ function DemoInteractionGuard({
           if (currentTourTarget === "tab-attendance") {
             onNavAttendanceTab();
             setTimeout(() => {
-              const cardEl = document.querySelector('[data-testid="attendance-note-card"]');
-              if (cardEl) {
-                const rect = (cardEl as HTMLElement).getBoundingClientRect();
-                window.scrollTo({ top: Math.max(0, rect.top + window.scrollY - 80), behavior: "smooth" });
-              }
-            }, 300);
+              const exportBtn = document.querySelector('[data-testid="button-export"]');
+              if (exportBtn) exportBtn.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 600);
           }
           return;
         }
