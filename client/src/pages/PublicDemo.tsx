@@ -101,10 +101,6 @@ function DemoInteractionGuard({
         if (currentTourTarget === "tab-attendance" || currentTourTarget === "tab-transcript") {
           if (currentTourTarget === "tab-attendance") {
             onNavAttendanceTab();
-            setTimeout(() => {
-              const exportBtn = document.querySelector('[data-testid="button-export"]');
-              if (exportBtn) exportBtn.scrollIntoView({ behavior: "smooth", block: "start" });
-            }, 600);
           }
           return;
         }
@@ -300,6 +296,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   const [currentTourTarget, setCurrentTourTarget] = useState<string | null>(null);
   const [tourActive, setTourActive] = useState(true);
   const tourRef = useRef<DemoTourHandle>(null);
+  const attendanceScrollFiredRef = useRef(false);
 
   const handleRestartTour = useCallback(() => setTourRestartTrigger((v) => v + 1), []);
 
@@ -434,8 +431,24 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   }, [advanceTo]);
 
   const handleNavAttendanceTab = useCallback(() => {
+    if (attendanceScrollFiredRef.current) return;
+    attendanceScrollFiredRef.current = true;
     tourRef.current?.markActionCompleted();
+    setTimeout(() => {
+      const exportBtn = document.querySelector('[data-testid="button-export"]');
+      if (exportBtn) exportBtn.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 600);
+    setTimeout(() => {
+      const main = document.querySelector("main");
+      if (main) main.scrollBy({ top: 300, behavior: "smooth" });
+    }, 1400);
   }, []);
+
+  useEffect(() => {
+    if (currentTourTarget !== "tab-attendance") {
+      attendanceScrollFiredRef.current = false;
+    }
+  }, [currentTourTarget]);
 
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
