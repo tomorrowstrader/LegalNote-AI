@@ -443,8 +443,8 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   }, [advanceTo]);
 
   const handleNavAttendanceTab = useCallback(() => {
-    advanceTo(9);
-  }, [advanceTo]);
+    tourRef.current?.markActionCompleted();
+  }, []);
 
   const [shareModalOpen, setShareModalOpen] = useState(false);
 

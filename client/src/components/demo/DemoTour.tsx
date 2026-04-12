@@ -227,6 +227,7 @@ interface SpotlightRect {
 
 export interface DemoTourHandle {
   advanceTourToStep: (index: number) => void;
+  markActionCompleted: () => void;
 }
 
 interface DemoTourProps {
@@ -255,6 +256,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   const [voiceEnabled, setVoiceEnabled] = useState(() => localStorage.getItem(VOICE_KEY) !== "off");
   const [spotlightRect, setSpotlightRect] = useState<SpotlightRect | null>(null);
   const [yellowWashRect, setYellowWashRect] = useState<SpotlightRect | null>(null);
+  const [stepActionCompleted, setStepActionCompleted] = useState(false);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [cursorAnimating, setCursorAnimating] = useState(false);
   const positionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -468,6 +470,10 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
         setStepIndex(index);
       }
     },
+    markActionCompleted: () => {
+      if (!active) return;
+      setStepActionCompleted(true);
+    },
   }), [active, stopAudio, positionTooltip, onStepTargetChange]);
 
   useEffect(() => {
@@ -502,6 +508,10 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
     }
     onStepTargetChange?.(currentStep.target);
   }, [active, currentStep, onStepTargetChange]);
+
+  useEffect(() => {
+    setStepActionCompleted(false);
+  }, [stepIndex]);
 
   useEffect(() => {
     if (!active || !currentStep) return;
@@ -757,7 +767,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
             )}
           </button>
         </div>
-        {isActionRequired ? (
+        {isActionRequired && !stepActionCompleted ? (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
@@ -771,7 +781,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
             onClick={isLast ? handleComplete : handleNext}
             data-testid="button-tour-next"
           >
-            {isLast ? "Finish" : isFirst ? "Got it \u2192" : "Got it \u2192"}
+            {isLast ? "Finish" : "Got it \u2192"}
           </Button>
         )}
       </div>
