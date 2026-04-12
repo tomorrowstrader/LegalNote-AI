@@ -94,7 +94,46 @@ function DemoInteractionGuard({
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      let el = e.target as HTMLElement | null;
+      const target = e.target as HTMLElement;
+
+      // ── Tab checks use closest() so taps on child <span> elements are caught ──
+      if (target.closest('[data-testid="tab-attendance"]')) {
+        if (currentTourTarget === "tab-attendance" || currentTourTarget === "tab-transcript") {
+          if (currentTourTarget === "tab-attendance") {
+            onNavAttendanceTab();
+            setTimeout(() => {
+              const cardEl = document.querySelector('[data-testid="attendance-note-card"]');
+              if (cardEl) {
+                const rect = (cardEl as HTMLElement).getBoundingClientRect();
+                window.scrollTo({ top: Math.max(0, rect.top + window.scrollY - 80), behavior: "smooth" });
+              }
+            }, 300);
+          }
+          return;
+        }
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        toast({ title: SHOWROOM_TOAST_TITLE, description: "Follow the walkthrough to reach the attendance note.", duration: 3000 });
+        return;
+      }
+
+      if (target.closest('[data-testid="tab-transcript"]')) {
+        if (currentTourTarget === "tab-transcript" || currentTourTarget === "tab-attendance") {
+          if (currentTourTarget === "tab-transcript") {
+            setTimeout(() => {
+              const badge = document.querySelector('[data-testid="badge-diarized"]');
+              if (badge) badge.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+            }, 200);
+          }
+          return;
+        }
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        toast({ title: SHOWROOM_TOAST_TITLE, description: "Follow the walkthrough to reach the transcript step.", duration: 3000 });
+        return;
+      }
+
+      let el: HTMLElement | null = target;
 
       while (el) {
         const testId = el.getAttribute("data-testid") || "";
@@ -112,53 +151,6 @@ function DemoInteractionGuard({
 
         if (testId === "nav-documents") {
           onNavDocuments();
-          return;
-        }
-
-        if (testId === "tab-transcript") {
-          if (currentTourTarget === "tab-transcript" || currentTourTarget === "tab-attendance") {
-            if (currentTourTarget === "tab-transcript") {
-              setTimeout(() => {
-                const transcriptContent = document.querySelector('[data-testid="badge-diarized"]');
-                if (transcriptContent) {
-                  transcriptContent.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
-                }
-              }, 200);
-            }
-            return;
-          }
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          toast({
-            title: SHOWROOM_TOAST_TITLE,
-            description: "Follow the walkthrough to reach the transcript step.",
-            duration: 3000,
-          });
-          return;
-        }
-
-        if (testId === "tab-attendance") {
-          if (currentTourTarget === "tab-attendance" || currentTourTarget === "tab-transcript") {
-            if (currentTourTarget === "tab-attendance") {
-              onNavAttendanceTab();
-              setTimeout(() => {
-                const cardEl = document.querySelector('[data-testid="attendance-note-card"]');
-                if (cardEl) {
-                  const rect = (cardEl as HTMLElement).getBoundingClientRect();
-                  const absoluteTop = rect.top + window.scrollY;
-                  window.scrollTo({ top: Math.max(0, absoluteTop - 80), behavior: "smooth" });
-                }
-              }, 300);
-            }
-            return;
-          }
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          toast({
-            title: SHOWROOM_TOAST_TITLE,
-            description: "Follow the walkthrough to reach the attendance note.",
-            duration: 3000,
-          });
           return;
         }
 
@@ -272,7 +264,7 @@ function DemoInteractionGuard({
     };
     document.addEventListener("click", handleClick, { capture: true });
     return () => document.removeEventListener("click", handleClick, { capture: true });
-  }, [toast, currentTourTarget, tourActive, onJoinMeeting, onNavSessions, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit, onNavObligations, onNavConsent]);
+  }, [toast, currentTourTarget, tourActive, onJoinMeeting, onNavSessions, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit, onNavObligations, onNavConsent, onNavAttendanceTab]);
 
   return null;
 }
