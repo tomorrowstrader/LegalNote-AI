@@ -400,8 +400,8 @@ export default function DiarizedTranscriptViewer({
           
           {/* Speaker badges inline with controls */}
           <div className="flex flex-wrap gap-1.5 ml-auto">
-            {uniqueSpeakers.map((speaker) => {
-              const colorIdx = getSpeakerIndex(speaker) % SPEAKER_BADGE_COLORS.length;
+            {uniqueSpeakers.map((speaker, speakerIdx) => {
+              const colorIdx = speakerIdx % SPEAKER_BADGE_COLORS.length;
               return (
                 <Badge 
                   key={speaker} 
@@ -437,7 +437,7 @@ export default function DiarizedTranscriptViewer({
 
       <div className={cn("space-y-3", !expandedView && "space-y-1")}>
         {utterances.map((utterance, idx) => {
-          const colorIdx = getSpeakerIndex(utterance.speaker) % SPEAKER_COLORS.length;
+          const colorIdx = uniqueSpeakers.indexOf(utterance.speaker) % SPEAKER_COLORS.length;
           const fullRedaction = isFullyRedacted(utterance.start, utterance.end);
           const hasPartialRedactions = getRedactionsForUtterance(utterance.start, utterance.end)
             .some(r => r.textStart !== undefined && r.textEnd !== undefined);
