@@ -16,6 +16,7 @@ interface DocumentContent {
   documentType?: 'attendance_note' | 'summary' | 'transcript' | 'full_case' | 'client_care_letter' | 'selected';
   firmProfile?: FirmProfile;
   documentId?: string;
+  solicitorReasoningNote?: string | null;
 }
 
 // Resolve branding mode using the shared utility from letterhead.ts
@@ -500,10 +501,12 @@ export async function exportToPDF(content: DocumentContent) {
     });
   };
 
+  const stripGapMarkers = (text: string) => text.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '');
+
   if (content.summary && !isPdfPlaceholder(content.summary)) {
     addText('CASE SUMMARY', 16, true);
     yPosition += 5;
-    renderMarkdownSection(content.summary);
+    renderMarkdownSection(stripGapMarkers(content.summary));
     yPosition += 10;
   }
 
@@ -514,7 +517,19 @@ export async function exportToPDF(content: DocumentContent) {
     }
     addText('ATTENDANCE NOTE', 16, true);
     yPosition += 5;
-    renderMarkdownSection(content.attendanceNote);
+    renderMarkdownSection(stripGapMarkers(content.attendanceNote));
+    yPosition += 10;
+  }
+
+  // Advice Rationale section (only if solicitor has authored it)
+  if (content.solicitorReasoningNote?.trim()) {
+    if (yPosition > pageHeight - 100) {
+      doc.addPage();
+      yPosition = margin;
+    }
+    addText('ADVICE RATIONALE — SOLICITOR\'S RECORD', 16, true);
+    yPosition += 5;
+    renderMarkdownSection(content.solicitorReasoningNote);
     yPosition += 10;
   }
 
@@ -525,7 +540,7 @@ export async function exportToPDF(content: DocumentContent) {
     }
     addText('CLIENT CARE LETTER', 16, true);
     yPosition += 5;
-    renderMarkdownSection(content.clientCareLetter);
+    renderMarkdownSection(stripGapMarkers(content.clientCareLetter));
     yPosition += 10;
   }
 
@@ -536,7 +551,7 @@ export async function exportToPDF(content: DocumentContent) {
     }
     addText('FULL TRANSCRIPT', 16, true);
     yPosition += 5;
-    renderMarkdownSection(content.transcript);
+    renderMarkdownSection(stripGapMarkers(content.transcript));
   }
 
   // Add per-page footer to every page
@@ -817,11 +832,13 @@ export async function exportToWord(content: DocumentContent) {
     });
   };
 
+  const stripWordGapMarkers = (text: string) => text.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '');
+
   // Summary section — skip if all fields are placeholder text
   if (content.summary && !isEntirelyPlaceholder(content.summary)) {
     children.push(
       makeSectionHeading('CASE SUMMARY'),
-      ...formatTextSection(content.summary),
+      ...formatTextSection(stripWordGapMarkers(content.summary)),
       new Paragraph({ text: '', spacing: { after: 240 } })
     );
   }
@@ -830,7 +847,16 @@ export async function exportToWord(content: DocumentContent) {
   if (content.attendanceNote) {
     children.push(
       makeSectionHeading('ATTENDANCE NOTE'),
-      ...formatTextSection(content.attendanceNote),
+      ...formatTextSection(stripWordGapMarkers(content.attendanceNote)),
+      new Paragraph({ text: '', spacing: { after: 240 } })
+    );
+  }
+
+  // Advice Rationale section (only if solicitor has authored it)
+  if (content.solicitorReasoningNote?.trim()) {
+    children.push(
+      makeSectionHeading('ADVICE RATIONALE — SOLICITOR\'S RECORD'),
+      ...formatTextSection(content.solicitorReasoningNote),
       new Paragraph({ text: '', spacing: { after: 240 } })
     );
   }
@@ -839,7 +865,7 @@ export async function exportToWord(content: DocumentContent) {
   if (content.clientCareLetter) {
     children.push(
       makeSectionHeading('CLIENT CARE LETTER'),
-      ...formatTextSection(content.clientCareLetter),
+      ...formatTextSection(stripWordGapMarkers(content.clientCareLetter)),
       new Paragraph({ text: '', spacing: { after: 240 } })
     );
   }
@@ -848,7 +874,7 @@ export async function exportToWord(content: DocumentContent) {
   if (content.transcript) {
     children.push(
       makeSectionHeading('FULL TRANSCRIPT'),
-      ...formatTextSection(content.transcript)
+      ...formatTextSection(stripWordGapMarkers(content.transcript))
     );
   }
 

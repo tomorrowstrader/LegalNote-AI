@@ -501,8 +501,9 @@ export interface IStorage {
   getDocumentsBySession(meetingSessionId: string): Promise<Document[]>;
   getActiveDocumentsByCase(caseId: string, userId: string): Promise<Document[]>;
   updateDocument(id: string, updates: Partial<Document>, userId: string): Promise<Document | undefined>;
-  approveDocument(id: string, userId: string, comment?: string): Promise<Document | undefined>;
+  approveDocument(id: string, userId: string, comment?: string, reasoningGapsReviewed?: boolean): Promise<Document | undefined>;
   unlockDocument(id: string, userId: string): Promise<Document | undefined>;
+  updateReasoningNote(id: string, note: string | null, userId: string): Promise<Document | undefined>;
   getDocumentByAcknowledgeToken(token: string): Promise<Document | undefined>;
   recordDocumentAcknowledgement(id: string, acknowledgedAt: Date, acknowledgedByEmail: string, acknowledgedIp: string): Promise<void>;
   
@@ -1527,7 +1528,7 @@ export class MemStorage implements IStorage {
     // MemStorage stub
   }
 
-  async approveDocument(id: string, userId: string, comment?: string): Promise<Document | undefined> {
+  async approveDocument(id: string, userId: string, comment?: string, reasoningGapsReviewed?: boolean): Promise<Document | undefined> {
     const existing = this.documents.get(id);
     if (!existing) return undefined;
     
@@ -1540,6 +1541,8 @@ export class MemStorage implements IStorage {
       approvedBy: userId,
       approvedAt: new Date(),
       approvalComment: comment ?? null,
+      reasoningGapsReviewed: reasoningGapsReviewed ?? false,
+      reasoningGapsReviewedAt: reasoningGapsReviewed ? new Date() : null,
     };
     this.documents.set(id, updated);
     
@@ -1552,9 +1555,35 @@ export class MemStorage implements IStorage {
       metadata: {
         documentType: existing.type,
         comment: comment ?? null,
+        reasoningGapsReviewed: reasoningGapsReviewed ?? false,
       },
     });
     
+    return updated;
+  }
+
+  async updateReasoningNote(id: string, note: string | null, userId: string): Promise<Document | undefined> {
+    const existing = this.documents.get(id);
+    if (!existing) return undefined;
+
+    const caseRecord = this.cases.get(existing.caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+
+    const updated = {
+      ...existing,
+      solicitorReasoningNote: note,
+    };
+    this.documents.set(id, updated);
+
+    await this.createAuditLog({
+      eventType: 'document_reasoning_note_updated',
+      userId,
+      caseId: existing.caseId,
+      documentId: id,
+      ipAddress: 'server-process',
+      metadata: { documentType: existing.type, hasNote: note !== null && note.trim().length > 0 },
+    });
+
     return updated;
   }
 
@@ -3222,7 +3251,7 @@ export class DbStorage implements IStorage {
       .where(eq(documents.id, id));
   }
 
-  async approveDocument(id: string, userId: string, comment?: string): Promise<Document | undefined> {
+  async approveDocument(id: string, userId: string, comment?: string, reasoningGapsReviewed?: boolean): Promise<Document | undefined> {
     const document = await db.select().from(documents).where(eq(documents.id, id));
     if (!document[0]) return undefined;
     
@@ -3236,6 +3265,8 @@ export class DbStorage implements IStorage {
         approvedBy: userId,
         approvedAt: new Date(),
         approvalComment: comment ?? null,
+        reasoningGapsReviewed: reasoningGapsReviewed ?? false,
+        reasoningGapsReviewedAt: reasoningGapsReviewed ? new Date() : null,
       })
       .where(eq(documents.id, id))
       .returning();
@@ -3249,9 +3280,35 @@ export class DbStorage implements IStorage {
       metadata: {
         documentType: document[0].type,
         comment: comment ?? null,
+        reasoningGapsReviewed: reasoningGapsReviewed ?? false,
       },
     });
     
+    return result[0];
+  }
+
+  async updateReasoningNote(id: string, note: string | null, userId: string): Promise<Document | undefined> {
+    const document = await db.select().from(documents).where(eq(documents.id, id));
+    if (!document[0]) return undefined;
+
+    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, document[0].caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return undefined;
+
+    const result = await db
+      .update(documents)
+      .set({ solicitorReasoningNote: note })
+      .where(eq(documents.id, id))
+      .returning();
+
+    await this.createAuditLog({
+      eventType: 'document_reasoning_note_updated',
+      userId,
+      caseId: document[0].caseId,
+      documentId: id,
+      ipAddress: 'server-process',
+      metadata: { documentType: document[0].type, hasNote: note !== null && note.trim().length > 0 },
+    });
+
     return result[0];
   }
 

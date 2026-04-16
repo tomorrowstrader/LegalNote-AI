@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, Mail, MailCheck, BookOpen, Pencil } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -274,6 +274,12 @@ interface Document {
   approvedAt?: string | null;
   approvalComment?: string | null;
   meetingSessionId?: string | null;
+  verificationWarnings?: string[] | null;
+  isShortRecording?: boolean | null;
+  solicitorReasoningNote?: string | null;
+  reasoningGapsReviewed?: boolean | null;
+  reasoningGapsIdentified?: number | null;
+  reasoningGapsFilled?: number | null;
 }
 
 interface SessionInfo {
@@ -300,6 +306,41 @@ interface DocumentViewerProps {
   initialTimestamp?: number;
   sessions?: SessionInfo[];
   focusSessionId?: string | null;
+  hasAmlFlag?: boolean;
+}
+
+function parseReasoningGaps(content: string): string[] {
+  const regex = /<!--\s*REASONING_GAP:\s*(.+?)\s*-->/g;
+  const gaps: string[] = [];
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    gaps.push(match[1].trim());
+  }
+  return gaps;
+}
+
+// Replace the nth (0-indexed) occurrence of any REASONING_GAP marker with the given text.
+// Works even when multiple markers share the same section name.
+function replaceMarkerAtIndex(content: string, targetIdx: number, replacement: string): string {
+  const markerRegex = /<!--\s*REASONING_GAP:\s*.+?\s*-->/g;
+  let count = 0;
+  let result = '';
+  let lastIndex = 0;
+  let match;
+  while ((match = markerRegex.exec(content)) !== null) {
+    if (count === targetIdx) {
+      result += content.slice(lastIndex, match.index) + replacement;
+      lastIndex = match.index + match[0].length;
+      result += content.slice(lastIndex);
+      return result;
+    }
+    count++;
+  }
+  return content;
+}
+
+function stripReasoningGapMarkers(content: string): string {
+  return content.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '');
 }
 
 function CommentsPanel({ 
@@ -541,10 +582,10 @@ function EditableDocumentContent({
 
       {/* Page View: accurate multi-page layout renderer */}
       {pageViewMode && !isEditing ? (
-        <PageView content={document.content} legalContext={legalContext} />
+        <PageView content={document.content.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '')} legalContext={legalContext} />
       ) : (
         <RichTextEditor
-          content={isEditing ? editContent : document.content}
+          content={isEditing ? editContent : document.content.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '')}
           onChange={onEditContentChange}
           disabled={!isEditing}
           placeholder="Document content..."
@@ -581,6 +622,7 @@ export default function DocumentViewer({
   initialTimestamp,
   sessions,
   focusSessionId,
+  hasAmlFlag,
 }: DocumentViewerProps) {
   const { toast } = useToast();
   const [showDownloadModal, setShowDownloadModal] = useState(false);
@@ -610,6 +652,17 @@ export default function DocumentViewer({
   const [addCommentSelectedText, setAddCommentSelectedText] = useState('');
   const [showAddCommentForm, setShowAddCommentForm] = useState(false);
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
+
+  // Demo mode: compliance signals are hidden when viewing the public demo path
+  const isDemoMode = typeof window !== 'undefined' && window.location.pathname.startsWith('/demo/');
+
+  // Reasoning gap state
+  const [showGapPanel, setShowGapPanel] = useState<string | null>(null); // document ID
+  const [gapInputs, setGapInputs] = useState<Record<string, Record<string, string>>>({}); // docId -> sectionName -> text
+  const [reasoningNoteInputs, setReasoningNoteInputs] = useState<Record<string, string>>({}); // docId -> note text
+  const [showRationaleSection, setShowRationaleSection] = useState<Record<string, boolean>>({}); // docId -> expanded
+  const [pendingApprovalDocId, setPendingApprovalDocId] = useState<string | null>(null); // doc waiting for soft gate confirm
+  const [amlAcknowledged, setAmlAcknowledged] = useState<Record<string, boolean>>({}); // docId -> confirmed AML consideration
   
   // Controlled tab state with support for initial tab from URL
   const [activeTab, setActiveTab] = useState<string>(initialTab || 'attendance');
@@ -719,8 +772,15 @@ export default function DocumentViewer({
       const attendanceNote = documents.find(d => d.type === 'attendance_note') ?? documents.find(d => d.type === 'meeting_notes');
       const summary = documents.find(d => d.type === 'summary');
 
-      const primaryDoc = (selectedDocs.includes('attendance_note') || selectedDocs.includes('meeting_notes')) ? attendanceNote : 
-                         selectedDocs.includes('summary') ? summary : undefined;
+      const exportingAttendance = selectedDocs.includes('attendance_note') || selectedDocs.includes('meeting_notes');
+      const exportingSummary = selectedDocs.includes('summary');
+      const primaryDoc = exportingAttendance ? attendanceNote : exportingSummary ? summary : undefined;
+      // Only include solicitorReasoningNote for attendance note or summary exports — never leak into transcript/client-care-letter exports
+      const exportReasoningNote = exportingAttendance
+        ? (attendanceNote?.solicitorReasoningNote ?? null)
+        : exportingSummary
+        ? (summary?.solicitorReasoningNote ?? null)
+        : null;
       const content: any = {
         caseTitle,
         clientName,
@@ -729,6 +789,7 @@ export default function DocumentViewer({
         documentType: selectedDocs.length === 1 ? selectedDocs[0] as any : 'full_case',
         firmProfile: firmProfile || undefined,
         documentId: primaryDoc?.id,
+        solicitorReasoningNote: exportReasoningNote,
       };
 
       if (selectedDocs.includes('attendance_note') || selectedDocs.includes('meeting_notes')) {
@@ -810,14 +871,15 @@ export default function DocumentViewer({
 
   // Document approval mutations
   const approveMutation = useMutation({
-    mutationFn: async ({ documentId }: { documentId: string }) => {
-      return await apiRequest('POST', `/api/documents/${documentId}/approve`, { comment: '' });
+    mutationFn: async ({ documentId, reasoningGapsReviewed }: { documentId: string; reasoningGapsReviewed?: boolean }) => {
+      return await apiRequest('POST', `/api/documents/${documentId}/approve`, { comment: '', reasoningGapsReviewed: reasoningGapsReviewed ?? false });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
       setEditingDocId(null);
       setEditContent("");
+      setPendingApprovalDocId(null);
       toast({
         title: "Document Approved",
         description: "Document has been marked as final and is now locked",
@@ -831,6 +893,69 @@ export default function DocumentViewer({
         variant: "destructive",
         duration: 6000,
       });
+    },
+  });
+
+  // Reasoning note mutation
+  const updateReasoningNoteMutation = useMutation({
+    mutationFn: async ({ documentId, note }: { documentId: string; note: string | null }) => {
+      return await apiRequest('PATCH', `/api/documents/${documentId}/reasoning-note`, { note });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      toast({ title: "Rationale Saved", description: "Your reasoning note has been saved", duration: 3000 });
+    },
+    onError: () => {
+      toast({ title: "Save Failed", description: "Could not save reasoning note", variant: "destructive", duration: 5000 });
+    },
+  });
+
+  // Gap content update mutation (replaces gap markers with solicitor text, keyed by marker index)
+  const saveGapMutation = useMutation({
+    mutationFn: async ({ documentId, gaps, amlConfirmed }: { documentId: string; gaps: Record<string, string>; amlConfirmed?: boolean }) => {
+      const doc = documents.find(d => d.id === documentId);
+      if (!doc) throw new Error('Document not found');
+      const gapsBefore = parseReasoningGaps(doc.content);
+      let updatedContent = doc.content;
+      let filledCount = 0;
+      // Sort descending by index so earlier markers aren't displaced when replacing later ones
+      const sortedEntries = Object.entries(gaps)
+        .filter(([, text]) => text.trim())
+        .map(([idxStr, text]) => ({ idx: parseInt(idxStr, 10), text: text.trim() }))
+        .sort((a, b) => b.idx - a.idx);
+      for (const { idx, text } of sortedEntries) {
+        const replaced = replaceMarkerAtIndex(updatedContent, idx, text);
+        if (replaced !== updatedContent) {
+          updatedContent = replaced;
+          filledCount++;
+        }
+      }
+      const remainingGaps = parseReasoningGaps(updatedContent);
+      // Cumulative metrics: preserve original identified count; increment total filled
+      const identifiedCount = doc.reasoningGapsIdentified ?? gapsBefore.length;
+      const totalFilled = (doc.reasoningGapsFilled ?? 0) + filledCount;
+      await apiRequest('PATCH', `/api/documents/${documentId}`, { content: updatedContent });
+      await apiRequest('PATCH', `/api/documents/${documentId}/reasoning-note`, {
+        note: doc.solicitorReasoningNote ?? null,
+        reasoningGapsIdentified: identifiedCount,
+        reasoningGapsFilled: totalFilled,
+        ...(amlConfirmed !== undefined ? { amlConfirmed } : {}),
+      });
+      return { remainingGaps };
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      const { remainingGaps } = data;
+      if (remainingGaps.length === 0) {
+        setShowGapPanel(null);
+        toast({ title: "All gaps resolved", description: "Reasoning gaps have been filled", duration: 3000 });
+      } else {
+        toast({ title: "Gaps updated", description: `${remainingGaps.length} gap(s) remain`, duration: 3000 });
+      }
+      setGapInputs(prev => ({ ...prev, [variables.documentId]: {} }));
+    },
+    onError: () => {
+      toast({ title: "Save Failed", description: "Could not save reasoning gaps", variant: "destructive", duration: 5000 });
     },
   });
 
@@ -1229,6 +1354,9 @@ export default function DocumentViewer({
     const isApproving = approveMutation.isPending;
     const isUnlocking = unlockMutation.isPending;
     const isEditing = editMutation.isPending;
+    const docGaps = parseReasoningGaps(document.content);
+    const gapCount = docGaps.length;
+    const isGapPanelOpen = showGapPanel === document.id;
 
     const formatApprovalDate = (dateString: string) => {
       const date = new Date(dateString);
@@ -1239,6 +1367,16 @@ export default function DocumentViewer({
         hour: '2-digit',
         minute: '2-digit'
       });
+    };
+
+    const handleApproveClick = () => {
+      if (gapCount > 0) {
+        setPendingApprovalDocId(document.id);
+      } else {
+        // reviewed=true only when solicitor previously filled reasoning gaps (went through review panel)
+        const wasReviewed = (document.reasoningGapsFilled ?? 0) > 0;
+        approveMutation.mutate({ documentId: document.id, reasoningGapsReviewed: wasReviewed });
+      }
     };
 
     return (
@@ -1262,6 +1400,24 @@ export default function DocumentViewer({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Compare different versions of this document</TooltipContent>
+            </Tooltip>
+          )}
+          {/* Gap indicator — hidden in demo mode */}
+          {gapCount > 0 && !isDemoMode && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant={isGapPanelOpen ? 'secondary' : 'ghost'}
+                  onClick={() => setShowGapPanel(prev => prev === document.id ? null : document.id)}
+                  className="gap-1 text-amber-600 dark:text-amber-400"
+                  data-testid="button-gap-indicator"
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  {gapCount} reasoning gap{gapCount !== 1 ? 's' : ''}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Review reasoning gaps in this document</TooltipContent>
             </Tooltip>
           )}
           {isApproved ? (
@@ -1311,7 +1467,7 @@ export default function DocumentViewer({
               <Button
                 size="sm"
                 variant="default"
-                onClick={() => approveMutation.mutate({ documentId: document.id })}
+                onClick={handleApproveClick}
                 disabled={isApproving || isEditing}
                 className="gap-1"
                 data-testid="button-approve-document"
@@ -1322,6 +1478,50 @@ export default function DocumentViewer({
             </>
           )}
         </div>
+        {/* Soft approval gate banner — hidden in demo mode */}
+        {pendingApprovalDocId === document.id && !isApproved && !isDemoMode && (
+          <div className="w-full mt-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-approval-gap-gate">
+            <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1">
+              {gapCount} reasoning gap{gapCount !== 1 ? 's' : ''} not yet reviewed
+            </p>
+            <p className="text-xs text-amber-700 dark:text-amber-400 mb-2">
+              You may approve as-is or review the gaps first.
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setShowGapPanel(document.id);
+                  setPendingApprovalDocId(null);
+                }}
+                data-testid="button-review-gaps-now"
+              >
+                Review now
+              </Button>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => {
+                  // false = gaps were NOT reviewed before approval (compliance record of bypass)
+                  approveMutation.mutate({ documentId: document.id, reasoningGapsReviewed: false });
+                }}
+                disabled={isApproving}
+                data-testid="button-approve-anyway"
+              >
+                Approve anyway
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setPendingApprovalDocId(null)}
+                data-testid="button-cancel-approval-gate"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
         {isApproved && document.approvedAt && (
           <div className="text-xs text-muted-foreground" data-testid="text-approval-metadata">
             Approved {formatApprovalDate(document.approvedAt)}
@@ -1566,8 +1766,8 @@ export default function DocumentViewer({
               />
             </div>
           )}
-          <div className={`flex gap-4 ${showComments ? 'flex-col lg:flex-row' : ''}`}>
-            <Card className={showComments ? 'flex-1 min-w-0' : 'w-full'} data-testid="attendance-note-card">
+          <div className={`flex gap-4 ${showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-col lg:flex-row' : ''}`}>
+            <Card className={showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-1 min-w-0' : 'w-full'} data-testid="attendance-note-card">
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1623,6 +1823,65 @@ export default function DocumentViewer({
                   </p>
                 )}
               </CardContent>
+              {/* Advice Rationale section — hidden in demo mode */}
+              {attendanceNote && !isDemoMode && (
+                <div className="border-t border-border" data-testid="section-advice-rationale-attendance">
+                  <button
+                    className="w-full flex items-center justify-between px-6 py-3 text-sm font-medium text-foreground hover-elevate"
+                    onClick={() => setShowRationaleSection(prev => ({ ...prev, [attendanceNote.id]: !prev[attendanceNote.id] }))}
+                    data-testid="button-toggle-rationale-attendance"
+                  >
+                    <div className="flex items-center gap-2">
+                      <PenLine className="w-4 h-4 text-muted-foreground" />
+                      <span>Advice Rationale — Solicitor's Record</span>
+                      {attendanceNote.solicitorReasoningNote && (
+                        <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="badge-solicitor-authored-attendance">
+                          Solicitor-authored
+                        </Badge>
+                      )}
+                    </div>
+                    {showRationaleSection[attendanceNote.id] ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                  </button>
+                  {showRationaleSection[attendanceNote.id] && (
+                    <div className="px-6 pb-4 space-y-3" data-testid="panel-rationale-attendance">
+                      <p className="text-xs text-muted-foreground">
+                        This section is for your professional record of the reasoning behind advice given. It is stored separately from the AI-generated content and will be included in exports only when completed.
+                      </p>
+                      <Textarea
+                        placeholder="Record the reasoning and thinking behind the advice given — factors considered, legal position, client circumstances that informed the advice..."
+                        value={reasoningNoteInputs[attendanceNote.id] ?? (attendanceNote.solicitorReasoningNote ?? '')}
+                        onChange={e => setReasoningNoteInputs(prev => ({ ...prev, [attendanceNote.id]: e.target.value }))}
+                        className="text-sm resize-none"
+                        rows={5}
+                        data-testid="input-rationale-attendance"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => updateReasoningNoteMutation.mutate({ documentId: attendanceNote.id, note: reasoningNoteInputs[attendanceNote.id] ?? attendanceNote.solicitorReasoningNote ?? null })}
+                          disabled={updateReasoningNoteMutation.isPending}
+                          data-testid="button-save-rationale-attendance"
+                        >
+                          {updateReasoningNoteMutation.isPending ? 'Saving...' : 'Save Rationale'}
+                        </Button>
+                        {attendanceNote.solicitorReasoningNote && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setReasoningNoteInputs(prev => ({ ...prev, [attendanceNote.id]: '' }));
+                              updateReasoningNoteMutation.mutate({ documentId: attendanceNote.id, note: null });
+                            }}
+                            data-testid="button-clear-rationale-attendance"
+                          >
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </Card>
             {showComments && attendanceNote && (
               <Card className="lg:w-80 flex-shrink-0" data-testid="panel-comments">
@@ -1666,6 +1925,87 @@ export default function DocumentViewer({
                 </CardContent>
               </Card>
             )}
+            {/* Gap review panel for attendance note */}
+            {attendanceNote && showGapPanel === attendanceNote.id && !isDemoMode && (
+              <Card className="lg:w-80 flex-shrink-0" data-testid="panel-gap-review-attendance">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-500" />
+                      Reasoning Gaps
+                    </CardTitle>
+                    <Button size="icon" variant="ghost" onClick={() => setShowGapPanel(null)} data-testid="button-close-gap-panel-attendance">
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    These sections require solicitor-authored reasoning. Add your notes to fill each gap.
+                  </p>
+                  {hasAmlFlag && (
+                    <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-aml-gap-attendance">
+                      <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                        AML risk flag active — an AML decision record with documented reasoning is required for this matter
+                      </p>
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {parseReasoningGaps(attendanceNote.content).map((sectionName, idx) => (
+                    <div key={idx} className="space-y-2" data-testid={`gap-item-attendance-${idx}`}>
+                      <label className="text-xs font-semibold text-foreground">{sectionName}</label>
+                      <Textarea
+                        placeholder={`Enter reasoning for "${sectionName}"...`}
+                        value={gapInputs[attendanceNote.id]?.[String(idx)] ?? ''}
+                        onChange={e => setGapInputs(prev => ({
+                          ...prev,
+                          [attendanceNote.id]: { ...(prev[attendanceNote.id] ?? {}), [String(idx)]: e.target.value }
+                        }))}
+                        className="text-xs resize-none"
+                        rows={3}
+                        data-testid={`input-gap-attendance-${idx}`}
+                      />
+                    </div>
+                  ))}
+                  {hasAmlFlag && (
+                    <div className="flex items-start gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md" data-testid="container-aml-confirm-attendance">
+                      <input
+                        type="checkbox"
+                        id={`aml-confirm-attendance-${attendanceNote.id}`}
+                        checked={amlAcknowledged[attendanceNote.id] ?? false}
+                        onChange={e => setAmlAcknowledged(prev => ({ ...prev, [attendanceNote.id]: e.target.checked }))}
+                        className="mt-0.5"
+                        data-testid="checkbox-aml-confirm-attendance"
+                      />
+                      <label htmlFor={`aml-confirm-attendance-${attendanceNote.id}`} className="text-xs text-amber-700 dark:text-amber-400 cursor-pointer">
+                        I confirm an AML decision record with documented reasoning has been filed for this matter
+                      </label>
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={() => saveGapMutation.mutate({
+                      documentId: attendanceNote.id,
+                      gaps: gapInputs[attendanceNote.id] ?? {},
+                      amlConfirmed: hasAmlFlag ? (amlAcknowledged[attendanceNote.id] ?? false) : undefined,
+                    })}
+                    disabled={
+                      saveGapMutation.isPending ||
+                      !Object.values(gapInputs[attendanceNote.id] ?? {}).some(v => v.trim()) ||
+                      (hasAmlFlag === true && !(amlAcknowledged[attendanceNote.id]))
+                    }
+                    data-testid="button-save-gaps-attendance"
+                  >
+                    {saveGapMutation.isPending ? 'Saving...' : 'Fill Selected Gaps'}
+                  </Button>
+                  {hasAmlFlag && !amlAcknowledged[attendanceNote.id] && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400" data-testid="text-aml-required-attendance">
+                      AML confirmation required before saving
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </TabsContent>
 
@@ -1693,8 +2033,8 @@ export default function DocumentViewer({
               />
             </div>
           )}
-          <div className={`flex gap-4 ${showComments ? 'flex-col lg:flex-row' : ''}`}>
-            <Card className={showComments ? 'flex-1 min-w-0' : 'w-full'}>
+          <div className={`flex gap-4 ${showComments || (summary && showGapPanel === summary.id) ? 'flex-col lg:flex-row' : ''}`}>
+            <Card className={showComments || (summary && showGapPanel === summary.id) ? 'flex-1 min-w-0' : 'w-full'}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1755,6 +2095,65 @@ export default function DocumentViewer({
                   </div>
                 )}
               </CardContent>
+              {/* Advice Rationale section for summary — hidden in demo mode */}
+              {summary && !isDemoMode && (
+                <div className="border-t border-border" data-testid="section-advice-rationale-summary">
+                  <button
+                    className="w-full flex items-center justify-between px-6 py-3 text-sm font-medium text-foreground hover-elevate"
+                    onClick={() => setShowRationaleSection(prev => ({ ...prev, [summary.id]: !prev[summary.id] }))}
+                    data-testid="button-toggle-rationale-summary"
+                  >
+                    <div className="flex items-center gap-2">
+                      <PenLine className="w-4 h-4 text-muted-foreground" />
+                      <span>Advice Rationale — Solicitor's Record</span>
+                      {summary.solicitorReasoningNote && (
+                        <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="badge-solicitor-authored-summary">
+                          Solicitor-authored
+                        </Badge>
+                      )}
+                    </div>
+                    {showRationaleSection[summary.id] ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                  </button>
+                  {showRationaleSection[summary.id] && (
+                    <div className="px-6 pb-4 space-y-3" data-testid="panel-rationale-summary">
+                      <p className="text-xs text-muted-foreground">
+                        This section is for your professional record of the reasoning behind advice given. It is stored separately from the AI-generated content and will be included in exports only when completed.
+                      </p>
+                      <Textarea
+                        placeholder="Record the reasoning and thinking behind the advice given — factors considered, legal position, client circumstances that informed the advice..."
+                        value={reasoningNoteInputs[summary.id] ?? (summary.solicitorReasoningNote ?? '')}
+                        onChange={e => setReasoningNoteInputs(prev => ({ ...prev, [summary.id]: e.target.value }))}
+                        className="text-sm resize-none"
+                        rows={5}
+                        data-testid="input-rationale-summary"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => updateReasoningNoteMutation.mutate({ documentId: summary.id, note: reasoningNoteInputs[summary.id] ?? summary.solicitorReasoningNote ?? null })}
+                          disabled={updateReasoningNoteMutation.isPending}
+                          data-testid="button-save-rationale-summary"
+                        >
+                          {updateReasoningNoteMutation.isPending ? 'Saving...' : 'Save Rationale'}
+                        </Button>
+                        {summary.solicitorReasoningNote && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setReasoningNoteInputs(prev => ({ ...prev, [summary.id]: '' }));
+                              updateReasoningNoteMutation.mutate({ documentId: summary.id, note: null });
+                            }}
+                            data-testid="button-clear-rationale-summary"
+                          >
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </Card>
             {showComments && summary && (
               <Card className="lg:w-80 flex-shrink-0" data-testid="panel-comments">
@@ -1795,6 +2194,87 @@ export default function DocumentViewer({
                     onHighlightText={handleHighlightText}
                     highlightedCommentId={highlightedCommentId}
                   />
+                </CardContent>
+              </Card>
+            )}
+            {/* Gap review panel for summary — hidden in demo mode */}
+            {summary && showGapPanel === summary.id && !isDemoMode && (
+              <Card className="lg:w-80 flex-shrink-0" data-testid="panel-gap-review-summary">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-500" />
+                      Reasoning Gaps
+                    </CardTitle>
+                    <Button size="icon" variant="ghost" onClick={() => setShowGapPanel(null)} data-testid="button-close-gap-panel-summary">
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    These sections require solicitor-authored reasoning. Add your notes to fill each gap.
+                  </p>
+                  {hasAmlFlag && (
+                    <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-aml-gap-summary">
+                      <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                        AML risk flag active — an AML decision record with documented reasoning is required for this matter
+                      </p>
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {parseReasoningGaps(summary.content).map((sectionName, idx) => (
+                    <div key={idx} className="space-y-2" data-testid={`gap-item-summary-${idx}`}>
+                      <label className="text-xs font-semibold text-foreground">{sectionName}</label>
+                      <Textarea
+                        placeholder={`Enter reasoning for "${sectionName}"...`}
+                        value={gapInputs[summary.id]?.[String(idx)] ?? ''}
+                        onChange={e => setGapInputs(prev => ({
+                          ...prev,
+                          [summary.id]: { ...(prev[summary.id] ?? {}), [String(idx)]: e.target.value }
+                        }))}
+                        className="text-xs resize-none"
+                        rows={3}
+                        data-testid={`input-gap-summary-${idx}`}
+                      />
+                    </div>
+                  ))}
+                  {hasAmlFlag && (
+                    <div className="flex items-start gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md" data-testid="container-aml-confirm-summary">
+                      <input
+                        type="checkbox"
+                        id={`aml-confirm-summary-${summary.id}`}
+                        checked={amlAcknowledged[summary.id] ?? false}
+                        onChange={e => setAmlAcknowledged(prev => ({ ...prev, [summary.id]: e.target.checked }))}
+                        className="mt-0.5"
+                        data-testid="checkbox-aml-confirm-summary"
+                      />
+                      <label htmlFor={`aml-confirm-summary-${summary.id}`} className="text-xs text-amber-700 dark:text-amber-400 cursor-pointer">
+                        I confirm an AML decision record with documented reasoning has been filed for this matter
+                      </label>
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={() => saveGapMutation.mutate({
+                      documentId: summary.id,
+                      gaps: gapInputs[summary.id] ?? {},
+                      amlConfirmed: hasAmlFlag ? (amlAcknowledged[summary.id] ?? false) : undefined,
+                    })}
+                    disabled={
+                      saveGapMutation.isPending ||
+                      !Object.values(gapInputs[summary.id] ?? {}).some(v => v.trim()) ||
+                      (hasAmlFlag === true && !(amlAcknowledged[summary.id]))
+                    }
+                    data-testid="button-save-gaps-summary"
+                  >
+                    {saveGapMutation.isPending ? 'Saving...' : 'Fill Selected Gaps'}
+                  </Button>
+                  {hasAmlFlag && !amlAcknowledged[summary.id] && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400" data-testid="text-aml-required-summary">
+                      AML confirmation required before saving
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             )}

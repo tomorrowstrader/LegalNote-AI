@@ -2606,6 +2606,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // Validate request body with Zod
       const approveSchema = z.object({
         comment: z.string().trim().max(1000, "Comment too long").optional(),
+        reasoningGapsReviewed: z.boolean().optional(),
       });
       
       const validationResult = approveSchema.safeParse(req.body);
@@ -2616,15 +2617,75 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         });
       }
       
-      const { comment } = validationResult.data;
+      const { comment, reasoningGapsReviewed } = validationResult.data;
       
-      const approvedDocument = await storage.approveDocument(req.params.id, userId, comment);
+      const approvedDocument = await storage.approveDocument(req.params.id, userId, comment, reasoningGapsReviewed);
       
       if (!approvedDocument) {
         return res.status(404).json({ message: "Document not found" });
       }
       
       res.json(approvedDocument);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Solicitor Reasoning Note endpoint
+  app.patch("/api/documents/:id/reasoning-note", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+
+      const schema = z.object({
+        note: z.string().max(50000, "Reasoning note too long").nullable(),
+        reasoningGapsIdentified: z.number().int().min(0).nullable().optional(),
+        reasoningGapsFilled: z.number().int().min(0).nullable().optional(),
+        amlConfirmed: z.boolean().optional(),
+      });
+
+      const validationResult = schema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ message: "Validation error", errors: validationResult.error.format() });
+      }
+
+      const { note, reasoningGapsIdentified, reasoningGapsFilled, amlConfirmed } = validationResult.data;
+
+      const document = await storage.updateReasoningNote(req.params.id, note, userId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+
+      // Update gap tracking counts if provided, and emit gap-fill audit event
+      if (reasoningGapsIdentified !== undefined || reasoningGapsFilled !== undefined) {
+        const gapUpdates: Partial<{ reasoningGapsIdentified: number | null; reasoningGapsFilled: number | null }> = {};
+        if (reasoningGapsIdentified !== undefined) gapUpdates.reasoningGapsIdentified = reasoningGapsIdentified;
+        if (reasoningGapsFilled !== undefined) gapUpdates.reasoningGapsFilled = reasoningGapsFilled;
+        await storage.updateDocument(req.params.id, gapUpdates, userId);
+        if ((reasoningGapsFilled ?? 0) > 0) {
+          auditLogger.logFromRequest(AuditEventType.DOCUMENT_GAPS_FILLED, req, {
+            resourceId: req.params.id,
+            resourceType: 'document',
+            action: 'fill_reasoning_gaps',
+            additionalInfo: {
+              gapsIdentified: reasoningGapsIdentified,
+              gapsFilled: reasoningGapsFilled,
+            },
+          });
+        }
+      }
+
+      // Emit AML confirmation audit event if the solicitor explicitly confirmed
+      if (amlConfirmed === true) {
+        auditLogger.logFromRequest(AuditEventType.DOCUMENT_AML_CONFIRMED, req, {
+          resourceId: req.params.id,
+          resourceType: 'document',
+          action: 'aml_consideration_confirmed',
+          severity: 'medium',
+          additionalInfo: { confirmedBy: userId, confirmedAt: new Date().toISOString() },
+        });
+      }
+
+      res.json(document);
     } catch (error: any) {
       next(error);
     }

@@ -8,6 +8,7 @@ import { cleanupExpiredAudio } from "./audioCleanup";
 import { initializeWorkers } from "./workers";
 import { migrateClientsFromCases } from "./clientMigration";
 import { backfillSessions } from "./sessionMigration";
+import { migrateReasoningGapPlaceholders } from "./reasoningGapMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
@@ -255,6 +256,9 @@ app.use((req, res, next) => {
 
   // Backfill meeting sessions for existing cases (idempotent)
   await backfillSessions();
+
+  // Replace any legacy visible placeholder text with HTML comment markers (idempotent)
+  await migrateReasoningGapPlaceholders();
 
   // Initialize background job workers
   initializeWorkers();

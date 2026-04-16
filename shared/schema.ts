@@ -360,6 +360,11 @@ export const documents = pgTable("documents", {
   acknowledgedByEmail: text("acknowledged_by_email"),
   acknowledgedIp: text("acknowledged_ip"),
   acknowledgedToken: text("acknowledged_token"),
+  solicitorReasoningNote: text("solicitor_reasoning_note"),
+  reasoningGapsReviewed: boolean("reasoning_gaps_reviewed").default(false),
+  reasoningGapsReviewedAt: timestamp("reasoning_gaps_reviewed_at"),
+  reasoningGapsIdentified: integer("reasoning_gaps_identified"),
+  reasoningGapsFilled: integer("reasoning_gaps_filled"),
 });
 
 export const clientVersionTracking = pgTable("client_version_tracking", {

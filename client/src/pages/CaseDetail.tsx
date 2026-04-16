@@ -1530,6 +1530,7 @@ export default function CaseDetail() {
                   initialTab={urlTab !== 'compliance' ? (urlTab || undefined) : undefined}
                   initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
                   focusSessionId={focusSessionId || urlSessionId || undefined}
+                  hasAmlFlag={!!caseData.riskLevel && ['high', 'medium'].includes(caseData.riskLevel as string)}
                 />
               </div>
             );
