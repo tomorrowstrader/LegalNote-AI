@@ -4779,6 +4779,77 @@ app.post("/api/cases/:id/transcript/privileged-access", isAuthenticated, async (
   }
 });
 
+app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const userId = req.user.claims.sub;
+    const { redactionId, amendmentNote } = req.body;
+
+    if (!redactionId || typeof redactionId !== "string") {
+      return res.status(400).json({ message: "redactionId is required" });
+    }
+    if (!amendmentNote || typeof amendmentNote !== "string" || amendmentNote.trim().length < 20) {
+      return res.status(400).json({ message: "amendmentNote is required and must be at least 20 characters" });
+    }
+
+    const caseData = await storage.getCase(req.params.id, userId);
+    if (!caseData) return res.status(404).json({ message: "Case not found" });
+
+    const transcript = await storage.getTranscriptByCase(req.params.id, userId);
+    if (!transcript) return res.status(404).json({ message: "Transcript not found" });
+
+    const redactions = (transcript.redactions || []) as any[];
+    const redactionIndex = redactions.findIndex((r: any) => r.id === redactionId);
+
+    if (redactionIndex === -1) {
+      return res.status(404).json({ message: "Redaction not found" });
+    }
+
+    const existingNotes = redactions[redactionIndex].amendmentNotes || [];
+    const updatedRedactions = redactions.map((r: any, i: number) => {
+      if (i !== redactionIndex) return r;
+      return {
+        ...r,
+        amendmentNotes: [
+          ...existingNotes,
+          {
+            note: amendmentNote.trim(),
+            addedBy: userId,
+            addedAt: new Date().toISOString(),
+          },
+        ],
+      };
+    });
+
+    const updatedTranscript = await storage.updateTranscript(
+      transcript.id,
+      { redactions: updatedRedactions },
+      userId
+    );
+
+    await logAuditEvent(userId, "transcript_redaction_amendment_noted", {
+      caseId: req.params.id,
+      transcriptId: transcript.id,
+      metadata: {
+        redactionId,
+        amendmentNote: amendmentNote.trim(),
+      },
+    });
+
+    const safeTranscript = {
+      ...updatedTranscript,
+      privilegedRedactions: undefined,
+      redactions: ((updatedTranscript?.redactions || []) as any[]).map((r: any) => {
+        const { selectedText: _st, ...safeRedaction } = r;
+        return safeRedaction;
+      }),
+    };
+
+    res.json(safeTranscript);
+  } catch (error: any) {
+    next(error);
+  }
+});
+
   // Get documents for a case
   app.get("/api/cases/:id/documents", isAuthenticated, async (req: any, res, next) => {
     try {
