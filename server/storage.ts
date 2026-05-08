@@ -477,6 +477,7 @@ export interface IStorage {
   getTranscriptBySession(meetingSessionId: string): Promise<Transcript | undefined>;
   updateTranscript(id: string, updates: Partial<Transcript>, userId: string): Promise<Transcript | undefined>;
   commitTranscriptRedactions(transcriptId: string, userId: string, redactionIds?: string[]): Promise<Transcript | undefined>;
+  getTranscriptsWithExpiredPendingRedactions(): Promise<(Transcript & { createdBy: string })[]>;
   
   // Action Items methods
   createActionItem(itemData: InsertActionItem): Promise<ActionItem>;
@@ -1267,6 +1268,10 @@ export class MemStorage implements IStorage {
 
   async commitTranscriptRedactions(transcriptId: string, userId: string, redactionIds?: string[]): Promise<Transcript | undefined> {
     throw new Error("commitTranscriptRedactions requires database storage");
+  }
+
+  async getTranscriptsWithExpiredPendingRedactions(): Promise<(Transcript & { createdBy: string })[]> {
+    return [];
   }
 
   // Action Items methods
@@ -3073,6 +3078,36 @@ export class DbStorage implements IStorage {
       .returning();
 
     return result[0];
+  }
+
+  async getTranscriptsWithExpiredPendingRedactions(): Promise<(Transcript & { createdBy: string })[]> {
+    const now = new Date().toISOString();
+    const expiredTranscripts = await db
+      .select()
+      .from(transcripts)
+      .where(
+        sql`EXISTS (
+        SELECT 1 FROM jsonb_array_elements(${transcripts.redactions}) AS r
+        WHERE r->>'status' = 'pending'
+        AND r->>'pendingUntil' IS NOT NULL
+        AND r->>'pendingUntil' < ${now}
+      )`
+      );
+
+    if (expiredTranscripts.length === 0) return [];
+
+    const results: (Transcript & { createdBy: string })[] = [];
+    for (const transcript of expiredTranscripts) {
+      const caseRecord = await db
+        .select({ createdBy: cases.createdBy })
+        .from(cases)
+        .where(eq(cases.id, transcript.caseId))
+        .limit(1);
+      if (caseRecord[0]) {
+        results.push({ ...transcript, createdBy: caseRecord[0].createdBy });
+      }
+    }
+    return results;
   }
 
   // Action Items methods

@@ -38,6 +38,46 @@ export function initializeWorkers() {
   // Schedule periodic security and maintenance tasks
   scheduleMaintenanceTasks();
 
+  // Register handler for auto-committing expired redactions
+  jobQueue.registerHandler('commit-expired-redactions', async () => {
+    console.log('[REDACTION-JOB] Starting expired redaction commit sweep...');
+    try {
+      const { storage } = await import('./storage');
+      const transcriptsWithExpired = await storage.getTranscriptsWithExpiredPendingRedactions();
+      if (transcriptsWithExpired.length === 0) {
+        console.log('[REDACTION-JOB] No expired pending redactions found.');
+        return;
+      }
+      console.log(`[REDACTION-JOB] Found ${transcriptsWithExpired.length} transcript(s) with expired pending redactions.`);
+      let totalCommitted = 0;
+      for (const transcript of transcriptsWithExpired) {
+        try {
+          const updated = await storage.commitTranscriptRedactions(
+            transcript.id,
+            transcript.createdBy,
+          );
+          if (updated) {
+            totalCommitted++;
+            console.log(`[REDACTION-JOB] Committed expired redactions on transcript ${transcript.id}`);
+          }
+        } catch (err) {
+          console.error(`[REDACTION-JOB] Failed to commit transcript ${transcript.id}:`, err);
+        }
+      }
+      console.log(`[REDACTION-JOB] Sweep complete. Processed ${totalCommitted} transcript(s).`);
+    } catch (err) {
+      console.error('[REDACTION-JOB] Sweep failed:', err);
+      throw err;
+    }
+  });
+
+  setInterval(() => {
+    jobQueue.addJob('commit-expired-redactions', {});
+  }, 15 * 60 * 1000);
+
+  jobQueue.addJob('commit-expired-redactions', {});
+  console.log('[REDACTION-JOB] Auto-commit job registered and scheduled (15-minute interval).');
+
   console.log('[WORKERS] Job queue workers initialized successfully');
 }
 
