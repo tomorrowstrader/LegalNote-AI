@@ -4719,6 +4719,66 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+app.post("/api/cases/:id/transcript/privileged-access", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const userId = req.user.claims.sub;
+    const { redactionId, reasonNotes } = req.body;
+
+    // Validate required fields
+    if (!redactionId || typeof redactionId !== "string") {
+      return res.status(400).json({ message: "redactionId is required" });
+    }
+    if (!reasonNotes || typeof reasonNotes !== "string" || reasonNotes.trim().length < 20) {
+      return res.status(400).json({ message: "reasonNotes is required and must be at least 20 characters" });
+    }
+
+    // Verify case ownership
+    const caseData = await storage.getCase(req.params.id, userId);
+    if (!caseData) return res.status(404).json({ message: "Case not found" });
+
+    // Get transcript
+    const transcript = await storage.getTranscriptByCase(req.params.id, userId);
+    if (!transcript) return res.status(404).json({ message: "Transcript not found" });
+
+    // Find the requested privileged redaction
+    const privilegedRedactions = (transcript.privilegedRedactions || []) as any[];
+    const entry = privilegedRedactions.find((r: any) => r.id === redactionId);
+
+    if (!entry) {
+      return res.status(404).json({ message: "Privileged redaction not found" });
+    }
+
+    // Log access — mandatory audit event
+    await logAuditEvent(userId, "transcript_privileged_content_accessed", {
+      caseId: req.params.id,
+      transcriptId: transcript.id,
+      metadata: {
+        redactionId,
+        reasonNotes: reasonNotes.trim(),
+      },
+    });
+
+    // Set session flag valid for 10 minutes
+    if (req.session) {
+      const flagKey = `privileged_access_${req.params.id}_${redactionId}`;
+      req.session[flagKey] = Date.now() + 10 * 60 * 1000;
+    }
+
+    res.json({
+      redactionId: entry.id,
+      text: entry.text,
+      start: entry.start,
+      end: entry.end,
+      reasonNotes: entry.reasonNotes,
+      redactedBy: entry.redactedBy,
+      committedAt: entry.committedAt,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    });
+  } catch (error: any) {
+    next(error);
+  }
+});
+
   // Get documents for a case
   app.get("/api/cases/:id/documents", isAuthenticated, async (req: any, res, next) => {
     try {
