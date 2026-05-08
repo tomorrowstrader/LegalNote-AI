@@ -299,6 +299,8 @@ export const transcripts = pgTable("transcripts", {
   utterances: jsonb("utterances").default([]),
   speakerCount: integer("speaker_count"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  contentHash: text("content_hash"),
+  contentSignature: text("content_signature"),
   redactions: jsonb("redactions").default([]),
   privilegedRedactions: jsonb("privileged_redactions").default([]), // Stores original text of privilege-basis redactions, access-controlled
 });
@@ -345,6 +347,7 @@ export const documents = pgTable("documents", {
   type: text("type").notNull(), // attendance_note, summary
   content: text("content").notNull(),
   contentHash: text("content_hash"), // SHA-256 hash for integrity verification
+  contentSignature: text("content_signature"),
   version: integer("version").notNull().default(1),
   versionType: text("version_type").notNull(), // ai_generated, manually_edited, ai_regenerated
   createdAt: timestamp("created_at").notNull().defaultNow(),

@@ -2739,16 +2739,39 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(403).json({ message: "Access denied" });
       }
       
-      // Verify document integrity
-      const isValid = document.contentHash 
+      const isValid = document.contentHash
         ? verifyDocumentHash(document.content, document.contentHash)
         : false;
-      
+
+      let signatureValid: boolean | null = null;
+      if (document.contentHash && document.contentSignature) {
+        const signingKey = process.env.AUDIT_SIGNING_KEY;
+        if (signingKey) {
+          const expectedSig = crypto.createHmac('sha256', signingKey)
+            .update(document.contentHash)
+            .digest('hex');
+          signatureValid = document.contentSignature === expectedSig;
+        }
+      }
+
+      if (!isValid || signatureValid === false) {
+        await logAuditEvent(userId, "document_integrity_failure", {
+          caseId: document.caseId,
+          documentId: document.id,
+          metadata: {
+            hashValid: isValid,
+            signatureValid,
+          },
+        });
+      }
+
       res.json({
         documentId: document.id,
         verified: isValid,
+        signatureValid,
         hasHash: !!document.contentHash,
-        algorithm: "SHA-256",
+        hasSignature: !!document.contentSignature,
+        algorithm: "SHA-256/HMAC-SHA256",
         verifiedAt: new Date().toISOString(),
       });
     } catch (error: any) {

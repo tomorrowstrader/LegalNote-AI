@@ -82,7 +82,7 @@ import {
   conflictChecks,
   supervisionSignoffs,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import crypto, { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, or, gte, lte, desc, isNull, sql, count, inArray } from "drizzle-orm";
 import { generateDocumentHash } from "./utils/documentHash";
@@ -743,6 +743,12 @@ export interface IStorage {
   updateUserRole(userId: string, role: string): Promise<User | undefined>;
 }
 
+function generateContentSignature(contentHash: string): string {
+  const signingKey = process.env.AUDIT_SIGNING_KEY;
+  if (!signingKey) return '';
+  return crypto.createHmac('sha256', signingKey).update(contentHash).digest('hex');
+}
+
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private cases: Map<string, Case>;
@@ -1222,6 +1228,8 @@ export class MemStorage implements IStorage {
 
   async createTranscript(insertTranscript: InsertTranscript): Promise<Transcript> {
     const id = randomUUID();
+    const contentHash = generateDocumentHash(insertTranscript.content);
+    const contentSignature = generateContentSignature(contentHash);
     const transcript: Transcript = {
       id,
       caseId: insertTranscript.caseId,
@@ -1229,6 +1237,8 @@ export class MemStorage implements IStorage {
       utterances: insertTranscript.utterances ?? [],
       speakerCount: insertTranscript.speakerCount ?? null,
       createdAt: new Date(),
+      contentHash,
+      contentSignature,
       redactions: insertTranscript.redactions ?? [],
     };
     this.transcripts.set(id, transcript);
@@ -1461,6 +1471,7 @@ export class MemStorage implements IStorage {
   async createDocument(insertDocument: InsertDocument): Promise<Document> {
     const id = randomUUID();
     const contentHash = generateDocumentHash(insertDocument.content);
+    const contentSignature = generateContentSignature(contentHash);
     const document: Document = {
       id,
       caseId: insertDocument.caseId,
@@ -1468,6 +1479,7 @@ export class MemStorage implements IStorage {
       type: insertDocument.type,
       content: insertDocument.content,
       contentHash,
+      contentSignature,
       version: insertDocument.version,
       versionType: insertDocument.versionType,
       createdAt: new Date(),
@@ -2943,6 +2955,8 @@ export class DbStorage implements IStorage {
   }
 
   async createTranscript(transcriptData: InsertTranscript): Promise<Transcript> {
+    const contentHash = generateDocumentHash(transcriptData.content);
+    const contentSignature = generateContentSignature(contentHash);
     const result = await db
       .insert(transcripts)
       .values({
@@ -2952,6 +2966,8 @@ export class DbStorage implements IStorage {
         speakerCount: transcriptData.speakerCount ?? null,
         redactions: transcriptData.redactions ?? [],
         meetingSessionId: transcriptData.meetingSessionId ?? null,
+        contentHash,
+        contentSignature,
       })
       .returning();
     return result[0];
@@ -3286,6 +3302,7 @@ export class DbStorage implements IStorage {
 
   async createDocument(documentData: InsertDocument): Promise<Document> {
     const contentHash = generateDocumentHash(documentData.content);
+    const contentSignature = generateContentSignature(contentHash);
     const result = await db
       .insert(documents)
       .values({
@@ -3294,6 +3311,7 @@ export class DbStorage implements IStorage {
         type: documentData.type,
         content: documentData.content,
         contentHash,
+        contentSignature,
         version: documentData.version,
         versionType: documentData.versionType,
         createdBy: documentData.createdBy,
