@@ -1025,11 +1025,21 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           version: doc.version,
           createdAt: doc.createdAt,
         })),
-        transcript: transcript ? {
-          id: transcript.id,
-          content: transcript.content,
-          createdAt: transcript.createdAt,
-        } : null,
+        transcript: transcript ? (() => {
+          // Block sharing if any pending redactions exist
+          const pendingExists = ((transcript.redactions || []) as any[]).some(
+            (r: any) => r.status === 'pending'
+          );
+          if (pendingExists) {
+            throw new Error('PENDING_REDACTIONS');
+          }
+          // Only return content — never return redactions JSONB or privilegedRedactions to external parties
+          return {
+            id: transcript.id,
+            content: transcript.content,
+            createdAt: transcript.createdAt,
+          };
+        })() : null,
         shareLink: {
           recipientName: shareLink.recipientName,
           expiresAt: shareLink.expiresAt,
@@ -1039,6 +1049,11 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         firmProfile: firmProfile || undefined,
       });
     } catch (error: any) {
+      if (error.message === 'PENDING_REDACTIONS') {
+        return res.status(403).json({ 
+          message: "This transcript cannot be shared because it has pending redactions. Please commit or undo all redactions before sharing." 
+        });
+      }
       next(error);
     }
   });
@@ -4364,8 +4379,30 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (!transcript) {
         return res.status(404).json({ message: "No transcript found" });
       }
-      
-      res.json(transcript);
+
+      // Lazy commit: auto-commit any pending redactions whose 30-minute window has expired
+      const pendingRedactions = ((transcript.redactions || []) as any[]);
+      const hasExpiredPending = pendingRedactions.some((r: any) =>
+        r.status === 'pending' && r.pendingUntil && new Date(r.pendingUntil) <= new Date()
+      );
+
+      let finalTranscript = transcript;
+      if (hasExpiredPending) {
+        const committed = await storage.commitTranscriptRedactions(transcript.id, userId);
+        if (committed) finalTranscript = committed;
+      }
+
+      // Strip selectedText and privilegedRedactions before returning to internal user
+      const safeTranscript = {
+        ...finalTranscript,
+        privilegedRedactions: undefined,
+        redactions: ((finalTranscript?.redactions || []) as any[]).map((r: any) => {
+          const { selectedText: _st, ...safeRedaction } = r;
+          return safeRedaction;
+        }),
+      };
+
+      res.json(safeTranscript);
     } catch (error: any) {
       next(error);
     }
@@ -4376,10 +4413,35 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     try {
       const userId = req.user.claims.sub;
       const caseId = req.params.id;
-      const { start, end, reason, textStart, textEnd, selectedText } = req.body;
-      
-      if (typeof start !== 'number' || typeof end !== 'number' || !reason?.trim()) {
-        return res.status(400).json({ message: "Invalid redaction data" });
+      const { start, end, reasonType, reasonNotes, textStart, textEnd, selectedText } = req.body;
+
+      const VALID_REASON_TYPES = [
+        'redaction_gdpr',
+        'redaction_privilege', 
+        'redaction_third_party',
+        'redaction_commercially_sensitive',
+      ] as const;
+
+      type RedactionReasonType = typeof VALID_REASON_TYPES[number];
+
+      if (typeof start !== 'number' || typeof end !== 'number') {
+        return res.status(400).json({ message: "start and end positions are required" });
+      }
+
+      if (!reasonType || !VALID_REASON_TYPES.includes(reasonType as RedactionReasonType)) {
+        return res.status(400).json({ 
+          message: "reasonType is required and must be one of: redaction_gdpr, redaction_privilege, redaction_third_party, redaction_commercially_sensitive" 
+        });
+      }
+
+      if (reasonType === 'redaction_privilege' && (!reasonNotes || !reasonNotes.trim() || reasonNotes.trim().length < 10)) {
+        return res.status(400).json({ 
+          message: "reasonNotes is required for privilege redactions and must be at least 10 characters describing the privilege basis" 
+        });
+      }
+
+      if (!selectedText || typeof selectedText !== 'string' || !selectedText.trim()) {
+        return res.status(400).json({ message: "selectedText is required — the text being redacted must be provided" });
       }
       
       // Verify ownership
@@ -4412,22 +4474,25 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(400).json({ message: "This text is already redacted" });
       }
       
-      // Add new redaction with optional partial redaction fields
+      const pendingUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+
       const newRedaction: any = {
+        id: crypto.randomUUID(),
         start,
         end,
-        reason: reason.trim(),
+        reasonType: reasonType as RedactionReasonType,
+        reasonNotes: reasonNotes?.trim() || null,
+        selectedText: selectedText.trim(), // always stored during pending phase
         redactedBy: userId,
         timestamp: new Date().toISOString(),
+        status: 'pending',
+        pendingUntil: pendingUntil.toISOString(),
       };
-      
-      // Add partial redaction fields if present
+
+      // Preserve partial redaction fields if present
       if (isPartialRedaction) {
         newRedaction.textStart = textStart;
         newRedaction.textEnd = textEnd;
-        if (selectedText) {
-          newRedaction.selectedText = selectedText;
-        }
       }
       
       const updatedRedactions = [...currentRedactions, newRedaction];
@@ -4439,22 +4504,34 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       );
       
       // Log audit event
-      await logAuditEvent(userId, "transcript_redacted", {
+      await logAuditEvent(userId, "transcript_redaction_pending", {
         caseId,
         transcriptId: transcript.id,
         metadata: {
-          action: 'add',
+          action: 'redaction_pending',
+          redactionId: newRedaction.id,
           start,
           end,
-          reason: reason.trim(),
+          reasonType,
+          reasonNotes: reasonNotes?.trim() || null,
           isPartial: isPartialRedaction,
-          textStart: isPartialRedaction ? textStart : undefined,
-          textEnd: isPartialRedaction ? textEnd : undefined,
+          pendingUntil: pendingUntil.toISOString(),
+          // Do not log selectedText in audit trail — it contains the sensitive content
         },
         req,
       });
       
-      res.json(updatedTranscript);
+      // Strip selectedText from all redaction markers before returning to client
+      // selectedText must never leave the server in API responses
+      const safeTranscript = {
+        ...updatedTranscript,
+        redactions: ((updatedTranscript?.redactions || []) as any[]).map((r: any) => {
+          const { selectedText: _st, ...safeRedaction } = r;
+          return safeRedaction;
+        }),
+      };
+
+      res.json(safeTranscript);
     } catch (error: any) {
       next(error);
     }
@@ -4485,8 +4562,33 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // Get current redactions
       const currentRedactions = (transcript.redactions || []) as any[];
       
-      // Find and remove the redaction (supporting both full and partial redactions)
+      // Find the redaction first to check its status before attempting removal
       const isPartialRemoval = typeof textStart === 'number' && typeof textEnd === 'number';
+      const targetRedaction = currentRedactions.find((r: any) => {
+        if (isPartialRemoval) {
+          return r.start === start && r.end === end && r.textStart === textStart && r.textEnd === textEnd;
+        } else {
+          return r.start === start && r.end === end && r.textStart === undefined && r.textEnd === undefined;
+        }
+      });
+
+      if (!targetRedaction) {
+        return res.status(404).json({ message: "Redaction not found" });
+      }
+
+      if (targetRedaction.status === 'committed') {
+        return res.status(403).json({ 
+          message: "This redaction has been committed and cannot be undone. Contact your supervisor if an amendment note is required." 
+        });
+      }
+
+      if (targetRedaction.pendingUntil && new Date(targetRedaction.pendingUntil) < new Date()) {
+        return res.status(403).json({ 
+          message: "The 30-minute undo window for this redaction has expired. Contact your supervisor if an amendment note is required." 
+        });
+      }
+
+      // Find and remove the redaction (supporting both full and partial redactions)
       const updatedRedactions = currentRedactions.filter((r: any) => {
         if (isPartialRemoval) {
           // For partial redactions, match all fields
@@ -4497,10 +4599,6 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         }
       });
       
-      if (updatedRedactions.length === currentRedactions.length) {
-        return res.status(404).json({ message: "Redaction not found" });
-      }
-      
       const updatedTranscript = await storage.updateTranscript(
         transcript.id,
         { redactions: updatedRedactions },
@@ -4508,13 +4606,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       );
       
       // Log audit event
-      await logAuditEvent(userId, "transcript_redacted", {
+      await logAuditEvent(userId, "transcript_redaction_undone", {
         caseId,
         transcriptId: transcript.id,
         metadata: {
-          action: 'remove',
+          action: 'redaction_undone',
           start,
           end,
+          reasonType: targetRedaction.reasonType,
           isPartial: isPartialRemoval,
           textStart: isPartialRemoval ? textStart : undefined,
           textEnd: isPartialRemoval ? textEnd : undefined,
@@ -4523,6 +4622,98 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       });
       
       res.json(updatedTranscript);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Commit pending redactions — physically rewrites transcript content
+  // Call explicitly to commit before 30-minute window, or system auto-commits on expiry
+  app.post("/api/cases/:id/transcript/redact/commit", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const { redactionIds } = req.body; // Optional: specific IDs to commit, or all pending if omitted
+
+      // Verify ownership
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const transcript = await storage.getTranscriptByCase(caseId, userId);
+      if (!transcript) {
+        return res.status(404).json({ message: "No transcript found" });
+      }
+
+      // Validate redactionIds if provided
+      if (redactionIds !== undefined && !Array.isArray(redactionIds)) {
+        return res.status(400).json({ message: "redactionIds must be an array if provided" });
+      }
+
+      // Count what will be committed for audit log
+      const pendingRedactions = ((transcript.redactions || []) as any[]).filter((r: any) => {
+        if (r.status === 'committed') return false;
+        if (redactionIds) return redactionIds.includes(r.id);
+        return r.status === 'pending';
+      });
+
+      if (pendingRedactions.length === 0) {
+        return res.status(400).json({ message: "No pending redactions found to commit" });
+      }
+
+      const gdprCount = pendingRedactions.filter((r: any) => 
+        ['redaction_gdpr', 'redaction_third_party', 'redaction_commercially_sensitive'].includes(r.reasonType)
+      ).length;
+      const privilegeCount = pendingRedactions.filter((r: any) => 
+        r.reasonType === 'redaction_privilege'
+      ).length;
+
+      // Commit the redactions
+      const updatedTranscript = await storage.commitTranscriptRedactions(
+        transcript.id,
+        userId,
+        redactionIds
+      );
+
+      if (!updatedTranscript) {
+        return res.status(500).json({ message: "Failed to commit redactions" });
+      }
+
+      // Log audit event
+      await logAuditEvent(userId, "transcript_redactions_committed", {
+        caseId,
+        transcriptId: transcript.id,
+        metadata: {
+          totalCommitted: pendingRedactions.length,
+          gdprDeletions: gdprCount,
+          privilegePreservations: privilegeCount,
+          specificIds: redactionIds || null,
+          committedAt: new Date().toISOString(),
+        },
+        severity: "high",
+        req,
+      });
+
+      // Strip privilegedRedactions and selectedText from response
+      const safeTranscript = {
+        ...updatedTranscript,
+        privilegedRedactions: undefined,
+        redactions: ((updatedTranscript?.redactions || []) as any[]).map((r: any) => {
+          const { selectedText: _st, ...safeRedaction } = r;
+          return safeRedaction;
+        }),
+      };
+
+      res.json({
+        success: true,
+        transcript: safeTranscript,
+        committed: {
+          total: pendingRedactions.length,
+          gdprDeletions: gdprCount,
+          privilegePreservations: privilegeCount,
+        },
+      });
     } catch (error: any) {
       next(error);
     }
@@ -10887,7 +11078,20 @@ ${firmName}`;
       if (!caseData) return res.status(404).json({ message: "Session not found" });
       const transcript = await storage.getTranscriptBySession(session.id);
       const documents = await storage.getDocumentsBySession(session.id);
-      res.json({ ...session, transcript: transcript || null, documents });
+      // Strip selectedText and privilegedRedactions before returning
+      // These fields must never leave the server in API responses
+      const safeSessionTranscript = transcript
+        ? {
+            ...transcript,
+            privilegedRedactions: undefined,
+            redactions: ((transcript.redactions || []) as any[]).map((r: any) => {
+              const { selectedText: _st, ...safeRedaction } = r;
+              return safeRedaction;
+            }),
+          }
+        : null;
+
+      res.json({ ...session, transcript: safeSessionTranscript, documents });
     } catch (error: any) {
       console.error("[Sessions] Error fetching session:", error);
       res.status(500).json({ message: "Failed to fetch session" });

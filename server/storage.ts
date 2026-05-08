@@ -476,6 +476,7 @@ export interface IStorage {
   getTranscriptByCase(caseId: string, userId: string): Promise<Transcript | undefined>;
   getTranscriptBySession(meetingSessionId: string): Promise<Transcript | undefined>;
   updateTranscript(id: string, updates: Partial<Transcript>, userId: string): Promise<Transcript | undefined>;
+  commitTranscriptRedactions(transcriptId: string, userId: string, redactionIds?: string[]): Promise<Transcript | undefined>;
   
   // Action Items methods
   createActionItem(itemData: InsertActionItem): Promise<ActionItem>;
@@ -1262,6 +1263,10 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...updates };
     this.transcripts.set(id, updated);
     return updated;
+  }
+
+  async commitTranscriptRedactions(transcriptId: string, userId: string, redactionIds?: string[]): Promise<Transcript | undefined> {
+    throw new Error("commitTranscriptRedactions requires database storage");
   }
 
   // Action Items methods
@@ -2977,6 +2982,96 @@ export class DbStorage implements IStorage {
       .set(updates)
       .where(eq(transcripts.id, id))
       .returning();
+    return result[0];
+  }
+
+  async commitTranscriptRedactions(
+    transcriptId: string,
+    userId: string,
+    redactionIds?: string[]
+  ): Promise<Transcript | undefined> {
+    // Fetch transcript and verify ownership via case
+    const transcript = await db.select().from(transcripts).where(eq(transcripts.id, transcriptId));
+    if (!transcript[0]) return undefined;
+
+    const caseRecord = await db.select().from(cases).where(
+      and(eq(cases.id, transcript[0].caseId), eq(cases.createdBy, userId))
+    );
+    if (!caseRecord[0]) return undefined;
+
+    const now = new Date();
+    const currentRedactions = (transcript[0].redactions || []) as any[];
+    const currentPrivileged = (transcript[0].privilegedRedactions || []) as any[];
+
+    // Determine which redactions to commit
+    // If redactionIds provided, only commit those — otherwise commit all pending/expired
+    const toCommit = currentRedactions.filter((r: any) => {
+      if (r.status === 'committed') return false; // Already committed
+      if (redactionIds) return redactionIds.includes(r.id); // Specific IDs requested
+      // Auto-commit: pending and window expired, OR explicitly pending with no window
+      return r.status === 'pending' && (!r.pendingUntil || new Date(r.pendingUntil) <= now);
+    });
+
+    if (toCommit.length === 0) return transcript[0];
+
+    let updatedContent = transcript[0].content;
+    const newPrivilegedEntries: any[] = [];
+
+    // Process each redaction to commit
+    // Sort by start position descending so we replace from end to start
+    // This preserves character positions for earlier replacements
+    const sortedToCommit = [...toCommit].sort((a, b) => b.start - a.start);
+
+    for (const redaction of sortedToCommit) {
+      const replacementText = `[REDACTED — ${redaction.reasonType.toUpperCase()}]`;
+
+      if (redaction.reasonType === 'redaction_privilege') {
+        // Privilege path: preserve original text in privilegedRedactions, replace in content
+        newPrivilegedEntries.push({
+          id: redaction.id,
+          text: redaction.selectedText,
+          start: redaction.start,
+          end: redaction.end,
+          reasonType: redaction.reasonType,
+          reasonNotes: redaction.reasonNotes,
+          redactedBy: redaction.redactedBy,
+          committedAt: now.toISOString(),
+        });
+      }
+
+      // For all reason types: replace content at position
+      // Use character positions (start/end on the utterance block level)
+      updatedContent = updatedContent.substring(0, redaction.start) +
+        replacementText +
+        updatedContent.substring(redaction.end);
+    }
+
+    // Update redaction markers: set status to committed, remove selectedText and pendingUntil
+    const updatedRedactions = currentRedactions.map((r: any) => {
+      const isBeingCommitted = toCommit.some((c: any) => c.id === r.id);
+      if (!isBeingCommitted) return r;
+
+      const { selectedText: _st, pendingUntil: _pu, ...committed } = r;
+      return {
+        ...committed,
+        status: 'committed',
+        committedAt: now.toISOString(),
+      };
+    });
+
+    const updatedPrivileged = [...currentPrivileged, ...newPrivilegedEntries];
+
+    // Persist changes
+    const result = await db
+      .update(transcripts)
+      .set({
+        content: updatedContent,
+        redactions: updatedRedactions,
+        privilegedRedactions: updatedPrivileged,
+      })
+      .where(eq(transcripts.id, transcriptId))
+      .returning();
+
     return result[0];
   }
 

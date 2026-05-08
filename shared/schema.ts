@@ -300,6 +300,7 @@ export const transcripts = pgTable("transcripts", {
   speakerCount: integer("speaker_count"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   redactions: jsonb("redactions").default([]),
+  privilegedRedactions: jsonb("privileged_redactions").default([]), // Stores original text of privilege-basis redactions, access-controlled
 });
 
 // AI-extracted or manually created action items
