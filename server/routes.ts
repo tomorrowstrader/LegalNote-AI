@@ -7998,6 +7998,38 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       
       // Track document versions exported (for client version tracking)
       const allCaseDocuments = await storage.getActiveDocumentsByCase(req.params.id, userId);
+      // A4: Verify document integrity before export
+      const integrityFailures: string[] = [];
+      for (const doc of allCaseDocuments) {
+        if (doc.contentHash && doc.contentSignature) {
+          const signingKey = process.env.AUDIT_SIGNING_KEY || '';
+          if (signingKey) {
+            const expectedSig = crypto.createHmac('sha256', signingKey)
+              .update(doc.contentHash)
+              .digest('hex');
+            if (doc.contentSignature !== expectedSig) {
+              integrityFailures.push(doc.id);
+              await logAuditEvent(userId, "document_integrity_failure", {
+                caseId: req.params.id,
+                documentId: doc.id,
+                metadata: {
+                  context: "export",
+                  hashValid: true,
+                  signatureValid: false,
+                },
+                severity: "critical",
+              });
+            }
+          }
+        }
+      }
+
+      if (integrityFailures.length > 0) {
+        return res.status(422).json({
+          message: "Export blocked: document integrity verification failed",
+          failedDocumentIds: integrityFailures,
+        });
+      }
       for (const doc of allCaseDocuments) {
         if ((exportedDocs || []).includes(doc.type)) {
           await storage.createClientVersionTracking({
