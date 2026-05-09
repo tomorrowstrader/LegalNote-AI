@@ -1147,6 +1147,8 @@ export class MemStorage implements IStorage {
       userAgent: insertAuditLog.userAgent ?? null,
       metadata: insertAuditLog.metadata ?? {},
       severity: insertAuditLog.severity ?? "info",
+      previousEntryId: null,
+      chainHash: "",
     };
     this.auditLogs.set(id, auditLog);
     return auditLog;
@@ -3554,6 +3556,42 @@ export class DbStorage implements IStorage {
   }
 
   async createAuditLog(auditData: InsertAuditTrail): Promise<AuditTrail> {
+    const signingKey = process.env.AUDIT_SIGNING_KEY || '';
+
+    let previousEntry: AuditTrail | null = null;
+    try {
+      const query = auditData.caseId
+        ? db.select().from(auditTrail)
+            .where(eq(auditTrail.caseId, auditData.caseId))
+            .orderBy(desc(auditTrail.timestamp))
+            .limit(1)
+        : db.select().from(auditTrail)
+            .orderBy(desc(auditTrail.timestamp))
+            .limit(1);
+      const prev = await query;
+      previousEntry = prev[0] ?? null;
+    } catch {
+      previousEntry = null;
+    }
+
+    const entryContent = JSON.stringify({
+      eventType: auditData.eventType,
+      userId: auditData.userId,
+      caseId: auditData.caseId ?? null,
+      documentId: auditData.documentId ?? null,
+      transcriptId: auditData.transcriptId ?? null,
+      metadata: auditData.metadata ?? {},
+      severity: auditData.severity ?? 'info',
+      timestamp: new Date().toISOString(),
+    });
+
+    const previousChainHash = previousEntry?.chainHash ?? 'GENESIS';
+    const chainHash = signingKey
+      ? crypto.createHmac('sha256', signingKey)
+          .update(entryContent + previousChainHash)
+          .digest('hex')
+      : '';
+
     const result = await db
       .insert(auditTrail)
       .values({
@@ -3566,7 +3604,9 @@ export class DbStorage implements IStorage {
         ipAddress: auditData.ipAddress ?? null,
         userAgent: auditData.userAgent ?? null,
         metadata: auditData.metadata ?? {},
-        severity: auditData.severity ?? "info",
+        severity: auditData.severity ?? 'info',
+        previousEntryId: previousEntry?.id ?? null,
+        chainHash,
       })
       .returning();
     return result[0];

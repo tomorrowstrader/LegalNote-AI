@@ -412,6 +412,8 @@ export const auditTrail = pgTable("audit_trail", {
   userAgent: text("user_agent"),
   metadata: jsonb("metadata").default({}), // Additional context like { documentType, oldValue, newValue, action, recordingDuration, playbackPosition, etc }
   severity: text("severity").notNull().default("info"), // info, warning, critical
+  previousEntryId: varchar("previous_entry_id"),
+  chainHash: text("chain_hash"),
 });
 
 export const dsarRequests = pgTable("dsar_requests", {

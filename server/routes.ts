@@ -8011,6 +8011,66 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
+  app.get("/api/cases/:id/audit/verify-chain", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(404).json({ message: "Case not found" });
+
+      const entries = await storage.getAuditLogsByCase(caseId);
+      const sorted = [...entries].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+
+      const signingKey = process.env.AUDIT_SIGNING_KEY || '';
+      let chainIntact = true;
+      const failures: string[] = [];
+
+      for (let i = 0; i < sorted.length; i++) {
+        const entry = sorted[i];
+        if (!entry.chainHash) continue;
+
+        const previousChainHash = i === 0
+          ? 'GENESIS'
+          : (sorted[i - 1].chainHash ?? 'GENESIS');
+
+        const entryContent = JSON.stringify({
+          eventType: entry.eventType,
+          userId: entry.userId,
+          caseId: entry.caseId ?? null,
+          documentId: entry.documentId ?? null,
+          transcriptId: entry.transcriptId ?? null,
+          metadata: entry.metadata ?? {},
+          severity: entry.severity ?? 'info',
+          timestamp: new Date(entry.timestamp).toISOString(),
+        });
+
+        const expectedHash = signingKey
+          ? crypto.createHmac('sha256', signingKey)
+              .update(entryContent + previousChainHash)
+              .digest('hex')
+          : '';
+
+        if (signingKey && entry.chainHash !== expectedHash) {
+          chainIntact = false;
+          failures.push(entry.id);
+        }
+      }
+
+      res.json({
+        caseId,
+        totalEntries: sorted.length,
+        chainIntact,
+        failedEntryIds: failures,
+        verifiedAt: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // ============================================
   // Recall.ai Video Conferencing Integration
   // ============================================
