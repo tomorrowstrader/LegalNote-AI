@@ -4425,6 +4425,13 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         }),
       };
 
+      await logAuditEvent(userId, "transcript_viewed_internal", {
+        caseId: req.params.id,
+        transcriptId: transcript.id,
+        metadata: {
+          viewedAt: new Date().toISOString(),
+        },
+      });
       res.json(safeTranscript);
     } catch (error: any) {
       next(error);
