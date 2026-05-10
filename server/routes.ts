@@ -3148,7 +3148,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (!caseData) {
         return res.status(404).json({ message: "Case not found" });
       }
-      
+
+      // L2: Block share link creation if case is under litigation hold
+      if (caseData.litigationHold) {
+        return res.status(403).json({
+          message: "Share links cannot be created while a litigation hold is active on this case",
+        });
+      }
+
       // For external sharing, verify server-side consent from database
       if (isExternal) {
         // Check if client consent exists in the database

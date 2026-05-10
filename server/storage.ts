@@ -1267,6 +1267,15 @@ export class MemStorage implements IStorage {
   }
 
   async updateTranscript(id: string, updates: Partial<Transcript>, userId: string): Promise<Transcript | undefined> {
+    // L1: Block updates if case is under litigation hold
+    const transcriptRecord = this.transcripts.get(id);
+    if (transcriptRecord) {
+      const caseRecord = this.cases.get(transcriptRecord.caseId);
+      if (caseRecord?.litigationHold) {
+        console.warn(`[LITIGATION-HOLD] Blocked transcript update on ${id}`);
+        return undefined;
+      }
+    }
     const existing = this.transcripts.get(id);
     if (!existing) return undefined;
     
@@ -1528,6 +1537,15 @@ export class MemStorage implements IStorage {
   }
 
   async updateDocument(id: string, updates: Partial<Document>, userId: string): Promise<Document | undefined> {
+    // L1: Block updates if case is under litigation hold
+    const documentRecord = this.documents.get(id);
+    if (documentRecord) {
+      const caseRecord = this.cases.get(documentRecord.caseId);
+      if (caseRecord?.litigationHold) {
+        console.warn(`[LITIGATION-HOLD] Blocked document update on ${id}`);
+        return undefined;
+      }
+    }
     const existing = this.documents.get(id);
     if (!existing) return undefined;
     
@@ -2994,6 +3012,15 @@ export class DbStorage implements IStorage {
   }
 
   async updateTranscript(id: string, updates: Partial<Transcript>, userId: string): Promise<Transcript | undefined> {
+    // L1: Block updates if case is under litigation hold
+    const transcriptRecord = await db.select().from(transcripts).where(eq(transcripts.id, id)).limit(1);
+    if (transcriptRecord[0]) {
+      const caseRecord = await db.select().from(cases).where(eq(cases.id, transcriptRecord[0].caseId)).limit(1);
+      if (caseRecord[0]?.litigationHold) {
+        console.warn(`[LITIGATION-HOLD] Blocked transcript update on ${id} — case ${transcriptRecord[0].caseId} is under litigation hold`);
+        return undefined;
+      }
+    }
     const transcript = await db.select().from(transcripts).where(eq(transcripts.id, id));
     if (!transcript[0]) return undefined;
     
@@ -3366,6 +3393,15 @@ export class DbStorage implements IStorage {
   }
 
   async updateDocument(id: string, updates: Partial<Document>, userId: string): Promise<Document | undefined> {
+    // L1: Block updates if case is under litigation hold
+    const documentRecord = await db.select().from(documents).where(eq(documents.id, id)).limit(1);
+    if (documentRecord[0]) {
+      const caseRecord = await db.select().from(cases).where(eq(cases.id, documentRecord[0].caseId)).limit(1);
+      if (caseRecord[0]?.litigationHold) {
+        console.warn(`[LITIGATION-HOLD] Blocked document update on ${id} — case ${documentRecord[0].caseId} is under litigation hold`);
+        return undefined;
+      }
+    }
     const document = await db.select().from(documents).where(eq(documents.id, id));
     if (!document[0]) return undefined;
     
