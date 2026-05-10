@@ -349,7 +349,7 @@ export const documents = pgTable("documents", {
   contentHash: text("content_hash"), // SHA-256 hash for integrity verification
   contentSignature: text("content_signature"),
   version: integer("version").notNull().default(1),
-  versionType: text("version_type").notNull(), // ai_generated, manually_edited, ai_regenerated
+  versionType: text("version_type").notNull(), // system_generated, fee_earner_amended, fee_earner_approved
   createdAt: timestamp("created_at").notNull().defaultNow(),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   isActive: boolean("is_active").notNull().default(true), // Current version flag
@@ -883,7 +883,7 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   type: z.enum(["attendance_note", "meeting_notes", "summary", "transcript", "client_care_letter"]),
   content: z.string().max(1000000), // 1MB max for documents
   version: z.number().int().min(1).default(1),
-  versionType: z.enum(["ai_generated", "manually_edited", "ai_regenerated"]),
+  versionType: z.enum(["system_generated", "fee_earner_amended", "fee_earner_approved", "supervisor_approved"]),
   createdBy: z.string().uuid(),
   isActive: z.boolean().default(true),
   parentVersionId: z.string().uuid().optional(),

@@ -1735,7 +1735,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
             type: "client_care_letter",
             content: result.content,
             version: 1,
-            versionType: "ai_generated",
+            versionType: "system_generated",
             createdBy: userId,
           });
           await storage.updateCase(newCase.id, { clientCareLetterId: doc.id }, userId);
@@ -2906,9 +2906,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
 
       const VALID_VERSION_TYPES = [
-        "ai_generated",
-        "manually_edited",
-        "ai_regenerated",
+        "system_generated",
+        "fee_earner_amended",
+        "fee_earner_approved",
         "fee_earner_amended",
         "fee_earner_approved",
         "supervisor_approved",
@@ -4251,7 +4251,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         type: "attendance_note",
         content: result.attendanceNote,
         version: 1,
-        versionType: "ai_generated",
+        versionType: "system_generated",
         createdBy: userId,
         isActive: true,
       });
@@ -5662,7 +5662,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         type: "client_care_letter",
         content: result.content,
         version: 1,
-        versionType: "ai_generated",
+        versionType: "system_generated",
         createdBy: userId,
       });
 

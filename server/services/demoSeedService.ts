@@ -340,7 +340,7 @@ Client confirmed understanding of AML obligations and agreed to provide document
     type: "attendance_note",
     content: doc1Content,
     version: 1,
-    versionType: "ai_generated",
+    versionType: "system_generated",
     createdBy: userId,
     status: "approved",
     approvedBy: userId,
@@ -353,7 +353,7 @@ Client confirmed understanding of AML obligations and agreed to provide document
     type: "client_care_letter",
     content: `# CLIENT CARE LETTER\n\n**To:** Richard Patterson\n**Patterson Developments Ltd**\n14 Canary Court, London E14 5AB\n\n**Date:** ${session1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}\n\n**Our Reference:** DEMO_COMP/2024/0291\n\n---\n\nDear Mr Patterson,\n\nThank you for instructing us in connection with the proposed acquisition of Unit 14, Meridian Industrial Estate, Marshgate Lane, Stratford, East London E15.\n\nI am writing to confirm the basis on which we will act for Patterson Developments Ltd in this matter.\n\n## Scope of Work\n\nWe have been instructed to act on behalf of Patterson Developments Ltd in connection with the purchase of the above commercial property. Our work will include:\n\n- Reviewing and reporting on the title\n- Carrying out all necessary searches and enquiries\n- Negotiating the contract\n- Dealing with the mortgage documentation\n- Completion and post-completion formalities\n- Compliance with AML and regulatory obligations\n\n## Fees\n\nOur charges for this matter will be calculated on a time-spent basis at the following rate:\n\n- Partner rate: £320 per hour plus VAT\n\nBased on the information currently available, we estimate our total professional charges for this matter will be in the region of £8,500 to £12,000 plus VAT, disbursements, and search fees.\n\n## Regulatory Information\n\nThis firm is authorised and regulated by the Solicitors Regulation Authority (SRA). We are required to comply with the SRA Standards and Regulations, including the SRA Code of Conduct for Solicitors and the SRA Code of Conduct for Firms.\n\n## Complaints\n\nIf you are unhappy with any aspect of the service you receive, please contact the Senior Partner in the first instance. If the matter is not resolved to your satisfaction, you may refer it to the Legal Ombudsman.\n\nPlease sign and return one copy of this letter to confirm your instructions.\n\nYours sincerely,\n\n**Attending Solicitor**\nPartner — Commercial Property`,
     version: 1,
-    versionType: "ai_generated",
+    versionType: "system_generated",
     createdBy: userId,
     status: "approved",
     approvedBy: userId,
@@ -456,7 +456,7 @@ Client undertook to chase Hargreaves and aims to have all documentation submitte
     type: "attendance_note",
     content: doc2Content,
     version: 1,
-    versionType: "ai_generated",
+    versionType: "system_generated",
     createdBy: userId,
     status: "approved",
     approvedBy: userId,
@@ -612,7 +612,7 @@ Client confirmed understanding. Instructed to proceed to heads of terms.
     type: "attendance_note",
     content: doc3Content,
     version: 1,
-    versionType: "ai_generated",
+    versionType: "system_generated",
     createdBy: userId,
     status: "approved",
     approvedBy: userId,
@@ -652,7 +652,7 @@ Client concerned about commercial sensitivity of bank statements. Resolved throu
 **Solicitor Recommendations:**
 AML clearance granted. Proceed to conveyancing phase. Counter-signatory (Head of Compliance) to review and approve AML Decision Record within 24 hours. Any change in funding position must be disclosed immediately.`,
     version: 1,
-    versionType: "ai_generated",
+    versionType: "system_generated",
     createdBy: userId,
     status: "approved",
     approvedBy: userId,
@@ -921,14 +921,14 @@ Nationwide mortgage offer includes a valuation retention of £2,500 pending roof
 ## 8. CLIENT CONFIRMATION
 
 Client confirmed understanding of all matters discussed. No further questions at this stage.`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
   // Client care letter
   await db.insert(documents).values({
     caseId: newCase.id, type: "client_care_letter",
     content: `# CLIENT CARE LETTER\n\n**To:** Sophie Henderson\nFlat 6, 29 Westmoreland Terrace, Bath BA1 5HG\n\n**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}\n\n**Our Reference:** DEMO_CONV/2024/1147\n\n---\n\nDear Miss Henderson,\n\nThank you for instructing us in connection with your purchase of 14 Ashfield Close, Bath, BA2 5NP.\n\n## Scope of Work\n\nWe have been instructed to act on your behalf in connection with the purchase of the above property at a price of £385,000. Our work will include reviewing title, carrying out searches, reporting on the mortgage conditions, dealing with exchange and completion, and attending to all post-completion matters including Land Registry registration and SDLT submission.\n\n## Fees\n\nOur charges for this conveyancing matter will be £1,650 plus VAT (£1,980 inclusive). Disbursements (searches, Land Registry fees, bank transfer fees) are estimated at £500–£700.\n\nYours sincerely,\n\n**Attending Solicitor**\nConveyancing Department`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId, createdAt: s1Date,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId, createdAt: s1Date,
   });
 
   await db.update(cases).set({ clientCareLetterSentAt: s1Date }).where(eq(cases.id, newCase.id));
@@ -995,7 +995,7 @@ SOLICITOR: Thank you, Miss Henderson. I'll be in touch.`;
 ---
 
 Call received from Miss Henderson. Client confirmed roof inspection report satisfactory — ridge tiles in good condition, minor moss growth only, no structural issues. Written report provided by roofer (received by email). Report to be forwarded to Nationwide today to request release of valuation retention (£2,500). Client instructed to proceed to exchange. Agreed exchange target: Friday 21st. Solicitor to contact seller's solicitors (Blake Morgan) to confirm.`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
   await db.insert(documents).values({
@@ -1030,7 +1030,7 @@ Client concerned about drainage search query (resolved — Wessex Water confirme
 **Solicitor Recommendations:**
 SDLT first-time buyer relief applicable (£9,750 payable on completion). AML check satisfied. Proceed to exchange once Nationwide confirms retention release. Target exchange within 2–3 weeks.`,
     version: 1,
-    versionType: "ai_generated",
+    versionType: "system_generated",
     createdBy: userId,
     status: "approved",
     approvedBy: userId,
@@ -1259,14 +1259,14 @@ Client resigned by email within 2 days of final incident, citing sustained cours
 3. Sign ACAS form
 
 **Next meeting:** In 2 weeks — review draft ET1 and finalise schedule of loss.`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
   // Client care letter
   await db.insert(documents).values({
     caseId: newCase.id, type: "client_care_letter",
     content: `# CLIENT CARE LETTER\n\n**To:** Daniel Hartley\n22 Birchwood Avenue, Reading, RG1 4PX\n\n**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}\n**Our Reference:** DEMO_EMP/2024/0889\n\n---\n\nDear Mr Hartley,\n\nThank you for instructing us in connection with your employment claim against TechLogic Solutions Ltd.\n\n## Scope of Work\n\nWe are instructed to advise and represent you in connection with a claim for constructive dismissal before the Employment Tribunal.\n\n## Fees\n\nOur hourly rate for this matter is £195 plus VAT.\n\nYours sincerely,\n\n**Attending Solicitor**\nEmployment Department`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId, createdAt: s1Date,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId, createdAt: s1Date,
   });
   await db.update(cases).set({ clientCareLetterSentAt: s1Date }).where(eq(cases.id, newCase.id));
 
@@ -1361,7 +1361,7 @@ I gave an undertaking to serve the schedule of loss on the respondent within 3 w
 - Monitor for early settlement approach from respondent via ACAS
 
 Client does not wish to settle for less than the full schedule of loss unless there is a compelling reason.`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
   await db.insert(documents).values({
@@ -1398,7 +1398,7 @@ Client does not wish to settle for less than the full schedule of loss (£31,450
 **Solicitor Recommendations:**
 Prospects assessed as reasonable to good. Schedule of loss totals £31,450 (basic award £3,808, compensatory award £18,900, notice pay £5,445, accrued holiday £1,750). Advise against premature settlement given strength of case.`,
     version: 1,
-    versionType: "ai_generated",
+    versionType: "system_generated",
     createdBy: userId,
     status: "approved",
     approvedBy: userId,
@@ -1600,14 +1600,14 @@ MIAM certificate obtained (attended 2 weeks ago). Michael Okafor refused to atte
 
 **Client Actions:**
 1. Provide MIAM certificate (provided at meeting)`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
   // Client care letter
   await db.insert(documents).values({
     caseId: newCase.id, type: "client_care_letter",
     content: `# CLIENT CARE LETTER\n\n**To:** Yasmin Okafor\n38 Redland Park, Bristol, BS6 6SA\n\n**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}\n**Our Reference:** DEMO_FAM/2024/0534\n\n---\n\nDear Mrs Okafor,\n\nThank you for instructing us in connection with your application for a Child Arrangements Order.\n\n## Fees\n\nOur hourly rate is £210 plus VAT.\n\nYours sincerely,\n\n**Attending Solicitor**\nFamily Department`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId, createdAt: s1Date,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId, createdAt: s1Date,
   });
   await db.update(cases).set({ clientCareLetterSentAt: s1Date }).where(eq(cases.id, newCase.id));
 
@@ -1669,7 +1669,7 @@ SOLICITOR: You're welcome. Let me know the date once it's confirmed.`;
 ---
 
 Call received from Mrs Okafor. CAFCASS officer allocated: J. Mercer. First contact appointment to be arranged. Advised client on what to expect from CAFCASS initial contact — telephone call (20–30 minutes), questions about children and current arrangements, be honest and straightforward. CAFCASS will file safeguarding letter with court before FHDRA. If Section 7 report directed, Officer Mercer will conduct full assessment including home visits.`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
   // Session 3: Court hearing (5 days ago, Bristol Family Court)
@@ -1767,7 +1767,7 @@ No order as to costs (standard in children proceedings).
 
 ---
 *Court attendance note prepared same day.*`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
   await db.insert(documents).values({
@@ -1804,7 +1804,7 @@ Client wants predictable, stable contact arrangement for children. Willing to ac
 **Solicitor Recommendations:**
 Interim arrangement confirmed by consent — children to live with applicant, contact with respondent on alternate Saturdays 10am–6pm pending final order. No order as to costs (standard in children proceedings). Case progressing well — absence of welfare concerns is positive.`,
     version: 1,
-    versionType: "ai_generated",
+    versionType: "system_generated",
     createdBy: userId,
     status: "approved",
     approvedBy: userId,
@@ -2063,7 +2063,7 @@ Verified — all statements traceable to transcript. Four speakers identified: S
 
 ---
 *Wills executed at a subsequent appointment. Matter now completed.*`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
   await db.insert(documents).values({
@@ -2101,7 +2101,7 @@ Clients concerned about IHT liability. Both have surplus pension income availabl
 **Solicitor Recommendations:**
 Annual exemption gifting (£6,000 combined per year). Regular gifting programme of £20,000 per year from surplus income over 7-year period. Gifts from surplus income immediately exempt — detailed income/expenditure records recommended. Executors: Andrew, Claire, and this firm as professional executor.`,
     version: 1,
-    versionType: "ai_generated",
+    versionType: "system_generated",
     createdBy: userId,
     status: "approved",
     approvedBy: userId,
@@ -2111,7 +2111,7 @@ Annual exemption gifting (£6,000 combined per year). Regular gifting programme 
   await db.insert(documents).values({
     caseId: newCase.id, type: "client_care_letter",
     content: `# CLIENT CARE LETTER\n\n**To:** Margaret Whitmore & Geoffrey Whitmore\nThe Willows, 8 Oakdene Lane, Guildford, Surrey, GU1 3RD\n\n**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}\n**Our Reference:** DEMO_PROB/2024/0203\n\n---\n\nDear Mr and Mrs Whitmore,\n\nThank you for instructing us in connection with the preparation of your wills.\n\n## Fees\n\nPartner rate: £320 per hour. Fee earner rate: £195 per hour.\n\nYours sincerely,\n\n**Attending Solicitor**\nWills & Probate Department`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId, createdAt: s1Date,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId, createdAt: s1Date,
   });
   await db.update(cases).set({ clientCareLetterSentAt: s1Date }).where(eq(cases.id, newCase.id));
 
@@ -2280,7 +2280,7 @@ Detention authorised to 24 hours (s.37 PACE 1984). Representations made for rele
 
 ---
 *Total time at station: 3 hours 25 minutes.*`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
   await db.insert(documents).values({
@@ -2320,7 +2320,7 @@ No comment interview was tactically appropriate given incomplete disclosure and 
 
 **UPDATE:** NFA confirmed by CPS the following morning. No further action. Matter closed.`,
     version: 1,
-    versionType: "ai_generated",
+    versionType: "system_generated",
     createdBy: userId,
     status: "approved",
     approvedBy: userId,
@@ -2360,7 +2360,7 @@ Yours sincerely,
 
 **[Solicitor Name]**
 Duty Solicitor`,
-    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved", approvedBy: userId,
+    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
   });
 
   // Time entries
