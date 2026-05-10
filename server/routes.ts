@@ -101,6 +101,19 @@ function validateReferralCode(code: string): typeof REFERRAL_CODES[string] | nul
 export async function registerRoutes(app: Express): Promise<Server> {
   const sseClients = new Map<string, Set<Response>>();
 
+  // S3: Centralised helper — strips sensitive fields from transcript before API response
+  function sanitizeTranscriptForResponse(transcript: any) {
+    if (!transcript) return transcript;
+    return {
+      ...transcript,
+      privilegedRedactions: undefined,
+      redactions: ((transcript.redactions || []) as any[]).map((r: any) => {
+        const { selectedText: _st, ...safeRedaction } = r;
+        return safeRedaction;
+      }),
+    };
+  }
+
   // Health check endpoint for deployment platform
   // Must be before auth middleware and CORS is configured to allow requests without origin
   app.get('/health', (req, res) => {
@@ -157,7 +170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // LinkedIn Post Performance Tracking API
-  app.get('/api/linkedin-performance', async (req, res, next) => {
+  app.get('/api/linkedin-performance', isAuthenticated, async (req, res, next) => {
     try {
       const data = await storage.getAllLinkedinPostPerformance();
       res.json(data);
@@ -166,7 +179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/linkedin-performance/:postNumber', async (req, res, next) => {
+  app.get('/api/linkedin-performance/:postNumber', isAuthenticated, async (req, res, next) => {
     try {
       const postNumber = parseInt(req.params.postNumber);
       const data = await storage.getLinkedinPostPerformance(postNumber);
@@ -176,7 +189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/linkedin-performance', async (req, res, next) => {
+  app.post('/api/linkedin-performance', isAuthenticated, async (req, res, next) => {
     try {
       const body = { ...req.body };
       if (body.postedAt && typeof body.postedAt === 'string') {
@@ -189,7 +202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/linkedin-post-chat', async (req, res, next) => {
+  app.post('/api/linkedin-post-chat', isAuthenticated, async (req, res, next) => {
     try {
       const { postNumber, currentContent, theme, message, history } = req.body;
       if (!postNumber || !currentContent || !message) {
@@ -251,7 +264,7 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
     }
   });
 
-  app.get('/api/linkedin-post-chat/:postNumber', async (req, res, next) => {
+  app.get('/api/linkedin-post-chat/:postNumber', isAuthenticated, async (req, res, next) => {
     try {
       const postNumber = parseInt(req.params.postNumber);
       if (isNaN(postNumber)) return res.status(400).json({ error: 'Invalid post number' });
@@ -262,7 +275,7 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
     }
   });
 
-  app.post('/api/linkedin-post-chat/message', async (req, res, next) => {
+  app.post('/api/linkedin-post-chat/message', isAuthenticated, async (req, res, next) => {
     try {
       const { postNumber, role, content, parsedType, parsedContent, parsedExplanation, parsedResponse } = req.body;
       if (!postNumber || !role || !content) return res.status(400).json({ error: 'Missing required fields' });
@@ -281,7 +294,7 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
     }
   });
 
-  app.delete('/api/linkedin-post-chat/:postNumber', async (req, res, next) => {
+  app.delete('/api/linkedin-post-chat/:postNumber', isAuthenticated, async (req, res, next) => {
     try {
       const postNumber = parseInt(req.params.postNumber);
       if (isNaN(postNumber)) return res.status(400).json({ error: 'Invalid post number' });
@@ -293,14 +306,14 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
   });
 
   // Connection milestones
-  app.get('/api/linkedin-connections', async (req, res, next) => {
+  app.get('/api/linkedin-connections', isAuthenticated, async (req, res, next) => {
     try {
       const milestones = await storage.getConnectionMilestones();
       res.json(milestones);
     } catch (error) { next(error); }
   });
 
-  app.post('/api/linkedin-connections', async (req, res, next) => {
+  app.post('/api/linkedin-connections', isAuthenticated, async (req, res, next) => {
     try {
       const { date, connectionCount, notes } = req.body;
       if (!date || connectionCount === undefined) {
@@ -315,7 +328,7 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
     } catch (error) { next(error); }
   });
 
-  app.delete('/api/linkedin-connections/:id', async (req, res, next) => {
+  app.delete('/api/linkedin-connections/:id', isAuthenticated, async (req, res, next) => {
     try {
       await storage.deleteConnectionMilestone(req.params.id);
       res.json({ success: true });
@@ -323,14 +336,14 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
   });
 
   // Inbound leads
-  app.get('/api/linkedin-leads', async (req, res, next) => {
+  app.get('/api/linkedin-leads', isAuthenticated, async (req, res, next) => {
     try {
       const leads = await storage.getInboundLeads();
       res.json(leads);
     } catch (error) { next(error); }
   });
 
-  app.post('/api/linkedin-leads', async (req, res, next) => {
+  app.post('/api/linkedin-leads', isAuthenticated, async (req, res, next) => {
     try {
       const { name, company, linkedinUrl, triggerPostNumber, leadType, notes } = req.body;
       if (!name) {
@@ -348,7 +361,7 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
     } catch (error) { next(error); }
   });
 
-  app.delete('/api/linkedin-leads/:id', async (req, res, next) => {
+  app.delete('/api/linkedin-leads/:id', isAuthenticated, async (req, res, next) => {
     try {
       await storage.deleteInboundLead(req.params.id);
       res.json({ success: true });
@@ -356,7 +369,7 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
   });
 
   // Hook variants
-  app.get('/api/linkedin-hooks/:postNumber', async (req, res, next) => {
+  app.get('/api/linkedin-hooks/:postNumber', isAuthenticated, async (req, res, next) => {
     try {
       const postNumber = parseInt(req.params.postNumber);
       const variants = await storage.getHookVariants(postNumber);
@@ -364,7 +377,7 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
     } catch (error) { next(error); }
   });
 
-  app.post('/api/linkedin-hooks/generate', async (req, res, next) => {
+  app.post('/api/linkedin-hooks/generate', isAuthenticated, async (req, res, next) => {
     try {
       const { postNumber, currentHook, theme } = req.body;
       if (!postNumber || !currentHook) {
@@ -395,7 +408,7 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
     } catch (error) { next(error); }
   });
 
-  app.delete('/api/linkedin-hooks/:id', async (req, res, next) => {
+  app.delete('/api/linkedin-hooks/:id', isAuthenticated, async (req, res, next) => {
     try {
       await storage.deleteHookVariant(req.params.id);
       res.json({ success: true });
@@ -403,7 +416,7 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
   });
 
   // Voice consistency scoring
-  app.post('/api/linkedin-voice-check', async (req, res, next) => {
+  app.post('/api/linkedin-voice-check', isAuthenticated, async (req, res, next) => {
     try {
       const { content, voice } = req.body;
       if (!content) {
@@ -439,7 +452,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   });
 
   // Engagement prompts
-  app.post('/api/linkedin-engagement-prompts', async (req, res, next) => {
+  app.post('/api/linkedin-engagement-prompts', isAuthenticated, async (req, res, next) => {
     try {
       const { content, theme } = req.body;
       if (!content) {
@@ -467,7 +480,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   });
 
   // Campaign dashboard summary
-  app.get('/api/linkedin-dashboard', async (req, res, next) => {
+  app.get('/api/linkedin-dashboard', isAuthenticated, async (req, res, next) => {
     try {
       const [allPerf, milestones, leads] = await Promise.all([
         storage.getAllLinkedinPostPerformance(),
@@ -3792,7 +3805,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           durationSeconds: result.durationSeconds,
           hasConsent: result.hasConsent,
         },
-        severity: "medium",
+        severity: "warning",
         req,
       });
 
@@ -4728,7 +4741,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           specificIds: redactionIds || null,
           committedAt: new Date().toISOString(),
         },
-        severity: "high",
+        severity: "critical",
         req,
       });
 
@@ -6209,7 +6222,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         caseId,
         metadata: { reportTitle: `SRA Matter Report - ${caseData.title}` },
         req,
-        severity: "high",
+        severity: "critical",
       });
 
       res.setHeader("Content-Type", "application/pdf");
@@ -6941,7 +6954,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         storage.getDocumentsByCase(caseId, userId),
         storage.getConsentLogsByCase(caseId, userId),
         storage.getAuditLogsByCase(caseId, 50),
-        storage.getSessionsByCase(caseId),
+        storage.getSessionsByCase(caseId, userId),
       ]);
       const firmProfile = await storage.getFirmProfile();
 
