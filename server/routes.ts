@@ -2895,6 +2895,63 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  app.post("/api/cases/:caseId/documents/:documentId/new-version", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId, documentId } = req.params;
+      const { content, versionType } = req.body;
+
+      if (!content || typeof content !== "string" || content.trim().length === 0) {
+        return res.status(400).json({ message: "content is required" });
+      }
+
+      const VALID_VERSION_TYPES = [
+        "ai_generated",
+        "manually_edited",
+        "ai_regenerated",
+        "fee_earner_amended",
+        "fee_earner_approved",
+        "supervisor_approved",
+      ];
+
+      if (!versionType || !VALID_VERSION_TYPES.includes(versionType)) {
+        return res.status(400).json({
+          message: `versionType is required and must be one of: ${VALID_VERSION_TYPES.join(", ")}`,
+        });
+      }
+
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(404).json({ message: "Case not found" });
+
+      const newVersion = await storage.createDocumentVersion(
+        documentId,
+        content.trim(),
+        versionType,
+        userId
+      );
+
+      if (!newVersion) {
+        return res.status(404).json({
+          message: "Document not found, access denied, or case is under litigation hold",
+        });
+      }
+
+      await logAuditEvent(userId, "document_version_created", {
+        caseId,
+        documentId: newVersion.id,
+        metadata: {
+          parentDocumentId: documentId,
+          newVersion: newVersion.version,
+          versionType,
+        },
+      });
+
+      res.status(201).json(newVersion);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.get("/api/documents/:id/comments", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;

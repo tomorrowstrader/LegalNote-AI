@@ -498,6 +498,16 @@ export interface IStorage {
   getQuickNotesByCase(caseId: string, userId: string): Promise<QuickNote[]>;
   
   createDocument(documentData: InsertDocument): Promise<Document>;
+  createDocumentVersion(
+    parentDocumentId: string,
+    newContent: string,
+    versionType: string,
+    userId: string,
+    options?: {
+      approvalComment?: string;
+      verificationWarnings?: string[];
+    }
+  ): Promise<Document | undefined>;
   getDocument(id: string): Promise<Document | undefined>;
   getDocumentsByCase(caseId: string, userId: string): Promise<Document[]>;
   getDocumentsBySession(meetingSessionId: string): Promise<Document[]>;
@@ -1506,6 +1516,46 @@ export class MemStorage implements IStorage {
     };
     this.documents.set(id, document);
     return document;
+  }
+
+  async createDocumentVersion(
+    parentDocumentId: string,
+    newContent: string,
+    versionType: string,
+    userId: string,
+    options?: { approvalComment?: string; verificationWarnings?: string[] }
+  ): Promise<Document | undefined> {
+    const parent = this.documents.get(parentDocumentId);
+    if (!parent) return undefined;
+
+    const caseRecord = this.cases.get(parent.caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+
+    if (caseRecord.litigationHold) {
+      console.warn(`[LITIGATION-HOLD] Blocked document version creation on ${parentDocumentId}`);
+      return undefined;
+    }
+
+    // Mark parent as inactive
+    this.documents.set(parentDocumentId, { ...parent, isActive: false });
+
+    // Create new version
+    const newDoc = await this.createDocument({
+      caseId: parent.caseId,
+      meetingSessionId: parent.meetingSessionId ?? undefined,
+      transcriptSnapshotId: parent.transcriptSnapshotId ?? undefined,
+      type: parent.type as InsertDocument["type"],
+      content: newContent,
+      version: parent.version + 1,
+      versionType: versionType as InsertDocument["versionType"],
+      createdBy: userId,
+      isActive: true,
+      parentVersionId: parentDocumentId,
+      verificationWarnings: options?.verificationWarnings ?? undefined,
+      isShortRecording: parent.isShortRecording ?? false,
+    });
+
+    return newDoc;
   }
 
   async getDocument(id: string): Promise<Document | undefined> {
@@ -3352,6 +3402,58 @@ export class DbStorage implements IStorage {
       })
       .returning();
     return result[0];
+  }
+
+  async createDocumentVersion(
+    parentDocumentId: string,
+    newContent: string,
+    versionType: string,
+    userId: string,
+    options?: { approvalComment?: string; verificationWarnings?: string[] }
+  ): Promise<Document | undefined> {
+    const parentResult = await db
+      .select()
+      .from(documents)
+      .where(eq(documents.id, parentDocumentId))
+      .limit(1);
+    const parent = parentResult[0];
+    if (!parent) return undefined;
+
+    const caseResult = await db
+      .select()
+      .from(cases)
+      .where(and(eq(cases.id, parent.caseId), eq(cases.createdBy, userId)))
+      .limit(1);
+    if (!caseResult[0]) return undefined;
+
+    if (caseResult[0].litigationHold) {
+      console.warn(`[LITIGATION-HOLD] Blocked document version creation on ${parentDocumentId}`);
+      return undefined;
+    }
+
+    // Mark parent as inactive
+    await db
+      .update(documents)
+      .set({ isActive: false })
+      .where(eq(documents.id, parentDocumentId));
+
+    // Create new version
+    const newDoc = await this.createDocument({
+      caseId: parent.caseId,
+      meetingSessionId: parent.meetingSessionId ?? undefined,
+      transcriptSnapshotId: parent.transcriptSnapshotId ?? undefined,
+      type: parent.type as InsertDocument["type"],
+      content: newContent,
+      version: parent.version + 1,
+      versionType: versionType as InsertDocument["versionType"],
+      createdBy: userId,
+      isActive: true,
+      parentVersionId: parentDocumentId,
+      verificationWarnings: options?.verificationWarnings ?? undefined,
+      isShortRecording: parent.isShortRecording ?? false,
+    });
+
+    return newDoc;
   }
 
   async getDocument(id: string): Promise<Document | undefined> {
