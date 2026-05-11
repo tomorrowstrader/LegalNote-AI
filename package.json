@@ -83,7 +83,7 @@
     "date-fns": "^3.6.0",
     "diff-match-patch": "^1.0.5",
     "docx": "^9.5.1",
-    "drizzle-orm": "^0.39.1",
+    "drizzle-orm": "^0.45.2",
     "drizzle-zod": "^0.7.0",
     "embla-carousel-react": "^8.6.0",
     "express": "^4.21.2",
@@ -96,7 +96,7 @@
     "happy-dom": "^20.0.10",
     "helmet": "^8.1.0",
     "input-otp": "^1.4.2",
-    "jspdf": "^3.0.3",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.453.0",
     "luxon": "^3.7.2",
     "memoizee": "^0.4.17",
@@ -153,13 +153,13 @@
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.20",
-    "drizzle-kit": "^0.31.4",
+    "drizzle-kit": "^0.31.10",
     "esbuild": "^0.25.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.5",
     "typescript": "5.6.3",
-    "vite": "^5.4.20"
+    "vite": "^8.0.11"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
