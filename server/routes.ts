@@ -2530,6 +2530,50 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  app.post("/api/firm/compliance-code", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { code, currentCode } = req.body;
+
+      if (!code || typeof code !== "string" || code.trim().length < 6) {
+        return res.status(400).json({ message: "Compliance code must be at least 6 characters" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user?.firmId) {
+        return res.status(400).json({ message: "No firm associated with your account" });
+      }
+
+      const firmProfile = await storage.getFirmProfile(user.firmId);
+      if (firmProfile?.complianceCodeHash) {
+        if (!currentCode) {
+          return res.status(400).json({ message: "Current compliance code is required to set a new one" });
+        }
+        const currentValid = await storage.verifyFirmComplianceCode(user.firmId, currentCode);
+        if (!currentValid) {
+          await logAuditEvent(userId, "compliance_code_reset_failed", {
+            metadata: { firmId: user.firmId },
+            severity: "critical",
+          });
+          return res.status(403).json({ message: "Current compliance code is incorrect" });
+        }
+      }
+
+      const bcrypt = await import("bcrypt");
+      const codeHash = await bcrypt.hash(code.trim(), 12);
+      await storage.setFirmComplianceCode(user.firmId, codeHash, userId);
+
+      await logAuditEvent(userId, "compliance_code_updated", {
+        metadata: { firmId: user.firmId },
+        severity: "critical",
+      });
+
+      res.json({ message: "Compliance code updated successfully" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Litigation Hold Management - Privileged operation for legal defensibility
   // This endpoint allows authorized users to apply or release litigation holds on cases
   // Litigation holds prevent automatic data deletion for cases involved in disputes
@@ -4829,7 +4873,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 app.post("/api/cases/:id/transcript/privileged-access", isAuthenticated, async (req: any, res, next) => {
   try {
     const userId = req.user.claims.sub;
-    const { redactionId, reasonNotes } = req.body;
+    const { redactionId, reasonNotes, complianceCode } = req.body;
 
     // Validate required fields
     if (!redactionId || typeof redactionId !== "string") {
@@ -4842,6 +4886,33 @@ app.post("/api/cases/:id/transcript/privileged-access", isAuthenticated, async (
     // Verify case ownership
     const caseData = await storage.getCase(req.params.id, userId);
     if (!caseData) return res.status(404).json({ message: "Case not found" });
+
+    const user = await storage.getUser(userId);
+    if (!user?.firmId) {
+      return res.status(400).json({ message: "No firm associated with your account" });
+    }
+
+    const firmProfile = await storage.getFirmProfile(user.firmId);
+    if (!firmProfile?.complianceCodeHash) {
+      return res.status(403).json({
+        message:
+          "Privileged content access requires a firm compliance code to be set. Please contact your COLP or managing partner.",
+      });
+    }
+
+    if (!complianceCode || typeof complianceCode !== "string") {
+      return res.status(400).json({ message: "complianceCode is required to access privileged content" });
+    }
+
+    const codeValid = await storage.verifyFirmComplianceCode(user.firmId, complianceCode);
+    if (!codeValid) {
+      await logAuditEvent(userId, "privileged_access_code_failed", {
+        caseId: req.params.id,
+        metadata: { redactionId, firmId: user.firmId },
+        severity: "critical",
+      });
+      return res.status(403).json({ message: "Incorrect compliance code" });
+    }
 
     // Get transcript
     const transcript = await storage.getTranscriptByCase(req.params.id, userId);

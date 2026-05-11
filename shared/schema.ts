@@ -494,6 +494,9 @@ export const firmProfile = pgTable("firm_profile", {
 
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
+  complianceCodeHash: text("compliance_code_hash"),
+  complianceCodeSetAt: timestamp("compliance_code_set_at"),
+  complianceCodeSetBy: varchar("compliance_code_set_by").references(() => users.id),
 });
 
 export const calendarIntegrations = pgTable("calendar_integrations", {

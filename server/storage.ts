@@ -544,7 +544,9 @@ export interface IStorage {
   getUserStatistics(): Promise<UserStatistics[]>;
   
   // Firm Profile methods
-  getFirmProfile(): Promise<FirmProfile | undefined>;
+  getFirmProfile(firmId?: string): Promise<FirmProfile | undefined>;
+  setFirmComplianceCode(firmId: string, codeHash: string, userId: string): Promise<void>;
+  verifyFirmComplianceCode(firmId: string, code: string): Promise<boolean>;
   upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile>;
   patchFirmProfileLogoUrl(logoUrl: string, updatedBy: string): Promise<FirmProfile>;
   getFirmRiskDigest(): Promise<FirmRiskDigest>;
@@ -775,6 +777,7 @@ export class MemStorage implements IStorage {
   private clientsMap: Map<string, Client>;
   private searchHistoryRecords: Map<string, SearchHistory>;
   private meetingSessionsMap: Map<string, MeetingSession>;
+  private firmProfiles: Map<string, FirmProfile>;
 
   constructor() {
     this.users = new Map();
@@ -792,6 +795,7 @@ export class MemStorage implements IStorage {
     this.clientVersionTrackingRecords = new Map();
     this.searchHistoryRecords = new Map();
     this.meetingSessionsMap = new Map();
+    this.firmProfiles = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -1872,11 +1876,33 @@ export class MemStorage implements IStorage {
     }).sort((a, b) => b.totalCases - a.totalCases);
   }
   
-  async getFirmProfile(): Promise<FirmProfile | undefined> {
-    // MemStorage: In-memory implementation returns undefined (not used in production)
-    return undefined;
+  async getFirmProfile(firmId?: string): Promise<FirmProfile | undefined> {
+    if (!firmId) return undefined;
+    return (
+      this.firmProfiles.get(firmId) ??
+      Array.from(this.firmProfiles.values()).find((p) => p.id === firmId)
+    );
   }
-  
+
+  async setFirmComplianceCode(firmId: string, codeHash: string, userId: string): Promise<void> {
+    const profile = Array.from(this.firmProfiles.values()).find((p) => p.id === firmId);
+    if (profile) {
+      this.firmProfiles.set(firmId, {
+        ...profile,
+        complianceCodeHash: codeHash,
+        complianceCodeSetAt: new Date(),
+        complianceCodeSetBy: userId,
+      });
+    }
+  }
+
+  async verifyFirmComplianceCode(firmId: string, code: string): Promise<boolean> {
+    const profile = Array.from(this.firmProfiles.values()).find((p) => p.id === firmId);
+    if (!profile?.complianceCodeHash) return false;
+    const bcrypt = await import("bcrypt");
+    return bcrypt.compare(code, profile.complianceCodeHash);
+  }
+
   async upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile> {
     throw new Error('Firm profile operations require database storage');
   }
@@ -3925,11 +3951,37 @@ export class DbStorage implements IStorage {
     return userStats.sort((a, b) => b.totalCases - a.totalCases);
   }
   
-  async getFirmProfile(): Promise<FirmProfile | undefined> {
+  async getFirmProfile(firmId?: string): Promise<FirmProfile | undefined> {
+    if (firmId) {
+      const result = await db.select().from(firmProfile).where(eq(firmProfile.id, firmId)).limit(1);
+      return result[0];
+    }
     const result = await db.select().from(firmProfile).limit(1);
     return result[0];
   }
-  
+
+  async setFirmComplianceCode(firmId: string, codeHash: string, userId: string): Promise<void> {
+    await db
+      .update(firmProfile)
+      .set({
+        complianceCodeHash: codeHash,
+        complianceCodeSetAt: new Date(),
+        complianceCodeSetBy: userId,
+      })
+      .where(eq(firmProfile.id, firmId));
+  }
+
+  async verifyFirmComplianceCode(firmId: string, code: string): Promise<boolean> {
+    const result = await db
+      .select({ complianceCodeHash: firmProfile.complianceCodeHash })
+      .from(firmProfile)
+      .where(eq(firmProfile.id, firmId))
+      .limit(1);
+    if (!result[0]?.complianceCodeHash) return false;
+    const bcrypt = await import("bcrypt");
+    return bcrypt.compare(code, result[0].complianceCodeHash);
+  }
+
   async upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile> {
     const existing = await this.getFirmProfile();
     if (existing) {
