@@ -1121,7 +1121,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
       // Get firm profile for branded SMS
       const firmProfile = await storage.getFirmProfile();
-      const firmName = firmProfile?.name || "LegalNote";
+      const firmName = firmProfile?.firmName || "LegalNote";
 
       // Send SMS
       const result = await sendVerificationCode(formattedPhone, verificationCode, firmName);
