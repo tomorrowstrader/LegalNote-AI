@@ -52,7 +52,9 @@ function getCallbackURL(): string {
     return `https://${domains[0]}/api/auth/google/callback`;
   }
   const port = process.env.PORT || "5000";
-  return `http://localhost:${port}/api/auth/google/callback`;
+  return process.env.APP_URL
+    ? `${process.env.APP_URL}/api/auth/google/callback`
+    : `http://localhost:${port}/api/auth/google/callback`;
 }
 
 export async function setupAuth(app: Express) {
