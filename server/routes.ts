@@ -133,26 +133,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUBLIC ROUTES (no authentication required)
-  
-  // Lead magnet PDF download (public - accessed after form submission)
-  app.get('/api/lead-magnet/download', generalApiLimiter, async (req, res, next) => {
-    try {
-      console.log('[LEAD-MAGNET] PDF download requested');
-      const firstName = req.query.name as string | undefined;
-      const { generateDefensibleRecordPDF } = await import('./services/leadMagnetPdf');
-      console.log('[LEAD-MAGNET] Generating PDF...');
-      const pdfBuffer = generateDefensibleRecordPDF({ recipientName: firstName || undefined });
-      console.log('[LEAD-MAGNET] PDF generated successfully, size:', pdfBuffer.length);
-      
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename="LegalNote-Defensible-Record-Guide.pdf"');
-      res.setHeader('Content-Length', pdfBuffer.length);
-      res.send(pdfBuffer);
-    } catch (error: any) {
-      console.error('[LEAD-MAGNET] PDF generation error:', error?.message || error, error?.stack);
-      next(error);
-    }
-  });
 
   // Serve the one-pager HTML explicitly
   app.get('/legalnote-one-pager.html', (req, res) => {
@@ -850,11 +830,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         if (source === 'lead_magnet') {
           console.log('[WAITLIST] Sending lead magnet email to:', email);
           const { sendLeadMagnetEmail } = await import('./email');
-          const { generateDefensibleRecordPDF } = await import('./services/leadMagnetPdf');
-          console.log('[WAITLIST] Generating PDF for email attachment...');
-          const pdfBuffer = generateDefensibleRecordPDF({ recipientName: firstName || undefined });
-          console.log('[WAITLIST] PDF generated, size:', pdfBuffer.length, 'bytes');
-          const result = await sendLeadMagnetEmail(email, firstName || 'there', pdfBuffer);
+          const result = await sendLeadMagnetEmail(email, firstName || 'there');
           console.log('[WAITLIST] Email result:', result);
           emailSent = result.success;
           if (!result.success) {

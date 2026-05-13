@@ -1037,13 +1037,14 @@ export async function sendWaitlistAdminNotification(params: WaitlistAdminNotific
 }
 
 /**
- * Sends a lead magnet email with "The Defensible Record" PDF guide
+ * Sends a lead magnet email for "The Defensible Record". PDF attachment is optional.
  */
 export async function sendLeadMagnetEmail(
   to: string, 
   firstName: string = 'there',
-  pdfBuffer: Buffer
+  pdfBuffer?: Buffer | null
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const hasPdf = Boolean(pdfBuffer && pdfBuffer.length > 0);
   const emailHtml = `
     <!DOCTYPE html>
     <html>
@@ -1142,7 +1143,7 @@ export async function sendLeadMagnetEmail(
       <div class="content">
         <h2>Hello ${firstName},</h2>
         
-        <p>Thank you for your interest in creating better legal documentation. Your guide is attached to this email.</p>
+        <p>Thank you for your interest in creating better legal documentation.${hasPdf ? ' Your guide is attached to this email.' : ''}</p>
         
         <div class="guide-box">
           <h3>The Defensible Record</h3>
@@ -1184,12 +1185,16 @@ export async function sendLeadMagnetEmail(
       },
       subject: 'Your Guide: The Defensible Record',
       html: emailHtml,
-      attachments: [
-        {
-          filename: 'The-Defensible-Record-LegalNote.pdf',
-          content: pdfBuffer,
-        },
-      ],
+      ...(hasPdf
+        ? {
+            attachments: [
+              {
+                filename: 'The-Defensible-Record-LegalNote.pdf',
+                content: pdfBuffer as Buffer,
+              },
+            ],
+          }
+        : {}),
     });
 
     if (error) {
