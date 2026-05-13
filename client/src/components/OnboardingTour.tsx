@@ -144,10 +144,8 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
       target: "body",
       content: (
         <div className="space-y-3">
-          <h2 className="text-2xl font-bold tracking-tight">You're All Set!</h2>
-          <p className="text-base leading-relaxed text-muted-foreground">
-            Start by creating your first case or press Ctrl+Alt+N to begin recording. Use the dashboard tabs to manage your cases and the search feature to find clients quickly.
-          </p>
+          <h2 className="text-2xl font-bold tracking-tight">Your audit trail is active.</h2>
+          <p className="text-muted-foreground">Create your first matter to begin generating contemporaneous, cryptographically-sealed attendance notes. Every recording, transcript and document is preserved to your audit trail from the moment of creation.</p>
         </div>
       ),
       placement: "center",
