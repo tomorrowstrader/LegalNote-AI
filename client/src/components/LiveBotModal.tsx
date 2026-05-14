@@ -295,6 +295,29 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
         }
       }
 
+      // Attempt to open the meeting in the platform's native client
+      if (meetingUrl) {
+        const lower = meetingUrl.toLowerCase();
+        let deepLink: string | null = null;
+        if (lower.includes('zoom.us') || lower.includes('zoom.com')) {
+          // Convert https://zoom.us/j/MEETINGID to zoommtg:// scheme
+          const match = meetingUrl.match(/zoom\.us\/j\/(\d+)/);
+          if (match) {
+            deepLink = `zoommtg://zoom.us/join?confno=${match[1]}`;
+          }
+        } else if (lower.includes('teams.microsoft.com') || lower.includes('teams.live.com')) {
+          deepLink = meetingUrl.replace('https://', 'msteams://');
+        }
+        // Google Meet has no reliable deep-link scheme — open in browser tab
+        if (deepLink) {
+          window.location.href = deepLink;
+          // Fallback to browser tab after 2s if scheme did not open
+          setTimeout(() => window.open(meetingUrl, '_blank'), 2000);
+        } else {
+          window.open(meetingUrl, '_blank');
+        }
+      }
+
       setStep("live");
       setElapsed(0);
     },
