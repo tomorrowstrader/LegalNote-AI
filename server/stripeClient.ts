@@ -6,6 +6,16 @@ import Stripe from 'stripe';
 let connectionSettings: any;
 
 async function getCredentials() {
+  // Direct env var path (Railway / non-Replit environments)
+  if (!process.env.REPLIT_CONNECTORS_HOSTNAME) {
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+    const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+    if (!secretKey) throw new Error('STRIPE_SECRET_KEY environment variable is required when not running on Replit');
+    if (!publishableKey) throw new Error('STRIPE_PUBLISHABLE_KEY environment variable is required when not running on Replit');
+    return { publishableKey, secretKey };
+  }
+
+  // Replit connector path (unchanged)
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? 'repl ' + process.env.REPL_IDENTITY
@@ -34,7 +44,7 @@ async function getCredentials() {
   });
 
   const data = await response.json();
-  
+
   connectionSettings = data.items?.[0];
 
   if (!connectionSettings || (!connectionSettings.settings.publishable || !connectionSettings.settings.secret)) {
