@@ -1062,18 +1062,24 @@ export default function DocumentViewer({
     },
   });
 
+  const [pendingRedaction, setPendingRedaction] = useState<{ start: number; end: number; textStart?: number; textEnd?: number; selectedText?: string } | null>(null);
+  const [redactionReasonType, setRedactionReasonType] = useState<string>('redaction_gdpr');
+  const [redactionReasonNotes, setRedactionReasonNotes] = useState<string>('');
+  const [showRedactionModal, setShowRedactionModal] = useState(false);
+
   // Redaction mutations
   const addRedactionMutation = useMutation({
-    mutationFn: async ({ start, end, reason, textStart, textEnd, selectedText }: { 
+    mutationFn: async ({ start, end, reasonType, reasonNotes, textStart, textEnd, selectedText }: { 
       start: number; 
       end: number; 
-      reason: string;
+      reasonType: string;
+      reasonNotes?: string;
       textStart?: number;
       textEnd?: number;
       selectedText?: string;
     }) => {
       return await apiRequest('POST', `/api/cases/${caseId}/transcript/redact`, { 
-        start, end, reason, textStart, textEnd, selectedText 
+        start, end, reasonType, reasonNotes, textStart, textEnd, selectedText 
       });
     },
     onSuccess: () => {
@@ -1131,7 +1137,23 @@ export default function DocumentViewer({
     textEnd?: number;
     selectedText?: string;
   }) => {
-    addRedactionMutation.mutate(redaction);
+    const { reason: _reason, ...pending } = redaction;
+    setPendingRedaction(pending);
+    setRedactionReasonType('redaction_gdpr');
+    setRedactionReasonNotes('');
+    setShowRedactionModal(true);
+  };
+
+  const confirmRedaction = () => {
+    if (!pendingRedaction) return;
+    addRedactionMutation.mutate({
+      ...pendingRedaction,
+      reasonType: redactionReasonType,
+      reasonNotes: redactionReasonNotes,
+    });
+    setShowRedactionModal(false);
+    setPendingRedaction(null);
+    setRedactionReasonNotes('');
   };
 
   const handleRemoveRedaction = (start: number, end: number, textStart?: number, textEnd?: number) => {
@@ -2423,6 +2445,60 @@ export default function DocumentViewer({
         sharedDocuments={['attendance_note', 'summary', 'client_care_letter', 'transcript']}
         onDownload={handleDownload}
       />
+
+      {showRedactionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-lg font-semibold mb-4">Select Redaction Reason</h3>
+            <div className="space-y-3 mb-4">
+              {[
+                { value: 'redaction_gdpr', label: 'GDPR — Personal Data' },
+                { value: 'redaction_privilege', label: 'Legal Privilege' },
+                { value: 'redaction_third_party', label: 'Third Party Information' },
+                { value: 'redaction_commercially_sensitive', label: 'Commercially Sensitive' },
+              ].map(option => (
+                <label key={option.value} className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="redactionReason"
+                    value={option.value}
+                    checked={redactionReasonType === option.value}
+                    onChange={e => setRedactionReasonType(e.target.value)}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">{option.label}</span>
+                </label>
+              ))}
+            </div>
+            {redactionReasonType === 'redaction_privilege' && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Privilege basis (required)</label>
+                <textarea
+                  value={redactionReasonNotes}
+                  onChange={e => setRedactionReasonNotes(e.target.value)}
+                  placeholder="Describe the privilege basis (min 10 characters)"
+                  className="w-full border rounded p-2 text-sm h-20 resize-none"
+                />
+              </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setShowRedactionModal(false); setPendingRedaction(null); }}
+                className="px-4 py-2 text-sm border rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRedaction}
+                disabled={redactionReasonType === 'redaction_privilege' && redactionReasonNotes.trim().length < 10}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+              >
+                Confirm Redaction
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
