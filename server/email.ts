@@ -40,9 +40,8 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
   } = params;
 
   // Construct the secure share link URL (publicly accessible, no authentication required)
-  const baseUrl = process.env.REPLIT_DOMAINS 
-    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-    : 'http://localhost:5000';
+  const baseUrl = process.env.APP_URL
+    || (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 'http://localhost:5000');
   const shareUrl = `${baseUrl}/share/${shareLinkId}`;
 
   // Build email HTML content
