@@ -9787,9 +9787,7 @@ ${firmName}`;
       if (meeting.clientEmail) {
         try {
           const { sendPreConsentEmail } = await import("./email");
-          const baseUrl = process.env.REPLIT_DOMAINS 
-            ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-            : 'http://localhost:5000';
+          const baseUrl = getCanonicalBaseUrl(req);
           await sendPreConsentEmail({
             to: meeting.clientEmail,
             recipientName: meeting.clientName || 'Client',
@@ -9944,9 +9942,7 @@ ${firmName}`;
       if (meeting.clientEmail) {
         try {
           const { sendPreConsentEmail } = await import("./email");
-          const baseUrl = process.env.REPLIT_DOMAINS 
-            ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-            : 'http://localhost:5000';
+          const baseUrl = getCanonicalBaseUrl(req);
           await sendPreConsentEmail({
             to: meeting.clientEmail,
             recipientName: meeting.clientName || 'Client',

@@ -40,8 +40,7 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
   } = params;
 
   // Construct the secure share link URL (publicly accessible, no authentication required)
-  const baseUrl = process.env.APP_URL
-    || (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 'http://localhost:5000');
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
   const shareUrl = `${baseUrl}/share/${shareLinkId}`;
 
   // Build email HTML content
@@ -215,9 +214,7 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
     firmProfile
   } = params;
 
-  const baseUrl = process.env.REPLIT_DOMAINS 
-    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-    : 'http://localhost:5000';
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
   const caseUrl = `${baseUrl}/cases/${caseId}`;
 
   const formattedDate = recordedAt.toLocaleDateString('en-GB', {
@@ -609,9 +606,7 @@ export async function sendConsentResponseNotification(params: SendConsentRespons
     caseId,
   } = params;
 
-  const baseUrl = process.env.REPLIT_DOMAINS 
-    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-    : 'http://localhost:5000';
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
 
   const statusLabel = responseStatus === 'granted' ? 'Consent Granted'
     : responseStatus === 'declined' ? 'Consent Declined'
@@ -701,9 +696,7 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
-  const emailBaseUrl = process.env.REPLIT_DOMAINS 
-    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-    : 'https://legalnote.ai';
+  const emailBaseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
   const logoUrl = `${emailBaseUrl}/assets/email/legalnote-wordmark.png`;
   const logoHtml = `<img src="${logoUrl}" alt="LegalNote" style="height: 36px; width: auto;" />`;
 
@@ -1297,9 +1290,7 @@ export async function sendAcknowledgementRequestEmail(
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const { to, clientName, caseTitle, matterReference, token, firmProfile } = params;
 
-  const baseUrl = process.env.REPLIT_DOMAINS
-    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-    : 'http://localhost:5000';
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
   const acknowledgeUrl = `${baseUrl}/acknowledge/${token}`;
 
   const firmName = firmProfile?.firmName || 'Your Solicitors';
@@ -1509,9 +1500,7 @@ function escapeHtml(str: string): string {
 export async function sendInvitationEmail(params: SendInvitationEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const { to, invitingUserName, firmName, suggestedRole, inviteToken } = params;
 
-  const baseUrl = process.env.REPLIT_DOMAINS
-    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-    : 'http://localhost:5000';
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
 
   const acceptUrl = `${baseUrl}/invite/accept/${inviteToken}`;
 
