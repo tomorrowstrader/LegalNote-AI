@@ -48,7 +48,7 @@ interface LiveBotModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type Step = "url" | "consent" | "live" | "processing" | "done" | "error";
+type Step = "select_case" | "url" | "consent" | "live" | "processing" | "done" | "error";
 type ConsentMode = "pre_confirmed" | "in_meeting";
 
 type BotStatus =
@@ -109,7 +109,7 @@ const PLATFORM_LABELS: Record<string, string> = {
 
 export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotModalProps) {
   const { toast } = useToast();
-  const [step, setStep] = useState<Step>("url");
+  const [step, setStep] = useState<Step>(caseId ? "url" : "select_case");
   const [meetingUrl, setMeetingUrl] = useState("");
   const [platform, setPlatform] = useState<string | null>(null);
   const [consentMode, setConsentMode] = useState<ConsentMode>("pre_confirmed");
@@ -138,6 +138,12 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
   const [postMeetingClient, setPostMeetingClient] = useState("");
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
   const [assignDone, setAssignDone] = useState(false);
+
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(caseId || null);
+  const [selectedCaseTitle, setSelectedCaseTitle] = useState<string>(caseTitle || "");
+  const [isCreatingCase, setIsCreatingCase] = useState(false);
+  const [newCaseTitle, setNewCaseTitle] = useState("");
+  const [newCaseClient, setNewCaseClient] = useState("");
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -175,11 +181,11 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
             clearInterval(recordingTimerRef.current!);
             if (data.importStatus === "awaiting_assignment") {
               setStep("done");
-              if (caseId) queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+              if (selectedCaseId ?? caseId) queryClient.invalidateQueries({ queryKey: [`/api/cases/${selectedCaseId ?? caseId}`] });
               queryClient.invalidateQueries({ queryKey: ["/api/recall/imports/unassigned"] });
             } else {
               setStep("processing");
-              if (caseId) queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+              if (selectedCaseId ?? caseId) queryClient.invalidateQueries({ queryKey: [`/api/cases/${selectedCaseId ?? caseId}`] });
             }
           }
 
@@ -193,7 +199,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
 
           if (data.importStatus === "completed") {
             setStep("done");
-            if (caseId) queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+            if (selectedCaseId ?? caseId) queryClient.invalidateQueries({ queryKey: [`/api/cases/${selectedCaseId ?? caseId}`] });
             queryClient.invalidateQueries({ queryKey: ["/api/recall/meetings"] });
           }
         } catch {
@@ -210,7 +216,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
       if (pollRef.current) clearInterval(pollRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [step, botId, caseId]);
+  }, [step, botId, caseId, selectedCaseId]);
 
   // Recording elapsed timer — starts only when bot is actually recording
   useEffect(() => {
@@ -227,7 +233,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
   // Cases for post-meeting assignment (only fetched when needed)
   const { data: cases } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
-    enabled: step === "done" && !caseId,
+    enabled: (step === "done" && !caseId) || step === "select_case",
   });
 
   const postAssignMutation = useMutation({
@@ -272,12 +278,27 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
     },
   });
 
+  const createCaseMutation = useMutation({
+    mutationFn: async (data: { title: string; clientName: string }) =>
+      apiRequest("POST", "/api/cases", data),
+    onSuccess: async (newCase: any) => {
+      setSelectedCaseId(newCase.id);
+      setSelectedCaseTitle(newCase.title);
+      setIsCreatingCase(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      setStep("url");
+    },
+    onError: (error: any) => {
+      toast({ title: "Could not create case", description: error.message, variant: "destructive" });
+    },
+  });
+
   const deployMutation = useMutation({
     mutationFn: async () => {
       return apiRequest<{ importId: string; botId: string; platform: string; status: string }>(
         "POST",
         "/api/recall/bot",
-        { meetingUrl, ...(caseId ? { caseId } : {}), consentMode }
+        { meetingUrl, ...((selectedCaseId ?? caseId) ? { caseId: selectedCaseId ?? caseId } : {}), consentMode }
       );
     },
     onSuccess: async (data) => {
@@ -285,7 +306,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
       setBotId(data.botId);
 
       // For pre_confirmed path, log consent immediately (only for client meetings)
-      if (consentMode === "pre_confirmed" && caseId) {
+      if (consentMode === "pre_confirmed" && (selectedCaseId ?? caseId)) {
         try {
           await apiRequest("PATCH", `/api/recall/import/${data.importId}/consent`, {
             userConfirmsVerbalConsent: true,
@@ -361,7 +382,8 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
         consentObtainedRef.current = true;
         setConsentObtained(true);
         setConsentRecordedElapsed(recordingElapsed); // freeze display time at confirmation
-        queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/live-import`] });
+        const cid = selectedCaseId ?? caseId;
+        if (cid) queryClient.invalidateQueries({ queryKey: [`/api/cases/${cid}/live-import`] });
       } else {
         setConsentDeclined(true);
       }
@@ -414,7 +436,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
   };
 
   const resetState = () => {
-    setStep("url");
+    setStep(caseId ? "url" : "select_case");
     setMeetingUrl("");
     setPlatform(null);
     setConsentMode("pre_confirmed");
@@ -436,6 +458,11 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
     if (pollRef.current) clearInterval(pollRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    setSelectedCaseId(caseId || null);
+    setSelectedCaseTitle(caseTitle || "");
+    setIsCreatingCase(false);
+    setNewCaseTitle("");
+    setNewCaseClient("");
   };
 
   const formatElapsed = (s: number) => {
@@ -459,14 +486,99 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Video className="w-5 h-5" />
-            Join with LegalNote
+            {step === "select_case" ? "Select matter" : "Join meeting with LegalNote"}
           </DialogTitle>
           <DialogDescription>
-            {caseTitle
-              ? `Send the LegalNote bot to join your video call and record it for "${caseTitle}"`
+            {caseTitle || selectedCaseTitle
+              ? `Send the LegalNote bot to join your video call and record it for "${caseTitle || selectedCaseTitle}"`
               : "Send the LegalNote bot to join your video call. You can assign the recording to a matter after the call ends."}
           </DialogDescription>
         </DialogHeader>
+
+        {step === "select_case" && (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <p className="text-sm text-muted-foreground">
+                Which matter is this meeting for?
+              </p>
+            </div>
+
+            {!isCreatingCase ? (
+              <>
+                <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+                  {cases?.map((c: any) => (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedCaseId(c.id);
+                        setSelectedCaseTitle(c.title);
+                        setStep("url");
+                      }}
+                      className="flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-md border text-left hover:bg-muted/50 transition-colors"
+                    >
+                      <span className="text-sm font-medium">{c.title}</span>
+                      {c.clientName && (
+                        <span className="text-xs text-muted-foreground">{c.clientName}</span>
+                      )}
+                    </button>
+                  ))}
+                  {!cases?.length && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No cases found</p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={() => setIsCreatingCase(true)}
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Create new matter
+                </Button>
+              </>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="new-case-title">Matter name</Label>
+                  <Input
+                    id="new-case-title"
+                    placeholder="e.g. Smith v Jones — Conveyancing"
+                    value={newCaseTitle}
+                    onChange={(e) => setNewCaseTitle(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="new-case-client">Client name</Label>
+                  <Input
+                    id="new-case-client"
+                    placeholder="e.g. Mr James Smith"
+                    value={newCaseClient}
+                    onChange={(e) => setNewCaseClient(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setIsCreatingCase(false)}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    disabled={!newCaseTitle.trim() || !newCaseClient.trim() || createCaseMutation.isPending}
+                    onClick={() => createCaseMutation.mutate({ title: newCaseTitle.trim(), clientName: newCaseClient.trim() })}
+                  >
+                    {createCaseMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      "Create & continue"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {step === "url" && (
           <div className="space-y-5">
@@ -811,7 +923,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
             <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
               <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
-            {caseId ? (
+            {(selectedCaseId ?? caseId) ? (
               <div className="text-center">
                 <p className="font-semibold">Documents ready</p>
                 <p className="text-sm text-muted-foreground mt-1">Your attendance note and transcript have been added to the matter record.</p>
