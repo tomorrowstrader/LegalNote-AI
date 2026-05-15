@@ -2381,6 +2381,503 @@ Duty Solicitor`,
   }
 }
 
+// ——— CASE 3: Marcus Hall — Family Children Arrangements — Private Demo Matter ———
+
+async function seedCase3Hall(userId: string) {
+  const [client] = await db.insert(clients).values({
+    name: "Marcus Hall",
+    email: "marcus.hall@hallsurveyors.co.uk",
+    phone: "07712 334 891",
+    address: "47 Thornton Road, London SE22 8PQ",
+    amlRiskLevel: "medium",
+    amlRiskLastReviewed: daysAgo(3),
+    createdBy: userId,
+  }).returning();
+
+  const sessionDate = daysAgo(2);
+  const deadlineDate = new Date(Date.now() + 12 * 24 * 60 * 60 * 1000);
+
+  const [newCase] = await db.insert(cases).values({
+    title: "Re H (Contact) — Hall v Hall",
+    clientName: "Marcus Hall",
+    clientId: client.id,
+    matterReference: "DEMO_FAM/2024/1847",
+    createdBy: userId,
+    status: "review_required",
+    priority: "high",
+    sourceType: "audio",
+    practiceArea: "family_children_arrangements",
+    riskLevel: "high",
+    conflictCheckCompleted: true,
+    conflictCheckNote: "Diane Hall (opposing party) not a client of this firm. No connection to opposing solicitors on current files. No conflict identified.",
+    deadline: deadlineDate,
+    litigationHold: true,
+    litigationHoldAppliedAt: daysAgo(14),
+    litigationHoldReason: "Active fact-finding hearing. All session records, transcripts, and attendance notes to be preserved pending court disclosure assessment.",
+    aiProcessingMetadata: {
+      amlTriggers: [
+        {
+          label: "Undisclosed financial account",
+          category: "asset_concealment",
+          excerpt: "There's a business account that I opened last year. I didn't include it on the Form E."
+        },
+        {
+          label: "Unexplained overseas payments",
+          category: "source_of_funds",
+          excerpt: "There have been payments into that account from a contact abroad — I haven't documented the source formally."
+        }
+      ]
+    },
+  }).returning();
+
+  // Meeting session — 53 minutes
+  const [session] = await db.insert(meetingSessions).values({
+    caseId: newCase.id,
+    recordingType: "full_meeting",
+    sessionTitle: "Initial Attendance — Scott Schedule Review & Hearing Preparation",
+    startedAt: sessionDate,
+    durationSeconds: 3180,
+    status: "completed",
+    createdBy: userId,
+  }).returning();
+
+  // Consent log — exact wording from ConsentModal.tsx disclaimerScript
+  await db.insert(consentLogs).values({
+    caseId: newCase.id,
+    audioRecordingId: null,
+    solicitorId: userId,
+    consentGiven: true,
+    consentTimestamp: new Date(sessionDate.getTime() + 68 * 1000),
+    disclaimerScriptVersion: "v2.1",
+    disclaimerWordingText: "I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?",
+    consentModality: "verbal_recorded",
+    lawfulBasis: "consent",
+    recordingPurpose: "Attendance note production and evidence of proper client care",
+  });
+
+  // Full meeting transcript
+  const transcriptContent = `SPEAKER 1 (Solicitor): Good morning Mr Hall, thank you for coming in. Before we start I just need to run through the recording consent with you. I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?
+
+SPEAKER 2 (Marcus Hall): Yes, I consent. That's fine.
+
+SPEAKER 1 (Solicitor): Thank you, that's noted. So we have a lot to get through today. You've received the Scott Schedule of allegations from Diane's solicitors — I sent it to you last Thursday and I've worked through it carefully. There are eight allegations. Six relate to alleged coercive and controlling behaviour, two allege physical incidents. The fact-finding hearing is fourteen days away. Our counter-schedule needs to be filed within seven days of today. I want to be direct with you — this is a tight window and I need your full and candid instructions on every single allegation. I cannot draft an effective counter-schedule without that. Is that understood?
+
+SPEAKER 2 (Marcus Hall): Completely. I have nothing to hide. Everything in that schedule is either taken completely out of context or it is simply untrue.
+
+SPEAKER 1 (Solicitor): Good. Let's go through them systematically. Allegation one — financial control. The schedule alleges that you controlled Diane's access to money, required her to account for purchases, and that this behaviour was persistent from approximately 2021 through to separation in March of this year. What is your response?
+
+SPEAKER 2 (Marcus Hall): It is completely false. We had a joint account and she had her own personal account that I have never had access to and never wanted access to. The only thing that comes close to what they're describing is a conversation we had in early 2023. She had been on a work trip to Barcelona, then two weeks later we went on a family holiday together, and then about a month after that her sister got married in Edinburgh and she was up there for four days. So in about eight weeks she'd had three trips away. I'm self-employed — I invoice and I get paid when I get paid, there's no salary. I said to her, could we ease off on the big purchases for a couple of months while I got the credit card paid down. I mentioned specifically a coat she'd been looking at online — I said could you leave that for now. That was a single conversation. That is the entirety of the financial control allegation.
+
+SPEAKER 1 (Solicitor): Was any part of that conversation in writing? A message, an email?
+
+SPEAKER 2 (Marcus Hall): Yes, I sent her a WhatsApp. I remember doing it because I wanted to explain myself properly rather than it turning into an argument.
+
+SPEAKER 1 (Solicitor): I need that message urgently. Before we finish today I'm going to give you a full list of documents I need from you, but that WhatsApp goes to the top of it. I also need your personal bank statements and card statements for the full year of 2023 to show there was no systematic restriction on her accounts. If her spending was unaffected throughout that period, which I take it it was, that evidence directly counters allegation one.
+
+SPEAKER 2 (Marcus Hall): Her accounts were completely untouched. I've genuinely never seen her statements in my life.
+
+SPEAKER 1 (Solicitor): Good. Allegation two — social isolation. The schedule says you prevented her from maintaining friendships and family relationships, that you created an atmosphere in which she felt unable to socialise without your approval. Your position?
+
+SPEAKER 2 (Marcus Hall): It's nonsense. She has an extremely active social life. The Barcelona trip I just mentioned — that was with colleagues from her firm, nothing to do with me. She went to her parents most Sundays. She had a regular Wednesday evening with a group of friends from university. I never once prevented her from going anywhere or seeing anyone.
+
+SPEAKER 1 (Solicitor): Were there any occasions during the marriage where you expressed concern or made any remark about who she was spending time with?
+
+SPEAKER 2 (Marcus Hall): There was one occasion, probably about eighteen months before we separated. She started spending quite a lot of time with a new group of people I didn't know — work contacts who'd become social contacts. I asked about it once because it seemed like a change in her routine. I wasn't accusatory. I was just asking. That was one conversation, it didn't go anywhere, and it was never raised again.
+
+SPEAKER 1 (Solicitor): I'm flagging that now because opposing counsel will characterise it as evidence of monitoring and control. We need to get ahead of it in the counter-schedule with the full context. Allegation three — this is the most operationally significant because it is the direct basis for the arrest in November. The allegation relates to an incident in which you are said to have used a shared location-sharing application to track Diane's movements without her knowledge or consent over an extended period. What happened?
+
+SPEAKER 2 (Marcus Hall): When Logan was born — he's nine now, so this goes back a while — we set up a shared location on our phones. It was completely mutual, it was her suggestion actually. The idea was that if either of us was running late or if there was a problem with the car or something like that, the other person would know where we were. We both had access to each other's location. I never hid that I could see hers. She could see mine. It was just a practical thing.
+
+SPEAKER 1 (Solicitor): And when did this become an issue?
+
+SPEAKER 2 (Marcus Hall): In the months before we separated she started switching her location off. I didn't make a big deal of it. I noticed but I didn't say anything most of the time. On one occasion — I think it was about six weeks before she left — she'd said she was going to her parents for the afternoon with the boys. I happened to glance at the app and she wasn't showing as being at her parents' address. I rang her to check where she was. She got very defensive. That was it. That's the monitoring allegation.
+
+SPEAKER 1 (Solicitor): Right. And the location sharing arrangement — was it ever documented? A message where she suggested it, anything in writing at all?
+
+SPEAKER 2 (Marcus Hall): I'd have to look back but yes — she set it up, she sent me the link to enable it. That'll be in my phone somewhere. That message is everything — it shows the arrangement was mutual and consensual from the outset.
+
+SPEAKER 1 (Solicitor): Find that message. That is potentially the single most important document in this case. If we can show the location sharing was established by her, consensually, years before any allegation arose, the framing of the allegation collapses. Phone records and the original setup message both go on the document list. The mens rea argument here is strong — you cannot coerce someone using an arrangement they voluntarily created. We will develop that fully in the counter-schedule.
+
+SPEAKER 2 (Marcus Hall): I just — I genuinely thought it was normal. We both used it. It was never secret.
+
+SPEAKER 1 (Solicitor): I understand. And that is exactly the kind of context that fact-finding judges need to hear — not just the act but the full history of it. Allegation four — that you demeaned Diane in front of the children. Your position?
+
+SPEAKER 2 (Marcus Hall): Categorically false. I have never spoken badly about Diane in front of the boys. Not once. Logan is nine and Ethan is six — they adore her. I would never use them as a way of hurting her. That is not who I am.
+
+SPEAKER 1 (Solicitor): Is there anyone — a family member, a friend, a school contact — who could speak to the quality of the co-parenting relationship prior to separation? Character evidence on this point could be valuable.
+
+SPEAKER 2 (Marcus Hall): My sister spent a lot of time with us. She'd be willing to provide a statement. And Logan's class teacher — we both went to every parents' evening together until about four months before the separation. She'd have seen us interact.
+
+SPEAKER 1 (Solicitor): Both of those are worth pursuing. I'll note them. Allegations five and six are the physical allegations — I want to take these carefully and in detail. Allegation five. The schedule says that in January of this year during an argument in the hallway you pushed Diane against the wall causing her to hurt her shoulder. What is your account of that incident?
+
+SPEAKER 2 (Marcus Hall): There was an argument in January, yes. It had been building for weeks — things were very bad between us by that point. We were in the hallway and I will be honest with you, I put my hands on her shoulders during the argument. I was not trying to hurt her. I was not trying to frighten her. The argument had escalated and I was trying to — I don't know, trying to stop it going further. I immediately let go. She didn't say she was hurt. She didn't say anything about her shoulder. She went upstairs and the argument ended. I was not proud of it. But it was not an assault.
+
+SPEAKER 1 (Solicitor): I need you to understand something. The distinction between steadying someone, restraining someone, and pushing someone is going to be argued extremely vigorously by their barrister. The judge will make a finding of fact based on credibility. I am not telling you your account is wrong — I am telling you it needs to be framed with complete precision in your witness statement. Physical contact during an argument, even when not intended to harm, is something a court takes seriously. Did anyone witness this?
+
+SPEAKER 2 (Marcus Hall): No. The boys were at my parents for the afternoon.
+
+SPEAKER 1 (Solicitor): Did you say anything to Diane after the incident — a message, an apology of any kind?
+
+SPEAKER 2 (Marcus Hall): I sent her a message that evening. I said I was sorry the argument had got out of hand. I didn't say I'd hurt her — because I didn't believe I had — but I apologised for the argument.
+
+SPEAKER 1 (Solicitor): I need that message. Opposing counsel will present the word sorry as an admission of assault. We need to be able to show the precise wording and the precise context — you were apologising for the argument escalating, not for causing injury. That distinction matters and I need the message to make it. Allegation six — verbal intimidation in October last year. The allegation is that you shouted at Diane in front of Ethan and made threatening remarks. Your account?
+
+SPEAKER 2 (Marcus Hall): We had a row. Ethan was in the room — I accept that, I'm not proud of it. I raised my voice. I did not make any threat. I said things I regret. It was one incident in a marriage that was falling apart and I handled it badly. But there was no threat and there was no intent to intimidate.
+
+SPEAKER 1 (Solicitor): I am going to recommend a specific approach to that allegation. We do not deny it. Denying it and being contradicted by any evidence — a message, a diary entry, anything Ethan may have said to anyone — would damage your credibility across the entire counter-schedule. What we do instead is acknowledge that an argument occurred, that it was heated and that Ethan was present which you regret, and that it was an isolated incident in the context of a marriage under severe strain. We frame it as a failure of composure in an isolated moment, not a pattern of intimidating behaviour. Judges respond well to a witness who is honest about their own failings. It makes the denials credible.
+
+SPEAKER 2 (Marcus Hall): That feels right. I'd rather be honest about it than have it blow up in court.
+
+SPEAKER 1 (Solicitor): Good. Now — bail conditions. The CPS discontinued the criminal matter against you six weeks ago. Are you operating under written confirmation that the bail conditions have been discharged, or just a verbal indication?
+
+SPEAKER 2 (Marcus Hall): Just verbal. The officer I dealt with said they'd been dropped when the case was discontinued but I haven't had anything in writing.
+
+SPEAKER 1 (Solicitor): That is not acceptable. Verbal confirmation from an officer carries no legal weight. If you are technically still subject to bail conditions that have not been formally discharged in writing, that has direct implications for the contact arrangements and potentially for your position at the hearing. I am writing to the custody sergeant and the CPS today requesting written confirmation. Until I give you that confirmation in writing, do not assume the conditions are lifted. This is urgent.
+
+SPEAKER 2 (Marcus Hall): I genuinely didn't realise it needed to be in writing. Nobody told me that.
+
+SPEAKER 1 (Solicitor): They rarely do. It falls through the gaps. The contact position — you are currently at Family Connections in Lewisham, two hours alternate Saturdays. How are the sessions going?
+
+SPEAKER 2 (Marcus Hall): They are — they're difficult to describe. The boys are brilliant. They come in, they're happy, they're relaxed. Logan always wants to play this card game we have, Ethan just wants to sit close. The contact workers have said both times that the boys are settled throughout. But sitting in that room knowing that is the only time I get with them — it is very hard.
+
+SPEAKER 1 (Solicitor): The contact workers' observations are important evidence. I am going to request the contemporaneous notes from both sessions formally before the hearing. If the workers are consistently recording the children as settled and happy in your company, that directly informs the welfare assessment and the court's view of the contact arrangements going forward. There was also an incident at the last handover that you flagged to me last week — walk me through what happened.
+
+SPEAKER 2 (Marcus Hall): When Diane brought the boys for the last session Ethan came in absolutely fine but Logan was withdrawn and quiet in a way I hadn't seen before. He's usually the first through the door. He warmed up after about fifteen minutes and by the end of the session he was completely himself again. But at the handover I could see through the window that Diane was speaking to him outside — quite intently, crouching down to his level — in the minute before she sent him in. The contact worker was standing nearby. I don't know if she made a note of it.
+
+SPEAKER 1 (Solicitor): I am writing to Diane's solicitors today about that incident and asking that communication to the children immediately prior to handover be restricted to neutral matters. I am also asking the contact centre manager to confirm whether the worker made a contemporaneous note and to ensure one is made going forward. That pattern of behaviour — a child arriving subdued and recovering once in your company — is directly relevant to any welfare argument and I want it documented now, before the hearing, not raised for the first time in submissions.
+
+SPEAKER 2 (Marcus Hall): There's something else I need to tell you and I've been trying to work out how to say it. At the end of the last session, when the boys were getting their coats on to leave, Logan said something to Ethan — he didn't realise I could hear. He said that when they got home Mummy had said they had to tell her everything that happened in the session. He said it matter-of-factly, like it was a normal instruction. Then he noticed I was nearby and he went quiet.
+
+SPEAKER 1 (Solicitor): That is a significant disclosure. A parent systematically debriefing children after contact sessions and directing them to report back is a recognised form of alienating behaviour and it has a direct bearing on the welfare assessment. I need you to write down exactly what Logan said, as close to his precise words as you can recall, and send it to me today. I want that note dated and timed and in my file before I write to opposing solicitors this afternoon. Do not discuss what Logan said with the boys and do not raise it with Diane directly or through any other channel. Leave it entirely with me.
+
+SPEAKER 2 (Marcus Hall): I will. I've been sitting on it for a week because I wasn't sure if I was overreacting.
+
+SPEAKER 1 (Solicitor): You are not overreacting. And the fact that you've kept it to yourself and brought it to me rather than acting on it independently reflects well on you. Now. I need to raise something about the financial disclosure. When I reviewed your Form E last week I noticed two business accounts listed. But in a call we had about three weeks ago you mentioned in passing that you had opened a third account last year for a specific project. I went back to check and that account is not on the Form E. Can you explain that?
+
+SPEAKER 2 (Marcus Hall): I genuinely forgot about it. It was opened very quickly for one project and I've barely touched it since. There is about eighteen thousand pounds in it. There are also some payments in from a contact based overseas — a client in Bahrain — and I haven't got the paperwork organised for those.
+
+SPEAKER 1 (Solicitor): Listen to me carefully. Non-disclosure of a financial account in family proceedings is a serious matter. It can attract costs orders, adverse findings by the court, and in significant cases contempt proceedings. I am not suggesting that is where we are today, but I would be failing in my professional duty if I did not put that to you in the clearest possible terms. That account needs to go on an amended Form E before the hearing. I will draft the amendment but I need full statements for that account from the date it was opened to today. As for the Bahrain payments — I need to understand the source of funds. You need to be in a position to produce documentation showing these are legitimate business receipts. If you cannot evidence that, we have a problem that extends beyond these proceedings and I will need to take separate instructions on it. I need everything on my desk by the end of this week without exception.
+
+SPEAKER 2 (Marcus Hall): It is all legitimate — it's invoiced work, I just haven't pulled the paperwork together. I'll get it to you by Thursday.
+
+SPEAKER 1 (Solicitor): Thursday is acceptable. Do not let it slip past Thursday. Now — the witness statement. You need to understand what kind of statement wins a fact-finding hearing and what kind loses it. The statements that damage clients are the ones that read as attacks on the other party. Judges in these hearings have seen hundreds of them. A statement that spends four pages cataloguing everything wrong with Diane as a person tells the judge more about you than it does about her. What wins is a statement that is precise, measured, factual, and child-focused. You address each allegation directly. You give your account of the specific incident. You acknowledge where appropriate — allegation six, for instance. And you do it in a tone that makes the judge think this is someone who is composed and honest and who has put their children first throughout this process. That is the standard we are writing to. Do you understand that?
+
+SPEAKER 2 (Marcus Hall): Yes. I do. I want to get this right.
+
+SPEAKER 1 (Solicitor): Good. I will have a draft to you within three days. You review it carefully and send me any corrections immediately — we do not have time for extended back-and-forth. I need your approved statement within five days of today. Let me confirm what happens from my side today. I am writing to opposing solicitors about the handover incident. I am writing to the CPS and custody sergeant about the bail conditions. I am writing to Family Connections to request the contact workers' notes. I am beginning the counter-schedule. And I need from you — the WhatsApp from early 2023 about the spending conversation, the original location-sharing setup message, the WhatsApp sent on the evening of the January incident, a note of what Logan said at the end of the last contact session sent to me today, full statements for the undisclosed business account, and documentation for the Bahrain payments. All of that by Thursday at the latest, the note about Logan today. Is all of that achievable?
+
+SPEAKER 2 (Marcus Hall): Yes. All of it.
+
+SPEAKER 1 (Solicitor): One last thing before we close. The boys — how are they in general? Not at contact, day to day.
+
+SPEAKER 2 (Marcus Hall): Logan is not himself. He's quieter. His class teacher sent me a message last week to say he's been disengaged — she described it as unlike him, which it is. He was always a confident, chatty kid. Ethan is younger and I think he processes things differently at six — he seems more resilient on the surface but I watch him carefully. What worries me most is what they're being told at home. I don't know what is said to them about me when I'm not there and that is the thing I find hardest to sit with.
+
+SPEAKER 1 (Solicitor): That concern needs to be in your witness statement. I want it expressed in those terms — not as a criticism of Diane, but as a parent articulating genuine, specific, evidenced concern for their children's emotional state. The teacher's message is important. If she gets in touch again or if there is any school communication about either of the boys' wellbeing, I want to know immediately. Keep a note of anything the boys say to you at contact that concerns you. Date it, time it, keep it contemporaneous. Is there anything else you want to raise before we close today?
+
+SPEAKER 2 (Marcus Hall): No. I think that covers everything. Thank you. I have to say I feel a lot clearer than I did walking in here.
+
+SPEAKER 1 (Solicitor): Good. That is what today was for. You will have the draft counter-schedule from me within three days. Review it carefully and come back to me immediately with any corrections. Thank you for coming in Mr Hall.`;
+
+  const contentHash = `demo-hash-hall-${Date.now()}`;
+
+  const [transcript] = await db.insert(transcripts).values({
+    caseId: newCase.id,
+    meetingSessionId: session.id,
+    content: transcriptContent,
+    utterances: [
+      { speaker: "SPEAKER_1", text: "Good morning Mr Hall, thank you for coming in...", start: 0, end: 68 },
+      { speaker: "SPEAKER_2", text: "Yes, I consent. That's fine.", start: 68, end: 95 },
+      { speaker: "SPEAKER_1", text: "Thank you, that's noted. So we have a lot to get through today...", start: 95, end: 440 },
+      { speaker: "SPEAKER_2", text: "Completely. I have nothing to hide...", start: 440, end: 530 },
+      { speaker: "SPEAKER_1", text: "Good. Let's go through them systematically. Allegation one — financial control...", start: 530, end: 740 },
+      { speaker: "SPEAKER_2", text: "It is completely false. We had a joint account...", start: 740, end: 1240 },
+      { speaker: "SPEAKER_1", text: "Was any part of that conversation in writing?", start: 1240, end: 1310 },
+      { speaker: "SPEAKER_2", text: "Yes, I sent her a WhatsApp...", start: 1310, end: 1380 },
+      { speaker: "SPEAKER_1", text: "I need that message urgently...", start: 1380, end: 1620 },
+      { speaker: "SPEAKER_2", text: "Her accounts were completely untouched...", start: 1620, end: 1680 },
+      { speaker: "SPEAKER_1", text: "Good. Allegation two — social isolation...", start: 1680, end: 1880 },
+      { speaker: "SPEAKER_2", text: "It's nonsense. She has an extremely active social life...", start: 1880, end: 2140 },
+      { speaker: "SPEAKER_1", text: "Were there any occasions during the marriage where you expressed concern...", start: 2140, end: 2230 },
+      { speaker: "SPEAKER_2", text: "There was one occasion, probably about eighteen months before we separated...", start: 2230, end: 2400 },
+      { speaker: "SPEAKER_1", text: "I'm flagging that now because opposing counsel will characterise it...", start: 2400, end: 2560 },
+      { speaker: "SPEAKER_2", text: "When Logan was born — he's nine now, so this goes back a while...", start: 2560, end: 2860 },
+      { speaker: "SPEAKER_1", text: "And when did this become an issue?", start: 2860, end: 2900 },
+      { speaker: "SPEAKER_2", text: "In the months before we separated she started switching her location off...", start: 2900, end: 3100 },
+      { speaker: "SPEAKER_1", text: "Right. And the location sharing arrangement — was it ever documented?", start: 3100, end: 3200 },
+      { speaker: "SPEAKER_2", text: "I'd have to look back but yes — she set it up, she sent me the link...", start: 3200, end: 3360 },
+      { speaker: "SPEAKER_1", text: "Find that message. That is potentially the single most important document in this case...", start: 3360, end: 3680 },
+      { speaker: "SPEAKER_2", text: "I just — I genuinely thought it was normal...", start: 3680, end: 3760 },
+      { speaker: "SPEAKER_1", text: "I understand. And that is exactly the kind of context that fact-finding judges need to hear...", start: 3760, end: 3920 },
+      { speaker: "SPEAKER_2", text: "Categorically false. I have never spoken badly about Diane in front of the boys...", start: 3920, end: 4080 },
+      { speaker: "SPEAKER_1", text: "Is there anyone who could speak to the quality of the co-parenting relationship?", start: 4080, end: 4180 },
+      { speaker: "SPEAKER_2", text: "My sister spent a lot of time with us. She'd be willing to provide a statement...", start: 4180, end: 4320 },
+      { speaker: "SPEAKER_1", text: "Both of those are worth pursuing. Allegation five — the physical allegations...", start: 4320, end: 4520 },
+      { speaker: "SPEAKER_2", text: "There was an argument in January, yes...", start: 4520, end: 4820 },
+      { speaker: "SPEAKER_1", text: "I need you to understand something. The distinction between steadying someone...", start: 4820, end: 5100 },
+      { speaker: "SPEAKER_2", text: "No. The boys were at my parents for the afternoon.", start: 5100, end: 5160 },
+      { speaker: "SPEAKER_1", text: "Did you say anything to Diane after the incident?", start: 5160, end: 5220 },
+      { speaker: "SPEAKER_2", text: "I sent her a message that evening. I said I was sorry the argument had got out of hand...", start: 5220, end: 5360 },
+      { speaker: "SPEAKER_1", text: "I need that message. Opposing counsel will present the word sorry as an admission...", start: 5360, end: 5520 },
+      { speaker: "SPEAKER_2", text: "We had a row. Ethan was in the room — I accept that...", start: 5520, end: 5680 },
+      { speaker: "SPEAKER_1", text: "I am going to recommend a specific approach to that allegation...", start: 5680, end: 5960 },
+      { speaker: "SPEAKER_2", text: "That feels right. I'd rather be honest about it than have it blow up in court.", start: 5960, end: 6040 },
+      { speaker: "SPEAKER_1", text: "Good. Now — bail conditions...", start: 6040, end: 6260 },
+      { speaker: "SPEAKER_2", text: "Just verbal. The officer I dealt with said they'd been dropped...", start: 6260, end: 6380 },
+      { speaker: "SPEAKER_1", text: "That is not acceptable. Verbal confirmation from an officer carries no legal weight...", start: 6380, end: 6680 },
+      { speaker: "SPEAKER_2", text: "I genuinely didn't realise it needed to be in writing...", start: 6680, end: 6740 },
+      { speaker: "SPEAKER_1", text: "They rarely do. It falls through the gaps. The contact position...", start: 6740, end: 6940 },
+      { speaker: "SPEAKER_2", text: "They are — they're difficult to describe. The boys are brilliant...", start: 6940, end: 7180 },
+      { speaker: "SPEAKER_1", text: "The contact workers' observations are important evidence...", start: 7180, end: 7440 },
+      { speaker: "SPEAKER_2", text: "When Diane brought the boys for the last session Ethan came in absolutely fine but Logan was withdrawn...", start: 7440, end: 7740 },
+      { speaker: "SPEAKER_1", text: "I am writing to Diane's solicitors today about that incident...", start: 7740, end: 8020 },
+      { speaker: "SPEAKER_2", text: "There's something else I need to tell you...", start: 8020, end: 8340 },
+      { speaker: "SPEAKER_1", text: "That is a significant disclosure. A parent systematically debriefing children after contact sessions...", start: 8340, end: 8680 },
+      { speaker: "SPEAKER_2", text: "I will. I've been sitting on it for a week because I wasn't sure if I was overreacting.", start: 8680, end: 8780 },
+      { speaker: "SPEAKER_1", text: "You are not overreacting. Now. I need to raise something about the financial disclosure...", start: 8780, end: 8980 },
+      { speaker: "SPEAKER_2", text: "I genuinely forgot about it. It was opened very quickly for one project...", start: 8980, end: 9200 },
+      { speaker: "SPEAKER_1", text: "Listen to me carefully. Non-disclosure of a financial account in family proceedings...", start: 9200, end: 9680 },
+      { speaker: "SPEAKER_2", text: "It is all legitimate — it's invoiced work. I'll get it to you by Thursday.", start: 9680, end: 9780 },
+      { speaker: "SPEAKER_1", text: "Thursday is acceptable. Do not let it slip. Now — the witness statement...", start: 9780, end: 10360 },
+      { speaker: "SPEAKER_2", text: "Yes. I do. I want to get this right.", start: 10360, end: 10420 },
+      { speaker: "SPEAKER_1", text: "Good. I will have a draft to you within three days...", start: 10420, end: 10980 },
+      { speaker: "SPEAKER_2", text: "Yes. All of it.", start: 10980, end: 11020 },
+      { speaker: "SPEAKER_1", text: "One last thing before we close. The boys — how are they in general?", start: 11020, end: 11100 },
+      { speaker: "SPEAKER_2", text: "Logan is not himself. He's quieter...", start: 11100, end: 11420 },
+      { speaker: "SPEAKER_1", text: "That concern needs to be in your witness statement...", start: 11420, end: 11720 },
+      { speaker: "SPEAKER_2", text: "No. I think that covers everything. Thank you...", start: 11720, end: 11840 },
+      { speaker: "SPEAKER_1", text: "Good. That is what today was for. You will have the draft counter-schedule from me within three days...", start: 11840, end: 11980 },
+    ],
+    speakerCount: 2,
+    contentHash,
+    contentSignature: `demo-sig-hall-${Date.now()}`,
+    redactions: [
+      {
+        id: `rdx-hall-1`,
+        start: 8340,
+        end: 8780,
+        reasonType: "redaction_third_party",
+        reasonNotes: "Contains disclosure by Logan Hall (minor, aged 9) relayed by client regarding instructions given by opposing party. Third party information — minor child's communication. Not to be shared outside privileged file without welfare assessment consideration.",
+        status: "committed",
+        redactedBy: userId,
+        committedAt: new Date(sessionDate.getTime() + 48 * 60 * 1000).toISOString(),
+      },
+      {
+        id: `rdx-hall-2`,
+        start: 8980,
+        end: 9780,
+        reasonType: "redaction_commercially_sensitive",
+        reasonNotes: "Client disclosure of undisclosed business account and overseas payments — subject to formal disclosure obligations and AML source of funds assessment. Redacted pending amended Form E and resolution of Bahrain payments documentation.",
+        status: "committed",
+        redactedBy: userId,
+        committedAt: new Date(sessionDate.getTime() + 52 * 60 * 1000).toISOString(),
+      },
+      {
+        id: `rdx-hall-3`,
+        start: 9680,
+        end: 9780,
+        reasonType: "redaction_privilege",
+        reasonNotes: "Privileged legal advice given to client regarding consequences of non-disclosure and separate instruction pathway. Not for disclosure.",
+        status: "committed",
+        redactedBy: userId,
+        committedAt: new Date(sessionDate.getTime() + 54 * 60 * 1000).toISOString(),
+      },
+    ],
+    privilegedRedactions: [
+      {
+        id: `rdx-hall-3`,
+        text: "It is all legitimate — it's invoiced work. I'll get it to you by Thursday.",
+        start: 9680,
+        end: 9780,
+        reasonType: "redaction_privilege",
+        reasonNotes: "Privileged legal advice segment regarding non-disclosure consequences.",
+        redactedBy: userId,
+        committedAt: new Date(sessionDate.getTime() + 54 * 60 * 1000).toISOString(),
+      },
+    ],
+  }).returning();
+
+  // Attendance note
+  const sessionDateStr = sessionDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const counterScheduleDue = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB');
+  const statementDue = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB');
+  const thursdayDue = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB');
+
+  const attendanceNoteContent = `ATTENDANCE NOTE
+
+Matter: Re H (Contact) — Hall v Hall
+Client: Marcus Hall
+Matter Reference: DEMO_FAM/2024/1847
+Date of Meeting: ${sessionDateStr}
+Duration: Approximately 53 minutes
+Practice Area: Family — Private Children Arrangements
+Hearing: Fact-Finding — listed in 14 days (3 days)
+
+---
+
+NATURE OF ATTENDANCE
+
+Client attended in person for initial attendance to review Scott Schedule of allegations (8 allegations) filed by Diane Hall in the context of private children proceedings. Instructions taken on all allegations. Litigation hold in place — all file records to be preserved.
+
+CONFLICT CHECK
+
+Completed. Diane Hall not a current or former client. No connection to opposing solicitors. No conflict identified.
+
+---
+
+INSTRUCTIONS TAKEN ON ALLEGATIONS
+
+Allegation 1 — Financial Control: Denied. Single conversation in early 2023 requesting spending restraint during cash-flow pressure period (self-employed). Three trips taken by opposing party in approximately eight weeks preceding conversation. WhatsApp sent by client at time — required urgently. Bank and card statements 2023 required to evidence no restriction on opposing party's accounts.
+
+Allegation 2 — Social Isolation: Denied. Opposing party maintained active social life throughout marriage including overseas travel. One occasion where client made enquiry about new social contacts — will be characterised as monitoring by opposing party. To be contextualised in counter-schedule.
+
+Allegation 3 — Location Sharing / Monitoring: Denied as coercive. Mutual location-sharing arrangement established at opposing party's suggestion when eldest child born (9 years ago). Both parties had reciprocal access throughout marriage. One occasion approximately six weeks pre-separation where client telephoned opposing party after noticing location sharing had been disabled and she was not where she had said she would be. Original setup message sent by opposing party to client — potentially the most important document in this matter. Must be located and provided urgently.
+
+Allegation 4 — Demeaning opposing party in front of children: Categorically denied. Potential character witnesses identified: client's sister (regular family contact); Logan Hall's class teacher (both parents attended parents' evenings together until approximately four months pre-separation).
+
+Allegation 5 — Physical incident, January this year (hallway): Physical contact accepted — client places hands on opposing party's shoulders during heated argument. Client characterises as attempt to de-escalate. Denies push, denies injury caused. No witnesses (children at client's parents). WhatsApp sent same evening apologising for argument (not for injury) — required urgently, will be relied upon as admission.
+
+Allegation 6 — Verbal intimidation, October last year (Ethan present): Argument accepted. Voice raised. Child present — client expresses regret. Threats denied. Strategy: do not deny incident; acknowledge, contextualise as isolated, frame as failure of composure. Partial acknowledgement strengthens credibility on full denials.
+
+---
+
+BAIL CONDITIONS
+
+Client reports verbal discharge confirmation only — no written confirmation received following CPS discontinuance six weeks ago. Written confirmation required from custody sergeant and CPS. Letters to be sent today. Client advised not to treat conditions as discharged until written confirmation received.
+
+---
+
+CONTACT ARRANGEMENTS
+
+Current: supervised contact, Family Connections Centre, Lewisham. Two hours, alternate Saturdays. Contact workers consistently observe children as settled and happy throughout sessions. Contact centre contemporaneous notes to be requested formally before hearing.
+
+Handover incident — most recent session: Logan Hall (9) arrived withdrawn, recovered within 15 minutes. Client observed opposing party speaking intently to Logan immediately prior to sending him into contact centre. Contact worker present. Letter to opposing solicitors to be sent today. Contact centre manager to be asked to ensure contemporaneous note is made.
+
+[REDACTED — REDACTION_THIRD_PARTY]
+
+---
+
+FINANCIAL DISCLOSURE — FORM E
+
+Client disclosed omission of third business account from Form E. Account holds approximately £18,000. Client states omission was inadvertent (account opened for single project, low usage). Account received payments from Bahrain-based client. Source of funds documentation not yet compiled.
+
+[REDACTED — REDACTION_COMMERCIALLY_SENSITIVE]
+
+[REDACTED — REDACTION_PRIVILEGE]
+
+Client advised in strongest terms of consequences of non-disclosure in family proceedings. Amended Form E to be prepared. Full account statements and source of funds documentation required by ${thursdayDue} without exception. AML monitoring note to be added to compliance thread — undisclosed account and overseas payments require assessment.
+
+---
+
+TIMETABLE
+
+Counter-schedule filing deadline: ${counterScheduleDue}
+Client witness statement approved: ${statementDue}
+Financial documentation deadline: ${thursdayDue}
+Fact-finding hearing: 14 days (3 days listed)
+
+---
+
+OBLIGATIONS EXTRACTED
+
+Solicitor — immediate:
+1. Write to Diane Hall's solicitors — handover incident, Logan Hall (today)
+2. Write to CPS and custody sergeant — written bail condition discharge confirmation (today)
+3. Write to Family Connections Centre — contemporaneous contact worker notes, both sessions
+4. Add AML monitoring note to compliance thread — undisclosed account and Bahrain payments
+
+Solicitor — this week:
+5. Draft counter-schedule — all 8 allegations — file by ${counterScheduleDue}
+6. Draft witness statement for client review — due within 3 days
+7. Prepare amended Form E — pending client documents
+
+Client — urgent:
+8. WhatsApp re spending conversation (early 2023) — tomorrow morning
+9. Original location-sharing setup message sent by opposing party — tomorrow morning
+10. WhatsApp sent evening of January hallway incident — tomorrow morning
+11. Note of Logan's disclosure at last contact session — today
+
+Client — by ${thursdayDue}:
+12. Personal bank and card statements, full year 2023
+13. Full statements for undisclosed business account (date opened to present)
+14. Invoices and source of funds documentation for all Bahrain payments
+
+---
+
+This attendance note is a confidential legal record. Three sections have been redacted prior to filing: third party information (minor child's disclosure); commercially sensitive (pending disclosure compliance and AML assessment); legal professional privilege (privileged advice). Full redaction log held in audit trail.`;
+
+  await db.insert(documents).values({
+    caseId: newCase.id,
+    meetingSessionId: session.id,
+    transcriptSnapshotId: transcript.id,
+    type: "attendance_note",
+    content: attendanceNoteContent,
+    contentHash: `demo-doc-hash-hall-${Date.now()}`,
+    version: 1,
+    versionType: "system_generated",
+    createdBy: userId,
+    isActive: true,
+    status: "draft",
+  });
+
+  // Action items — 14 obligations
+  const obligations = [
+    { description: "Write to Diane Hall's solicitors regarding Logan Hall's withdrawn presentation at handover and observed pre-contact communication — letter to be sent today", assignee: "Solicitor", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
+    { description: "Write to CPS and custody sergeant requesting written confirmation of bail condition discharge following CPS discontinuance six weeks ago", assignee: "Solicitor", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
+    { description: "Write to Family Connections Centre, Lewisham — formally request contemporaneous contact worker notes from both supervised contact sessions to date", assignee: "Solicitor", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
+    { description: "Add AML monitoring note to compliance thread — undisclosed business account (c.£18,000) and Bahrain payments require source of funds assessment before amended Form E filed", assignee: "Solicitor", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
+    { description: "Draft counter-schedule responding to all eight Scott Schedule allegations — file within 7 days", assignee: "Solicitor", dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), priority: "high" },
+    { description: "Draft witness statement for client review and approval — required within 3 days, must be approved within 5 days", assignee: "Solicitor", dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), priority: "high" },
+    { description: "Prepare amended Form E to include undisclosed business account — pending receipt of account statements from client", assignee: "Solicitor", dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), priority: "high" },
+    { description: "Client to provide WhatsApp message from early 2023 regarding spending request — required by tomorrow morning", assignee: "Client", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
+    { description: "Client to locate and provide original location-sharing setup message sent by opposing party — potentially most important document in this matter, required urgently", assignee: "Client", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
+    { description: "Client to provide WhatsApp message sent on evening of January hallway incident — required by tomorrow morning (will be used as admission by opposing party)", assignee: "Client", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
+    { description: "Client to send contemporaneous written note of Logan's disclosure at last contact session — required today before solicitor writes to opposing solicitors", assignee: "Client", dueDate: new Date(Date.now() + 0.5 * 24 * 60 * 60 * 1000), priority: "high" },
+    { description: "Client to provide personal bank and card statements for full year 2023 to evidence no restriction on opposing party's accounts", assignee: "Client", dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), priority: "medium" },
+    { description: "Client to provide full statements for undisclosed business account from date of opening to present", assignee: "Client", dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), priority: "high" },
+    { description: "Client to provide invoices and source of funds documentation for all payments received from Bahrain-based client", assignee: "Client", dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), priority: "high" },
+  ];
+
+  for (const ob of obligations) {
+    await db.insert(actionItems).values({
+      caseId: newCase.id,
+      transcriptId: transcript.id,
+      description: ob.description,
+      originalDescription: ob.description,
+      assignee: ob.assignee,
+      dueDate: ob.dueDate,
+      priority: ob.priority,
+      status: "draft",
+      isManual: false,
+    });
+  }
+
+  // Audit trail
+  const auditEvents = [
+    { eventType: "case_created", timestamp: daysAgo(14), metadata: { practiceArea: "family_children_arrangements", matterReference: "DEMO_FAM/2024/1847" }, severity: "info" as const },
+    { eventType: "case_updated", timestamp: daysAgo(14), metadata: { field: "litigationHold", value: true, reason: "Active fact-finding hearing" }, severity: "warning" as const },
+    { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Attendance — Scott Schedule Review & Hearing Preparation", recordingType: "full_meeting" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 68 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent", disclaimerVersion: "v2.1", audioSecondsAtConsent: 68 }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 55 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 3180 }, transcriptId: transcript.id, severity: "info" as const },
+    { eventType: "document_generated", timestamp: new Date(sessionDate.getTime() + 57 * 60 * 1000), metadata: { documentType: "attendance_note", versionType: "system_generated", version: 1 }, severity: "info" as const },
+    { eventType: "transcript_redacted", timestamp: new Date(sessionDate.getTime() + 48 * 60 * 1000), metadata: { reasonType: "redaction_third_party", status: "committed", redactionId: "rdx-hall-1" }, transcriptId: transcript.id, severity: "warning" as const },
+    { eventType: "transcript_redacted", timestamp: new Date(sessionDate.getTime() + 52 * 60 * 1000), metadata: { reasonType: "redaction_commercially_sensitive", status: "committed", redactionId: "rdx-hall-2" }, transcriptId: transcript.id, severity: "warning" as const },
+    { eventType: "transcript_redacted", timestamp: new Date(sessionDate.getTime() + 54 * 60 * 1000), metadata: { reasonType: "redaction_privilege", status: "committed", redactionId: "rdx-hall-3" }, transcriptId: transcript.id, severity: "warning" as const },
+  ];
+
+  for (const evt of auditEvents) {
+    await db.insert(auditTrail).values({
+      eventType: evt.eventType,
+      userId,
+      caseId: newCase.id,
+      timestamp: evt.timestamp,
+      severity: evt.severity,
+      metadata: evt.metadata,
+      transcriptId: (evt as any).transcriptId || null,
+    });
+  }
+}
+
+
 // ——— Main seed function ———
 
 export async function seedDemoData(userId: string): Promise<{ success: boolean; message: string; casesCreated: number }> {
@@ -2393,6 +2890,7 @@ export async function seedDemoData(userId: string): Promise<{ success: boolean; 
     await seedCase4Okafor(userId);
     await seedCase5Whitmore(userId);
     await seedCase6Treadwell(userId);
+    await seedCase3Hall(userId);
 
     return {
       success: true,
