@@ -1,6 +1,6 @@
 /**
  * Demo Seeding Service — Full Showcase Rebuild
- * Creates six precisely crafted showcase cases demonstrating LegalNote's full capability
+ * Creates seven precisely crafted showcase cases demonstrating LegalNote's full capability
  * across multiple practice areas, session types, and compliance scenarios.
  *
  * Cases:
@@ -10,6 +10,7 @@
  * 4. Yasmin Okafor — Family / Children Arrangements (Multi-Format Showcase)
  * 5. Margaret & Geoffrey Whitmore — Wills & Probate (Complex Document Showcase)
  * 6. Leon Treadwell — Criminal Defence (Police Station Showcase)
+ * 7. Marcus Hall — Family / Children Arrangements (False Allegations / Contact Demo)
  */
 
 import { db } from "../db";
@@ -2653,8 +2654,8 @@ SPEAKER 1 (Solicitor): Good. That is what today was for. You will have the draft
     redactions: [
       {
         id: `rdx-hall-1`,
-        start: 8340,
-        end: 8780,
+        start: 14896,
+        end: 16119,
         reasonType: "redaction_third_party",
         reasonNotes: "Contains disclosure by Logan Hall (minor, aged 9) relayed by client regarding instructions given by opposing party. Third party information — minor child's communication. Not to be shared outside privileged file without welfare assessment consideration.",
         status: "committed",
@@ -2663,8 +2664,8 @@ SPEAKER 1 (Solicitor): Good. That is what today was for. You will have the draft
       },
       {
         id: `rdx-hall-2`,
-        start: 8980,
-        end: 9780,
+        start: 16659,
+        end: 18073,
         reasonType: "redaction_commercially_sensitive",
         reasonNotes: "Client disclosure of undisclosed business account and overseas payments — subject to formal disclosure obligations and AML source of funds assessment. Redacted pending amended Form E and resolution of Bahrain payments documentation.",
         status: "committed",
@@ -2673,8 +2674,8 @@ SPEAKER 1 (Solicitor): Good. That is what today was for. You will have the draft
       },
       {
         id: `rdx-hall-3`,
-        start: 9680,
-        end: 9780,
+        start: 16977,
+        end: 18073,
         reasonType: "redaction_privilege",
         reasonNotes: "Privileged legal advice given to client regarding consequences of non-disclosure and separate instruction pathway. Not for disclosure.",
         status: "committed",
@@ -2685,11 +2686,11 @@ SPEAKER 1 (Solicitor): Good. That is what today was for. You will have the draft
     privilegedRedactions: [
       {
         id: `rdx-hall-3`,
-        text: "It is all legitimate — it's invoiced work. I'll get it to you by Thursday.",
-        start: 9680,
-        end: 9780,
+        text: "SPEAKER 1 (Solicitor): Listen to me carefully. Non-disclosure of a financial account in family proceedings is a serious matter. It can attract costs orders, adverse findings by the court, and in significant cases contempt proceedings. I am not suggesting that is where we are today, but I would be failing in my professional duty if I did not put that to you in the clearest possible terms. That account needs to go on an amended Form E before the hearing. I will draft the amendment but I need full statements for that account from the date it was opened to today. As for the Bahrain payments — I need to understand the source of funds. You need to be in a position to produce documentation showing these are legitimate business receipts. If you cannot evidence that, we have a problem that extends beyond these proceedings and I will need to take separate instructions on it. I need everything on my desk by the end of this week without exception.\n\nSPEAKER 2 (Marcus Hall): It is all legitimate — it's invoiced work, I just haven't pulled the paperwork together. I'll get it to you by Thursday.",
+        start: 16977,
+        end: 18073,
         reasonType: "redaction_privilege",
-        reasonNotes: "Privileged legal advice segment regarding non-disclosure consequences.",
+        reasonNotes: "Privileged legal advice given to client regarding consequences of non-disclosure and separate instruction pathway. Not for disclosure.",
         redactedBy: userId,
         committedAt: new Date(sessionDate.getTime() + 54 * 60 * 1000).toISOString(),
       },
@@ -2894,8 +2895,8 @@ export async function seedDemoData(userId: string): Promise<{ success: boolean; 
 
     return {
       success: true,
-      message: "Demo data created successfully: 6 showcase cases with transcripts, documents, meeting sessions, time entries, undertakings, and compliance data",
-      casesCreated: 6,
+      message: "Demo data created successfully: 7 showcase cases with transcripts, documents, meeting sessions, time entries, undertakings, and compliance data",
+      casesCreated: 7,
     };
   } catch (error) {
     console.error("Error seeding demo data:", error);
