@@ -232,8 +232,8 @@ export class MeetingSchedulerService {
     }
 
     const consentToken = randomBytes(32).toString('hex');
-    const baseUrl = process.env.REPLIT_DOMAINS?.split(',')[0] || 'http://localhost:5000';
-    const consentUrl = `https://${baseUrl}/consent/${consentToken}`;
+    const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
+    const consentUrl = `${baseUrl}/consent/${consentToken}`;
 
     const meetingDate = new Date(meeting.startTime).toLocaleDateString('en-GB', {
       weekday: 'long',
