@@ -64,12 +64,14 @@ import { assembleSraReportData, buildSraReportPreview } from "./services/sraRepo
 import { compileSraReportPdf } from "./services/sraReportPdf";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent } from "./calendar";
 import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
-import { isReplitOutlookConnected, createReplitOutlookEvent, updateReplitOutlookEvent, deleteReplitOutlookEvent, getOutlookUserEmail } from "./replitOutlook";
+import { isReplitOutlookConnected, createReplitOutlookEvent, updateReplitOutlookEvent, deleteReplitOutlookEvent } from "./replitOutlook";
 import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber } from "./sms";
 import {
   createGoogleOAuthClient,
   getGoogleAuthUrl,
+  getMicrosoftAuthUrl,
   exchangeGoogleCode,
+  exchangeMicrosoftCode,
   generateOAuthState,
   signOAuthState,
   verifyOAuthState,
@@ -7368,82 +7370,40 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       // Optional sync context from request body
       const { caseId, deadline, notes, priority, isAllDay } = req.body || {};
 
-      // Handle Outlook via Replit connector - check if already connected
       if (provider === 'outlook') {
-        const isConnected = await isReplitOutlookConnected();
-        if (!isConnected) {
+        try {
+          const statePayload: OAuthStatePayload = {
+            userId,
+            provider: 'outlook',
+            popup,
+            nonce: generateSecureNonce(),
+            createdAt: Date.now(),
+            ...(caseId && deadline
+              ? {
+                  syncContext: {
+                    caseId,
+                    deadline: new Date(deadline).toISOString(),
+                    notes: notes || undefined,
+                    priority: priority || 'normal',
+                    isAllDay: isAllDay || false,
+                  },
+                }
+              : {}),
+          };
+
+          const signedState = signOAuthState(statePayload);
+          const protocol = req.headers['x-forwarded-proto'] || 'https';
+          const host = req.headers.host;
+          const baseUrl = `${protocol}://${host}`;
+          const authUrl = getMicrosoftAuthUrl(baseUrl, signedState);
+
+          return res.json({ authUrl });
+        } catch (configError: any) {
           return res.status(503).json({
-            message: "Outlook is not connected. Please connect Outlook via the Replit Tools pane first.",
-            requiresReplitSetup: true,
+            message: 'Microsoft OAuth is not configured. Please contact your administrator.',
+            details: configError.message,
           });
         }
-
-        // Persist Outlook integration record so downstream flows can detect connection
-        const outlookEmail = await getOutlookUserEmail();
-        await storage.saveCalendarIntegration({
-          userId,
-          provider: 'outlook',
-          accessToken: 'replit-managed', // Token is managed by Replit connector
-          email: outlookEmail || undefined,
-        });
-
-        // Outlook is connected - attempt auto-sync if context provided
-        if (caseId && deadline) {
-          try {
-            const caseData = await storage.getCase(caseId);
-            if (caseData && caseData.createdBy === userId) {
-              const eventData = {
-                caseId,
-                title: caseData.title,
-                clientName: caseData.clientName,
-                matterReference: caseData.matterReference || undefined,
-                deadline: new Date(deadline).toISOString(),
-                notes: notes || '',
-                priority: priority || 'normal',
-                isAllDay: isAllDay || false,
-              };
-              
-              const result = await createReplitOutlookEvent(eventData);
-              
-              if (result.success && result.eventId) {
-                await storage.createCalendarEvent({
-                  caseId,
-                  userId,
-                  provider: 'outlook',
-                  providerEventId: result.eventId,
-                  eventType: 'deadline',
-                  title: `Deadline: ${caseData.title}`,
-                  deadline: new Date(deadline),
-                  isAllDay: isAllDay || false,
-                });
-                
-                await storage.updateCase(caseId, {
-                  calendarSyncStatus: 'synced',
-                  calendarEventId: result.eventId,
-                  calendarProvider: 'outlook',
-                });
-              }
-              
-              return res.json({ 
-                success: result.success, 
-                message: result.success ? "Calendar synced via Outlook" : result.error,
-                provider: 'outlook',
-              });
-            }
-          } catch (syncError: any) {
-            console.error('[Outlook] Auto-sync failed:', syncError);
-            return res.status(500).json({
-              message: "Failed to sync to Outlook calendar",
-              error: syncError.message,
-            });
-          }
-        }
-        
-        return res.json({ 
-          success: true, 
-          connected: true, 
-          message: "Outlook is connected via Replit",
-        });
       }
 
       // Google OAuth flow
@@ -7533,6 +7493,62 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const baseUrl = `${protocol}://${host}`;
 
       try {
+        if (provider === 'outlook') {
+          const tokenData = await exchangeMicrosoftCode(code as string, baseUrl);
+
+          await storage.saveCalendarIntegration({
+            userId: stateData.userId,
+            provider: 'outlook',
+            accessToken: tokenData.accessToken,
+            refreshToken: tokenData.refreshToken || undefined,
+            expiresAt: tokenData.expiresAt || undefined,
+            email: tokenData.email || undefined,
+          });
+
+          console.log(`[OAUTH] Outlook calendar connected for user ${stateData.userId}`);
+
+          if (stateData.syncContext) {
+            try {
+              const { caseId, deadline, notes, priority, isAllDay } = stateData.syncContext;
+              const { Client } = await import('@microsoft/microsoft-graph-client');
+              const { computeReminderSchedule } = await import('./reminderScheduler');
+              const graphClient = Client.initWithMiddleware({
+                authProvider: { getAccessToken: async () => tokenData.accessToken },
+              });
+              const deadlineDate = new Date(deadline);
+              const { minutesBefore } = computeReminderSchedule({
+                deadline: deadlineDate,
+                isAllDay: isAllDay || false,
+                priority: priority || 'normal',
+              });
+              const event: any = {
+                subject: `Deadline: Case ${caseId}`,
+                body: { contentType: 'Text', content: notes || 'LegalNote case deadline' },
+                isReminderOn: true,
+                reminderMinutesBeforeStart: minutesBefore[0] || 15,
+              };
+              if (isAllDay) {
+                const dateStr = deadlineDate.toISOString().split('T')[0];
+                event.isAllDay = true;
+                event.start = { dateTime: `${dateStr}T00:00:00`, timeZone: 'Europe/London' };
+                event.end = { dateTime: `${dateStr}T23:59:59`, timeZone: 'Europe/London' };
+              } else {
+                const endDate = new Date(deadlineDate.getTime() + 60 * 60 * 1000);
+                event.start = { dateTime: deadlineDate.toISOString(), timeZone: 'Europe/London' };
+                event.end = { dateTime: endDate.toISOString(), timeZone: 'Europe/London' };
+              }
+              await graphClient.api('/me/events').post(event);
+            } catch (syncError: any) {
+              console.error('[OAUTH] Outlook auto-sync failed:', syncError);
+            }
+          }
+
+          const redirectTarget = stateData.popup
+            ? `${redirectBase}?outlook_connected=true&popup=true`
+            : `${redirectBase}?outlook_connected=true`;
+          return res.redirect(redirectTarget);
+        }
+
         if (provider !== 'google') {
           return res.redirect(`${redirectBase}?calendar_error=invalid_provider`);
         }
@@ -7691,8 +7707,6 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       
       // Check Replit-managed connections first
       const replitGoogleConnected = await isReplitCalendarConnected();
-      const replitOutlookConnected = await isReplitOutlookConnected();
-      
       // Get user's own OAuth connections
       const providers = await getConnectedProviders(userId, storage);
       
@@ -7704,23 +7718,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           connectedAt: new Date().toISOString(),
         };
       }
-      
-      // If Replit Outlook connection is available, persist it and override status
-      if (replitOutlookConnected) {
-        const outlookEmail = await getOutlookUserEmail();
-        
-        // Persist Outlook integration so downstream sync routes can detect it
-        await storage.saveCalendarIntegration({
-          userId,
-          provider: 'outlook',
-          accessToken: 'replit-managed',
-          email: outlookEmail || undefined,
-        });
-        
+
+      const outlookIntegration = await storage.getCalendarIntegration(userId, 'outlook');
+      if (outlookIntegration) {
         providers.outlook = {
           connected: true,
-          email: outlookEmail || 'Connected via Replit',
-          connectedAt: new Date().toISOString(),
+          email: outlookIntegration.email || 'Connected',
+          connectedAt: outlookIntegration.createdAt?.toISOString() || new Date().toISOString(),
         };
       }
       

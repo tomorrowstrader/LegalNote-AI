@@ -141,7 +141,7 @@ export async function ensureFreshToken(
  */
 export interface OAuthStatePayload {
   userId: string;
-  provider: 'google';
+  provider: 'google' | 'outlook';
   popup: boolean;
   nonce: string;
   createdAt: number;
@@ -230,4 +230,183 @@ export function verifyOAuthState(signedToken: string): OAuthStatePayload | null 
  */
 export function generateOAuthState(): string {
   return crypto.randomBytes(16).toString('base64url');
+}
+
+// ─── Microsoft / Outlook OAuth ───────────────────────────────────────────────
+
+const MICROSOFT_SCOPES = [
+  'https://graph.microsoft.com/Calendars.ReadWrite',
+  'https://graph.microsoft.com/User.Read',
+  'offline_access',
+];
+
+const getMicrosoftRedirectUri = (baseUrl: string) =>
+  `${baseUrl}/api/calendar/callback/outlook`;
+
+export function getMicrosoftAuthUrl(baseUrl: string, state: string): string {
+  const clientId = process.env.MICROSOFT_CLIENT_ID;
+  const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
+
+  if (!clientId) {
+    throw new Error('Microsoft OAuth credentials not configured. Set MICROSOFT_CLIENT_ID');
+  }
+
+  const redirectUri = encodeURIComponent(getMicrosoftRedirectUri(baseUrl));
+  const scope = encodeURIComponent(MICROSOFT_SCOPES.join(' '));
+  const encodedState = encodeURIComponent(state);
+
+  return (
+    `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize` +
+    `?client_id=${clientId}` +
+    `&response_type=code` +
+    `&redirect_uri=${redirectUri}` +
+    `&scope=${scope}` +
+    `&state=${encodedState}` +
+    `&prompt=consent` +
+    `&access_type=offline`
+  );
+}
+
+export async function exchangeMicrosoftCode(
+  code: string,
+  baseUrl: string
+): Promise<{
+  accessToken: string;
+  refreshToken: string | null;
+  expiresAt: Date | null;
+  email: string | null;
+}> {
+  const clientId = process.env.MICROSOFT_CLIENT_ID;
+  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
+  const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Microsoft OAuth credentials not configured');
+  }
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    code,
+    redirect_uri: getMicrosoftRedirectUri(baseUrl),
+    grant_type: 'authorization_code',
+    scope: MICROSOFT_SCOPES.join(' '),
+  });
+
+  const response = await fetch(
+    `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok || !data.access_token) {
+    throw new Error(
+      `Microsoft token exchange failed: ${data.error_description || data.error || 'Unknown error'}`
+    );
+  }
+
+  let email: string | null = null;
+  try {
+    const userResponse = await fetch(
+      'https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName',
+      { headers: { Authorization: `Bearer ${data.access_token}` } }
+    );
+    const userData = await userResponse.json();
+    email = userData.mail || userData.userPrincipalName || null;
+  } catch {
+    // Non-fatal
+  }
+
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token || null,
+    expiresAt: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : null,
+    email,
+  };
+}
+
+export async function refreshMicrosoftToken(
+  refreshToken: string,
+  baseUrl: string
+): Promise<{
+  accessToken: string;
+  refreshToken: string | null;
+  expiresAt: Date | null;
+}> {
+  const clientId = process.env.MICROSOFT_CLIENT_ID;
+  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
+  const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Microsoft OAuth credentials not configured');
+  }
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    refresh_token: refreshToken,
+    grant_type: 'refresh_token',
+    scope: MICROSOFT_SCOPES.join(' '),
+  });
+
+  const response = await fetch(
+    `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok || !data.access_token) {
+    throw new Error(
+      `Microsoft token refresh failed: ${data.error_description || data.error || 'Unknown error'}`
+    );
+  }
+
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token || refreshToken,
+    expiresAt: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : null,
+  };
+}
+
+export async function ensureFreshOutlookToken(
+  storage: IStorage,
+  userId: string,
+  baseUrl: string
+): Promise<string> {
+  const connection = await storage.getCalendarIntegration(userId, 'outlook');
+
+  if (!connection) {
+    throw new Error('No Outlook calendar connection found for user');
+  }
+
+  if (connection.expiresAt && isTokenExpiringSoon(connection.expiresAt)) {
+    if (!connection.refreshToken) {
+      throw new Error('Cannot refresh Outlook token — no refresh token available');
+    }
+
+    const newTokens = await refreshMicrosoftToken(connection.refreshToken, baseUrl);
+
+    await storage.saveCalendarIntegration({
+      userId: connection.userId,
+      provider: 'outlook',
+      accessToken: newTokens.accessToken,
+      refreshToken: newTokens.refreshToken || connection.refreshToken,
+      expiresAt: newTokens.expiresAt || undefined,
+      email: connection.email || undefined,
+    });
+
+    return newTokens.accessToken;
+  }
+
+  return connection.accessToken;
 }
