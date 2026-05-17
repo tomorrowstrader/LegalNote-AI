@@ -1510,7 +1510,7 @@ function StorageIntegrations() {
         <div className="space-y-2">
           <p className="text-sm font-medium">How it works</p>
           <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-            <li>Admin connects the firm's OneDrive or SharePoint account via Replit Tools</li>
+            <li>Coming soon — OneDrive and SharePoint integration will be available in a future update</li>
             <li>Documents from all solicitors sync to: LegalNote / Cases / [Client - Case Title]</li>
             <li>Each case gets organized folders for attendance notes, summaries, and transcripts</li>
             <li>Perfect for boutique firms wanting a shared document library</li>
@@ -1519,8 +1519,8 @@ function StorageIntegrations() {
 
         <div className="p-3 bg-muted rounded-md">
           <p className="text-xs text-muted-foreground">
-            <strong>Setup:</strong> Connect your firm's Microsoft account in Replit Tools first, then click "Connect" above. 
-            For solo practitioners, this provides automatic backup of all your generated documents.
+            <strong>Setup:</strong> Coming soon — OneDrive and SharePoint integration will be available in a future update.
+            For solo practitioners, this will provide automatic backup of all your generated documents.
           </p>
         </div>
       </CardContent>
@@ -2269,7 +2269,7 @@ export default function Settings() {
                       <div>
                         <p className="font-medium">OAuth Authentication</p>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Your account is secured via Replit authentication. Password management is handled by your identity provider.
+                          Your account is secured via OAuth authentication. Sign in with your identity provider; password management is handled there.
                         </p>
                       </div>
                     </div>
