@@ -7858,58 +7858,87 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       
       // Handle Outlook calendar sync
       if (provider === 'outlook') {
-        const replitOutlookConnected = await isReplitOutlookConnected();
-        
-        if (!replitOutlookConnected) {
+        const outlookIntegration = await storage.getCalendarIntegration(userId, 'outlook');
+
+        if (!outlookIntegration || !outlookIntegration.accessToken || outlookIntegration.accessToken === 'replit-managed') {
           return res.status(400).json({ message: "Outlook calendar is not connected. Please connect via Settings." });
         }
-        
-        console.log('[SYNC] Using Replit-managed Outlook Calendar connection');
-        
-        if (existingEvent) {
-          console.log('[SYNC] Updating existing Outlook calendar event:', existingEvent.providerEventId);
-          const updateResult = await updateReplitOutlookEvent(existingEvent.providerEventId, {
-            title: caseData.title,
-            clientName: caseData.clientName,
-            matterReference: caseData.matterReference || undefined,
-            deadline: eventData.deadline.toISOString(),
-            notes: eventData.notes,
-            priority: eventData.priority,
-            isAllDay: eventData.isAllDay,
-          });
-          result = { ...updateResult, provider: 'outlook' };
-          
-          if (result.success) {
-            await storage.updateCalendarEvent(existingEvent.id, {
-              lastUpdatedAt: new Date(),
-            });
-          }
+
+        const { ensureFreshOutlookToken } = await import('./oauth');
+        const protocol = req.headers['x-forwarded-proto'] || 'https';
+        const host = req.headers.host;
+        const baseUrl = `${protocol}://${host}`;
+        const accessToken = await ensureFreshOutlookToken(storage, userId, baseUrl);
+
+        const { Client } = await import('@microsoft/microsoft-graph-client');
+        const { computeReminderSchedule } = await import('./reminderScheduler');
+        const graphClient = Client.initWithMiddleware({
+          authProvider: { getAccessToken: async () => accessToken },
+        });
+
+        const deadlineDate = eventData.deadline;
+        const { minutesBefore } = computeReminderSchedule({
+          deadline: deadlineDate,
+          isAllDay: eventData.isAllDay || false,
+          priority: eventData.priority || 'normal',
+        });
+
+        const event: any = {
+          subject: `Deadline: ${caseData.title}`,
+          body: {
+            contentType: 'Text',
+            content: `LegalNote Case Deadline\n\nCase: ${caseData.title}\nClient: ${caseData.clientName}${eventData.notes ? `\n\nNotes: ${eventData.notes}` : ''}\n\nCase ID: ${req.params.id}\nCreated by LegalNote`,
+          },
+          isReminderOn: true,
+          reminderMinutesBeforeStart: minutesBefore[0] || 15,
+        };
+
+        if (eventData.isAllDay) {
+          const dateStr = deadlineDate.toISOString().split('T')[0];
+          event.isAllDay = true;
+          event.start = { dateTime: `${dateStr}T00:00:00`, timeZone: 'Europe/London' };
+          event.end = { dateTime: `${dateStr}T23:59:59`, timeZone: 'Europe/London' };
         } else {
-          console.log('[SYNC] Creating new Outlook calendar event via Replit connector');
-          const createResult = await createReplitOutlookEvent({
-            caseId: req.params.id,
-            title: caseData.title,
-            clientName: caseData.clientName,
-            matterReference: caseData.matterReference || undefined,
-            deadline: eventData.deadline.toISOString(),
-            notes: eventData.notes,
-            priority: eventData.priority,
-            isAllDay: eventData.isAllDay,
-          });
-          result = { ...createResult, provider: 'outlook' };
-          
-          console.log('[SYNC] Outlook create result:', result);
-          
-          if (result.success && result.eventId) {
-            console.log('[SYNC] Saving Outlook calendar event to database');
+          const endDate = new Date(deadlineDate.getTime() + 60 * 60 * 1000);
+          event.start = { dateTime: deadlineDate.toISOString(), timeZone: 'Europe/London' };
+          event.end = { dateTime: endDate.toISOString(), timeZone: 'Europe/London' };
+        }
+
+        try {
+          let outlookEventId: string | undefined;
+
+          if (existingEvent) {
+            await graphClient.api(`/me/events/${existingEvent.providerEventId}`).patch(event);
+            outlookEventId = existingEvent.providerEventId;
+            await storage.updateCalendarEvent(existingEvent.id, { lastUpdatedAt: new Date() });
+          } else {
+            const response = await graphClient.api('/me/events').post(event);
+            outlookEventId = response.id;
+          }
+
+          if (outlookEventId && !existingEvent) {
             await storage.createCalendarEvent({
               caseId: req.params.id,
-              userId: userId,
+              userId,
               provider: 'outlook',
-              providerEventId: result.eventId,
+              providerEventId: outlookEventId,
               eventType: 'deadline',
+              title: `Deadline: ${caseData.title}`,
+              deadline: deadlineDate,
+              isAllDay: eventData.isAllDay || false,
+            });
+
+            await storage.updateCase(req.params.id, {
+              calendarSyncStatus: 'synced',
+              calendarEventId: outlookEventId,
+              calendarProvider: 'outlook',
             });
           }
+
+          result = { success: true, eventId: outlookEventId, provider: 'outlook' };
+        } catch (outlookError: any) {
+          console.error('[SYNC] Outlook Graph API error:', outlookError);
+          result = { success: false, error: outlookError.message, provider: 'outlook' };
         }
       }
       // Handle Google calendar sync
