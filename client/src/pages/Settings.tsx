@@ -644,9 +644,11 @@ function CalendarConnections() {
   const { toast } = useToast();
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
   const [copiedUri, setCopiedUri] = useState<string | null>(null);
+  const [isConnectingOutlook, setIsConnectingOutlook] = useState(false);
   
   const { data: connections, isLoading } = useQuery<{
     google: { connected: boolean; email?: string; connectedAt?: string };
+    outlook?: { connected: boolean; email?: string; connectedAt?: string };
   }>({
     queryKey: ['/api/oauth/connections'],
   });
@@ -693,6 +695,29 @@ function CalendarConnections() {
 
   const handleConnect = () => {
     window.location.href = `/api/oauth/connect/google`;
+  };
+
+  const handleConnectOutlook = async () => {
+    setIsConnectingOutlook(true);
+    try {
+      const response = await fetch('/api/calendar/auth/outlook', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to get authorization URL');
+      }
+      const { authUrl } = await response.json();
+      window.location.href = authUrl;
+    } catch (error) {
+      setIsConnectingOutlook(false);
+      toast({
+        title: "Connection Error",
+        description: error instanceof Error ? error.message : "Failed to initiate calendar connection",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDisconnect = () => {
@@ -799,9 +824,15 @@ function CalendarConnections() {
                   Connected
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="gap-1">
-                  Connect via Replit Tools
-                </Badge>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleConnectOutlook}
+                  disabled={isConnectingOutlook}
+                  data-testid="button-connect-outlook"
+                >
+                  {isConnectingOutlook ? "Connecting..." : "Connect"}
+                </Button>
               )}
             </div>
           </div>
@@ -1399,7 +1430,7 @@ function StorageIntegrations() {
             ) : status?.available ? (
               <p className="text-sm text-muted-foreground">Available - Click to connect</p>
             ) : (
-              <p className="text-sm text-muted-foreground">Connect via Replit Tools</p>
+              <p className="text-sm text-muted-foreground">Coming soon</p>
             )}
           </div>
         </div>
@@ -1440,9 +1471,9 @@ function StorageIntegrations() {
               {connectMutation.isPending ? "Connecting..." : "Connect"}
             </Button>
           ) : (
-            <Badge variant="secondary" className="gap-1">
-              Setup in Replit Tools
-            </Badge>
+            <Button variant="default" size="sm" disabled>
+              Coming soon
+            </Button>
           )}
         </div>
       </div>
