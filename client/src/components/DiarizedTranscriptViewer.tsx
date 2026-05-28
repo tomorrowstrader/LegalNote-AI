@@ -33,6 +33,10 @@ export interface Redaction {
   reason: string;
   redactedBy: string;
   timestamp: string;
+  status?: 'pending' | 'committed';
+  reasonType?: string;
+  reasonNotes?: string;
+  pendingUntil?: string;
   textStart?: number;
   textEnd?: number;
   selectedText?: string;
@@ -75,6 +79,21 @@ function formatTimestamp(ms: number): string {
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
+function formatReasonType(reasonType: string | undefined): string {
+  switch (reasonType) {
+    case 'redaction_gdpr':
+      return 'GDPR — Personal Data';
+    case 'redaction_privilege':
+      return 'Legal Privilege';
+    case 'redaction_third_party':
+      return 'Third Party Information';
+    case 'redaction_commercially_sensitive':
+      return 'Commercially Sensitive';
+    default:
+      return 'Redacted';
+  }
+}
+
 function getSpeakerIndex(speaker: string): number {
   const match = speaker.match(/[A-Z]$/);
   if (match) {
@@ -107,6 +126,7 @@ export default function DiarizedTranscriptViewer({
   const [showTimestamps, setShowTimestamps] = useState(true);
   const [expandedView, setExpandedView] = useState(false);
   const [redactionMode, setRedactionMode] = useState(false);
+  const [tick, setTick] = useState(0);
   const [pendingRedaction, setPendingRedaction] = useState<{ 
     start: number; 
     end: number; 
@@ -119,6 +139,23 @@ export default function DiarizedTranscriptViewer({
   const [highlightedTimestamp, setHighlightedTimestamp] = useState<number | null>(null);
   const lastScrolledTimestamp = useRef<number | undefined>(undefined);
   const utteranceRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  void tick;
+
+  useEffect(() => {
+    const hasActivePendingUndo = redactions.some((r) => {
+      if (r.status !== 'pending' || !r.pendingUntil) return false;
+      const pendingUntilMs = new Date(r.pendingUntil).getTime();
+      return pendingUntilMs > Date.now();
+    });
+
+    if (!hasActivePendingUndo) return;
+
+    const intervalId = window.setInterval(() => {
+      setTick((t) => t + 1);
+    }, 60000);
+
+    return () => window.clearInterval(intervalId);
+  }, [redactions]);
 
   useEffect(() => {
     if (initialTimestamp !== undefined && initialTimestamp !== lastScrolledTimestamp.current && utterances.length > 0) {
@@ -308,11 +345,25 @@ export default function DiarizedTranscriptViewer({
       <span data-testid={`text-utterance-${utteranceIdx}`}>
         {segments.map((seg, idx) => {
           if (seg.type === 'redacted') {
+            const pendingUntilMs = seg.redaction?.pendingUntil ? new Date(seg.redaction.pendingUntil).getTime() : undefined;
+            const isUndoAvailable =
+              seg.redaction?.status === 'pending' &&
+              pendingUntilMs !== undefined &&
+              pendingUntilMs > Date.now();
+            const undoMinutesRemaining =
+              isUndoAvailable && pendingUntilMs !== undefined
+                ? Math.max(0, Math.ceil((pendingUntilMs - Date.now()) / 60000))
+                : 0;
             return (
               <Tooltip key={idx}>
                 <TooltipTrigger asChild>
                   <span 
-                    className="bg-red-200 dark:bg-red-800/50 text-red-700 dark:text-red-300 px-1 rounded cursor-pointer"
+                    className={cn(
+                      "px-1 rounded cursor-pointer",
+                      isUndoAvailable
+                        ? "bg-amber-200 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300"
+                        : "bg-red-200 dark:bg-red-800/50 text-red-700 dark:text-red-300"
+                    )}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (redactionMode && canRedact && seg.redaction) {
@@ -325,7 +376,15 @@ export default function DiarizedTranscriptViewer({
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-xs">
                   <p className="font-medium">Redaction Reason:</p>
-                  <p className="text-muted-foreground">{seg.redaction?.reason}</p>
+                  <p className="text-muted-foreground">{formatReasonType(seg.redaction?.reasonType)}</p>
+                  {seg.redaction?.reasonNotes && (
+                    <p className="text-muted-foreground mt-1 whitespace-pre-wrap">{seg.redaction.reasonNotes}</p>
+                  )}
+                  {isUndoAvailable && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Undo window: {undoMinutesRemaining}m remaining
+                    </p>
+                  )}
                   {redactionMode && canRedact && (
                     <p className="text-xs text-muted-foreground mt-1">Click to remove</p>
                   )}
@@ -439,6 +498,15 @@ export default function DiarizedTranscriptViewer({
         {utterances.map((utterance, idx) => {
           const colorIdx = uniqueSpeakers.indexOf(utterance.speaker) % SPEAKER_COLORS.length;
           const fullRedaction = isFullyRedacted(utterance.start, utterance.end);
+          const fullPendingUntilMs = fullRedaction?.pendingUntil ? new Date(fullRedaction.pendingUntil).getTime() : undefined;
+          const isFullUndoAvailable =
+            fullRedaction?.status === 'pending' &&
+            fullPendingUntilMs !== undefined &&
+            fullPendingUntilMs > Date.now();
+          const fullUndoMinutesRemaining =
+            isFullUndoAvailable && fullPendingUntilMs !== undefined
+              ? Math.max(0, Math.ceil((fullPendingUntilMs - Date.now()) / 60000))
+              : 0;
           const hasPartialRedactions = getRedactionsForUtterance(utterance.start, utterance.end)
             .some(r => r.textStart !== undefined && r.textEnd !== undefined);
           
@@ -453,7 +521,9 @@ export default function DiarizedTranscriptViewer({
               className={cn(
                 "rounded-lg border p-3 transition-all",
                 fullRedaction 
-                  ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800" 
+                  ? (isFullUndoAvailable
+                      ? "bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700"
+                      : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800")
                   : SPEAKER_COLORS[colorIdx],
                 !expandedView && "p-2",
                 redactionMode && canRedact && "cursor-text hover:ring-2 hover:ring-primary/50",
@@ -486,13 +556,20 @@ export default function DiarizedTranscriptViewer({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="flex items-center gap-2">
-                          <EyeOff className="w-4 h-4 text-red-500 flex-shrink-0" />
+                          <EyeOff className={cn("w-4 h-4 flex-shrink-0", isFullUndoAvailable ? "text-amber-600 dark:text-amber-400" : "text-red-500")} />
                           <span className={cn(
-                            "text-red-600 dark:text-red-400 font-medium italic",
+                            isFullUndoAvailable
+                              ? "text-amber-700 dark:text-amber-300 font-medium italic"
+                              : "text-red-600 dark:text-red-400 font-medium italic",
                             expandedView ? "text-sm" : "text-xs"
                           )}>
                             [REDACTED]
                           </span>
+                          {isFullUndoAvailable && (
+                            <span className={cn("text-xs", "text-amber-700 dark:text-amber-300")}>
+                              Undo available
+                            </span>
+                          )}
                           {redactionMode && canRedact && (
                             <Button
                               size="sm"
@@ -512,7 +589,15 @@ export default function DiarizedTranscriptViewer({
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs">
                         <p className="font-medium">Redaction Reason:</p>
-                        <p className="text-muted-foreground">{fullRedaction.reason}</p>
+                        <p className="text-muted-foreground">{formatReasonType(fullRedaction.reasonType)}</p>
+                        {fullRedaction.reasonNotes && (
+                          <p className="text-muted-foreground mt-1 whitespace-pre-wrap">{fullRedaction.reasonNotes}</p>
+                        )}
+                        {isFullUndoAvailable && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Undo window: {fullUndoMinutesRemaining}m remaining
+                          </p>
+                        )}
                         <p className="text-xs text-muted-foreground mt-1">
                           Redacted on {new Date(fullRedaction.timestamp).toLocaleDateString()}
                         </p>
