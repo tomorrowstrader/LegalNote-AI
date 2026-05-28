@@ -4,16 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Users, Clock, ChevronDown, ChevronUp, EyeOff, Eye, Shield, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -127,15 +117,6 @@ export default function DiarizedTranscriptViewer({
   const [expandedView, setExpandedView] = useState(false);
   const [redactionMode, setRedactionMode] = useState(false);
   const [tick, setTick] = useState(0);
-  const [pendingRedaction, setPendingRedaction] = useState<{ 
-    start: number; 
-    end: number; 
-    text: string;
-    textStart?: number;
-    textEnd?: number;
-    isPartial?: boolean;
-  } | null>(null);
-  const [redactionReason, setRedactionReason] = useState("");
   const [highlightedTimestamp, setHighlightedTimestamp] = useState<number | null>(null);
   const lastScrolledTimestamp = useRef<number | undefined>(undefined);
   const utteranceRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -255,13 +236,13 @@ export default function DiarizedTranscriptViewer({
     // Get the actual selected text from the original utterance using the offsets
     const actualSelectedText = utteranceText.slice(startOffset, endOffset);
 
-    setPendingRedaction({
+    onRedact?.({
       start: utterance.start,
       end: utterance.end,
-      text: actualSelectedText.trim() || selectedText.trim(),
+      reason: "",
       textStart: startOffset,
       textEnd: endOffset,
-      isPartial: (endOffset - startOffset) < utteranceText.length,
+      selectedText: actualSelectedText.trim() || selectedText.trim(),
     });
     
     selection.removeAllRanges();
@@ -280,34 +261,13 @@ export default function DiarizedTranscriptViewer({
     if (fullRedaction) {
       onRemoveRedaction?.(utterance.start, utterance.end);
     } else {
-      setPendingRedaction({
+      onRedact?.({
         start: utterance.start,
         end: utterance.end,
-        text: utterance.text,
-        isPartial: false,
+        reason: "",
+        selectedText: utterance.text,
       });
     }
-  };
-
-  const handleConfirmRedaction = () => {
-    if (!pendingRedaction || !redactionReason.trim()) return;
-    
-    onRedact?.({
-      start: pendingRedaction.start,
-      end: pendingRedaction.end,
-      reason: redactionReason.trim(),
-      textStart: pendingRedaction.textStart,
-      textEnd: pendingRedaction.textEnd,
-      selectedText: pendingRedaction.text,
-    });
-    
-    setPendingRedaction(null);
-    setRedactionReason("");
-  };
-
-  const handleCancelRedaction = () => {
-    setPendingRedaction(null);
-    setRedactionReason("");
   };
 
   const renderTextWithRedactions = (text: string, utteranceStart: number, utteranceEnd: number, utteranceIdx: number) => {
@@ -662,51 +622,6 @@ export default function DiarizedTranscriptViewer({
           );
         })}
       </div>
-
-      <Dialog open={!!pendingRedaction} onOpenChange={(open) => !open && handleCancelRedaction()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Redaction</DialogTitle>
-            <DialogDescription>
-              This segment will be hidden from all exports and shared documents. You can remove the redaction later if needed.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="bg-muted p-3 rounded-lg">
-              <p className="text-sm font-medium text-muted-foreground mb-1">Text to be redacted:</p>
-              <p className="text-sm italic">"{pendingRedaction?.text}"</p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="redaction-reason">Reason for redaction (required)</Label>
-              <Textarea
-                id="redaction-reason"
-                placeholder="e.g., Contains sensitive personal information, Client requested removal, Privileged information..."
-                value={redactionReason}
-                onChange={(e) => setRedactionReason(e.target.value)}
-                className="min-h-[80px]"
-                data-testid="input-redaction-reason"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancelRedaction} data-testid="button-cancel-redaction">
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleConfirmRedaction} 
-              disabled={!redactionReason.trim()}
-              className="bg-red-600 hover:bg-red-700"
-              data-testid="button-confirm-redaction"
-            >
-              <EyeOff className="w-4 h-4 mr-2" />
-              Confirm Redaction
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
