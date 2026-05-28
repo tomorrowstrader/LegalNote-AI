@@ -4514,16 +4514,6 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         if (committed) finalTranscript = committed;
       }
 
-      // Strip selectedText and privilegedRedactions before returning to internal user
-      const safeTranscript = {
-        ...finalTranscript,
-        privilegedRedactions: undefined,
-        redactions: ((finalTranscript?.redactions || []) as any[]).map((r: any) => {
-          const { selectedText: _st, ...safeRedaction } = r;
-          return safeRedaction;
-        }),
-      };
-
       await logAuditEvent(userId, "transcript_viewed_internal", {
         caseId: req.params.id,
         transcriptId: transcript.id,
@@ -4531,7 +4521,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           viewedAt: new Date().toISOString(),
         },
       });
-      res.json(safeTranscript);
+      res.json(sanitizeTranscriptForResponse(finalTranscript));
     } catch (error: any) {
       next(error);
     }
