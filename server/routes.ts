@@ -1017,9 +1017,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           createdAt: doc.createdAt,
         })),
         transcript: transcript ? (() => {
-          // Block sharing if any pending redactions exist
+          // Only block sharing if the undo window is still open.
+          // Expired-pending redactions are functionally committed (undo is blocked server-side)
+          // even if the auto-commit worker hasn't run yet — do not penalise the user for worker drift.
+          const now = new Date();
           const pendingExists = ((transcript.redactions || []) as any[]).some(
-            (r: any) => r.status === 'pending'
+            (r: any) => r.status === 'pending' && r.pendingUntil && new Date(r.pendingUntil) > now
           );
           if (pendingExists) {
             throw new Error('PENDING_REDACTIONS');
