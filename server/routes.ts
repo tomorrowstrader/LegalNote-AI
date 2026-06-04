@@ -4600,7 +4600,17 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (alreadyRedacted) {
         return res.status(400).json({ message: "This text is already redacted" });
       }
-      
+
+      const overlaps = currentRedactions.some((r: any) => {
+        return r.start < end && r.end > start;
+      });
+
+      if (overlaps) {
+        return res.status(400).json({ 
+          message: "This selection overlaps with an existing redaction. Please adjust your selection." 
+        });
+      }
+
       const pendingUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
 
       const newRedaction: any = {
