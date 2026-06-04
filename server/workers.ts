@@ -8,6 +8,7 @@ import { meetingSchedulerService } from './services/meetingSchedulerService';
 import { checkLiveImports } from './services/recallProcessing';
 import { sendRiskDigestEmail } from './email';
 import { logAuditEvent } from './auditMiddleware';
+import { Resend } from 'resend';
 
 /**
  * Initialize job queue workers on server startup
@@ -75,6 +76,17 @@ export function initializeWorkers() {
           }
         } catch (err) {
           console.error(`[REDACTION-JOB] Failed to commit transcript ${transcript.id}:`, err);
+          try {
+            const resend = new Resend(process.env.RESEND_API_KEY);
+            await resend.emails.send({
+              from: 'LegalNote System <system@send.legalnote.ai>',
+              to: ['jazz.dennis@legalnote.ai'],
+              subject: `[LegalNote Alert] Auto-commit failed: transcript ${transcript.id}`,
+              text: `Auto-commit sweep failed to commit redactions.\n\nTranscript ID: ${transcript.id}\nCase ID: ${transcript.caseId}\nCase owner: ${transcript.createdBy}\n\nManual intervention may be required — this transcript has pending redactions that could not be auto-committed.\n\nError: ${err instanceof Error ? err.message : String(err)}\nTime: ${new Date().toISOString()}`,
+            });
+          } catch (alertErr) {
+            console.error('[REDACTION-JOB] Failed to send auto-commit failure alert:', alertErr);
+          }
         }
       }
       console.log(`[REDACTION-JOB] Sweep complete. Processed ${totalCommitted} transcript(s).`);
