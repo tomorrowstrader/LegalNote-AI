@@ -4562,7 +4562,15 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (!selectedText || typeof selectedText !== 'string' || !selectedText.trim()) {
         return res.status(400).json({ message: "selectedText is required — the text being redacted must be provided" });
       }
-      
+
+      if (reasonType === 'redaction_privilege') {
+        if (!reasonNotes || typeof reasonNotes !== 'string' || reasonNotes.trim().length < 20) {
+          return res.status(400).json({ 
+            message: "Privilege redactions require a substantive basis note of at least 20 characters." 
+          });
+        }
+      }
+
       // Verify ownership
       const caseData = await storage.getCase(caseId, userId);
       if (!caseData) {
