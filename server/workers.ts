@@ -7,6 +7,7 @@ import { cleanupSessionTracking } from './services/securityMonitor';
 import { meetingSchedulerService } from './services/meetingSchedulerService';
 import { checkLiveImports } from './services/recallProcessing';
 import { sendRiskDigestEmail } from './email';
+import { logAuditEvent } from './auditMiddleware';
 
 /**
  * Initialize job queue workers on server startup
@@ -50,6 +51,7 @@ export function initializeWorkers() {
       }
       console.log(`[REDACTION-JOB] Found ${transcriptsWithExpired.length} transcript(s) with expired pending redactions.`);
       let totalCommitted = 0;
+      const SYSTEM_ACTOR_ID = 'system:auto-commit';
       for (const transcript of transcriptsWithExpired) {
         try {
           const updated = await storage.commitTranscriptRedactions(
@@ -59,6 +61,17 @@ export function initializeWorkers() {
           if (updated) {
             totalCommitted++;
             console.log(`[REDACTION-JOB] Committed expired redactions on transcript ${transcript.id}`);
+            await logAuditEvent(SYSTEM_ACTOR_ID, "transcript_redactions_auto_committed", {
+              caseId: transcript.caseId,
+              transcriptId: transcript.id,
+              metadata: {
+                action: 'auto_commit_expired_redactions',
+                triggeredBy: 'system',
+                caseOwner: transcript.createdBy,
+                committedAt: new Date().toISOString(),
+              },
+              severity: "critical",
+            });
           }
         } catch (err) {
           console.error(`[REDACTION-JOB] Failed to commit transcript ${transcript.id}:`, err);
