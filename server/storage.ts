@@ -3187,6 +3187,9 @@ export class DbStorage implements IStorage {
 
     const updatedPrivileged = [...currentPrivileged, ...newPrivilegedEntries];
 
+    const newContentHash = generateDocumentHash(updatedContent);
+    const newContentSignature = generateContentSignature(newContentHash);
+
     // Persist changes
     const result = await db
       .update(transcripts)
@@ -3194,6 +3197,8 @@ export class DbStorage implements IStorage {
         content: updatedContent,
         redactions: updatedRedactions,
         privilegedRedactions: updatedPrivileged,
+        contentHash: newContentHash,
+        contentSignature: newContentSignature,
       })
       .where(eq(transcripts.id, transcriptId))
       .returning();
