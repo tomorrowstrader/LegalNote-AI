@@ -132,6 +132,7 @@ export default function DiarizedTranscriptViewer({
   const [highlightedTimestamp, setHighlightedTimestamp] = useState<number | null>(null);
   const lastScrolledTimestamp = useRef<number | undefined>(undefined);
   const utteranceRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const selectionHandledRef = useRef(false);
   void tick;
 
   useEffect(() => {
@@ -257,11 +258,17 @@ export default function DiarizedTranscriptViewer({
       selectedText: actualSelectedText.trim() || selectedText.trim(),
     });
     
+    selectionHandledRef.current = true;
     selection.removeAllRanges();
   };
 
   const handleUtteranceClick = (utterance: SpeakerUtterance, utteranceIdx: number) => {
     if (!redactionMode || !canRedact) return;
+
+    if (selectionHandledRef.current) {
+      selectionHandledRef.current = false;
+      return;
+    }
     
     const selection = window.getSelection();
     if (selection && !selection.isCollapsed && selection.toString().trim()) {
