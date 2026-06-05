@@ -47,6 +47,9 @@ function markdownToPlainText(md: string): string {
     .trim();
 }
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import DiffMatchPatch from 'diff-match-patch';
 
 interface DocumentVersion {
@@ -1062,24 +1065,29 @@ export default function DocumentViewer({
     },
   });
 
-  const [pendingRedaction, setPendingRedaction] = useState<{ start: number; end: number; textStart?: number; textEnd?: number; selectedText?: string } | null>(null);
+  const [pendingRedactionData, setPendingRedactionData] = useState<{
+    start: number;
+    end: number;
+    textStart?: number;
+    textEnd?: number;
+    selectedText?: string;
+  } | null>(null);
   const [redactionReasonType, setRedactionReasonType] = useState<string>('redaction_gdpr');
   const [redactionReasonNotes, setRedactionReasonNotes] = useState<string>('');
-  const [showRedactionModal, setShowRedactionModal] = useState(false);
 
   // Redaction mutations
   const addRedactionMutation = useMutation({
-    mutationFn: async ({ start, end, reasonType, reasonNotes, textStart, textEnd, selectedText }: { 
-      start: number; 
-      end: number; 
-      reasonType: string;
-      reasonNotes?: string;
+    mutationFn: async ({ start, end, textStart, textEnd, selectedText, reasonType, reasonNotes }: {
+      start: number;
+      end: number;
       textStart?: number;
       textEnd?: number;
       selectedText?: string;
+      reasonType: string;
+      reasonNotes?: string;
     }) => {
-      return await apiRequest('POST', `/api/cases/${caseId}/transcript/redact`, { 
-        start, end, reasonType, reasonNotes, textStart, textEnd, selectedText 
+      return await apiRequest('POST', `/api/cases/${caseId}/transcript/redact`, {
+        start, end, textStart, textEnd, selectedText, reasonType, reasonNotes
       });
     },
     onSuccess: () => {
@@ -1129,30 +1137,30 @@ export default function DocumentViewer({
     },
   });
 
-  const handleRedact = (redaction: { 
-    start: number; 
-    end: number; 
+  const handleRedact = (redaction: {
+    start: number;
+    end: number;
     reason: string;
     textStart?: number;
     textEnd?: number;
     selectedText?: string;
   }) => {
-    const { reason: _reason, ...pending } = redaction;
-    setPendingRedaction(pending);
+    const { reason: _reason, ...data } = redaction;
+    setPendingRedactionData(data);
     setRedactionReasonType('redaction_gdpr');
     setRedactionReasonNotes('');
-    setShowRedactionModal(true);
   };
 
   const confirmRedaction = () => {
-    if (!pendingRedaction) return;
+    if (!pendingRedactionData) return;
     addRedactionMutation.mutate({
-      ...pendingRedaction,
+      ...pendingRedactionData,
+      reason: '',
       reasonType: redactionReasonType,
-      reasonNotes: redactionReasonNotes,
+      reasonNotes: redactionReasonNotes.trim() || undefined,
     });
-    setShowRedactionModal(false);
-    setPendingRedaction(null);
+    setPendingRedactionData(null);
+    setRedactionReasonType('redaction_gdpr');
     setRedactionReasonNotes('');
   };
 
@@ -2446,59 +2454,66 @@ export default function DocumentViewer({
         onDownload={handleDownload}
       />
 
-      {showRedactionModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-lg font-semibold mb-4">Select Redaction Reason</h3>
-            <div className="space-y-3 mb-4">
-              {[
-                { value: 'redaction_gdpr', label: 'GDPR — Personal Data' },
-                { value: 'redaction_privilege', label: 'Legal Privilege' },
-                { value: 'redaction_third_party', label: 'Third Party Information' },
-                { value: 'redaction_commercially_sensitive', label: 'Commercially Sensitive' },
-              ].map(option => (
-                <label key={option.value} className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="redactionReason"
-                    value={option.value}
-                    checked={redactionReasonType === option.value}
-                    onChange={e => setRedactionReasonType(e.target.value)}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">{option.label}</span>
-                </label>
-              ))}
+      <Dialog open={!!pendingRedactionData} onOpenChange={(open) => { if (!open) setPendingRedactionData(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Redaction Reason</DialogTitle>
+            <DialogDescription>
+              Choose a reason for redacting the selected text.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingRedactionData?.selectedText && (
+            <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+              {pendingRedactionData.selectedText}
             </div>
-            {redactionReasonType === 'redaction_privilege' && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Privilege basis (required)</label>
-                <textarea
-                  value={redactionReasonNotes}
-                  onChange={e => setRedactionReasonNotes(e.target.value)}
-                  placeholder="Describe the privilege basis (min 10 characters)"
-                  className="w-full border rounded p-2 text-sm h-20 resize-none"
-                />
-              </div>
-            )}
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => { setShowRedactionModal(false); setPendingRedaction(null); }}
-                className="px-4 py-2 text-sm border rounded hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmRedaction}
-                disabled={redactionReasonType === 'redaction_privilege' && redactionReasonNotes.trim().length < 10}
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-              >
-                Confirm Redaction
-              </button>
+          )}
+          <RadioGroup
+            value={redactionReasonType}
+            onValueChange={setRedactionReasonType}
+            className="space-y-3"
+          >
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="redaction_gdpr" id="redaction-gdpr" />
+              <Label htmlFor="redaction-gdpr" className="cursor-pointer">GDPR — Personal Data</Label>
             </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="redaction_privilege" id="redaction-privilege" />
+              <Label htmlFor="redaction-privilege" className="cursor-pointer">Legal Privilege</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="redaction_third_party" id="redaction-third-party" />
+              <Label htmlFor="redaction-third-party" className="cursor-pointer">Third Party Information</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="redaction_commercially_sensitive" id="redaction-commercially-sensitive" />
+              <Label htmlFor="redaction-commercially-sensitive" className="cursor-pointer">Commercially Sensitive</Label>
+            </div>
+          </RadioGroup>
+          <div className="space-y-2">
+            <Label htmlFor="redaction-reason-notes">Additional notes (required for privilege)</Label>
+            <Textarea
+              id="redaction-reason-notes"
+              value={redactionReasonNotes}
+              onChange={(e) => setRedactionReasonNotes(e.target.value)}
+              placeholder="Describe the basis for this redaction..."
+            />
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingRedactionData(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmRedaction}
+              disabled={
+                (redactionReasonType === 'redaction_privilege' && redactionReasonNotes.trim().length < 20) ||
+                addRedactionMutation.isPending
+              }
+            >
+              Confirm Redaction
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
