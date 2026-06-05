@@ -401,7 +401,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
                 {WAVEFORM_BARS.map((height, i) => (
                   <div
                     key={i}
-                    className="flex-1 rounded-sm bg-muted-foreground/15"
+                    className="flex-1 rounded-full bg-muted-foreground/15"
                     style={{ height: `${height * 100}%`, minWidth: '2px' }}
                   />
                 ))}
@@ -491,7 +491,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
                   <div
                     key={i}
                     ref={el => { barRefsArray.current[i] = el; }}
-                    className="flex-1 rounded-full transition-colors duration-75"
+                    className="flex-1 rounded-full"
                     style={{
                       height: `${height * 100}%`,
                       minWidth: '2px',
