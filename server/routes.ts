@@ -4590,6 +4590,16 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (!transcript) {
         return res.status(404).json({ message: "No transcript found" });
       }
+
+      // Block redaction attempts on matters under litigation hold
+      if (caseData.litigationHold) {
+        return res.status(423).json({ 
+          message: "This matter is under litigation hold. All records are preserved pending court disclosure assessment. Contact your COLP to release the hold before modifying redactions.",
+          litigationHold: true,
+          litigationHoldReason: caseData.litigationHoldReason || null,
+          litigationHoldAppliedAt: caseData.litigationHoldAppliedAt || null,
+        });
+      }
       
       // Get current redactions or initialize empty array
       const currentRedactions = (transcript.redactions || []) as any[];
@@ -4703,6 +4713,16 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const transcript = await storage.getTranscriptByCase(caseId, userId);
       if (!transcript) {
         return res.status(404).json({ message: "No transcript found" });
+      }
+
+      // Block redaction attempts on matters under litigation hold
+      if (caseData.litigationHold) {
+        return res.status(423).json({ 
+          message: "This matter is under litigation hold. All records are preserved pending court disclosure assessment. Contact your COLP to release the hold before modifying redactions.",
+          litigationHold: true,
+          litigationHoldReason: caseData.litigationHoldReason || null,
+          litigationHoldAppliedAt: caseData.litigationHoldAppliedAt || null,
+        });
       }
       
       // Get current redactions
