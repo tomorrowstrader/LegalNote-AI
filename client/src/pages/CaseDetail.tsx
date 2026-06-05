@@ -1076,6 +1076,16 @@ export default function CaseDetail() {
                     : `SRA Attention (${sraReadiness.outstandingCount})`}
                 </button>
               )}
+              {caseData.litigationHold && (
+                <Badge
+                  variant="destructive"
+                  className="gap-1 bg-amber-600 hover:bg-amber-700 dark:bg-amber-800"
+                  data-testid="badge-litigation-hold"
+                >
+                  <Lock className="w-3 h-3" />
+                  LITIGATION HOLD
+                </Badge>
+              )}
             </div>
             {showReadinessPanel && sraReadiness && (
               <div className="mt-3 rounded-md border border-border bg-background p-3 space-y-2" data-testid="panel-sra-readiness">
@@ -1220,6 +1230,27 @@ export default function CaseDetail() {
 
         {/* Persistent elements */}
         <div className="px-6 lg:px-8 pt-6 space-y-4">
+          {caseData.litigationHold && (
+            <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-litigation-hold">
+              <div className="flex items-start gap-3">
+                <Lock className="w-5 h-5 text-amber-700 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    Litigation Hold in effect{caseData.litigationHoldAppliedAt ? ` since ${new Date(caseData.litigationHoldAppliedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
+                  </p>
+                  {caseData.litigationHoldReason && (
+                    <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
+                      {caseData.litigationHoldReason}
+                    </p>
+                  )}
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
+                    All session records, transcripts, and attendance notes on this matter are preserved. Edits, redactions, and deletions are blocked pending court disclosure assessment. Contact your COLP to release.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* GDPR / Consent alert */}
           {caseData.sourceType === 'audio' && !consentLoading && !hasValidConsent && (
             <div className="p-4 bg-destructive/10 border border-destructive/40 rounded-md" data-testid="alert-gdpr-required">
