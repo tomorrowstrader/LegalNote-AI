@@ -1562,6 +1562,7 @@ export default function CaseDetail() {
                   initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
                   focusSessionId={focusSessionId || urlSessionId || undefined}
                   hasAmlFlag={!!caseData.riskLevel && ['high', 'medium'].includes(caseData.riskLevel as string)}
+                  litigationHold={caseData.litigationHold}
                 />
               </div>
             );

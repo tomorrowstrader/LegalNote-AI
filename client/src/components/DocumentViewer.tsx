@@ -310,6 +310,7 @@ interface DocumentViewerProps {
   sessions?: SessionInfo[];
   focusSessionId?: string | null;
   hasAmlFlag?: boolean;
+  litigationHold?: boolean;
 }
 
 function parseReasoningGaps(content: string): string[] {
@@ -626,6 +627,7 @@ export default function DocumentViewer({
   sessions,
   focusSessionId,
   hasAmlFlag,
+  litigationHold,
 }: DocumentViewerProps) {
   const { toast } = useToast();
   const [showDownloadModal, setShowDownloadModal] = useState(false);
@@ -1099,11 +1101,13 @@ export default function DocumentViewer({
       });
     },
     onError: (error: Error) => {
+      const message = error.message || "Failed to redact text. Please try again.";
+      const isLitigationHold = message.includes('litigation hold');
       toast({
-        title: "Redaction Failed",
-        description: error.message || "Failed to redact text. Please try again.",
+        title: isLitigationHold ? "Matter Under Litigation Hold" : "Redaction Failed",
+        description: message,
         variant: "destructive",
-        duration: 5000,
+        duration: isLitigationHold ? 8000 : 5000,
       });
     },
   });
@@ -1128,11 +1132,13 @@ export default function DocumentViewer({
       });
     },
     onError: (error: Error) => {
+      const message = error.message || "Failed to remove redaction. Please try again.";
+      const isLitigationHold = message.includes('litigation hold');
       toast({
-        title: "Removal Failed",
-        description: error.message || "Failed to remove redaction. Please try again.",
+        title: isLitigationHold ? "Matter Under Litigation Hold" : "Removal Failed",
+        description: message,
         variant: "destructive",
-        duration: 5000,
+        duration: isLitigationHold ? 8000 : 5000,
       });
     },
   });
@@ -2328,17 +2334,42 @@ export default function DocumentViewer({
             </CardHeader>
             <CardContent className="max-h-[600px] overflow-y-auto">
               {transcriptUtterances && transcriptUtterances.length > 0 ? (
-                <DiarizedTranscriptViewer
-                  utterances={transcriptUtterances}
-                  speakerCount={speakerCount}
-                  fallbackContent={transcriptContent}
-                  onTimestampClick={onTranscriptTimestampClick}
-                  redactions={transcriptRedactions}
-                  onRedact={handleRedact}
-                  onRemoveRedaction={handleRemoveRedaction}
-                  canRedact={true}
-                  initialTimestamp={initialTimestamp}
-                />
+                <>
+                  {litigationHold && (
+                    <div className="flex flex-wrap items-center gap-2 pb-2 border-b mb-2">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled
+                              className="gap-1"
+                              data-testid="button-toggle-redaction-mode"
+                            >
+                              <Shield className="w-3 h-3" />
+                              Redact
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Redaction is blocked while this matter is under litigation hold.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  )}
+                  <DiarizedTranscriptViewer
+                    utterances={transcriptUtterances}
+                    speakerCount={speakerCount}
+                    fallbackContent={transcriptContent}
+                    onTimestampClick={onTranscriptTimestampClick}
+                    redactions={transcriptRedactions}
+                    onRedact={handleRedact}
+                    onRemoveRedaction={handleRemoveRedaction}
+                    canRedact={!litigationHold}
+                    initialTimestamp={initialTimestamp}
+                  />
+                </>
               ) : transcriptContent ? (
                 <p className="text-foreground whitespace-pre-wrap">{transcriptContent}</p>
               ) : (
