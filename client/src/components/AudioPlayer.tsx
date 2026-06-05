@@ -351,10 +351,10 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
     
     return (
       <div 
-        className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-md ${
+        className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
           isUrgent 
-            ? 'bg-destructive/10 text-destructive border border-destructive/20' 
-            : 'bg-muted/50 text-muted-foreground'
+            ? 'bg-destructive/10 text-destructive border-destructive/20' 
+            : 'bg-muted/40 text-muted-foreground border-border/40'
         }`}
         data-testid="audio-retention-countdown"
       >
@@ -383,7 +383,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   if (isExpired || !audioUrl) {
     return (
       <div className="relative" data-testid="audio-player-expired">
-        <div className="bg-card border rounded-lg p-5 opacity-40 pointer-events-none select-none">
+        <div className="bg-gradient-to-b from-card to-muted/20 border border-border/60 rounded-2xl px-5 py-4 opacity-40 pointer-events-none select-none">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
@@ -429,14 +429,14 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
       
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
       
-      <div className="bg-card border rounded-lg p-5" data-testid="audio-player">
+      <div className="bg-gradient-to-b from-card to-muted/20 border border-border/60 rounded-2xl px-5 py-4 shadow-sm" data-testid="audio-player">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 shrink-0">
             <Button
               size="icon"
               variant="ghost"
               onClick={() => skipBy(-15)}
-              className="rounded-full w-8 h-8"
+              className="rounded-full w-9 h-9 text-muted-foreground hover:text-foreground"
               data-testid="button-skip-back"
             >
               <SkipBack className="h-3.5 w-3.5" />
@@ -444,7 +444,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
 
             <button
               onClick={togglePlayPause}
-              className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-transform active:scale-95"
+              className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all active:scale-95 shadow-md hover:shadow-lg hover:brightness-105"
               data-testid="button-play-pause"
             >
               {isPlaying ? (
@@ -458,7 +458,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
               size="icon"
               variant="ghost"
               onClick={() => skipBy(15)}
-              className="rounded-full w-8 h-8"
+              className="rounded-full w-9 h-9 text-muted-foreground hover:text-foreground"
               data-testid="button-skip-forward"
             >
               <SkipForward className="h-3.5 w-3.5" />
@@ -468,7 +468,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
           <div className="flex-1 min-w-0 space-y-1">
             <div
               ref={waveformRef}
-              className="flex items-end gap-[2px] h-10 cursor-pointer select-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary touch-none"
+              className="flex items-end gap-[2px] h-12 cursor-pointer select-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary touch-none"
               onPointerDown={handleWaveformPointerDown}
               onPointerMove={handleWaveformPointerMove}
               onPointerUp={handleWaveformPointerUp}
@@ -491,7 +491,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
                   <div
                     key={i}
                     ref={el => { barRefsArray.current[i] = el; }}
-                    className="flex-1 rounded-sm transition-colors duration-100"
+                    className="flex-1 rounded-full transition-colors duration-75"
                     style={{
                       height: `${height * 100}%`,
                       minWidth: '2px',
@@ -505,12 +505,12 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
               })}
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span ref={currentTimeDisplayRef} data-testid="text-current-time">{formatTime(currentTime)}</span>
-              <span data-testid="text-duration">{formatTime(duration)}</span>
+              <span ref={currentTimeDisplayRef} data-testid="text-current-time" className="font-medium tabular-nums">{formatTime(currentTime)}</span>
+              <span data-testid="text-duration" className="tabular-nums">{formatTime(duration)}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 pl-2 border-l border-border/40">
             <Button
               size="icon"
               variant="ghost"
