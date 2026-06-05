@@ -2488,6 +2488,30 @@ export default function DocumentViewer({
               <RadioGroupItem value="redaction_commercially_sensitive" id="redaction-commercially-sensitive" />
               <Label htmlFor="redaction-commercially-sensitive" className="cursor-pointer">Commercially Sensitive</Label>
             </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="redaction_court_order" id="redaction-court-order" />
+              <Label htmlFor="redaction-court-order" className="cursor-pointer">Court Order / Reporting Restriction</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="redaction_without_prejudice" id="redaction-without-prejudice" />
+              <Label htmlFor="redaction-without-prejudice" className="cursor-pointer">Without Prejudice</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="redaction_nda" id="redaction-nda" />
+              <Label htmlFor="redaction-nda" className="cursor-pointer">Deal Confidentiality / NDA</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="redaction_ubo" id="redaction-ubo" />
+              <Label htmlFor="redaction-ubo" className="cursor-pointer">Beneficial Ownership / UBO</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="redaction_regulatory_privilege" id="redaction-regulatory-privilege" />
+              <Label htmlFor="redaction-regulatory-privilege" className="cursor-pointer">Regulatory / Supervisory Privilege</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="redaction_foreign_law_privilege" id="redaction-foreign-law-privilege" />
+              <Label htmlFor="redaction-foreign-law-privilege" className="cursor-pointer">Foreign Law Privilege</Label>
+            </div>
           </RadioGroup>
           <div className="space-y-2">
             <Label htmlFor="redaction-reason-notes">Additional notes (required for privilege)</Label>

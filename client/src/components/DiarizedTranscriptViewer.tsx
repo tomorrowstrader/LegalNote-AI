@@ -79,6 +79,18 @@ function formatReasonType(reasonType: string | undefined): string {
       return 'Third Party Information';
     case 'redaction_commercially_sensitive':
       return 'Commercially Sensitive';
+    case 'redaction_court_order':
+      return 'Court Order / Reporting Restriction';
+    case 'redaction_without_prejudice':
+      return 'Without Prejudice';
+    case 'redaction_nda':
+      return 'Deal Confidentiality / NDA';
+    case 'redaction_ubo':
+      return 'Beneficial Ownership / UBO';
+    case 'redaction_regulatory_privilege':
+      return 'Regulatory / Supervisory Privilege';
+    case 'redaction_foreign_law_privilege':
+      return 'Foreign Law Privilege';
     default:
       return 'Redacted';
   }
