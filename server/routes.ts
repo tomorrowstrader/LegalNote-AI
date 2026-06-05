@@ -4539,9 +4539,15 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
       const VALID_REASON_TYPES = [
         'redaction_gdpr',
-        'redaction_privilege', 
+        'redaction_privilege',
         'redaction_third_party',
         'redaction_commercially_sensitive',
+        'redaction_court_order',
+        'redaction_without_prejudice',
+        'redaction_nda',
+        'redaction_ubo',
+        'redaction_regulatory_privilege',
+        'redaction_foreign_law_privilege',
       ] as const;
 
       type RedactionReasonType = typeof VALID_REASON_TYPES[number];
@@ -4552,7 +4558,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
       if (!reasonType || !VALID_REASON_TYPES.includes(reasonType as RedactionReasonType)) {
         return res.status(400).json({ 
-          message: "reasonType is required and must be one of: redaction_gdpr, redaction_privilege, redaction_third_party, redaction_commercially_sensitive" 
+          message: "reasonType is required and must be one of: redaction_gdpr, redaction_privilege, redaction_third_party, redaction_commercially_sensitive, redaction_court_order, redaction_without_prejudice, redaction_nda, redaction_ubo, redaction_regulatory_privilege, redaction_foreign_law_privilege" 
         });
       }
 
