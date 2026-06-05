@@ -438,6 +438,8 @@ export default function Dashboard() {
             description={`${productivityStats?.thisMonthCases ?? 0} this month`}
             variant="ring"
             ringColor="primary"
+            containerClassName="bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800"
+            iconCircleClassName="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
           />
           <StatsCard
             title="Awaiting Review"
@@ -446,6 +448,8 @@ export default function Dashboard() {
             description="ready for sign-off"
             variant="ring"
             ringColor="amber"
+            containerClassName="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900"
+            iconCircleClassName="bg-amber-200 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300"
           />
           <StatsCard
             title="Defensibility Ready"
@@ -455,6 +459,8 @@ export default function Dashboard() {
             description="protected & audit-ready"
             variant="ring"
             ringColor="emerald"
+            containerClassName="bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900"
+            iconCircleClassName="bg-emerald-200 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300"
           />
           <StatsCard
             title="Documentation"
@@ -464,6 +470,8 @@ export default function Dashboard() {
             description="cases with attendance notes"
             variant="ring"
             ringColor="blue"
+            containerClassName="bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-900"
+            iconCircleClassName="bg-sky-200 dark:bg-sky-900/40 text-sky-800 dark:text-sky-300"
           />
         </div>
 

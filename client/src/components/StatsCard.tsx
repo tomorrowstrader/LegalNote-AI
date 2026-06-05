@@ -14,6 +14,8 @@ interface StatsCardProps {
   variant?: "default" | "ring";
   ringColor?: "emerald" | "blue" | "amber" | "primary";
   ringMax?: number;
+  containerClassName?: string;
+  iconCircleClassName?: string;
 }
 
 function useCountUp(end: number, duration: number = 1000, enabled: boolean = true, decimals: number = 0) {
@@ -114,7 +116,9 @@ export default function StatsCard({
   animate = true,
   variant = "default",
   ringColor = "emerald",
-  ringMax
+  ringMax,
+  containerClassName,
+  iconCircleClassName,
 }: StatsCardProps) {
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -150,15 +154,15 @@ export default function StatsCard({
         ref={cardRef}
         className={`group relative overflow-visible transition-all duration-500 hover:-translate-y-0.5 hover:shadow-lg dark:border-[hsl(45,85%,55%,0.15)] dark:shadow-[0_4px_20px_rgba(0,0,20,0.4),inset_0_1px_0_rgba(216,172,74,0.08)] ${
           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-        }`}
+        } ${containerClassName ?? ''}`}
         data-testid={`card-stat-${title.toLowerCase().replace(/\s+/g, '-')}`}
       >
         <CardContent className="p-5 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="relative flex-shrink-0">
+            <div className={iconCircleClassName ? `relative flex-shrink-0 flex items-center justify-center w-14 h-14 rounded-full ${iconCircleClassName}` : "relative flex-shrink-0"}>
               <ProgressRing value={ringPercentage} size={56} strokeWidth={5} color={ringColor} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <Icon className="w-5 h-5 text-foreground/70 dark:text-foreground/80" strokeWidth={1.5} />
+                <Icon className={`w-5 h-5 ${iconCircleClassName ? '' : 'text-foreground/70 dark:text-foreground/80'}`} strokeWidth={1.5} />
               </div>
             </div>
             <div className="flex-1 min-w-0">
@@ -186,14 +190,14 @@ export default function StatsCard({
       ref={cardRef}
       className={`group relative overflow-visible transition-all duration-500 hover:-translate-y-0.5 hover:shadow-lg dark:border-[hsl(45,85%,55%,0.15)] dark:shadow-[0_4px_20px_rgba(0,0,20,0.4),inset_0_1px_0_rgba(216,172,74,0.08)] ${
         isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-      }`}
+      } ${containerClassName ?? ''}`}
       data-testid={`card-stat-${title.toLowerCase().replace(/\s+/g, '-')}`}
     >
       <CardContent className="p-5 sm:p-6">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-muted dark:bg-[hsl(220,60%,15%)] border border-border/50 dark:border-[hsl(45,85%,55%,0.1)]">
-              <Icon className="w-4 h-4 text-muted-foreground dark:text-[hsl(45,85%,65%)]" strokeWidth={1.5} />
+            <div className={`flex items-center justify-center w-9 h-9 rounded-lg ${iconCircleClassName ?? 'bg-muted dark:bg-[hsl(220,60%,15%)] border border-border/50 dark:border-[hsl(45,85%,55%,0.1)]'}`}>
+              <Icon className={`w-4 h-4 ${iconCircleClassName ? '' : 'text-muted-foreground dark:text-[hsl(45,85%,65%)]'}`} strokeWidth={1.5} />
             </div>
             <p className="text-sm font-medium text-muted-foreground">{title}</p>
           </div>
