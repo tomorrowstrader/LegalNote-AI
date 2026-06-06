@@ -1076,6 +1076,7 @@ export default function DocumentViewer({
   } | null>(null);
   const [redactionReasonType, setRedactionReasonType] = useState<string>('redaction_gdpr');
   const [redactionReasonNotes, setRedactionReasonNotes] = useState<string>('');
+  const [permanenceConfirmed, setPermanenceConfirmed] = useState(false);
 
   // Redaction mutations
   const addRedactionMutation = useMutation({
@@ -1154,10 +1155,13 @@ export default function DocumentViewer({
     const { reason: _reason, ...data } = redaction;
     setPendingRedactionData(data);
     setRedactionReasonType('redaction_gdpr');
+    setPermanenceConfirmed(false);
     setRedactionReasonNotes('');
   };
 
   const confirmRedaction = () => {
+    const isPermanent = redactionReasonType !== 'redaction_privilege';
+    if (isPermanent && !permanenceConfirmed) return;
     if (!pendingRedactionData) return;
     addRedactionMutation.mutate({
       ...pendingRedactionData,
@@ -2500,7 +2504,10 @@ export default function DocumentViewer({
           )}
           <RadioGroup
             value={redactionReasonType}
-            onValueChange={setRedactionReasonType}
+            onValueChange={(value) => {
+              setRedactionReasonType(value);
+              setPermanenceConfirmed(false);
+            }}
             className="space-y-3"
           >
             <div className="flex items-center gap-2">
@@ -2553,6 +2560,25 @@ export default function DocumentViewer({
               placeholder="Describe the basis for this redaction..."
             />
           </div>
+          {redactionReasonType !== 'redaction_privilege' && (
+            <div className="flex items-start gap-3 p-3 bg-destructive/8 border border-destructive/20 rounded-md">
+              <input
+                type="checkbox"
+                id="permanence-confirm"
+                checked={permanenceConfirmed}
+                onChange={(e) => setPermanenceConfirmed(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-destructive cursor-pointer"
+                data-testid="checkbox-permanence-confirm"
+              />
+              <label
+                htmlFor="permanence-confirm"
+                className="text-xs text-destructive leading-relaxed cursor-pointer"
+              >
+                I understand this redaction will permanently delete the selected
+                text after 4 hours and cannot be recovered.
+              </label>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setPendingRedactionData(null)}>
               Cancel
@@ -2561,6 +2587,7 @@ export default function DocumentViewer({
               onClick={confirmRedaction}
               disabled={
                 (redactionReasonType === 'redaction_privilege' && redactionReasonNotes.trim().length < 20) ||
+                (redactionReasonType !== 'redaction_privilege' && !permanenceConfirmed) ||
                 addRedactionMutation.isPending
               }
             >
