@@ -85,19 +85,24 @@ html {
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 0 0% 98%;
+  /* ORIGINAL: --background: 0 0% 98%; */
+  --background: 38 20% 97%;
 
   --foreground: 0 0% 10%;
 
-  --border: 0 0% 88%;
+  /* ORIGINAL: --border: 0 0% 88%; */
+  --border: 35 10% 86%;
 
-  --card: 0 0% 100%;
+  /* ORIGINAL: --card: 0 0% 100%; */
+  --card: 35 15% 99%;
 
   --card-foreground: 0 0% 10%;
 
-  --card-border: 0 0% 92%;
+  /* ORIGINAL: --card-border: 0 0% 92%; */
+  --card-border: 35 12% 90%;
 
-  --sidebar: 0 0% 96%;
+  /* ORIGINAL: --sidebar: 0 0% 96%; */
+  --sidebar: 38 18% 95%;
 
   --sidebar-foreground: 0 0% 10%;
 
@@ -194,72 +199,80 @@ html {
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
-/* LegalNote Dark Mode - Warm charcoal-brown tones for brand continuity */
+/* LegalNote Dark Mode - Mid navy tones for brand continuity */
 .dark {
-  --button-outline: rgba(200, 150, 100, .15);
-  --badge-outline: rgba(200, 150, 100, .10);
+  /* ORIGINAL: --button-outline: rgba(200, 150, 100, .15); */
+  /* ORIGINAL: --badge-outline: rgba(200, 150, 100, .10); */
+  --button-outline: rgba(100, 140, 200, .15);
+  --badge-outline: rgba(100, 140, 200, .10);
 
   --opaque-button-border-intensity: 12;  /* In terms of percentages */
 
   /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(255, 200, 150, .06);
-  --elevate-2: rgba(255, 200, 150, .12);
+  /* ORIGINAL: --elevate-1: rgba(255, 200, 150, .06); */
+  /* ORIGINAL: --elevate-2: rgba(255, 200, 150, .12); */
+  --elevate-1: rgba(150, 180, 255, .06);
+  --elevate-2: rgba(150, 180, 255, .12);
 
-  /* Main background - warm charcoal, softened */
-  --background: 25 12% 12%;
+  /* ORIGINAL: --background: 25 12% 12%; (warm charcoal) */
+  /* Main background - mid navy */
+  --background: 220 35% 10%;
 
-  /* Text - soft off-white, reduced glare */
-  --foreground: 30 10% 88%;
+  /* ORIGINAL: --foreground: 30 10% 88%; */
+  /* Text - cool off-white */
+  --foreground: 210 15% 90%;
 
-  /* Borders - gentle warm dividers */
-  --border: 25 10% 24%;
+  /* ORIGINAL: --border: 25 10% 24%; */
+  /* Borders - navy dividers */
+  --border: 220 20% 22%;
 
-  /* Cards - subtly elevated warm dark */
-  --card: 25 10% 16%;
+  /* ORIGINAL: --card: 25 10% 16%; --card-border: 25 10% 22%; */
+  /* Cards - navy glass surface */
+  --card: 220 30% 14%;
 
-  --card-foreground: 30 10% 88%;
+  --card-foreground: 210 15% 90%;
 
-  --card-border: 25 10% 22%;
+  --card-border: 220 25% 20%;
 
-  /* Sidebar - deeper warm dark */
-  --sidebar: 25 12% 10%;
+  /* ORIGINAL sidebar: 25 12% 10% / border: 25 10% 20% / accent: 25 12% 20% */
+  --sidebar: 220 35% 8%;
 
-  --sidebar-foreground: 30 10% 88%;
+  --sidebar-foreground: 210 15% 90%;
 
-  --sidebar-border: 25 10% 20%;
+  --sidebar-border: 220 25% 18%;
 
   --sidebar-primary: 25 60% 55%;
 
-  --sidebar-primary-foreground: 25 15% 9%;
+  --sidebar-primary-foreground: 220 35% 8%;
 
-  --sidebar-accent: 25 12% 20%;
+  --sidebar-accent: 220 30% 16%;
 
-  --sidebar-accent-foreground: 30 10% 88%;
+  --sidebar-accent-foreground: 210 15% 90%;
 
   /* Ring - terracotta brand color */
   --sidebar-ring: 18 65% 55%;
 
-  /* Popover - same as card */
-  --popover: 25 10% 16%;
+  /* ORIGINAL: --popover: 25 10% 16%; --popover-border: 25 10% 24%; */
+  --popover: 220 30% 13%;
 
-  --popover-foreground: 30 10% 88%;
+  --popover-foreground: 210 15% 90%;
 
-  --popover-border: 25 10% 24%;
+  --popover-border: 220 25% 20%;
 
   /* Primary - warm terracotta/amber for visibility */
   --primary: 25 60% 55%;
 
   --primary-foreground: 30 10% 96%;
 
-  /* Secondary */
-  --secondary: 25 10% 20%;
+  /* ORIGINAL: --secondary: 25 10% 20%; */
+  --secondary: 220 25% 18%;
 
-  --secondary-foreground: 30 10% 88%;
+  --secondary-foreground: 210 15% 90%;
 
-  /* Muted */
-  --muted: 25 8% 22%;
+  /* ORIGINAL: --muted: 25 8% 22%; --muted-foreground: 30 8% 72%; */
+  --muted: 220 20% 20%;
 
-  --muted-foreground: 30 8% 72%;
+  --muted-foreground: 210 12% 68%;
 
   /* Accent - terracotta brand color (slightly brighter for dark mode) */
   --accent: 18 65% 55%;
@@ -271,8 +284,8 @@ html {
 
   --destructive-foreground: 30 10% 98%;
 
-  /* Input */
-  --input: 25 10% 24%;
+  /* ORIGINAL: --input: 25 10% 24%; */
+  --input: 220 25% 20%;
   
   /* Ring - terracotta */
   --ring: 18 65% 50%;
@@ -284,15 +297,15 @@ html {
   --chart-4: 18 50% 50%;
   --chart-5: 30 15% 45%;
 
-  /* Shadows - warm dark */
-  --shadow-2xs: 0px 1px 2px 0px hsl(25 20% 0% / 0.60);
-  --shadow-xs: 0px 1px 3px 0px hsl(25 20% 0% / 0.70);
-  --shadow-sm: 0px 2px 4px -1px hsl(25 20% 0% / 0.65), 0px 1px 2px -1px hsl(25 20% 0% / 0.70);
-  --shadow: 0px 4px 6px -1px hsl(25 20% 0% / 0.70), 0px 2px 4px -1px hsl(25 20% 0% / 0.65);
-  --shadow-md: 0px 6px 12px -2px hsl(25 20% 0% / 0.75), 0px 3px 6px -2px hsl(25 20% 0% / 0.70);
-  --shadow-lg: 0px 10px 20px -4px hsl(25 20% 0% / 0.80), 0px 4px 8px -2px hsl(25 20% 0% / 0.70);
-  --shadow-xl: 0px 20px 30px -6px hsl(25 20% 0% / 0.85), 0px 8px 16px -4px hsl(25 20% 0% / 0.75);
-  --shadow-2xl: 0px 30px 60px -12px hsl(25 20% 0% / 0.90);
+  /* Shadows - navy dark */
+  --shadow-2xs: 0px 1px 2px 0px hsl(220 40% 0% / 0.60);
+  --shadow-xs: 0px 1px 3px 0px hsl(220 40% 0% / 0.70);
+  --shadow-sm: 0px 2px 4px -1px hsl(220 40% 0% / 0.65), 0px 1px 2px -1px hsl(220 40% 0% / 0.70);
+  --shadow: 0px 4px 6px -1px hsl(220 40% 0% / 0.70), 0px 2px 4px -1px hsl(220 40% 0% / 0.65);
+  --shadow-md: 0px 6px 12px -2px hsl(220 40% 0% / 0.75), 0px 3px 6px -2px hsl(220 40% 0% / 0.70);
+  --shadow-lg: 0px 10px 20px -4px hsl(220 40% 0% / 0.80), 0px 4px 8px -2px hsl(220 40% 0% / 0.70);
+  --shadow-xl: 0px 20px 30px -6px hsl(220 40% 0% / 0.85), 0px 8px 16px -4px hsl(220 40% 0% / 0.75);
+  --shadow-2xl: 0px 30px 60px -12px hsl(220 40% 0% / 0.90);
 
 }
 
@@ -315,22 +328,24 @@ html {
     @apply font-sans antialiased text-foreground;
   }
 
-  /* Subtle warm tint for light mode */
+  /* Refined warm cream — document-grade light mode */
   :root body {
+    /* ORIGINAL: hsl(40, 20%, 98%) warm white */
     background: linear-gradient(180deg, 
-      hsl(40, 20%, 98%) 0%, 
-      hsl(40, 15%, 96%) 100%
+      hsl(38, 25%, 97%) 0%, 
+      hsl(35, 18%, 95%) 100%
     );
     background-attachment: fixed;
   }
 
-  /* Deep warm charcoal gradient for dark mode - matches LegalNote branding */
+  /* Deep mid navy gradient for dark mode - matches LegalNote branding */
   .dark body {
+    /* ORIGINAL: radial warm charcoal hsl(25, ...) gradient */
     background: radial-gradient(ellipse at top left, 
-      hsl(25, 18%, 14%) 0%, 
-      hsl(25, 15%, 10%) 35%,
-      hsl(25, 12%, 7%) 70%,
-      hsl(25, 10%, 5%) 100%
+      hsl(220, 35%, 12%) 0%, 
+      hsl(220, 30%, 9%) 35%,
+      hsl(220, 28%, 7%) 70%,
+      hsl(220, 25%, 5%) 100%
     );
     background-attachment: fixed;
   }
@@ -342,18 +357,19 @@ html {
       0 4px 12px rgba(0, 0, 0, 0.04);
   }
 
-  /* Glossy gradient cards with warm glow in dark mode - matches LegalNote branding */
+  /* Glossy gradient cards with navy glow in dark mode - matches LegalNote branding */
   .dark .shadcn-card {
+    /* ORIGINAL: warm charcoal hsl(25, ...) gradient */
     background: linear-gradient(180deg, 
-      hsl(25 15% 12%) 0%, 
-      hsl(25 12% 8%) 100%
+      hsl(220 30% 13%) 0%, 
+      hsl(220 28% 9%) 100%
     );
-    border-color: hsl(25 12% 20%);
+    border-color: hsl(220 25% 20%);
     box-shadow: 
-      0 4px 20px rgba(20, 10, 0, 0.5),
-      0 2px 8px rgba(20, 10, 0, 0.4),
-      inset 0 1px 0 rgba(200, 150, 100, 0.06),
-      0 0 0 1px rgba(200, 150, 100, 0.03);
+      0 4px 20px rgba(0, 5, 20, 0.5),
+      0 2px 8px rgba(0, 5, 20, 0.4),
+      inset 0 1px 0 rgba(100, 140, 220, 0.06),
+      0 0 0 1px rgba(100, 140, 220, 0.03);
   }
 }
 
@@ -553,10 +569,11 @@ body {
   background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--background)) 50%, hsl(var(--muted)) 100%);
 }
 
-/* LegalNote warm dark mode background - overrides body gradient for brand consistency */
+/* LegalNote navy dark mode background - overrides body gradient for brand consistency */
 .dark body,
 .dark {
-  background: linear-gradient(135deg, hsl(25 15% 6%) 0%, hsl(25 12% 8%) 50%, hsl(25 10% 10%) 100%);
+  /* ORIGINAL: linear warm charcoal hsl(25, ...) gradient */
+  background: linear-gradient(135deg, hsl(220 35% 6%) 0%, hsl(220 30% 8%) 50%, hsl(220 28% 10%) 100%);
 }
 
 /* Glass effect for cards */
@@ -573,11 +590,12 @@ body {
 
 .dark [data-slot="card"],
 .dark .glass {
+  /* ORIGINAL border: hsl(25 12% 25% / 0.4); shadow: hsl(25 20% 0% / 0.4) */
   background: hsl(var(--card) / 0.7) !important;
-  border: 1px solid hsl(25 12% 25% / 0.4) !important;
+  border: 1px solid hsl(220 25% 28% / 0.4) !important;
   box-shadow: 
-    0 4px 24px hsl(25 20% 0% / 0.4),
-    inset 0 1px 0 hsl(25 15% 30% / 0.15);
+    0 4px 24px hsl(220 40% 0% / 0.4),
+    inset 0 1px 0 hsl(210 30% 50% / 0.08);
 }
 
 /* Glass effect for sidebar */
@@ -589,8 +607,9 @@ body {
 }
 
 .dark [data-slot="sidebar"] {
+  /* ORIGINAL border: hsl(25 12% 20% / 0.4) */
   background: hsl(var(--sidebar) / 0.85) !important;
-  border-right: 1px solid hsl(25 12% 20% / 0.4) !important;
+  border-right: 1px solid hsl(220 25% 22% / 0.4) !important;
 }
 
 /* Glass effect for dropdowns and popovers */
@@ -609,11 +628,12 @@ body {
 .dark [data-radix-popper-content-wrapper] > div,
 .dark [role="dialog"],
 .dark [role="menu"] {
+  /* ORIGINAL border: hsl(25 12% 25% / 0.4); shadow: hsl(25 20% 0% / 0.5) */
   background: hsl(var(--popover) / 0.85) !important;
-  border: 1px solid hsl(25 12% 25% / 0.4) !important;
+  border: 1px solid hsl(220 25% 28% / 0.4) !important;
   box-shadow: 
-    0 8px 32px hsl(25 20% 0% / 0.5),
-    inset 0 1px 0 hsl(25 15% 30% / 0.2);
+    0 8px 32px hsl(220 40% 0% / 0.5),
+    inset 0 1px 0 hsl(210 30% 50% / 0.12);
 }
 
 /* Glass effect for inputs */

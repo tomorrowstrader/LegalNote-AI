@@ -431,6 +431,8 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="grid gap-4 sm:gap-5 grid-cols-2 lg:grid-cols-4 mb-6">
+          {/* ORIGINAL: containerClassName="bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800" */}
+          {/* ORIGINAL: iconCircleClassName="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300" */}
           <StatsCard
             title="Total Cases"
             value={productivityStats?.totalCases ?? 0}
@@ -438,9 +440,11 @@ export default function Dashboard() {
             description={`${productivityStats?.thisMonthCases ?? 0} this month`}
             variant="ring"
             ringColor="primary"
-            containerClassName="bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800"
-            iconCircleClassName="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+            containerClassName="border-l-[3px] border-l-slate-400 dark:border-l-slate-500 border-slate-200 dark:border-slate-800"
+            iconCircleClassName="text-slate-600 dark:text-slate-300"
           />
+          {/* ORIGINAL: containerClassName="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900" */}
+          {/* ORIGINAL: iconCircleClassName="bg-amber-200 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300" */}
           <StatsCard
             title="Awaiting Review"
             value={productivityStats?.awaitingReview ?? 0}
@@ -448,9 +452,11 @@ export default function Dashboard() {
             description="ready for sign-off"
             variant="ring"
             ringColor="amber"
-            containerClassName="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900"
-            iconCircleClassName="bg-amber-200 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300"
+            containerClassName="border-l-[3px] border-l-amber-500 dark:border-l-amber-400 border-amber-200 dark:border-amber-900"
+            iconCircleClassName="text-amber-600 dark:text-amber-300"
           />
+          {/* ORIGINAL: containerClassName="bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900" */}
+          {/* ORIGINAL: iconCircleClassName="bg-emerald-200 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300" */}
           <StatsCard
             title="Defensibility Ready"
             value={productivityStats?.evidenceCompletePercent ?? 0}
@@ -459,9 +465,11 @@ export default function Dashboard() {
             description="protected & audit-ready"
             variant="ring"
             ringColor="emerald"
-            containerClassName="bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900"
-            iconCircleClassName="bg-emerald-200 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300"
+            containerClassName="border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 border-emerald-200 dark:border-emerald-900"
+            iconCircleClassName="text-emerald-600 dark:text-emerald-300"
           />
+          {/* ORIGINAL: containerClassName="bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-900" */}
+          {/* ORIGINAL: iconCircleClassName="bg-sky-200 dark:bg-sky-900/40 text-sky-800 dark:text-sky-300" */}
           <StatsCard
             title="Documentation"
             value={productivityStats?.documentationRate ?? 0}
@@ -470,8 +478,8 @@ export default function Dashboard() {
             description="cases with attendance notes"
             variant="ring"
             ringColor="blue"
-            containerClassName="bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-900"
-            iconCircleClassName="bg-sky-200 dark:bg-sky-900/40 text-sky-800 dark:text-sky-300"
+            containerClassName="border-l-[3px] border-l-sky-500 dark:border-l-sky-400 border-sky-200 dark:border-sky-900"
+            iconCircleClassName="text-sky-600 dark:text-sky-300"
           />
         </div>
 
