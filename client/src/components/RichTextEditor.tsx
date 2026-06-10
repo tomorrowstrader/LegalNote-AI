@@ -263,10 +263,10 @@ function createTrackChangesPlugin(
           }
         }
         if (tr.steps.length > 0) {
-          setTimeout(() => {
+          requestAnimationFrame(() => {
             const view = (window as any).__tiptapEditorView;
-            if (view) view.dispatch(tr);
-          }, 0);
+            if (view && !view.isDestroyed) view.dispatch(tr);
+          });
         }
         return false;
       }
