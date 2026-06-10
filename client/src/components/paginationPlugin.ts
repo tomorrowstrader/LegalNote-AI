@@ -107,16 +107,18 @@ export function createPaginationPlugin(): Plugin {
         if (dispatching) return;
         if (rafId !== null) cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(() => {
-          rafId = null;
-          if (dispatching) return;
-          const { set, signature } = rebuildDecorations(editorView);
-          if (signature === lastSignature) return;
-          lastSignature = signature;
-          dispatching = true;
-          editorView.dispatch(
-            editorView.state.tr.setMeta(paginationPluginKey, set)
-          );
-          dispatching = false;
+          rafId = requestAnimationFrame(() => {
+            rafId = null;
+            if (dispatching) return;
+            const { set, signature } = rebuildDecorations(editorView);
+            if (signature === lastSignature) return;
+            lastSignature = signature;
+            dispatching = true;
+            editorView.dispatch(
+              editorView.state.tr.setMeta(paginationPluginKey, set)
+            );
+            dispatching = false;
+          });
         });
       };
 
