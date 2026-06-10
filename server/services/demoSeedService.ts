@@ -719,7 +719,7 @@ async function seedMatter3Osei(userId: string) {
     status: "review_required",
     priority: "normal",
     sourceType: "audio",
-    practiceArea: "personal_injury",
+    practiceArea: "personal_injury_rta",
     riskLevel: "medium",
     conflictCheckCompleted: true,
     conflictCheckNote: "Royal Greenwich NHS Trust not a current or former client. No conflicts identified.",
@@ -901,7 +901,7 @@ Subject Access Request to Royal Greenwich NHS Trust — full medical records inc
   });
 
   const auditEvents = [
-    { eventType: "case_created", timestamp: daysAgo(21), metadata: { practiceArea: "medical_negligence", matterReference: "HART_MED/2024/0156" }, severity: "info" as const },
+    { eventType: "case_created", timestamp: daysAgo(21), metadata: { practiceArea: "clinical_negligence", matterReference: "HART_MED/2024/0156" }, severity: "info" as const },
     { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Consultation — Surgical Negligence", recordingType: "full_meeting" }, severity: "info" as const },
     { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 44 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
     { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 52 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 2880 }, transcriptId: transcript.id, severity: "info" as const },
@@ -1261,7 +1261,7 @@ async function seedMatter5Hassan(userId: string) {
     status: "review_required",
     priority: "high",
     sourceType: "audio",
-    practiceArea: "employment",
+    practiceArea: "employment_employee",
     riskLevel: "medium",
     conflictCheckCompleted: true,
     conflictCheckNote: "Meridian Capital Partners LLP — not a current or former client. No connection identified. Conflict clear.",
@@ -1437,7 +1437,7 @@ Initial instructions — potential constructive dismissal and protected disclosu
   });
 
   for (const evt of [
-    { eventType: "case_created", timestamp: daysAgo(10), metadata: { practiceArea: "employment", matterReference: "HART_EMP/2024/0723" }, severity: "info" as const },
+    { eventType: "case_created", timestamp: daysAgo(10), metadata: { practiceArea: "employment_employee", matterReference: "HART_EMP/2024/0723" }, severity: "info" as const },
     { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Instructions — Constructive Dismissal", recordingType: "full_meeting" }, severity: "info" as const },
     { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 35 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
     { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 55 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 3060 }, transcriptId: transcript.id, severity: "info" as const },
@@ -1460,7 +1460,7 @@ async function seedMatter6Diallo(userId: string) {
     status: "active",
     priority: "normal",
     sourceType: "audio",
-    practiceArea: "personal_injury",
+    practiceArea: "personal_injury_rta",
     riskLevel: "low",
     conflictCheckCompleted: true,
     conflictCheckNote: "Third party and insurer — no conflict identified.",
@@ -1622,7 +1622,7 @@ Liability: strong. Rear-end at red light, police report, at-scene admission — 
   });
 
   for (const evt of [
-    { eventType: "case_created", timestamp: daysAgo(28), metadata: { practiceArea: "personal_injury", matterReference: "HART_PI/2024/0512" }, severity: "info" as const },
+    { eventType: "case_created", timestamp: daysAgo(28), metadata: { practiceArea: "personal_injury_rta", matterReference: "HART_PI/2024/0512" }, severity: "info" as const },
     { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Instructions — RTA", recordingType: "full_meeting" }, severity: "info" as const },
     { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 29 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
     { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 48 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 2700 }, transcriptId: transcript.id, severity: "info" as const },
@@ -1646,7 +1646,7 @@ async function seedMatter7Whitfield(userId: string) {
     status: "review_required",
     priority: "high",
     sourceType: "audio",
-    practiceArea: "wills_and_probate",
+    practiceArea: "wills_probate",
     riskLevel: "medium",
     conflictCheckCompleted: true,
     conflictCheckNote: "Other beneficiaries Robert Whitfield and Catherine Marsh — not current clients. Acting for named executor only. No conflict.",
@@ -1818,7 +1818,7 @@ Client reports Robert mentioned at funeral a Channel Islands account not in the 
   });
 
   for (const evt of [
-    { eventType: "case_created", timestamp: daysAgo(42), metadata: { practiceArea: "wills_and_probate", matterReference: "HART_PRO/2024/0334" }, severity: "info" as const },
+    { eventType: "case_created", timestamp: daysAgo(42), metadata: { practiceArea: "wills_probate", matterReference: "HART_PRO/2024/0334" }, severity: "info" as const },
     { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Instructions — Probate", recordingType: "full_meeting" }, severity: "info" as const },
     { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 48 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
     { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 56 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 3120 }, transcriptId: transcript.id, severity: "info" as const },
@@ -1843,7 +1843,7 @@ async function seedMatter8Callahan(userId: string) {
     status: "review_required",
     priority: "high",
     sourceType: "audio",
-    practiceArea: "criminal",
+    practiceArea: "criminal_defence",
     riskLevel: "high",
     conflictCheckCompleted: true,
     conflictCheckNote: "Complainant not a current or former client. No connection to prosecution witnesses. Conflict clear.",
@@ -2007,7 +2007,7 @@ Mr Obi Adeyinka, 3 Harcourt Buildings. Instructed and ready.
   });
 
   for (const evt of [
-    { eventType: "case_created", timestamp: daysAgo(5), metadata: { practiceArea: "criminal", matterReference: "HART_CRI/2024/0089" }, severity: "info" as const },
+    { eventType: "case_created", timestamp: daysAgo(5), metadata: { practiceArea: "criminal_defence", matterReference: "HART_CRI/2024/0089" }, severity: "info" as const },
     { eventType: "case_updated", timestamp: daysAgo(5), metadata: { field: "litigationHold", value: true, reason: "Crown Court matter — records preserved for disclosure" }, severity: "warning" as const },
     { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Conference in Chambers", recordingType: "full_meeting" }, severity: "info" as const },
     { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 44 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
@@ -2223,7 +2223,7 @@ async function seedMatter10Northgate(userId: string) {
     status: "active",
     priority: "high",
     sourceType: "audio",
-    practiceArea: "commercial_litigation",
+    practiceArea: "corporate_commercial",
     riskLevel: "medium",
     conflictCheckCompleted: true,
     conflictCheckNote: "Vantage Logistics Group Ltd — not a current or former client. No connection identified. Conflict clear.",
@@ -2511,7 +2511,7 @@ Termination notice defective. Break clause not validly triggered. Full claim val
   });
 
   for (const evt of [
-    { eventType: "case_created", timestamp: daysAgo(56), metadata: { practiceArea: "commercial_litigation", matterReference: "HART_LIT/2024/0278" }, severity: "info" as const },
+    { eventType: "case_created", timestamp: daysAgo(56), metadata: { practiceArea: "corporate_commercial", matterReference: "HART_LIT/2024/0278" }, severity: "info" as const },
     { eventType: "recording_started", timestamp: session1Date, metadata: { sessionTitle: "Initial Instructions", recordingType: "full_meeting" }, severity: "info" as const },
     { eventType: "consent_given", timestamp: new Date(session1Date.getTime() + 36 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
     { eventType: "transcript_generated", timestamp: new Date(session1Date.getTime() + 52 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 2880 }, transcriptId: transcript1.id, severity: "info" as const },
