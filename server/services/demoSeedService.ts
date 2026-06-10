@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { cases, meetingSessions, audioRecordings, consentLogs, transcripts, documents, auditTrail, actionItems, preMeetingBriefings, timeEntries, undertakings, quickNotes, securityIncidents, calendarEvents, shareLinks, meetingImports, scheduledMeetings, preConsentEmails, clioMatterLinks, recordingSessions, amlMonitoringNotes, amlDecisionRecords, externalDocumentRefs, conflictChecks, supervisionSignoffs, clientVersionTracking, documentComments } from "../../shared/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -26,39 +26,46 @@ async function deleteAllUserCaseData(userId: string) {
   const userCases = await db.select({ id: cases.id }).from(cases).where(eq(cases.createdBy, userId));
   if (userCases.length === 0) return;
   const ids = userCases.map(c => c.id);
-  await db.update(cases).set({ clientCareLetterId: null }).where(inArray(cases.id, ids));
-
-  await db.delete(supervisionSignoffs).where(inArray(supervisionSignoffs.caseId, ids));
-  await db.delete(conflictChecks).where(inArray(conflictChecks.caseId, ids));
-  await db.delete(externalDocumentRefs).where(inArray(externalDocumentRefs.caseId, ids));
-  await db.delete(amlDecisionRecords).where(inArray(amlDecisionRecords.caseId, ids));
-  await db.delete(amlMonitoringNotes).where(inArray(amlMonitoringNotes.caseId, ids));
-  await db.delete(recordingSessions).where(inArray(recordingSessions.caseId, ids));
-  await db.delete(clioMatterLinks).where(inArray(clioMatterLinks.caseId, ids));
-  await db.delete(preConsentEmails).where(inArray(preConsentEmails.caseId, ids));
-  await db.delete(scheduledMeetings).where(inArray(scheduledMeetings.caseId, ids));
-  await db.delete(meetingImports).where(inArray(meetingImports.caseId, ids));
-  await db.delete(shareLinks).where(inArray(shareLinks.caseId, ids));
-  await db.delete(calendarEvents).where(inArray(calendarEvents.caseId, ids));
-  await db.delete(securityIncidents).where(inArray(securityIncidents.affectedCaseId, ids));
-  await db.delete(quickNotes).where(inArray(quickNotes.caseId, ids));
-  await db.delete(timeEntries).where(inArray(timeEntries.caseId, ids));
-  await db.delete(undertakings).where(inArray(undertakings.caseId, ids));
-  const userDocs = await db.select({ id: documents.id }).from(documents).where(inArray(documents.caseId, ids));
-  const docIds = userDocs.map(d => d.id);
-  if (docIds.length > 0) {
-    await db.delete(documentComments).where(inArray(documentComments.documentId, docIds));
-    await db.delete(clientVersionTracking).where(inArray(clientVersionTracking.documentId, docIds));
-  }
-  await db.delete(documents).where(inArray(documents.caseId, ids));
-  await db.delete(transcripts).where(inArray(transcripts.caseId, ids));
-  await db.delete(consentLogs).where(inArray(consentLogs.caseId, ids));
-  await db.delete(actionItems).where(inArray(actionItems.caseId, ids));
-  await db.delete(preMeetingBriefings).where(inArray(preMeetingBriefings.caseId, ids));
-  await db.delete(auditTrail).where(inArray(auditTrail.caseId, ids));
-  await db.delete(audioRecordings).where(inArray(audioRecordings.caseId, ids));
-  await db.delete(meetingSessions).where(inArray(meetingSessions.caseId, ids));
-  await db.delete(cases).where(inArray(cases.id, ids));
+  const idList = ids.map(id => `'${id}'`).join(',');
+  await db.execute(sql`
+    DO $$
+    DECLARE
+      r RECORD;
+    BEGIN
+      FOR r IN (SELECT id FROM cases WHERE id IN (${sql.raw(idList)}))
+      LOOP
+        UPDATE cases SET client_care_letter_id = NULL WHERE id = r.id;
+        UPDATE documents SET transcript_snapshot_id = NULL WHERE case_id = r.id;
+        DELETE FROM document_comments WHERE document_id IN (SELECT id FROM documents WHERE case_id = r.id);
+        DELETE FROM client_version_tracking WHERE document_id IN (SELECT id FROM documents WHERE case_id = r.id);
+        DELETE FROM supervision_signoffs WHERE case_id = r.id;
+        DELETE FROM conflict_checks WHERE case_id = r.id;
+        DELETE FROM external_document_refs WHERE case_id = r.id;
+        DELETE FROM aml_decision_records WHERE case_id = r.id;
+        DELETE FROM aml_monitoring_notes WHERE case_id = r.id;
+        DELETE FROM recording_sessions WHERE case_id = r.id;
+        DELETE FROM clio_matter_links WHERE case_id = r.id;
+        DELETE FROM pre_consent_emails WHERE case_id = r.id;
+        DELETE FROM scheduled_meetings WHERE case_id = r.id;
+        DELETE FROM meeting_imports WHERE case_id = r.id;
+        DELETE FROM share_links WHERE case_id = r.id;
+        DELETE FROM calendar_events WHERE case_id = r.id;
+        DELETE FROM security_incidents WHERE affected_case_id = r.id;
+        DELETE FROM quick_notes WHERE case_id = r.id;
+        DELETE FROM time_entries WHERE case_id = r.id;
+        DELETE FROM undertakings WHERE case_id = r.id;
+        DELETE FROM documents WHERE case_id = r.id;
+        DELETE FROM action_items WHERE case_id = r.id;
+        DELETE FROM audit_trail WHERE case_id = r.id;
+        DELETE FROM transcripts WHERE case_id = r.id;
+        DELETE FROM consent_logs WHERE case_id = r.id;
+        DELETE FROM pre_meeting_briefings WHERE case_id = r.id;
+        DELETE FROM audio_recordings WHERE case_id = r.id;
+        DELETE FROM meeting_sessions WHERE case_id = r.id;
+        DELETE FROM cases WHERE id = r.id;
+      END LOOP;
+    END $$;
+  `);
 }
 
 // ─── Matter 1: Family — Private Children (COLP Showcase) ────────────────────
