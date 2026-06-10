@@ -86,20 +86,20 @@ html {
   --elevate-2: rgba(0,0,0, .08);
 
   /* ORIGINAL: --background: 0 0% 98%; */
-  --background: 38 20% 97%;
+  --background: 38 30% 97%;
 
   --foreground: 0 0% 10%;
 
   /* ORIGINAL: --border: 0 0% 88%; */
-  --border: 35 10% 86%;
+  --border: 36 20% 90%;
 
   /* ORIGINAL: --card: 0 0% 100%; */
-  --card: 35 15% 99%;
+  --card: 40 33% 99%;
 
   --card-foreground: 0 0% 10%;
 
   /* ORIGINAL: --card-border: 0 0% 92%; */
-  --card-border: 35 12% 90%;
+  --card-border: 36 20% 90%;
 
   /* ORIGINAL: --sidebar: 0 0% 96%; */
   --sidebar: 38 18% 95%;
@@ -330,10 +330,10 @@ html {
 
   /* Refined warm cream — document-grade light mode */
   :root body {
-    /* ORIGINAL: hsl(40, 20%, 98%) warm white */
-    background: linear-gradient(180deg, 
-      hsl(38, 25%, 97%) 0%, 
-      hsl(35, 18%, 95%) 100%
+    /* ORIGINAL: background: hsl(40, 20%, 98%); */
+    background: linear-gradient(180deg,
+      hsl(40 33% 98%) 0%,
+      hsl(36 28% 95%) 100%
     );
     background-attachment: fixed;
   }
@@ -352,9 +352,12 @@ html {
 
   /* Premium card styling for light mode */
   .shadcn-card {
-    box-shadow: 
-      0 1px 3px rgba(0, 0, 0, 0.05),
-      0 4px 12px rgba(0, 0, 0, 0.04);
+    /* ORIGINAL: box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.04); */
+    box-shadow:
+      0 1px 3px hsl(30 20% 20% / 0.04),
+      0 4px 16px hsl(30 20% 20% / 0.06);
+    /* ORIGINAL: (no explicit border-color — inherited border-border) */
+    border-color: hsl(36 20% 90%);
   }
 
   /* Glossy gradient cards with navy glow in dark mode - matches LegalNote branding */
@@ -566,7 +569,12 @@ h1, h2, h3, h4, h5, h6,
 
 /* Subtle gradient background for glass effect visibility */
 body {
-  background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--background)) 50%, hsl(var(--muted)) 100%);
+  /* ORIGINAL: background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--background)) 50%, hsl(var(--muted)) 100%); */
+  background: linear-gradient(180deg,
+    hsl(40 33% 98%) 0%,
+    hsl(36 28% 95%) 100%
+  );
+  background-attachment: fixed;
 }
 
 /* LegalNote navy dark mode background - overrides body gradient for brand consistency */
@@ -582,9 +590,12 @@ body {
   background: hsl(var(--card) / 0.85) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid hsl(var(--card-border) / 0.5) !important;
-  box-shadow: 
-    0 4px 24px hsl(var(--foreground) / 0.05),
+  /* ORIGINAL: border: 1px solid hsl(var(--card-border) / 0.5) !important; */
+  border: 1px solid hsl(36 20% 90% / 0.7) !important;
+  /* ORIGINAL: box-shadow: 0 4px 24px hsl(var(--foreground) / 0.05), inset 0 1px 0 hsl(var(--card) / 0.3); */
+  box-shadow:
+    0 1px 3px hsl(30 20% 20% / 0.04),
+    0 4px 16px hsl(30 20% 20% / 0.06),
     inset 0 1px 0 hsl(var(--card) / 0.3);
 }
 
