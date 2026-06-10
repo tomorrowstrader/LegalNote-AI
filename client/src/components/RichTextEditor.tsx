@@ -720,7 +720,7 @@ export function RichTextEditor({
       console.error('[RichTextEditor] Markdown hydration failed, falling back to raw:', err);
       editor.commands.setContent(content ?? '', false);
     } finally {
-      isUpdatingRef.current = false;
+      requestAnimationFrame(() => { isUpdatingRef.current = false; });
     }
   }, [editor, content]);
 
@@ -767,7 +767,9 @@ export function RichTextEditor({
       new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
       match => `<mark>${match}</mark>`
     );
+    isUpdatingRef.current = true;
     editor.commands.setContent(highlighted);
+    requestAnimationFrame(() => { isUpdatingRef.current = false; });
   }, [editor, searchTerm]);
 
   const handleReplace = useCallback(() => {
@@ -779,7 +781,9 @@ export function RichTextEditor({
         new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
         replaceTerm
       );
+      isUpdatingRef.current = true;
       editor.commands.setContent(replaced);
+      requestAnimationFrame(() => { isUpdatingRef.current = false; });
     }
   }, [editor, searchTerm, replaceTerm]);
 
