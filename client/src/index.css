@@ -577,6 +577,14 @@ body.app-body {
   background-attachment: fixed;
 }
 
+/* Paginated page card — theme-aware document background */
+.paginated-page-card {
+  background-color: hsl(40 33% 99%);
+}
+.dark .paginated-page-card {
+  background-color: hsl(220 25% 14%);
+}
+
 /* Editor text selection colour — brand-consistent, both modes */
 .legal-document-editor .ProseMirror ::selection {
   background-color: hsl(25 60% 55% / 0.25);
