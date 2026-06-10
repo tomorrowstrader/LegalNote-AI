@@ -577,6 +577,14 @@ body.app-body {
   background-attachment: fixed;
 }
 
+/* Editor text selection colour — brand-consistent, both modes */
+.legal-document-editor .ProseMirror ::selection {
+  background-color: hsl(25 60% 55% / 0.25);
+}
+.dark .legal-document-editor .ProseMirror ::selection {
+  background-color: hsl(220 60% 60% / 0.35);
+}
+
 /* LegalNote navy dark mode background - overrides body gradient for brand consistency */
 .dark body.app-body,
 .dark {
