@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { cases, meetingSessions, audioRecordings, consentLogs, transcripts, documents, auditTrail, actionItems, preMeetingBriefings, timeEntries, undertakings } from "../../shared/schema";
+import { cases, meetingSessions, audioRecordings, consentLogs, transcripts, documents, auditTrail, actionItems, preMeetingBriefings, timeEntries, undertakings, quickNotes, securityIncidents, calendarEvents, shareLinks, meetingImports, scheduledMeetings, preConsentEmails, clioMatterLinks, recordingSessions, amlMonitoringNotes, amlDecisionRecords, externalDocumentRefs, conflictChecks, supervisionSignoffs } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -25,14 +25,28 @@ function daysFromNow(n: number): Date {
 async function deleteAllUserCaseData(userId: string) {
   const userCases = await db.select({ id: cases.id }).from(cases).where(eq(cases.createdBy, userId));
   for (const c of userCases) {
-    await db.delete(auditTrail).where(eq(auditTrail.caseId, c.id));
-    await db.delete(actionItems).where(eq(actionItems.caseId, c.id));
-    await db.delete(preMeetingBriefings).where(eq(preMeetingBriefings.caseId, c.id));
+    await db.delete(supervisionSignoffs).where(eq(supervisionSignoffs.caseId, c.id));
+    await db.delete(conflictChecks).where(eq(conflictChecks.caseId, c.id));
+    await db.delete(externalDocumentRefs).where(eq(externalDocumentRefs.caseId, c.id));
+    await db.delete(amlDecisionRecords).where(eq(amlDecisionRecords.caseId, c.id));
+    await db.delete(amlMonitoringNotes).where(eq(amlMonitoringNotes.caseId, c.id));
+    await db.delete(recordingSessions).where(eq(recordingSessions.caseId, c.id));
+    await db.delete(clioMatterLinks).where(eq(clioMatterLinks.caseId, c.id));
+    await db.delete(preConsentEmails).where(eq(preConsentEmails.caseId, c.id));
+    await db.delete(scheduledMeetings).where(eq(scheduledMeetings.caseId, c.id));
+    await db.delete(meetingImports).where(eq(meetingImports.caseId, c.id));
+    await db.delete(shareLinks).where(eq(shareLinks.caseId, c.id));
+    await db.delete(calendarEvents).where(eq(calendarEvents.caseId, c.id));
+    await db.delete(securityIncidents).where(eq(securityIncidents.affectedCaseId, c.id));
+    await db.delete(quickNotes).where(eq(quickNotes.caseId, c.id));
+    await db.delete(timeEntries).where(eq(timeEntries.caseId, c.id));
+    await db.delete(undertakings).where(eq(undertakings.caseId, c.id));
     await db.delete(documents).where(eq(documents.caseId, c.id));
     await db.delete(transcripts).where(eq(transcripts.caseId, c.id));
     await db.delete(consentLogs).where(eq(consentLogs.caseId, c.id));
-    await db.delete(timeEntries).where(eq(timeEntries.caseId, c.id));
-    await db.delete(undertakings).where(eq(undertakings.caseId, c.id));
+    await db.delete(actionItems).where(eq(actionItems.caseId, c.id));
+    await db.delete(preMeetingBriefings).where(eq(preMeetingBriefings.caseId, c.id));
+    await db.delete(auditTrail).where(eq(auditTrail.caseId, c.id));
     await db.delete(audioRecordings).where(eq(audioRecordings.caseId, c.id));
     await db.delete(meetingSessions).where(eq(meetingSessions.caseId, c.id));
     await db.delete(cases).where(eq(cases.id, c.id));
