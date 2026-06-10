@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { cases, meetingSessions, audioRecordings, consentLogs, transcripts, documents, auditTrail, actionItems, preMeetingBriefings, timeEntries, undertakings, quickNotes, securityIncidents, calendarEvents, shareLinks, meetingImports, scheduledMeetings, preConsentEmails, clioMatterLinks, recordingSessions, amlMonitoringNotes, amlDecisionRecords, externalDocumentRefs, conflictChecks, supervisionSignoffs } from "../../shared/schema";
+import { cases, meetingSessions, audioRecordings, consentLogs, transcripts, documents, auditTrail, actionItems, preMeetingBriefings, timeEntries, undertakings, quickNotes, securityIncidents, calendarEvents, shareLinks, meetingImports, scheduledMeetings, preConsentEmails, clioMatterLinks, recordingSessions, amlMonitoringNotes, amlDecisionRecords, externalDocumentRefs, conflictChecks, supervisionSignoffs, clientVersionTracking, documentComments } from "../../shared/schema";
 import { eq, inArray } from "drizzle-orm";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -26,6 +26,7 @@ async function deleteAllUserCaseData(userId: string) {
   const userCases = await db.select({ id: cases.id }).from(cases).where(eq(cases.createdBy, userId));
   if (userCases.length === 0) return;
   const ids = userCases.map(c => c.id);
+  await db.update(cases).set({ clientCareLetterId: null }).where(inArray(cases.id, ids));
 
   await db.delete(supervisionSignoffs).where(inArray(supervisionSignoffs.caseId, ids));
   await db.delete(conflictChecks).where(inArray(conflictChecks.caseId, ids));
@@ -43,6 +44,8 @@ async function deleteAllUserCaseData(userId: string) {
   await db.delete(quickNotes).where(inArray(quickNotes.caseId, ids));
   await db.delete(timeEntries).where(inArray(timeEntries.caseId, ids));
   await db.delete(undertakings).where(inArray(undertakings.caseId, ids));
+  await db.delete(documentComments).where(inArray(documentComments.documentId, ids));
+  await db.delete(clientVersionTracking).where(inArray(clientVersionTracking.documentId, ids));
   await db.delete(documents).where(inArray(documents.caseId, ids));
   await db.delete(transcripts).where(inArray(transcripts.caseId, ids));
   await db.delete(consentLogs).where(inArray(consentLogs.caseId, ids));
