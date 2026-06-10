@@ -1787,7 +1787,7 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-transparent" style={{ overflowX: 'clip' }}>
+    <div className="min-h-screen bg-white dark:bg-[hsl(25,12%,12%)]" style={{ overflowX: 'clip' }}>
       {/* Scroll Progress Indicator */}
       <ScrollProgressBar />
       <SectionIndicator />
@@ -2050,7 +2050,7 @@ export default function Landing() {
       </nav>
 
       {/* Hero Section - Editorial Style with Image */}
-      <div id="hero" className="relative bg-white dark:bg-transparent overflow-hidden">
+      <div id="hero" className="relative bg-white dark:bg-[hsl(25,12%,12%)] overflow-hidden">
         <GradientMesh />
         <div className="relative max-w-7xl mx-auto px-6 pt-8 sm:pt-12 pb-12">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between lg:gap-12">
