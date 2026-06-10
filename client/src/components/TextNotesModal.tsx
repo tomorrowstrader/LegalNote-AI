@@ -173,7 +173,7 @@ export default function TextNotesModal({ open, onClose, onSave }: TextNotesModal
                 className="bg-accent hover:bg-accent"
                 data-testid="button-save-text-notes"
               >
-                Save & Generate Documents
+                Save & Produce Documents
               </Button>
             </DialogFooter>
           </form>

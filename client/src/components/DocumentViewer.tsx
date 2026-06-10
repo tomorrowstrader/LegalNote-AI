@@ -248,7 +248,7 @@ function VersionDiffViewer({
                     v{v.version}
                   </Badge>
                   <span className="text-muted-foreground">
-                    {v.versionType === 'ai_generated' ? 'System Generated' : v.versionType === 'ai_regenerated' ? 'Regenerated' : 'Manually Edited'}
+                    {v.versionType === 'ai_generated' ? 'Produced' : v.versionType === 'ai_regenerated' ? 'Revised' : 'Manually Edited'}
                   </span>
                   {v.isActive && <Badge variant="outline" className="text-[10px]">Current</Badge>}
                 </div>
@@ -1885,7 +1885,7 @@ export default function DocumentViewer({
                   {showRationaleSection[attendanceNote.id] && (
                     <div className="px-6 pb-4 space-y-3" data-testid="panel-rationale-attendance">
                       <p className="text-xs text-muted-foreground">
-                        This section is for your professional record of the reasoning behind advice given. It is stored separately from the AI-generated content and will be included in exports only when completed.
+                        This section is for your professional record of the reasoning behind advice given. It is stored separately from the produced attendance note and will be included in exports only when completed.
                       </p>
                       <Textarea
                         placeholder="Record the reasoning and thinking behind the advice given — factors considered, legal position, client circumstances that informed the advice..."
@@ -2157,7 +2157,7 @@ export default function DocumentViewer({
                   {showRationaleSection[summary.id] && (
                     <div className="px-6 pb-4 space-y-3" data-testid="panel-rationale-summary">
                       <p className="text-xs text-muted-foreground">
-                        This section is for your professional record of the reasoning behind advice given. It is stored separately from the AI-generated content and will be included in exports only when completed.
+                        This section is for your professional record of the reasoning behind advice given. It is stored separately from the produced attendance note and will be included in exports only when completed.
                       </p>
                       <Textarea
                         placeholder="Record the reasoning and thinking behind the advice given — factors considered, legal position, client circumstances that informed the advice..."
@@ -2437,7 +2437,7 @@ export default function DocumentViewer({
                         <TooltipContent>Send client a secure link to read and confirm this letter</TooltipContent>
                       </Tooltip>
                     )}
-                    <Badge variant="outline" data-testid="badge-care-letter-ai">System Generated</Badge>
+                    <Badge variant="outline" data-testid="badge-care-letter-ai">Produced by LegalNote</Badge>
                     <DocumentStatusActions document={clientCareLetter} />
                   </div>
                 </div>

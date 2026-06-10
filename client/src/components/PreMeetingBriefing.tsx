@@ -47,8 +47,8 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
       setIsGenerating(false);
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/pre-meeting-briefing`] });
       toast({
-        title: "Briefing Generated",
-        description: "Your pre-meeting briefing is ready.",
+        title: "Briefing Ready",
+        description: "Your matter briefing is ready to review.",
       });
     },
     onError: (error: any) => {
@@ -139,7 +139,7 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                    Generating...
+                    Preparing...
                   </>
                 ) : briefing ? (
                   <>
@@ -149,7 +149,7 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4 mr-1" />
-                    Generate
+                    Prepare Briefing
                   </>
                 )}
               </Button>
@@ -163,10 +163,10 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
             <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No briefing generated yet.</p>
             {hasTranscript && (
-              <p className="text-xs mt-1">Click "Generate" to create a pre-meeting summary.</p>
+              <p className="text-xs mt-1">Click "Prepare Briefing" to review your matter before the meeting.</p>
             )}
             {!hasTranscript && (
-              <p className="text-xs mt-1">Complete a meeting recording first to generate a briefing.</p>
+              <p className="text-xs mt-1">Complete a meeting recording first to prepare a briefing.</p>
             )}
           </div>
         ) : (

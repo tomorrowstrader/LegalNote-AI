@@ -185,7 +185,7 @@ export function ImportRecordingModal({
             Import Meeting Recording
           </DialogTitle>
           <DialogDescription>
-            Import a video meeting recording to automatically generate attendance notes for "{caseTitle}"
+            Import a video meeting recording to produce attendance notes for "{caseTitle}"
           </DialogDescription>
         </DialogHeader>
 

@@ -82,7 +82,7 @@ export default function ClientCareLetterModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5" />
-            Generate Client Care Letter
+            Prepare Client Care Letter
           </DialogTitle>
           <DialogDescription>
             Enter your firm details to generate an SRA-compliant client care letter for {clientName}.
@@ -183,10 +183,10 @@ export default function ClientCareLetterModal({
             {isGenerating ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Generating...
+                Preparing...
               </>
             ) : (
-              "Generate Letter"
+              "Prepare Letter"
             )}
           </Button>
         </div>
