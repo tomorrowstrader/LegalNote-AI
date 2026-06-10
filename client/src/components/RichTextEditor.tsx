@@ -1094,9 +1094,16 @@ export function RichTextEditor({
             </div>
           </div>
 
-          {autocompleteVisible && autocompleteOptions.length > 0 && (
-            <div className="absolute z-50 left-4 mt-1 bg-popover border border-border rounded-md shadow-md overflow-hidden"
-              style={{ top: '2.5rem' }}
+          {autocompleteVisible && autocompleteOptions.length > 0 && (() => {
+            const sel = window.getSelection();
+            const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+            const rect = range ? range.getBoundingClientRect() : null;
+            const containerRect = (document.querySelector('.legal-document-editor') as HTMLElement)?.getBoundingClientRect();
+            const top = rect && containerRect ? rect.bottom - containerRect.top + 4 : 40;
+            const left = rect && containerRect ? Math.min(rect.left - containerRect.left, containerRect.width - 220) : 16;
+            return (
+            <div className="absolute z-50 bg-popover border border-border rounded-md shadow-md overflow-hidden"
+              style={{ top: `${top}px`, left: `${Math.max(left, 8)}px`, minWidth: '200px' }}
             >
               {autocompleteOptions.map((opt, i) => (
                 <button
@@ -1111,7 +1118,8 @@ export function RichTextEditor({
                 Tab to complete
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
 
         {trackChangesEnabled && changeCount > 0 && !disabled && (
