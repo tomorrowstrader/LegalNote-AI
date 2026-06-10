@@ -1060,7 +1060,7 @@ export function RichTextEditor({
       <div className="flex">
         <div className={`relative flex-1 ${trackChangesEnabled && changeCount > 0 && !disabled ? 'min-w-0' : ''}`} onKeyDown={handleKeyDown}>
           <div className="bg-muted/30 dark:bg-muted/10 border-x border-border overflow-x-auto py-8">
-            <div className="paginated-page-card shadow-md mx-auto">
+            <div className="paginated-page-card shadow-md mx-auto" style={{ width: "794px", minWidth: "794px", backgroundColor: "white", padding: "96px" }}>
               <EditorContent 
                 editor={editor} 
                 className="legal-document-editor
