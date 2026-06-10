@@ -39,6 +39,24 @@ export default function Login() {
             style={{ background: "radial-gradient(circle, hsl(45,85%,55%) 0%, transparent 70%)" }} />
         </div>
 
+        {/* Metallic shimmer overlay */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div 
+            className="absolute inset-0 opacity-[0.04]"
+            style={{
+              background: "linear-gradient(105deg, transparent 20%, hsl(220 60% 80%) 50%, transparent 80%)",
+              backgroundSize: "200% 100%",
+              animation: "shimmer 8s ease-in-out infinite",
+            }}
+          />
+          <div 
+            className="absolute inset-0 opacity-[0.06]"
+            style={{
+              background: "linear-gradient(135deg, hsl(0,0%,100%) 0%, transparent 40%, transparent 60%, hsl(0,0%,100%) 100%)",
+            }}
+          />
+        </div>
+
         <div className="relative z-10 max-w-md px-12 space-y-8">
           <Logo variant="wordmark" size="lg" tone="dark" animate />
           <div className="space-y-4">
