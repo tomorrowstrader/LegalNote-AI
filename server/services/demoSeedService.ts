@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { cases, meetingSessions, audioRecordings, consentLogs, transcripts, documents, auditTrail, actionItems, preMeetingBriefings } from "../../shared/schema";
+import { cases, meetingSessions, audioRecordings, consentLogs, transcripts, documents, auditTrail, actionItems, preMeetingBriefings, timeEntries, undertakings } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -31,6 +31,8 @@ async function deleteAllUserCaseData(userId: string) {
     await db.delete(documents).where(eq(documents.caseId, c.id));
     await db.delete(transcripts).where(eq(transcripts.caseId, c.id));
     await db.delete(consentLogs).where(eq(consentLogs.caseId, c.id));
+    await db.delete(timeEntries).where(eq(timeEntries.caseId, c.id));
+    await db.delete(undertakings).where(eq(undertakings.caseId, c.id));
     await db.delete(audioRecordings).where(eq(audioRecordings.caseId, c.id));
     await db.delete(meetingSessions).where(eq(meetingSessions.caseId, c.id));
     await db.delete(cases).where(eq(cases.id, c.id));
