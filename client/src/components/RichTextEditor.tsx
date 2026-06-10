@@ -1068,6 +1068,9 @@ export function RichTextEditor({
                   [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-bold [&_.ProseMirror_h1]:mb-4 [&_.ProseMirror_h1]:mt-6
                   [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mb-3 [&_.ProseMirror_h2]:mt-5
                   [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:mt-4
+                  [&_.ProseMirror_>h1:first-child]:mt-0
+                  [&_.ProseMirror_>h2:first-child]:mt-0
+                  [&_.ProseMirror_>h3:first-child]:mt-0
                   [&_.ProseMirror_p]:mb-3 [&_.ProseMirror_p]:leading-relaxed
                   [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ul]:mb-3
                   [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_ol]:mb-3
