@@ -13,23 +13,32 @@ const MAX_PAGES  = 50;
 
 export const paginationPluginKey = new PluginKey('pagination');
 
+function getBlockNaturalTop(dom: HTMLElement, proseMirrorEl: HTMLElement): number {
+  // Walk up the DOM from the block element to the ProseMirror root,
+  // summing offsetTop values. This gives us the natural document-flow
+  // position of the block, unaffected by decoration widgets inserted above it.
+  let top = 0;
+  let el: HTMLElement | null = dom;
+  while (el && el !== proseMirrorEl) {
+    top += el.offsetTop;
+    el = el.offsetParent as HTMLElement | null;
+  }
+  return top;
+}
+
 function rebuildDecorations(view: EditorView): { set: DecorationSet; signature: string } {
   const proseMirrorEl = view.dom;
-  const pageCardEl =
-    proseMirrorEl.closest('.paginated-page-card') || proseMirrorEl.parentElement;
-  if (!pageCardEl) return { set: DecorationSet.empty, signature: '' };
+  if (!proseMirrorEl) return { set: DecorationSet.empty, signature: '' };
 
-  const cardTop = pageCardEl.getBoundingClientRect().top;
   const decorations: Decoration[] = [];
   const parts: string[] = [];
 
-  // Track where the current page's content zone ends (y from card top).
-  // Page 0: content starts at TOP_PAD due to ProseMirror padding-top;
-  //         content zone ends at TOP_PAD + CONTENT_H = 1026.
-  // After each gutter insertion: next page content ends at
-  //         blockTop_at_insertion + WIDGET_H + CONTENT_H.
+  // Accumulate natural block heights to determine page breaks.
+  // We track cumulative content height ignoring gutter widgets.
+  let cumulativeHeight = TOP_PAD;
   let pageContentEnd = TOP_PAD + CONTENT_H;
   let gutterCount = 0;
+  let guttersInserted = 0;
 
   view.state.doc.forEach((node, offset) => {
     if (!node.isBlock) return;
@@ -39,15 +48,17 @@ function rebuildDecorations(view: EditorView): { set: DecorationSet; signature: 
     if (!dom || !(dom instanceof HTMLElement)) return;
     if (dom.classList.contains('page-gutter-widget')) return;
 
-    const rect = dom.getBoundingClientRect();
-    const blockTop    = rect.top    - cardTop;
-    const blockBottom = rect.bottom - cardTop;
+    // Use offsetHeight for the block's natural height (ignores viewport scroll)
+    const blockHeight = dom.offsetHeight;
+    const blockNaturalBottom = cumulativeHeight + blockHeight;
 
-    // Block fits entirely within the current page's content zone.
-    if (blockBottom <= pageContentEnd) return;
+    // Block fits on current page
+    if (blockNaturalBottom <= pageContentEnd) {
+      cumulativeHeight += blockHeight;
+      return;
+    }
 
-    // Block overflows. Insert a gutter widget immediately BEFORE this block
-    // so it becomes the first block of the next page.
+    // Block overflows — insert a page break before it
     const key = `pg-gutter-${gutterCount}`;
     parts.push(`${key}@${offset}`);
 
@@ -62,16 +73,21 @@ function rebuildDecorations(view: EditorView): { set: DecorationSet; signature: 
       Decoration.widget(offset, el, { side: -1, key })
     );
 
-    // After the gutter widget (WIDGET_H px), this block begins the next page.
-    // Its shifted DOM position will be approximately blockTop + WIDGET_H.
-    // The next page's content zone ends at: blockTop + WIDGET_H + CONTENT_H.
-    pageContentEnd = blockTop + WIDGET_H + CONTENT_H;
+    // Start fresh page: reset cumulative height to top of new page
+    // The gutter widget itself occupies WIDGET_H px but we don't count it
+    // in content height — only real content blocks count.
+    cumulativeHeight = TOP_PAD;
+    pageContentEnd = TOP_PAD + CONTENT_H;
     gutterCount++;
+    guttersInserted++;
+
+    // Now account for this block on the new page
+    cumulativeHeight += blockHeight;
   });
 
   return {
     set: DecorationSet.create(view.state.doc, decorations),
-    signature: parts.join('|'),
+signature: parts.join('|'),
   };
 }
 
