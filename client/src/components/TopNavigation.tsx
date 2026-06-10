@@ -48,7 +48,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary via-black to-primary border-b border-primary-border shadow-lg">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary via-black to-primary dark:from-[hsl(25,45%,28%)] dark:via-[hsl(25,30%,12%)] dark:to-[hsl(25,45%,28%)] border-b border-primary-border dark:border-[hsl(25,20%,22%)] shadow-lg">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex items-center h-16 gap-2">
           <Link href="/" data-testid="link-home">
