@@ -44,8 +44,12 @@ async function deleteAllUserCaseData(userId: string) {
   await db.delete(quickNotes).where(inArray(quickNotes.caseId, ids));
   await db.delete(timeEntries).where(inArray(timeEntries.caseId, ids));
   await db.delete(undertakings).where(inArray(undertakings.caseId, ids));
-  await db.delete(documentComments).where(inArray(documentComments.documentId, ids));
-  await db.delete(clientVersionTracking).where(inArray(clientVersionTracking.documentId, ids));
+  const userDocs = await db.select({ id: documents.id }).from(documents).where(inArray(documents.caseId, ids));
+  const docIds = userDocs.map(d => d.id);
+  if (docIds.length > 0) {
+    await db.delete(documentComments).where(inArray(documentComments.documentId, docIds));
+    await db.delete(clientVersionTracking).where(inArray(clientVersionTracking.documentId, docIds));
+  }
   await db.delete(documents).where(inArray(documents.caseId, ids));
   await db.delete(transcripts).where(inArray(transcripts.caseId, ids));
   await db.delete(consentLogs).where(inArray(consentLogs.caseId, ids));
