@@ -127,6 +127,15 @@ function AuthenticatedAppContent() {
 
   useNewNoteShortcut();
 
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      document.body.classList.add('app-body');
+    } else {
+      document.body.classList.remove('app-body');
+    }
+    return () => document.body.classList.remove('app-body');
+  }, [isLoading, isAuthenticated]);
+
   const handleRestartTour = () => {
     setRestartTourTrigger(prev => prev + 1);
   };

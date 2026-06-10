@@ -329,7 +329,7 @@ html {
   }
 
   /* Refined warm cream — document-grade light mode */
-  :root body {
+  :root body.app-body {
     /* ORIGINAL: background: hsl(40, 20%, 98%); */
     background: linear-gradient(180deg,
       hsl(40 33% 98%) 0%,
@@ -339,7 +339,7 @@ html {
   }
 
   /* Deep mid navy gradient for dark mode - matches LegalNote branding */
-  .dark body {
+  .dark body.app-body {
     /* ORIGINAL: radial warm charcoal hsl(25, ...) gradient */
     background: radial-gradient(ellipse at top left, 
       hsl(220, 35%, 12%) 0%, 
@@ -568,7 +568,7 @@ h1, h2, h3, h4, h5, h6,
    ===================================================== */
 
 /* Subtle gradient background for glass effect visibility */
-body {
+body.app-body {
   /* ORIGINAL: background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--background)) 50%, hsl(var(--muted)) 100%); */
   background: linear-gradient(180deg,
     hsl(40 33% 98%) 0%,
@@ -578,7 +578,7 @@ body {
 }
 
 /* LegalNote navy dark mode background - overrides body gradient for brand consistency */
-.dark body,
+.dark body.app-body,
 .dark {
   /* ORIGINAL: linear warm charcoal hsl(25, ...) gradient */
   background: linear-gradient(135deg, hsl(220 35% 6%) 0%, hsl(220 30% 8%) 50%, hsl(220 28% 10%) 100%);
