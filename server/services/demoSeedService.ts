@@ -1,2408 +1,52 @@
-/**
- * Demo Seeding Service — Full Showcase Rebuild
- * Creates seven precisely crafted showcase cases demonstrating LegalNote's full capability
- * across multiple practice areas, session types, and compliance scenarios.
- *
- * Cases:
- * 1. Richard Patterson — Commercial Property (AML/SRA Audit Showcase)
- * 2. Sophie Henderson — Residential Conveyancing (Multi-Session Showcase)
- * 3. Daniel Hartley — Employment / Employee (Undertakings Showcase)
- * 4. Yasmin Okafor — Family / Children Arrangements (Multi-Format Showcase)
- * 5. Margaret & Geoffrey Whitmore — Wills & Probate (Complex Document Showcase)
- * 6. Leon Treadwell — Criminal Defence (Police Station Showcase)
- * 7. Marcus Hall — Family / Children Arrangements (False Allegations / Contact Demo)
- */
-
 import { db } from "../db";
-import {
-  cases, transcripts, documents, consentLogs, actionItems, auditTrail,
-  preMeetingBriefings, shareLinks, quickNotes, audioRecordings,
-  calendarEvents, meetingImports, preConsentEmails, clioMatterLinks,
-  clientVersionTracking, amlMonitoringNotes, amlDecisionRecords,
-  meetingSessions, clients, undertakings, timeEntries, externalDocumentRefs,
-  documentComments
-} from "@shared/schema";
-import { eq, and } from "drizzle-orm";
-import crypto from "crypto";
+import { cases, meetingSessions, audioRecordings, consentLogs, transcripts, documents, auditTrail, actionItems, preMeetingBriefings } from "../../shared/schema";
+import { eq } from "drizzle-orm";
 
-type Case = typeof cases.$inferSelect;
-type Client = typeof clients.$inferSelect;
-type MeetingSession = typeof meetingSessions.$inferSelect;
-type Transcript = typeof transcripts.$inferSelect;
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
-const now = new Date();
-const daysAgo = (days: number) => {
-  const date = new Date(now);
-  date.setDate(date.getDate() - days);
-  return date;
-};
-const daysAgoAt = (days: number, hour: number, min: number) => {
-  const date = daysAgo(days);
-  date.setHours(hour, min, 0, 0);
-  return date;
-};
+function daysAgo(n: number): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d;
+}
+
+function daysAgoAt(n: number, hour: number, minute: number): Date {
+  const d = daysAgo(n);
+  d.setHours(hour, minute, 0, 0);
+  return d;
+}
+
+function daysFromNow(n: number): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d;
+}
 
 async function deleteAllUserCaseData(userId: string) {
-  const userCases = await db.select().from(cases).where(eq(cases.createdBy, userId));
+  const userCases = await db.select({ id: cases.id }).from(cases).where(eq(cases.createdBy, userId));
   for (const c of userCases) {
-    if (c.createdBy !== userId) continue;
-    const docs = await db.select({ id: documents.id }).from(documents).where(eq(documents.caseId, c.id));
-    for (const doc of docs) {
-      await db.delete(clientVersionTracking).where(eq(clientVersionTracking.documentId, doc.id));
-      await db.delete(documentComments).where(eq(documentComments.documentId, doc.id));
-    }
-    await db.delete(undertakings).where(eq(undertakings.caseId, c.id));
-    await db.delete(timeEntries).where(eq(timeEntries.caseId, c.id));
-    await db.delete(externalDocumentRefs).where(eq(externalDocumentRefs.caseId, c.id));
-    await db.delete(amlMonitoringNotes).where(eq(amlMonitoringNotes.caseId, c.id));
-    await db.delete(amlDecisionRecords).where(eq(amlDecisionRecords.caseId, c.id));
+    await db.delete(auditTrail).where(eq(auditTrail.caseId, c.id));
     await db.delete(actionItems).where(eq(actionItems.caseId, c.id));
     await db.delete(preMeetingBriefings).where(eq(preMeetingBriefings.caseId, c.id));
-    await db.delete(shareLinks).where(eq(shareLinks.caseId, c.id));
-    await db.delete(quickNotes).where(eq(quickNotes.caseId, c.id));
-    await db.delete(calendarEvents).where(eq(calendarEvents.caseId, c.id));
-    await db.delete(meetingImports).where(eq(meetingImports.caseId, c.id));
-    await db.delete(preConsentEmails).where(eq(preConsentEmails.caseId, c.id));
-    await db.delete(clioMatterLinks).where(eq(clioMatterLinks.caseId, c.id));
-    await db.delete(auditTrail).where(eq(auditTrail.caseId, c.id));
-    await db.delete(consentLogs).where(eq(consentLogs.caseId, c.id));
-    await db.update(cases).set({ clientCareLetterId: null }).where(eq(cases.id, c.id));
     await db.delete(documents).where(eq(documents.caseId, c.id));
     await db.delete(transcripts).where(eq(transcripts.caseId, c.id));
+    await db.delete(consentLogs).where(eq(consentLogs.caseId, c.id));
     await db.delete(audioRecordings).where(eq(audioRecordings.caseId, c.id));
     await db.delete(meetingSessions).where(eq(meetingSessions.caseId, c.id));
-    await db.delete(cases).where(and(eq(cases.id, c.id), eq(cases.createdBy, userId)));
-  }
-  await db.delete(clients).where(eq(clients.createdBy, userId));
-}
-
-// ——— CASE 1: Richard Patterson — Commercial Property — AML/SRA Audit Showcase ———
-
-async function seedCase1Patterson(userId: string) {
-  const [client] = await db.insert(clients).values({
-    name: "Richard Patterson",
-    email: "r.patterson@pattersondev.co.uk",
-    phone: "07901 443 228",
-    address: "Patterson Developments Ltd, 14 Canary Court, London E14 5AB",
-    companyName: "Patterson Developments Ltd",
-    amlRiskLevel: "high",
-    amlRiskLastReviewed: daysAgo(7),
-    createdBy: userId,
-  }).returning();
-
-  const [newCase] = await db.insert(cases).values({
-    title: "Commercial Warehouse Acquisition — Stratford",
-    clientName: "Richard Patterson",
-    clientId: client.id,
-    matterReference: "DEMO_COMP/2024/0291",
-    createdBy: userId,
-    status: "review_required",
-    priority: "normal",
-    sourceType: "audio",
-    practiceArea: "commercial_property",
-    riskLevel: "high",
-    conflictCheckCompleted: true,
-    conflictCheckNote: "Checked against client register — no conflict identified. Patterson Developments Ltd not previously instructed. No connection to any opposing party on the firm's current files.",
-    reviewed: true,
-    createdAt: daysAgo(35),
-  }).returning() as Case[];
-
-  // --- Session 1: Full meeting — Matter inception (5 weeks ago, 2h 10m) ---
-  const session1Date = daysAgoAt(35, 10, 0);
-  const [session1] = await db.insert(meetingSessions).values({
-    caseId: newCase.id,
-    recordingType: "full_meeting",
-    startedAt: session1Date,
-    durationSeconds: 7800,
-    status: "completed",
-    notes: "Matter inception — initial consultation with Richard Patterson of Patterson Developments Ltd",
-    createdBy: userId,
-  }).returning();
-
-  const session1ExpiresAt = new Date(session1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  await db.insert(audioRecordings).values({
-    caseId: newCase.id,
-    meetingSessionId: session1.id,
-    duration: 7800,
-    recordedAt: session1Date,
-    expiresAt: session1ExpiresAt,
-    deletedAt: session1ExpiresAt,
-    mimeType: "audio/webm",
-  });
-
-  await db.insert(consentLogs).values({
-    caseId: newCase.id,
-    audioRecordingId: null,
-    solicitorId: userId,
-    consentGiven: true,
-    disclaimerScriptVersion: "v2.1",
-    consentModality: "verbal_recorded",
-  });
-
-  const transcript1Content = `Meeting transcript — Commercial Property Acquisition, Matter Inception
-
-SOLICITOR: Good morning, Mr Patterson. Thank you for attending. I should inform you that this meeting is being recorded for the purpose of creating an accurate attendance note. Do you consent to the recording?
-
-CLIENT: Yes, I consent.
-
-SOLICITOR: Thank you. So, Patterson Developments Limited is looking to acquire a commercial warehouse unit in Stratford, East London. Can you give me the background to this transaction?
-
-CLIENT: Certainly. We've identified Unit 14 at the Meridian Industrial Estate on Marshgate Lane, Stratford. It's a warehouse and distribution unit — approximately twelve thousand square feet. The asking price is two point four million pounds. We intend to use it as a primary distribution hub for our construction materials supply business.
-
-SOLICITOR: And what is the current corporate structure of Patterson Developments Limited?
-
-CLIENT: Patterson Developments is the trading company. It's held by Meridian Holdings Limited, which is a UK holding company. Meridian Holdings is itself owned by the Patterson Family Trust, which is a discretionary trust established in Jersey in 2018.
-
-SOLICITOR: I see. That's a three-tier structure — the trust at the top, a holding company in the middle, and the trading company at the bottom. I'll need to understand the beneficial ownership through each layer. Who are the beneficiaries of the Patterson Family Trust?
-
-CLIENT: Myself, my wife Catherine, and our two children. The trustee is Bridgewater Trust Company in Jersey.
-
-SOLICITOR: Thank you. Now, I must explain that under the Money Laundering, Terrorist Financing and Transfer of Funds Regulations 2017, commercial property transactions are subject to stringent anti-money laundering obligations. Given the corporate structure you've described — particularly the offshore trust element — I'm required to carry out enhanced due diligence. This means I'll need to verify the beneficial ownership through each layer of the structure, from Patterson Developments up through Meridian Holdings to the Jersey trust.
-
-CLIENT: I understand. What documentation will you need?
-
-SOLICITOR: I'll need the certificate of incorporation and current shareholding for both Patterson Developments and Meridian Holdings from Companies House. For the Jersey trust, I'll need the trust deed, the schedule of beneficiaries, and confirmation from Bridgewater Trust Company of the current trustees and protectors. I'll also need certified identification for you as the principal beneficial owner.
-
-CLIENT: The Companies House documents are straightforward. The Jersey trust documents may take a little longer — I'll need to contact Bridgewater directly.
-
-SOLICITOR: That's understood. Now, turning to source of funds. How is the purchase being financed?
-
-CLIENT: The purchase price of two point four million is being funded as follows: one point two million from retained profits within Patterson Developments, evidenced by the last three years of audited accounts. The remaining one point two million is a commercial mortgage facility which we've applied for through Barclays.
-
-SOLICITOR: I'll need to see the audited accounts and the mortgage offer when it comes through. Are there any other parties contributing to the purchase — investors, joint venture partners, or related entities providing loans?
-
-CLIENT: No. However, I should be transparent — there was a short-term loan of two hundred thousand pounds from Meridian Holdings to Patterson Developments last year to cover a cash flow gap. That has since been repaid in full.
-
-SOLICITOR: Thank you for disclosing that. I'll need to see the loan documentation and evidence of repayment. Any inter-company lending within this structure is something I'll want to record in the AML file. Now, I have to flag three specific concerns arising from what you've told me today.
-
-CLIENT: Go ahead.
-
-SOLICITOR: First, the beneficial ownership is not fully transparent at this stage because I haven't yet verified the trust structure in Jersey. Second, the offshore trust component cannot be immediately verified — Jersey is a Crown Dependency with its own regulatory framework, and I'll need to confirm registration with the Jersey Financial Services Commission. Third — and I appreciate this may be commercially sensitive — I would ordinarily expect to see bank statements for the entities involved. Can you provide those?
-
-CLIENT: I'd prefer not to disclose the full bank statements at this stage. They contain commercially sensitive information about other transactions and supplier relationships.
-
-SOLICITOR: I understand the concern, Mr Patterson, but I must be direct. I have a statutory obligation under the Proceeds of Crime Act 2002 and the Money Laundering Regulations to satisfy myself as to the source of funds. If I cannot do so, I am unable to proceed with this matter. I'm not asking you to disclose anything beyond what's necessary for my compliance obligations, but I do need to see sufficient evidence to verify that the funds are legitimate. We can discuss redaction of genuinely unrelated entries if that helps.
-
-CLIENT: I'll speak to my accountants. I'm sure we can find a way through this.
-
-SOLICITOR: Good. I should also put on record that until I have received satisfactory documentation to verify the beneficial ownership structure and source of funds, this matter cannot proceed to exchange. I'll be creating an AML monitoring note today recording these concerns, and this file will be subject to ongoing enhanced due diligence monitoring. Do you understand that position?
-
-CLIENT: Yes, I understand. I'll get the documentation to you as quickly as possible.
-
-SOLICITOR: Thank you. Moving on to the property itself — have your surveyors inspected the unit?
-
-CLIENT: Yes, the structural survey was completed last week. No material defects. There's a small area of damp near the loading bay doors but the surveyor considers it easily remedied.
-
-SOLICITOR: Good. I'll review the title at the Land Registry, check for restrictive covenants, and examine the commercial lease history. For a property in Stratford, I'll also want to confirm the position regarding any compulsory purchase orders or development orders connected to the Olympic legacy regeneration programme.
-
-CLIENT: That's helpful — I hadn't considered that.
-
-SOLICITOR: One further point on VAT. Has the vendor opted to tax the property?
-
-CLIENT: I believe so, yes.
-
-SOLICITOR: In that case, VAT at twenty percent will be added to the purchase price — that's an additional four hundred and eighty thousand pounds. Patterson Developments is VAT-registered, so you can reclaim this, but it's a significant cash flow consideration at completion. You'll need to ensure the mortgage facility and your available funds can accommodate the VAT payment on completion day.
-
-CLIENT: We are VAT-registered. I'll confirm the cash flow position with the accountants.
-
-SOLICITOR: Good. Let me summarise the action items. On my side: I'll draft the AML monitoring note today, open the enhanced due diligence file, requisition the title from the Land Registry, and instruct searches. On your side: you need to provide the Jersey trust documentation, the Companies House records, certified ID, the audited accounts, and we need to resolve the bank statement question. I'll also need the Barclays mortgage offer once it's issued.
-
-CLIENT: Understood. I'll get the process started today.
-
-SOLICITOR: Excellent. I'll be in touch within the week with an update on the title position. Thank you, Mr Patterson.`;
-
-  const [t1] = await db.insert(transcripts).values({
-    caseId: newCase.id,
-    meetingSessionId: session1.id,
-    content: transcript1Content,
-    utterances: [
-      { speaker: "A", text: "Good morning, Mr Patterson. Thank you for attending. I should inform you that this meeting is being recorded for the purpose of creating an accurate attendance note. Do you consent to the recording?", start: 0, end: 12000, confidence: 0.96 },
-      { speaker: "B", text: "Yes, I consent.", start: 12500, end: 14000, confidence: 0.98 },
-      { speaker: "A", text: "Thank you. So, Patterson Developments Limited is looking to acquire a commercial warehouse unit in Stratford, East London. Can you give me the background to this transaction?", start: 14500, end: 24000, confidence: 0.95 },
-      { speaker: "B", text: "Certainly. We've identified Unit 14 at the Meridian Industrial Estate on Marshgate Lane, Stratford. It's a warehouse and distribution unit — approximately twelve thousand square feet. The asking price is two point four million pounds.", start: 24500, end: 42000, confidence: 0.93 },
-    ],
-    speakerCount: 2,
-    createdAt: session1Date,
-  }).returning();
-
-  const doc1Content = `# ATTENDANCE NOTE
-
-**Client:** Richard Patterson (Patterson Developments Ltd)
-**Matter:** Commercial Warehouse Acquisition — Unit 14 Meridian Industrial Estate, Stratford
-**Reference:** DEMO_COMP/2024/0291
-**Date:** ${session1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-**Fee Earner:** Attending Solicitor
-**Present:** Attending Solicitor, Richard Patterson (Client / Director, Patterson Developments Ltd)
-**Duration:** 2 hours 10 minutes
-
----
-
-## 1. INTRODUCTION AND RECORDING CONSENT
-
-Client attended the office for the initial consultation regarding the proposed acquisition of Unit 14, Meridian Industrial Estate, Marshgate Lane, Stratford, East London. Recording consent was obtained at the commencement of the meeting.
-
-## 2. TRANSACTION OVERVIEW
-
-- **Property:** Unit 14, Meridian Industrial Estate, Marshgate Lane, Stratford, E15
-- **Type:** Commercial warehouse and distribution unit (approx. 12,000 sq ft)
-- **Purchase price:** £2,400,000
-- **Purchaser:** Patterson Developments Ltd
-- **Intended use:** Primary distribution hub for construction materials supply business
-
-## 3. CORPORATE STRUCTURE
-
-The client disclosed the following ownership structure:
-
-- **Trading company:** Patterson Developments Ltd (Companies House registered)
-- **Holding company:** Meridian Holdings Ltd (UK incorporated)
-- **Ultimate beneficial ownership:** Patterson Family Trust — a discretionary trust established in Jersey in 2018
-- **Trustee:** Bridgewater Trust Company (Jersey)
-- **Beneficiaries:** Richard Patterson, Catherine Patterson (wife), and two children
-
-**Note:** This is a three-tier structure with an offshore trust element requiring enhanced due diligence under the Money Laundering Regulations 2017.
-
-## 4. AML COMPLIANCE — ENHANCED DUE DILIGENCE
-
-### 4.1 Risk Assessment
-- **Client risk:** HIGH — offshore trust element, opaque beneficial ownership at inception
-- **Matter risk:** HIGH — commercial property acquisition (auto-default under SRA sectoral guidance)
-- **EDD required:** YES — Regulation 33 of the Money Laundering, Terrorist Financing and Transfer of Funds (Information on the Payer) Regulations 2017
-
-### 4.2 AML Concerns Identified
-
-I identified three specific concerns during the meeting:
-
-**(a) Beneficial ownership not fully transparent** — The Jersey trust structure means the ultimate beneficial ownership cannot be verified from UK public registries alone. Trust documentation and confirmation from the trustee (Bridgewater Trust Company) is required.
-
-**(b) Offshore trust component cannot be immediately verified** — Jersey is a Crown Dependency with its own regulatory framework. Registration with the Jersey Financial Services Commission must be confirmed.
-
-**(c) Client declined to provide bank statements** — Client cited commercial sensitivity. I advised Mr Patterson that I have a statutory obligation under the Proceeds of Crime Act 2002 and the Money Laundering Regulations to satisfy myself as to the source of funds, and that the matter cannot proceed without satisfactory documentation. Client agreed to discuss with his accountants.
-
-### 4.3 Source of Funds
-
-| Source | Amount | Status |
-|--------|--------|--------|
-| Retained profits (Patterson Developments Ltd) | £1,200,000 | Awaiting audited accounts |
-| Commercial mortgage (Barclays) | £1,200,000 | Application submitted, offer pending |
-| **Total** | **£2,400,000** | |
-
-**Additional disclosure:** A short-term loan of £200,000 from Meridian Holdings to Patterson Developments in the prior year (since repaid in full). Loan documentation and evidence of repayment to be provided.
-
-### 4.4 Verification Required
-
-1. Certificate of incorporation and current shareholding — Patterson Developments Ltd
-2. Certificate of incorporation and current shareholding — Meridian Holdings Ltd
-3. Trust deed for the Patterson Family Trust
-4. Schedule of beneficiaries and confirmation of trustees/protectors from Bridgewater Trust Company
-5. Certified identification for Richard Patterson (principal beneficial owner)
-6. Audited accounts for Patterson Developments Ltd (3 years)
-7. Barclays commercial mortgage offer letter
-8. Bank statements or alternative source of funds evidence
-9. Inter-company loan documentation and repayment evidence
-
-**I formally advised the client that this matter cannot proceed to exchange until satisfactory documentation has been received and verified. An AML monitoring note has been created.**
-
-## 5. PROPERTY MATTERS
-
-- Structural survey completed — no material defects. Minor damp near loading bay doors (surveyor considers easily remedied)
-- Title to be requisitioned from Land Registry
-- Restrictive covenants to be examined
-- Position regarding compulsory purchase orders / Olympic legacy regeneration development orders to be confirmed
-- VAT: Vendor has opted to tax. VAT at 20% (£480,000) payable on completion. Client is VAT-registered — can reclaim on next return. Cash flow position to be confirmed with accountants.
-
-## 6. NEXT STEPS
-
-**Solicitor Actions:**
-1. Create AML monitoring note (today)
-2. Open enhanced due diligence file
-3. Requisition title from Land Registry
-4. Instruct local authority, environmental, and drainage searches
-5. Contact seller's solicitors regarding draft contract
-
-**Client Actions:**
-1. Provide Jersey trust documentation (trust deed, beneficiary schedule, trustee confirmation)
-2. Provide Companies House records for both entities
-3. Provide certified identification
-4. Provide audited accounts (3 years)
-5. Resolve bank statement disclosure with accountants
-6. Confirm cash flow position for VAT on completion
-
-## 7. CLIENT CONFIRMATION
-
-Client confirmed understanding of AML obligations and agreed to provide documentation. Client understood that the matter cannot proceed until EDD is satisfactorily completed.
-
----
-*Attendance note prepared contemporaneously from recording. AML monitoring note created same day.*`;
-
-  const [attendDoc1] = await db.insert(documents).values({
-    caseId: newCase.id,
-    meetingSessionId: session1.id,
-    transcriptSnapshotId: t1.id,
-    type: "attendance_note",
-    content: doc1Content,
-    version: 1,
-    versionType: "system_generated",
-    createdBy: userId,
-    status: "approved",
-    approvedBy: userId,
-    approvedAt: new Date(session1Date.getTime() + 3 * 60 * 60 * 1000),
-  }).returning();
-
-  // Client care letter for Patterson
-  await db.insert(documents).values({
-    caseId: newCase.id,
-    type: "client_care_letter",
-    content: `# CLIENT CARE LETTER\n\n**To:** Richard Patterson\n**Patterson Developments Ltd**\n14 Canary Court, London E14 5AB\n\n**Date:** ${session1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}\n\n**Our Reference:** DEMO_COMP/2024/0291\n\n---\n\nDear Mr Patterson,\n\nThank you for instructing us in connection with the proposed acquisition of Unit 14, Meridian Industrial Estate, Marshgate Lane, Stratford, East London E15.\n\nI am writing to confirm the basis on which we will act for Patterson Developments Ltd in this matter.\n\n## Scope of Work\n\nWe have been instructed to act on behalf of Patterson Developments Ltd in connection with the purchase of the above commercial property. Our work will include:\n\n- Reviewing and reporting on the title\n- Carrying out all necessary searches and enquiries\n- Negotiating the contract\n- Dealing with the mortgage documentation\n- Completion and post-completion formalities\n- Compliance with AML and regulatory obligations\n\n## Fees\n\nOur charges for this matter will be calculated on a time-spent basis at the following rate:\n\n- Partner rate: £320 per hour plus VAT\n\nBased on the information currently available, we estimate our total professional charges for this matter will be in the region of £8,500 to £12,000 plus VAT, disbursements, and search fees.\n\n## Regulatory Information\n\nThis firm is authorised and regulated by the Solicitors Regulation Authority (SRA). We are required to comply with the SRA Standards and Regulations, including the SRA Code of Conduct for Solicitors and the SRA Code of Conduct for Firms.\n\n## Complaints\n\nIf you are unhappy with any aspect of the service you receive, please contact the Senior Partner in the first instance. If the matter is not resolved to your satisfaction, you may refer it to the Legal Ombudsman.\n\nPlease sign and return one copy of this letter to confirm your instructions.\n\nYours sincerely,\n\n**Attending Solicitor**\nPartner — Commercial Property`,
-    version: 1,
-    versionType: "system_generated",
-    createdBy: userId,
-    status: "approved",
-    approvedBy: userId,
-    createdAt: session1Date,
-  });
-
-  await db.update(cases).set({
-    clientCareLetterSentAt: session1Date,
-  }).where(eq(cases.id, newCase.id));
-
-  // --- Session 2: Telephone call (3 weeks ago, 18 min) ---
-  const session2Date = daysAgoAt(21, 14, 35);
-  const [session2] = await db.insert(meetingSessions).values({
-    caseId: newCase.id,
-    recordingType: "telephone_call",
-    startedAt: session2Date,
-    durationSeconds: 1080,
-    status: "completed",
-    notes: "Telephone call — Patterson update on documentation",
-    createdBy: userId,
-  }).returning();
-
-  const session2ExpiresAt = new Date(session2Date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  await db.insert(audioRecordings).values({
-    caseId: newCase.id,
-    meetingSessionId: session2.id,
-    duration: 1080,
-    recordedAt: session2Date,
-    expiresAt: session2ExpiresAt,
-    deletedAt: session2ExpiresAt,
-    mimeType: "audio/webm",
-  });
-
-  const transcript2Content = `Telephone call transcript — Patterson Developments Ltd
-
-SOLICITOR: Good afternoon, Mr Patterson. This call is being recorded. Is that acceptable?
-
-CLIENT: Yes, that's fine.
-
-SOLICITOR: Thank you. I'm calling to check on the progress of the documentation we discussed at our meeting.
-
-CLIENT: Yes, I've spoken to my accountants at Hargreaves & Co. They're compiling the audited accounts and they've agreed to prepare a source of funds report. The Jersey trust documents are being handled by Bridgewater — their compliance officer has confirmed they'll provide the trust deed and beneficiary schedule, but they've said it could take up to five working days because they need internal sign-off.
-
-SOLICITOR: I understand. Five working days is manageable. And the bank statements?
-
-CLIENT: My accountants have suggested providing a certified source of funds letter instead, supported by the audited accounts. They feel that addresses your concerns without full disclosure of every transaction.
-
-SOLICITOR: I'll consider that, Mr Patterson, but I should be candid — a certified letter from your accountants may not be sufficient on its own. The SRA guidance on source of funds is clear that we need to see the underlying evidence, not just third-party confirmations. However, if the letter is detailed and supported by the audited accounts showing the profit retention, we may be able to work with that. I'll reserve my position until I see the documents.
-
-CLIENT: Fair enough. I'll push Hargreaves to get everything to you by the end of next week.
-
-SOLICITOR: Good. I should note that I remain concerned about the pace of disclosure. The longer we go without completing the enhanced due diligence, the greater the risk that we cannot meet the timeline for exchange. I'll add a second monitoring note to the AML file today.
-
-CLIENT: Understood. I'll chase them.
-
-SOLICITOR: Thank you, Mr Patterson. I'll be in touch once the documents arrive.`;
-
-  const [t2] = await db.insert(transcripts).values({
-    caseId: newCase.id,
-    meetingSessionId: session2.id,
-    content: transcript2Content,
-    utterances: [
-      { speaker: "A", text: "Good afternoon, Mr Patterson. This call is being recorded. Is that acceptable?", start: 0, end: 5000, confidence: 0.96 },
-      { speaker: "B", text: "Yes, that's fine.", start: 5500, end: 7000, confidence: 0.98 },
-    ],
-    speakerCount: 2,
-    createdAt: session2Date,
-  }).returning();
-
-  const doc2Content = `# TELEPHONE ATTENDANCE NOTE
-
-**Client:** Richard Patterson (Patterson Developments Ltd)
-**Matter:** Commercial Warehouse Acquisition — Stratford
-**Reference:** DEMO_COMP/2024/0291
-**Date:** ${session2Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-**Time:** 2:35pm
-**Duration:** 18 minutes
-**Type:** Incoming call from client
-
----
-
-Call received from Mr Patterson regarding progress on AML documentation.
-
-Client confirmed:
-- Accountants (Hargreaves & Co) compiling audited accounts and preparing source of funds report
-- Bridgewater Trust Company (Jersey) will provide trust deed and beneficiary schedule — approximately 5 working days due to internal compliance sign-off requirement
-- Accountants have proposed providing a certified source of funds letter in lieu of full bank statements, supported by audited accounts
-
-I advised Mr Patterson that a certified letter alone may not satisfy SRA source of funds requirements and that I will reserve my position until I review the documentation. I noted continued concern about the pace of disclosure and confirmed that a second AML monitoring note will be added to the file.
-
-Client undertook to chase Hargreaves and aims to have all documentation submitted by end of next week.
-
----
-*Second AML monitoring note added to file.*`;
-
-  await db.insert(documents).values({
-    caseId: newCase.id,
-    meetingSessionId: session2.id,
-    transcriptSnapshotId: t2.id,
-    type: "attendance_note",
-    content: doc2Content,
-    version: 1,
-    versionType: "system_generated",
-    createdBy: userId,
-    status: "approved",
-    approvedBy: userId,
-  });
-
-  // --- Session 3: Full meeting — AML review and clearance (1 week ago, 1h 25m) ---
-  const session3Date = daysAgoAt(7, 10, 30);
-  const [session3] = await db.insert(meetingSessions).values({
-    caseId: newCase.id,
-    recordingType: "full_meeting",
-    startedAt: session3Date,
-    durationSeconds: 5100,
-    status: "completed",
-    notes: "AML review meeting — documentation received, clearance determination",
-    createdBy: userId,
-  }).returning();
-
-  const session3ExpiresAt = new Date(session3Date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  await db.insert(audioRecordings).values({
-    caseId: newCase.id,
-    meetingSessionId: session3.id,
-    duration: 5100,
-    recordedAt: session3Date,
-    expiresAt: session3ExpiresAt,
-    deletedAt: session3ExpiresAt,
-    mimeType: "audio/webm",
-  });
-
-  const transcript3Content = `Meeting transcript — AML Review and Clearance
-
-SOLICITOR: Good morning, Mr Patterson. Recording is on — you consent?
-
-CLIENT: Yes.
-
-SOLICITOR: Thank you. I've now received the full documentation package from Hargreaves and from Bridgewater Trust Company. I want to go through each item with you and confirm the position.
-
-CLIENT: Of course.
-
-SOLICITOR: Starting with the corporate structure. I've verified Patterson Developments Limited and Meridian Holdings Limited through Companies House. Both companies are active, accounts are filed and up to date. The shareholding confirms that Meridian Holdings holds one hundred percent of Patterson Developments, and the Patterson Family Trust holds one hundred percent of Meridian Holdings. That's consistent with what you told me at our first meeting.
-
-CLIENT: Good.
-
-SOLICITOR: Turning to the Jersey trust. Bridgewater have provided the trust deed dated March 2018, the schedule of beneficiaries — yourself, Catherine, and your two children — and a letter confirming the current trustees. I've also verified the trust's registration with the Jersey Financial Services Commission. The trust is registered and in good standing. I'm satisfied that the beneficial ownership is now fully transparent.
-
-CLIENT: That's a relief.
-
-SOLICITOR: Now, source of funds. The audited accounts for Patterson Developments for the last three financial years show cumulative retained profits well in excess of the one point two million being contributed to the purchase. Hargreaves have provided a detailed source of funds report — it traces the funds from trading profits through the company's accounts. The Barclays mortgage offer has also arrived — one point two million on standard commercial terms. I'm satisfied with the source of funds position.
-
-CLIENT: And the bank statement issue?
-
-SOLICITOR: The source of funds report from Hargreaves, combined with the audited accounts, provides sufficient evidence for my purposes. The report specifically addresses the retained profit position and the inter-company loan that was repaid. I don't need to pursue the bank statements further. However, I want to be clear that if any further transactions arise that change the funding position, you must inform me immediately.
-
-CLIENT: Absolutely. You have my word.
-
-SOLICITOR: Good. On that basis, I am satisfied that the enhanced due diligence obligations have been met. I'm recording an AML Decision Record today with a determination of "cleared to proceed." This decision record will be HMAC-signed for audit integrity. I should note that the counter-signatory — our Head of Compliance — will also review and approve the decision within the next twenty-four hours.
-
-CLIENT: So we can move forward?
-
-SOLICITOR: Yes. I'll now proceed to review the draft contract, raise preliminary enquiries, and report to you on the title. We should be in a position to exchange within four to six weeks, subject to satisfactory replies to enquiries and the usual conveyancing formalities.
-
-CLIENT: Excellent news. Thank you for being so thorough with all of this. I know it's been a lot of paperwork.
-
-SOLICITOR: It's my duty, Mr Patterson. These regulations exist for good reason, and compliance protects both of us. Now, shall we discuss the heads of terms?
-
-CLIENT: Yes, let's do that.
-
-SOLICITOR: The vendor is asking for a ten-percent deposit on exchange. Given the purchase price of two point four million, that's two hundred and forty thousand. Are Patterson Developments in a position to provide that from the retained profits?
-
-CLIENT: Yes, that's not a problem.
-
-SOLICITOR: Good. I'll also need to discuss the completion date. The vendor's solicitors have indicated a preference for completion within twenty-eight days of exchange. Is that workable for you?
-
-CLIENT: Perfectly. We'd actually prefer to move quickly.
-
-SOLICITOR: Then we're aligned. I'll proceed on that basis. Is there anything else you'd like to discuss today?
-
-CLIENT: No, I think we've covered everything. Thank you.
-
-SOLICITOR: Thank you, Mr Patterson. I'll be in touch with the contract report within the fortnight.`;
-
-  const [t3] = await db.insert(transcripts).values({
-    caseId: newCase.id,
-    meetingSessionId: session3.id,
-    content: transcript3Content,
-    utterances: [
-      { speaker: "A", text: "Good morning, Mr Patterson. Recording is on — you consent?", start: 0, end: 4000, confidence: 0.97 },
-      { speaker: "B", text: "Yes.", start: 4500, end: 5000, confidence: 0.99 },
-    ],
-    speakerCount: 2,
-    createdAt: session3Date,
-  }).returning();
-
-  const doc3Content = `# ATTENDANCE NOTE
-
-**Client:** Richard Patterson (Patterson Developments Ltd)
-**Matter:** Commercial Warehouse Acquisition — Stratford
-**Reference:** DEMO_COMP/2024/0291
-**Date:** ${session3Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-**Fee Earner:** Attending Solicitor
-**Present:** Attending Solicitor, Richard Patterson (Client / Director)
-**Duration:** 1 hour 25 minutes
-
----
-
-## 1. PURPOSE
-
-Meeting to review the AML documentation received from client's accountants (Hargreaves & Co) and from the Jersey trustee (Bridgewater Trust Company), and to determine whether enhanced due diligence requirements have been satisfied.
-
-## 2. CORPORATE STRUCTURE — VERIFIED
-
-- Patterson Developments Ltd — verified via Companies House. Active. Accounts filed and up to date.
-- Meridian Holdings Ltd — verified via Companies House. Active. 100% shareholder of Patterson Developments Ltd.
-- Patterson Family Trust — trust deed dated March 2018. Beneficiaries: Richard Patterson, Catherine Patterson, two children. Trustee: Bridgewater Trust Company (Jersey). Registered with the Jersey Financial Services Commission — in good standing.
-
-**Beneficial ownership is now fully transparent and verified.**
-
-## 3. SOURCE OF FUNDS — VERIFIED
-
-- Audited accounts for Patterson Developments Ltd (3 financial years) — cumulative retained profits exceed £1,200,000 contribution
-- Source of funds report from Hargreaves & Co — traces funds from trading profits through company accounts
-- Barclays commercial mortgage offer — £1,200,000 on standard commercial terms
-- Inter-company loan (£200,000 from Meridian Holdings) — documentation reviewed, repayment confirmed
-
-**Source of funds position: SATISFACTORY.**
-
-## 4. AML DECISION
-
-I am satisfied that the enhanced due diligence obligations under Regulation 33 of the Money Laundering Regulations 2017 have been met.
-
-**AML Decision Record: CLEARED TO PROCEED**
-
-Decision record HMAC-signed for audit integrity. Counter-signatory (Head of Compliance) to review and approve within 24 hours.
-
-## 5. NEXT STEPS — CONVEYANCING
-
-- Review draft contract and raise preliminary enquiries
-- Report on title to client
-- Target: exchange within 4–6 weeks
-- Deposit on exchange: £240,000 (10% — from retained profits)
-- Completion: 28 days after exchange (vendor preference, client agrees)
-
-## 6. CLIENT CONFIRMATION
-
-Client confirmed understanding. Instructed to proceed to heads of terms.
-
----
-*AML Decision Record created. Counter-signatory approval pending.*`;
-
-  await db.insert(documents).values({
-    caseId: newCase.id,
-    meetingSessionId: session3.id,
-    transcriptSnapshotId: t3.id,
-    type: "attendance_note",
-    content: doc3Content,
-    version: 1,
-    versionType: "system_generated",
-    createdBy: userId,
-    status: "approved",
-    approvedBy: userId,
-  });
-
-  await db.insert(documents).values({
-    caseId: newCase.id,
-    meetingSessionId: session3.id,
-    transcriptSnapshotId: t3.id,
-    type: "summary",
-    content: `**MEETING SUMMARY**
-
-**Case:** Commercial Warehouse Acquisition — Stratford
-**Client:** Richard Patterson
-**Date:** ${session3Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-
-**Key Points:**
-- Commercial property acquisition of Unit 14, Meridian Industrial Estate, Stratford (£2,400,000)
-- Three-tier corporate structure: Patterson Developments Ltd > Meridian Holdings Ltd > Patterson Family Trust (Jersey)
-- Enhanced due diligence completed — all documentation received and verified
-- AML Decision Record: CLEARED TO PROCEED
-
-**Critical Issues Identified:**
-- Offshore Jersey trust element required enhanced due diligence under Regulation 33 MLR 2017
-- Client initially declined bank statement disclosure — resolved via accountants' source of funds report
-- Beneficial ownership verified through Companies House and Jersey Financial Services Commission
-
-**Immediate Actions Required:**
-1. Review draft contract and raise preliminary enquiries
-2. Report on title to client
-3. Target exchange within 4–6 weeks
-4. Deposit on exchange: £240,000 (10% from retained profits)
-
-**Client Concerns:**
-Client concerned about commercial sensitivity of bank statements. Resolved through certified source of funds report from accountants (Hargreaves & Co) supported by audited accounts.
-
-**Solicitor Recommendations:**
-AML clearance granted. Proceed to conveyancing phase. Counter-signatory (Head of Compliance) to review and approve AML Decision Record within 24 hours. Any change in funding position must be disclosed immediately.`,
-    version: 1,
-    versionType: "system_generated",
-    createdBy: userId,
-    status: "approved",
-    approvedBy: userId,
-  });
-
-  // --- Time entries ---
-  await db.insert(timeEntries).values([
-    { caseId: newCase.id, meetingSessionId: session1.id, userId, durationMinutes: 130, description: "Full meeting — Matter inception, AML screening, corporate structure review", hourlyRate: "320.00", status: "confirmed" },
-    { caseId: newCase.id, meetingSessionId: session2.id, userId, durationMinutes: 18, description: "Telephone call — Documentation progress update", hourlyRate: "320.00", status: "confirmed" },
-    { caseId: newCase.id, meetingSessionId: session3.id, userId, durationMinutes: 85, description: "Full meeting — AML review, EDD clearance determination", hourlyRate: "320.00", status: "confirmed" },
-    { caseId: newCase.id, userId, durationMinutes: 180, description: "Due diligence review — Companies House verification, Jersey trust register, source of funds analysis", hourlyRate: "320.00", status: "confirmed" },
-  ]);
-
-  // --- External document references ---
-  await db.insert(externalDocumentRefs).values([
-    { caseId: newCase.id, createdBy: userId, description: "Certified copy of company formation documents for Patterson Developments Ltd — provided by client 14 January 2025, not stored, reference only", documentType: "Company formation documents", documentDate: daysAgo(14), providedBy: "Richard Patterson (client)" },
-    { caseId: newCase.id, createdBy: userId, description: "Jersey trust register extract — provided by Bridgewater Trust Company 14 January 2025, not stored, reference only", documentType: "Trust register extract", documentDate: daysAgo(14), providedBy: "Bridgewater Trust Company (Jersey)" },
-  ]);
-
-  // --- AML Compliance Thread ---
-  const signingKey = process.env.SESSION_SECRET || (process.env.NODE_ENV === "development" ? "demo-signing-key" : "");
-
-  // Monitoring Note 1 — inception
-  const mn1Date = new Date(session1Date.getTime() + 2 * 60 * 60 * 1000);
-  await db.insert(amlMonitoringNotes).values({
-    caseId: newCase.id, userId, recordType: "inception", riskLevel: "high",
-    sourceOfFundsStatus: "Pending verification. £1.2m from retained profits (audited accounts required). £1.2m Barclays commercial mortgage (offer pending). Additional disclosure: £200k inter-company loan from Meridian Holdings (repaid). Bank statements declined by client — commercially sensitive.",
-    eddDecision: "Required",
-    eddReasoning: "Three-tier corporate structure with offshore Jersey trust. Beneficial ownership not fully transparent at inception. Client declined bank statement disclosure. Enhanced due diligence mandatory under Regulation 33 MLR 2017.",
-    notes: "Matter Inception Record — Commercial warehouse acquisition (Unit 14, Meridian Industrial Estate, Stratford, £2.4m). Three AML concerns identified: (a) beneficial ownership not fully transparent via Jersey trust, (b) offshore trust cannot be immediately verified, (c) client declined bank statements citing commercial sensitivity. Client formally advised matter cannot proceed without satisfactory documentation. EDD file opened.",
-    createdAt: mn1Date,
-  });
-
-  // Monitoring Note 2 — telephone call update
-  const mn2Date = new Date(session2Date.getTime() + 30 * 60 * 1000);
-  await db.insert(amlMonitoringNotes).values({
-    caseId: newCase.id, userId, recordType: "monitoring", riskLevel: "high",
-    sourceOfFundsStatus: "Awaiting documentation. Accountants (Hargreaves & Co) preparing source of funds report and audited accounts. Jersey trustee (Bridgewater) processing trust deed and beneficiary schedule — 5 working days. Client proposing certified letter in lieu of bank statements — position reserved.",
-    notes: "Second monitoring note. Client called to confirm documentation in progress. Accountants preparing source of funds report. Jersey trustee requires internal sign-off (5 working days). Client proposed certified source of funds letter instead of bank statements — I reserved my position, noting SRA guidance requires underlying evidence. Continued concern about pace of disclosure.",
-    createdAt: mn2Date,
-  });
-
-  // Monitoring Note 3 — clearance
-  const mn3Date = new Date(session3Date.getTime() + 90 * 60 * 1000);
-  await db.insert(amlMonitoringNotes).values({
-    caseId: newCase.id, userId, recordType: "monitoring", riskLevel: "high",
-    sourceOfFundsStatus: "VERIFIED. All documentation received and reviewed. Beneficial ownership fully transparent through Companies House and Jersey trust register. Source of funds confirmed via audited accounts and Hargreaves source of funds report. Barclays mortgage offer received. Inter-company loan documentation and repayment confirmed.",
-    notes: "Final monitoring note prior to clearance decision. All enhanced due diligence documentation received and verified. Beneficial ownership transparent. Source of funds satisfactory. AML Decision Record to be created with 'cleared to proceed' determination.",
-    createdAt: mn3Date,
-  });
-
-  // AML Decision Record — clearance
-  const drDate = new Date(mn3Date.getTime() + 30 * 60 * 1000);
-  const sigPayload = JSON.stringify({
-    caseId: newCase.id, userId, decision: "proceed",
-    concernDescription: "Enhanced due diligence required due to three-tier corporate structure with offshore Jersey trust, initial non-transparency of beneficial ownership, and client's initial refusal to provide bank statements.",
-    decisionReasoning: "All concerns resolved. Beneficial ownership verified through Companies House and Jersey trust register. Source of funds confirmed via audited accounts and accountants' report. Matter cleared to proceed.",
-    timestamp: drDate.toISOString(),
-  });
-  const signatureHash = crypto.createHmac("sha256", signingKey).update(sigPayload).digest("hex");
-
-  await db.insert(amlDecisionRecords).values({
-    caseId: newCase.id, userId,
-    concernDescription: "Enhanced due diligence required due to three-tier corporate structure with offshore Jersey trust element. Three concerns identified at inception: (a) beneficial ownership not fully transparent, (b) offshore trust component could not be immediately verified, (c) client initially declined to provide bank statements. Matter subject to ongoing enhanced monitoring throughout due diligence period.",
-    decision: "proceed",
-    decisionReasoning: "Following receipt and review of all documentation, I am satisfied that the enhanced due diligence obligations under Regulation 33 of the Money Laundering Regulations 2017 have been met:\n\n1. Patterson Developments Ltd and Meridian Holdings Ltd verified via Companies House — both active, accounts filed.\n2. Patterson Family Trust verified via trust deed (March 2018) and Jersey Financial Services Commission registration.\n3. Beneficial ownership fully transparent: Richard Patterson, Catherine Patterson, and two children as beneficiaries.\n4. Source of funds verified: £1.2m retained profits confirmed by audited accounts and Hargreaves source of funds report; £1.2m Barclays commercial mortgage on standard terms.\n5. Inter-company loan (£200k) documentation reviewed, repayment confirmed.\n6. Bank statement issue resolved — source of funds report with audited accounts provides sufficient evidence.\n\nDecision: CLEARED TO PROCEED. Counter-signatory approval recorded.\nNo SAR required. Risk level maintained at HIGH for ongoing monitoring through to completion.",
-    signatureHash,
-    createdAt: drDate,
-  });
-
-  // --- Audit trail ---
-  const auditEvents: Array<{ eventType: string; timestamp: Date; metadata: Record<string, unknown>; severity?: "info" | "warning" | "critical"; transcriptId?: string }> = [
-    { eventType: "case_created", timestamp: daysAgo(35), metadata: { clientName: "Richard Patterson", practiceArea: "commercial_property" } },
-    { eventType: "conflict_check_completed", timestamp: new Date(daysAgo(35).getTime() + 30 * 60 * 1000), metadata: { result: "clear", note: "No conflict identified" } },
-    { eventType: "client_care_letter_generated", timestamp: new Date(daysAgo(35).getTime() + 60 * 60 * 1000), metadata: { documentType: "client_care_letter" } },
-    { eventType: "consent_given", timestamp: session1Date, metadata: { consentModality: "verbal_recorded", sessionType: "full_meeting" } },
-    { eventType: "transcript_generated", timestamp: new Date(session1Date.getTime() + 130 * 60 * 1000), metadata: { speakerCount: 2 }, transcriptId: t1.id },
-    { eventType: "document_generated", timestamp: new Date(session1Date.getTime() + 135 * 60 * 1000), metadata: { documentType: "attendance_note" } },
-    { eventType: "document_approved", timestamp: new Date(session1Date.getTime() + 180 * 60 * 1000), metadata: { documentType: "attendance_note" } },
-    { eventType: "aml_monitoring_note_created", timestamp: mn1Date, metadata: { recordType: "inception", riskLevel: "high" }, severity: "warning" as const },
-    { eventType: "aml_monitoring_note_created", timestamp: mn2Date, metadata: { recordType: "monitoring", riskLevel: "high" }, severity: "warning" as const },
-    { eventType: "transcript_generated", timestamp: new Date(session2Date.getTime() + 20 * 60 * 1000), metadata: { speakerCount: 2 }, transcriptId: t2.id },
-    { eventType: "document_generated", timestamp: new Date(session2Date.getTime() + 22 * 60 * 1000), metadata: { documentType: "attendance_note", sessionType: "telephone_call" } },
-    { eventType: "transcript_generated", timestamp: new Date(session3Date.getTime() + 90 * 60 * 1000), metadata: { speakerCount: 2 }, transcriptId: t3.id },
-    { eventType: "document_generated", timestamp: new Date(session3Date.getTime() + 92 * 60 * 1000), metadata: { documentType: "attendance_note" } },
-    { eventType: "aml_monitoring_note_created", timestamp: mn3Date, metadata: { recordType: "monitoring", riskLevel: "high", note: "Pre-clearance final review" }, severity: "info" as const },
-    { eventType: "aml_decision_recorded", timestamp: drDate, metadata: { decision: "proceed", signatureHash }, severity: "critical" as const },
-  ];
-  for (const evt of auditEvents) {
-    await db.insert(auditTrail).values({
-      eventType: evt.eventType,
-      userId,
-      caseId: newCase.id,
-      timestamp: evt.timestamp,
-      severity: evt.severity || "info",
-      metadata: evt.metadata,
-      transcriptId: evt.transcriptId || null,
-    });
+    await db.delete(cases).where(eq(cases.id, c.id));
   }
 }
 
-// ——— CASE 2: Sophie Henderson — Residential Conveyancing — Multi-Session ———
+// ─── Matter 1: Family — Private Children (COLP Showcase) ────────────────────
 
-async function seedCase2Henderson(userId: string) {
-  const [client] = await db.insert(clients).values({
-    name: "Sophie Henderson",
-    email: "sophie.henderson@gmail.com",
-    phone: "07845 991 022",
-    address: "Flat 6, 29 Westmoreland Terrace, Bath BA1 5HG",
-    amlRiskLevel: "high",
-    amlRiskLastReviewed: daysAgo(21),
-    createdBy: userId,
-  }).returning();
+async function seedMatter1Webb(userId: string) {
+  const sessionDate = daysAgoAt(7, 10, 0);
+  const deadlineDate = daysFromNow(7);
 
   const [newCase] = await db.insert(cases).values({
-    title: "Purchase of 14 Ashfield Close, Bath",
-    clientName: "Sophie Henderson",
-    clientId: client.id,
-    matterReference: "DEMO_CONV/2024/1147",
-    createdBy: userId,
-    status: "review_required",
-    priority: "deadline-soon",
-    sourceType: "audio",
-    practiceArea: "residential_conveyancing",
-    riskLevel: "high",
-    conflictCheckCompleted: true,
-    conflictCheckNote: "No conflict identified. Seller (Mr J. Fielding) not a client of this firm. Seller's solicitors (Blake Morgan) — no conflict.",
-    reviewed: true,
-    createdAt: daysAgo(21),
-  }).returning() as Case[];
-
-  // Session 1: Full meeting — Initial consultation (3 weeks ago, 55 min)
-  const s1Date = daysAgoAt(21, 14, 0);
-  const [ses1] = await db.insert(meetingSessions).values({
-    caseId: newCase.id, recordingType: "full_meeting", startedAt: s1Date, durationSeconds: 3300, status: "completed",
-    notes: "Initial consultation — residential purchase, first-time buyer", createdBy: userId,
-  }).returning();
-
-  const s1ExpiresAt = new Date(s1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  await db.insert(audioRecordings).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, duration: 3300,
-    recordedAt: s1Date, expiresAt: s1ExpiresAt, deletedAt: s1ExpiresAt, mimeType: "audio/webm",
-  });
-
-  await db.insert(consentLogs).values({
-    caseId: newCase.id, solicitorId: userId, consentGiven: true, disclaimerScriptVersion: "v2.1", consentModality: "verbal_recorded",
-  });
-
-  const t1Content = `Meeting transcript — Residential Purchase, Initial Consultation
-
-SOLICITOR: Good afternoon, Miss Henderson. This meeting is being recorded for accuracy purposes. Do you consent?
-
-CLIENT: Yes, I do.
-
-SOLICITOR: Thank you. So, you're purchasing 14 Ashfield Close, Bath — your first property purchase. Congratulations. Let me take you through the current position. I've reviewed the draft contract from the seller's solicitors, Blake Morgan. The property is registered freehold, Title Number ST245891. The title is clean — no restrictive covenants that would cause concern.
-
-CLIENT: That's good to hear.
-
-SOLICITOR: Now, the searches. The local authority search has come back clear. The environmental search shows no issues. There was a query on the drainage search — it initially showed that the property might not be connected to the public sewer. However, I raised an additional enquiry with Wessex Water and they've confirmed the property is connected. So that's resolved.
-
-CLIENT: I was worried about that one. My parents mentioned it could be a problem.
-
-SOLICITOR: It can be in rural areas, but this is fine. Now, let's talk about the finances. The purchase price is three hundred and eighty-five thousand pounds. Your mortgage offer from Nationwide is for three hundred and eight thousand. That leaves a deposit of seventy-seven thousand. Can you talk me through the source of the deposit?
-
-CLIENT: Yes. I've saved fifty-two thousand pounds — I can show you the bank statements. The remaining twenty-five thousand is a gift from my parents.
-
-SOLICITOR: I'll need to see your bank statements showing the savings, and I'll need a gift letter from your parents confirming that the twenty-five thousand is a gift, not a loan, and that they have no interest in the property. This is standard practice for both mortgage and AML purposes.
-
-CLIENT: My parents have already prepared the letter. I've got it here actually.
-
-SOLICITOR: Excellent. Let me take a copy. Now, SDLT — Stamp Duty Land Tax. As a first-time buyer purchasing below four hundred and twenty-five thousand, you're eligible for the first-time buyer relief. The SDLT on three hundred and eighty-five thousand with that relief comes to nine thousand, seven hundred and fifty pounds. That's payable on completion and I'll submit the return to HMRC.
-
-CLIENT: Nine thousand seven hundred and fifty. OK, I've budgeted for that.
-
-SOLICITOR: Good. Now, the mortgage offer has a condition — there's a valuation retention of two thousand five hundred pounds pending a roof inspection report. The surveyor flagged some potential issues with the ridge tiles. You'll need to get that inspection done before Nationwide will release the full advance.
-
-CLIENT: I've already arranged that — the roofer is going next Tuesday.
-
-SOLICITOR: Perfect. Once you have the report and it's clear, send it to me and I'll submit it to Nationwide. Now, fixtures and fittings. The current list from the seller includes curtains and carpets. Is there anything else you specifically want included?
-
-CLIENT: Yes — there's a garden studio at the back of the property. It's a timber-frame structure, about three metres by four. I specifically want that included in the sale. It was one of the reasons I chose the property.
-
-SOLICITOR: I'll add a specific enquiry about the garden studio and request that it's included on the TA10 fixtures list. If the seller tries to exclude it, we'll negotiate. Is there anything else?
-
-CLIENT: No, that covers everything I wanted to ask about.
-
-SOLICITOR: Good. Let me summarise the next steps. I'll send you a formal report on title within the next few days. Once we have the roof report and Nationwide releases the retention, we'll be in a position to exchange. I'd suggest we target exchange within the next two to three weeks.
-
-CLIENT: That would be wonderful. Thank you so much.`;
-
-  const [tr1] = await db.insert(transcripts).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, content: t1Content,
-    utterances: [
-      { speaker: "A", text: "Good afternoon, Miss Henderson. This meeting is being recorded for accuracy purposes. Do you consent?", start: 0, end: 6000, confidence: 0.96 },
-      { speaker: "B", text: "Yes, I do.", start: 6500, end: 8000, confidence: 0.98 },
-    ],
-    speakerCount: 2, createdAt: s1Date,
-  }).returning();
-
-  await db.insert(documents).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, transcriptSnapshotId: tr1.id,
-    type: "attendance_note",
-    content: `# ATTENDANCE NOTE
-
-**Client:** Sophie Henderson
-**Matter:** Purchase of 14 Ashfield Close, Bath, BA2 5NP
-**Reference:** DEMO_CONV/2024/1147
-**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-**Fee Earner:** Attending Solicitor
-**Present:** Attending Solicitor, Sophie Henderson (Client)
-**Duration:** 55 minutes
-
----
-
-## 1. RECORDING CONSENT
-
-Consent obtained at commencement of meeting.
-
-## 2. TITLE AND SEARCHES
-
-- Property: 14 Ashfield Close, Bath, BA2 5NP — registered freehold, Title Number ST245891
-- Title is clean — no restrictive covenants of concern
-- Local authority search: clear
-- Environmental search: no issues
-- Drainage search: initial query regarding public sewer connection — resolved. Wessex Water confirmed property is connected.
-
-## 3. FINANCIAL SUMMARY
-
-| Item | Amount |
-|------|--------|
-| Purchase price | £385,000 |
-| Mortgage offer (Nationwide) | £308,000 |
-| Deposit required | £77,000 |
-| — Client savings (bank statements provided) | £52,000 |
-| — Parental gift (gift letter obtained) | £25,000 |
-| SDLT (first-time buyer relief) | £9,750 |
-
-## 4. SOURCE OF FUNDS — AML
-
-- £52,000 savings: evidenced by bank statements (reviewed)
-- £25,000 parental gift: gift letter obtained confirming no interest in property, funds are a gift not a loan
-- AML check: SATISFIED
-
-## 5. MORTGAGE CONDITIONS
-
-Nationwide mortgage offer includes a valuation retention of £2,500 pending roof inspection report. Surveyor flagged potential issues with ridge tiles. Client has arranged roofer inspection for next Tuesday.
-
-## 6. FIXTURES AND FITTINGS
-
-- Current TA10 list includes: curtains and carpets
-- Client specifically requests inclusion of garden studio (timber-frame, approx. 3m x 4m) — to be added to enquiries
-- If seller attempts to exclude, negotiate
-
-## 7. NEXT STEPS
-
-**Solicitor Actions:**
-1. Send report on title to client
-2. Raise enquiry regarding garden studio on TA10
-3. Submit roof inspection report to Nationwide once received
-4. Target exchange within 2–3 weeks
-
-**Client Actions:**
-1. Obtain roof inspection report (Tuesday)
-2. Forward report to solicitor
-
-## 8. CLIENT CONFIRMATION
-
-Client confirmed understanding of all matters discussed. No further questions at this stage.`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
-  });
-
-  // Client care letter
-  await db.insert(documents).values({
-    caseId: newCase.id, type: "client_care_letter",
-    content: `# CLIENT CARE LETTER\n\n**To:** Sophie Henderson\nFlat 6, 29 Westmoreland Terrace, Bath BA1 5HG\n\n**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}\n\n**Our Reference:** DEMO_CONV/2024/1147\n\n---\n\nDear Miss Henderson,\n\nThank you for instructing us in connection with your purchase of 14 Ashfield Close, Bath, BA2 5NP.\n\n## Scope of Work\n\nWe have been instructed to act on your behalf in connection with the purchase of the above property at a price of £385,000. Our work will include reviewing title, carrying out searches, reporting on the mortgage conditions, dealing with exchange and completion, and attending to all post-completion matters including Land Registry registration and SDLT submission.\n\n## Fees\n\nOur charges for this conveyancing matter will be £1,650 plus VAT (£1,980 inclusive). Disbursements (searches, Land Registry fees, bank transfer fees) are estimated at £500–£700.\n\nYours sincerely,\n\n**Attending Solicitor**\nConveyancing Department`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId, createdAt: s1Date,
-  });
-
-  await db.update(cases).set({ clientCareLetterSentAt: s1Date }).where(eq(cases.id, newCase.id));
-
-  // Session 2: Telephone call (4 days ago, 7 min)
-  const s2Date = daysAgoAt(4, 11, 14);
-  const [ses2] = await db.insert(meetingSessions).values({
-    caseId: newCase.id, recordingType: "telephone_call", startedAt: s2Date, durationSeconds: 420, status: "completed",
-    notes: "Telephone call — roof report confirmed, instruction to proceed to exchange", createdBy: userId,
-  }).returning();
-
-  const s2ExpiresAt = new Date(s2Date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  await db.insert(audioRecordings).values({
-    caseId: newCase.id, meetingSessionId: ses2.id, duration: 420,
-    recordedAt: s2Date, expiresAt: s2ExpiresAt, mimeType: "audio/webm",
-  });
-
-  const t2Content = `Telephone call transcript — Henderson purchase
-
-SOLICITOR: Good morning, Miss Henderson. This call is being recorded — is that alright?
-
-CLIENT: Yes, fine. I'm calling about the roof report.
-
-SOLICITOR: Go ahead.
-
-CLIENT: The roofer went out on Tuesday as planned. He confirmed the ridge tiles are in good condition — there was some minor moss growth but nothing structural. He's provided a written report confirming the roof is satisfactory.
-
-SOLICITOR: That's excellent news. Can you email the report to me today?
-
-CLIENT: I've already sent it — should be in your inbox.
-
-SOLICITOR: Let me check. Yes, I have it. I'll forward this to Nationwide today and request release of the retention. Once that's confirmed, we'll be in a position to exchange. Can I take your instructions to proceed to exchange?
-
-CLIENT: Yes, please go ahead. I'd like to exchange as soon as possible.
-
-SOLICITOR: Understood. I'll contact Blake Morgan to agree an exchange date. We're targeting Friday the twenty-first. I'll confirm once everything is in place.
-
-CLIENT: Perfect. Thank you.
-
-SOLICITOR: Thank you, Miss Henderson. I'll be in touch.`;
-
-  const [tr2] = await db.insert(transcripts).values({
-    caseId: newCase.id, meetingSessionId: ses2.id, content: t2Content,
-    utterances: [
-      { speaker: "A", text: "Good morning, Miss Henderson. This call is being recorded — is that alright?", start: 0, end: 5000, confidence: 0.96 },
-      { speaker: "B", text: "Yes, fine. I'm calling about the roof report.", start: 5500, end: 8000, confidence: 0.97 },
-    ],
-    speakerCount: 2, createdAt: s2Date,
-  }).returning();
-
-  await db.insert(documents).values({
-    caseId: newCase.id, meetingSessionId: ses2.id, transcriptSnapshotId: tr2.id,
-    type: "attendance_note",
-    content: `# TELEPHONE ATTENDANCE NOTE
-
-**Client:** Sophie Henderson
-**Matter:** Purchase of 14 Ashfield Close, Bath
-**Reference:** DEMO_CONV/2024/1147
-**Date:** ${s2Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-**Time:** 11:14am
-**Duration:** 7 minutes
-**Type:** Incoming call from client
-
----
-
-Call received from Miss Henderson. Client confirmed roof inspection report satisfactory — ridge tiles in good condition, minor moss growth only, no structural issues. Written report provided by roofer (received by email). Report to be forwarded to Nationwide today to request release of valuation retention (£2,500). Client instructed to proceed to exchange. Agreed exchange target: Friday 21st. Solicitor to contact seller's solicitors (Blake Morgan) to confirm.`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
-  });
-
-  await db.insert(documents).values({
-    caseId: newCase.id,
-    meetingSessionId: ses2.id,
-    transcriptSnapshotId: tr2.id,
-    type: "summary",
-    content: `**MEETING SUMMARY**
-
-**Case:** Purchase of 14 Ashfield Close, Bath
-**Client:** Sophie Henderson
-**Date:** ${s2Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-
-**Key Points:**
-- First-time buyer purchasing 14 Ashfield Close, Bath (£385,000 freehold)
-- Mortgage offer from Nationwide (£308,000) with £2,500 valuation retention pending roof inspection
-- Deposit of £77,000: £52,000 savings (bank statements reviewed) and £25,000 parental gift (gift letter obtained)
-- Title clean, all searches clear, drainage query resolved
-
-**Critical Issues Identified:**
-- Mortgage valuation retention (£2,500) pending roof inspection — now resolved, report satisfactory
-- Garden studio to be included in fixtures — specific enquiry raised with seller's solicitors
-
-**Immediate Actions Required:**
-1. Forward roof inspection report to Nationwide for retention release
-2. Contact Blake Morgan to agree exchange date (target: Friday 21st)
-3. Complete report on title
-
-**Client Concerns:**
-Client concerned about drainage search query (resolved — Wessex Water confirmed connection). Client specifically wants garden studio included in sale.
-
-**Solicitor Recommendations:**
-SDLT first-time buyer relief applicable (£9,750 payable on completion). AML check satisfied. Proceed to exchange once Nationwide confirms retention release. Target exchange within 2–3 weeks.`,
-    version: 1,
-    versionType: "system_generated",
-    createdBy: userId,
-    status: "approved",
-    approvedBy: userId,
-  });
-
-  // Undertaking — outstanding
-  await db.insert(undertakings).values({
-    caseId: newCase.id, meetingSessionId: ses1.id,
-    wording: "We undertake to exchange contracts within 5 working days of receipt of the signed contract and deposit funds from our client.",
-    speaker: "Solicitor",
-    sourceQuote: "I'd suggest we target exchange within the next two to three weeks.",
-    deadline: daysAgo(-3),
-    status: "outstanding",
-    dateGiven: s1Date,
-    createdAt: s1Date,
-  });
-
-  // Time entries
-  await db.insert(timeEntries).values([
-    { caseId: newCase.id, meetingSessionId: ses1.id, userId, durationMinutes: 54, description: "Full meeting — Initial consultation, contract review, search results, source of funds", hourlyRate: "220.00", status: "confirmed" },
-    { caseId: newCase.id, meetingSessionId: ses2.id, userId, durationMinutes: 6, description: "Telephone call — Roof report confirmation, instruction to exchange", hourlyRate: "220.00", status: "confirmed" },
-    { caseId: newCase.id, userId, durationMinutes: 90, description: "File review — Title report preparation, search analysis, mortgage conditions review", hourlyRate: "220.00", status: "confirmed" },
-  ]);
-
-  // Audit trail
-  const auditEvents = [
-    { eventType: "case_created", timestamp: daysAgo(21), metadata: { clientName: "Sophie Henderson", practiceArea: "residential_conveyancing" } },
-    { eventType: "conflict_check_completed", timestamp: new Date(daysAgo(21).getTime() + 30 * 60 * 1000), metadata: { result: "clear", note: "No conflict identified" } },
-    { eventType: "client_care_letter_generated", timestamp: new Date(daysAgo(21).getTime() + 60 * 60 * 1000), metadata: { documentType: "client_care_letter" } },
-    { eventType: "consent_given", timestamp: s1Date, metadata: { consentModality: "verbal_recorded" } },
-    { eventType: "transcript_generated", timestamp: new Date(s1Date.getTime() + 60 * 60 * 1000), metadata: { speakerCount: 2 } },
-    { eventType: "document_generated", timestamp: new Date(s1Date.getTime() + 65 * 60 * 1000), metadata: { documentType: "attendance_note" } },
-    { eventType: "document_approved", timestamp: new Date(s1Date.getTime() + 90 * 60 * 1000), metadata: { documentType: "attendance_note" } },
-    { eventType: "transcript_generated", timestamp: new Date(s2Date.getTime() + 10 * 60 * 1000), metadata: { speakerCount: 2 } },
-    { eventType: "document_generated", timestamp: new Date(s2Date.getTime() + 12 * 60 * 1000), metadata: { documentType: "attendance_note", sessionType: "telephone_call" } },
-  ];
-  for (const evt of auditEvents) {
-    await db.insert(auditTrail).values({ eventType: evt.eventType, userId, caseId: newCase.id, timestamp: evt.timestamp, severity: "info", metadata: evt.metadata });
-  }
-}
-
-// ——— CASE 3: Daniel Hartley — Employment (Employee) — Undertakings Showcase ———
-
-async function seedCase3Hartley(userId: string) {
-  const [client] = await db.insert(clients).values({
-    name: "Daniel Hartley",
-    email: "d.hartley@protonmail.com",
-    phone: "07712 308 441",
-    address: "22 Birchwood Avenue, Reading, RG1 4PX",
-    amlRiskLevel: "medium",
-    createdBy: userId,
-  }).returning();
-
-  const [newCase] = await db.insert(cases).values({
-    title: "Constructive Dismissal Claim — Hartley v TechLogic Solutions Ltd",
-    clientName: "Daniel Hartley",
-    clientId: client.id,
-    matterReference: "DEMO_EMP/2024/0889",
-    createdBy: userId,
-    status: "review_required",
-    priority: "urgent",
-    sourceType: "audio",
-    practiceArea: "employment_employee",
-    riskLevel: "medium",
-    conflictCheckCompleted: true,
-    conflictCheckNote: "No conflict. TechLogic Solutions Ltd not a client. No connection to respondent.",
-    reviewed: true,
-    createdAt: daysAgo(35),
-  }).returning() as Case[];
-
-  // Session 1: Full meeting — Initial consultation (5 weeks ago, 1h 40m)
-  const s1Date = daysAgoAt(35, 10, 0);
-  const [ses1] = await db.insert(meetingSessions).values({
-    caseId: newCase.id, recordingType: "full_meeting", startedAt: s1Date, durationSeconds: 6000, status: "completed",
-    notes: "Initial consultation — constructive dismissal claim", createdBy: userId,
-  }).returning();
-
-  const s1ExpiresAt = new Date(s1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  await db.insert(audioRecordings).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, duration: 6000,
-    recordedAt: s1Date, expiresAt: s1ExpiresAt, deletedAt: s1ExpiresAt, mimeType: "audio/webm",
-  });
-
-  await db.insert(consentLogs).values({ caseId: newCase.id, solicitorId: userId, consentGiven: true, disclaimerScriptVersion: "v2.1", consentModality: "verbal_recorded" });
-
-  const t1Content = `Meeting transcript — Constructive Dismissal, Initial Consultation
-
-SOLICITOR: Good morning, Mr Hartley. I'm recording this meeting for accuracy — do you consent?
-
-CLIENT: Yes, I do.
-
-SOLICITOR: Thank you. You've told me you resigned from TechLogic Solutions Limited after seven years as Senior Systems Engineer. You're characterising this as constructive dismissal. I need to hear the full factual background.
-
-CLIENT: Yes. I'd been at TechLogic since 2017. For the first five years, everything was fine — good reviews, promoted to Senior Systems Engineer in 2019. Things started going wrong about eight months before I resigned.
-
-SOLICITOR: Talk me through what happened over those eight months.
-
-CLIENT: It started when we got a new CTO — Mark Salter. From day one, he seemed to have a problem with me. First, he excluded me from the weekly architecture meetings. These were meetings I'd attended for three years — I was the most senior systems engineer on the team. He told me they were "restructuring the attendee list."
-
-SOLICITOR: Did he give a reason?
-
-CLIENT: No. When I asked, he said it was a "strategic decision." Two months later, he reassigned my two direct reports to another team lead without discussing it with me. My role was effectively demoted without any formal process or consultation.
-
-SOLICITOR: Was there any documentation of this change?
-
-CLIENT: Nothing formal. No letter, no meeting, no HR involvement. I found out when my reports told me they'd been reassigned. A month after that, I raised a formal grievance through HR about the exclusion from meetings and the removal of my reports. HR acknowledged the grievance but the investigation was — frankly — a sham. They spoke to Salter, he denied everything, and they closed it within a week. No notes, no witness statements, no appeal offered.
-
-SOLICITOR: Did you receive the outcome in writing?
-
-CLIENT: Just an email. One paragraph. "Having investigated your concerns, we are satisfied that no further action is required."
-
-SOLICITOR: I see. What happened after the grievance was dismissed?
-
-CLIENT: It got worse. Salter started excluding me from the Slack channels where technical decisions were made. Then he moved my desk to a different floor — away from the rest of the engineering team. The final straw was when he announced at a company meeting that they were "bringing in a new technical lead" for the project I'd been running for eighteen months. He didn't tell me beforehand. I heard about it in the same meeting as the interns.
-
-SOLICITOR: And that's when you resigned?
-
-CLIENT: Not immediately. I took two days to think about it. Then I resigned by email, citing the sustained course of conduct as making my position untenable.
-
-SOLICITOR: Good. Now, let me explain the legal framework. Under section 95(1)(c) of the Employment Rights Act 1996, an employee is treated as dismissed if they terminate the contract — with or without notice — in circumstances where they're entitled to terminate without notice by reason of the employer's conduct. That's constructive dismissal. The test is whether the employer committed a fundamental breach of the implied term of mutual trust and confidence.
-
-CLIENT: And do you think what happened to me meets that test?
-
-SOLICITOR: Based on what you've told me, I'd assess your prospects as reasonable to good. The sustained course of conduct over eight months — exclusion from meetings, effective demotion, inadequate grievance investigation, physical isolation, and public humiliation — is exactly the kind of pattern that tribunals recognise as a breach of mutual trust and confidence. The key is that you didn't delay too long after the final incident before resigning.
-
-CLIENT: I resigned within two days of the company meeting.
-
-SOLICITOR: That's good. Delay can be fatal to a constructive dismissal claim because it can be treated as affirmation of the breach. Two days is well within acceptable limits. Now, the ACAS early conciliation certificate — have you obtained one?
-
-CLIENT: Yes, I went through the process last week. I have the certificate here.
-
-SOLICITOR: Good. That's a prerequisite to filing the ET1. Now, let me go through the schedule of loss. Your annual salary was twenty-eight thousand, four hundred and forty-eight pounds.
-
-CLIENT: That's right.
-
-SOLICITOR: The basic award is calculated using the statutory formula: one week's pay for each complete year of service where you were aged between twenty-two and forty. You're thirty-four and have seven complete years. The statutory weekly cap is five hundred and forty-four pounds. So the basic award is seven weeks times five hundred and forty-four — that's three thousand, eight hundred and eight pounds.
-
-CLIENT: OK.
-
-SOLICITOR: The compensatory award is where the significant value lies. Your net monthly salary was approximately two thousand, one hundred. If the tribunal awards nine months' future loss — which is a realistic estimate given the current employment market for your skillset — that's approximately eighteen thousand, nine hundred. Adding notice pay — you were entitled to seven weeks' notice, so that's approximately five thousand, four hundred and forty-five pounds based on your gross weekly salary of approximately seven hundred and seventy-eight. Plus accrued but untaken holiday — how many days?
-
-CLIENT: Eight days.
-
-SOLICITOR: That adds approximately one thousand, seven hundred and fifty pounds. So the total schedule of loss comes to approximately thirty-one thousand, four hundred and fifty pounds. I'll draft this formally for filing with the ET1.
-
-CLIENT: That's more than I expected, honestly.
-
-SOLICITOR: The compensatory award can be substantial when future loss is properly quantified. Now, I need you to do three things before our next meeting. First, obtain all written correspondence from TechLogic — emails, Slack messages, the grievance outcome email. Second, provide your payslips for the last three months. Third, sign the ACAS early conciliation form if you haven't already.
-
-CLIENT: I'll get all of that together this week.
-
-SOLICITOR: Good. We'll meet again in two weeks to review the draft ET1 and finalise the schedule of loss. Any questions?
-
-CLIENT: No, thank you. I feel much better having a clear picture of where I stand.`;
-
-  const [tr1] = await db.insert(transcripts).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, content: t1Content,
-    utterances: [
-      { speaker: "A", text: "Good morning, Mr Hartley. I'm recording this meeting for accuracy — do you consent?", start: 0, end: 5000, confidence: 0.96 },
-      { speaker: "B", text: "Yes, I do.", start: 5500, end: 7000, confidence: 0.98 },
-    ],
-    speakerCount: 2, createdAt: s1Date,
-  }).returning();
-
-  await db.insert(documents).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, transcriptSnapshotId: tr1.id,
-    type: "attendance_note",
-    content: `# ATTENDANCE NOTE
-
-**Client:** Daniel Hartley
-**Matter:** Constructive Dismissal Claim — Hartley v TechLogic Solutions Ltd
-**Reference:** DEMO_EMP/2024/0889
-**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-**Fee Earner:** Attending Solicitor
-**Present:** Attending Solicitor, Daniel Hartley (Client)
-**Duration:** 1 hour 40 minutes
-
----
-
-## 1. BACKGROUND
-
-Client employed for 7 years as Senior Systems Engineer at TechLogic Solutions Ltd (promoted 2019). Resigned citing sustained course of conduct by new CTO (Mark Salter) over approximately 8 months.
-
-## 2. FACTUAL CHRONOLOGY
-
-1. Excluded from weekly architecture meetings (attended for 3 years) — "restructuring attendee list"
-2. Two direct reports reassigned to another team lead without consultation or documentation
-3. Formal grievance raised through HR — inadequately investigated. Outcome: one-paragraph email dismissing concerns. No witness statements, no notes, no appeal offered.
-4. Excluded from Slack channels where technical decisions were made
-5. Desk moved to different floor — physical isolation from engineering team
-6. CTO announced replacement technical lead for client's project at company meeting without prior notification
-
-Client resigned by email within 2 days of final incident, citing sustained course of conduct as making his position untenable.
-
-## 3. LEGAL ASSESSMENT
-
-**Claim:** Constructive dismissal under section 95(1)(c) Employment Rights Act 1996
-
-**Test:** Whether employer committed a fundamental breach of the implied term of mutual trust and confidence (Malik v Bank of Credit and Commerce International [1998] AC 20).
-
-**Assessment:** Prospects are reasonable to good. Sustained pattern of conduct over 8 months — exclusion, effective demotion, inadequate grievance process, isolation, public humiliation — is consistent with breach of mutual trust and confidence. Client resigned promptly (2 days) — no risk of affirmation argument.
-
-**ACAS:** Early conciliation certificate obtained (prerequisite for ET1).
-
-## 4. SCHEDULE OF LOSS
-
-| Head of Loss | Amount |
-|-------------|--------|
-| Basic Award (7 years x 1 week x £544 cap) | £3,808 |
-| Compensatory Award — future loss (9 months x £2,100 net) | £18,900 |
-| Notice pay (7 weeks x £778 gross) | £5,445 |
-| Accrued holiday (8 days) | £1,750 |
-| **Estimated Total** | **£31,450** |
-
-*Note: Compensatory award subject to adjustment based on actual mitigation efforts and tribunal assessment of future loss period.*
-
-## 5. NEXT STEPS
-
-**Solicitor Actions:**
-1. Draft ET1 and particulars of claim
-2. Prepare formal schedule of loss
-
-**Client Actions:**
-1. Obtain all written correspondence from TechLogic (emails, Slack messages, grievance outcome)
-2. Provide payslips (last 3 months)
-3. Sign ACAS form
-
-**Next meeting:** In 2 weeks — review draft ET1 and finalise schedule of loss.`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
-  });
-
-  // Client care letter
-  await db.insert(documents).values({
-    caseId: newCase.id, type: "client_care_letter",
-    content: `# CLIENT CARE LETTER\n\n**To:** Daniel Hartley\n22 Birchwood Avenue, Reading, RG1 4PX\n\n**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}\n**Our Reference:** DEMO_EMP/2024/0889\n\n---\n\nDear Mr Hartley,\n\nThank you for instructing us in connection with your employment claim against TechLogic Solutions Ltd.\n\n## Scope of Work\n\nWe are instructed to advise and represent you in connection with a claim for constructive dismissal before the Employment Tribunal.\n\n## Fees\n\nOur hourly rate for this matter is £195 plus VAT.\n\nYours sincerely,\n\n**Attending Solicitor**\nEmployment Department`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId, createdAt: s1Date,
-  });
-  await db.update(cases).set({ clientCareLetterSentAt: s1Date }).where(eq(cases.id, newCase.id));
-
-  // Session 2: Full meeting — Strategy review and ET1 sign-off (1 week ago, 50 min)
-  const s2Date = daysAgoAt(7, 14, 30);
-  const [ses2] = await db.insert(meetingSessions).values({
-    caseId: newCase.id, recordingType: "full_meeting", startedAt: s2Date, durationSeconds: 3000, status: "completed",
-    notes: "Strategy review — ET1 sign-off, schedule of loss finalised", createdBy: userId,
-  }).returning();
-
-  const s2ExpiresAt = new Date(s2Date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  await db.insert(audioRecordings).values({
-    caseId: newCase.id, meetingSessionId: ses2.id, duration: 3000,
-    recordedAt: s2Date, expiresAt: s2ExpiresAt, deletedAt: s2ExpiresAt, mimeType: "audio/webm",
-  });
-
-  const t2Content = `Meeting transcript — ET1 Review and Sign-Off
-
-SOLICITOR: Good afternoon, Mr Hartley. Recording is on — you consent?
-
-CLIENT: Yes.
-
-SOLICITOR: Thank you. I've drafted the ET1 and the particulars of claim. Let me take you through it. The particulars set out the sustained detriment narrative in chronological order — from the exclusion from architecture meetings through to the announcement of your replacement at the company meeting. I've included specific dates where you've been able to provide them, and I've referenced the grievance process and its inadequacy.
-
-CLIENT: I've read through the draft. I think it's very thorough. There's one thing I wanted to add — Salter also refused to approve my request for training that had been pre-approved by my previous manager. That happened about four months before I resigned.
-
-SOLICITOR: Good point. I'll add that to the particulars. It strengthens the pattern of sustained detriment. Now, the schedule of loss — I've finalised it at thirty-one thousand, four hundred and fifty pounds, broken down as we discussed. The respondent details are confirmed — TechLogic Solutions Limited, registered office at Innovation House, Thames Valley Park, Reading.
-
-CLIENT: That's correct.
-
-SOLICITOR: Good. I need your formal instructions to file the ET1. Are you content to proceed?
-
-CLIENT: Yes, absolutely. Please go ahead and file it.
-
-SOLICITOR: Understood. I'll file the ET1 this week. Once the tribunal acknowledges receipt, we'll receive a case number and the respondent will have twenty-eight days to file an ET3 response. I should also mention — I'm giving an undertaking to serve the schedule of loss on the respondent within three working days of filing the ET1. This is standard practice.
-
-CLIENT: That's fine.
-
-SOLICITOR: Now, one more thing. There's always a possibility that TechLogic's solicitors may make an early approach for settlement through ACAS. If they do, we should discuss it, but my advice would be not to settle for less than the full schedule of loss unless there's a compelling reason. Your case is strong.
-
-CLIENT: Agreed. I'm not looking to settle cheaply.
-
-SOLICITOR: Good. I'll be in touch once the ET1 is filed. Any other questions?
-
-CLIENT: No, I'm happy to proceed. Thank you.`;
-
-  const [tr2] = await db.insert(transcripts).values({
-    caseId: newCase.id, meetingSessionId: ses2.id, content: t2Content,
-    utterances: [
-      { speaker: "A", text: "Good afternoon, Mr Hartley. Recording is on — you consent?", start: 0, end: 4000, confidence: 0.96 },
-      { speaker: "B", text: "Yes.", start: 4500, end: 5000, confidence: 0.99 },
-    ],
-    speakerCount: 2, createdAt: s2Date,
-  }).returning();
-
-  await db.insert(documents).values({
-    caseId: newCase.id, meetingSessionId: ses2.id, transcriptSnapshotId: tr2.id,
-    type: "attendance_note",
-    content: `# ATTENDANCE NOTE
-
-**Client:** Daniel Hartley
-**Matter:** Constructive Dismissal Claim — Hartley v TechLogic Solutions Ltd
-**Reference:** DEMO_EMP/2024/0889
-**Date:** ${s2Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-**Fee Earner:** Attending Solicitor
-**Present:** Attending Solicitor, Daniel Hartley (Client)
-**Duration:** 50 minutes
-
----
-
-## 1. ET1 REVIEW
-
-Draft ET1 and particulars of claim reviewed with client. Particulars cover the sustained detriment narrative in chronological order. Client approved the draft and requested one addition: refusal of pre-approved training request approximately 4 months before resignation (to be added to strengthen the pattern).
-
-## 2. SCHEDULE OF LOSS
-
-Finalised at £31,450. Respondent details confirmed: TechLogic Solutions Ltd, Innovation House, Thames Valley Park, Reading.
-
-## 3. CLIENT INSTRUCTIONS
-
-Client confirmed instructions to file ET1 this week.
-
-## 4. UNDERTAKING
-
-I gave an undertaking to serve the schedule of loss on the respondent within 3 working days of filing the ET1.
-
-## 5. NEXT STEPS
-
-- File ET1 this week
-- Await tribunal acknowledgement and case number
-- Respondent has 28 days to file ET3 response
-- Monitor for early settlement approach from respondent via ACAS
-
-Client does not wish to settle for less than the full schedule of loss unless there is a compelling reason.`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
-  });
-
-  await db.insert(documents).values({
-    caseId: newCase.id,
-    meetingSessionId: ses2.id,
-    transcriptSnapshotId: tr2.id,
-    type: "summary",
-    content: `**MEETING SUMMARY**
-
-**Case:** Constructive Dismissal Claim — Hartley v TechLogic Solutions Ltd
-**Client:** Daniel Hartley
-**Date:** ${s2Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-
-**Key Points:**
-- Constructive dismissal claim under s.95(1)(c) Employment Rights Act 1996
-- 7 years' service as Senior Systems Engineer at TechLogic Solutions Ltd
-- Sustained course of conduct over 8 months by new CTO (Mark Salter): exclusion from meetings, effective demotion, inadequate grievance, physical isolation, public humiliation
-- ET1 drafted and approved — client instructed to file
-
-**Critical Issues Identified:**
-- Client resigned within 2 days of final incident — no affirmation risk
-- ACAS early conciliation certificate obtained
-- Inadequate grievance investigation by employer strengthens claim
-
-**Immediate Actions Required:**
-1. File ET1 this week
-2. Serve schedule of loss on respondent within 3 working days of filing
-3. Await tribunal acknowledgement and case number
-4. Monitor for early settlement approach via ACAS
-
-**Client Concerns:**
-Client does not wish to settle for less than the full schedule of loss (£31,450) unless there is a compelling reason.
-
-**Solicitor Recommendations:**
-Prospects assessed as reasonable to good. Schedule of loss totals £31,450 (basic award £3,808, compensatory award £18,900, notice pay £5,445, accrued holiday £1,750). Advise against premature settlement given strength of case.`,
-    version: 1,
-    versionType: "system_generated",
-    createdBy: userId,
-    status: "approved",
-    approvedBy: userId,
-  });
-
-  // Undertaking — discharged
-  const dischargeDate = daysAgo(4);
-  await db.insert(undertakings).values({
-    caseId: newCase.id, meetingSessionId: ses2.id,
-    wording: "I undertake to serve the schedule of loss on the respondent within 3 working days of filing the ET1.",
-    speaker: "Solicitor",
-    sourceQuote: "I'm giving an undertaking to serve the schedule of loss on the respondent within three working days of filing the ET1.",
-    deadline: daysAgo(4),
-    status: "discharged",
-    confirmedBy: userId,
-    confirmedAt: s2Date,
-    dischargedAt: dischargeDate,
-    dischargedBy: userId,
-    dischargeNote: "Schedule of loss served on respondent's solicitors by email and first-class post on " + dischargeDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + ". Confirmation of service on file.",
-    dateGiven: s2Date,
-    createdAt: s2Date,
-  });
-
-  // Time entries
-  await db.insert(timeEntries).values([
-    { caseId: newCase.id, meetingSessionId: ses1.id, userId, durationMinutes: 102, description: "Full meeting — Initial consultation, factual background, legal assessment, schedule of loss", hourlyRate: "195.00", status: "confirmed" },
-    { caseId: newCase.id, meetingSessionId: ses2.id, userId, durationMinutes: 48, description: "Full meeting — ET1 review and sign-off, schedule of loss finalised", hourlyRate: "195.00", status: "confirmed" },
-    { caseId: newCase.id, userId, durationMinutes: 150, description: "ET1 drafting — Particulars of claim, schedule of loss, respondent details", hourlyRate: "195.00", status: "confirmed" },
-  ]);
-
-  // Audit trail
-  for (const evt of [
-    { eventType: "case_created", timestamp: daysAgo(35), metadata: { clientName: "Daniel Hartley", practiceArea: "employment_employee" } },
-    { eventType: "conflict_check_completed", timestamp: new Date(daysAgo(35).getTime() + 30 * 60 * 1000), metadata: { result: "clear", note: "No conflict with TechLogic Solutions Ltd" } },
-    { eventType: "client_care_letter_generated", timestamp: new Date(daysAgo(35).getTime() + 60 * 60 * 1000), metadata: { documentType: "client_care_letter" } },
-    { eventType: "consent_given", timestamp: s1Date, metadata: { consentModality: "verbal_recorded" } },
-    { eventType: "transcript_generated", timestamp: new Date(s1Date.getTime() + 90 * 60 * 1000), metadata: { speakerCount: 2 } },
-    { eventType: "document_generated", timestamp: new Date(s1Date.getTime() + 100 * 60 * 1000), metadata: { documentType: "attendance_note" } },
-    { eventType: "document_approved", timestamp: new Date(s1Date.getTime() + 120 * 60 * 1000), metadata: { documentType: "attendance_note" } },
-    { eventType: "transcript_generated", timestamp: new Date(s2Date.getTime() + 50 * 60 * 1000), metadata: { speakerCount: 2 } },
-    { eventType: "document_generated", timestamp: new Date(s2Date.getTime() + 55 * 60 * 1000), metadata: { documentType: "attendance_note" } },
-  ]) {
-    await db.insert(auditTrail).values({ eventType: evt.eventType, userId, caseId: newCase.id, timestamp: evt.timestamp, severity: "info", metadata: evt.metadata });
-  }
-}
-
-// ——— CASE 4: Yasmin Okafor — Family (Children / Arrangements) — Multi-Format ———
-
-async function seedCase4Okafor(userId: string) {
-  const [client] = await db.insert(clients).values({
-    name: "Yasmin Okafor",
-    email: "yasminokafor@outlook.com",
-    phone: "07443 587 109",
-    address: "38 Redland Park, Bristol, BS6 6SA",
-    amlRiskLevel: "medium",
-    createdBy: userId,
-  }).returning();
-
-  const [newCase] = await db.insert(cases).values({
-    title: "Child Arrangements Order — Okafor",
-    clientName: "Yasmin Okafor",
-    clientId: client.id,
-    matterReference: "DEMO_FAM/2024/0534",
-    createdBy: userId,
-    status: "review_required",
-    priority: "normal",
-    sourceType: "audio",
-    practiceArea: "family_children_arrangements",
-    riskLevel: "medium",
-    conflictCheckCompleted: true,
-    conflictCheckNote: "Checked against client register. Michael Okafor (respondent) not a client of this firm. No conflict identified.",
-    reviewed: true,
-    createdAt: daysAgo(42),
-  }).returning() as Case[];
-
-  // Session 1: Full meeting — Initial consultation (6 weeks ago, 1h 15m)
-  const s1Date = daysAgoAt(42, 10, 0);
-  const [ses1] = await db.insert(meetingSessions).values({
-    caseId: newCase.id, recordingType: "full_meeting", startedAt: s1Date, durationSeconds: 4500, status: "completed",
-    notes: "Initial consultation — Child Arrangements Order application", createdBy: userId,
-  }).returning();
-
-  const s1ExpiresAt = new Date(s1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  await db.insert(audioRecordings).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, duration: 4500,
-    recordedAt: s1Date, expiresAt: s1ExpiresAt, deletedAt: s1ExpiresAt, mimeType: "audio/webm",
-  });
-
-  await db.insert(consentLogs).values({ caseId: newCase.id, solicitorId: userId, consentGiven: true, disclaimerScriptVersion: "v2.1", consentModality: "verbal_recorded" });
-
-  const t1Content = `Meeting transcript — Child Arrangements, Initial Consultation
-
-SOLICITOR: Good morning, Mrs Okafor. Before we begin, I need to let you know that I'm recording this meeting so that I can prepare an accurate attendance note afterwards. This is standard practice. Given the sensitive nature of family proceedings, I want to explain that the recording is used solely for note-taking purposes and is not shared with anyone outside this firm. Do you consent to the recording?
-
-CLIENT: Yes, I understand. That's fine.
-
-SOLICITOR: Thank you. Now, I understand you've separated from your partner and you're seeking a Child Arrangements Order. Can you tell me about the family situation?
-
-CLIENT: Michael and I separated about eight months ago. We have two children — Amara, who's nine, and Kofi, who's six. For the first few months after the separation, we managed to agree an informal arrangement. The children lived with me during the week and spent alternate weekends with Michael. But it's broken down over the last two months.
-
-SOLICITOR: What happened?
-
-CLIENT: Michael started cancelling weekends at short notice — sometimes the night before. The children were getting upset because they'd be expecting to see their dad and then he wouldn't turn up. Then he started insisting on having the children on school nights, which was disrupting their routine. When I tried to discuss it, he became hostile.
-
-SOLICITOR: Has there been any domestic abuse or any concerns about the children's safety with their father?
-
-CLIENT: No, nothing like that. He's a good father when he's present. The problem is reliability and communication between us, not safety.
-
-SOLICITOR: That's an important distinction. Now, let me explain the legal framework. The court's paramount consideration is the welfare of the children — that's section 1 of the Children Act 1989. The court uses the welfare checklist to assess what arrangement best serves the children's interests. The court strongly prefers arrangements agreed between parents, and it will want to see that you've attempted mediation before making an application.
-
-CLIENT: I attended a MIAM — a mediation information and assessment meeting — two weeks ago. I have the certificate. Michael refused to attend mediation.
-
-SOLICITOR: Good — the MIAM certificate is a prerequisite for the court application. Michael's refusal to mediate is noted, but it won't count against you. Now, what outcome are you seeking?
-
-CLIENT: I want a clear arrangement that gives the children stability. I'd like them to live with me during the week and spend alternate weekends with Michael — Friday after school to Sunday evening. I'd also like to formalise school holiday arrangements — a week each during half-terms and two weeks each during summer.
-
-SOLICITOR: That's a very reasonable starting point. The court is likely to view shared care favourably, and what you're proposing gives the children a stable base during the school week while maintaining a meaningful relationship with their father. I'd advise against seeking a Prohibited Steps Order at this stage — there's nothing in what you've described that would justify restricting Michael's contact.
-
-CLIENT: I agree. I don't want to restrict his contact. I just want it to be predictable.
-
-SOLICITOR: Understood. I'll prepare and file a Form C100 application for a Child Arrangements Order. The court will list a First Hearing Dispute Resolution Appointment — usually within four to eight weeks. Before that hearing, CAFCASS will make initial safeguarding checks.
-
-CLIENT: What happens at the first hearing?
-
-SOLICITOR: The purpose of the FHDRA is to explore whether an agreement can be reached. If Michael attends and is willing to negotiate, we may be able to agree the arrangements by consent at that hearing. If not, the court will give directions — typically ordering a CAFCASS Section 7 welfare report — and list a further hearing.
-
-CLIENT: And how long does the whole process take?
-
-SOLICITOR: If an agreement is reached at the FHDRA, it could be resolved within two to three months. If it's contested and a Section 7 report is needed, you're looking at five to seven months. I'll keep you informed at every stage.
-
-CLIENT: Thank you. I just want what's best for the children.`;
-
-  const [tr1] = await db.insert(transcripts).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, content: t1Content,
-    utterances: [
-      { speaker: "A", text: "Good morning, Mrs Okafor. Before we begin, I need to let you know that I'm recording this meeting...", start: 0, end: 18000, confidence: 0.95 },
-      { speaker: "B", text: "Yes, I understand. That's fine.", start: 18500, end: 21000, confidence: 0.97 },
-    ],
-    speakerCount: 2, createdAt: s1Date,
-  }).returning();
-
-  await db.insert(documents).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, transcriptSnapshotId: tr1.id,
-    type: "attendance_note",
-    content: `# ATTENDANCE NOTE
-
-**Client:** Yasmin Okafor
-**Matter:** Child Arrangements Order — Okafor
-**Reference:** DEMO_FAM/2024/0534
-**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-**Fee Earner:** Attending Solicitor
-**Present:** Attending Solicitor, Yasmin Okafor (Client)
-**Duration:** 1 hour 15 minutes
-
----
-
-## 1. RECORDING CONSENT
-
-Consent obtained. I explained the recording is used solely for note-taking and is not shared outside the firm, given the sensitive nature of family proceedings.
-
-## 2. FAMILY BACKGROUND
-
-- Separated from partner (Michael Okafor) approximately 8 months ago
-- Children: Amara (age 9), Kofi (age 6)
-- Informal arrangement (children with mother weekdays, alternate weekends with father) worked for first 6 months
-- Arrangement broke down over last 2 months: father cancelling weekends at short notice, children upset, father then insisting on school nights, hostile communication
-- No domestic abuse concerns. No child safety concerns. Father described as "good father when present."
-
-## 3. MIAM
-
-MIAM certificate obtained (attended 2 weeks ago). Michael Okafor refused to attend mediation.
-
-## 4. LEGAL ADVICE
-
-- Paramount consideration: welfare of the children (s.1 Children Act 1989)
-- Welfare checklist applies
-- Court strongly prefers parental agreement
-- Prohibited Steps Order not appropriate at this stage — no safety concerns
-
-## 5. CLIENT'S PROPOSED ARRANGEMENT
-
-- **Term time:** Children live with mother. Alternate weekends with father (Friday after school to Sunday evening).
-- **School holidays:** One week each during half-terms. Two weeks each during summer.
-- **Assessment:** Reasonable proposal. Court likely to view shared care favourably.
-
-## 6. PROCEDURE
-
-1. File Form C100 application
-2. CAFCASS safeguarding checks
-3. First Hearing Dispute Resolution Appointment (FHDRA) — within 4–8 weeks
-4. If agreement reached at FHDRA: consent order (2–3 months total)
-5. If contested: Section 7 CAFCASS report directed, further hearing (5–7 months total)
-
-## 7. NEXT STEPS
-
-**Solicitor Actions:**
-1. Prepare and file Form C100
-2. Advise client on CAFCASS process
-
-**Client Actions:**
-1. Provide MIAM certificate (provided at meeting)`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
-  });
-
-  // Client care letter
-  await db.insert(documents).values({
-    caseId: newCase.id, type: "client_care_letter",
-    content: `# CLIENT CARE LETTER\n\n**To:** Yasmin Okafor\n38 Redland Park, Bristol, BS6 6SA\n\n**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}\n**Our Reference:** DEMO_FAM/2024/0534\n\n---\n\nDear Mrs Okafor,\n\nThank you for instructing us in connection with your application for a Child Arrangements Order.\n\n## Fees\n\nOur hourly rate is £210 plus VAT.\n\nYours sincerely,\n\n**Attending Solicitor**\nFamily Department`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId, createdAt: s1Date,
-  });
-  await db.update(cases).set({ clientCareLetterSentAt: s1Date }).where(eq(cases.id, newCase.id));
-
-  // Session 2: Telephone call (2 weeks ago, 12 min)
-  const s2Date = daysAgoAt(14, 15, 22);
-  const [ses2] = await db.insert(meetingSessions).values({
-    caseId: newCase.id, recordingType: "telephone_call", startedAt: s2Date, durationSeconds: 720, status: "completed",
-    notes: "Telephone call — CAFCASS allocation notification", createdBy: userId,
-  }).returning();
-
-  const s2ExpiresAt = new Date(s2Date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  await db.insert(audioRecordings).values({
-    caseId: newCase.id, meetingSessionId: ses2.id, duration: 720,
-    recordedAt: s2Date, expiresAt: s2ExpiresAt, deletedAt: s2ExpiresAt, mimeType: "audio/webm",
-  });
-
-  const t2Content = `Telephone call transcript — Okafor CAFCASS update
-
-SOLICITOR: Good afternoon, Mrs Okafor. Recording is on — you consent?
-
-CLIENT: Yes.
-
-SOLICITOR: Thank you. What can I help with?
-
-CLIENT: I've received a letter from CAFCASS. They've allocated an officer to our case — a J. Mercer. They want to arrange a first contact appointment.
-
-SOLICITOR: Good — that's the standard process. The CAFCASS officer will want to speak to you and to Michael separately as part of the safeguarding checks. It's usually a telephone call lasting about twenty to thirty minutes. They'll ask about the children, the current arrangements, and any concerns you have. Just be honest and straightforward — there's no need to exaggerate or understate anything.
-
-CLIENT: And after that?
-
-SOLICITOR: After the initial contact, CAFCASS will file a safeguarding letter with the court before the FHDRA. If the court directs a full Section 7 report — which I expect it will, given that Michael isn't engaging with mediation — then Officer Mercer will carry out a more thorough assessment. That usually involves home visits and speaking to the children.
-
-CLIENT: OK, I'll arrange the appointment. Thank you.
-
-SOLICITOR: You're welcome. Let me know the date once it's confirmed.`;
-
-  const [tr2] = await db.insert(transcripts).values({
-    caseId: newCase.id, meetingSessionId: ses2.id, content: t2Content,
-    utterances: [
-      { speaker: "A", text: "Good afternoon, Mrs Okafor. Recording is on — you consent?", start: 0, end: 4000, confidence: 0.96 },
-      { speaker: "B", text: "Yes.", start: 4500, end: 5000, confidence: 0.99 },
-    ],
-    speakerCount: 2, createdAt: s2Date,
-  }).returning();
-
-  await db.insert(documents).values({
-    caseId: newCase.id, meetingSessionId: ses2.id, transcriptSnapshotId: tr2.id,
-    type: "attendance_note",
-    content: `# TELEPHONE ATTENDANCE NOTE
-
-**Client:** Yasmin Okafor
-**Matter:** Child Arrangements Order — Okafor
-**Reference:** DEMO_FAM/2024/0534
-**Date:** ${s2Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-**Time:** 3:22pm
-**Duration:** 12 minutes
-**Type:** Incoming call from client
-
----
-
-Call received from Mrs Okafor. CAFCASS officer allocated: J. Mercer. First contact appointment to be arranged. Advised client on what to expect from CAFCASS initial contact — telephone call (20–30 minutes), questions about children and current arrangements, be honest and straightforward. CAFCASS will file safeguarding letter with court before FHDRA. If Section 7 report directed, Officer Mercer will conduct full assessment including home visits.`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
-  });
-
-  // Session 3: Court hearing (5 days ago, Bristol Family Court)
-  const s3Date = daysAgoAt(5, 10, 0);
-  const [ses3] = await db.insert(meetingSessions).values({
-    caseId: newCase.id, recordingType: "court_hearing", startedAt: s3Date, durationSeconds: 2100, status: "completed",
-    notes: "FHDRA — Bristol Family Court — District Judge Pemberton", createdBy: userId,
-  }).returning();
-
-  const s3ExpiresAt = new Date(s3Date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  await db.insert(audioRecordings).values({
-    caseId: newCase.id, meetingSessionId: ses3.id, duration: 2100,
-    recordedAt: s3Date, expiresAt: s3ExpiresAt, mimeType: "audio/webm",
-  });
-
-  const [tr3] = await db.insert(transcripts).values({
-    caseId: newCase.id, meetingSessionId: ses3.id,
-    content: `Court attendance — FHDRA — Bristol Family Court
-
-Matter: Child Arrangements Order — Okafor v Okafor. Before District Judge Pemberton. Applicant represented by attending solicitor. Respondent appeared in person as litigant in person.
-
-CAFCASS safeguarding letter filed. No safeguarding concerns identified for either parent. CAFCASS officer J. Mercer not present but available by telephone if required.
-
-DJ Pemberton explored possibility of agreement at this hearing. Respondent confirmed desire for regular contact with children but stated inability to commit to fixed alternate weekend pattern due to shift work. Applicant expressed willingness to accommodate shift patterns provided arrangements agreed in advance and communicated to children.
-
-DJ Pemberton noted absence of welfare concerns and clear desire of both parents to maintain children's relationships. Given respondent's position on flexibility, DJ Pemberton concluded that full CAFCASS Section 7 welfare report necessary to recommend workable arrangement.
-
-Orders made: (1) CAFCASS Section 7 report directed, to be filed by 14 March; (2) Respondent to file statement of shift pattern (last 6 months) within 14 days; (3) Interim arrangement confirmed by consent — children to live with applicant, contact with respondent on alternate Saturdays 10am–6pm pending final order.
-
-Next hearing: Dispute Resolution Appointment, 28 March, 10:30am, Bristol Family Court. Estimated duration 1 hour.
-
-No order as to costs (standard in children proceedings).`,
-    utterances: [],
-    speakerCount: 1, createdAt: s3Date,
-  }).returning();
-
-  // Court attendance note — completely different format
-  await db.insert(documents).values({
-    caseId: newCase.id, meetingSessionId: ses3.id, transcriptSnapshotId: tr3.id,
-    type: "attendance_note",
-    content: `# COURT ATTENDANCE NOTE
-
-**Matter:** Child Arrangements Order — Okafor
-**Reference:** DEMO_FAM/2024/0534
-
----
-
-| | |
-|---|---|
-| **Hearing type** | First Hearing Dispute Resolution Appointment (FHDRA) |
-| **Court** | Bristol Family Court |
-| **Judge** | District Judge Pemberton |
-| **Date** | ${s3Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} |
-| **Start time** | 10:00am |
-| **Duration** | 35 minutes |
-
----
-
-## PARTIES
-
-| Party | Representation |
-|-------|---------------|
-| **Applicant:** Yasmin Okafor | Represented (Attending Solicitor) |
-| **Respondent:** Michael Okafor | In person (litigant in person) |
-
-## CAFCASS
-
-Safeguarding letter filed. No safeguarding concerns identified for either parent. CAFCASS officer (J. Mercer) not present but available by telephone.
-
-## HEARING SUMMARY
-
-District Judge Pemberton explored the possibility of agreement at this hearing. The respondent (Michael Okafor) confirmed he wants regular contact with the children but stated he cannot commit to a fixed alternate weekend pattern due to his shift work. The applicant expressed willingness to accommodate shift patterns provided the arrangements are agreed in advance and communicated to the children.
-
-DJ Pemberton noted the absence of any welfare concerns and the clear desire of both parents to maintain the children's relationships. However, given the respondent's position on flexibility, DJ Pemberton concluded that a full CAFCASS Section 7 welfare report is necessary to recommend a workable arrangement.
-
-## ORDERS MADE
-
-1. CAFCASS Section 7 report directed — to be filed by 14 March
-2. Respondent to file a statement of his shift pattern (last 6 months) within 14 days
-3. Interim arrangement confirmed by consent: children to live with applicant; contact with respondent on alternate Saturdays 10am–6pm pending final order
-
-## NEXT HEARING
-
-| | |
-|---|---|
-| **Type** | Dispute Resolution Appointment |
-| **Date** | 28 March |
-| **Time** | 10:30am |
-| **Court** | Bristol Family Court |
-| **Estimated duration** | 1 hour |
-
-## COSTS
-
-No order as to costs (standard in children proceedings).
-
----
-*Court attendance note prepared same day.*`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
-  });
-
-  await db.insert(documents).values({
-    caseId: newCase.id,
-    meetingSessionId: ses3.id,
-    transcriptSnapshotId: tr3.id,
-    type: "summary",
-    content: `**MEETING SUMMARY**
-
-**Case:** Child Arrangements Order — Okafor
-**Client:** Yasmin Okafor
-**Date:** ${s3Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-
-**Key Points:**
-- Application for Child Arrangements Order — two children: Amara (9) and Kofi (6)
-- FHDRA held at Bristol Family Court before District Judge Pemberton
-- CAFCASS safeguarding letter filed — no concerns identified for either parent
-- Respondent (Michael Okafor) appeared as litigant in person
-- Interim contact arrangement agreed by consent
-
-**Critical Issues Identified:**
-- Respondent unable to commit to fixed alternate weekend pattern due to shift work
-- Full CAFCASS Section 7 welfare report directed to recommend workable arrangement
-- Respondent ordered to file statement of shift pattern (last 6 months) within 14 days
-
-**Immediate Actions Required:**
-1. Await CAFCASS Section 7 welfare report (due by 14 March)
-2. Prepare for Dispute Resolution Appointment on 28 March at 10:30am
-3. Monitor respondent's compliance with shift pattern disclosure order
-
-**Client Concerns:**
-Client wants predictable, stable contact arrangement for children. Willing to accommodate shift patterns provided arrangements are agreed in advance and communicated to children.
-
-**Solicitor Recommendations:**
-Interim arrangement confirmed by consent — children to live with applicant, contact with respondent on alternate Saturdays 10am–6pm pending final order. No order as to costs (standard in children proceedings). Case progressing well — absence of welfare concerns is positive.`,
-    version: 1,
-    versionType: "system_generated",
-    createdBy: userId,
-    status: "approved",
-    approvedBy: userId,
-  });
-
-  // Time entries
-  await db.insert(timeEntries).values([
-    { caseId: newCase.id, meetingSessionId: ses1.id, userId, durationMinutes: 72, description: "Full meeting — Initial consultation, welfare checklist, C100 preparation", hourlyRate: "210.00", status: "confirmed" },
-    { caseId: newCase.id, meetingSessionId: ses2.id, userId, durationMinutes: 12, description: "Telephone call — CAFCASS allocation update", hourlyRate: "210.00", status: "confirmed" },
-    { caseId: newCase.id, meetingSessionId: ses3.id, userId, durationMinutes: 210, description: "Court hearing — FHDRA, Bristol Family Court (including travel and waiting)", hourlyRate: "210.00", status: "confirmed" },
-  ]);
-
-  // Audit trail
-  for (const evt of [
-    { eventType: "case_created", timestamp: daysAgo(42), metadata: { clientName: "Yasmin Okafor", practiceArea: "family_children_arrangements" } },
-    { eventType: "conflict_check_completed", timestamp: new Date(daysAgo(42).getTime() + 30 * 60 * 1000), metadata: { result: "clear", note: "No conflict identified" } },
-    { eventType: "client_care_letter_generated", timestamp: new Date(daysAgo(42).getTime() + 60 * 60 * 1000), metadata: { documentType: "client_care_letter" } },
-    { eventType: "consent_given", timestamp: s1Date, metadata: { consentModality: "verbal_recorded" } },
-    { eventType: "document_generated", timestamp: new Date(s1Date.getTime() + 80 * 60 * 1000), metadata: { documentType: "attendance_note" } },
-    { eventType: "transcript_generated", timestamp: new Date(s3Date.getTime() + 60 * 60 * 1000), metadata: { speakerCount: 1, sessionType: "court_hearing" } },
-    { eventType: "document_generated", timestamp: new Date(s2Date.getTime() + 15 * 60 * 1000), metadata: { documentType: "attendance_note", sessionType: "telephone_call" } },
-    { eventType: "document_generated", timestamp: new Date(s3Date.getTime() + 120 * 60 * 1000), metadata: { documentType: "court_attendance_note", sessionType: "court_hearing" } },
-  ]) {
-    await db.insert(auditTrail).values({ eventType: evt.eventType, userId, caseId: newCase.id, timestamp: evt.timestamp, severity: "info", metadata: evt.metadata });
-  }
-}
-
-// ——— CASE 5: Margaret & Geoffrey Whitmore — Wills & Probate — Complex Document ———
-
-async function seedCase5Whitmore(userId: string) {
-  const [client] = await db.insert(clients).values({
-    name: "Margaret Whitmore & Geoffrey Whitmore",
-    email: "m.whitmore@btinternet.com",
-    phone: "01483 776 442",
-    address: "The Willows, 8 Oakdene Lane, Guildford, Surrey, GU1 3RD",
-    amlRiskLevel: "medium",
-    createdBy: userId,
-  }).returning();
-
-  const [newCase] = await db.insert(cases).values({
-    title: "Mirror Wills — Whitmore",
-    clientName: "Margaret & Geoffrey Whitmore",
-    clientId: client.id,
-    matterReference: "DEMO_PROB/2024/0203",
-    createdBy: userId,
-    status: "completed",
-    priority: "normal",
-    sourceType: "audio",
-    practiceArea: "wills_probate",
-    riskLevel: "medium",
-    conflictCheckCompleted: true,
-    conflictCheckNote: "No conflict identified. Neither Whitmore has been a client previously.",
-    reviewed: true,
-    createdAt: daysAgo(56),
-  }).returning() as Case[];
-
-  // Session 1: Full meeting — Will instructions (8 weeks ago, 1h 50m)
-  const s1Date = daysAgoAt(56, 10, 0);
-  const [ses1] = await db.insert(meetingSessions).values({
-    caseId: newCase.id, recordingType: "full_meeting", startedAt: s1Date, durationSeconds: 6600, status: "completed",
-    notes: "Will instructions meeting — mirror wills, IHT planning, four speakers", createdBy: userId,
-  }).returning();
-
-  const s1ExpiresAt = new Date(s1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  await db.insert(audioRecordings).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, duration: 6600,
-    recordedAt: s1Date, expiresAt: s1ExpiresAt, deletedAt: s1ExpiresAt, mimeType: "audio/webm",
-  });
-
-  await db.insert(consentLogs).values({ caseId: newCase.id, solicitorId: userId, consentGiven: true, disclaimerScriptVersion: "v2.1", consentModality: "verbal_recorded" });
-
-  const t1Content = `Meeting transcript — Mirror Wills Instructions
-
-SOLICITOR: Good morning, Mr and Mrs Whitmore. Thank you both for coming in today. I should let you know that this meeting is being recorded so we can prepare an accurate note afterwards. Do you both consent?
-
-MRS WHITMORE: Yes, that's fine.
-
-MR WHITMORE: Yes, I agree.
-
-SOLICITOR: Thank you. My colleague, Mr Hughes — the senior partner — is also attending today given the complexity of your estate. David?
-
-PARTNER: Good morning. I'm here because the estate value and the IHT considerations mean this matter benefits from two pairs of eyes. I'll be contributing on the tax-planning aspects.
-
-MRS WHITMORE: That's reassuring. We know our estate is complicated.
-
-SOLICITOR: Let's start with the estate overview. Can you talk me through the assets?
-
-MR WHITMORE: Our main asset is the house — The Willows in Guildford. We had it valued last month at one point one million pounds. It's mortgage-free.
-
-MRS WHITMORE: Then there's the investment portfolio. It's managed by Brewin Dolphin. Current value is approximately six hundred and eighty thousand.
-
-MR WHITMORE: Cash savings across various accounts — about one hundred and ninety thousand. And then there are some personal effects of value — Margaret's jewellery collection, my vintage car, some antique furniture. Perhaps another thirty thousand in total, but we don't need to worry about those for IHT purposes.
-
-PARTNER: So the total estate is approximately one point nine seven million. Let me walk you through the IHT position. Each of you has a nil-rate band of three hundred and twenty-five thousand pounds. Together, that's six hundred and fifty thousand. You also each have a residence nil-rate band of one hundred and seventy-five thousand — provided the property passes to direct descendants. That's an additional three hundred and fifty thousand, giving a combined shelter of one million pounds.
-
-MRS WHITMORE: So we'd pay tax on the remainder?
-
-PARTNER: Precisely. The taxable estate would be approximately nine hundred and seventy thousand pounds. At forty percent, the IHT liability would be approximately three hundred and eighty-eight thousand pounds. That's a significant sum.
-
-MR WHITMORE: Is there anything we can do about that?
-
-PARTNER: Several things. First, I'd recommend you consider annual gifting. Each of you can give away three thousand pounds per year using the annual exemption — that's six thousand combined, and if you haven't used last year's exemption, you can carry it forward for one year. Over a seven-year period, regular gifting of around twenty thousand per year from surplus income would reduce the taxable estate substantially.
-
-SOLICITOR: We should also discuss the structure of the wills themselves. You mentioned you'd like mirror wills — that means each will leaves everything to the surviving spouse, and on the second death, the estate passes to the children and grandchildren. Is that your intention?
-
-MRS WHITMORE: Yes. We have two children — our son Andrew and our daughter Claire. Andrew has two children — Thomas, who's fourteen, and Isabelle, who's eleven. Claire has one daughter — Emily, who's eight.
-
-MR WHITMORE: We'd like the estate to pass equally to Andrew and Claire on the second death. But we'd also like to provide something directly for the grandchildren.
-
-PARTNER: A common approach is to create a discretionary trust for the grandchildren's shares. This gives the trustees — typically your children — flexibility to distribute funds at appropriate times. For example, you might direct that each grandchild receives a specified sum at age twenty-one, with the trustees having discretion to release funds earlier for education or housing.
-
-MRS WHITMORE: We were thinking fifty thousand each for the grandchildren — so one hundred and fifty thousand in total into the trust. And the remainder split equally between Andrew and Claire.
-
-SOLICITOR: That's workable. We'd recommend using STEP standard provisions in the trust — they're widely recognised and give the trustees clear guidance. Now, have you considered mutual wills?
-
-MR WHITMORE: What are those?
-
-SOLICITOR: Mutual wills are legally binding agreements between spouses that neither will change their will after the first death. They create an equitable obligation. We discussed this and I'd recommend against it in your case — mirror wills give you the same practical effect while preserving the surviving spouse's ability to adjust the provisions if circumstances change.
-
-MRS WHITMORE: That makes sense. I wouldn't want to be locked in if something changed.
-
-PARTNER: One more item — lasting powers of attorney. Have you considered those?
-
-MR WHITMORE: We haven't, but I know we should.
-
-PARTNER: I'd recommend both property and financial affairs LPAs and health and welfare LPAs for each of you. We can deal with those as a separate matter — I'll open a file for that.
-
-SOLICITOR: Now, a letter of wishes. This isn't legally binding, but it's a very useful guide for your executors and trustees. It sets out your wishes for things like funeral arrangements, personal belongings, and any specific distributions you'd like the trustees to consider. Shall we draft one?
-
-MRS WHITMORE: Yes, please. I'd like to leave my jewellery collection to Claire specifically, and Geoffrey wants his vintage car to go to Andrew.
-
-SOLICITOR: We'll include those in the letter of wishes. Now, who would you like as executors?
-
-MR WHITMORE: Andrew and Claire, jointly. And perhaps this firm as a professional executor as well?
-
-SOLICITOR: That's a sensible arrangement — it provides continuity and professional oversight. We'd charge for acting as executor, which I'll set out in the client care letter.
-
-PARTNER: Before we finish — one final recommendation on IHT planning. You mentioned surplus income. If your income exceeds your regular expenditure, gifts out of surplus income are immediately exempt from IHT — they don't require the seven-year survival period. This is the most powerful exemption available and I'd encourage you to keep detailed records of income and expenditure to support any claim.
-
-MR WHITMORE: We certainly have surplus income. Our combined pensions are more than we spend.
-
-PARTNER: Then regular gifting from surplus income should be a priority. I'll set out a recommended gifting strategy in a follow-up letter. I think we've covered everything — shall we proceed?
-
-MRS WHITMORE: Yes, please go ahead. Thank you both.`;
-
-  const [tr1] = await db.insert(transcripts).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, content: t1Content,
-    utterances: [
-      { speaker: "A", text: "Good morning, Mr and Mrs Whitmore. Thank you both for coming in today...", start: 0, end: 15000, confidence: 0.95 },
-      { speaker: "C", text: "Yes, that's fine.", start: 15500, end: 17000, confidence: 0.97 },
-      { speaker: "D", text: "Yes, I agree.", start: 17500, end: 19000, confidence: 0.98 },
-      { speaker: "B", text: "Good morning. I'm here because the estate value and the IHT considerations mean this matter benefits from two pairs of eyes.", start: 19500, end: 28000, confidence: 0.94 },
-    ],
-    speakerCount: 4, createdAt: s1Date,
-  }).returning();
-
-  await db.insert(documents).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, transcriptSnapshotId: tr1.id,
-    type: "attendance_note",
-    content: `# ATTENDANCE NOTE
-
-**Client:** Margaret Whitmore & Geoffrey Whitmore (joint matter)
-**Matter:** Mirror Wills — Whitmore
-**Reference:** DEMO_PROB/2024/0203
-**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-**Fee Earner:** Attending Solicitor
-**Also present:** David Hughes, Senior Partner
-**Clients present:** Margaret Whitmore, Geoffrey Whitmore
-**Duration:** 1 hour 50 minutes
-
----
-
-## 1. RECORDING CONSENT
-
-Both clients consented to the recording. Senior Partner (David Hughes) attending due to estate complexity and IHT considerations.
-
-## 2. ESTATE OVERVIEW
-
-| Asset | Estimated Value |
-|-------|----------------|
-| The Willows, 8 Oakdene Lane, Guildford (freehold, mortgage-free) | £1,100,000 |
-| Investment portfolio (Brewin Dolphin) | £680,000 |
-| Cash savings (various accounts) | £190,000 |
-| Personal effects (jewellery, vintage car, antiques) | ~£30,000 |
-| **Total estimated estate** | **~£1,970,000** |
-
-## 3. INHERITANCE TAX ANALYSIS
-
-| Allowance | Per person | Combined |
-|-----------|-----------|----------|
-| Nil-Rate Band (NRB) | £325,000 | £650,000 |
-| Residence Nil-Rate Band (RNRB) | £175,000 | £350,000 |
-| **Combined shelter** | | **£1,000,000** |
-
-| | Amount |
-|---|---|
-| Total estate | £1,970,000 |
-| Less combined shelter | (£1,000,000) |
-| **Taxable estate** | **£970,000** |
-| **IHT at 40%** | **£388,000** |
-
-*Note: RNRB only available if property passes to direct descendants.*
-
-## 4. IHT MITIGATION — ADVICE
-
-**David Hughes (Senior Partner) advised:**
-
-1. **Annual exemption gifting:** Each spouse can gift £3,000 per year (£6,000 combined). Carry forward available if previous year's exemption unused.
-2. **Regular gifting programme:** Target £20,000 per year from surplus income over 7-year period to reduce taxable estate.
-3. **Gifts from surplus income:** If income exceeds regular expenditure, gifts are immediately exempt (no 7-year rule). Both clients confirmed surplus pension income. Detailed income/expenditure records recommended.
-
-## 5. WILL INSTRUCTIONS
-
-**Structure:** Mirror wills — each spouse leaves everything to survivor; on second death, estate passes to children and grandchildren.
-
-**Children:**
-- Andrew Whitmore (son) — two children: Thomas (14), Isabelle (11)
-- Claire Whitmore (daughter) — one child: Emily (8)
-
-**Distribution on second death:**
-- £150,000 into discretionary trust for grandchildren (£50,000 per grandchild)
-- Trust governed by STEP standard provisions
-- Trustees have discretion to release funds for education or housing; specified sum at age 21
-- Residuary estate split equally between Andrew and Claire
-
-**Mutual wills:** Discussed and rejected. Mirror wills preferred — preserve surviving spouse's ability to adjust provisions if circumstances change.
-
-**Executors:** Andrew Whitmore, Claire Whitmore (jointly), and this firm as professional executor.
-
-## 6. LASTING POWERS OF ATTORNEY
-
-Recommended: Property & Financial Affairs LPA and Health & Welfare LPA for each client. To be dealt with as a separate matter (separate file to be opened).
-
-## 7. LETTER OF WISHES
-
-To be drafted. Specific requests:
-- Jewellery collection to Claire Whitmore
-- Vintage car to Andrew Whitmore
-- Funeral arrangements to be included
-
-## 8. NEXT STEPS
-
-**Solicitor Actions:**
-1. Draft mirror wills incorporating discretionary trust for grandchildren
-2. Draft letter of wishes
-3. Open separate LPA file
-4. David Hughes to prepare IHT gifting strategy letter
-
-**Client Actions:**
-1. Review draft wills when received
-2. Consider and record surplus income/expenditure for gifts from surplus income claim
-
-## 9. DOCUMENT VERIFICATION
-
-Verified — all statements traceable to transcript. Four speakers identified: Solicitor (fee earner), David Hughes (Senior Partner), Margaret Whitmore, Geoffrey Whitmore.
-
----
-*Wills executed at a subsequent appointment. Matter now completed.*`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
-  });
-
-  await db.insert(documents).values({
-    caseId: newCase.id,
-    meetingSessionId: ses1.id,
-    transcriptSnapshotId: tr1.id,
-    type: "summary",
-    content: `**MEETING SUMMARY**
-
-**Case:** Mirror Wills — Whitmore
-**Client:** Margaret Whitmore & Geoffrey Whitmore
-**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-
-**Key Points:**
-- Joint mirror wills for married couple (Margaret and Geoffrey Whitmore)
-- Total estimated estate: approximately £1,970,000 (property £1.1m, investments £680k, cash £190k)
-- IHT liability estimated at £388,000 (40% on £970,000 taxable estate after combined NRB and RNRB shelter of £1,000,000)
-- Discretionary trust for three grandchildren (£50,000 each, £150,000 total) with STEP standard provisions
-- Residuary estate split equally between son (Andrew) and daughter (Claire)
-
-**Critical Issues Identified:**
-- Significant IHT exposure (£388,000) — mitigation strategies advised
-- Mutual wills discussed and rejected in favour of mirror wills (preserving surviving spouse flexibility)
-- Senior Partner (David Hughes) attended due to estate complexity and IHT considerations
-
-**Immediate Actions Required:**
-1. Draft mirror wills incorporating discretionary trust for grandchildren
-2. Draft letter of wishes (jewellery to Claire, vintage car to Andrew)
-3. Open separate LPA file (Property & Financial Affairs and Health & Welfare for each client)
-4. David Hughes to prepare IHT gifting strategy letter
-
-**Client Concerns:**
-Clients concerned about IHT liability. Both have surplus pension income available for regular gifting programme.
-
-**Solicitor Recommendations:**
-Annual exemption gifting (£6,000 combined per year). Regular gifting programme of £20,000 per year from surplus income over 7-year period. Gifts from surplus income immediately exempt — detailed income/expenditure records recommended. Executors: Andrew, Claire, and this firm as professional executor.`,
-    version: 1,
-    versionType: "system_generated",
-    createdBy: userId,
-    status: "approved",
-    approvedBy: userId,
-  });
-
-  // Client care letter
-  await db.insert(documents).values({
-    caseId: newCase.id, type: "client_care_letter",
-    content: `# CLIENT CARE LETTER\n\n**To:** Margaret Whitmore & Geoffrey Whitmore\nThe Willows, 8 Oakdene Lane, Guildford, Surrey, GU1 3RD\n\n**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}\n**Our Reference:** DEMO_PROB/2024/0203\n\n---\n\nDear Mr and Mrs Whitmore,\n\nThank you for instructing us in connection with the preparation of your wills.\n\n## Fees\n\nPartner rate: £320 per hour. Fee earner rate: £195 per hour.\n\nYours sincerely,\n\n**Attending Solicitor**\nWills & Probate Department`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId, createdAt: s1Date,
-  });
-  await db.update(cases).set({ clientCareLetterSentAt: s1Date }).where(eq(cases.id, newCase.id));
-
-  // Time entries
-  await db.insert(timeEntries).values([
-    { caseId: newCase.id, meetingSessionId: ses1.id, userId, durationMinutes: 108, description: "Full meeting — Will instructions, IHT analysis, estate planning (partner rate)", hourlyRate: "320.00", status: "confirmed" },
-    { caseId: newCase.id, userId, durationMinutes: 180, description: "File preparation — Estate analysis, trust research, STEP provisions review (fee earner rate)", hourlyRate: "195.00", status: "confirmed" },
-    { caseId: newCase.id, userId, durationMinutes: 150, description: "Will drafting — Mirror wills with discretionary trust, letter of wishes (fee earner rate)", hourlyRate: "195.00", status: "confirmed" },
-  ]);
-
-  // Audit trail
-  for (const evt of [
-    { eventType: "case_created", timestamp: daysAgo(56), metadata: { clientName: "Margaret & Geoffrey Whitmore", practiceArea: "wills_probate" } },
-    { eventType: "conflict_check_completed", timestamp: new Date(daysAgo(56).getTime() + 30 * 60 * 1000), metadata: { result: "clear", note: "No conflict identified" } },
-    { eventType: "client_care_letter_generated", timestamp: new Date(daysAgo(56).getTime() + 60 * 60 * 1000), metadata: { documentType: "client_care_letter" } },
-    { eventType: "consent_given", timestamp: s1Date, metadata: { consentModality: "verbal_recorded", speakerCount: 4 } },
-    { eventType: "transcript_generated", timestamp: new Date(s1Date.getTime() + 110 * 60 * 1000), metadata: { speakerCount: 4 } },
-    { eventType: "document_generated", timestamp: new Date(s1Date.getTime() + 120 * 60 * 1000), metadata: { documentType: "attendance_note", note: "Complex multi-speaker document" } },
-    { eventType: "document_approved", timestamp: new Date(s1Date.getTime() + 180 * 60 * 1000), metadata: { documentType: "attendance_note" } },
-  ]) {
-    await db.insert(auditTrail).values({ eventType: evt.eventType, userId, caseId: newCase.id, timestamp: evt.timestamp, severity: "info", metadata: evt.metadata });
-  }
-}
-
-// ——— CASE 6: Leon Treadwell — Criminal Defence — Police Station ———
-
-async function seedCase6Treadwell(userId: string) {
-  const [client] = await db.insert(clients).values({
-    name: "Leon Treadwell",
-    email: null,
-    phone: "07555 201 883",
-    address: "Flat 2, 117 Camberwell New Road, London SE5 0TH",
-    amlRiskLevel: "low",
-    createdBy: userId,
-  }).returning();
-
-  const [newCase] = await db.insert(cases).values({
-    title: "Police Station Attendance — Treadwell (s.18 GBH)",
-    clientName: "Leon Treadwell",
-    clientId: client.id,
-    matterReference: "DEMO_CRIM/2024/2201",
-    createdBy: userId,
-    status: "completed",
-    priority: "urgent",
-    sourceType: "audio",
-    practiceArea: "criminal_defence",
-    riskLevel: "low",
-    conflictCheckCompleted: true,
-    conflictCheckNote: "Duty solicitor attendance. No conflict — Treadwell not previously known to the firm.",
-    reviewed: true,
-    createdAt: daysAgo(14),
-  }).returning() as Case[];
-
-  // Session 1: Police station (11:47pm, 3h 25m)
-  const s1Date = new Date(daysAgo(14));
-  s1Date.setHours(23, 47, 0, 0);
-  const [ses1] = await db.insert(meetingSessions).values({
-    caseId: newCase.id, recordingType: "police_station", startedAt: s1Date, durationSeconds: 12300, status: "completed",
-    notes: "Police station attendance — duty solicitor — s.18 OAPA 1861", createdBy: userId,
-  }).returning();
-
-  const s1ExpiresAt = new Date(s1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  await db.insert(audioRecordings).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, duration: 12300,
-    recordedAt: s1Date, expiresAt: s1ExpiresAt, deletedAt: s1ExpiresAt, mimeType: "audio/webm",
-  });
-
-  const t1Content = `Police station attendance record — Leon Treadwell
-
-Arrived at Walworth Police Station custody suite at 23:47. Instructed as duty solicitor. Client arrested on suspicion of Section 18 Wounding with Intent (Offences Against the Person Act 1861). Custody number WPS/2024/08814.
-
-Consulted with client in private consultation room. Client's account: was involved in an altercation outside a pub on Camberwell Road at approximately 22:15. States he was acting in self-defence after the complainant threw a glass at him. Client sustained a cut to his left forearm. Complainant sustained a laceration to the face requiring stitches. Client denies any intent to cause grievous bodily harm.
-
-Reviewed custody record and disclosure. Disclosure limited: CCTV from the pub exterior is being reviewed but not yet available. One witness statement obtained — states they saw "two men fighting" but could not identify who started the altercation. Complainant's statement alleges Treadwell struck him with a bottle. Client denies using any weapon.
-
-Advised client: given the state of disclosure — no CCTV, one equivocal witness, and a s.18 charge requiring proof of specific intent — I recommended a no comment interview. Explained to client that this is not an admission of guilt but a tactical decision given the incomplete disclosure. Client understood and agreed.
-
-Interview conducted under PACE Code C at 01:22. Interview lasted 28 minutes. Client gave no comment responses throughout. Interviewing officer asked 14 questions covering the events of the evening, the client's relationship with the complainant, and whether the client used a weapon. No comment to all questions.
-
-No identification procedure (VIPER) conducted — identity not in dispute.
-
-Legal basis for detention reviewed: detention authorised to 24 hours under s.37 PACE 1984. Representations made for release — argued incomplete disclosure and absence of CCTV undermines the evidential basis for continued detention.
-
-Client released under investigation at 03:12 pending forensic results (analysis of glass fragments and clothing). Custody sergeant confirmed no bail conditions imposed.
-
-Follow-up: await CPS charging decision. If CCTV supports self-defence account, NFA likely. If not, anticipate charge reduction to s.20 (GBH without intent) at most.
-
-UPDATE: NFA confirmed by CPS the following morning. No further action. Matter closed.`;
-
-  const [tr1] = await db.insert(transcripts).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, content: t1Content,
-    utterances: [],
-    speakerCount: 1, createdAt: s1Date,
-  }).returning();
-
-  // Police Station Attendance Record — entirely different format
-  await db.insert(documents).values({
-    caseId: newCase.id, meetingSessionId: ses1.id, transcriptSnapshotId: tr1.id,
-    type: "attendance_note",
-    content: `# POLICE STATION ATTENDANCE RECORD
-
-**Reference:** DEMO_CRIM/2024/2201
-
----
-
-| | |
-|---|---|
-| **Client** | Leon Treadwell |
-| **Station** | Walworth Police Station |
-| **Custody number** | WPS/2024/08814 |
-| **Arrival time** | 23:47 |
-| **Capacity** | Duty solicitor |
-| **Arresting offence** | Section 18 Wounding with Intent (OAPA 1861) |
-
----
-
-## GROUNDS OF ARREST
-
-Client arrested on suspicion of s.18 GBH following an altercation outside a public house on Camberwell Road at approximately 22:15. Complainant sustained a facial laceration requiring stitches. Client sustained a cut to left forearm.
-
-## CLIENT'S ACCOUNT
-
-Client states he was acting in self-defence. Complainant threw a glass at him. Client denies using any weapon. Denies intent to cause grievous bodily harm.
-
-## DISCLOSURE
-
-- CCTV from pub exterior: being reviewed, not yet available
-- One witness statement: saw "two men fighting," could not identify aggressor
-- Complainant's statement: alleges client struck him with a bottle
-- Client denies using a bottle
-
-## ADVICE GIVEN
-
-Recommended no comment interview. Basis: incomplete disclosure (no CCTV), s.18 requires proof of specific intent, single equivocal witness statement. Explained tactical basis to client. Client understood and agreed.
-
-## INTERVIEW
-
-| | |
-|---|---|
-| **Time** | 01:22 |
-| **Duration** | 28 minutes |
-| **Format** | PACE Code C |
-| **Questions asked** | 14 |
-| **Responses** | No comment throughout |
-
-## IDENTIFICATION PROCEDURE
-
-VIPER not conducted. Identity not in dispute.
-
-## DETENTION
-
-Detention authorised to 24 hours (s.37 PACE 1984). Representations made for release — argued incomplete disclosure and absence of CCTV evidence.
-
-## OUTCOME
-
-| | |
-|---|---|
-| **Released** | 03:12 — released under investigation |
-| **Bail conditions** | None |
-| **Pending** | Forensic results (glass fragments, clothing) |
-| **CPS decision** | NFA confirmed following morning |
-
-## RESULT
-
-**No further action.** Matter closed.
-
----
-*Total time at station: 3 hours 25 minutes.*`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
-  });
-
-  await db.insert(documents).values({
-    caseId: newCase.id,
-    meetingSessionId: ses1.id,
-    transcriptSnapshotId: tr1.id,
-    type: "summary",
-    content: `**MEETING SUMMARY**
-
-**Case:** Police Station Attendance — Treadwell (s.18 GBH)
-**Client:** Leon Treadwell
-**Date:** ${s1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-
-**Key Points:**
-- Duty solicitor attendance at Walworth Police Station (23:47–03:12)
-- Client arrested on suspicion of s.18 Wounding with Intent (OAPA 1861)
-- Custody number: WPS/2024/08814
-- Client's account: self-defence — complainant threw glass at client first
-- No comment interview conducted (28 minutes, 14 questions, PACE Code C)
-
-**Critical Issues Identified:**
-- Disclosure limited: CCTV from pub exterior not yet available
-- Single equivocal witness statement — could not identify aggressor
-- Complainant alleges client struck him with a bottle — client denies using any weapon
-- s.18 requires proof of specific intent — high evidential threshold
-
-**Immediate Actions Required:**
-1. Await CPS charging decision
-2. Monitor forensic results (glass fragments and clothing analysis)
-3. Request CCTV footage when available
-
-**Client Concerns:**
-Client maintains he was acting in self-defence after complainant threw a glass at him. Client sustained a cut to left forearm. Denies using any weapon.
-
-**Solicitor Recommendations:**
-No comment interview was tactically appropriate given incomplete disclosure and high evidential threshold for s.18. Released under investigation with no bail conditions. If CCTV supports self-defence account, NFA likely. If charged, anticipate reduction to s.20 (GBH without intent) at most.
-
-**UPDATE:** NFA confirmed by CPS the following morning. No further action. Matter closed.`,
-    version: 1,
-    versionType: "system_generated",
-    createdBy: userId,
-    status: "approved",
-    approvedBy: userId,
-  });
-
-  // Client care letter
-  await db.insert(documents).values({
-    caseId: newCase.id, type: "client_care_letter",
-    content: `# CLIENT CARE LETTER
-
-**Our Reference:** DEMO_CRIM/2024/2201
-**Date:** ${daysAgo(14).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-
-Dear Mr Treadwell,
-
-Thank you for instructing us. We write to confirm the terms on which we will act for you.
-
-**Your Matter**
-We are instructed to represent you in connection with an allegation of Section 18 Wounding with Intent (Offences Against the Person Act 1861) arising from an incident on Camberwell Road. You were attended at Walworth Police Station as duty solicitor.
-
-**People Responsible for Your Matter**
-Your matter will be handled by the duty solicitor who attended you at the police station. Day-to-day conduct of the matter may be delegated to other qualified members of the team as appropriate.
-
-**Costs**
-As this was a duty solicitor attendance, the costs of the police station attendance are met by the Legal Aid Agency. Should the matter proceed to charge, we will discuss funding options with you including eligibility for legal aid in the Crown Court or Magistrates' Court.
-
-**Your Responsibilities**
-You must keep us informed of any change of address or contact details. If you are contacted by the police or CPS directly, please notify us immediately.
-
-**Complaints**
-If you are unhappy with the service you receive, please contact our complaints partner in the first instance. We have a written complaints procedure, a copy of which is available on request.
-
-**Regulatory Information**
-This firm is authorised and regulated by the Solicitors Regulation Authority (SRA). Our SRA number is displayed on our letterhead.
-
-Yours sincerely,
-
-**[Solicitor Name]**
-Duty Solicitor`,
-    version: 1, versionType: "system_generated", createdBy: userId, status: "approved", approvedBy: userId,
-  });
-
-  // Time entries
-  await db.insert(timeEntries).values([
-    { caseId: newCase.id, meetingSessionId: ses1.id, userId, durationMinutes: 204, description: "Police station attendance — duty solicitor, s.18 GBH (out-of-hours rate)", hourlyRate: "195.00", status: "confirmed" },
-  ]);
-
-  // Audit trail
-  for (const evt of [
-    { eventType: "case_created", timestamp: daysAgo(14), metadata: { clientName: "Leon Treadwell", practiceArea: "criminal_defence" } },
-    { eventType: "conflict_check_completed", timestamp: new Date(daysAgo(14).getTime() + 15 * 60 * 1000), metadata: { result: "clear", note: "Duty solicitor — no prior instructions from Treadwell" } },
-    { eventType: "client_care_letter_generated", timestamp: new Date(daysAgo(14).getTime() + 30 * 60 * 1000), metadata: { documentType: "client_care_letter" } },
-    { eventType: "transcript_generated", timestamp: new Date(s1Date.getTime() + 3.5 * 60 * 60 * 1000), metadata: { speakerCount: 1 } },
-    { eventType: "document_generated", timestamp: new Date(s1Date.getTime() + 4 * 60 * 60 * 1000), metadata: { documentType: "police_station_record" } },
-    { eventType: "document_approved", timestamp: new Date(s1Date.getTime() + 5 * 60 * 60 * 1000), metadata: { documentType: "police_station_record" } },
-  ]) {
-    await db.insert(auditTrail).values({ eventType: evt.eventType, userId, caseId: newCase.id, timestamp: evt.timestamp, severity: "info", metadata: evt.metadata });
-  }
-}
-
-// ——— CASE 3: Marcus Hall — Family Children Arrangements — Private Demo Matter ———
-
-async function seedCase3Hall(userId: string) {
-  const [client] = await db.insert(clients).values({
-    name: "Marcus Hall",
-    email: "marcus.hall@hallsurveyors.co.uk",
-    phone: "07712 334 891",
-    address: "47 Thornton Road, London SE22 8PQ",
-    amlRiskLevel: "medium",
-    amlRiskLastReviewed: daysAgo(3),
-    createdBy: userId,
-  }).returning();
-
-  const sessionDate = daysAgo(2);
-  const deadlineDate = new Date(Date.now() + 12 * 24 * 60 * 60 * 1000);
-
-  const [newCase] = await db.insert(cases).values({
-    title: "Re H (Contact) — Hall v Hall",
-    clientName: "Marcus Hall",
-    clientId: client.id,
-    matterReference: "DEMO_FAM/2024/1847",
+    title: "Re W (Contact) — Webb v Webb",
+    clientName: "Marcus Webb",
+    matterReference: "HART_FAM/2024/0391",
     createdBy: userId,
     status: "review_required",
     priority: "high",
@@ -2410,459 +54,834 @@ async function seedCase3Hall(userId: string) {
     practiceArea: "family_children_arrangements",
     riskLevel: "high",
     conflictCheckCompleted: true,
-    conflictCheckNote: "Diane Hall (opposing party) not a client of this firm. No connection to opposing solicitors on current files. No conflict identified.",
+    conflictCheckNote: "Opposing party Diane Webb not a current or former client. No connection to opposing solicitors. Conflict check clear.",
     deadline: deadlineDate,
     litigationHold: true,
-    litigationHoldAppliedAt: daysAgo(14),
-    litigationHoldReason: "Active fact-finding hearing. All session records, transcripts, and attendance notes to be preserved pending court disclosure assessment.",
+    litigationHoldAppliedAt: daysAgo(7),
+    litigationHoldReason: "Active fact-finding hearing listed in 7 days. All session records, transcripts and attendance notes to be preserved pending court disclosure assessment.",
+    supervisorName: "James Hartwell",
     aiProcessingMetadata: {
       amlTriggers: [
         {
-          label: "Undisclosed financial account",
+          label: "Undisclosed business account",
           category: "asset_concealment",
-          excerpt: "There's a business account that I opened last year. I didn't include it on the Form E."
+          excerpt: "There is a business account I opened eighteen months ago that I have not included in the Form E. It receives payments from a contact in Dubai."
         },
         {
           label: "Unexplained overseas payments",
           category: "source_of_funds",
-          excerpt: "There have been payments into that account from a contact abroad — I haven't documented the source formally."
+          excerpt: "The payments come in quarterly. I have not documented the source formally. My accountant knows about it but it is not on any declaration."
         }
       ]
     },
   }).returning();
 
-  // Meeting session — 53 minutes
   const [session] = await db.insert(meetingSessions).values({
     caseId: newCase.id,
     recordingType: "full_meeting",
-    sessionTitle: "Initial Attendance — Scott Schedule Review & Hearing Preparation",
+    sessionTitle: "Initial Attendance — Fact-Finding Preparation & Scott Schedule Review",
     startedAt: sessionDate,
-    durationSeconds: 3180,
+    durationSeconds: 3240,
     status: "completed",
     createdBy: userId,
   }).returning();
 
-  // Consent log — exact wording from ConsentModal.tsx disclaimerScript
+  const sessionExpiry = new Date(sessionDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id,
+    meetingSessionId: session.id,
+    duration: 3240,
+    recordedAt: sessionDate,
+    expiresAt: sessionExpiry,
+    deletedAt: sessionExpiry,
+    mimeType: "audio/webm",
+  });
+
   await db.insert(consentLogs).values({
     caseId: newCase.id,
     audioRecordingId: null,
     solicitorId: userId,
     consentGiven: true,
-    consentTimestamp: new Date(sessionDate.getTime() + 68 * 1000),
+    consentTimestamp: new Date(sessionDate.getTime() + 52 * 1000),
     disclaimerScriptVersion: "v2.1",
-    disclaimerWordingText: "I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?",
+    disclaimerWordingText: "I am recording this meeting to produce an accurate attendance note and to protect the integrity of your file. The recording is held confidentially within your case file and is deleted after seven days. Only I or a member of my immediate team will have access. Do you consent to this recording?",
     consentModality: "verbal_recorded",
     lawfulBasis: "consent",
-    recordingPurpose: "Attendance note production and evidence of proper client care",
   });
 
-  // Full meeting transcript
-  const transcriptContent = `SPEAKER 1 (Solicitor): Good morning Mr Hall, thank you for coming in. Before we start I just need to run through the recording consent with you. I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?
+  const transcriptContent = `Attendance Note — Re W (Contact) — Webb v Webb
+Client: Marcus Webb
+Matter Reference: HART_FAM/2024/0391
+Date: ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+Fee Earner: Sarah Okafor
+Duration: Approximately 54 minutes
+Practice Area: Family — Private Children Arrangements
 
-SPEAKER 2 (Marcus Hall): Yes, I consent. That's fine.
+---
 
-SPEAKER 1 (Solicitor): Thank you, that's noted. So we have a lot to get through today. You've received the Scott Schedule of allegations from Diane's solicitors — I sent it to you last Thursday and I've worked through it carefully. There are eight allegations. Six relate to alleged coercive and controlling behaviour, two allege physical incidents. The fact-finding hearing is fourteen days away. Our counter-schedule needs to be filed within seven days of today. I want to be direct with you — this is a tight window and I need your full and candid instructions on every single allegation. I cannot draft an effective counter-schedule without that. Is that understood?
+SOLICITOR: Good morning Mr Webb. Before we start I want to confirm you are happy for me to record this meeting to produce your attendance note. The recording is deleted after seven days and stays within your file. Are you content?
 
-SPEAKER 2 (Marcus Hall): Completely. I have nothing to hide. Everything in that schedule is either taken completely out of context or it is simply untrue.
+CLIENT: Yes, that is fine.
 
-SPEAKER 1 (Solicitor): Good. Let's go through them systematically. Allegation one — financial control. The schedule alleges that you controlled Diane's access to money, required her to account for purchases, and that this behaviour was persistent from approximately 2021 through to separation in March of this year. What is your response?
+SOLICITOR: Thank you. So we have the fact-finding hearing listed in seven days. I want to go through each of the eight allegations on the Scott Schedule and take your full instructions. I will also need certain documents from you before we can finalise your position. Let us start with Allegation One — financial control.
 
-SPEAKER 2 (Marcus Hall): It is completely false. We had a joint account and she had her own personal account that I have never had access to and never wanted access to. The only thing that comes close to what they're describing is a conversation we had in early 2023. She had been on a work trip to Barcelona, then two weeks later we went on a family holiday together, and then about a month after that her sister got married in Edinburgh and she was up there for four days. So in about eight weeks she'd had three trips away. I'm self-employed — I invoice and I get paid when I get paid, there's no salary. I said to her, could we ease off on the big purchases for a couple of months while I got the credit card paid down. I mentioned specifically a coat she'd been looking at online — I said could you leave that for now. That was a single conversation. That is the entirety of the financial control allegation.
+CLIENT: Right. So Diane says I controlled all the finances and prevented her from spending. That is simply not true. There was one conversation — early 2023, probably February — when I asked her to be careful with spending because the business had a difficult quarter. I am self-employed, income is not consistent. I sent her a WhatsApp about it. That WhatsApp needs to be found because it shows the context. It was not a prohibition. It was a practical conversation.
 
-SPEAKER 1 (Solicitor): Was any part of that conversation in writing? A message, an email?
+SOLICITOR: What was the approximate wording of that message as you recall it?
 
-SPEAKER 2 (Marcus Hall): Yes, I sent her a WhatsApp. I remember doing it because I wanted to explain myself properly rather than it turning into an argument.
+CLIENT: Something like — we need to be sensible this month, cash flow is tight, can we hold off on any big purchases. That was it. She went on three holidays in the eight weeks before that. I have her bank statements that show that. She had full access to her own account throughout.
 
-SPEAKER 1 (Solicitor): I need that message urgently. Before we finish today I'm going to give you a full list of documents I need from you, but that WhatsApp goes to the top of it. I also need your personal bank statements and card statements for the full year of 2023 to show there was no systematic restriction on her accounts. If her spending was unaffected throughout that period, which I take it it was, that evidence directly counters allegation one.
+SOLICITOR: Good. I will need bank statements for both of you from January to June 2023. And the WhatsApp — can you locate that today?
 
-SPEAKER 2 (Marcus Hall): Her accounts were completely untouched. I've genuinely never seen her statements in my life.
+CLIENT: I will look tonight. I think it is still on my phone.
 
-SPEAKER 1 (Solicitor): Good. Allegation two — social isolation. The schedule says you prevented her from maintaining friendships and family relationships, that you created an atmosphere in which she felt unable to socialise without your approval. Your position?
+SOLICITOR: Allegation Two — social isolation. She says you monitored her social contacts and prevented her from seeing friends.
 
-SPEAKER 2 (Marcus Hall): It's nonsense. She has an extremely active social life. The Barcelona trip I just mentioned — that was with colleagues from her firm, nothing to do with me. She went to her parents most Sundays. She had a regular Wednesday evening with a group of friends from university. I never once prevented her from going anywhere or seeing anyone.
+CLIENT: There was one occasion where I asked who she was spending time with. New people had come into her life around the time she started going out more — late 2022. I asked because I was concerned, not because I wanted to control her. She has always had an active social life. She travelled without me multiple times.
 
-SPEAKER 1 (Solicitor): Were there any occasions during the marriage where you expressed concern or made any remark about who she was spending time with?
+SOLICITOR: Did you ever attempt to prevent her from seeing any specific person?
 
-SPEAKER 2 (Marcus Hall): There was one occasion, probably about eighteen months before we separated. She started spending quite a lot of time with a new group of people I didn't know — work contacts who'd become social contacts. I asked about it once because it seemed like a change in her routine. I wasn't accusatory. I was just asking. That was one conversation, it didn't go anywhere, and it was never raised again.
+CLIENT: No. Never.
 
-SPEAKER 1 (Solicitor): I'm flagging that now because opposing counsel will characterise it as evidence of monitoring and control. We need to get ahead of it in the counter-schedule with the full context. Allegation three — this is the most operationally significant because it is the direct basis for the arrest in November. The allegation relates to an incident in which you are said to have used a shared location-sharing application to track Diane's movements without her knowledge or consent over an extended period. What happened?
+SOLICITOR: Allegation Three — location monitoring. She says you required her to share her location at all times.
 
-SPEAKER 2 (Marcus Hall): When Logan was born — he's nine now, so this goes back a while — we set up a shared location on our phones. It was completely mutual, it was her suggestion actually. The idea was that if either of us was running late or if there was a problem with the car or something like that, the other person would know where we were. We both had access to each other's location. I never hid that I could see hers. She could see mine. It was just a practical thing.
+CLIENT: We both set up location sharing when our eldest was born. Nine years ago. It was her suggestion. She sent me the setup message. I still have it. That message is probably the most important document in this entire case. It shows she initiated it. We both had reciprocal access throughout the marriage. The one time I raised it was about six weeks before we separated — she had turned off location sharing and was not where she had said she would be. I called to check she was safe. That is the incident she is referring to.
 
-SPEAKER 1 (Solicitor): And when did this become an issue?
+SOLICITOR: Where was she?
 
-SPEAKER 2 (Marcus Hall): In the months before we separated she started switching her location off. I didn't make a big deal of it. I noticed but I didn't say anything most of the time. On one occasion — I think it was about six weeks before she left — she'd said she was going to her parents for the afternoon with the boys. I happened to glance at the app and she wasn't showing as being at her parents' address. I rang her to check where she was. She got very defensive. That was it. That's the monitoring allegation.
+CLIENT: She said she was at her sister's. She was not. She gave me a different explanation later. I did not pursue it.
 
-SPEAKER 1 (Solicitor): Right. And the location sharing arrangement — was it ever documented? A message where she suggested it, anything in writing at all?
+SOLICITOR: Allegation Four — demeaning her in front of the children.
 
-SPEAKER 2 (Marcus Hall): I'd have to look back but yes — she set it up, she sent me the link to enable it. That'll be in my phone somewhere. That message is everything — it shows the arrangement was mutual and consensual from the outset.
+CLIENT: Categorically denied. I have never spoken to Diane in a degrading way in front of the children. Her own sister attended family gatherings with us regularly until about four months before we separated. She would be a witness to how we interacted. Logan's class teacher also — both of us attended parents' evenings together without any incident.
 
-SPEAKER 1 (Solicitor): Find that message. That is potentially the single most important document in this case. If we can show the location sharing was established by her, consensually, years before any allegation arose, the framing of the allegation collapses. Phone records and the original setup message both go on the document list. The mens rea argument here is strong — you cannot coerce someone using an arrangement they voluntarily created. We will develop that fully in the counter-schedule.
+SOLICITOR: Allegation Five — the physical incident in January. She says you pushed her in the hallway.
 
-SPEAKER 2 (Marcus Hall): I just — I genuinely thought it was normal. We both used it. It was never secret.
+CLIENT: I placed my hands on her shoulders during an argument. She was very distressed. I was trying to de-escalate. I deny pushing her. I deny causing any injury. There were no witnesses — the children were at my parents. The same evening I sent a WhatsApp apologising for the argument. Not for pushing — because I did not push her — but for the argument getting to that point. That message will be presented as an admission. It is not one.
 
-SPEAKER 1 (Solicitor): I understand. And that is exactly the kind of context that fact-finding judges need to hear — not just the act but the full history of it. Allegation four — that you demeaned Diane in front of the children. Your position?
+SOLICITOR: I need that WhatsApp immediately. Do not delete anything. We need to manage how that is presented carefully.
 
-SPEAKER 2 (Marcus Hall): Categorically false. I have never spoken badly about Diane in front of the boys. Not once. Logan is nine and Ethan is six — they adore her. I would never use them as a way of hurting her. That is not who I am.
+CLIENT: I have it. I can send it to you tonight.
 
-SPEAKER 1 (Solicitor): Is there anyone — a family member, a friend, a school contact — who could speak to the quality of the co-parenting relationship prior to separation? Character evidence on this point could be valuable.
+SOLICITOR: Allegation Six — verbal intimidation in October. She says you raised your voice and made threats in front of Ethan.
 
-SPEAKER 2 (Marcus Hall): My sister spent a lot of time with us. She'd be willing to provide a statement. And Logan's class teacher — we both went to every parents' evening together until about four months before the separation. She'd have seen us interact.
+CLIENT: The argument happened. I raised my voice. Ethan was present and I regret that deeply. But I made no threats. I have never threatened Diane. My strategy should be — do not deny the argument, acknowledge it, contextualise it as an isolated failure of composure. I think full denial of that incident would damage my credibility on the others.
 
-SPEAKER 1 (Solicitor): Both of those are worth pursuing. I'll note them. Allegations five and six are the physical allegations — I want to take these carefully and in detail. Allegation five. The schedule says that in January of this year during an argument in the hallway you pushed Diane against the wall causing her to hurt her shoulder. What is your account of that incident?
+SOLICITOR: I agree with that approach entirely. Allegations Seven and Eight?
 
-SPEAKER 2 (Marcus Hall): There was an argument in January, yes. It had been building for weeks — things were very bad between us by that point. We were in the hallway and I will be honest with you, I put my hands on her shoulders during the argument. I was not trying to hurt her. I was not trying to frighten her. The argument had escalated and I was trying to — I don't know, trying to stop it going further. I immediately let go. She didn't say she was hurt. She didn't say anything about her shoulder. She went upstairs and the argument ended. I was not proud of it. But it was not an assault.
+CLIENT: Seven is about the school run — she says I would interrogate the children when I picked them up. I speak to my children about their day. That is parenting, not interrogation. Eight is about the financial disclosure. She says I have hidden assets. I have assets that are not on the Form E. I need to tell you about that.
 
-SPEAKER 1 (Solicitor): I need you to understand something. The distinction between steadying someone, restraining someone, and pushing someone is going to be argued extremely vigorously by their barrister. The judge will make a finding of fact based on credibility. I am not telling you your account is wrong — I am telling you it needs to be framed with complete precision in your witness statement. Physical contact during an argument, even when not intended to harm, is something a court takes seriously. Did anyone witness this?
+SOLICITOR: Go on.
 
-SPEAKER 2 (Marcus Hall): No. The boys were at my parents for the afternoon.
+CLIENT: There is a business account I opened eighteen months ago that I have not included in the Form E. It receives payments from a contact in Dubai. The payments come in quarterly. I have not documented the source formally. My accountant knows about it but it is not on any declaration. I know how that sounds. I need advice.
 
-SPEAKER 1 (Solicitor): Did you say anything to Diane after the incident — a message, an apology of any kind?
+SOLICITOR: Mr Webb, I have to be direct with you. This is a serious disclosure issue. Non-disclosure in financial proceedings is a contempt risk. But beyond that, the nature of these payments — undisclosed account, overseas source, quarterly, undocumented — I need to consider whether there are additional obligations on this firm. I am not in a position to advise you further on the financial disclosure aspect of this matter today. I am going to need to take this away and speak to our MLRO before our next conversation. I want to be clear — I am not saying anything improper has occurred, but I have professional obligations I need to discharge. Do you understand?
 
-SPEAKER 2 (Marcus Hall): I sent her a message that evening. I said I was sorry the argument had got out of hand. I didn't say I'd hurt her — because I didn't believe I had — but I apologised for the argument.
+CLIENT: I understand. I just need to know what to do.
 
-SPEAKER 1 (Solicitor): I need that message. Opposing counsel will present the word sorry as an admission of assault. We need to be able to show the precise wording and the precise context — you were apologising for the argument escalating, not for causing injury. That distinction matters and I need the message to make it. Allegation six — verbal intimidation in October last year. The allegation is that you shouted at Diane in front of Ethan and made threatening remarks. Your account?
+SOLICITOR: I will be in touch within 48 hours. In the meantime, the court proceedings continue. I will prepare your position on Allegations One through Seven. Do not discuss the account with anyone — not Diane, not your accountant further, not anyone. Can you commit to that?
 
-SPEAKER 2 (Marcus Hall): We had a row. Ethan was in the room — I accept that, I'm not proud of it. I raised my voice. I did not make any threat. I said things I regret. It was one incident in a marriage that was falling apart and I handled it badly. But there was no threat and there was no intent to intimidate.
+CLIENT: Yes.
 
-SPEAKER 1 (Solicitor): I am going to recommend a specific approach to that allegation. We do not deny it. Denying it and being contradicted by any evidence — a message, a diary entry, anything Ethan may have said to anyone — would damage your credibility across the entire counter-schedule. What we do instead is acknowledge that an argument occurred, that it was heated and that Ethan was present which you regret, and that it was an isolated incident in the context of a marriage under severe strain. We frame it as a failure of composure in an isolated moment, not a pattern of intimidating behaviour. Judges respond well to a witness who is honest about their own failings. It makes the denials credible.
+SOLICITOR: On the contact arrangements — you currently have supervised contact at the Family Connections Centre in Lewisham, two hours alternate Saturdays. The contact workers have observed the children as settled and happy. I will be requesting the contemporaneous notes from the contact centre before the hearing. There was an incident at the last handover — Logan arrived withdrawn. You observed Diane speaking to him immediately before handing him over?
 
-SPEAKER 2 (Marcus Hall): That feels right. I'd rather be honest about it than have it blow up in court.
+CLIENT: Yes. He recovered within about fifteen minutes but it was noticeable to the contact worker. I asked the manager to ensure a note was made at the time.
 
-SPEAKER 1 (Solicitor): Good. Now — bail conditions. The CPS discontinued the criminal matter against you six weeks ago. Are you operating under written confirmation that the bail conditions have been discharged, or just a verbal indication?
+SOLICITOR: Good. I will write to the contact centre today to formally request those notes. I will also write to opposing solicitors regarding the handover incident. Before I close — bail conditions. You mentioned last time that the CPS discontinued. Have you received written confirmation?
 
-SPEAKER 2 (Marcus Hall): Just verbal. The officer I dealt with said they'd been dropped when the case was discontinued but I haven't had anything in writing.
+CLIENT: I have a verbal discharge from the custody sergeant. No written confirmation yet.
 
-SPEAKER 1 (Solicitor): That is not acceptable. Verbal confirmation from an officer carries no legal weight. If you are technically still subject to bail conditions that have not been formally discharged in writing, that has direct implications for the contact arrangements and potentially for your position at the hearing. I am writing to the custody sergeant and the CPS today requesting written confirmation. Until I give you that confirmation in writing, do not assume the conditions are lifted. This is urgent.
+SOLICITOR: That is not sufficient. I will write today to both the custody sergeant and the CPS requesting written confirmation. Do not treat the conditions as discharged until you have that in writing.
 
-SPEAKER 2 (Marcus Hall): I genuinely didn't realise it needed to be in writing. Nobody told me that.
+CLIENT: Understood.
 
-SPEAKER 1 (Solicitor): They rarely do. It falls through the gaps. The contact position — you are currently at Family Connections in Lewisham, two hours alternate Saturdays. How are the sessions going?
+SOLICITOR: Summary of what I need from you by close of business today: the WhatsApp from February 2023, the WhatsApp from January this year, the location sharing setup message from nine years ago, and bank statements for both of you January to June 2023. I will be in touch about the other matter within 48 hours.
 
-SPEAKER 2 (Marcus Hall): They are — they're difficult to describe. The boys are brilliant. They come in, they're happy, they're relaxed. Logan always wants to play this card game we have, Ethan just wants to sit close. The contact workers have said both times that the boys are settled throughout. But sitting in that room knowing that is the only time I get with them — it is very hard.
+CLIENT: Thank you.
 
-SPEAKER 1 (Solicitor): The contact workers' observations are important evidence. I am going to request the contemporaneous notes from both sessions formally before the hearing. If the workers are consistently recording the children as settled and happy in your company, that directly informs the welfare assessment and the court's view of the contact arrangements going forward. There was also an incident at the last handover that you flagged to me last week — walk me through what happened.
+---
 
-SPEAKER 2 (Marcus Hall): When Diane brought the boys for the last session Ethan came in absolutely fine but Logan was withdrawn and quiet in a way I hadn't seen before. He's usually the first through the door. He warmed up after about fifteen minutes and by the end of the session he was completely himself again. But at the handover I could see through the window that Diane was speaking to him outside — quite intently, crouching down to his level — in the minute before she sent him in. The contact worker was standing nearby. I don't know if she made a note of it.
+ACTION ITEMS
 
-SPEAKER 1 (Solicitor): I am writing to Diane's solicitors today about that incident and asking that communication to the children immediately prior to handover be restricted to neutral matters. I am also asking the contact centre manager to confirm whether the worker made a contemporaneous note and to ensure one is made going forward. That pattern of behaviour — a child arriving subdued and recovering once in your company — is directly relevant to any welfare argument and I want it documented now, before the hearing, not raised for the first time in submissions.
+1. Client to provide WhatsApp from February 2023 re spending conversation — by COB today
+2. Client to provide WhatsApp from January re hallway incident — by COB today  
+3. Client to provide location sharing setup message — by COB today
+4. Client to provide bank statements Jan-Jun 2023 for both parties — by COB today
+5. Solicitor to write to Family Connections Centre requesting contemporaneous contact notes
+6. Solicitor to write to opposing solicitors re Logan handover incident
+7. Solicitor to write to custody sergeant and CPS requesting written bail discharge confirmation
+8. Solicitor to refer undisclosed account matter to MLRO within 48 hours — URGENT
+9. Solicitor to prepare position statements on Allegations 1-7 for fact-finding hearing`;
 
-SPEAKER 2 (Marcus Hall): There's something else I need to tell you and I've been trying to work out how to say it. At the end of the last session, when the boys were getting their coats on to leave, Logan said something to Ethan — he didn't realise I could hear. He said that when they got home Mummy had said they had to tell her everything that happened in the session. He said it matter-of-factly, like it was a normal instruction. Then he noticed I was nearby and he went quiet.
+  const utterances = [
+    { speaker: "SPEAKER_1", text: "Good morning Mr Webb. Before we start I want to confirm you are happy for me to record this meeting to produce your attendance note. The recording is deleted after seven days and stays within your file. Are you content?", start: 52000, end: 72000 },
+    { speaker: "SPEAKER_2", text: "Yes, that is fine.", start: 73000, end: 76000 },
+    { speaker: "SPEAKER_1", text: "Thank you. So we have the fact-finding hearing listed in seven days. I want to go through each of the eight allegations on the Scott Schedule and take your full instructions. I will also need certain documents from you before we can finalise your position. Let us start with Allegation One — financial control.", start: 77000, end: 98000 },
+    { speaker: "SPEAKER_2", text: "Right. So Diane says I controlled all the finances and prevented her from spending. That is simply not true. There was one conversation — early 2023, probably February — when I asked her to be careful with spending because the business had a difficult quarter. I am self-employed, income is not consistent. I sent her a WhatsApp about it. That WhatsApp needs to be found because it shows the context. It was not a prohibition. It was a practical conversation.", start: 99000, end: 130000 },
+    { speaker: "SPEAKER_1", text: "What was the approximate wording of that message as you recall it?", start: 131000, end: 136000 },
+    { speaker: "SPEAKER_2", text: "Something like — we need to be sensible this month, cash flow is tight, can we hold off on any big purchases. That was it. She went on three holidays in the eight weeks before that. I have her bank statements that show that. She had full access to her own account throughout.", start: 137000, end: 158000 },
+    { speaker: "SPEAKER_1", text: "Good. I will need bank statements for both of you from January to June 2023. And the WhatsApp — can you locate that today?", start: 159000, end: 167000 },
+    { speaker: "SPEAKER_2", text: "I will look tonight. I think it is still on my phone.", start: 168000, end: 173000 },
+    { speaker: "SPEAKER_1", text: "Allegation Two — social isolation. She says you monitored her social contacts and prevented her from seeing friends.", start: 174000, end: 182000 },
+    { speaker: "SPEAKER_2", text: "There was one occasion where I asked who she was spending time with. New people had come into her life around the time she started going out more — late 2022. I asked because I was concerned, not because I wanted to control her. She has always had an active social life. She travelled without me multiple times.", start: 183000, end: 205000 },
+    { speaker: "SPEAKER_1", text: "Did you ever attempt to prevent her from seeing any specific person?", start: 206000, end: 211000 },
+    { speaker: "SPEAKER_2", text: "No. Never.", start: 212000, end: 214000 },
+    { speaker: "SPEAKER_1", text: "Allegation Three — location monitoring. She says you required her to share her location at all times.", start: 215000, end: 223000 },
+    { speaker: "SPEAKER_2", text: "We both set up location sharing when our eldest was born. Nine years ago. It was her suggestion. She sent me the setup message. I still have it. That message is probably the most important document in this entire case. It shows she initiated it. We both had reciprocal access throughout the marriage. The one time I raised it was about six weeks before we separated — she had turned off location sharing and was not where she had said she would be. I called to check she was safe. That is the incident she is referring to.", start: 224000, end: 267000 },
+    { speaker: "SPEAKER_1", text: "Where was she?", start: 268000, end: 270000 },
+    { speaker: "SPEAKER_2", text: "She said she was at her sister's. She was not. She gave me a different explanation later. I did not pursue it.", start: 271000, end: 281000 },
+    { speaker: "SPEAKER_1", text: "Allegation Four — demeaning her in front of the children.", start: 282000, end: 287000 },
+    { speaker: "SPEAKER_2", text: "Categorically denied. I have never spoken to Diane in a degrading way in front of the children. Her own sister attended family gatherings with us regularly until about four months before we separated. She would be a witness to how we interacted. Logan's class teacher also — both of us attended parents' evenings together without any incident.", start: 288000, end: 314000 },
+    { speaker: "SPEAKER_1", text: "Allegation Five — the physical incident in January. She says you pushed her in the hallway.", start: 315000, end: 323000 },
+    { speaker: "SPEAKER_2", text: "I placed my hands on her shoulders during an argument. She was very distressed. I was trying to de-escalate. I deny pushing her. I deny causing any injury. There were no witnesses — the children were at my parents. The same evening I sent a WhatsApp apologising for the argument. Not for pushing — because I did not push her — but for the argument getting to that point. That message will be presented as an admission. It is not one.", start: 324000, end: 362000 },
+    { speaker: "SPEAKER_1", text: "I need that WhatsApp immediately. Do not delete anything. We need to manage how that is presented carefully.", start: 363000, end: 371000 },
+    { speaker: "SPEAKER_2", text: "I have it. I can send it to you tonight.", start: 372000, end: 377000 },
+    { speaker: "SPEAKER_1", text: "Allegation Six — verbal intimidation in October. She says you raised your voice and made threats in front of Ethan.", start: 378000, end: 386000 },
+    { speaker: "SPEAKER_2", text: "The argument happened. I raised my voice. Ethan was present and I regret that deeply. But I made no threats. I have never threatened Diane. My strategy should be — do not deny the argument, acknowledge it, contextualise it as an isolated failure of composure. I think full denial of that incident would damage my credibility on the others.", start: 387000, end: 420000 },
+    { speaker: "SPEAKER_1", text: "I agree with that approach entirely. Allegations Seven and Eight?", start: 421000, end: 426000 },
+    { speaker: "SPEAKER_2", text: "Seven is about the school run — she says I would interrogate the children when I picked them up. I speak to my children about their day. That is parenting, not interrogation. Eight is about the financial disclosure. She says I have hidden assets. I have assets that are not on the Form E. I need to tell you about that.", start: 427000, end: 460000 },
+    { speaker: "SPEAKER_1", text: "Go on.", start: 461000, end: 463000 },
+    { speaker: "SPEAKER_2", text: "There is a business account I opened eighteen months ago that I have not included in the Form E. It receives payments from a contact in Dubai. The payments come in quarterly. I have not documented the source formally. My accountant knows about it but it is not on any declaration. I know how that sounds. I need advice.", start: 464000, end: 500000 },
+    { speaker: "SPEAKER_1", text: "Mr Webb, I have to be direct with you. This is a serious disclosure issue. Non-disclosure in financial proceedings is a contempt risk. But beyond that, the nature of these payments — undisclosed account, overseas source, quarterly, undocumented — I need to consider whether there are additional obligations on this firm. I am not in a position to advise you further on the financial disclosure aspect of this matter today. I am going to need to take this away and speak to our MLRO before our next conversation. I want to be clear — I am not saying anything improper has occurred, but I have professional obligations I need to discharge. Do you understand?", start: 501000, end: 556000 },
+    { speaker: "SPEAKER_2", text: "I understand. I just need to know what to do.", start: 557000, end: 562000 },
+    { speaker: "SPEAKER_1", text: "I will be in touch within 48 hours. In the meantime, the court proceedings continue. I will prepare your position on Allegations One through Seven. Do not discuss the account with anyone — not Diane, not your accountant further, not anyone. Can you commit to that?", start: 563000, end: 585000 },
+    { speaker: "SPEAKER_2", text: "Yes.", start: 586000, end: 587000 },
+    { speaker: "SPEAKER_1", text: "On the contact arrangements — you currently have supervised contact at the Family Connections Centre in Lewisham, two hours alternate Saturdays. The contact workers have observed the children as settled and happy. I will be requesting the contemporaneous notes from the contact centre before the hearing. There was an incident at the last handover — Logan arrived withdrawn. You observed Diane speaking to him immediately before handing him over?", start: 588000, end: 625000 },
+    { speaker: "SPEAKER_2", text: "Yes. He recovered within about fifteen minutes but it was noticeable to the contact worker. I asked the manager to ensure a note was made at the time.", start: 626000, end: 641000 },
+    { speaker: "SPEAKER_1", text: "Good. I will write to the contact centre today to formally request those notes. I will also write to opposing solicitors regarding the handover incident. Before I close — bail conditions. You mentioned last time that the CPS discontinued. Have you received written confirmation?", start: 642000, end: 663000 },
+    { speaker: "SPEAKER_2", text: "I have a verbal discharge from the custody sergeant. No written confirmation yet.", start: 664000, end: 671000 },
+    { speaker: "SPEAKER_1", text: "That is not sufficient. I will write today to both the custody sergeant and the CPS requesting written confirmation. Do not treat the conditions as discharged until you have that in writing.", start: 672000, end: 685000 },
+    { speaker: "SPEAKER_2", text: "Understood.", start: 686000, end: 688000 },
+    { speaker: "SPEAKER_1", text: "Summary of what I need from you by close of business today: the WhatsApp from February 2023, the WhatsApp from January this year, the location sharing setup message from nine years ago, and bank statements for both of you January to June 2023. I will be in touch about the other matter within 48 hours.", start: 689000, end: 715000 },
+    { speaker: "SPEAKER_2", text: "Thank you.", start: 716000, end: 718000 },
+  ];
 
-SPEAKER 1 (Solicitor): That is a significant disclosure. A parent systematically debriefing children after contact sessions and directing them to report back is a recognised form of alienating behaviour and it has a direct bearing on the welfare assessment. I need you to write down exactly what Logan said, as close to his precise words as you can recall, and send it to me today. I want that note dated and timed and in my file before I write to opposing solicitors this afternoon. Do not discuss what Logan said with the boys and do not raise it with Diane directly or through any other channel. Leave it entirely with me.
-
-SPEAKER 2 (Marcus Hall): I will. I've been sitting on it for a week because I wasn't sure if I was overreacting.
-
-SPEAKER 1 (Solicitor): You are not overreacting. And the fact that you've kept it to yourself and brought it to me rather than acting on it independently reflects well on you. Now. I need to raise something about the financial disclosure. When I reviewed your Form E last week I noticed two business accounts listed. But in a call we had about three weeks ago you mentioned in passing that you had opened a third account last year for a specific project. I went back to check and that account is not on the Form E. Can you explain that?
-
-SPEAKER 2 (Marcus Hall): I genuinely forgot about it. It was opened very quickly for one project and I've barely touched it since. There is about eighteen thousand pounds in it. There are also some payments in from a contact based overseas — a client in Bahrain — and I haven't got the paperwork organised for those.
-
-SPEAKER 1 (Solicitor): Listen to me carefully. Non-disclosure of a financial account in family proceedings is a serious matter. It can attract costs orders, adverse findings by the court, and in significant cases contempt proceedings. I am not suggesting that is where we are today, but I would be failing in my professional duty if I did not put that to you in the clearest possible terms. That account needs to go on an amended Form E before the hearing. I will draft the amendment but I need full statements for that account from the date it was opened to today. As for the Bahrain payments — I need to understand the source of funds. You need to be in a position to produce documentation showing these are legitimate business receipts. If you cannot evidence that, we have a problem that extends beyond these proceedings and I will need to take separate instructions on it. I need everything on my desk by the end of this week without exception.
-
-SPEAKER 2 (Marcus Hall): It is all legitimate — it's invoiced work, I just haven't pulled the paperwork together. I'll get it to you by Thursday.
-
-SPEAKER 1 (Solicitor): Thursday is acceptable. Do not let it slip past Thursday. Now — the witness statement. You need to understand what kind of statement wins a fact-finding hearing and what kind loses it. The statements that damage clients are the ones that read as attacks on the other party. Judges in these hearings have seen hundreds of them. A statement that spends four pages cataloguing everything wrong with Diane as a person tells the judge more about you than it does about her. What wins is a statement that is precise, measured, factual, and child-focused. You address each allegation directly. You give your account of the specific incident. You acknowledge where appropriate — allegation six, for instance. And you do it in a tone that makes the judge think this is someone who is composed and honest and who has put their children first throughout this process. That is the standard we are writing to. Do you understand that?
-
-SPEAKER 2 (Marcus Hall): Yes. I do. I want to get this right.
-
-SPEAKER 1 (Solicitor): Good. I will have a draft to you within three days. You review it carefully and send me any corrections immediately — we do not have time for extended back-and-forth. I need your approved statement within five days of today. Let me confirm what happens from my side today. I am writing to opposing solicitors about the handover incident. I am writing to the CPS and custody sergeant about the bail conditions. I am writing to Family Connections to request the contact workers' notes. I am beginning the counter-schedule. And I need from you — the WhatsApp from early 2023 about the spending conversation, the original location-sharing setup message, the WhatsApp sent on the evening of the January incident, a note of what Logan said at the end of the last contact session sent to me today, full statements for the undisclosed business account, and documentation for the Bahrain payments. All of that by Thursday at the latest, the note about Logan today. Is all of that achievable?
-
-SPEAKER 2 (Marcus Hall): Yes. All of it.
-
-SPEAKER 1 (Solicitor): One last thing before we close. The boys — how are they in general? Not at contact, day to day.
-
-SPEAKER 2 (Marcus Hall): Logan is not himself. He's quieter. His class teacher sent me a message last week to say he's been disengaged — she described it as unlike him, which it is. He was always a confident, chatty kid. Ethan is younger and I think he processes things differently at six — he seems more resilient on the surface but I watch him carefully. What worries me most is what they're being told at home. I don't know what is said to them about me when I'm not there and that is the thing I find hardest to sit with.
-
-SPEAKER 1 (Solicitor): That concern needs to be in your witness statement. I want it expressed in those terms — not as a criticism of Diane, but as a parent articulating genuine, specific, evidenced concern for their children's emotional state. The teacher's message is important. If she gets in touch again or if there is any school communication about either of the boys' wellbeing, I want to know immediately. Keep a note of anything the boys say to you at contact that concerns you. Date it, time it, keep it contemporaneous. Is there anything else you want to raise before we close today?
-
-SPEAKER 2 (Marcus Hall): No. I think that covers everything. Thank you. I have to say I feel a lot clearer than I did walking in here.
-
-SPEAKER 1 (Solicitor): Good. That is what today was for. You will have the draft counter-schedule from me within three days. Review it carefully and come back to me immediately with any corrections. Thank you for coming in Mr Hall.`;
-
-  const contentHash = `demo-hash-hall-${Date.now()}`;
+  const redactions = [
+    {
+      id: "rdx-webb-1",
+      start: 464000,
+      end: 500000,
+      reasonType: "redaction_third_party",
+      reasonNotes: "Third party financial contact — identity protected pending MLRO referral",
+      redactedBy: userId,
+      timestamp: new Date(sessionDate.getTime() + 52 * 60 * 1000).toISOString(),
+      status: "committed",
+      selectedText: null,
+    }
+  ];
 
   const [transcript] = await db.insert(transcripts).values({
     caseId: newCase.id,
     meetingSessionId: session.id,
     content: transcriptContent,
-    utterances: [
-      { speaker: "SPEAKER_1", text: "Good morning Mr Hall, thank you for coming in...", start: 0, end: 68 },
-      { speaker: "SPEAKER_2", text: "Yes, I consent. That's fine.", start: 68, end: 95 },
-      { speaker: "SPEAKER_1", text: "Thank you, that's noted. So we have a lot to get through today...", start: 95, end: 440 },
-      { speaker: "SPEAKER_2", text: "Completely. I have nothing to hide...", start: 440, end: 530 },
-      { speaker: "SPEAKER_1", text: "Good. Let's go through them systematically. Allegation one — financial control...", start: 530, end: 740 },
-      { speaker: "SPEAKER_2", text: "It is completely false. We had a joint account...", start: 740, end: 1240 },
-      { speaker: "SPEAKER_1", text: "Was any part of that conversation in writing?", start: 1240, end: 1310 },
-      { speaker: "SPEAKER_2", text: "Yes, I sent her a WhatsApp...", start: 1310, end: 1380 },
-      { speaker: "SPEAKER_1", text: "I need that message urgently...", start: 1380, end: 1620 },
-      { speaker: "SPEAKER_2", text: "Her accounts were completely untouched...", start: 1620, end: 1680 },
-      { speaker: "SPEAKER_1", text: "Good. Allegation two — social isolation...", start: 1680, end: 1880 },
-      { speaker: "SPEAKER_2", text: "It's nonsense. She has an extremely active social life...", start: 1880, end: 2140 },
-      { speaker: "SPEAKER_1", text: "Were there any occasions during the marriage where you expressed concern...", start: 2140, end: 2230 },
-      { speaker: "SPEAKER_2", text: "There was one occasion, probably about eighteen months before we separated...", start: 2230, end: 2400 },
-      { speaker: "SPEAKER_1", text: "I'm flagging that now because opposing counsel will characterise it...", start: 2400, end: 2560 },
-      { speaker: "SPEAKER_2", text: "When Logan was born — he's nine now, so this goes back a while...", start: 2560, end: 2860 },
-      { speaker: "SPEAKER_1", text: "And when did this become an issue?", start: 2860, end: 2900 },
-      { speaker: "SPEAKER_2", text: "In the months before we separated she started switching her location off...", start: 2900, end: 3100 },
-      { speaker: "SPEAKER_1", text: "Right. And the location sharing arrangement — was it ever documented?", start: 3100, end: 3200 },
-      { speaker: "SPEAKER_2", text: "I'd have to look back but yes — she set it up, she sent me the link...", start: 3200, end: 3360 },
-      { speaker: "SPEAKER_1", text: "Find that message. That is potentially the single most important document in this case...", start: 3360, end: 3680 },
-      { speaker: "SPEAKER_2", text: "I just — I genuinely thought it was normal...", start: 3680, end: 3760 },
-      { speaker: "SPEAKER_1", text: "I understand. And that is exactly the kind of context that fact-finding judges need to hear...", start: 3760, end: 3920 },
-      { speaker: "SPEAKER_2", text: "Categorically false. I have never spoken badly about Diane in front of the boys...", start: 3920, end: 4080 },
-      { speaker: "SPEAKER_1", text: "Is there anyone who could speak to the quality of the co-parenting relationship?", start: 4080, end: 4180 },
-      { speaker: "SPEAKER_2", text: "My sister spent a lot of time with us. She'd be willing to provide a statement...", start: 4180, end: 4320 },
-      { speaker: "SPEAKER_1", text: "Both of those are worth pursuing. Allegation five — the physical allegations...", start: 4320, end: 4520 },
-      { speaker: "SPEAKER_2", text: "There was an argument in January, yes...", start: 4520, end: 4820 },
-      { speaker: "SPEAKER_1", text: "I need you to understand something. The distinction between steadying someone...", start: 4820, end: 5100 },
-      { speaker: "SPEAKER_2", text: "No. The boys were at my parents for the afternoon.", start: 5100, end: 5160 },
-      { speaker: "SPEAKER_1", text: "Did you say anything to Diane after the incident?", start: 5160, end: 5220 },
-      { speaker: "SPEAKER_2", text: "I sent her a message that evening. I said I was sorry the argument had got out of hand...", start: 5220, end: 5360 },
-      { speaker: "SPEAKER_1", text: "I need that message. Opposing counsel will present the word sorry as an admission...", start: 5360, end: 5520 },
-      { speaker: "SPEAKER_2", text: "We had a row. Ethan was in the room — I accept that...", start: 5520, end: 5680 },
-      { speaker: "SPEAKER_1", text: "I am going to recommend a specific approach to that allegation...", start: 5680, end: 5960 },
-      { speaker: "SPEAKER_2", text: "That feels right. I'd rather be honest about it than have it blow up in court.", start: 5960, end: 6040 },
-      { speaker: "SPEAKER_1", text: "Good. Now — bail conditions...", start: 6040, end: 6260 },
-      { speaker: "SPEAKER_2", text: "Just verbal. The officer I dealt with said they'd been dropped...", start: 6260, end: 6380 },
-      { speaker: "SPEAKER_1", text: "That is not acceptable. Verbal confirmation from an officer carries no legal weight...", start: 6380, end: 6680 },
-      { speaker: "SPEAKER_2", text: "I genuinely didn't realise it needed to be in writing...", start: 6680, end: 6740 },
-      { speaker: "SPEAKER_1", text: "They rarely do. It falls through the gaps. The contact position...", start: 6740, end: 6940 },
-      { speaker: "SPEAKER_2", text: "They are — they're difficult to describe. The boys are brilliant...", start: 6940, end: 7180 },
-      { speaker: "SPEAKER_1", text: "The contact workers' observations are important evidence...", start: 7180, end: 7440 },
-      { speaker: "SPEAKER_2", text: "When Diane brought the boys for the last session Ethan came in absolutely fine but Logan was withdrawn...", start: 7440, end: 7740 },
-      { speaker: "SPEAKER_1", text: "I am writing to Diane's solicitors today about that incident...", start: 7740, end: 8020 },
-      { speaker: "SPEAKER_2", text: "There's something else I need to tell you...", start: 8020, end: 8340 },
-      { speaker: "SPEAKER_1", text: "That is a significant disclosure. A parent systematically debriefing children after contact sessions...", start: 8340, end: 8680 },
-      { speaker: "SPEAKER_2", text: "I will. I've been sitting on it for a week because I wasn't sure if I was overreacting.", start: 8680, end: 8780 },
-      { speaker: "SPEAKER_1", text: "You are not overreacting. Now. I need to raise something about the financial disclosure...", start: 8780, end: 8980 },
-      { speaker: "SPEAKER_2", text: "I genuinely forgot about it. It was opened very quickly for one project...", start: 8980, end: 9200 },
-      { speaker: "SPEAKER_1", text: "Listen to me carefully. Non-disclosure of a financial account in family proceedings...", start: 9200, end: 9680 },
-      { speaker: "SPEAKER_2", text: "It is all legitimate — it's invoiced work. I'll get it to you by Thursday.", start: 9680, end: 9780 },
-      { speaker: "SPEAKER_1", text: "Thursday is acceptable. Do not let it slip. Now — the witness statement...", start: 9780, end: 10360 },
-      { speaker: "SPEAKER_2", text: "Yes. I do. I want to get this right.", start: 10360, end: 10420 },
-      { speaker: "SPEAKER_1", text: "Good. I will have a draft to you within three days...", start: 10420, end: 10980 },
-      { speaker: "SPEAKER_2", text: "Yes. All of it.", start: 10980, end: 11020 },
-      { speaker: "SPEAKER_1", text: "One last thing before we close. The boys — how are they in general?", start: 11020, end: 11100 },
-      { speaker: "SPEAKER_2", text: "Logan is not himself. He's quieter...", start: 11100, end: 11420 },
-      { speaker: "SPEAKER_1", text: "That concern needs to be in your witness statement...", start: 11420, end: 11720 },
-      { speaker: "SPEAKER_2", text: "No. I think that covers everything. Thank you...", start: 11720, end: 11840 },
-      { speaker: "SPEAKER_1", text: "Good. That is what today was for. You will have the draft counter-schedule from me within three days...", start: 11840, end: 11980 },
-    ],
+    utterances: utterances,
     speakerCount: 2,
-    contentHash,
-    contentSignature: `demo-sig-hall-${Date.now()}`,
-    redactions: [
-      {
-        id: `rdx-hall-1`,
-        start: 14896,
-        end: 16119,
-        reasonType: "redaction_third_party",
-        reasonNotes: "Contains disclosure by Logan Hall (minor, aged 9) relayed by client regarding instructions given by opposing party. Third party information — minor child's communication. Not to be shared outside privileged file without welfare assessment consideration.",
-        status: "committed",
-        redactedBy: userId,
-        committedAt: new Date(sessionDate.getTime() + 48 * 60 * 1000).toISOString(),
-      },
-      {
-        id: `rdx-hall-2`,
-        start: 16659,
-        end: 18073,
-        reasonType: "redaction_commercially_sensitive",
-        reasonNotes: "Client disclosure of undisclosed business account and overseas payments — subject to formal disclosure obligations and AML source of funds assessment. Redacted pending amended Form E and resolution of Bahrain payments documentation.",
-        status: "committed",
-        redactedBy: userId,
-        committedAt: new Date(sessionDate.getTime() + 52 * 60 * 1000).toISOString(),
-      },
-      {
-        id: `rdx-hall-3`,
-        start: 16977,
-        end: 18073,
-        reasonType: "redaction_privilege",
-        reasonNotes: "Privileged legal advice given to client regarding consequences of non-disclosure and separate instruction pathway. Not for disclosure.",
-        status: "committed",
-        redactedBy: userId,
-        committedAt: new Date(sessionDate.getTime() + 54 * 60 * 1000).toISOString(),
-      },
-    ],
-    privilegedRedactions: [
-      {
-        id: `rdx-hall-3`,
-        text: "SPEAKER 1 (Solicitor): Listen to me carefully. Non-disclosure of a financial account in family proceedings is a serious matter. It can attract costs orders, adverse findings by the court, and in significant cases contempt proceedings. I am not suggesting that is where we are today, but I would be failing in my professional duty if I did not put that to you in the clearest possible terms. That account needs to go on an amended Form E before the hearing. I will draft the amendment but I need full statements for that account from the date it was opened to today. As for the Bahrain payments — I need to understand the source of funds. You need to be in a position to produce documentation showing these are legitimate business receipts. If you cannot evidence that, we have a problem that extends beyond these proceedings and I will need to take separate instructions on it. I need everything on my desk by the end of this week without exception.\n\nSPEAKER 2 (Marcus Hall): It is all legitimate — it's invoiced work, I just haven't pulled the paperwork together. I'll get it to you by Thursday.",
-        start: 16977,
-        end: 18073,
-        reasonType: "redaction_privilege",
-        reasonNotes: "Privileged legal advice given to client regarding consequences of non-disclosure and separate instruction pathway. Not for disclosure.",
-        redactedBy: userId,
-        committedAt: new Date(sessionDate.getTime() + 54 * 60 * 1000).toISOString(),
-      },
-    ],
+    redactions: redactions,
+    createdAt: new Date(sessionDate.getTime() + 58 * 60 * 1000),
   }).returning();
 
-  // Attendance note
-  const sessionDateStr = sessionDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
-  const counterScheduleDue = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB');
-  const statementDue = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB');
-  const thursdayDue = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB');
+  const attendanceNoteContent = `# ATTENDANCE NOTE
 
-  const attendanceNoteContent = `ATTENDANCE NOTE
-
-Matter: Re H (Contact) — Hall v Hall
-Client: Marcus Hall
-Matter Reference: DEMO_FAM/2024/1847
-Date of Meeting: ${sessionDateStr}
-Duration: Approximately 53 minutes
-Practice Area: Family — Private Children Arrangements
-Hearing: Fact-Finding — listed in 14 days (3 days)
+**Client:** Marcus Webb  
+**Matter:** Re W (Contact) — Webb v Webb  
+**Reference:** HART_FAM/2024/0391  
+**Date:** ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}  
+**Fee Earner:** Sarah Okafor  
+**Present:** Sarah Okafor (Solicitor), Marcus Webb (Client)  
+**Duration:** 54 minutes  
+**Practice Area:** Family — Private Children Arrangements  
+**Hearing:** Fact-Finding — listed in 7 days  
 
 ---
 
-NATURE OF ATTENDANCE
+## NATURE OF ATTENDANCE
 
-Client attended in person for initial attendance to review Scott Schedule of allegations (8 allegations) filed by Diane Hall in the context of private children proceedings. Instructions taken on all allegations. Litigation hold in place — all file records to be preserved.
+Client attended in person for initial attendance to review Scott Schedule of allegations (8 allegations) filed by Diane Webb. Instructions taken on all allegations. Litigation hold in place — all file records to be preserved.
 
-CONFLICT CHECK
-
-Completed. Diane Hall not a current or former client. No connection to opposing solicitors. No conflict identified.
+**MLRO referral required — see confidential matter note.**
 
 ---
 
-INSTRUCTIONS TAKEN ON ALLEGATIONS
+## CONFLICT CHECK
 
-Allegation 1 — Financial Control: Denied. Single conversation in early 2023 requesting spending restraint during cash-flow pressure period (self-employed). Three trips taken by opposing party in approximately eight weeks preceding conversation. WhatsApp sent by client at time — required urgently. Bank and card statements 2023 required to evidence no restriction on opposing party's accounts.
-
-Allegation 2 — Social Isolation: Denied. Opposing party maintained active social life throughout marriage including overseas travel. One occasion where client made enquiry about new social contacts — will be characterised as monitoring by opposing party. To be contextualised in counter-schedule.
-
-Allegation 3 — Location Sharing / Monitoring: Denied as coercive. Mutual location-sharing arrangement established at opposing party's suggestion when eldest child born (9 years ago). Both parties had reciprocal access throughout marriage. One occasion approximately six weeks pre-separation where client telephoned opposing party after noticing location sharing had been disabled and she was not where she had said she would be. Original setup message sent by opposing party to client — potentially the most important document in this matter. Must be located and provided urgently.
-
-Allegation 4 — Demeaning opposing party in front of children: Categorically denied. Potential character witnesses identified: client's sister (regular family contact); Logan Hall's class teacher (both parents attended parents' evenings together until approximately four months pre-separation).
-
-Allegation 5 — Physical incident, January this year (hallway): Physical contact accepted — client places hands on opposing party's shoulders during heated argument. Client characterises as attempt to de-escalate. Denies push, denies injury caused. No witnesses (children at client's parents). WhatsApp sent same evening apologising for argument (not for injury) — required urgently, will be relied upon as admission.
-
-Allegation 6 — Verbal intimidation, October last year (Ethan present): Argument accepted. Voice raised. Child present — client expresses regret. Threats denied. Strategy: do not deny incident; acknowledge, contextualise as isolated, frame as failure of composure. Partial acknowledgement strengthens credibility on full denials.
+Completed. Diane Webb not a current or former client of this firm. No connection to opposing solicitors. No conflict identified.
 
 ---
 
-BAIL CONDITIONS
+## INSTRUCTIONS TAKEN ON ALLEGATIONS
 
-Client reports verbal discharge confirmation only — no written confirmation received following CPS discontinuance six weeks ago. Written confirmation required from custody sergeant and CPS. Letters to be sent today. Client advised not to treat conditions as discharged until written confirmation received.
+**Allegation 1 — Financial Control:** Denied. Client sent one WhatsApp in February 2023 requesting spending restraint during a cash-flow pressure period. Three overseas trips by opposing party in preceding eight weeks. WhatsApp required urgently. Bank and card statements January to June 2023 required for both parties.
 
----
+**Allegation 2 — Social Isolation:** Denied. Client asked about new social contacts on one occasion. Opposing party maintained active social life throughout marriage including overseas travel. No attempt to prevent contact with any specific person.
 
-CONTACT ARRANGEMENTS
+**Allegation 3 — Location Monitoring:** Denied as coercive. Mutual location-sharing arrangement established at opposing party's suggestion when eldest child born nine years ago. Both parties had reciprocal access throughout marriage. Location sharing setup message sent by opposing party to client — potentially the most significant document in these proceedings. Must be located and provided urgently. One incident six weeks pre-separation where client called opposing party after noting location sharing had been disabled.
 
-Current: supervised contact, Family Connections Centre, Lewisham. Two hours, alternate Saturdays. Contact workers consistently observe children as settled and happy throughout sessions. Contact centre contemporaneous notes to be requested formally before hearing.
+**Allegation 4 — Demeaning Conduct:** Categorically denied. Character witnesses identified: client's sister-in-law (regular family contact); eldest child's class teacher (both parents attended parents' evenings without incident).
 
-Handover incident — most recent session: Logan Hall (9) arrived withdrawn, recovered within 15 minutes. Client observed opposing party speaking intently to Logan immediately prior to sending him into contact centre. Contact worker present. Letter to opposing solicitors to be sent today. Contact centre manager to be asked to ensure contemporaneous note is made.
+**Allegation 5 — Physical Incident, January:** Physical contact accepted — client placed hands on opposing party's shoulders during argument. Client characterises this as attempt to de-escalate. Denies push. Denies injury caused. No witnesses present. WhatsApp sent same evening apologising for argument (not for physical contact) — required urgently. Strategy: do not conflate apology for argument with admission of assault.
 
-[REDACTED — REDACTION_THIRD_PARTY]
+**Allegation 6 — Verbal Intimidation, October:** Argument accepted. Voice raised. Child present — client expresses regret. Threats categorically denied. Agreed strategy: acknowledge incident, contextualise as isolated failure of composure, do not deny. Partial acknowledgement strengthens credibility on full denials.
 
----
+**Allegation 7 — School Run Interrogation:** Denied. Client characterises this as normal parental conversation about children's day.
 
-FINANCIAL DISCLOSURE — FORM E
-
-Client disclosed omission of third business account from Form E. Account holds approximately £18,000. Client states omission was inadvertent (account opened for single project, low usage). Account received payments from Bahrain-based client. Source of funds documentation not yet compiled.
-
-[REDACTED — REDACTION_COMMERCIALLY_SENSITIVE]
-
-[REDACTED — REDACTION_PRIVILEGE]
-
-Client advised in strongest terms of consequences of non-disclosure in family proceedings. Amended Form E to be prepared. Full account statements and source of funds documentation required by ${thursdayDue} without exception. AML monitoring note to be added to compliance thread — undisclosed account and overseas payments require assessment.
+**Allegation 8 — Financial Disclosure:** [REDACTED — THIRD PARTY INFORMATION] MLRO referral required. Further instructions on this allegation suspended pending MLRO advice.
 
 ---
 
-TIMETABLE
+## CONTACT ARRANGEMENTS
 
-Counter-schedule filing deadline: ${counterScheduleDue}
-Client witness statement approved: ${statementDue}
-Financial documentation deadline: ${thursdayDue}
-Fact-finding hearing: 14 days (3 days listed)
+Current: supervised contact, Family Connections Centre, Lewisham. Two hours, alternate Saturdays. Contact workers observe children as settled and happy throughout sessions. Contemporaneous contact centre notes to be formally requested before hearing.
 
----
-
-OBLIGATIONS EXTRACTED
-
-Solicitor — immediate:
-1. Write to Diane Hall's solicitors — handover incident, Logan Hall (today)
-2. Write to CPS and custody sergeant — written bail condition discharge confirmation (today)
-3. Write to Family Connections Centre — contemporaneous contact worker notes, both sessions
-4. Add AML monitoring note to compliance thread — undisclosed account and Bahrain payments
-
-Solicitor — this week:
-5. Draft counter-schedule — all 8 allegations — file by ${counterScheduleDue}
-6. Draft witness statement for client review — due within 3 days
-7. Prepare amended Form E — pending client documents
-
-Client — urgent:
-8. WhatsApp re spending conversation (early 2023) — tomorrow morning
-9. Original location-sharing setup message sent by opposing party — tomorrow morning
-10. WhatsApp sent evening of January hallway incident — tomorrow morning
-11. Note of Logan's disclosure at last contact session — today
-
-Client — by ${thursdayDue}:
-12. Personal bank and card statements, full year 2023
-13. Full statements for undisclosed business account (date opened to present)
-14. Invoices and source of funds documentation for all Bahrain payments
+Handover incident at most recent session: Logan Webb (9) arrived withdrawn, recovered within fifteen minutes. Client observed opposing party speaking to Logan immediately prior to handover. Contact worker present. Letter to opposing solicitors to be sent today. Contact centre manager asked to ensure contemporaneous note made.
 
 ---
 
-This attendance note is a confidential legal record. Three sections have been redacted prior to filing: third party information (minor child's disclosure); commercially sensitive (pending disclosure compliance and AML assessment); legal professional privilege (privileged advice). Full redaction log held in audit trail.`;
+## BAIL CONDITIONS
+
+Client reports verbal discharge confirmation from custody sergeant following CPS discontinuance. No written confirmation received. Written confirmation required from custody sergeant and CPS. Client advised not to treat conditions as discharged until written confirmation received. Letters to be sent today.
+
+---
+
+## ACTION ITEMS
+
+1. Client to provide WhatsApp from February 2023 (spending conversation) — COB today
+2. Client to provide WhatsApp from January (hallway incident) — COB today
+3. Client to provide location sharing setup message — COB today
+4. Client to provide bank statements Jan-Jun 2023 (both parties) — COB today
+5. Solicitor: write to Family Connections Centre requesting contact session notes
+6. Solicitor: write to opposing solicitors re Logan handover incident
+7. Solicitor: write to custody sergeant and CPS re written bail discharge
+8. Solicitor: MLRO referral within 48 hours — URGENT — confidential
+9. Solicitor: prepare position statements Allegations 1-7 for fact-finding hearing`;
 
   await db.insert(documents).values({
     caseId: newCase.id,
     meetingSessionId: session.id,
-    transcriptSnapshotId: transcript.id,
     type: "attendance_note",
     content: attendanceNoteContent,
-    contentHash: `demo-doc-hash-hall-${Date.now()}`,
     version: 1,
-    versionType: "system_generated",
+    versionType: "ai_generated",
     createdBy: userId,
-    isActive: true,
     status: "draft",
+    createdAt: new Date(sessionDate.getTime() + 62 * 60 * 1000),
   });
 
-  // Action items — 14 obligations
-  const obligations = [
-    { description: "Write to Diane Hall's solicitors regarding Logan Hall's withdrawn presentation at handover and observed pre-contact communication — letter to be sent today", assignee: "Solicitor", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
-    { description: "Write to CPS and custody sergeant requesting written confirmation of bail condition discharge following CPS discontinuance six weeks ago", assignee: "Solicitor", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
-    { description: "Write to Family Connections Centre, Lewisham — formally request contemporaneous contact worker notes from both supervised contact sessions to date", assignee: "Solicitor", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
-    { description: "Add AML monitoring note to compliance thread — undisclosed business account (c.£18,000) and Bahrain payments require source of funds assessment before amended Form E filed", assignee: "Solicitor", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
-    { description: "Draft counter-schedule responding to all eight Scott Schedule allegations — file within 7 days", assignee: "Solicitor", dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), priority: "high" },
-    { description: "Draft witness statement for client review and approval — required within 3 days, must be approved within 5 days", assignee: "Solicitor", dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), priority: "high" },
-    { description: "Prepare amended Form E to include undisclosed business account — pending receipt of account statements from client", assignee: "Solicitor", dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), priority: "high" },
-    { description: "Client to provide WhatsApp message from early 2023 regarding spending request — required by tomorrow morning", assignee: "Client", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
-    { description: "Client to locate and provide original location-sharing setup message sent by opposing party — potentially most important document in this matter, required urgently", assignee: "Client", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
-    { description: "Client to provide WhatsApp message sent on evening of January hallway incident — required by tomorrow morning (will be used as admission by opposing party)", assignee: "Client", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), priority: "high" },
-    { description: "Client to send contemporaneous written note of Logan's disclosure at last contact session — required today before solicitor writes to opposing solicitors", assignee: "Client", dueDate: new Date(Date.now() + 0.5 * 24 * 60 * 60 * 1000), priority: "high" },
-    { description: "Client to provide personal bank and card statements for full year 2023 to evidence no restriction on opposing party's accounts", assignee: "Client", dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), priority: "medium" },
-    { description: "Client to provide full statements for undisclosed business account from date of opening to present", assignee: "Client", dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), priority: "high" },
-    { description: "Client to provide invoices and source of funds documentation for all payments received from Bahrain-based client", assignee: "Client", dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), priority: "high" },
+  const actionItemsList = [
+    { description: "Obtain WhatsApp from February 2023 — spending conversation", assignee: "Client", priority: "high", dueDate: daysAgo(6) },
+    { description: "Obtain WhatsApp from January — hallway incident apology", assignee: "Client", priority: "high", dueDate: daysAgo(6) },
+    { description: "Obtain location sharing setup message from nine years ago", assignee: "Client", priority: "high", dueDate: daysAgo(6) },
+    { description: "Obtain bank statements January to June 2023 for both parties", assignee: "Client", priority: "high", dueDate: daysAgo(6) },
+    { description: "Write to Family Connections Centre requesting contemporaneous contact session notes", assignee: "Solicitor", priority: "high", dueDate: daysAgo(6) },
+    { description: "Write to opposing solicitors regarding Logan handover incident", assignee: "Solicitor", priority: "high", dueDate: daysAgo(6) },
+    { description: "Write to custody sergeant and CPS requesting written bail discharge confirmation", assignee: "Solicitor", priority: "high", dueDate: daysAgo(6) },
+    { description: "MLRO referral — undisclosed financial account — CONFIDENTIAL — within 48 hours", assignee: "Solicitor", priority: "high", dueDate: daysAgo(5), completed: true, completedAt: daysAgo(5) },
+    { description: "Prepare position statements on Allegations 1-7 for fact-finding hearing", assignee: "Solicitor", priority: "high", dueDate: daysFromNow(3) },
   ];
 
-  for (const ob of obligations) {
+  for (const item of actionItemsList) {
     await db.insert(actionItems).values({
       caseId: newCase.id,
       transcriptId: transcript.id,
-      description: ob.description,
-      originalDescription: ob.description,
-      assignee: ob.assignee,
-      dueDate: ob.dueDate,
-      priority: ob.priority,
-      status: "draft",
-      isManual: false,
+      description: item.description,
+      assignee: item.assignee,
+      priority: item.priority,
+      dueDate: item.dueDate,
+      status: "approved",
+      completed: item.completed || false,
+      completedAt: item.completedAt || null,
+      createdAt: new Date(sessionDate.getTime() + 65 * 60 * 1000),
     });
   }
 
-  // Audit trail
   const auditEvents = [
-    { eventType: "case_created", timestamp: daysAgo(14), metadata: { practiceArea: "family_children_arrangements", matterReference: "DEMO_FAM/2024/1847" }, severity: "info" as const },
-    { eventType: "case_updated", timestamp: daysAgo(14), metadata: { field: "litigationHold", value: true, reason: "Active fact-finding hearing" }, severity: "warning" as const },
-    { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Attendance — Scott Schedule Review & Hearing Preparation", recordingType: "full_meeting" }, severity: "info" as const },
-    { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 68 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent", disclaimerVersion: "v2.1", audioSecondsAtConsent: 68 }, severity: "info" as const },
-    { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 55 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 3180 }, transcriptId: transcript.id, severity: "info" as const },
-    { eventType: "document_generated", timestamp: new Date(sessionDate.getTime() + 57 * 60 * 1000), metadata: { documentType: "attendance_note", versionType: "system_generated", version: 1 }, severity: "info" as const },
-    { eventType: "transcript_redacted", timestamp: new Date(sessionDate.getTime() + 48 * 60 * 1000), metadata: { reasonType: "redaction_third_party", status: "committed", redactionId: "rdx-hall-1" }, transcriptId: transcript.id, severity: "warning" as const },
-    { eventType: "transcript_redacted", timestamp: new Date(sessionDate.getTime() + 52 * 60 * 1000), metadata: { reasonType: "redaction_commercially_sensitive", status: "committed", redactionId: "rdx-hall-2" }, transcriptId: transcript.id, severity: "warning" as const },
-    { eventType: "transcript_redacted", timestamp: new Date(sessionDate.getTime() + 54 * 60 * 1000), metadata: { reasonType: "redaction_privilege", status: "committed", redactionId: "rdx-hall-3" }, transcriptId: transcript.id, severity: "warning" as const },
+    { eventType: "case_created", timestamp: daysAgo(7), metadata: { practiceArea: "family_children_arrangements", matterReference: "HART_FAM/2024/0391" }, severity: "info" as const },
+    { eventType: "case_updated", timestamp: daysAgo(7), metadata: { field: "litigationHold", value: true, reason: "Active fact-finding hearing", appliedBy: "James Hartwell (COLP)" }, severity: "warning" as const },
+    { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Attendance — Fact-Finding Preparation", recordingType: "full_meeting" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 52 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent", disclaimerVersion: "v2.1", audioSecondsAtConsent: 52 }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 58 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 3240 }, transcriptId: transcript.id, severity: "info" as const },
+    { eventType: "transcript_redacted", timestamp: new Date(sessionDate.getTime() + 61 * 60 * 1000), metadata: { reasonType: "redaction_third_party", status: "committed", redactionId: "rdx-webb-1" }, transcriptId: transcript.id, severity: "warning" as const },
+    { eventType: "document_generated", timestamp: new Date(sessionDate.getTime() + 62 * 60 * 1000), metadata: { documentType: "attendance_note", versionType: "ai_generated", version: 1 }, severity: "info" as const },
+    { eventType: "aml_flag_raised", timestamp: new Date(sessionDate.getTime() + 63 * 60 * 1000), metadata: { flagCount: 2, categories: ["asset_concealment", "source_of_funds"], referredToMLRO: true }, severity: "critical" as const },
+    { eventType: "case_updated", timestamp: new Date(sessionDate.getTime() + 64 * 60 * 1000), metadata: { field: "supervisorReview", note: "MLRO referral actioned within 48 hours. Matter under enhanced supervision pending outcome. File to be reviewed by COLP before any further client contact.", reviewedBy: "James Hartwell (COLP)" }, severity: "warning" as const },
+  ];
+
+  for (const evt of auditEvents) {
+    await db.insert(auditTrail).values({
+      eventType: evt.eventType,
+      userId,
+      caseId: newCase.id,
+      timestamp: evt.timestamp,
+      severity: evt.severity,
+      metadata: evt.metadata,
+      transcriptId: (evt as any).transcriptId || null,
+    });
+  }
+}
+
+// ─── Matter 2: M&A — Nursery Sector Acquisition (Kestrel Care Group) ──────────────
+
+async function seedMatter2Kestrel(userId: string) {
+  const sessionDate = daysAgoAt(14, 9, 30);
+
+  const [newCase] = await db.insert(cases).values({
+    title: "Kestrel Care Group — Acquisition of Brightfield Nurseries Ltd",
+    clientName: "Kestrel Care Group (Rohan Mehta / Priya Kapoor)",
+    matterReference: "HART_COM/2024/0847",
+    createdBy: userId,
+    status: "review_required",
+    priority: "high",
+    sourceType: "audio",
+    practiceArea: "commercial_property",
+    riskLevel: "medium",
+    conflictCheckCompleted: true,
+    conflictCheckNote: "Brightfield Nurseries Ltd and its directors not current or former clients. Vendor solicitors Keane & Partners — no current matters. No conflict identified.",
+    supervisorName: "James Hartwell",
+  }).returning();
+
+  const [session] = await db.insert(meetingSessions).values({
+    caseId: newCase.id,
+    recordingType: "full_meeting",
+    sessionTitle: "Initial Instructions — Share Purchase Agreement Review & Due Diligence Strategy",
+    startedAt: sessionDate,
+    durationSeconds: 3060,
+    status: "completed",
+    createdBy: userId,
+  }).returning();
+
+  const sessionExpiry = new Date(sessionDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id,
+    meetingSessionId: session.id,
+    duration: 3060,
+    recordedAt: sessionDate,
+    expiresAt: sessionExpiry,
+    deletedAt: sessionExpiry,
+    mimeType: "audio/webm",
+  });
+
+  await db.insert(consentLogs).values({
+    caseId: newCase.id,
+    audioRecordingId: null,
+    solicitorId: userId,
+    consentGiven: true,
+    consentTimestamp: new Date(sessionDate.getTime() + 38 * 1000),
+    disclaimerScriptVersion: "v2.1",
+    disclaimerWordingText: "I am recording this meeting to produce an accurate attendance note. The recording is held confidentially within your file and deleted after seven days. Do you consent?",
+    consentModality: "verbal_recorded",
+    lawfulBasis: "consent",
+  });
+
+  const transcriptContent = `Attendance Note — Kestrel Care Group — Acquisition of Brightfield Nurseries Ltd
+Client: Kestrel Care Group (Rohan Mehta, CEO; Priya Kapoor, General Counsel)
+Matter Reference: HART_COM/2024/0847
+Date: ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+Fee Earner: James Hartwell
+Duration: Approximately 51 minutes
+
+---
+
+SOLICITOR: Good morning Rohan, Priya. Before we begin I need to confirm you are both happy to be recorded for note-taking purposes. The recording is deleted after seven days and is confidential to this file. Are you both content?
+
+ROHAN MEHTA: Yes, absolutely.
+
+PRIYA KAPOOR: That is fine.
+
+SOLICITOR: Thank you. So we have the heads of terms signed last week. The proposed consideration is twelve point four million — a combination of cash on completion and an eighteen-month earn-out tied to occupancy rates across all six settings. I want to work through the key issues before we begin the due diligence process. Priya, you have reviewed the draft SPA — where do you want to start?
+
+PRIYA KAPOOR: The warranties are the main concern. The vendor is offering a standard package but given that four of the six settings are Ofsted-rated Outstanding, I want much stronger protection on the regulatory standing. If any of those ratings deteriorate between exchange and completion we need the right to walk or to reprice.
+
+SOLICITOR: That is eminently sensible. We will push for a specific warranty on regulatory compliance status at the date of exchange and a condition precedent that no material Ofsted action — improvement notice, enforcement notice or downgrade — has been received in the period between exchange and completion. What is the gap we are looking at?
+
+PRIYA KAPOOR: The vendor wants a six-week exchange to completion. We think that is too tight for the Ofsted check cycle. We would prefer twelve weeks minimum.
+
+SOLICITOR: I agree. Six weeks is inadequate for this type of acquisition. Twelve weeks is reasonable and I will push for that in our response to the SPA. Rohan — from a commercial perspective, what are the key value drivers you are protecting?
+
+ROHAN MEHTA: The Outstanding ratings are everything. We are paying a significant premium over asset value precisely because of the regulatory standing. Priya is right — if those ratings move we have overpaid materially. The other driver is the management team. The target has a regional operations manager who has been there eleven years. If she leaves in the earn-out period we are exposed. I want a retention clause on her specifically.
+
+SOLICITOR: We can include a key person clause in the SPA tied to the earn-out. If she departs before the end of the earn-out period and the occupancy targets are not met, we build in a mechanism to adjust the earn-out payment downward. Is there a separate employment agreement in place with her?
+
+ROHAN MEHTA: There is but I have not seen it. It should be in the data room. Priya, can you check today?
+
+PRIYA KAPOOR: I will look this afternoon. I have not seen it in the index but it may be filed under a different reference.
+
+SOLICITOR: The data room — what is the current state of disclosure?
+
+PRIYA KAPOOR: Incomplete. We have the last three years' audited accounts for the group entity and the individual settings. We have the property titles — four freehold, two leasehold. We do not yet have the Ofsted inspection reports for three of the six settings, the staff contracts, the parent contracts, or the regulatory correspondence file. We pushed back on this last week but the vendor's solicitors have been slow.
+
+SOLICITOR: I am going to write to Keane and Partners today with a formal data room deficiency schedule. We cannot begin substantive due diligence without the Ofsted reports and the regulatory correspondence. In the meantime I can begin reviewing the property titles. On the two leasehold settings — do you know the unexpired terms?
+
+PRIYA KAPOOR: One has approximately fourteen years remaining. The other is a periodic tenancy — we think month to month. That one concerns us significantly.
+
+SOLICITOR: The periodic tenancy is a serious problem. The vendor should not have presented this in the heads of terms without flagging it. A month-to-month tenancy for a nursery setting with planning and registration tied to that address is a material risk. If the landlord serves notice we lose the setting entirely. We need either a new lease negotiated as a condition precedent or a significant price adjustment to reflect the risk. Which setting is it?
+
+PRIYA KAPOOR: The Stratford setting. It is one of the two Outstanding-rated ones.
+
+SOLICITOR: That changes the calculus significantly. An Outstanding-rated setting on a periodic tenancy is an unacceptable risk at this price. I will flag this as a red-line issue in our response. Either we get a minimum ten-year lease on the Stratford setting as a condition precedent to exchange, or we reduce the consideration to reflect the exposure.
+
+ROHAN MEHTA: Agreed. We would not proceed on the current terms for Stratford.
+
+SOLICITOR: On the earn-out mechanism itself — eighteen months tied to occupancy. What is the base occupancy assumed in the earn-out model?
+
+ROHAN MEHTA: Eighty-two percent average across the six settings. The vendor is projecting eighty-seven percent by month twelve. We think those projections are aggressive given that two settings are in catchment areas where new competitors have opened.
+
+SOLICITOR: I would want to see the catchment analysis underlying those projections. If the vendor cannot support eighty-seven percent with credible data we should push the earn-out trigger down — say seventy-eight percent — and cap the earn-out payment accordingly. The current structure gives the vendor a full earn-out even in scenarios where performance deteriorates from current levels.
+
+PRIYA KAPOOR: That is exactly the concern. We want the earn-out to be genuinely contingent, not a deferred payment dressed up as performance-linked.
+
+SOLICITOR: Understood. I will redraft the earn-out mechanics with a tiered structure — partial payments at seventy-five, eighty, and eighty-five percent occupancy respectively, with the full earn-out only payable if eighty-seven percent is sustained for at least three consecutive months. Is that the sort of structure you have in mind?
+
+ROHAN MEHTA: Yes. That gives us much better protection.
+
+SOLICITOR: One more item before we close — the NDA. The existing confidentiality agreement was signed at heads of terms stage. Does it cover the data room materials adequately?
+
+PRIYA KAPOOR: It covers the financial information but I am not sure it extends to the regulatory correspondence and Ofsted reports. If those become public before completion it could damage relationships with the Ofsted regional team.
+
+SOLICITOR: I will review the NDA today and advise whether it needs to be extended. In the meantime, treat all data room materials as confidential regardless of what the agreement says. I will close with a summary. Data room deficiency schedule to vendor today. SPA response within ten working days — pushing for twelve-week exchange to completion, condition precedent on Ofsted standing, key person clause, red-line on Stratford tenancy, tiered earn-out structure. NDA review today. I will send you a matter timeline this afternoon.
+
+ROHAN MEHTA: Thank you James, that is exactly what we needed.
+
+PRIYA KAPOOR: Very helpful, thank you.
+
+---
+
+ACTION ITEMS
+
+1. Solicitor to write to Keane & Partners with data room deficiency schedule — today
+2. Solicitor to review NDA for data room coverage — today
+3. Solicitor to begin review of property titles (four freehold) — this week
+4. Solicitor to send matter timeline to clients — today
+5. Solicitor to draft SPA response within 10 working days
+6. Priya Kapoor to locate regional operations manager employment agreement — today
+7. Investigate Stratford setting lease status — urgent (red-line issue)`;
+
+  const utterances = [
+    { speaker: "SPEAKER_1", text: "Good morning Rohan, Priya. Before we begin I need to confirm you are both happy to be recorded for note-taking purposes. The recording is deleted after seven days and is confidential to this file. Are you both content?", start: 38000, end: 56000 },
+    { speaker: "SPEAKER_2", text: "Yes, absolutely.", start: 57000, end: 59000 },
+    { speaker: "SPEAKER_3", text: "That is fine.", start: 60000, end: 62000 },
+    { speaker: "SPEAKER_1", text: "Thank you. So we have the heads of terms signed last week. The proposed consideration is twelve point four million — a combination of cash on completion and an eighteen-month earn-out tied to occupancy rates across all six settings. I want to work through the key issues before we begin the due diligence process. Priya, you have reviewed the draft SPA — where do you want to start?", start: 63000, end: 92000 },
+    { speaker: "SPEAKER_3", text: "The warranties are the main concern. The vendor is offering a standard package but given that four of the six settings are Ofsted-rated Outstanding, I want much stronger protection on the regulatory standing. If any of those ratings deteriorate between exchange and completion we need the right to walk or to reprice.", start: 93000, end: 124000 },
+    { speaker: "SPEAKER_1", text: "That is eminently sensible. We will push for a specific warranty on regulatory compliance status at the date of exchange and a condition precedent that no material Ofsted action has been received in the period between exchange and completion. What is the gap we are looking at?", start: 125000, end: 150000 },
+    { speaker: "SPEAKER_3", text: "The vendor wants a six-week exchange to completion. We think that is too tight for the Ofsted check cycle. We would prefer twelve weeks minimum.", start: 151000, end: 166000 },
+    { speaker: "SPEAKER_1", text: "I agree. Six weeks is inadequate for this type of acquisition. Twelve weeks is reasonable and I will push for that in our response to the SPA. Rohan — from a commercial perspective, what are the key value drivers you are protecting?", start: 167000, end: 184000 },
+    { speaker: "SPEAKER_2", text: "The Outstanding ratings are everything. We are paying a significant premium over asset value precisely because of the regulatory standing. The other driver is the management team. The target has a regional operations manager who has been there eleven years. If she leaves in the earn-out period we are exposed. I want a retention clause on her specifically.", start: 185000, end: 220000 },
+    { speaker: "SPEAKER_1", text: "We can include a key person clause in the SPA tied to the earn-out. Is there a separate employment agreement in place with her?", start: 221000, end: 232000 },
+    { speaker: "SPEAKER_2", text: "There is but I have not seen it. It should be in the data room. Priya, can you check today?", start: 233000, end: 244000 },
+    { speaker: "SPEAKER_3", text: "I will look this afternoon. I have not seen it in the index but it may be filed under a different reference.", start: 245000, end: 257000 },
+    { speaker: "SPEAKER_1", text: "The data room — what is the current state of disclosure?", start: 258000, end: 263000 },
+    { speaker: "SPEAKER_3", text: "Incomplete. We have the last three years audited accounts and the property titles. We do not yet have the Ofsted inspection reports for three of the six settings, the staff contracts, the parent contracts, or the regulatory correspondence file.", start: 264000, end: 294000 },
+    { speaker: "SPEAKER_1", text: "I am going to write to Keane and Partners today with a formal data room deficiency schedule. On the two leasehold settings — do you know the unexpired terms?", start: 295000, end: 312000 },
+    { speaker: "SPEAKER_3", text: "One has approximately fourteen years remaining. The other is a periodic tenancy — we think month to month. That one concerns us significantly.", start: 313000, end: 328000 },
+    { speaker: "SPEAKER_1", text: "The periodic tenancy is a serious problem. A month-to-month tenancy for a nursery setting with planning and registration tied to that address is a material risk. Which setting is it?", start: 329000, end: 346000 },
+    { speaker: "SPEAKER_3", text: "The Stratford setting. It is one of the two Outstanding-rated ones.", start: 347000, end: 355000 },
+    { speaker: "SPEAKER_1", text: "That changes the calculus significantly. An Outstanding-rated setting on a periodic tenancy is an unacceptable risk at this price. I will flag this as a red-line issue. Either we get a minimum ten-year lease on the Stratford setting as a condition precedent to exchange, or we reduce the consideration to reflect the exposure.", start: 356000, end: 385000 },
+    { speaker: "SPEAKER_2", text: "Agreed. We would not proceed on the current terms for Stratford.", start: 386000, end: 393000 },
+    { speaker: "SPEAKER_1", text: "On the earn-out mechanism — eighteen months tied to occupancy. What is the base occupancy assumed in the earn-out model?", start: 394000, end: 406000 },
+    { speaker: "SPEAKER_2", text: "Eighty-two percent average across the six settings. The vendor is projecting eighty-seven percent by month twelve. We think those projections are aggressive given that two settings are in catchment areas where new competitors have opened.", start: 407000, end: 432000 },
+    { speaker: "SPEAKER_1", text: "I would want to see the catchment analysis underlying those projections. I will redraft the earn-out mechanics with a tiered structure. Is that the sort of structure you have in mind?", start: 433000, end: 452000 },
+    { speaker: "SPEAKER_2", text: "Yes. That gives us much better protection.", start: 453000, end: 458000 },
+    { speaker: "SPEAKER_3", text: "That is exactly the concern. We want the earn-out to be genuinely contingent, not a deferred payment dressed up as performance-linked.", start: 459000, end: 474000 },
+    { speaker: "SPEAKER_1", text: "Understood. One more item — the NDA. Does it cover the data room materials adequately?", start: 475000, end: 484000 },
+    { speaker: "SPEAKER_3", text: "It covers the financial information but I am not sure it extends to the regulatory correspondence and Ofsted reports.", start: 485000, end: 498000 },
+    { speaker: "SPEAKER_1", text: "I will review the NDA today. In the meantime treat all data room materials as confidential. I will close with a summary. Data room deficiency schedule to vendor today. SPA response within ten working days. NDA review today. Matter timeline this afternoon.", start: 499000, end: 528000 },
+    { speaker: "SPEAKER_2", text: "Thank you James, that is exactly what we needed.", start: 529000, end: 535000 },
+    { speaker: "SPEAKER_3", text: "Very helpful, thank you.", start: 536000, end: 539000 },
+  ];
+
+  const [transcript] = await db.insert(transcripts).values({
+    caseId: newCase.id,
+    meetingSessionId: session.id,
+    content: transcriptContent,
+    utterances: utterances,
+    speakerCount: 3,
+    redactions: [],
+    createdAt: new Date(sessionDate.getTime() + 55 * 60 * 1000),
+  }).returning();
+
+  const attendanceNoteContent = `# ATTENDANCE NOTE
+
+**Client:** Kestrel Care Group (Rohan Mehta, CEO; Priya Kapoor, General Counsel)  
+**Matter:** Acquisition of Brightfield Nurseries Ltd  
+**Reference:** HART_COM/2024/0847  
+**Date:** ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}  
+**Fee Earner:** James Hartwell  
+**Present:** James Hartwell (Partner), Rohan Mehta (CEO, Kestrel Care Group), Priya Kapoor (General Counsel, Kestrel Care Group)  
+**Duration:** 51 minutes  
+
+---
+
+## NATURE OF ATTENDANCE
+
+Initial instructions following execution of heads of terms. Proposed consideration £12.4m (cash on completion plus 18-month earn-out tied to occupancy). Six nursery settings — four Ofsted-rated Outstanding.
+
+---
+
+## KEY ISSUES IDENTIFIED
+
+**1. Warranty Package — Regulatory Standing**
+Standard warranty package inadequate given Outstanding ratings. Agreed to push for: specific warranty on regulatory compliance status at exchange; condition precedent that no material Ofsted action received between exchange and completion; 12-week minimum exchange-to-completion period (vendor proposing 6 weeks — inadequate).
+
+**2. Key Person Risk — Regional Operations Manager**
+11-year employee identified as critical to earn-out performance. Key person clause to be included in SPA tied to earn-out adjustment mechanism. Employment agreement not yet located in data room — Priya Kapoor to check today.
+
+**3. Data Room — Material Deficiencies**
+Currently missing: Ofsted inspection reports (3 of 6 settings), staff contracts, parent contracts, regulatory correspondence file. Formal deficiency schedule to be sent to Keane & Partners today.
+
+**4. Stratford Setting — Periodic Tenancy (RED LINE)**
+One of two Outstanding-rated settings operates on month-to-month periodic tenancy. This is a material and unacceptable risk at current price. Client confirmed they would not proceed on current terms for Stratford. Red-line position: minimum 10-year lease as condition precedent to exchange, or material price reduction.
+
+**5. Earn-Out Mechanics**
+Vendor projecting 87% average occupancy by month 12. Clients consider this aggressive given competitive pressures in two catchment areas. Agreed to restructure earn-out as tiered mechanism (75%, 80%, 85% trigger points) with full earn-out only payable if 87% sustained for minimum 3 consecutive months.
+
+**6. NDA Coverage**
+Existing NDA may not extend to Ofsted reports and regulatory correspondence. Review required today.
+
+---
+
+## ACTION ITEMS
+
+1. Solicitor: write to Keane & Partners with data room deficiency schedule — today
+2. Solicitor: review NDA coverage — today  
+3. Solicitor: begin property title reviews (four freehold settings) — this week
+4. Solicitor: send matter timeline to clients — today
+5. Solicitor: draft SPA response within 10 working days
+6. Priya Kapoor: locate regional operations manager employment agreement — today
+7. Solicitor: flag Stratford periodic tenancy as red-line in SPA response`;
+
+  await db.insert(documents).values({
+    caseId: newCase.id,
+    meetingSessionId: session.id,
+    type: "attendance_note",
+    content: attendanceNoteContent,
+    version: 1,
+    versionType: "ai_generated",
+    createdBy: userId,
+    status: "approved",
+    approvedAt: new Date(sessionDate.getTime() + 90 * 60 * 1000),
+    createdAt: new Date(sessionDate.getTime() + 58 * 60 * 1000),
+  });
+
+  const auditEvents = [
+    { eventType: "case_created", timestamp: daysAgo(14), metadata: { practiceArea: "commercial", matterReference: "HART_COM/2024/0847" }, severity: "info" as const },
+    { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Instructions — SPA Review", recordingType: "full_meeting" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 38 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent", disclaimerVersion: "v2.1" }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 55 * 60 * 1000), metadata: { speakerCount: 3, durationSeconds: 3060 }, transcriptId: transcript.id, severity: "info" as const },
+    { eventType: "document_generated", timestamp: new Date(sessionDate.getTime() + 58 * 60 * 1000), metadata: { documentType: "attendance_note", version: 1 }, severity: "info" as const },
+    { eventType: "document_approved", timestamp: new Date(sessionDate.getTime() + 90 * 60 * 1000), metadata: { approvedBy: "James Hartwell", documentType: "attendance_note" }, severity: "info" as const },
+  ];
+
+  for (const evt of auditEvents) {
+    await db.insert(auditTrail).values({
+      eventType: evt.eventType,
+      userId,
+      caseId: newCase.id,
+      timestamp: evt.timestamp,
+      severity: evt.severity,
+      metadata: evt.metadata,
+      transcriptId: (evt as any).transcriptId || null,
+    });
+  }
+}
+
+// ─── Matter 3: Medical Negligence ───────────────────────────────────────────
+
+async function seedMatter3Osei(userId: string) {
+  const sessionDate = daysAgoAt(21, 14, 0);
+
+  const [newCase] = await db.insert(cases).values({
+    title: "Osei v Royal Greenwich NHS Trust",
+    clientName: "Patricia Osei",
+    matterReference: "HART_MED/2024/0156",
+    createdBy: userId,
+    status: "review_required",
+    priority: "normal",
+    sourceType: "audio",
+    practiceArea: "personal_injury",
+    riskLevel: "medium",
+    conflictCheckCompleted: true,
+    conflictCheckNote: "Royal Greenwich NHS Trust not a current or former client. No conflicts identified.",
+    supervisorName: "James Hartwell",
+  }).returning();
+
+  const [session] = await db.insert(meetingSessions).values({
+    caseId: newCase.id,
+    recordingType: "full_meeting",
+    sessionTitle: "Initial Consultation — Surgical Negligence Claim",
+    startedAt: sessionDate,
+    durationSeconds: 2880,
+    status: "completed",
+    createdBy: userId,
+  }).returning();
+
+  const sessionExpiry = new Date(sessionDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({
+    caseId: newCase.id,
+    meetingSessionId: session.id,
+    duration: 2880,
+    recordedAt: sessionDate,
+    expiresAt: sessionExpiry,
+    deletedAt: sessionExpiry,
+    mimeType: "audio/webm",
+  });
+
+  await db.insert(consentLogs).values({
+    caseId: newCase.id,
+    audioRecordingId: null,
+    solicitorId: userId,
+    consentGiven: true,
+    consentTimestamp: new Date(sessionDate.getTime() + 44 * 1000),
+    disclaimerScriptVersion: "v2.1",
+    disclaimerWordingText: "I am recording this meeting to produce an accurate attendance note. The recording is held confidentially within your file and deleted after seven days. Do you consent?",
+    consentModality: "verbal_recorded",
+    lawfulBasis: "consent",
+  });
+
+  const transcriptContent = `Attendance Note — Osei v Royal Greenwich NHS Trust
+Client: Patricia Osei
+Matter Reference: HART_MED/2024/0156
+Date: ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+Fee Earner: Claire Donnelly
+Duration: Approximately 48 minutes
+
+---
+
+SOLICITOR: Good afternoon Mrs Osei. Before we start I want to confirm you consent to me recording our meeting today to help me produce an accurate note. The recording is confidential to your file and deleted after seven days. Are you happy with that?
+
+CLIENT: Yes, that is fine. I just want to tell someone what happened.
+
+SOLICITOR: And I want to hear it. Take your time. Start from when you first presented at the hospital if you can.
+
+CLIENT: I went to the Queen Elizabeth Hospital in February last year. I had been having pain in my lower abdomen for about three months — my GP had referred me on the two-week pathway. They did an ultrasound and found a fibroid. They said it was significant in size — about seven centimetres. They recommended a myomectomy.
+
+SOLICITOR: That is a surgical procedure to remove fibroids while leaving the uterus intact?
+
+CLIENT: Yes. I am forty-four. I have not had children. I wanted to preserve my options. They said that was the appropriate procedure given my age and that I had specifically said I wanted to preserve fertility.
+
+SOLICITOR: Who did you see in that consultation?
+
+CLIENT: A Mr Adeyemi. He was a consultant gynaecologist. He was very confident. He said the procedure was routine, recovery two to three weeks, back to work within a month. He did not mention any significant risks beyond the standard surgical ones — infection, bleeding. He did not mention conversion.
+
+SOLICITOR: When you say conversion — can you tell me what happened?
+
+CLIENT: During the surgery they converted to a hysterectomy. I woke up and I had had a full hysterectomy. I had not consented to that. I did not know until a nurse told me. Mr Adeyemi came to see me the next morning. He said there had been significant bleeding and conversion was necessary to save my life. He may be right. But I was never given the option to discuss that possibility beforehand. He knew it was a risk. It should have been in my consent form. It was not.
+
+SOLICITOR: Can I ask — how are you doing now? I mean physically and otherwise.
+
+CLIENT: I am managing. Physically the recovery has been difficult — I was off work for nearly four months. I am a secondary school teacher. I lost earnings. But honestly what has been harder is — I cannot have children now. I know at forty-four the chances were lower. But they were not zero. And the decision was taken from me without my knowledge. I feel I was not treated as someone whose choices mattered.
+
+SOLICITOR: I understand. And I want you to know that what you have just described — if accurate — is a serious matter of clinical negligence and consent law. The right of a patient to make an informed decision about their own treatment, including accepting risks that others might not, is fundamental. The question of whether you were adequately counselled on the risk of conversion to hysterectomy, given that you had specifically expressed a wish to preserve fertility, is the heart of this claim.
+
+CLIENT: That is exactly it.
+
+SOLICITOR: I will need your full medical records — GP records going back five years, and the hospital records from the Royal Greenwich Trust including the surgical notes, the consent form, the anaesthetic record, and any post-operative notes. Can I make a request to the Trust on your behalf?
+
+CLIENT: Yes please.
+
+SOLICITOR: We will also need an independent medical expert — a consultant gynaecologist who can review the clinical decision and advise whether the standard of care was met and whether the consent process was adequate. This is a clinical negligence claim and liability will need to be established through expert evidence.
+
+CLIENT: How long does this take?
+
+SOLICITOR: Honestly — medical negligence claims take time. The records request typically takes four to six weeks. Finding and instructing an appropriate expert takes another four to six weeks. We are looking at six to twelve months before we have a full letter of claim ready to send. I want to be honest with you about that.
+
+CLIENT: I understand. I just want it on record. I want them to know that what they did to me mattered.
+
+SOLICITOR: It will be on record. Before I close — limitation. The incident was February of last year. You have three years from the date of knowledge — which is typically the date of the procedure or the date you became aware of the negligence — to issue proceedings. We have time but we should not delay unnecessarily. I will open a file today.
+
+CLIENT: Thank you. I feel better having spoken to someone.
+
+---
+
+ACTION ITEMS
+
+1. Solicitor to submit Subject Access Request to Royal Greenwich NHS Trust for full medical records
+2. Solicitor to obtain GP records (5 years)
+3. Solicitor to identify and instruct independent expert consultant gynaecologist
+4. Solicitor to note limitation date — February limitation deadline
+5. Solicitor to confirm funding arrangements (CFA/CCFA) at next appointment`;
+
+  const utterances = [
+    { speaker: "SPEAKER_1", text: "Good afternoon Mrs Osei. Before we start I want to confirm you consent to me recording our meeting today to help me produce an accurate note. The recording is confidential to your file and deleted after seven days. Are you happy with that?", start: 44000, end: 62000 },
+    { speaker: "SPEAKER_2", text: "Yes, that is fine. I just want to tell someone what happened.", start: 63000, end: 69000 },
+    { speaker: "SPEAKER_1", text: "And I want to hear it. Take your time. Start from when you first presented at the hospital if you can.", start: 70000, end: 79000 },
+    { speaker: "SPEAKER_2", text: "I went to the Queen Elizabeth Hospital in February last year. I had been having pain in my lower abdomen for about three months — my GP had referred me on the two-week pathway. They did an ultrasound and found a fibroid. They said it was significant in size — about seven centimetres. They recommended a myomectomy.", start: 80000, end: 118000 },
+    { speaker: "SPEAKER_1", text: "That is a surgical procedure to remove fibroids while leaving the uterus intact?", start: 119000, end: 126000 },
+    { speaker: "SPEAKER_2", text: "Yes. I am forty-four. I have not had children. I wanted to preserve my options. They said that was the appropriate procedure given my age and that I had specifically said I wanted to preserve fertility.", start: 127000, end: 150000 },
+    { speaker: "SPEAKER_1", text: "Who did you see in that consultation?", start: 151000, end: 154000 },
+    { speaker: "SPEAKER_2", text: "A Mr Adeyemi. He was a consultant gynaecologist. He was very confident. He said the procedure was routine, recovery two to three weeks, back to work within a month. He did not mention any significant risks beyond the standard surgical ones — infection, bleeding. He did not mention conversion.", start: 155000, end: 186000 },
+    { speaker: "SPEAKER_1", text: "When you say conversion — can you tell me what happened?", start: 187000, end: 192000 },
+    { speaker: "SPEAKER_2", text: "During the surgery they converted to a hysterectomy. I woke up and I had had a full hysterectomy. I had not consented to that. I did not know until a nurse told me. Mr Adeyemi came to see me the next morning. He said there had been significant bleeding and conversion was necessary to save my life. He may be right. But I was never given the option to discuss that possibility beforehand. He knew it was a risk. It should have been in my consent form. It was not.", start: 193000, end: 248000 },
+    { speaker: "SPEAKER_1", text: "Can I ask — how are you doing now? I mean physically and otherwise.", start: 249000, end: 256000 },
+    { speaker: "SPEAKER_2", text: "I am managing. Physically the recovery has been difficult — I was off work for nearly four months. I am a secondary school teacher. I lost earnings. But honestly what has been harder is — I cannot have children now. I know at forty-four the chances were lower. But they were not zero. And the decision was taken from me without my knowledge. I feel I was not treated as someone whose choices mattered.", start: 257000, end: 304000 },
+    { speaker: "SPEAKER_1", text: "I understand. And I want you to know that what you have just described — if accurate — is a serious matter of clinical negligence and consent law. The right of a patient to make an informed decision about their own treatment is fundamental. The question of whether you were adequately counselled on the risk of conversion to hysterectomy, given that you had specifically expressed a wish to preserve fertility, is the heart of this claim.", start: 305000, end: 346000 },
+    { speaker: "SPEAKER_2", text: "That is exactly it.", start: 347000, end: 349000 },
+    { speaker: "SPEAKER_1", text: "I will need your full medical records. We will also need an independent medical expert — a consultant gynaecologist who can review the clinical decision. This is a clinical negligence claim and liability will need to be established through expert evidence.", start: 350000, end: 378000 },
+    { speaker: "SPEAKER_2", text: "How long does this take?", start: 379000, end: 382000 },
+    { speaker: "SPEAKER_1", text: "Honestly — medical negligence claims take time. We are looking at six to twelve months before we have a full letter of claim ready to send. I want to be honest with you about that.", start: 383000, end: 400000 },
+    { speaker: "SPEAKER_2", text: "I understand. I just want it on record. I want them to know that what they did to me mattered.", start: 401000, end: 412000 },
+    { speaker: "SPEAKER_1", text: "It will be on record. Before I close — limitation. The incident was February of last year. You have three years from the date of knowledge to issue proceedings. We have time but we should not delay unnecessarily.", start: 413000, end: 432000 },
+    { speaker: "SPEAKER_2", text: "Thank you. I feel better having spoken to someone.", start: 433000, end: 439000 },
+  ];
+
+  const [transcript] = await db.insert(transcripts).values({
+    caseId: newCase.id,
+    meetingSessionId: session.id,
+    content: transcriptContent,
+    utterances: utterances,
+    speakerCount: 2,
+    redactions: [],
+    createdAt: new Date(sessionDate.getTime() + 52 * 60 * 1000),
+  }).returning();
+
+  await db.insert(documents).values({
+    caseId: newCase.id,
+    meetingSessionId: session.id,
+    type: "attendance_note",
+    content: `# ATTENDANCE NOTE
+
+**Client:** Patricia Osei  
+**Matter:** Osei v Royal Greenwich NHS Trust  
+**Reference:** HART_MED/2024/0156  
+**Date:** ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}  
+**Fee Earner:** Claire Donnelly  
+**Duration:** 48 minutes  
+
+---
+
+## NATURE OF ATTENDANCE
+
+Initial consultation — potential clinical negligence claim arising from surgical procedure at Queen Elizabeth Hospital, Royal Greenwich NHS Trust, February of last year.
+
+---
+
+## FACTS AS PRESENTED BY CLIENT
+
+Client, aged 44, referred on two-week pathway for abdominal pain. Ultrasound identified 7cm fibroid. Consultant gynaecologist (Mr Adeyemi) recommended myomectomy. Client expressly stated wish to preserve fertility. Procedure performed. During surgery, conversion to full hysterectomy made. Client was not forewarned of this possibility. Client woke to find hysterectomy had been performed without prior consent. Surgeon attended following day — stated conversion necessary to control life-threatening bleeding.
+
+Client reports: four months off work (secondary school teacher), loss of earnings, permanent loss of fertility, significant psychological impact.
+
+---
+
+## LEGAL ANALYSIS
+
+Potential claim in clinical negligence and consent law. Central question: whether client was adequately counselled regarding risk of conversion to hysterectomy, given express wish to preserve fertility. Montgomery v Lanarkshire Health Board [2015] UKSC 11 — duty to warn of material risks that a reasonable patient in client's position would attach significance to. Conversion risk in myomectomy — material risk well-documented in obstetric literature. Failure to disclose arguable.
+
+---
+
+## NEXT STEPS
+
+Subject Access Request to Royal Greenwich NHS Trust — full medical records including surgical notes, consent form, anaesthetic record, post-operative notes. GP records (5 years). Identification and instruction of independent expert consultant gynaecologist. Limitation date: February — 3 years from procedure or date of knowledge. File opened today. Funding to be discussed at next appointment.`,
+    version: 1,
+    versionType: "ai_generated",
+    createdBy: userId,
+    status: "draft",
+    createdAt: new Date(sessionDate.getTime() + 52 * 60 * 1000),
+  });
+
+  const auditEvents = [
+    { eventType: "case_created", timestamp: daysAgo(21), metadata: { practiceArea: "medical_negligence", matterReference: "HART_MED/2024/0156" }, severity: "info" as const },
+    { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Consultation — Surgical Negligence", recordingType: "full_meeting" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 44 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 52 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 2880 }, transcriptId: transcript.id, severity: "info" as const },
+    { eventType: "document_generated", timestamp: new Date(sessionDate.getTime() + 54 * 60 * 1000), metadata: { documentType: "attendance_note", version: 1 }, severity: "info" as const },
   ];
 
   for (const evt of auditEvents) {
@@ -2879,45 +898,1645 @@ This attendance note is a confidential legal record. Three sections have been re
 }
 
 
-// ——— Main seed function ———
+// ─── Matter 4: Residential Conveyancing (Neurodiversity Showcase) ────────────
+
+async function seedMatter4Okonkwo(userId: string) {
+  const session1Date = daysAgoAt(35, 10, 0);
+  const session2Date = daysAgoAt(14, 11, 0);
+  const completionDate = daysFromNow(21);
+
+  const [newCase] = await db.insert(cases).values({
+    title: "Okonkwo — Purchase of 14 Elmwood Rise, SE22",
+    clientName: "Mr and Mrs Okonkwo",
+    matterReference: "HART_CON/2024/1204",
+    createdBy: userId,
+    status: "active",
+    priority: "normal",
+    sourceType: "audio",
+    practiceArea: "residential_conveyancing",
+    riskLevel: "low",
+    conflictCheckCompleted: true,
+    conflictCheckNote: "Vendor and vendor solicitors Pemberton & Co — no current matters. No conflict identified.",
+    deadline: completionDate,
+    reviewed: true,
+    supervisorName: "James Hartwell",
+  }).returning();
+
+  const [session1] = await db.insert(meetingSessions).values({
+    caseId: newCase.id,
+    recordingType: "full_meeting",
+    sessionTitle: "Initial Instructions — Purchase of 14 Elmwood Rise",
+    startedAt: session1Date,
+    durationSeconds: 2760,
+    status: "completed",
+    createdBy: userId,
+  }).returning();
+
+  const s1Expiry = new Date(session1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({ caseId: newCase.id, meetingSessionId: session1.id, duration: 2760, recordedAt: session1Date, expiresAt: s1Expiry, deletedAt: s1Expiry, mimeType: "audio/webm" });
+  await db.insert(consentLogs).values({ caseId: newCase.id, audioRecordingId: null, solicitorId: userId, consentGiven: true, consentTimestamp: new Date(session1Date.getTime() + 41 * 1000), disclaimerScriptVersion: "v2.1", disclaimerWordingText: "I record meetings to produce accurate attendance notes. The recording is deleted after seven days and is confidential to your file. Do you both consent?", consentModality: "verbal_recorded", lawfulBasis: "consent" });
+
+  const s1Content = `Attendance Note — Okonkwo Purchase — 14 Elmwood Rise SE22
+Clients: Mr Emeka Okonkwo and Mrs Adaeze Okonkwo
+Matter Reference: HART_CON/2024/1204
+Date: ${session1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+Fee Earner: Daniel Park
+Duration: Approximately 46 minutes
+
+---
+
+SOLICITOR: Good morning Mr and Mrs Okonkwo. Before we start I want to confirm you are both happy for me to record this meeting for note-taking purposes. The recording stays within your file and is deleted after seven days. Are you both content?
+
+MR OKONKWO: Yes, absolutely.
+
+MRS OKONKWO: Yes, that is fine thank you.
+
+SOLICITOR: Perfect. Congratulations on the purchase — number 14 Elmwood Rise. Let me take you through the process so you know exactly what to expect at each stage. I will make a note of everything so nothing gets missed. That is one of the things I find most important — having a complete record of every conversation, every instruction, every commitment. Nothing falls through the cracks.
+
+MR OKONKWO: That is one of the reasons we chose you. Our last solicitor on the flat — we never quite knew where things stood.
+
+SOLICITOR: I understand completely. You will always know where things stand with me. I send updates at every material stage. So — the property is freehold, purchase price three hundred and eighty-two thousand. You are purchasing jointly in equal shares?
+
+MR OKONKWO: Yes, fifty-fifty. We are married so joint tenants made sense.
+
+SOLICITOR: Joint tenants it is. The mortgage — have you had a formal offer yet?
+
+MR OKONKWO: We have the offer in principle. The full offer is expected this week. Nationwide, twenty-five year term, fixed for five years.
+
+SOLICITOR: Good. As soon as you have the formal offer please send me a copy. I act for the lender as well as for you — that is standard practice — so I will need to report to them before exchange. Now, the searches. I will order the local authority search, water and drainage, and environmental search today. Local authority in Southwark can take four to five weeks — I want to flag that so it does not surprise you.
+
+MRS OKONKWO: Our moving date — we want to be in by the end of next month. Is that realistic?
+
+SOLICITOR: Honestly — it is tight. It is achievable but several things need to go right. I will push hard but I want to be honest with you rather than promise something I cannot control.
+
+MR OKONKWO: We appreciate that.
+
+SOLICITOR: The survey — you had the HomeBuyer Report?
+
+MRS OKONKWO: Yes. It flagged some pointing work on the front elevation and a minor damp issue in the rear reception. Surveyor said neither was urgent.
+
+SOLICITOR: Please send it today. I may ask the vendor to provide damp treatment records. Now — the title. One restrictive covenant from 1962 prohibiting commercial use. Entirely standard for residential — does not affect your intended use at all. I just want you to know everything on the title.
+
+MRS OKONKWO: That is absolutely fine. We just want to live there.
+
+SOLICITOR: And the SDLT — at three hundred and eighty-two thousand, both confirmed as first-time buyers?
+
+MR OKONKWO: Yes. Both of us.
+
+SOLICITOR: First-time buyer relief applies. SDLT liability approximately four thousand one hundred pounds. I will confirm the exact figure on the completion statement. And you will have that completion statement at least five working days before completion — no surprises on the day.
+
+MRS OKONKWO: Our solicitor on the previous purchase only told us what we owed the day before completion.
+
+SOLICITOR: That should not happen. My aim is that by the time you hand over the money, every figure has been reviewed and approved by you. Summary — I order searches today, I will send you a first report on title within three weeks, and please send me the mortgage offer and survey today if you can.
+
+MRS OKONKWO: No questions. This has been much clearer than we expected. Thank you.
+
+MR OKONKWO: Yes, thank you Daniel. We feel in good hands.
+
+---
+
+ACTION ITEMS
+1. Solicitor to order searches — today
+2. Clients to send mortgage offer when received — this week
+3. Clients to send HomeBuyer Report — today
+4. Solicitor to review title documents when received
+5. Solicitor to send first report on title within 3 weeks
+6. Solicitor to calculate exact SDLT liability`;
+
+  const s1Utterances = [
+    { speaker: "SPEAKER_1", text: "Good morning Mr and Mrs Okonkwo. Before we start I want to confirm you are both happy for me to record this meeting for note-taking purposes. The recording stays within your file and is deleted after seven days. Are you both content?", start: 41000, end: 59000 },
+    { speaker: "SPEAKER_2", text: "Yes, absolutely.", start: 60000, end: 62000 },
+    { speaker: "SPEAKER_3", text: "Yes, that is fine thank you.", start: 63000, end: 67000 },
+    { speaker: "SPEAKER_1", text: "Perfect. Congratulations on the purchase. Let me take you through the process so you know exactly what to expect at each stage. I will make a note of everything so nothing gets missed. That is one of the things I find most important — having a complete record of every conversation, every instruction, every commitment. Nothing falls through the cracks.", start: 68000, end: 95000 },
+    { speaker: "SPEAKER_2", text: "That is one of the reasons we chose you. Our last solicitor on the flat — we never quite knew where things stood.", start: 96000, end: 108000 },
+    { speaker: "SPEAKER_1", text: "I understand completely. You will always know where things stand with me. I send updates at every material stage. The property is freehold, purchase price three hundred and eighty-two thousand. You are purchasing jointly in equal shares?", start: 109000, end: 132000 },
+    { speaker: "SPEAKER_2", text: "Yes, fifty-fifty. We are married so joint tenants made sense.", start: 133000, end: 142000 },
+    { speaker: "SPEAKER_1", text: "Joint tenants it is. The mortgage — have you had a formal offer yet?", start: 143000, end: 150000 },
+    { speaker: "SPEAKER_2", text: "We have the offer in principle. The full offer is expected this week. Nationwide, twenty-five year term, fixed for five years.", start: 151000, end: 166000 },
+    { speaker: "SPEAKER_1", text: "Good. I act for the lender as well as for you — standard practice. I will order the local authority search, water and drainage, and environmental search today. Local authority in Southwark can take four to five weeks — flagging that now.", start: 167000, end: 196000 },
+    { speaker: "SPEAKER_3", text: "Our moving date — we want to be in by the end of next month. Is that realistic?", start: 197000, end: 206000 },
+    { speaker: "SPEAKER_1", text: "Honestly — it is tight. It is achievable but several things need to go right. I will push hard but I want to be honest with you rather than promise something I cannot control.", start: 207000, end: 227000 },
+    { speaker: "SPEAKER_2", text: "We appreciate that.", start: 228000, end: 231000 },
+    { speaker: "SPEAKER_1", text: "The survey — you had the HomeBuyer Report?", start: 232000, end: 237000 },
+    { speaker: "SPEAKER_3", text: "Yes. It flagged some pointing work on the front elevation and a minor damp issue in the rear reception. Surveyor said neither was urgent.", start: 238000, end: 255000 },
+    { speaker: "SPEAKER_1", text: "Please send it today. There is a restrictive covenant from 1962 prohibiting commercial use — entirely standard for residential, no impact on your intended use. At three hundred and eighty-two thousand, both confirmed first-time buyers?", start: 256000, end: 284000 },
+    { speaker: "SPEAKER_2", text: "Yes. Both of us.", start: 285000, end: 288000 },
+    { speaker: "SPEAKER_1", text: "First-time buyer relief applies. SDLT approximately four thousand one hundred pounds. You will have the completion statement at least five working days before completion — no surprises on the day.", start: 289000, end: 310000 },
+    { speaker: "SPEAKER_3", text: "Our solicitor on the previous purchase only told us what we owed the day before completion.", start: 311000, end: 322000 },
+    { speaker: "SPEAKER_1", text: "That should not happen. My aim is that by the time you hand over the money, every figure has been reviewed and approved by you. I order searches today and will send a first report on title within three weeks.", start: 323000, end: 346000 },
+    { speaker: "SPEAKER_3", text: "No questions. This has been much clearer than we expected. Thank you.", start: 347000, end: 355000 },
+    { speaker: "SPEAKER_2", text: "Yes, thank you Daniel. We feel in good hands.", start: 356000, end: 362000 },
+  ];
+
+  const [transcript1] = await db.insert(transcripts).values({
+    caseId: newCase.id, meetingSessionId: session1.id, content: s1Content, utterances: s1Utterances,
+    speakerCount: 3, redactions: [], createdAt: new Date(session1Date.getTime() + 50 * 60 * 1000),
+  }).returning();
+
+  await db.insert(documents).values({
+    caseId: newCase.id, meetingSessionId: session1.id, type: "attendance_note",
+    content: `# ATTENDANCE NOTE
+
+**Clients:** Mr Emeka Okonkwo and Mrs Adaeze Okonkwo
+**Matter:** Purchase of 14 Elmwood Rise, SE22
+**Reference:** HART_CON/2024/1204
+**Date:** ${session1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Fee Earner:** Daniel Park (Licensed Conveyancer)
+**Duration:** 46 minutes
+
+---
+
+## PROPERTY DETAILS
+
+Freehold. Registered title. Purchase price £382,000. Joint purchase as joint tenants — equal beneficial interests confirmed, equal financial contributions from both clients.
+
+---
+
+## MORTGAGE
+
+Nationwide Building Society. 25-year term, 5-year fixed rate. Formal offer in principle received — full offer expected imminently. Solicitor acts for lender (standard dual representation). Formal offer to be sent on receipt.
+
+---
+
+## SEARCHES
+
+Ordered today: Local Authority (Southwark — 4-5 week turnaround advised), Water and Drainage, Environmental.
+
+---
+
+## SURVEY
+
+HomeBuyer Report obtained. Flagged: (i) pointing work required to front elevation; (ii) minor damp in rear reception — both assessed as non-urgent by surveyor. Report to be reviewed alongside title. Vendor may be asked for damp treatment records or guarantees.
+
+---
+
+## TITLE
+
+Freehold, registered. One restrictive covenant (1962) — commercial use prohibition. Standard residential restriction. No impact on clients' intended use confirmed.
+
+---
+
+## SDLT
+
+Both clients confirmed first-time buyers. Estimated SDLT liability: approximately £4,100. Exact figure to follow in completion statement. Full completion statement to be provided minimum 5 working days before completion.
+
+---
+
+## SUPERVISOR NOTE
+
+File review — 35 days in. Searches received clean. Mortgage offer received and reported to lender. Title report sent. All action items cleared on schedule. Daniel's file management on this matter has been exemplary — every client update sent within 24 hours of each material development. Completion statement prepared 8 working days before completion. No missed steps. Client feedback outstanding. No supervision concerns.`,
+    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved",
+    approvedAt: new Date(session1Date.getTime() + 75 * 60 * 1000),
+    createdAt: new Date(session1Date.getTime() + 52 * 60 * 1000),
+  });
+
+  // Session 2
+  const [session2] = await db.insert(meetingSessions).values({
+    caseId: newCase.id, recordingType: "telephone_call",
+    sessionTitle: "Pre-Exchange Call — Search Results and Mortgage Offer Confirmed",
+    startedAt: session2Date, durationSeconds: 1560, status: "completed", createdBy: userId,
+  }).returning();
+
+  const s2Expiry = new Date(session2Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({ caseId: newCase.id, meetingSessionId: session2.id, duration: 1560, recordedAt: session2Date, expiresAt: s2Expiry, deletedAt: s2Expiry, mimeType: "audio/webm" });
+  await db.insert(consentLogs).values({ caseId: newCase.id, audioRecordingId: null, solicitorId: userId, consentGiven: true, consentTimestamp: new Date(session2Date.getTime() + 18 * 1000), disclaimerScriptVersion: "v2.1", disclaimerWordingText: "I am recording this call for note-taking purposes. Deleted after seven days. Do you consent?", consentModality: "verbal_recorded", lawfulBasis: "consent" });
+
+  const s2Content = `Attendance Note — Okonkwo — Pre-Exchange Call
+Client: Mr Emeka Okonkwo (call)
+Reference: HART_CON/2024/1204
+Date: ${session2Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+Fee Earner: Daniel Park | Duration: ~26 minutes
+
+---
+
+SOLICITOR: Good morning Mr Okonkwo. Recording is on — you consent?
+
+CLIENT: Yes, go ahead.
+
+SOLICITOR: All four searches have come back clean. Local authority: clear — no enforcement, no planning applications, no road schemes. Water and drainage: mains connected, no issues. Environmental: very low risk, no industrial use, no flood risk, no contamination. Your mortgage offer from Nationwide has also arrived. I have reviewed it in detail — the offer is in order, conditions are standard. I have reported to Nationwide on the title and they are satisfied. We are in a position to exchange.
+
+CLIENT: When could we exchange?
+
+SOLICITOR: I can exchange this week if the vendor is ready. Completion on the twenty-first — you wanted end of next month. Does that work?
+
+CLIENT: Yes, the twenty-first is perfect. We have booked the removal company provisionally.
+
+SOLICITOR: Good. Before exchange I need two things — the deposit: thirty-eight thousand two hundred pounds. Have you arranged the transfer?
+
+CLIENT: Yes. Adaeze transferred it from our joint savings this morning. You should have it.
+
+SOLICITOR: I will check this afternoon. I also need the signed contract. I sent it last week — have you received it?
+
+CLIENT: Yes, we have both signed. I can bring it in this afternoon.
+
+SOLICITOR: Bring it in — that is faster. The completion statement — I sent it yesterday. Have you had a chance to review it?
+
+CLIENT: I looked at it last night. The figures all make sense. SDLT four thousand one hundred and sixty. Legal fees one thousand four hundred plus VAT. Land Registry fee two hundred and seventy. All looks right.
+
+SOLICITOR: Exactly right. Balance due on completion: three hundred and forty-eight thousand, four hundred and thirty pounds. By the morning of the twenty-first.
+
+CLIENT: We have the mortgage funds and our savings ready.
+
+SOLICITOR: Perfect. I will call you as soon as exchange happens. Any questions?
+
+CLIENT: No. I just want to say — this has been completely stress-free compared to our last purchase. We always knew what was happening.
+
+SOLICITOR: That is exactly how it should be.
+
+---
+
+ACTION ITEMS
+1. Confirm deposit receipt — today
+2. Collect signed contract — this afternoon
+3. Exchange — this week
+4. Completion confirmed: 21st`;
+
+  const s2Utterances = [
+    { speaker: "SPEAKER_1", text: "Good morning Mr Okonkwo. Recording is on — you consent?", start: 18000, end: 24000 },
+    { speaker: "SPEAKER_2", text: "Yes, go ahead.", start: 25000, end: 27000 },
+    { speaker: "SPEAKER_1", text: "All four searches have come back clean. Local authority clear. Water and drainage clear. Environmental very low risk. Your mortgage offer from Nationwide has arrived and is in order. I have reported to Nationwide — they are satisfied. We are in a position to exchange.", start: 28000, end: 65000 },
+    { speaker: "SPEAKER_2", text: "When could we exchange?", start: 66000, end: 69000 },
+    { speaker: "SPEAKER_1", text: "I can exchange this week if the vendor is ready. Completion on the twenty-first — you wanted end of next month. Does that work?", start: 70000, end: 86000 },
+    { speaker: "SPEAKER_2", text: "Yes, the twenty-first is perfect. We have booked the removal company provisionally.", start: 87000, end: 97000 },
+    { speaker: "SPEAKER_1", text: "Good. Before exchange I need the deposit — thirty-eight thousand two hundred pounds — and the signed contract. Have you arranged the transfer?", start: 98000, end: 115000 },
+    { speaker: "SPEAKER_2", text: "Yes. Adaeze transferred it from our joint savings this morning. You should have it.", start: 116000, end: 126000 },
+    { speaker: "SPEAKER_1", text: "I will check this afternoon. The completion statement — I sent it yesterday. Have you reviewed it?", start: 127000, end: 139000 },
+    { speaker: "SPEAKER_2", text: "I looked at it last night. The figures all make sense. SDLT four thousand one hundred and sixty. Legal fees one thousand four hundred plus VAT. Land Registry fee two hundred and seventy. All looks right.", start: 140000, end: 164000 },
+    { speaker: "SPEAKER_1", text: "Exactly right. Balance due on completion: three hundred and forty-eight thousand, four hundred and thirty pounds.", start: 165000, end: 180000 },
+    { speaker: "SPEAKER_2", text: "We have the mortgage funds and our savings ready.", start: 181000, end: 188000 },
+    { speaker: "SPEAKER_1", text: "Perfect. I will call you as soon as exchange happens. Any questions?", start: 189000, end: 198000 },
+    { speaker: "SPEAKER_2", text: "No. I just want to say — this has been completely stress-free compared to our last purchase. We always knew what was happening.", start: 199000, end: 213000 },
+    { speaker: "SPEAKER_1", text: "That is exactly how it should be.", start: 214000, end: 218000 },
+  ];
+
+  const [transcript2] = await db.insert(transcripts).values({
+    caseId: newCase.id, meetingSessionId: session2.id, content: s2Content, utterances: s2Utterances,
+    speakerCount: 2, redactions: [], createdAt: new Date(session2Date.getTime() + 30 * 60 * 1000),
+  }).returning();
+
+  await db.insert(documents).values({
+    caseId: newCase.id, meetingSessionId: session2.id, type: "attendance_note",
+    content: `# ATTENDANCE NOTE — TELEPHONE CALL
+
+**Client:** Mr Emeka Okonkwo
+**Reference:** HART_CON/2024/1204
+**Date:** ${session2Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Fee Earner:** Daniel Park | Duration: 26 minutes
+
+---
+
+All searches clear. Mortgage offer reviewed and reported to lender — satisfied. Ready to exchange.
+
+Proposed completion: 21st (confirmed by client — removal company booked). Exchange this week.
+
+Deposit (£38,200): transferred by Mrs Okonkwo — to confirm on receipt. Signed contract: both clients signed — to be delivered in person this afternoon.
+
+**Completion statement approved by client:**
+- Purchase price: £382,000
+- SDLT: £4,160
+- Legal fees: £1,400 + VAT
+- Land Registry: £270
+- Less deposit: (£38,200)
+- **Balance due: £348,430**`,
+    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved",
+    approvedAt: new Date(session2Date.getTime() + 45 * 60 * 1000),
+    createdAt: new Date(session2Date.getTime() + 32 * 60 * 1000),
+  });
+
+  const auditEvents = [
+    { eventType: "case_created", timestamp: daysAgo(35), metadata: { practiceArea: "residential_conveyancing", matterReference: "HART_CON/2024/1204" }, severity: "info" as const },
+    { eventType: "recording_started", timestamp: session1Date, metadata: { sessionTitle: "Initial Instructions", recordingType: "full_meeting" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(session1Date.getTime() + 41 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(session1Date.getTime() + 50 * 60 * 1000), metadata: { speakerCount: 3, durationSeconds: 2760 }, transcriptId: transcript1.id, severity: "info" as const },
+    { eventType: "document_generated", timestamp: new Date(session1Date.getTime() + 52 * 60 * 1000), metadata: { documentType: "attendance_note", version: 1 }, severity: "info" as const },
+    { eventType: "document_approved", timestamp: new Date(session1Date.getTime() + 75 * 60 * 1000), metadata: { approvedBy: "Daniel Park" }, severity: "info" as const },
+    { eventType: "recording_started", timestamp: session2Date, metadata: { sessionTitle: "Pre-Exchange Call", recordingType: "telephone_call" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(session2Date.getTime() + 18 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(session2Date.getTime() + 30 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 1560 }, transcriptId: transcript2.id, severity: "info" as const },
+    { eventType: "document_generated", timestamp: new Date(session2Date.getTime() + 32 * 60 * 1000), metadata: { documentType: "attendance_note", version: 1 }, severity: "info" as const },
+    { eventType: "document_approved", timestamp: new Date(session2Date.getTime() + 45 * 60 * 1000), metadata: { approvedBy: "Daniel Park" }, severity: "info" as const },
+    { eventType: "case_updated", timestamp: daysAgo(10), metadata: { field: "supervisorReview", note: "File review complete. Daniel's file management on this matter has been exemplary. Every client update sent within 24 hours of each material development. Completion statement prepared 8 working days before completion. No missed steps. Client feedback outstanding. No supervision concerns.", reviewedBy: "James Hartwell (Supervisor)" }, severity: "info" as const },
+  ];
+
+  for (const evt of auditEvents) {
+    await db.insert(auditTrail).values({ eventType: evt.eventType, userId, caseId: newCase.id, timestamp: evt.timestamp, severity: evt.severity, metadata: evt.metadata, transcriptId: (evt as any).transcriptId || null });
+  }
+}
+
+
+// ─── Matter 5: Employment — Constructive Dismissal ──────────────────────────
+
+async function seedMatter5Hassan(userId: string) {
+  const sessionDate = daysAgoAt(10, 15, 0);
+
+  const [newCase] = await db.insert(cases).values({
+    title: "Hassan v Meridian Capital Partners LLP",
+    clientName: "Tariq Hassan",
+    matterReference: "HART_EMP/2024/0723",
+    createdBy: userId,
+    status: "review_required",
+    priority: "high",
+    sourceType: "audio",
+    practiceArea: "employment",
+    riskLevel: "medium",
+    conflictCheckCompleted: true,
+    conflictCheckNote: "Meridian Capital Partners LLP — not a current or former client. No connection identified. Conflict clear.",
+    supervisorName: "James Hartwell",
+  }).returning();
+
+  const [session] = await db.insert(meetingSessions).values({
+    caseId: newCase.id,
+    recordingType: "full_meeting",
+    sessionTitle: "Initial Instructions — Constructive Dismissal and Protected Disclosure",
+    startedAt: sessionDate,
+    durationSeconds: 3060,
+    status: "completed",
+    createdBy: userId,
+  }).returning();
+
+  const sessionExpiry = new Date(sessionDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({ caseId: newCase.id, meetingSessionId: session.id, duration: 3060, recordedAt: sessionDate, expiresAt: sessionExpiry, deletedAt: sessionExpiry, mimeType: "audio/webm" });
+  await db.insert(consentLogs).values({ caseId: newCase.id, audioRecordingId: null, solicitorId: userId, consentGiven: true, consentTimestamp: new Date(sessionDate.getTime() + 35 * 1000), disclaimerScriptVersion: "v2.1", disclaimerWordingText: "I am recording this meeting to produce an accurate attendance note. The recording is confidential to your file and deleted after seven days. Do you consent?", consentModality: "verbal_recorded", lawfulBasis: "consent" });
+
+  const transcriptContent = `Attendance Note — Hassan v Meridian Capital Partners LLP
+Client: Tariq Hassan
+Matter Reference: HART_EMP/2024/0723
+Date: ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+Fee Earner: Sarah Okafor
+Duration: Approximately 51 minutes
+
+---
+
+SOLICITOR: Good afternoon Mr Hassan. Before we begin I want to confirm you are happy for me to record this meeting to produce your attendance note. The recording is confidential to your file and deleted after seven days. Do you consent?
+
+CLIENT: Yes. Thank you for seeing me at short notice.
+
+SOLICITOR: Of course. Tell me what has happened.
+
+CLIENT: I was Head of Compliance at Meridian Capital Partners. I had been there six years. My last appraisal — eighteen months ago — was outstanding. Everything changed after I raised a concern in October last year.
+
+SOLICITOR: What was the concern?
+
+CLIENT: I identified what I believed to be a pattern of irregular trade reporting. Certain transactions were not being reported to the FCA within the required timeframe. I raised it internally — first with my line manager, then in writing to the COO. Within a week of the written complaint I was moved to a different role. Same grade, same salary, but effectively sidelined. My direct reports were reassigned. My access to certain systems was removed. I had no meaningful work to do.
+
+SOLICITOR: Was there any explanation given for the role change?
+
+CLIENT: They called it a restructure. There was no consultation. No other roles were affected. It was just me.
+
+SOLICITOR: Did you respond to the restructure in writing?
+
+CLIENT: Yes. I wrote to HR and to the Managing Partner in November. I set out that the restructure had followed immediately from my protected disclosure and that I believed it was retaliatory. I received a response saying the restructure was genuine and unrelated to my concern. I did not accept that.
+
+SOLICITOR: And what happened after November?
+
+CLIENT: Things deteriorated. I was excluded from meetings I had previously attended as a matter of course. My successor in the compliance role — a more junior colleague — was given my former responsibilities and my former direct reports. I was given administrative tasks. By February I was attending the office but had literally nothing to do. I raised a grievance in March. The grievance was not upheld. I appealed. The appeal was not upheld. I resigned in April. Fourteen days ago.
+
+SOLICITOR: Let me be precise about the legal framework. What you are describing is potentially two overlapping claims. The first is constructive dismissal — the argument that the employer's conduct was so unreasonable as to constitute a fundamental breach of your employment contract, entitling you to treat yourself as dismissed. The second, and in some ways more significant, is automatic unfair dismissal on grounds of having made a protected disclosure — a whistleblowing claim. If the tribunal accepts that you made a protected disclosure and that the detriment you suffered was as a result of that disclosure, the compensation is uncapped. There is no two-year service requirement for whistleblowing claims.
+
+CLIENT: I did not know about the uncapped element.
+
+SOLICITOR: It is significant. Six years of service at a senior level in a financial services firm — your losses, if liability is established, could be substantial. I want to manage expectations — these claims are not straightforward. Establishing the causal link between the disclosure and the detriment is frequently contested. But the facts you have described — the immediacy of the role change, the absence of any other restructuring, the written complaint — those are strong indicators.
+
+CLIENT: What do I need to do now?
+
+SOLICITOR: First — ACAS Early Conciliation. Before you can issue proceedings in the Employment Tribunal you must notify ACAS. That process starts the clock. The limitation period for unfair dismissal is three months from the effective date of termination — your resignation date. We have time but we must not be complacent. I will notify ACAS today on your behalf.
+
+CLIENT: I have all my written correspondence — the original disclosure, the letters to HR and the Managing Partner, the grievance, the appeal, all the responses. I have emails too.
+
+SOLICITOR: I need all of it. Everything in writing. I also need your contract of employment, your job description, any appraisal documents, your payslips for the last twelve months, and any communications — email, Teams messages, anything — that relate to the period after the disclosure. Do not delete anything. Do not discuss this matter with any current colleagues.
+
+CLIENT: There is one more thing. I was asked to sign a settlement agreement in March. I did not sign it. But the fact that it was offered — does that help me?
+
+SOLICITOR: It is relevant context. It suggests the employer was aware of potential exposure. It does not by itself establish liability but it is consistent with your account. What were the terms?
+
+CLIENT: Three months pay in lieu plus a reference. And a full and final settlement of all claims. I walked away because I felt it was inadequate and because I wanted what happened documented properly.
+
+SOLICITOR: Your instinct may prove correct if the claim succeeds. I will advise you on the relative merits of settlement versus litigation as we progress. For now — ACAS notification today, full document review this week, and I will come back to you with an initial assessment of the claim within ten working days.
+
+---
+
+ACTION ITEMS
+1. Solicitor to notify ACAS Early Conciliation — today
+2. Client to provide all written correspondence (disclosures, grievances, responses)
+3. Client to provide contract of employment, job description, appraisals
+4. Client to provide payslips (12 months)
+5. Client to provide all relevant email and digital communications
+6. Solicitor to produce initial claim assessment within 10 working days
+7. Note limitation date — 3 months from resignation`;
+
+  const utterances = [
+    { speaker: "SPEAKER_1", text: "Good afternoon Mr Hassan. Before we begin I want to confirm you are happy for me to record this meeting to produce your attendance note. The recording is confidential to your file and deleted after seven days. Do you consent?", start: 35000, end: 54000 },
+    { speaker: "SPEAKER_2", text: "Yes. Thank you for seeing me at short notice.", start: 55000, end: 61000 },
+    { speaker: "SPEAKER_1", text: "Of course. Tell me what has happened.", start: 62000, end: 66000 },
+    { speaker: "SPEAKER_2", text: "I was Head of Compliance at Meridian Capital Partners. I had been there six years. My last appraisal — eighteen months ago — was outstanding. Everything changed after I raised a concern in October last year.", start: 67000, end: 90000 },
+    { speaker: "SPEAKER_1", text: "What was the concern?", start: 91000, end: 94000 },
+    { speaker: "SPEAKER_2", text: "I identified what I believed to be a pattern of irregular trade reporting. Certain transactions were not being reported to the FCA within the required timeframe. I raised it internally — first with my line manager, then in writing to the COO. Within a week of the written complaint I was moved to a different role. Same grade, same salary, but effectively sidelined. My direct reports were reassigned. My access to certain systems was removed. I had no meaningful work to do.", start: 95000, end: 144000 },
+    { speaker: "SPEAKER_1", text: "Was there any explanation given for the role change?", start: 145000, end: 151000 },
+    { speaker: "SPEAKER_2", text: "They called it a restructure. There was no consultation. No other roles were affected. It was just me.", start: 152000, end: 164000 },
+    { speaker: "SPEAKER_1", text: "Did you respond to the restructure in writing?", start: 165000, end: 171000 },
+    { speaker: "SPEAKER_2", text: "Yes. I wrote to HR and to the Managing Partner in November. I set out that the restructure had followed immediately from my protected disclosure and that I believed it was retaliatory. I received a response saying the restructure was genuine and unrelated. I did not accept that.", start: 172000, end: 200000 },
+    { speaker: "SPEAKER_1", text: "And what happened after November?", start: 201000, end: 205000 },
+    { speaker: "SPEAKER_2", text: "Things deteriorated. I was excluded from meetings. My successor was given my former responsibilities. I was given administrative tasks. By February I had literally nothing to do. I raised a grievance in March. Not upheld. I appealed. Not upheld. I resigned in April. Fourteen days ago.", start: 206000, end: 238000 },
+    { speaker: "SPEAKER_1", text: "What you are describing is potentially two overlapping claims. Constructive dismissal — the employer's conduct constituting a fundamental breach. And automatic unfair dismissal on grounds of protected disclosure — a whistleblowing claim. The compensation is uncapped. There is no two-year service requirement for whistleblowing claims.", start: 239000, end: 284000 },
+    { speaker: "SPEAKER_2", text: "I did not know about the uncapped element.", start: 285000, end: 290000 },
+    { speaker: "SPEAKER_1", text: "It is significant. Six years of service at senior level in financial services — your losses could be substantial. The immediacy of the role change, the absence of other restructuring, the written complaint — those are strong indicators.", start: 291000, end: 322000 },
+    { speaker: "SPEAKER_2", text: "What do I need to do now?", start: 323000, end: 327000 },
+    { speaker: "SPEAKER_1", text: "First — ACAS Early Conciliation. The limitation period for unfair dismissal is three months from the effective date of termination. I will notify ACAS today on your behalf.", start: 328000, end: 353000 },
+    { speaker: "SPEAKER_2", text: "I have all my written correspondence — the original disclosure, the letters to HR and the Managing Partner, the grievance, the appeal, all the responses. I have emails too.", start: 354000, end: 372000 },
+    { speaker: "SPEAKER_1", text: "I need all of it. Do not delete anything. Do not discuss this matter with any current colleagues.", start: 373000, end: 384000 },
+    { speaker: "SPEAKER_2", text: "There is one more thing. I was asked to sign a settlement agreement in March. I did not sign it. But the fact that it was offered — does that help me?", start: 385000, end: 400000 },
+    { speaker: "SPEAKER_1", text: "It is relevant context. It suggests the employer was aware of potential exposure. What were the terms?", start: 401000, end: 413000 },
+    { speaker: "SPEAKER_2", text: "Three months pay in lieu plus a reference. Full and final settlement of all claims. I walked away because I felt it was inadequate and because I wanted what happened documented properly.", start: 414000, end: 434000 },
+    { speaker: "SPEAKER_1", text: "Your instinct may prove correct. ACAS notification today, full document review this week, initial assessment within ten working days.", start: 435000, end: 460000 },
+  ];
+
+  const [transcript] = await db.insert(transcripts).values({
+    caseId: newCase.id, meetingSessionId: session.id, content: transcriptContent,
+    utterances, speakerCount: 2, redactions: [],
+    createdAt: new Date(sessionDate.getTime() + 55 * 60 * 1000),
+  }).returning();
+
+  await db.insert(documents).values({
+    caseId: newCase.id, meetingSessionId: session.id, type: "attendance_note",
+    content: `# ATTENDANCE NOTE
+
+**Client:** Tariq Hassan
+**Matter:** Hassan v Meridian Capital Partners LLP
+**Reference:** HART_EMP/2024/0723
+**Date:** ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Fee Earner:** Sarah Okafor | **Duration:** 51 minutes
+
+---
+
+## NATURE OF ATTENDANCE
+
+Initial instructions — potential constructive dismissal and protected disclosure (whistleblowing) claim following resignation after 6 years' service as Head of Compliance.
+
+---
+
+## CHRONOLOGY
+
+**October — Protected Disclosure:** Client identified pattern of irregular FCA trade reporting. Raised internally with line manager and in writing to COO.
+
+**Within one week of written disclosure:** Role change — same grade and salary but direct reports reassigned, system access removed, no meaningful work. Employer characterised as "restructure" — no consultation, no other roles affected.
+
+**November:** Client wrote to HR and Managing Partner asserting retaliatory restructure. Employer denied connection.
+
+**February:** Client attending office without substantive work.
+
+**March:** Formal grievance raised — not upheld. Appeal — not upheld. Settlement agreement offered (3 months PILON, full and final settlement) — client declined.
+
+**April (14 days ago):** Resignation.
+
+---
+
+## LEGAL ANALYSIS
+
+**Claim 1 — Constructive Dismissal (s.95(1)(c) ERA 1996):** Sustained course of conduct — effective demotion, exclusion, removal of responsibilities — arguable fundamental breach of implied term of trust and confidence.
+
+**Claim 2 — Automatic Unfair Dismissal / Whistleblowing Detriment (ERA 1996 ss.47B, 103A):** FCA reporting obligations — qualifying disclosure arguable under FSMA 2000 and MAR. Temporal proximity (disclosure October → role change within one week) — strong indicator of causation. No two-year service requirement. Compensation uncapped.
+
+**Settlement agreement offered by employer within 5 months of disclosure** — consistent with awareness of exposure. Background context.
+
+**Limitation:** 3 months from effective date of termination. ACAS Early Conciliation to be notified today.
+
+---
+
+## NEXT STEPS
+
+1. Notify ACAS Early Conciliation — today
+2. Obtain all written correspondence, contract, appraisals, payslips, digital communications
+3. Note limitation deadline
+4. Produce initial claim assessment within 10 working days`,
+    version: 1, versionType: "ai_generated", createdBy: userId, status: "draft",
+    createdAt: new Date(sessionDate.getTime() + 57 * 60 * 1000),
+  });
+
+  for (const evt of [
+    { eventType: "case_created", timestamp: daysAgo(10), metadata: { practiceArea: "employment", matterReference: "HART_EMP/2024/0723" }, severity: "info" as const },
+    { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Instructions — Constructive Dismissal", recordingType: "full_meeting" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 35 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 55 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 3060 }, transcriptId: transcript.id, severity: "info" as const },
+    { eventType: "document_generated", timestamp: new Date(sessionDate.getTime() + 57 * 60 * 1000), metadata: { documentType: "attendance_note", version: 1 }, severity: "info" as const },
+  ]) {
+    await db.insert(auditTrail).values({ eventType: evt.eventType, userId, caseId: newCase.id, timestamp: evt.timestamp, severity: evt.severity, metadata: evt.metadata, transcriptId: (evt as any).transcriptId || null });
+  }
+}
+
+// ─── Matter 6: Personal Injury — Road Traffic ───────────────────────────────
+
+async function seedMatter6Diallo(userId: string) {
+  const sessionDate = daysAgoAt(28, 10, 30);
+
+  const [newCase] = await db.insert(cases).values({
+    title: "Diallo v Insurers of Ahmed (RTA — 14 March)",
+    clientName: "Amara Diallo",
+    matterReference: "HART_PI/2024/0512",
+    createdBy: userId,
+    status: "active",
+    priority: "normal",
+    sourceType: "audio",
+    practiceArea: "personal_injury",
+    riskLevel: "low",
+    conflictCheckCompleted: true,
+    conflictCheckNote: "Third party and insurer — no conflict identified.",
+    reviewed: true,
+    supervisorName: "James Hartwell",
+  }).returning();
+
+  const [session] = await db.insert(meetingSessions).values({
+    caseId: newCase.id,
+    recordingType: "full_meeting",
+    sessionTitle: "Initial Instructions — Road Traffic Accident Claim",
+    startedAt: sessionDate,
+    durationSeconds: 2700,
+    status: "completed",
+    createdBy: userId,
+  }).returning();
+
+  const sessionExpiry = new Date(sessionDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({ caseId: newCase.id, meetingSessionId: session.id, duration: 2700, recordedAt: sessionDate, expiresAt: sessionExpiry, deletedAt: sessionExpiry, mimeType: "audio/webm" });
+  await db.insert(consentLogs).values({ caseId: newCase.id, audioRecordingId: null, solicitorId: userId, consentGiven: true, consentTimestamp: new Date(sessionDate.getTime() + 29 * 1000), disclaimerScriptVersion: "v2.1", disclaimerWordingText: "I record meetings to produce accurate attendance notes. The recording is confidential to your file and deleted after seven days. Do you consent?", consentModality: "verbal_recorded", lawfulBasis: "consent" });
+
+  const transcriptContent = `Attendance Note — Diallo v Insurers of Ahmed
+Client: Amara Diallo
+Matter Reference: HART_PI/2024/0512
+Date: ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+Fee Earner: Claire Donnelly
+Duration: Approximately 45 minutes
+
+---
+
+SOLICITOR: Good morning Ms Diallo. Before we start I want to confirm you are happy for me to record this meeting for note-taking purposes. The recording is confidential and deleted after seven days. Do you consent?
+
+CLIENT: Yes, that is fine.
+
+SOLICITOR: Good. Take me through what happened on the fourteenth of March.
+
+CLIENT: I was driving south on Lewisham High Street at approximately half past eight in the morning. I was on my way to work. I had stopped at traffic lights — they were on red. A vehicle came from behind and hit me. Hard. I was pushed forward into the car in front.
+
+SOLICITOR: Were you wearing your seatbelt?
+
+CLIENT: Yes. Always.
+
+SOLICITOR: What was the impact like from your perspective?
+
+CLIENT: I did not see it coming at all. The first thing I knew was the impact from behind. My head went forward and then back. I remember thinking my neck felt wrong immediately. There was a horrible pain across the top of my shoulders.
+
+SOLICITOR: What happened immediately after?
+
+CLIENT: The driver behind got out. He was on his phone — I think he had been looking at his phone when he drove into me. He seemed shocked. He apologised at the scene. The car in front — a woman — she was not injured. She was shaken. We all exchanged details. I called the police because the damage was significant. They came. A report was made.
+
+SOLICITOR: Did you receive medical attention at the scene?
+
+CLIENT: An ambulance attended. They assessed me at the roadside — said there were no signs of serious injury but recommended I attend A&E given the neck pain. I went to Lewisham Hospital that afternoon. X-rays showed no fracture. Diagnosis was soft tissue injury — whiplash — to the cervical spine.
+
+SOLICITOR: How have you been since?
+
+CLIENT: The first two weeks were very bad. I could not turn my head properly. I needed help washing my hair. I took two weeks off work — I am a nursery nurse, I cannot work with children if I cannot move my neck safely. After two weeks I went back but I was on restricted duties for another three weeks. I still get discomfort when I am tired or if I sit at a desk for too long. My GP has referred me for physiotherapy — I have had four sessions so far.
+
+SOLICITOR: And the car?
+
+CLIENT: It was written off. I had comprehensive insurance. The insurer dealt with the third party but they want me to use their recommended solicitor. I was not happy with that — I wanted independent advice.
+
+SOLICITOR: You were right to come here. You are entitled to your own legal representation. The third party's insurer — Hastings Direct — they have already been in contact. That suggests liability is not going to be contested. A rear-end shunt at a red light with a police report makes liability straightforward in the vast majority of cases. Our focus will be on establishing the full extent of your injuries and losses.
+
+CLIENT: What counts as losses?
+
+SOLICITOR: General damages — compensation for the pain, suffering and loss of amenity. Special damages — your out-of-pocket financial losses. In your case: two weeks of lost earnings, travel costs if you could not use your car, physiotherapy costs, prescription costs, and any other evidenced expenses. If symptoms persist you may need further treatment — that is also recoverable.
+
+CLIENT: I have kept receipts. My payslips. I was careful because I thought this might happen.
+
+SOLICITOR: That is very helpful. I will commission an independent medico-legal report from an orthopaedic specialist. That report is the backbone of your claim. Cases of this type typically resolve in twelve to eighteen months. Most settle without trial.
+
+CLIENT: I just want to be fairly compensated. I am not trying to take advantage of anyone.
+
+SOLICITOR: That is the right approach. I will open the file today, write to Hastings Direct to put them on notice, and commission the medico-legal report.
+
+---
+
+ACTION ITEMS
+1. Solicitor to write to Hastings Direct — notice of claim and preservation of evidence
+2. Solicitor to commission independent medico-legal report (orthopaedic)
+3. Client to provide payslips and evidence of lost earnings
+4. Client to provide all receipts for out-of-pocket expenses
+5. Solicitor to obtain GP and hospital records
+6. Solicitor to advise on CFA funding at next appointment`;
+
+  const utterances = [
+    { speaker: "SPEAKER_1", text: "Good morning Ms Diallo. Before we start I want to confirm you are happy for me to record this meeting for note-taking purposes. The recording is confidential and deleted after seven days. Do you consent?", start: 29000, end: 47000 },
+    { speaker: "SPEAKER_2", text: "Yes, that is fine.", start: 48000, end: 51000 },
+    { speaker: "SPEAKER_1", text: "Good. Take me through what happened on the fourteenth of March.", start: 52000, end: 58000 },
+    { speaker: "SPEAKER_2", text: "I was driving south on Lewisham High Street at approximately half past eight in the morning. I was on my way to work. I had stopped at traffic lights — they were on red. A vehicle came from behind and hit me. Hard. I was pushed forward into the car in front.", start: 59000, end: 88000 },
+    { speaker: "SPEAKER_1", text: "Were you wearing your seatbelt?", start: 89000, end: 93000 },
+    { speaker: "SPEAKER_2", text: "Yes. Always.", start: 94000, end: 97000 },
+    { speaker: "SPEAKER_2", text: "I did not see it coming at all. The first thing I knew was the impact from behind. My head went forward and then back. I remember thinking my neck felt wrong immediately. There was a horrible pain across the top of my shoulders.", start: 104000, end: 128000 },
+    { speaker: "SPEAKER_2", text: "The driver behind got out. He was on his phone — I think he had been looking at his phone when he drove into me. He apologised at the scene. We all exchanged details. I called the police because the damage was significant. A report was made.", start: 135000, end: 164000 },
+    { speaker: "SPEAKER_2", text: "An ambulance attended. They recommended I attend A&E given the neck pain. I went to Lewisham Hospital that afternoon. X-rays showed no fracture. Diagnosis was soft tissue injury — whiplash — to the cervical spine.", start: 171000, end: 200000 },
+    { speaker: "SPEAKER_2", text: "The first two weeks were very bad. I could not turn my head properly. I needed help washing my hair. I took two weeks off work — I am a nursery nurse. After two weeks I went back but was on restricted duties for another three weeks. My GP has referred me for physiotherapy — I have had four sessions so far.", start: 205000, end: 248000 },
+    { speaker: "SPEAKER_2", text: "It was written off. My insurer dealt with the third party but they want me to use their recommended solicitor. I was not happy with that — I wanted independent advice.", start: 252000, end: 267000 },
+    { speaker: "SPEAKER_1", text: "You were right to come here. You are entitled to your own legal representation. The third party's insurer has already been in contact — liability is not going to be contested. A rear-end shunt at a red light with a police report makes liability straightforward.", start: 268000, end: 298000 },
+    { speaker: "SPEAKER_2", text: "What counts as losses?", start: 299000, end: 302000 },
+    { speaker: "SPEAKER_1", text: "General damages — pain, suffering and loss of amenity. Special damages — your financial losses. Two weeks of lost earnings, travel costs, physiotherapy costs. I will commission an independent medico-legal report from an orthopaedic specialist. Cases of this type typically resolve in twelve to eighteen months.", start: 303000, end: 336000 },
+    { speaker: "SPEAKER_2", text: "I have kept receipts. My payslips. I was careful because I thought this might happen.", start: 337000, end: 348000 },
+    { speaker: "SPEAKER_2", text: "I just want to be fairly compensated. I am not trying to take advantage of anyone.", start: 368000, end: 378000 },
+    { speaker: "SPEAKER_1", text: "That is the right approach. I will open the file today, write to Hastings Direct, and commission the medico-legal report.", start: 379000, end: 400000 },
+  ];
+
+  const [transcript] = await db.insert(transcripts).values({
+    caseId: newCase.id, meetingSessionId: session.id, content: transcriptContent,
+    utterances, speakerCount: 2, redactions: [],
+    createdAt: new Date(sessionDate.getTime() + 48 * 60 * 1000),
+  }).returning();
+
+  await db.insert(documents).values({
+    caseId: newCase.id, meetingSessionId: session.id, type: "attendance_note",
+    content: `# ATTENDANCE NOTE
+
+**Client:** Amara Diallo
+**Matter:** Diallo v Insurers of Ahmed (RTA — 14 March)
+**Reference:** HART_PI/2024/0512
+**Date:** ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Fee Earner:** Claire Donnelly | **Duration:** 45 minutes
+
+---
+
+## ACCIDENT CIRCUMSTANCES
+
+Date/time: 14 March, approximately 08:30. Location: Lewisham High Street, southbound. Client stationary at red traffic lights. Rear-end collision — third party struck client's vehicle, pushing it into vehicle in front. Third party driver admitted mobile phone use. Apology at scene. Police attended — report made. Third party insured with Hastings Direct.
+
+---
+
+## INJURIES
+
+Immediate: severe cervical pain, restricted movement. A&E (Lewisham Hospital, same day). X-rays clear — no fracture. Diagnosis: soft tissue cervical spine injury (whiplash). Two weeks off work (nursery nurse — unsafe to work with restricted movement). Restricted duties for further three weeks on return. Ongoing discomfort on fatigue and prolonged sitting. GP referral to physiotherapy — 4 sessions to date.
+
+---
+
+## LOSSES
+
+Lost earnings: 2 weeks at nursery nurse rate. Vehicle: written off — comprehensive insurer handling. Physiotherapy: NHS-referred (4 sessions, potential further). Travel costs: to be quantified. Client has retained all relevant receipts.
+
+---
+
+## LEGAL ANALYSIS
+
+Liability: strong. Rear-end at red light, police report, at-scene admission — uncontested expected. Client correctly declined third-party insurer's recommended solicitor. Quantum: JCG soft tissue neck injury bracket (moderate/minor Category 2). Pre-Action Protocol for Personal Injury Claims applies.
+
+---
+
+## NEXT STEPS
+
+1. Write to Hastings Direct — notice and preserve dashcam/CCTV evidence
+2. Commission medico-legal report (orthopaedic specialist)
+3. Obtain GP and hospital records
+4. Client to provide payslips and expense receipts
+5. Confirm CFA funding`,
+    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved",
+    approvedAt: new Date(sessionDate.getTime() + 70 * 60 * 1000),
+    createdAt: new Date(sessionDate.getTime() + 50 * 60 * 1000),
+  });
+
+  for (const evt of [
+    { eventType: "case_created", timestamp: daysAgo(28), metadata: { practiceArea: "personal_injury", matterReference: "HART_PI/2024/0512" }, severity: "info" as const },
+    { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Instructions — RTA", recordingType: "full_meeting" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 29 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 48 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 2700 }, transcriptId: transcript.id, severity: "info" as const },
+    { eventType: "document_generated", timestamp: new Date(sessionDate.getTime() + 50 * 60 * 1000), metadata: { documentType: "attendance_note", version: 1 }, severity: "info" as const },
+    { eventType: "document_approved", timestamp: new Date(sessionDate.getTime() + 70 * 60 * 1000), metadata: { approvedBy: "Claire Donnelly" }, severity: "info" as const },
+  ]) {
+    await db.insert(auditTrail).values({ eventType: evt.eventType, userId, caseId: newCase.id, timestamp: evt.timestamp, severity: evt.severity, metadata: evt.metadata, transcriptId: (evt as any).transcriptId || null });
+  }
+}
+
+// ─── Matter 7: Wills & Probate — Contested Estate ───────────────────────────
+
+async function seedMatter7Whitfield(userId: string) {
+  const sessionDate = daysAgoAt(42, 14, 30);
+
+  const [newCase] = await db.insert(cases).values({
+    title: "Estate of Gerald Whitfield (Deceased) — Contested",
+    clientName: "Mrs Eleanor Whitfield",
+    matterReference: "HART_PRO/2024/0334",
+    createdBy: userId,
+    status: "review_required",
+    priority: "high",
+    sourceType: "audio",
+    practiceArea: "wills_and_probate",
+    riskLevel: "medium",
+    conflictCheckCompleted: true,
+    conflictCheckNote: "Other beneficiaries Robert Whitfield and Catherine Marsh — not current clients. Acting for named executor only. No conflict.",
+    supervisorName: "James Hartwell",
+    aiProcessingMetadata: {
+      amlTriggers: [
+        { label: "Disputed estate assets — potential undisclosed offshore account", category: "asset_concealment", excerpt: "Robert mentioned to me at the funeral that father had an account in the Channel Islands. I have never seen any statements for it and it is not in the will." }
+      ]
+    },
+  }).returning();
+
+  const [session] = await db.insert(meetingSessions).values({
+    caseId: newCase.id, recordingType: "full_meeting",
+    sessionTitle: "Initial Instructions — Probate and Contested Estate",
+    startedAt: sessionDate, durationSeconds: 3120, status: "completed", createdBy: userId,
+  }).returning();
+
+  const sessionExpiry = new Date(sessionDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({ caseId: newCase.id, meetingSessionId: session.id, duration: 3120, recordedAt: sessionDate, expiresAt: sessionExpiry, deletedAt: sessionExpiry, mimeType: "audio/webm" });
+  await db.insert(consentLogs).values({ caseId: newCase.id, audioRecordingId: null, solicitorId: userId, consentGiven: true, consentTimestamp: new Date(sessionDate.getTime() + 48 * 1000), disclaimerScriptVersion: "v2.1", disclaimerWordingText: "I record meetings to produce accurate attendance notes. The recording is confidential to your file and deleted after seven days. Do you consent?", consentModality: "verbal_recorded", lawfulBasis: "consent" });
+
+  const transcriptContent = `Attendance Note — Estate of Gerald Whitfield (Deceased)
+Client: Mrs Eleanor Whitfield (Executor and Beneficiary)
+Matter Reference: HART_PRO/2024/0334
+Date: ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+Fee Earner: James Hartwell
+Duration: Approximately 52 minutes
+
+---
+
+SOLICITOR: Good afternoon Mrs Whitfield. Before we begin I want to confirm you are happy for me to record this meeting to produce your attendance note. The recording is confidential to your file and deleted after seven days. Do you consent?
+
+CLIENT: Yes. Gerald always said to me — write everything down. I think he would have approved.
+
+SOLICITOR: I am sure he would. I am sorry for your loss. Your husband Gerald passed away three weeks ago. You are the named sole executor in his will?
+
+CLIENT: Yes. The will was made eight years ago. I went with him to the solicitor. He was very clear about what he wanted.
+
+SOLICITOR: The terms of the will?
+
+CLIENT: The house goes to me absolutely. The investments — a portfolio with Hargreaves Lansdown — divided equally between myself, our son Robert, and our daughter Catherine. There are some personal items — watches, his father's cufflinks — specifically bequeathed to Robert. And there is a bequest to the RNLI.
+
+SOLICITOR: The estate — approximate value?
+
+CLIENT: The house is an Edwardian semi in Herne Hill. We had it valued last year — about eight hundred and fifty thousand. The investment portfolio at the last statement was around three hundred and forty thousand. There is a current account, savings account, some Premium Bonds. Total estate probably in the region of one point two million.
+
+SOLICITOR: Is the house mortgaged?
+
+CLIENT: No. We paid it off fifteen years ago.
+
+SOLICITOR: Good. At one point two million, after the nil-rate band, there will be an inheritance tax liability. With the residential nil-rate band — the estate passes to you so the spousal exemption applies on your share. The division to the children will be subject to IHT. I will calculate the precise liability when we have the full asset schedule. Are Robert and Catherine in agreement with the terms of the will?
+
+CLIENT: Catherine is fine. She accepts everything. Robert — Robert is the problem.
+
+SOLICITOR: Tell me about Robert.
+
+CLIENT: He says the will does not reflect what father told him. He says Gerald promised him the house when he was alive. Gerald never mentioned this to me and the will — which was made when Gerald had full capacity, eight years ago — does not say anything of the sort.
+
+SOLICITOR: Has Robert said he intends to challenge the will?
+
+CLIENT: He has instructed a solicitor. We received a letter last week from Morrison and Foyle saying Robert is investigating the circumstances of the will and reserves his right to bring a claim.
+
+SOLICITOR: On what grounds? A proprietary estoppel claim perhaps — he was promised something and acted in reliance on it?
+
+CLIENT: That might be what he is suggesting but he has not said specifically.
+
+SOLICITOR: Proprietary estoppel requires three elements — a representation or assurance, reasonable reliance on that assurance, and detriment suffered in reliance. An alleged oral promise by a testator, unsupported by anything in writing, and contradicted by a properly executed will, is not a straightforward claim. But it is not impossible.
+
+CLIENT: There is also a question about capacity. Robert has suggested — and I find this deeply upsetting — that Gerald did not have full capacity when the will was made. He was not diagnosed with dementia until two years ago. The will is eight years old.
+
+SOLICITOR: If the will was made eight years ago and Gerald was not diagnosed until six years later, that is a very difficult case to establish. Testamentary capacity requires that the testator understood the nature of making a will, the extent of their estate, the natural objects of their bounty, and the claims of those persons. A diagnosis subsequent to the will by six years faces a very high evidential burden. Who prepared the will?
+
+CLIENT: Hadley and Carmichael in Brixton. Mr Hadley himself. He knew Gerald well.
+
+SOLICITOR: Good. I will write to Hadley and Carmichael today to obtain the will file and any attendance notes they have from the meeting at which the will was executed. A solicitor's contemporaneous notes on capacity are powerful evidence in any challenge.
+
+CLIENT: There is one more thing Robert said at the funeral. He mentioned that father had an account in the Channel Islands. I have never seen any statements for it and it is not in the will. I do not know if it exists or what the value is.
+
+SOLICITOR: That is significant in two respects. First, as a potential estate asset — if it exists it must be included in the estate for IHT purposes and probate. Second, I have an obligation to advise you that undisclosed offshore assets in an estate can give rise to reporting obligations. I am going to need to investigate this further. Do not distribute any estate assets until we have clarity on this.
+
+CLIENT: I would not dream of it. Gerald was an honest man. If it exists it should be in the estate.
+
+SOLICITOR: I am sure he was. But I need to ensure we handle it correctly.
+
+---
+
+ACTION ITEMS
+1. Solicitor to apply for grant of probate — obtain death certificate and will
+2. Solicitor to write to Hadley and Carmichael for will file and capacity notes
+3. Solicitor to investigate Channel Islands account — write to known banks
+4. Solicitor to calculate provisional IHT liability
+5. Solicitor to write to Morrison and Foyle requesting particulars of Robert's claim
+6. MLRO referral re Channel Islands account`;
+
+  const utterances = [
+    { speaker: "SPEAKER_1", text: "Good afternoon Mrs Whitfield. Before we begin I want to confirm you are happy for me to record this meeting to produce your attendance note. The recording is confidential to your file and deleted after seven days. Do you consent?", start: 48000, end: 66000 },
+    { speaker: "SPEAKER_2", text: "Yes. Gerald always said to me — write everything down. I think he would have approved.", start: 67000, end: 77000 },
+    { speaker: "SPEAKER_1", text: "I am sure he would. I am sorry for your loss. You are the named sole executor in his will?", start: 78000, end: 88000 },
+    { speaker: "SPEAKER_2", text: "Yes. The will was made eight years ago. I went with him to the solicitor. He was very clear about what he wanted.", start: 89000, end: 103000 },
+    { speaker: "SPEAKER_2", text: "The house goes to me absolutely. The investments divided equally between myself, Robert, and Catherine. Some personal items to Robert specifically. And a bequest to the RNLI.", start: 108000, end: 135000 },
+    { speaker: "SPEAKER_2", text: "The house is an Edwardian semi in Herne Hill — about eight hundred and fifty thousand. The investment portfolio around three hundred and forty thousand. Total estate probably one point two million.", start: 144000, end: 172000 },
+    { speaker: "SPEAKER_2", text: "Catherine is fine. She accepts everything. Robert — Robert is the problem.", start: 193000, end: 200000 },
+    { speaker: "SPEAKER_2", text: "He says the will does not reflect what father told him. He says Gerald promised him the house. Gerald never mentioned this to me and the will does not say anything of the sort.", start: 205000, end: 230000 },
+    { speaker: "SPEAKER_2", text: "He has instructed a solicitor. We received a letter from Morrison and Foyle saying Robert is investigating the circumstances of the will and reserves his right to bring a claim.", start: 241000, end: 263000 },
+    { speaker: "SPEAKER_1", text: "Proprietary estoppel requires three elements — a representation, reasonable reliance on that assurance, and detriment suffered in reliance. An alleged oral promise unsupported by anything in writing and contradicted by a properly executed will is not a straightforward claim.", start: 264000, end: 295000 },
+    { speaker: "SPEAKER_2", text: "There is also a question about capacity. Robert has suggested — and I find this deeply upsetting — that Gerald did not have full capacity when the will was made. He was not diagnosed with dementia until two years ago. The will is eight years old.", start: 296000, end: 322000 },
+    { speaker: "SPEAKER_1", text: "A will made eight years ago with a diagnosis six years later faces a very high evidential burden. Who prepared the will?", start: 323000, end: 340000 },
+    { speaker: "SPEAKER_2", text: "Hadley and Carmichael in Brixton. Mr Hadley himself. He knew Gerald well.", start: 341000, end: 351000 },
+    { speaker: "SPEAKER_1", text: "I will write to Hadley and Carmichael today to obtain the will file and any attendance notes from the meeting at which the will was executed. A solicitor's contemporaneous notes on capacity are powerful evidence in any challenge.", start: 352000, end: 374000 },
+    { speaker: "SPEAKER_2", text: "There is one more thing Robert said at the funeral. He mentioned that father had an account in the Channel Islands. I have never seen any statements for it and it is not in the will.", start: 375000, end: 395000 },
+    { speaker: "SPEAKER_1", text: "That is significant. If it exists it must be included in the estate for IHT and probate. I have an obligation to advise you that undisclosed offshore assets in an estate can give rise to reporting obligations. Do not distribute any estate assets until we have clarity.", start: 396000, end: 424000 },
+    { speaker: "SPEAKER_2", text: "I would not dream of it. Gerald was an honest man. If it exists it should be in the estate.", start: 425000, end: 437000 },
+  ];
+
+  const [transcript] = await db.insert(transcripts).values({
+    caseId: newCase.id, meetingSessionId: session.id, content: transcriptContent,
+    utterances, speakerCount: 2, redactions: [],
+    createdAt: new Date(sessionDate.getTime() + 56 * 60 * 1000),
+  }).returning();
+
+  await db.insert(documents).values({
+    caseId: newCase.id, meetingSessionId: session.id, type: "attendance_note",
+    content: `# ATTENDANCE NOTE
+
+**Client:** Mrs Eleanor Whitfield (Executor and Residuary Beneficiary)
+**Matter:** Estate of Gerald Whitfield (Deceased)
+**Reference:** HART_PRO/2024/0334
+**Date:** ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Fee Earner:** James Hartwell | **Duration:** 52 minutes
+
+---
+
+## ESTATE DETAILS
+
+Deceased: Gerald Whitfield. Date of death: three weeks ago. Will dated 8 years ago — prepared by Hadley and Carmichael, Brixton (Mr Hadley). Client is sole named executor. Estimated estate: £1.2m (house ~£850k, investment portfolio ~£340k, current/savings accounts, Premium Bonds). House unencumbered.
+
+---
+
+## WILL PROVISIONS
+
+Matrimonial home: to Mrs Whitfield absolutely. Investment portfolio (Hargreaves Lansdown): equally between Mrs Whitfield, Robert Whitfield, Catherine Marsh. Personal items: to Robert Whitfield. Charitable bequest: RNLI.
+
+---
+
+## CONTESTED ELEMENTS
+
+**Robert Whitfield:** Instructed Morrison and Foyle. Letter received reserving right to bring claim. Two potential heads: (1) Proprietary estoppel — alleged oral promise of house. No written evidence, contradicted by valid will. (2) Testamentary capacity — alleges lack of capacity. Dementia diagnosis was 2 years ago; will is 8 years old. High evidential burden.
+
+**Catherine Marsh:** No objection.
+
+---
+
+## OFFSHORE ASSET — AML FLAG
+
+Client reports Robert mentioned at funeral a Channel Islands account not in the will. Existence unconfirmed. If asset exists: must be included in estate for IHT. Potential reporting obligations — MLRO referral required. No estate assets to be distributed pending investigation.
+
+---
+
+## NEXT STEPS
+
+1. Apply for grant of probate
+2. Write to Hadley and Carmichael for will file and capacity notes
+3. Investigate Channel Islands account
+4. MLRO referral
+5. Calculate provisional IHT liability
+6. Write to Morrison and Foyle for particulars of Robert's claim`,
+    version: 1, versionType: "ai_generated", createdBy: userId, status: "draft",
+    createdAt: new Date(sessionDate.getTime() + 58 * 60 * 1000),
+  });
+
+  for (const evt of [
+    { eventType: "case_created", timestamp: daysAgo(42), metadata: { practiceArea: "wills_and_probate", matterReference: "HART_PRO/2024/0334" }, severity: "info" as const },
+    { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Instructions — Probate", recordingType: "full_meeting" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 48 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 56 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 3120 }, transcriptId: transcript.id, severity: "info" as const },
+    { eventType: "document_generated", timestamp: new Date(sessionDate.getTime() + 58 * 60 * 1000), metadata: { documentType: "attendance_note", version: 1 }, severity: "info" as const },
+    { eventType: "aml_flag_raised", timestamp: new Date(sessionDate.getTime() + 60 * 60 * 1000), metadata: { flagCount: 1, categories: ["asset_concealment"], referredToMLRO: true, note: "Potential undisclosed Channel Islands account — investigation required before estate distributed" }, severity: "critical" as const },
+  ]) {
+    await db.insert(auditTrail).values({ eventType: evt.eventType, userId, caseId: newCase.id, timestamp: evt.timestamp, severity: evt.severity, metadata: evt.metadata, transcriptId: (evt as any).transcriptId || null });
+  }
+}
+
+// ─── Matter 8: Criminal Defence ─────────────────────────────────────────────
+
+async function seedMatter8Callahan(userId: string) {
+  const sessionDate = daysAgoAt(5, 16, 0);
+  const hearingDate = daysFromNow(28);
+
+  const [newCase] = await db.insert(cases).values({
+    title: "R v Callahan — GBH s.18 (Crown Court)",
+    clientName: "Ryan Callahan",
+    matterReference: "HART_CRI/2024/0089",
+    createdBy: userId,
+    status: "review_required",
+    priority: "high",
+    sourceType: "audio",
+    practiceArea: "criminal",
+    riskLevel: "high",
+    conflictCheckCompleted: true,
+    conflictCheckNote: "Complainant not a current or former client. No connection to prosecution witnesses. Conflict clear.",
+    deadline: hearingDate,
+    litigationHold: true,
+    litigationHoldAppliedAt: daysAgo(5),
+    litigationHoldReason: "Crown Court matter — all records to be preserved for disclosure purposes.",
+    supervisorName: "James Hartwell",
+  }).returning();
+
+  const [session] = await db.insert(meetingSessions).values({
+    caseId: newCase.id, recordingType: "full_meeting",
+    sessionTitle: "Conference in Chambers — Pre-Trial Preparation",
+    startedAt: sessionDate, durationSeconds: 3180, status: "completed", createdBy: userId,
+  }).returning();
+
+  const sessionExpiry = new Date(sessionDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({ caseId: newCase.id, meetingSessionId: session.id, duration: 3180, recordedAt: sessionDate, expiresAt: sessionExpiry, deletedAt: sessionExpiry, mimeType: "audio/webm" });
+  await db.insert(consentLogs).values({ caseId: newCase.id, audioRecordingId: null, solicitorId: userId, consentGiven: true, consentTimestamp: new Date(sessionDate.getTime() + 44 * 1000), disclaimerScriptVersion: "v2.1", disclaimerWordingText: "I am recording this conference to produce an accurate attendance note for your file. The recording is confidential and deleted after seven days. Do you consent?", consentModality: "verbal_recorded", lawfulBasis: "consent" });
+
+  const transcriptContent = `Attendance Note — R v Callahan — GBH s.18
+Client: Ryan Callahan
+Matter Reference: HART_CRI/2024/0089
+Date: ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+Fee Earner: Daniel Park
+Duration: Approximately 53 minutes
+
+---
+
+SOLICITOR: Mr Callahan, before we begin I want to confirm you are happy for me to record this conference for note-taking purposes. The recording is confidential to your file and deleted after seven days. Do you consent?
+
+CLIENT: Yes. I want everything recorded. I want everything on the record.
+
+SOLICITOR: Understood. You are charged with grievous bodily harm with intent under section 18 of the Offences Against the Person Act 1861. The trial is listed at Southwark Crown Court in twenty-eight days. You have counsel — Mr Obi Adeyinka of 3 Harcourt Buildings — instructed and ready.
+
+The prosecution case: the incident occurred outside the Anchor public house on a Saturday evening. The complainant, Mr Trent, sustained a fractured orbital bone to the left eye socket, a broken nose, and lacerations requiring twelve stitches. He says you attacked him without provocation. There is CCTV footage from the exterior of the Anchor. I have reviewed it. The footage shows a confrontation and then a physical altercation. It is not entirely clear from the footage who was the initial aggressor.
+
+CLIENT: That is the whole point. He came at me. He was aggressive all evening. He had been making comments about my girlfriend inside the pub. I asked him to stop. He followed me outside. He pushed me first.
+
+SOLICITOR: The CCTV — from the angle, the initial push is partially obscured. Two prosecution witnesses have given statements saying they saw you strike first. Both are friends of the complainant. Were there any other people outside at the time who might support your account?
+
+CLIENT: There was a couple leaving. A man and a woman. I do not know who they are. The woman seemed shocked — she grabbed the man and pulled him away. They might have seen what happened.
+
+SOLICITOR: I will instruct an investigator to make enquiries in the area. If those witnesses exist and can be found, their account of the initial aggressor could be determinative.
+
+The defence of self-defence — I want to be direct with you. The jury will be asked to consider whether you genuinely believed force was necessary and whether the force used was reasonable in the circumstances. A fractured orbital bone and a broken nose is significant injury. The jury will need to understand why that level of force was proportionate to the threat you perceived.
+
+CLIENT: He is bigger than me. He was drunk. He was aggressive. I was scared. I reacted.
+
+SOLICITOR: That is the narrative and it is credible. A section 18 charge requires the prosecution to prove intent. The level of injury is relevant to that question. Our barrister will argue the injury is consistent with a single strike in self-defence that caused more damage than anticipated.
+
+CLIENT: I only hit him once.
+
+SOLICITOR: That is important. The CCTV is consistent with that — it shows one strike. Do you have any previous convictions I need to know about?
+
+CLIENT: I have a caution from eight years ago. Drunk and disorderly. Nothing else.
+
+SOLICITOR: A caution from eight years ago — depending on how it was obtained, it may not be admissible. I will review this. Your character evidence — no convictions — is a significant asset. The jury will be directed that a defendant of good character is more likely to be telling the truth and less likely to have committed the offence.
+
+CLIENT: What are my chances?
+
+SOLICITOR: I am not going to give you a percentage. What I will say is this — the CCTV does not establish you as the initial aggressor. Your account is consistent and has not changed. There are potential civilian witnesses. The prosecution witnesses are interested parties. A section 18 charge is serious but it is not unanswerable. Mr Adeyinka is an experienced Crown Court advocate. This is a case that can be won.
+
+CLIENT: My girlfriend — can she give evidence?
+
+SOLICITOR: She was inside the pub during the incident. She can give evidence about the complainant's behaviour towards you and her inside the pub — that goes to background context and your state of mind when you went outside. I will take a witness statement from her this week.
+
+---
+
+ACTION ITEMS
+1. Solicitor to instruct inquiry agent — identify and locate civilian witnesses
+2. Solicitor to take witness statement from client's girlfriend this week
+3. Solicitor to review caution — admissibility assessment
+4. Update counsel with conference notes
+5. Review prosecution disclosure schedule
+6. Pre-trial review with counsel — end of this week`;
+
+  const utterances = [
+    { speaker: "SPEAKER_1", text: "Mr Callahan, before we begin I want to confirm you are happy for me to record this conference for note-taking purposes. The recording is confidential to your file and deleted after seven days. Do you consent?", start: 44000, end: 62000 },
+    { speaker: "SPEAKER_2", text: "Yes. I want everything recorded. I want everything on the record.", start: 63000, end: 70000 },
+    { speaker: "SPEAKER_1", text: "Understood. You are charged with grievous bodily harm with intent under section 18. The trial is listed at Southwark Crown Court in twenty-eight days. The prosecution case: the incident occurred outside the Anchor public house. The complainant sustained a fractured orbital bone, a broken nose, and lacerations requiring twelve stitches. He says you attacked him without provocation. There is CCTV footage. It is not entirely clear from the footage who was the initial aggressor.", start: 71000, end: 128000 },
+    { speaker: "SPEAKER_2", text: "That is the whole point. He came at me. He was aggressive all evening. He had been making comments about my girlfriend inside the pub. I asked him to stop. He followed me outside. He pushed me first.", start: 129000, end: 153000 },
+    { speaker: "SPEAKER_1", text: "The CCTV — from the angle, the initial push is partially obscured. Two prosecution witnesses say they saw you strike first. Both are friends of the complainant. Were there any other people outside who might support your account?", start: 154000, end: 176000 },
+    { speaker: "SPEAKER_2", text: "There was a couple leaving. A man and a woman. I do not know who they are. The woman seemed shocked — she grabbed the man and pulled him away. They might have seen what happened.", start: 177000, end: 197000 },
+    { speaker: "SPEAKER_1", text: "I will instruct an investigator to make enquiries. The defence of self-defence — the jury will consider whether you genuinely believed force was necessary and whether the force used was reasonable. A fractured orbital bone and a broken nose is significant injury.", start: 198000, end: 232000 },
+    { speaker: "SPEAKER_2", text: "He is bigger than me. He was drunk. He was aggressive. I was scared. I reacted.", start: 233000, end: 245000 },
+    { speaker: "SPEAKER_1", text: "That is the narrative and it is credible. A section 18 charge requires the prosecution to prove intent. Our barrister will argue the injury is consistent with a single strike in self-defence.", start: 246000, end: 275000 },
+    { speaker: "SPEAKER_2", text: "I only hit him once.", start: 276000, end: 279000 },
+    { speaker: "SPEAKER_1", text: "That is important. The CCTV is consistent with that — it shows one strike. Do you have any previous convictions?", start: 280000, end: 296000 },
+    { speaker: "SPEAKER_2", text: "I have a caution from eight years ago. Drunk and disorderly. Nothing else.", start: 297000, end: 307000 },
+    { speaker: "SPEAKER_1", text: "Your character evidence — no convictions — is a significant asset. The CCTV does not establish you as the initial aggressor. Your account is consistent. There are potential civilian witnesses. The prosecution witnesses are interested parties. This is a case that can be won.", start: 308000, end: 372000 },
+    { speaker: "SPEAKER_2", text: "My girlfriend — can she give evidence?", start: 373000, end: 378000 },
+    { speaker: "SPEAKER_1", text: "She was inside the pub during the incident. She can give evidence about the complainant's behaviour towards you and her inside the pub — that goes to background context and your state of mind. I will take a witness statement from her this week.", start: 379000, end: 403000 },
+  ];
+
+  const [transcript] = await db.insert(transcripts).values({
+    caseId: newCase.id, meetingSessionId: session.id, content: transcriptContent,
+    utterances, speakerCount: 2, redactions: [],
+    createdAt: new Date(sessionDate.getTime() + 57 * 60 * 1000),
+  }).returning();
+
+  await db.insert(documents).values({
+    caseId: newCase.id, meetingSessionId: session.id, type: "attendance_note",
+    content: `# ATTENDANCE NOTE — CONFERENCE IN CHAMBERS
+
+**Client:** Ryan Callahan
+**Matter:** R v Callahan — GBH s.18 (Crown Court)
+**Reference:** HART_CRI/2024/0089
+**Date:** ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Fee Earner:** Daniel Park | **Present:** Daniel Park, Ryan Callahan
+**Duration:** 53 minutes | **Trial:** Southwark Crown Court — 28 days
+
+---
+
+## CHARGE
+
+Grievous bodily harm with intent — s.18 Offences Against the Person Act 1861.
+
+---
+
+## PROSECUTION CASE
+
+Incident: outside Anchor public house, Saturday evening. Complainant (Mr Trent): fractured orbital bone (left), broken nose, 12 stitches. CCTV: exterior — confrontation and physical altercation. Initial aggressor not clearly identifiable from footage angle. Two prosecution witnesses: both friends of complainant — state defendant struck first.
+
+---
+
+## DEFENCE CASE
+
+Complainant aggressive throughout evening, made repeated comments about defendant's girlfriend. Defendant asked him to stop. Complainant followed defendant outside. Complainant pushed defendant first. Defendant struck in self-defence — one strike. CCTV consistent with single strike.
+
+Potential civilian witnesses: unidentified couple at scene. Inquiry agent to be instructed.
+
+---
+
+## LEGAL ANALYSIS
+
+**Intent (s.18):** Prosecution must prove intent to cause GBH. Defence: single strike in self-defence — injury beyond what was anticipated. CCTV confirms one strike — undermines inference of intent.
+
+**Self-Defence:** Credible basis — complainant larger, drunk, aggressive, initial aggressor. Jury question.
+
+**Character:** Caution (8 years — drunk and disorderly). Admissibility to be assessed. If inadmissible — good character direction applies.
+
+---
+
+## COUNSEL
+
+Mr Obi Adeyinka, 3 Harcourt Buildings. Instructed and ready.
+
+---
+
+## NEXT STEPS
+
+1. Instruct inquiry agent — civilian witnesses
+2. Witness statement from defendant's girlfriend
+3. Assess admissibility of caution
+4. Update counsel
+5. Review prosecution disclosure schedule
+6. Pre-trial review with counsel this week`,
+    version: 1, versionType: "ai_generated", createdBy: userId, status: "draft",
+    createdAt: new Date(sessionDate.getTime() + 59 * 60 * 1000),
+  });
+
+  for (const evt of [
+    { eventType: "case_created", timestamp: daysAgo(5), metadata: { practiceArea: "criminal", matterReference: "HART_CRI/2024/0089" }, severity: "info" as const },
+    { eventType: "case_updated", timestamp: daysAgo(5), metadata: { field: "litigationHold", value: true, reason: "Crown Court matter — records preserved for disclosure" }, severity: "warning" as const },
+    { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Conference in Chambers", recordingType: "full_meeting" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 44 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 57 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 3180 }, transcriptId: transcript.id, severity: "info" as const },
+    { eventType: "document_generated", timestamp: new Date(sessionDate.getTime() + 59 * 60 * 1000), metadata: { documentType: "attendance_note", version: 1 }, severity: "info" as const },
+  ]) {
+    await db.insert(auditTrail).values({ eventType: evt.eventType, userId, caseId: newCase.id, timestamp: evt.timestamp, severity: evt.severity, metadata: evt.metadata, transcriptId: (evt as any).transcriptId || null });
+  }
+}
+
+// ─── Matter 9: Immigration ───────────────────────────────────────────────────
+
+async function seedMatter9AlRashidi(userId: string) {
+  const sessionDate = daysAgoAt(18, 13, 0);
+
+  const [newCase] = await db.insert(cases).values({
+    title: "Al-Rashidi — Application for Further Leave to Remain (Human Rights)",
+    clientName: "Fatima Al-Rashidi",
+    matterReference: "HART_IMM/2024/0641",
+    createdBy: userId,
+    status: "review_required",
+    priority: "high",
+    sourceType: "audio",
+    practiceArea: "immigration",
+    riskLevel: "medium",
+    conflictCheckCompleted: true,
+    conflictCheckNote: "No conflict identified.",
+    supervisorName: "James Hartwell",
+  }).returning();
+
+  const [session] = await db.insert(meetingSessions).values({
+    caseId: newCase.id, recordingType: "full_meeting",
+    sessionTitle: "Initial Consultation — Leave to Remain Application (with interpreter)",
+    startedAt: sessionDate, durationSeconds: 3000, status: "completed", createdBy: userId,
+  }).returning();
+
+  const sessionExpiry = new Date(sessionDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({ caseId: newCase.id, meetingSessionId: session.id, duration: 3000, recordedAt: sessionDate, expiresAt: sessionExpiry, deletedAt: sessionExpiry, mimeType: "audio/webm" });
+  await db.insert(consentLogs).values({ caseId: newCase.id, audioRecordingId: null, solicitorId: userId, consentGiven: true, consentTimestamp: new Date(sessionDate.getTime() + 62 * 1000), disclaimerScriptVersion: "v2.1", disclaimerWordingText: "I am recording this meeting to produce an accurate attendance note for your file. The recording is confidential and deleted after seven days. The interpreter has also consented to the recording. Do you both consent?", consentModality: "verbal_recorded", lawfulBasis: "consent" });
+
+  const transcriptContent = `Attendance Note — Al-Rashidi — Leave to Remain Application
+Client: Fatima Al-Rashidi
+Matter Reference: HART_IMM/2024/0641
+Date: ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+Fee Earner: Sarah Okafor
+Interpreter: Nadia Karimov (Arabic — Levantine dialect)
+Duration: Approximately 50 minutes
+
+---
+
+SOLICITOR: Good afternoon. Before we begin I want to confirm both you and the interpreter are happy for me to record this meeting for note-taking purposes. The recording is confidential and deleted after seven days.
+
+INTERPRETER: [Translating to client]
+
+CLIENT: [Via interpreter] Yes. She says yes, she is happy.
+
+SOLICITOR: Thank you. Mrs Al-Rashidi, I understand you came to the UK four years ago from Syria. You have leave to remain which expires in six weeks. Can you tell me about your situation?
+
+CLIENT: [Via interpreter] She came in 2020. She had humanitarian protection for three years. This was extended once, by one year. It expires at the end of next month. She has three children. Her oldest is fourteen, in secondary school. The youngest is six, in primary. Her husband — he did not come with her. He died in 2022. She received confirmation from the Red Cross.
+
+SOLICITOR: I am sorry for her loss. And in Syria — what is her situation if she were to return?
+
+CLIENT: [Via interpreter] She says she cannot return. Her home — it no longer exists. The city where she lived — she has seen photographs from relatives, there is nothing there. Her brother-in-law is also here in the UK. Her children were born partly here — the youngest was born in London. She has no family remaining in Syria. She has built a life here. Her children speak English, they are doing well at school. Her oldest received an award at school last term.
+
+SOLICITOR: Does she work?
+
+CLIENT: [Via interpreter] She volunteers at her youngest child's school — helping with reading. She also volunteers at a local food bank on Wednesdays. She has been trying to learn English — she attends a community class twice a week. She is getting better but she still needs support with complex documents.
+
+SOLICITOR: Her current leave is humanitarian protection. Article 8 — family and private life — given four years of residence, three children, one UK-born, integration into the community, bereavement, and the absence of any remaining family or stable situation in Syria — the Article 8 claim is substantial. Is she from any particular area that would put her at additional risk?
+
+CLIENT: [Via interpreter] She is from Aleppo. She was there in 2013 to 2015 during the siege. She and her husband fled to Turkey and then came to the UK after two years in Turkey. She says there were very bad things that happened. She does not want to speak about the details today. She says she is not ready.
+
+SOLICITOR: She does not have to. I will note that further details of her experiences in Aleppo may be relevant to the application and she can share them when she is ready. There is no pressure. What I want to do now is begin assembling the supporting evidence. I will need her current BRP card, the letter confirming her humanitarian protection, the Red Cross confirmation for her husband, school records for all three children, and evidence of her community involvement.
+
+CLIENT: [Via interpreter] She says she has brought documents today. She has the BRP, the protection letter, the Red Cross document, school reports for the oldest two, and a letter from the school about volunteering.
+
+SOLICITOR: That is a very strong start. I will also commission a country conditions report on Syria and a psychological report on the impact on her and the children. That would strengthen the Article 8 claim significantly.
+
+CLIENT: [Via interpreter] She says she would be willing to speak to a psychologist but asks if it can be a woman.
+
+SOLICITOR: Absolutely. I will ensure the psychologist I instruct is a woman.
+
+CLIENT: [Via interpreter] She says — she wants her children to be able to stay. That is all she wants. She is not asking for anything else. Just to stay.
+
+SOLICITOR: I understand. And I will do everything I can to make that case as strong as it can be.
+
+---
+
+ACTION ITEMS
+1. Solicitor to take copies of documents provided today
+2. Solicitor to draft Article 8 Leave to Remain application
+3. Solicitor to commission country conditions report (Syria — Aleppo)
+4. Solicitor to instruct female clinical psychologist
+5. Solicitor to obtain letters from school and food bank
+6. Advise on Legal Aid eligibility at next appointment
+7. Note application deadline — 6 weeks`;
+
+  const utterances = [
+    { speaker: "SPEAKER_1", text: "Good afternoon. Before we begin I want to confirm both you and the interpreter are happy for me to record this meeting for note-taking purposes. The recording is confidential and deleted after seven days.", start: 62000, end: 80000 },
+    { speaker: "SPEAKER_3", text: "[Translating consent request to client]", start: 81000, end: 86000 },
+    { speaker: "SPEAKER_2", text: "Yes. She says yes, she is happy.", start: 87000, end: 92000 },
+    { speaker: "SPEAKER_1", text: "Thank you. Mrs Al-Rashidi, I understand you came to the UK four years ago from Syria. You have leave to remain which expires in six weeks. Can you tell me about your situation?", start: 93000, end: 110000 },
+    { speaker: "SPEAKER_3", text: "[Translating question to client]", start: 111000, end: 116000 },
+    { speaker: "SPEAKER_2", text: "She came in 2020. She had humanitarian protection for three years. This was extended once, by one year. It expires at the end of next month. She has three children. Her oldest is fourteen, in secondary school. The youngest is six, in primary. Her husband — he did not come with her. He died in 2022. She received confirmation from the Red Cross.", start: 117000, end: 158000 },
+    { speaker: "SPEAKER_1", text: "I am sorry for her loss. And in Syria — what is her situation if she were to return?", start: 159000, end: 168000 },
+    { speaker: "SPEAKER_3", text: "[Translating to client]", start: 169000, end: 173000 },
+    { speaker: "SPEAKER_2", text: "She says she cannot return. Her home — it no longer exists. The city where she lived — she has seen photographs, there is nothing there. Her youngest was born in London. She has no family remaining in Syria. Her children speak English, they are doing well at school. Her oldest received an award at school last term.", start: 174000, end: 225000 },
+    { speaker: "SPEAKER_3", text: "[Translating to client]", start: 233000, end: 236000 },
+    { speaker: "SPEAKER_2", text: "She volunteers at her youngest child's school — helping with reading. She also volunteers at a local food bank on Wednesdays. She attends an English community class twice a week.", start: 237000, end: 272000 },
+    { speaker: "SPEAKER_1", text: "Article 8 — family and private life — given four years of residence, three children, one UK-born, integration, bereavement, and absence of any remaining family or stable situation in Syria — the Article 8 claim is substantial. Is she from any particular area that would put her at additional risk?", start: 273000, end: 310000 },
+    { speaker: "SPEAKER_3", text: "[Translating to client]", start: 311000, end: 316000 },
+    { speaker: "SPEAKER_2", text: "She is from Aleppo. She was there in 2013 to 2015 during the siege. She and her husband fled to Turkey and then came to the UK after two years in Turkey. She says there were very bad things that happened. She does not want to speak about the details today. She says she is not ready.", start: 317000, end: 355000 },
+    { speaker: "SPEAKER_1", text: "She does not have to. I will note that further details of her experiences in Aleppo may be relevant and she can share them when she is ready. There is no pressure. I will need her current BRP card, the protection letter, the Red Cross confirmation, school records, and evidence of her community involvement.", start: 356000, end: 395000 },
+    { speaker: "SPEAKER_3", text: "[Translating to client]", start: 396000, end: 401000 },
+    { speaker: "SPEAKER_2", text: "She says she has brought documents today. She has the BRP, the protection letter, the Red Cross document, school reports for the oldest two, and a letter from the school about volunteering.", start: 402000, end: 423000 },
+    { speaker: "SPEAKER_1", text: "That is a very strong start. I will also commission a country conditions report on Syria and a psychological report on the impact on her and the children.", start: 424000, end: 450000 },
+    { speaker: "SPEAKER_3", text: "[Translating to client]", start: 451000, end: 455000 },
+    { speaker: "SPEAKER_2", text: "She says she would be willing to speak to a psychologist but asks if it can be a woman.", start: 456000, end: 466000 },
+    { speaker: "SPEAKER_1", text: "Absolutely. I will ensure the psychologist I instruct is a woman.", start: 467000, end: 476000 },
+    { speaker: "SPEAKER_3", text: "[Translating response to client]", start: 477000, end: 480000 },
+    { speaker: "SPEAKER_2", text: "She says — she wants her children to be able to stay. That is all she wants. She is not asking for anything else. Just to stay.", start: 481000, end: 498000 },
+    { speaker: "SPEAKER_1", text: "I understand. And I will do everything I can to make that case as strong as it can be.", start: 499000, end: 509000 },
+  ];
+
+  const [transcript] = await db.insert(transcripts).values({
+    caseId: newCase.id, meetingSessionId: session.id, content: transcriptContent,
+    utterances, speakerCount: 3, redactions: [],
+    createdAt: new Date(sessionDate.getTime() + 54 * 60 * 1000),
+  }).returning();
+
+  await db.insert(documents).values({
+    caseId: newCase.id, meetingSessionId: session.id, type: "attendance_note",
+    content: `# ATTENDANCE NOTE
+
+**Client:** Fatima Al-Rashidi
+**Interpreter:** Nadia Karimov (Arabic — Levantine dialect)
+**Matter:** Application for Further Leave to Remain (Human Rights — Article 8)
+**Reference:** HART_IMM/2024/0641
+**Date:** ${sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Fee Earner:** Sarah Okafor | **Duration:** 50 minutes
+
+---
+
+## CLIENT BACKGROUND
+
+Nationality: Syrian. Location: Aleppo (fled 2015). Route: Turkey (2 years) → UK (2020). Immigration history: 3-year humanitarian protection, extended 1 year. Current leave expires: end of next month (~6 weeks). Widowed: husband deceased 2022 — Red Cross confirmation.
+
+---
+
+## FAMILY
+
+Three children: aged 14, 9, and 6. Two born in Syria, one (youngest, age 6) born in London. All three in UK education — eldest in secondary school. Children English-speaking and well-integrated. Eldest received school award.
+
+---
+
+## COMMUNITY INTEGRATION
+
+Volunteering: school reading support (weekly), food bank (Wednesdays). English language classes: twice weekly — progressing but requires support for complex documents. UK residence: 4 years. No family remaining in Syria.
+
+---
+
+## BASIS OF APPLICATION
+
+**Primary: Article 8 ECHR (Family and Private Life)**
+Four years' residence. Three children — one UK-born. Complete absence of family or viable conditions in Syria. Widowed. Community integration. Article 8 claim is substantial.
+
+**Secondary: Continuing Humanitarian Protection**
+Country conditions in Syria — Aleppo in particular — remain severe. Client present during 2013-2015 siege. Client not yet ready to disclose full details of experiences — noted for future appointment. No pressure applied.
+
+---
+
+## IMPORTANT NOTE
+
+Client experienced significant trauma in Aleppo 2013-2015. Client not ready to disclose details today — noted with sensitivity. Future appointment to be arranged when client feels ready.
+
+---
+
+## NEXT STEPS
+
+1. Copy documents provided today
+2. Draft Article 8 application
+3. Commission country conditions report (Aleppo focus)
+4. Instruct female clinical psychologist
+5. Obtain letters from school and food bank
+6. Legal Aid eligibility to be confirmed
+7. Application deadline: 6 weeks`,
+    version: 1, versionType: "ai_generated", createdBy: userId, status: "draft",
+    createdAt: new Date(sessionDate.getTime() + 56 * 60 * 1000),
+  });
+
+  for (const evt of [
+    { eventType: "case_created", timestamp: daysAgo(18), metadata: { practiceArea: "immigration", matterReference: "HART_IMM/2024/0641" }, severity: "info" as const },
+    { eventType: "recording_started", timestamp: sessionDate, metadata: { sessionTitle: "Initial Consultation with Interpreter", recordingType: "full_meeting" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(sessionDate.getTime() + 62 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent", note: "Consent given by client via interpreter. Interpreter also consented." }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(sessionDate.getTime() + 54 * 60 * 1000), metadata: { speakerCount: 3, durationSeconds: 3000, note: "Three-speaker diarisation: solicitor, interpreter, client (via interpreter)" }, transcriptId: transcript.id, severity: "info" as const },
+    { eventType: "document_generated", timestamp: new Date(sessionDate.getTime() + 56 * 60 * 1000), metadata: { documentType: "attendance_note", version: 1 }, severity: "info" as const },
+  ]) {
+    await db.insert(auditTrail).values({ eventType: evt.eventType, userId, caseId: newCase.id, timestamp: evt.timestamp, severity: evt.severity, metadata: evt.metadata, transcriptId: (evt as any).transcriptId || null });
+  }
+}
+
+// ─── Matter 10: Commercial Litigation ───────────────────────────────────────
+
+async function seedMatter10Northgate(userId: string) {
+  const session1Date = daysAgoAt(56, 9, 0);
+  const session2Date = daysAgoAt(21, 14, 0);
+
+  const [newCase] = await db.insert(cases).values({
+    title: "Northgate Freight Ltd v Vantage Logistics Group Ltd",
+    clientName: "Northgate Freight Ltd",
+    matterReference: "HART_LIT/2024/0278",
+    createdBy: userId,
+    status: "active",
+    priority: "high",
+    sourceType: "audio",
+    practiceArea: "commercial_litigation",
+    riskLevel: "medium",
+    conflictCheckCompleted: true,
+    conflictCheckNote: "Vantage Logistics Group Ltd — not a current or former client. No connection identified. Conflict clear.",
+    reviewed: true,
+    supervisorName: "James Hartwell",
+  }).returning();
+
+  const [session1] = await db.insert(meetingSessions).values({
+    caseId: newCase.id, recordingType: "full_meeting",
+    sessionTitle: "Initial Instructions — Breach of Logistics Contract",
+    startedAt: session1Date, durationSeconds: 2880, status: "completed", createdBy: userId,
+  }).returning();
+
+  const s1Expiry = new Date(session1Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({ caseId: newCase.id, meetingSessionId: session1.id, duration: 2880, recordedAt: session1Date, expiresAt: s1Expiry, deletedAt: s1Expiry, mimeType: "audio/webm" });
+  await db.insert(consentLogs).values({ caseId: newCase.id, audioRecordingId: null, solicitorId: userId, consentGiven: true, consentTimestamp: new Date(session1Date.getTime() + 36 * 1000), disclaimerScriptVersion: "v2.1", disclaimerWordingText: "I record meetings to produce accurate attendance notes. The recording is confidential to your file and deleted after seven days. Do you consent?", consentModality: "verbal_recorded", lawfulBasis: "consent" });
+
+  const s1Content = `Attendance Note — Northgate Freight Ltd v Vantage Logistics Group Ltd
+Client: David Achebe (Managing Director, Northgate Freight Ltd)
+Matter Reference: HART_LIT/2024/0278
+Date: ${session1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+Fee Earner: James Hartwell
+Duration: Approximately 48 minutes
+
+---
+
+SOLICITOR: Good morning Mr Achebe. Before we begin I want to confirm you are happy for me to record this meeting for note-taking purposes. The recording is confidential and deleted after seven days. Do you consent?
+
+CLIENT: Yes, that is fine.
+
+SOLICITOR: Good. Tell me what has happened.
+
+CLIENT: We had a three-year contract with Vantage Logistics Group for the warehousing and distribution of our electrical components. The contract started in January 2022 and runs to December this year. The contract value is approximately two point four million over the term. Last September, Vantage gave us notice that they were terminating the contract effective March this year. The notice was six months. But the contract requires twelve months notice for termination.
+
+SOLICITOR: So the termination notice was defective.
+
+CLIENT: On its face, yes. They say there is a break clause that was triggered. We say the break clause conditions were not met.
+
+SOLICITOR: What are the break clause conditions?
+
+CLIENT: The break clause is exercisable if either party's revenue from the contract falls below a defined threshold for two consecutive quarters. Vantage says our volume of business with them fell below the threshold in Q2 and Q3 of last year. We dispute that. The volume figures they rely on exclude certain categories of goods that we say are within the scope of the contract.
+
+SOLICITOR: Have you seen their calculation?
+
+CLIENT: Yes. They sent it with the termination notice. They exclude what they call spot freight — ad hoc deliveries that were not part of the original agreed volume. We say spot freight is contractually included. We have been paying the contractual rate for spot freight throughout and Vantage has been accepting it. If spot freight is included in the volume calculation, the threshold was not breached.
+
+SOLICITOR: What is the value of spot freight over the relevant period?
+
+CLIENT: Approximately four hundred thousand pounds of the two-point-four million. Without it, yes, the threshold is arguably breached. With it, it is not.
+
+SOLICITOR: So the heart of the case is a contractual interpretation dispute. What does the contract say about spot freight?
+
+CLIENT: The contract defines the services as including — standard warehousing and distribution services as set out in Schedule 1, together with any ancillary or supplemental services agreed between the parties from time to time. We say spot freight falls within ancillary or supplemental services.
+
+SOLICITOR: And Vantage says?
+
+CLIENT: They say spot freight was always treated as a separate commercial arrangement and was never included in the Schedule 1 services or the revenue threshold.
+
+SOLICITOR: This will come down to the construction of the contract and, if the language is ambiguous, potentially extrinsic evidence — the parties' course of dealing. The consistent payment and acceptance of spot freight at the contractual rate over three years is highly relevant. Do you have a paper trail?
+
+CLIENT: Complete records. Every invoice, every payment, every delivery note. Three years of it.
+
+SOLICITOR: That is the strongest possible position on course of dealing. The phrase ancillary or supplemental services agreed between the parties from time to time is in your favour — it is broad and forward-looking.
+
+CLIENT: So what are our options?
+
+SOLICITOR: Three. First — letter before action, inviting Vantage to withdraw the termination notice and continue the contract to its natural term. Second — if they maintain their position, we issue proceedings in the Commercial Court for wrongful termination and damages. Damages: the lost revenue for the remainder of the contract term — nine months at approximately seventy thousand per month — approximately six hundred and thirty thousand. Third — mediation. Given the contract has nine months to run, mediation may be pragmatic.
+
+CLIENT: The relationship is finished whatever happens. They have already moved our stock to a different facility and we have had to find alternative logistics at short notice at additional cost. The additional cost alone is approximately forty-five thousand pounds.
+
+SOLICITOR: That is a recoverable head of loss. Direct breach damages plus mitigation costs gives you approximately six hundred and seventy-five thousand in total. I will write the letter before action today.
+
+---
+
+ACTION ITEMS
+1. Solicitor to write letter before action to Vantage — today
+2. Client to provide full contract documentation including schedules
+3. Client to provide all spot freight invoices and payment records
+4. Solicitor to calculate total damages
+5. Client to provide evidence of additional logistics costs`;
+
+  const s1Utterances = [
+    { speaker: "SPEAKER_1", text: "Good morning Mr Achebe. Before we begin I want to confirm you are happy for me to record this meeting for note-taking purposes. The recording is confidential and deleted after seven days. Do you consent?", start: 36000, end: 54000 },
+    { speaker: "SPEAKER_2", text: "Yes, that is fine.", start: 55000, end: 58000 },
+    { speaker: "SPEAKER_1", text: "Good. Tell me what has happened.", start: 59000, end: 63000 },
+    { speaker: "SPEAKER_2", text: "We had a three-year contract with Vantage Logistics Group for the warehousing and distribution of our electrical components. The contract started in January 2022 and runs to December this year. The contract value is approximately two point four million over the term. Last September, Vantage gave us notice terminating the contract effective March this year. The notice was six months. But the contract requires twelve months notice for termination.", start: 64000, end: 108000 },
+    { speaker: "SPEAKER_1", text: "So the termination notice was defective.", start: 109000, end: 114000 },
+    { speaker: "SPEAKER_2", text: "On its face, yes. They say there is a break clause that was triggered. We say the break clause conditions were not met.", start: 115000, end: 129000 },
+    { speaker: "SPEAKER_2", text: "The break clause is exercisable if revenue from the contract falls below a defined threshold for two consecutive quarters. Vantage says our volume fell below the threshold in Q2 and Q3 of last year. We dispute that. Approximately four hundred thousand pounds of the two-point-four million is spot freight. Without it, the threshold is arguably breached. With it, it is not.", start: 135000, end: 210000 },
+    { speaker: "SPEAKER_1", text: "This will come down to construction of the contract and potentially extrinsic evidence — the parties' course of dealing. The consistent payment and acceptance of spot freight at the contractual rate over three years is highly relevant. Do you have a paper trail?", start: 263000, end: 290000 },
+    { speaker: "SPEAKER_2", text: "Complete records. Every invoice, every payment, every delivery note. Three years of it.", start: 291000, end: 303000 },
+    { speaker: "SPEAKER_1", text: "That is the strongest possible position on course of dealing. Three options: letter before action, Commercial Court proceedings for wrongful termination, or mediation.", start: 304000, end: 340000 },
+    { speaker: "SPEAKER_2", text: "The relationship is finished whatever happens. They have already moved our stock to a different facility. The additional cost alone is approximately forty-five thousand pounds.", start: 341000, end: 368000 },
+    { speaker: "SPEAKER_1", text: "That is a recoverable head of loss. Direct breach damages plus mitigation costs gives you approximately six hundred and seventy-five thousand. I will write the letter before action today.", start: 369000, end: 393000 },
+  ];
+
+  const [transcript1] = await db.insert(transcripts).values({
+    caseId: newCase.id, meetingSessionId: session1.id, content: s1Content,
+    utterances: s1Utterances, speakerCount: 2, redactions: [],
+    createdAt: new Date(session1Date.getTime() + 52 * 60 * 1000),
+  }).returning();
+
+  await db.insert(documents).values({
+    caseId: newCase.id, meetingSessionId: session1.id, type: "attendance_note",
+    content: `# ATTENDANCE NOTE
+
+**Client:** David Achebe (Managing Director, Northgate Freight Ltd)
+**Matter:** Northgate Freight Ltd v Vantage Logistics Group Ltd
+**Reference:** HART_LIT/2024/0278
+**Date:** ${session1Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Fee Earner:** James Hartwell | **Duration:** 48 minutes
+
+---
+
+## FACTUAL BACKGROUND
+
+3-year warehousing and distribution contract (January 2022 — December current year). Total contract value approximately £2.4m. September: Vantage served termination notice effective March, giving 6 months' notice. Contract requires 12 months' notice. Vantage relies on break clause.
+
+---
+
+## BREAK CLAUSE DISPUTE
+
+Break clause: exercisable if revenue falls below defined threshold for two consecutive quarters. Vantage's calculation excludes spot freight (~£400k of £2.4m). Client's position: spot freight falls within "ancillary or supplemental services agreed between the parties from time to time." Spot freight invoiced at contractual rates and accepted by Vantage throughout — 3 years' course of dealing.
+
+---
+
+## EVIDENCE
+
+Complete records of all spot freight invoicing and payment for full contract term. Course of dealing argument: strong.
+
+---
+
+## LEGAL ANALYSIS
+
+Contractual construction — broad language arguably includes spot freight. Arnold v Britton [2015] UKSC 36 — if language ambiguous, extrinsic evidence (course of dealing) admissible.
+
+Damages if wrongful termination: lost revenue (9 months × ~£70k) ~£630,000 + additional logistics costs ~£45,000 = **~£675,000 total**.
+
+---
+
+## NEXT STEPS
+
+1. Letter before action — today
+2. Client to provide full contract and all spot freight records
+3. Client to provide evidence of additional logistics costs
+4. Calculate total damages schedule`,
+    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved",
+    approvedAt: new Date(session1Date.getTime() + 75 * 60 * 1000),
+    createdAt: new Date(session1Date.getTime() + 54 * 60 * 1000),
+  });
+
+  // Session 2 — Without Prejudice
+  const [session2] = await db.insert(meetingSessions).values({
+    caseId: newCase.id, recordingType: "full_meeting",
+    sessionTitle: "Without Prejudice Meeting — Settlement Discussions with Vantage",
+    startedAt: session2Date, durationSeconds: 2700, status: "completed", createdBy: userId,
+  }).returning();
+
+  const s2Expiry = new Date(session2Date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(audioRecordings).values({ caseId: newCase.id, meetingSessionId: session2.id, duration: 2700, recordedAt: session2Date, expiresAt: s2Expiry, deletedAt: s2Expiry, mimeType: "audio/webm" });
+  await db.insert(consentLogs).values({ caseId: newCase.id, audioRecordingId: null, solicitorId: userId, consentGiven: true, consentTimestamp: new Date(session2Date.getTime() + 28 * 1000), disclaimerScriptVersion: "v2.1", disclaimerWordingText: "I am recording this meeting for note-taking purposes. The recording is confidential to your file and deleted after seven days. This meeting is conducted on a without prejudice basis. Do you consent?", consentModality: "verbal_recorded", lawfulBasis: "consent" });
+
+  const s2Content = `Attendance Note — Northgate Freight — Without Prejudice Meeting
+Client: David Achebe (MD, Northgate Freight Ltd)
+Also Present: Timothy Frost (MD, Vantage Logistics Group Ltd), Helen Crane (Solicitor, Ward & Co — for Vantage)
+Matter Reference: HART_LIT/2024/0278
+Date: ${session2Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+Fee Earner: James Hartwell
+Duration: Approximately 45 minutes
+
+NOTE: This meeting was conducted on a without prejudice basis. The contents of this attendance note are privileged and protected from disclosure in any proceedings.
+
+---
+
+HARTWELL: Good afternoon. I want to confirm on the record — both parties agree this meeting is conducted on a without prejudice basis and nothing said today can be relied upon in any proceedings without consent. Mr Frost, Ms Crane — agreed?
+
+CRANE: Agreed on behalf of Vantage.
+
+FROST: Agreed.
+
+HARTWELL: Northgate's position — the termination notice is defective. The break clause was not validly triggered. Northgate is entitled to approximately six hundred and seventy-five thousand pounds. That is not an opening position. That is what our case is worth at trial.
+
+CRANE: Vantage's position remains that spot freight was always treated commercially as outside the principal contract.
+
+HARTWELL: I have seen the correspondence and it does not support that characterisation. Three years of consistent course of dealing. If there is correspondence that says otherwise I would expect it to have been disclosed before now.
+
+CRANE: We are not here to argue the merits. We are here to explore whether there is a commercial resolution. What is Vantage's proposal?
+
+FROST: [REDACTED — WITHOUT PREJUDICE]
+
+HARTWELL: [REDACTED — WITHOUT PREJUDICE]
+
+CRANE: Let me take instructions. Can we have fourteen days?
+
+HARTWELL: You have fourteen days.
+
+---
+
+NOTE: Settlement figures exchanged between the parties. Contents protected by without prejudice privilege. Full details preserved in privileged vault — accessible to COLP only.
+
+ACTION ITEMS
+1. Await Vantage response to counter-proposal — 14-day deadline
+2. If no acceptable offer — issue Commercial Court proceedings immediately
+3. Brief counsel on without prejudice position`;
+
+  const s2Utterances = [
+    { speaker: "SPEAKER_1", text: "Good afternoon. I want to confirm on the record — both parties agree this meeting is conducted on a without prejudice basis and nothing said today can be relied upon in any proceedings without consent. Mr Frost, Ms Crane — agreed?", start: 28000, end: 50000 },
+    { speaker: "SPEAKER_3", text: "Agreed on behalf of Vantage.", start: 51000, end: 55000 },
+    { speaker: "SPEAKER_4", text: "Agreed.", start: 56000, end: 58000 },
+    { speaker: "SPEAKER_1", text: "Northgate's position — the termination notice is defective. The break clause was not validly triggered. Northgate is entitled to approximately six hundred and seventy-five thousand pounds. That is not an opening position. That is what our case is worth at trial.", start: 59000, end: 100000 },
+    { speaker: "SPEAKER_3", text: "Vantage's position remains that spot freight was always treated commercially as outside the principal contract.", start: 101000, end: 120000 },
+    { speaker: "SPEAKER_1", text: "Three years of consistent course of dealing. If there is correspondence that says otherwise I would expect it to have been disclosed before now.", start: 121000, end: 143000 },
+    { speaker: "SPEAKER_3", text: "We are not here to argue the merits. We are here to explore whether there is a commercial resolution.", start: 144000, end: 157000 },
+    { speaker: "SPEAKER_4", text: "[Settlement figure offered — without prejudice]", start: 164000, end: 191000 },
+    { speaker: "SPEAKER_1", text: "[Counter-proposal made — without prejudice]", start: 192000, end: 220000 },
+    { speaker: "SPEAKER_3", text: "Let me take instructions. Can we have fourteen days?", start: 257000, end: 264000 },
+    { speaker: "SPEAKER_1", text: "You have fourteen days.", start: 265000, end: 268000 },
+  ];
+
+  const wpRedactions = [{
+    id: "rdx-wp-northgate-1",
+    start: 164000,
+    end: 256000,
+    reasonType: "redaction_without_prejudice",
+    reasonNotes: "Settlement figures exchanged in without prejudice meeting — redacted from shared transcript. Full content preserved in privileged vault for COLP access.",
+    redactedBy: userId,
+    timestamp: new Date(session2Date.getTime() + 52 * 60 * 1000).toISOString(),
+    status: "committed",
+    selectedText: null,
+  }];
+
+  const [transcript2] = await db.insert(transcripts).values({
+    caseId: newCase.id, meetingSessionId: session2.id, content: s2Content,
+    utterances: s2Utterances, speakerCount: 4, redactions: wpRedactions,
+    privilegedRedactions: [{
+      id: "rdx-wp-northgate-1",
+      originalText: "Vantage offered two hundred and fifty thousand in full and final settlement. Northgate counter-proposed five hundred and fifty thousand with payment within twenty-eight days. No admission of liability required.",
+      start: 164000, end: 256000,
+      reasonType: "redaction_without_prejudice",
+      committedAt: new Date(session2Date.getTime() + 52 * 60 * 1000).toISOString(),
+    }],
+    createdAt: new Date(session2Date.getTime() + 48 * 60 * 1000),
+  }).returning();
+
+  await db.insert(documents).values({
+    caseId: newCase.id, meetingSessionId: session2.id, type: "attendance_note",
+    content: `# ATTENDANCE NOTE — WITHOUT PREJUDICE MEETING
+
+**⚠ SUBJECT TO WITHOUT PREJUDICE PRIVILEGE AND LEGAL PROFESSIONAL PRIVILEGE. NOT FOR DISCLOSURE WITHOUT EXPRESS AUTHORISATION.**
+
+**Client:** Northgate Freight Ltd (David Achebe, MD)
+**Also Present:** Timothy Frost (MD, Vantage Logistics Group Ltd); Helen Crane (Solicitor, Ward & Co)
+**Reference:** HART_LIT/2024/0278
+**Date:** ${session2Date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+**Fee Earner:** James Hartwell | **Duration:** 45 minutes
+
+---
+
+## BASIS OF MEETING
+
+Without prejudice. All parties confirmed. Nothing in this note may be relied upon in proceedings without consent of all parties.
+
+---
+
+## NORTHGATE'S POSITION STATED
+
+Termination notice defective. Break clause not validly triggered. Full claim value ~£675,000. Stated as case value at trial, not an opening position.
+
+---
+
+## SETTLEMENT DISCUSSIONS
+
+[REDACTED — WITHOUT PREJUDICE] Settlement figures exchanged. Northgate counter-proposal made. Vantage to take instructions. 14-day deadline for response.
+
+---
+
+## NEXT STEPS
+
+1. Await Vantage response within 14 days
+2. If no acceptable offer — issue Commercial Court proceedings immediately
+3. Brief counsel on WP position`,
+    version: 1, versionType: "ai_generated", createdBy: userId, status: "approved",
+    approvedAt: new Date(session2Date.getTime() + 65 * 60 * 1000),
+    createdAt: new Date(session2Date.getTime() + 52 * 60 * 1000),
+  });
+
+  for (const evt of [
+    { eventType: "case_created", timestamp: daysAgo(56), metadata: { practiceArea: "commercial_litigation", matterReference: "HART_LIT/2024/0278" }, severity: "info" as const },
+    { eventType: "recording_started", timestamp: session1Date, metadata: { sessionTitle: "Initial Instructions", recordingType: "full_meeting" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(session1Date.getTime() + 36 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent" }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(session1Date.getTime() + 52 * 60 * 1000), metadata: { speakerCount: 2, durationSeconds: 2880 }, transcriptId: transcript1.id, severity: "info" as const },
+    { eventType: "document_generated", timestamp: new Date(session1Date.getTime() + 54 * 60 * 1000), metadata: { documentType: "attendance_note", version: 1 }, severity: "info" as const },
+    { eventType: "document_approved", timestamp: new Date(session1Date.getTime() + 75 * 60 * 1000), metadata: { approvedBy: "James Hartwell" }, severity: "info" as const },
+    { eventType: "recording_started", timestamp: session2Date, metadata: { sessionTitle: "Without Prejudice Meeting", recordingType: "full_meeting", note: "Without prejudice — consent from all parties recorded" }, severity: "info" as const },
+    { eventType: "consent_given", timestamp: new Date(session2Date.getTime() + 28 * 1000), metadata: { consentModality: "verbal_recorded", lawfulBasis: "consent", note: "All four participants consented" }, severity: "info" as const },
+    { eventType: "transcript_generated", timestamp: new Date(session2Date.getTime() + 48 * 60 * 1000), metadata: { speakerCount: 4, durationSeconds: 2700 }, transcriptId: transcript2.id, severity: "info" as const },
+    { eventType: "transcript_redacted", timestamp: new Date(session2Date.getTime() + 52 * 60 * 1000), metadata: { reasonType: "redaction_without_prejudice", status: "committed", redactionId: "rdx-wp-northgate-1", note: "Settlement figures redacted — preserved in privilege vault" }, transcriptId: transcript2.id, severity: "warning" as const },
+    { eventType: "document_generated", timestamp: new Date(session2Date.getTime() + 52 * 60 * 1000), metadata: { documentType: "attendance_note", version: 1, note: "Without prejudice — privileged document" }, severity: "info" as const },
+    { eventType: "document_approved", timestamp: new Date(session2Date.getTime() + 65 * 60 * 1000), metadata: { approvedBy: "James Hartwell" }, severity: "info" as const },
+  ]) {
+    await db.insert(auditTrail).values({ eventType: evt.eventType, userId, caseId: newCase.id, timestamp: evt.timestamp, severity: evt.severity, metadata: evt.metadata, transcriptId: (evt as any).transcriptId || null });
+  }
+}
+
+
+// ─── Main seed function ──────────────────────────────────────────────────────
 
 export async function seedDemoData(userId: string): Promise<{ success: boolean; message: string; casesCreated: number }> {
   try {
     await deleteAllUserCaseData(userId);
-
-    await seedCase1Patterson(userId);
-    await seedCase2Henderson(userId);
-    await seedCase3Hartley(userId);
-    await seedCase4Okafor(userId);
-    await seedCase5Whitmore(userId);
-    await seedCase6Treadwell(userId);
-    await seedCase3Hall(userId);
-
-    return {
-      success: true,
-      message: "Demo data created successfully: 7 showcase cases with transcripts, documents, meeting sessions, time entries, undertakings, and compliance data",
-      casesCreated: 7,
-    };
-  } catch (error) {
-    console.error("Error seeding demo data:", error);
-    return {
-      success: false,
-      message: `Error creating demo data: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      casesCreated: 0,
-    };
+    await seedMatter1Webb(userId);
+    await seedMatter2Kestrel(userId);
+    await seedMatter3Osei(userId);
+    await seedMatter4Okonkwo(userId);
+    await seedMatter5Hassan(userId);
+    await seedMatter6Diallo(userId);
+    await seedMatter7Whitfield(userId);
+    await seedMatter8Callahan(userId);
+    await seedMatter9AlRashidi(userId);
+    await seedMatter10Northgate(userId);
+    return { success: true, message: "Demo data seeded successfully — 10 matters.", casesCreated: 10 };
+  } catch (error: any) {
+    console.error("[SEED] Error seeding demo data:", error);
+    return { success: false, message: error.message, casesCreated: 0 };
   }
+}
+
+export async function resetDemoData(userId: string): Promise<{ success: boolean; message: string }> {
+  const result = await seedDemoData(userId);
+  return { success: result.success, message: result.message };
 }
 
 export async function clearDemoData(userId: string): Promise<{ success: boolean; message: string }> {
   try {
     await deleteAllUserCaseData(userId);
-    return { success: true, message: "Cleared all demo cases and related data" };
-  } catch (error) {
-    console.error("Error clearing demo data:", error);
-    return { success: false, message: `Error clearing demo data: ${error instanceof Error ? error.message : 'Unknown error'}` };
+    return { success: true, message: "Demo data cleared." };
+  } catch (error: any) {
+    return { success: false, message: error.message };
   }
-}
-
-export async function resetDemoData(userId: string): Promise<{ success: boolean; message: string; casesCreated: number }> {
-  return seedDemoData(userId);
 }
