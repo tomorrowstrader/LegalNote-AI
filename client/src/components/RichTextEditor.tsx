@@ -10,7 +10,10 @@ import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import CharacterCount from '@tiptap/extension-character-count';
 import { Mark, Node, Extension, mergeAttributes } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { ReplaceStep, ReplaceAroundStep } from '@tiptap/pm/transform';
+import { Fragment } from '@tiptap/pm/model';
+import { useAuth } from "@/hooks/useAuth";
 import { PaginationPlus } from 'tiptap-pagination-plus';
 import { Markdown } from 'tiptap-markdown';
 import { Button } from "@/components/ui/button";
@@ -138,6 +141,44 @@ const LEGAL_AUTOCOMPLETE_PHRASES = [
 
 const trackChangesPluginKey = new PluginKey('trackChanges');
 
+type DeletionClass =
+  | { kind: 'none' }
+  | { kind: 'inline'; from: number; to: number }
+  | { kind: 'structural-preserving' }
+  | { kind: 'structural-destructive' };
+
+function classifyStepDeletion(step: any, docBefore: any): DeletionClass {
+  if (!(step instanceof ReplaceStep) && !(step instanceof ReplaceAroundStep)) return { kind: 'none' };
+  const from: number = step.from;
+  const to: number = step.to;
+  if (from >= to) return { kind: 'none' };
+
+  let deletedText: string;
+  if (step instanceof ReplaceAroundStep) {
+    deletedText =
+      docBefore.textBetween(from, step.gapFrom, '\u0001', '\u0001') +
+      docBefore.textBetween(step.gapTo, to, '\u0001', '\u0001');
+  } else {
+    deletedText = docBefore.textBetween(from, to, '\u0001', '\u0001');
+  }
+
+  const $from = docBefore.resolve(from);
+  const $to = docBefore.resolve(to);
+  const withinOneTextblock = $from.sameParent($to) && $from.parent.isTextblock;
+
+  if (withinOneTextblock) {
+    return deletedText.length > 0 ? { kind: 'inline', from, to } : { kind: 'none' };
+  }
+  if (deletedText.length === 0) return { kind: 'structural-preserving' };
+  return { kind: 'structural-destructive' };
+}
+
+function newChangeId(): string {
+  return (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+    ? crypto.randomUUID()
+    : `tc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 const InsertionMark = Mark.create({
   name: 'insertion',
   addAttributes() {
@@ -225,132 +266,176 @@ const LegalFieldNode = Node.create({
 
 function createTrackChangesPlugin(
   isTrackingRef: React.MutableRefObject<boolean>,
-  deletionBufferRef: React.MutableRefObject<TrackedChange[]>,
-  onChangeLogged?: (change: TrackedChange) => void
+  userNameRef: React.MutableRefObject<string>,
+  composingRef: React.MutableRefObject<boolean>,
+  onChangeLogged?: (change: TrackedChange) => void,
+  onStructuralBlocked?: () => void,
 ) {
   return new Plugin({
     key: trackChangesPluginKey,
-    filterTransaction(transaction, state) {
+
+    // Structural guard ONLY: blocks content-destroying structural deletions while tracking.
+    // No marks, no buffers, no deferred dispatch.
+    filterTransaction(transaction) {
       if (!isTrackingRef.current) return true;
       if (!transaction.docChanged) return true;
       if (transaction.getMeta('trackChangesApply')) return true;
+      if (transaction.getMeta('history$')) return true;
 
-      let hasPureDeletion = false;
-      const deletions: Array<{ from: number; to: number }> = [];
-
-      transaction.steps.forEach((step: any) => {
-        if (step.from !== undefined && step.to !== undefined && step.from < step.to) {
-          const insertedSize = step.slice ? step.slice.content.size : 0;
-          if (insertedSize === 0) {
-            hasPureDeletion = true;
-            deletions.push({ from: step.from, to: step.to });
-          }
+      for (let i = 0; i < transaction.steps.length; i++) {
+        const cls = classifyStepDeletion(transaction.steps[i], transaction.docs[i]);
+        if (cls.kind === 'structural-destructive') {
+          if (onStructuralBlocked) onStructuralBlocked();
+          return false;
         }
-      });
-
-      if (hasPureDeletion && deletions.length > 0) {
-        const tr = state.tr;
-        tr.setMeta('trackChangesApply', true);
-        for (const del of deletions) {
-          const from = Math.max(del.from, 0);
-          const to = Math.min(del.to, state.doc.content.size);
-          if (to > from) {
-            const changeId = `tc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-            const timestamp = new Date().toISOString();
-            const deletedText = state.doc.textBetween(from, to, ' ');
-            const deletionMark = state.schema.marks.deletion.create({
-              user: 'Solicitor',
-              timestamp,
-              changeId,
-            });
-            tr.addMark(from, to, deletionMark);
-            const change: TrackedChange = {
-              id: changeId,
-              type: 'deletion',
-              text: deletedText,
-              user: 'Solicitor',
-              timestamp,
-              from,
-              to,
-            };
-            deletionBufferRef.current.push(change);
-            if (onChangeLogged) {
-              onChangeLogged(change);
-            }
-          }
-        }
-        if (tr.steps.length > 0) {
-          requestAnimationFrame(() => {
-            const view = (window as any).__tiptapEditorView;
-            if (view && !view.isDestroyed) view.dispatch(tr);
-          });
-        }
-        return false;
       }
-
       return true;
     },
-    appendTransaction(transactions, _oldState, newState) {
+
+    // All tracking happens here, after the user's transaction has applied.
+    appendTransaction(transactions, oldState, newState) {
       if (!isTrackingRef.current) return null;
+      if (composingRef.current) return null;
 
-      const docChanged = transactions.some(tr => tr.docChanged && !tr.getMeta('trackChangesApply'));
-      if (!docChanged) return null;
-
-      let tr = newState.tr;
-      let modified = false;
+      type ReinsertOp = {
+        pos: number; nodes: any[]; cursor: 'before' | 'after' | null;
+        loggedText: string; changeId: string; timestamp: string;
+      };
+      type MarkOp = { from: number; to: number };
+      const reinserts: ReinsertOp[] = [];
+      const insertionRanges: MarkOp[] = [];
 
       for (const transaction of transactions) {
-        if (!transaction.docChanged || transaction.getMeta('trackChangesApply')) continue;
+        if (!transaction.docChanged) continue;
+        if (transaction.getMeta('trackChangesApply')) continue;
+        if (transaction.getMeta('history$')) continue;
 
-        transaction.steps.forEach((step) => {
-          const stepMap = step.getMap();
-          stepMap.forEach((oldStart: number, oldEnd: number, newStart: number, newEnd: number) => {
-            const changeId = `tc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-            const timestamp = new Date().toISOString();
+        for (let i = 0; i < transaction.steps.length; i++) {
+          const step: any = transaction.steps[i];
+          if (!(step instanceof ReplaceStep) && !(step instanceof ReplaceAroundStep)) continue;
+          const docBefore = transaction.docs[i];
+          const mapToFinal = transaction.mapping.slice(i + 1);
 
-            if (newEnd > newStart) {
-              const clampedStart = Math.max(newStart, 1);
-              const clampedEnd = Math.min(newEnd, newState.doc.content.size);
-              if (clampedEnd > clampedStart) {
-                const insertionMark = newState.schema.marks.insertion.create({
-                  user: 'Solicitor',
-                  timestamp,
-                  changeId,
-                });
-                tr = tr.addMark(clampedStart, clampedEnd, insertionMark);
-                modified = true;
+          // Insertion tracking: new content occupies [from, from + slice.size] post-step.
+          const insertedSize = step.slice ? step.slice.size : 0;
+          if (insertedSize > 0) {
+            const insFrom = mapToFinal.map(step.from, 1);
+            const insTo = mapToFinal.map(step.from + insertedSize, -1);
+            if (insTo > insFrom) insertionRanges.push({ from: insFrom, to: insTo });
+          }
 
-                if (onChangeLogged) {
-                  const insertedText = newState.doc.textBetween(clampedStart, clampedEnd, ' ');
-                  onChangeLogged({
-                    id: changeId,
-                    type: 'insertion',
-                    text: insertedText,
-                    user: 'Solicitor',
-                    timestamp,
-                    from: clampedStart,
-                    to: clampedEnd,
-                  });
-                }
-              }
+          // Deletion tracking: inline deletions are re-inserted as struck-through text.
+          const cls = classifyStepDeletion(step, docBefore);
+          if (cls.kind !== 'inline') continue;
+
+          const changeId = newChangeId();
+          const timestamp = new Date().toISOString();
+          const deletionMarkType = newState.schema.marks.deletion;
+          const nodes: any[] = [];
+          let loggedText = '';
+
+          docBefore.nodesBetween(cls.from, cls.to, (node: any, pos: number) => {
+            if (!node.isInline) return true;
+            const start = Math.max(pos, cls.from);
+            const end = Math.min(pos + node.nodeSize, cls.to);
+            if (end <= start) return false;
+
+            // Rule 1: deleting an unaccepted insertion is a genuine removal.
+            if (node.marks.some((m: any) => m.type.name === 'insertion')) return false;
+
+            // Rule 2: already-struck text is re-inserted with its ORIGINAL mark preserved.
+            const existingDeletion = node.marks.find((m: any) => m.type.name === 'deletion');
+            const baseMarks = node.marks.filter(
+              (m: any) => m.type.name !== 'deletion' && m.type.name !== 'insertion'
+            );
+            const mark = existingDeletion
+              ?? deletionMarkType.create({ user: userNameRef.current, timestamp, changeId });
+
+            if (node.isText) {
+              const text = node.text.slice(start - pos, end - pos);
+              if (!text) return false;
+              nodes.push(newState.schema.text(text, [...baseMarks, mark]));
+              if (!existingDeletion) loggedText += text;
+            } else if (node.isLeaf) {
+              nodes.push(node.mark([...baseMarks, mark]));
             }
+            return false;
           });
-        });
+
+          if (nodes.length === 0) continue;
+
+          // Cursor intent: empty selection, head at range end = Backspace; at start = Delete.
+          let cursor: 'before' | 'after' | null = null;
+          const sel = oldState.selection;
+          if (sel.empty && transaction.steps.length === 1) {
+            if (sel.head === cls.to) cursor = 'before';
+            else if (sel.head === cls.from) cursor = 'after';
+          }
+
+          reinserts.push({
+            pos: mapToFinal.map(step.from, -1),
+            nodes, cursor, loggedText, changeId, timestamp,
+          });
+        }
       }
 
-      if (modified) {
-        tr.setMeta('trackChangesApply', true);
-        return tr;
+      if (reinserts.length === 0 && insertionRanges.length === 0) return null;
+
+      let tr = newState.tr;
+      let cursorTarget: number | null = null;
+
+      // Re-inserts first, highest position first, so earlier positions stay valid.
+      reinserts.sort((a, b) => b.pos - a.pos);
+      for (const op of reinserts) {
+        const frag = Fragment.from(op.nodes);
+        tr = tr.insert(op.pos, frag);
+        if (op.cursor === 'before') cursorTarget = op.pos;
+        else if (op.cursor === 'after') cursorTarget = op.pos + frag.size;
+        if (op.loggedText && onChangeLogged) {
+          onChangeLogged({
+            id: op.changeId, type: 'deletion', text: op.loggedText,
+            user: userNameRef.current, timestamp: op.timestamp,
+            from: op.pos, to: op.pos + frag.size,
+          });
+        }
       }
-      return null;
+
+      // Insertion marks second, mapped through the re-inserts.
+      const insertionMarkType = newState.schema.marks.insertion;
+      for (const op of insertionRanges) {
+        const text = newState.doc.textBetween(op.from, op.to, '\u0001', '\u0001');
+        if (!text) continue; // structure-only insert (e.g. Enter) — nothing to mark
+        const from = tr.mapping.map(op.from, 1);
+        const to = tr.mapping.map(op.to, -1);
+        if (to <= from) continue;
+        const changeId = newChangeId();
+        const timestamp = new Date().toISOString();
+        tr = tr.addMark(from, to, insertionMarkType.create({
+          user: userNameRef.current, timestamp, changeId,
+        }));
+        if (onChangeLogged) {
+          const visibleText = newState.doc.textBetween(op.from, op.to, ' ');
+          onChangeLogged({
+            id: changeId, type: 'insertion', text: visibleText,
+            user: userNameRef.current, timestamp, from, to,
+          });
+        }
+      }
+
+      if (tr.steps.length === 0 && cursorTarget === null) return null;
+      if (cursorTarget !== null) {
+        const clamped = Math.max(1, Math.min(cursorTarget, tr.doc.content.size));
+        tr = tr.setSelection(TextSelection.create(tr.doc, clamped));
+      }
+      tr.setMeta('trackChangesApply', true);
+      return tr;
     },
-    view(editorView) {
-      (window as any).__tiptapEditorView = editorView;
-      return {
-        destroy() {
-          delete (window as any).__tiptapEditorView;
-        },
-      };
+
+    props: {
+      handleDOMEvents: {
+        compositionstart: () => { composingRef.current = true; return false; },
+        compositionend: () => { composingRef.current = false; return false; },
+      },
     },
   });
 }
@@ -396,7 +481,27 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const isUpdatingRef = useRef(false);
   const isTrackingRef = useRef(trackChangesEnabled);
-  const deletionBufferRef = useRef<TrackedChange[]>([]);
+  const { user } = useAuth();
+  const userNameRef = useRef<string>('Solicitor');
+  const composingRef = useRef<boolean>(false);
+  const [structuralNotice, setStructuralNotice] = useState(false);
+  const structuralNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    userNameRef.current = (user?.firstName && user?.lastName)
+      ? `${user.firstName} ${user.lastName}`
+      : (user?.email ? user.email.split('@')[0] : 'Solicitor');
+  }, [user]);
+
+  useEffect(() => () => {
+    if (structuralNoticeTimerRef.current) clearTimeout(structuralNoticeTimerRef.current);
+  }, []);
+
+  const handleStructuralBlocked = useCallback(() => {
+    setStructuralNotice(true);
+    if (structuralNoticeTimerRef.current) clearTimeout(structuralNoticeTimerRef.current);
+    structuralNoticeTimerRef.current = setTimeout(() => setStructuralNotice(false), 4000);
+  }, []);
   const lastEmittedContentRef = useRef<string>('');
   const [showSearch, setShowSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -554,13 +659,13 @@ export function RichTextEditor({
   useEffect(() => {
     if (!editor) return;
 
-    const plugin = createTrackChangesPlugin(isTrackingRef, deletionBufferRef, handleChangeLogged);
+    const plugin = createTrackChangesPlugin(isTrackingRef, userNameRef, composingRef, handleChangeLogged, handleStructuralBlocked);
     const { state } = editor;
     const newState = state.reconfigure({
       plugins: [...state.plugins.filter(p => p.spec.key !== trackChangesPluginKey), plugin],
     });
     editor.view.updateState(newState);
-  }, [editor, handleChangeLogged]);
+  }, [editor, handleChangeLogged, handleStructuralBlocked]);
 
   const scanForTrackedChanges = useCallback((editorInstance: any) => {
     if (!editorInstance) return;
@@ -1086,6 +1191,14 @@ export function RichTextEditor({
 
       <div className="flex">
         <div className={`relative flex-1 ${trackChangesEnabled && changeCount > 0 && !disabled ? 'min-w-0' : ''}`} onKeyDown={handleKeyDown}>
+        {structuralNotice && (
+          <div
+            className="absolute top-2 left-1/2 -translate-x-1/2 z-50 rounded-md border border-amber-400 bg-amber-50 dark:bg-amber-900/40 px-3 py-1.5 text-xs text-amber-800 dark:text-amber-200 shadow-sm"
+            data-testid="notice-structural-blocked"
+          >
+            Structural deletions are blocked while Track Changes is on. Turn Track Changes off to delete table rows, columns, or list items.
+          </div>
+        )}
           <div className="bg-muted/30 dark:bg-muted/10 border-x border-border overflow-x-auto py-8">
             <div className="pagination-plus-host mx-auto">
               <EditorContent 
