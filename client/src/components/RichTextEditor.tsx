@@ -942,7 +942,7 @@ export function RichTextEditor({
     if (!selectedText.trim()) return;
     editor.chain().focus()
       .setMark('redaction', {
-        redactedBy: 'Solicitor',
+        redactedBy: userNameRef.current,
         redactedAt: new Date().toISOString(),
       })
       .run();
