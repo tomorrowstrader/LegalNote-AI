@@ -11,7 +11,7 @@ import Subscript from '@tiptap/extension-subscript';
 import CharacterCount from '@tiptap/extension-character-count';
 import { Mark, Node, Extension, mergeAttributes } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-import { createPaginationPlugin } from './paginationPlugin';
+import { PaginationPlus } from 'tiptap-pagination-plus';
 import { Markdown } from 'tiptap-markdown';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +58,23 @@ function stripEmptyListItems(content: string): string {
   return content
     .replace(/^[-*+]\s*$/gm, '')
     .replace(/\n{3,}/g, '\n\n');
+}
+
+function stripPersistedTrackMarks(editor: any) {
+  try {
+    const { state } = editor;
+    const insertion = state.schema.marks.insertion;
+    const deletion = state.schema.marks.deletion;
+    if (!insertion && !deletion) return;
+    let tr = state.tr;
+    if (insertion) tr = tr.removeMark(0, state.doc.content.size, insertion);
+    if (deletion) tr = tr.removeMark(0, state.doc.content.size, deletion);
+    tr.setMeta('trackChangesApply', true);
+    tr.setMeta('addToHistory', false);
+    editor.view.dispatch(tr);
+  } catch (e) {
+    console.error('[RichTextEditor] Failed to strip persisted track marks:', e);
+  }
 }
 
 function ensureBoldHeadings(content: string): string {
@@ -487,11 +504,15 @@ export function RichTextEditor({
           };
         },
       }),
-      Extension.create({
-        name: 'pagination',
-        addProseMirrorPlugins() {
-          return [createPaginationPlugin()];
-        },
+      PaginationPlus.configure({
+        pageHeight: 1122,
+        pageWidth: 794,
+        pageGap: 48,
+        pageGapBorderSize: 1,
+        marginTop: 96,
+        marginBottom: 96,
+        marginLeft: 120,
+        marginRight: 120,
       }),
     ],
     content: '',
@@ -716,9 +737,11 @@ export function RichTextEditor({
       const processedContent = ensureBoldHeadings(content ?? '');
       const doc = editor.storage.markdown.parser.parse(processedContent).toJSON();
       editor.commands.setContent(doc, false);
+      stripPersistedTrackMarks(editor);
     } catch (err) {
       console.error('[RichTextEditor] Markdown hydration failed, falling back to raw:', err);
       editor.commands.setContent(content ?? '', false);
+      stripPersistedTrackMarks(editor);
     } finally {
       requestAnimationFrame(() => { isUpdatingRef.current = false; });
     }
@@ -1064,7 +1087,7 @@ export function RichTextEditor({
       <div className="flex">
         <div className={`relative flex-1 ${trackChangesEnabled && changeCount > 0 && !disabled ? 'min-w-0' : ''}`} onKeyDown={handleKeyDown}>
           <div className="bg-muted/30 dark:bg-muted/10 border-x border-border overflow-x-auto py-8">
-            <div className="paginated-page-card shadow-md mx-auto">
+            <div className="pagination-plus-host mx-auto">
               <EditorContent 
                 editor={editor} 
                 className="legal-document-editor
