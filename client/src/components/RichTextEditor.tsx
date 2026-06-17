@@ -630,9 +630,21 @@ export function RichTextEditor({
     },
     onUpdate: ({ editor }) => {
       if (isUpdatingRef.current) return;
-      const markdown = editor.storage.markdown.getMarkdown();
-      lastEmittedContentRef.current = markdown;
-      onChange(markdown);
+      const hasTrackMarks = (() => {
+        let found = false;
+        editor.state.doc.descendants((node: any) => {
+          if (found) return false;
+          if (node.isText && node.marks.some((m: any) => m.type.name === 'insertion' || m.type.name === 'deletion')) {
+            found = true; return false;
+          }
+        });
+        return found;
+      })();
+      const content = hasTrackMarks
+        ? editor.getHTML()
+        : editor.storage.markdown.getMarkdown();
+      lastEmittedContentRef.current = content;
+      onChange(content);
 
       const { from } = editor.state.selection;
       const text = editor.state.doc.textBetween(Math.max(0, from - 30), from);
@@ -701,8 +713,14 @@ export function RichTextEditor({
       }
     });
 
-    setTrackedChanges(changes);
-    setChangeCount(changes.length);
+    const seen = new Set<string>();
+    const deduped = changes.filter(c => {
+      if (seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
+    setTrackedChanges(deduped);
+    setChangeCount(deduped.length);
   }, []);
 
   useEffect(() => {
@@ -1193,7 +1211,7 @@ export function RichTextEditor({
         <div className={`relative flex-1 ${trackChangesEnabled && changeCount > 0 && !disabled ? 'min-w-0' : ''}`} onKeyDown={handleKeyDown}>
         {structuralNotice && (
           <div
-            className="absolute top-2 left-1/2 -translate-x-1/2 z-50 rounded-md border border-amber-400 bg-amber-50 dark:bg-amber-900/40 px-3 py-1.5 text-xs text-amber-800 dark:text-amber-200 shadow-sm"
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 rounded-md border border-amber-400 bg-amber-50 dark:bg-amber-900/40 px-3 py-1.5 text-xs text-amber-800 dark:text-amber-200 shadow-sm pointer-events-none"
             data-testid="notice-structural-blocked"
           >
             Structural deletions are blocked while Track Changes is on. Turn Track Changes off to delete table rows, columns, or list items.
