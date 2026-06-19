@@ -38,6 +38,7 @@ const EVENT_ICONS: Record<string, any> = {
   document_downloaded: Download,
   document_sent: Send,
   document_edited: FileText,
+  track_change_action: FileText,
   document_unlocked: FileText,
   document_approved: Shield,
   document_generated: FileText,
@@ -94,6 +95,7 @@ const EVENT_LABELS: Record<string, string> = {
   document_downloaded: "Document Downloaded",
   document_sent: "Document Sent",
   document_edited: "Document Edited",
+  track_change_action: "Track Change Action",
   document_unlocked: "Document Unlocked",
   document_approved: "Document Approved",
   document_generated: "Document Produced",
@@ -207,6 +209,26 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
         ? `Audio removed: ${metadata.reason}`
         : "Audio recording deleted";
     
+    case "track_change_action": {
+      const actionLabels: Record<string, string> = {
+        accept: "Accepted",
+        reject: "Rejected",
+        accept_all: "Accepted",
+        reject_all: "Rejected",
+      };
+      const actionLabel = actionLabels[metadata.action as string] || metadata.action || "Actioned";
+      const typeLabel = metadata.changeType === "deletion" ? "deletion" : "insertion";
+      const author = metadata.author || "Unknown";
+      const textPreview = metadata.text ? `"${metadata.text}"` : "(no text)";
+      const truncatedNote = metadata.truncated
+        ? ` (${metadata.fullLength} chars total, truncated)`
+        : "";
+      const madeAt = metadata.changeTimestamp
+        ? ` (made ${format(new Date(metadata.changeTimestamp as string), "dd MMM yyyy HH:mm")})`
+        : "";
+      return `${actionLabel} ${typeLabel} by ${author}: ${textPreview}${truncatedNote}${madeAt}`;
+    }
+
     case "document_viewed":
       return metadata.documentType 
         ? `Viewed ${metadata.documentType}`

@@ -459,6 +459,55 @@ export interface TrackedChange {
   to: number;
 }
 
+export interface TrackChangeAuditRecord {
+  changeId: string;
+  changeType: 'insertion' | 'deletion';
+  text: string;
+  author: string;
+  changeTimestamp: string;
+}
+
+function collectChangeRecords(doc: any, filterChangeIds?: string[]): TrackChangeAuditRecord[] {
+  const filterSet = filterChangeIds ? new Set(filterChangeIds) : null;
+  const byId = new Map<string, {
+    fragments: { pos: number; text: string }[];
+    changeType: 'insertion' | 'deletion';
+    author: string;
+    changeTimestamp: string;
+  }>();
+
+  doc.descendants((node: any, pos: number) => {
+    if (!node.isText) return;
+    node.marks.forEach((mark: any) => {
+      if (mark.type.name !== 'insertion' && mark.type.name !== 'deletion') return;
+      const changeId = mark.attrs.changeId;
+      if (!changeId) return;
+      if (filterSet && !filterSet.has(changeId)) return;
+
+      if (!byId.has(changeId)) {
+        byId.set(changeId, {
+          fragments: [],
+          changeType: mark.type.name,
+          author: mark.attrs.user || 'Unknown',
+          changeTimestamp: mark.attrs.timestamp || new Date().toISOString(),
+        });
+      }
+      byId.get(changeId)!.fragments.push({ pos, text: node.text || '' });
+    });
+  });
+
+  return Array.from(byId.entries()).map(([changeId, { fragments, changeType, author, changeTimestamp }]) => {
+    fragments.sort((a, b) => a.pos - b.pos);
+    return {
+      changeId,
+      changeType,
+      text: fragments.map(f => f.text).join(''),
+      author,
+      changeTimestamp,
+    };
+  });
+}
+
 export interface LegalFieldContext {
   clientName?: string;
   matterRef?: string;
@@ -476,7 +525,7 @@ interface RichTextEditorProps {
   zoom?: number;
   trackChangesEnabled?: boolean;
   onTrackChangesToggle?: (enabled: boolean) => void;
-  onTrackChangeAction?: (action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changeId?: string) => void;
+  onTrackChangeAction?: (action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changes: TrackChangeAuditRecord[]) => void;
   onAddComment?: (selectedText: string) => void;
   onRedact?: (redactedText: string) => void;
   legalContext?: LegalFieldContext;
@@ -740,6 +789,7 @@ export function RichTextEditor({
   const acceptChange = useCallback((changeId: string) => {
     if (!editor) return;
     const { doc, tr } = editor.state;
+    const auditRecords = collectChangeRecords(doc, [changeId]);
     let modified = false;
 
     doc.descendants((node: any, pos: number) => {
@@ -762,13 +812,14 @@ export function RichTextEditor({
       tr.setMeta('trackChangesApply', true);
       editor.view.dispatch(tr);
       scanForTrackedChanges(editor);
-      onTrackChangeAction?.('accept', changeId);
+      if (auditRecords.length > 0) onTrackChangeAction?.('accept', auditRecords);
     }
   }, [editor, scanForTrackedChanges, onTrackChangeAction]);
 
   const rejectChange = useCallback((changeId: string) => {
     if (!editor) return;
     const { doc, tr } = editor.state;
+    const auditRecords = collectChangeRecords(doc, [changeId]);
     let modified = false;
 
     doc.descendants((node: any, pos: number) => {
@@ -791,13 +842,14 @@ export function RichTextEditor({
       tr.setMeta('trackChangesApply', true);
       editor.view.dispatch(tr);
       scanForTrackedChanges(editor);
-      onTrackChangeAction?.('reject', changeId);
+      if (auditRecords.length > 0) onTrackChangeAction?.('reject', auditRecords);
     }
   }, [editor, scanForTrackedChanges, onTrackChangeAction]);
 
   const acceptAllChanges = useCallback(() => {
     if (!editor) return;
     const { doc } = editor.state;
+    const auditRecords = collectChangeRecords(doc);
     let { tr } = editor.state;
 
     const marksToProcess: Array<{ pos: number; end: number; type: string; mark: any }> = [];
@@ -824,12 +876,13 @@ export function RichTextEditor({
     tr.setMeta('trackChangesApply', true);
     editor.view.dispatch(tr);
     scanForTrackedChanges(editor);
-    onTrackChangeAction?.('accept_all');
+    if (auditRecords.length > 0) onTrackChangeAction?.('accept_all', auditRecords);
   }, [editor, scanForTrackedChanges, onTrackChangeAction]);
 
   const rejectAllChanges = useCallback(() => {
     if (!editor) return;
     const { doc } = editor.state;
+    const auditRecords = collectChangeRecords(doc);
     let { tr } = editor.state;
 
     const marksToProcess: Array<{ pos: number; end: number; type: string; mark: any }> = [];
@@ -856,7 +909,7 @@ export function RichTextEditor({
     tr.setMeta('trackChangesApply', true);
     editor.view.dispatch(tr);
     scanForTrackedChanges(editor);
-    onTrackChangeAction?.('reject_all');
+    if (auditRecords.length > 0) onTrackChangeAction?.('reject_all', auditRecords);
   }, [editor, scanForTrackedChanges, onTrackChangeAction]);
 
   useEffect(() => {

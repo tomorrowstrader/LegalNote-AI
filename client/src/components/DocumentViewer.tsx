@@ -17,7 +17,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { RichTextEditor, type TrackedChange } from "@/components/RichTextEditor";
+import { RichTextEditor, type TrackedChange, type TrackChangeAuditRecord } from "@/components/RichTextEditor";
 import { PageView } from "@/components/PageView";
 import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
 
@@ -518,7 +518,7 @@ function EditableDocumentContent({
   onAddComment?: (selectedText: string) => void;
   trackChangesEnabled?: boolean;
   onTrackChangesToggle?: (enabled: boolean) => void;
-  onTrackChangeAction?: (action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changeId?: string) => void;
+  onTrackChangeAction?: (action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changes: TrackChangeAuditRecord[]) => void;
   onRedact?: (redactedText: string) => void;
   legalContext?: { clientName?: string; matterRef?: string; solicitorName?: string; firmName?: string };
   pageViewMode?: boolean;
@@ -1223,13 +1223,18 @@ export default function DocumentViewer({
     setTrackChangesEnabled(false);
   };
 
-  const handleTrackChangeAction = useCallback((action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changeId?: string) => {
+  const handleTrackChangeAction = useCallback((action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changes: TrackChangeAuditRecord[]) => {
+    if (!changes.length) return;
     try {
       fetch(`/api/cases/${caseId}/audit/track-change`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ action, changeId }),
+        body: JSON.stringify({
+          action,
+          documentId: editingDocIdRef.current,
+          changes,
+        }),
       });
     } catch (auditError) {
       console.error('Failed to log track change audit event:', auditError);
