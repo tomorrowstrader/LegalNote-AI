@@ -888,10 +888,9 @@ export function RichTextEditor({
   }, []);
 
   useEffect(() => {
-    if (editor) {
-      scanForTrackedChanges(editor);
-    }
-  }, [editor, scanForTrackedChanges]);
+    if (!editor || disabled || !trackChangesEnabled) return;
+    scanForTrackedChanges(editor);
+  }, [editor, disabled, trackChangesEnabled, scanForTrackedChanges]);
 
   const acceptChange = useCallback((changeId: string) => {
     if (!editor) return;
@@ -1022,6 +1021,8 @@ export function RichTextEditor({
   useEffect(() => {
     if (!editor) return;
     if (content === lastEmittedContentRef.current) return;
+    setTrackedChanges([]);
+    setChangeCount(0);
     lastEmittedContentRef.current = content;
     isUpdatingRef.current = true;
     try {
@@ -1037,9 +1038,14 @@ export function RichTextEditor({
       console.error('[RichTextEditor] Content hydration failed, falling back to raw:', err);
       editor.commands.setContent(content ?? '', false);
     } finally {
-      requestAnimationFrame(() => { isUpdatingRef.current = false; });
+      requestAnimationFrame(() => {
+        isUpdatingRef.current = false;
+        if (!disabled && trackChangesEnabled) {
+          scanForTrackedChanges(editor);
+        }
+      });
     }
-  }, [editor, content]);
+  }, [editor, content, disabled, trackChangesEnabled, scanForTrackedChanges]);
 
   useEffect(() => {
     if (editor && disabled !== undefined) {
