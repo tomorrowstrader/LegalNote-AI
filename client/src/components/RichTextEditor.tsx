@@ -216,9 +216,50 @@ function findAdjacentInsertionMark(
   return null;
 }
 
+/** Reuse changeId when a new deletion reinsert is position-adjacent to same-author deletion mark. */
+function findAdjacentDeletionMark(
+  doc: any,
+  pos: number,
+  author: string,
+): { changeId: string; timestamp: string } | null {
+  const matchesAuthor = (mark: any) =>
+    mark.type.name === 'deletion'
+    && mark.attrs.changeId
+    && (mark.attrs.user || 'Unknown') === author;
+
+  if (pos > 0) {
+    const nodeBefore = doc.resolve(pos).nodeBefore;
+    if (nodeBefore?.isText) {
+      const mark = nodeBefore.marks.find(matchesAuthor);
+      if (mark) {
+        return {
+          changeId: mark.attrs.changeId,
+          timestamp: mark.attrs.timestamp || new Date().toISOString(),
+        };
+      }
+    }
+  }
+
+  if (pos < doc.content.size) {
+    const nodeAfter = doc.resolve(pos).nodeAfter;
+    if (nodeAfter?.isText) {
+      const mark = nodeAfter.marks.find(matchesAuthor);
+      if (mark) {
+        return {
+          changeId: mark.attrs.changeId,
+          timestamp: mark.attrs.timestamp || new Date().toISOString(),
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 const InsertionMark = Mark.create({
   name: 'insertion',
   priority: 1000,
+  excludes: 'deletion',
   addAttributes() {
     return {
       user: { default: null },
@@ -241,6 +282,8 @@ const InsertionMark = Mark.create({
 const DeletionMark = Mark.create({
   name: 'deletion',
   priority: 1000,
+  inclusive: false,
+  excludes: 'insertion',
   addAttributes() {
     return {
       user: { default: null },
@@ -348,7 +391,7 @@ function createTrackChangesPlugin(
 
       type ReinsertOp = {
         pos: number; nodes: any[]; cursor: 'before' | 'after' | null;
-        loggedText: string; changeId: string; timestamp: string;
+        loggedText: string; changeId: string; timestamp: string; isNewDeletion: boolean;
       };
       type MarkOp = { from: number; to: number };
       const reinserts: ReinsertOp[] = [];
@@ -377,8 +420,11 @@ function createTrackChangesPlugin(
           const cls = classifyStepDeletion(step, docBefore);
           if (cls.kind !== 'inline') continue;
 
-          const changeId = newChangeId();
-          const timestamp = new Date().toISOString();
+          const reinsertPos = mapToFinal.map(step.from, -1);
+          const adjacentDel = findAdjacentDeletionMark(newState.doc, reinsertPos, userNameRef.current);
+          let changeId = adjacentDel?.changeId ?? newChangeId();
+          const timestamp = adjacentDel?.timestamp ?? new Date().toISOString();
+          let isNewDeletion = !adjacentDel;
           const deletionMarkType = newState.schema.marks.deletion;
           const nodes: any[] = [];
           let loggedText = '';
@@ -394,6 +440,10 @@ function createTrackChangesPlugin(
 
             // Rule 2: already-struck text is re-inserted with its ORIGINAL mark preserved.
             const existingDeletion = node.marks.find((m: any) => m.type.name === 'deletion');
+            if (existingDeletion) {
+              changeId = existingDeletion.attrs.changeId;
+              isNewDeletion = false;
+            }
             const baseMarks = node.marks.filter(
               (m: any) => m.type.name !== 'deletion' && m.type.name !== 'insertion'
             );
@@ -422,8 +472,8 @@ function createTrackChangesPlugin(
           }
 
           reinserts.push({
-            pos: mapToFinal.map(step.from, -1),
-            nodes, cursor, loggedText, changeId, timestamp,
+            pos: reinsertPos,
+            nodes, cursor, loggedText, changeId, timestamp, isNewDeletion,
           });
         }
       }
@@ -440,7 +490,7 @@ function createTrackChangesPlugin(
         tr = tr.insert(op.pos, frag);
         if (op.cursor === 'before') cursorTarget = op.pos;
         else if (op.cursor === 'after') cursorTarget = op.pos + frag.size;
-        if (op.loggedText && onChangeLogged) {
+        if (op.loggedText && op.isNewDeletion && onChangeLogged) {
           onChangeLogged({
             id: op.changeId, type: 'deletion', text: op.loggedText,
             user: userNameRef.current, timestamp: op.timestamp,
@@ -451,6 +501,7 @@ function createTrackChangesPlugin(
 
       // Insertion marks second, mapped through the re-inserts.
       const insertionMarkType = newState.schema.marks.insertion;
+      const deletionMarkType = newState.schema.marks.deletion;
       const author = userNameRef.current;
       for (const op of insertionRanges) {
         const text = newState.doc.textBetween(op.from, op.to, '\u0001', '\u0001');
@@ -464,6 +515,8 @@ function createTrackChangesPlugin(
         const changeId = adjacent?.changeId ?? newChangeId();
         const timestamp = adjacent?.timestamp ?? new Date().toISOString();
 
+        // Strip deletion marks inherited at deletion boundaries before marking insertion.
+        tr = tr.removeMark(from, to, deletionMarkType);
         tr = tr.addMark(from, to, insertionMarkType.create({
           user: author, timestamp, changeId,
         }));
