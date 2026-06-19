@@ -143,29 +143,38 @@ type DeletionClass =
   | { kind: 'structural-preserving' }
   | { kind: 'structural-destructive' };
 
+/** Count inline text characters removed by a step (excludes block-structure-only deletions). */
+function deletedInlineTextLength(step: any, docBefore: any): number {
+  const ranges: [number, number][] = step instanceof ReplaceAroundStep
+    ? [[step.from, step.gapFrom], [step.gapTo, step.to]]
+    : [[step.from, step.to]];
+  let length = 0;
+  for (const [rangeFrom, rangeTo] of ranges) {
+    if (rangeFrom >= rangeTo) continue;
+    docBefore.nodesBetween(rangeFrom, rangeTo, (node: any, pos: number) => {
+      if (node.isText) {
+        length += node.text.slice(Math.max(rangeFrom, pos) - pos, rangeTo - pos).length;
+      }
+    });
+  }
+  return length;
+}
+
 function classifyStepDeletion(step: any, docBefore: any): DeletionClass {
   if (!(step instanceof ReplaceStep) && !(step instanceof ReplaceAroundStep)) return { kind: 'none' };
   const from: number = step.from;
   const to: number = step.to;
   if (from >= to) return { kind: 'none' };
 
-  let deletedText: string;
-  if (step instanceof ReplaceAroundStep) {
-    deletedText =
-      docBefore.textBetween(from, step.gapFrom, '\u0001', '\u0001') +
-      docBefore.textBetween(step.gapTo, to, '\u0001', '\u0001');
-  } else {
-    deletedText = docBefore.textBetween(from, to, '\u0001', '\u0001');
-  }
-
   const $from = docBefore.resolve(from);
   const $to = docBefore.resolve(to);
   const withinOneTextblock = $from.sameParent($to) && $from.parent.isTextblock;
 
   if (withinOneTextblock) {
+    const deletedText = docBefore.textBetween(from, to, '\u0001', '\u0001');
     return deletedText.length > 0 ? { kind: 'inline', from, to } : { kind: 'none' };
   }
-  if (deletedText.length === 0) return { kind: 'structural-preserving' };
+  if (deletedInlineTextLength(step, docBefore) === 0) return { kind: 'structural-preserving' };
   return { kind: 'structural-destructive' };
 }
 
