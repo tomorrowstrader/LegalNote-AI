@@ -160,6 +160,47 @@ function deletedInlineTextLength(step: any, docBefore: any): number {
   return length;
 }
 
+/** True when a step only merges textblocks (no complete block node removed). */
+function isTextblockJoin(step: any, docBefore: any): boolean {
+  if (deletedInlineTextLength(step, docBefore) !== 0) return false;
+
+  const from: number = step.from;
+  const to: number = step.to;
+  const gapFrom = step instanceof ReplaceAroundStep ? step.gapFrom : null;
+  const gapTo = step instanceof ReplaceAroundStep ? step.gapTo : null;
+
+  const deletedRanges: [number, number][] = gapFrom != null && gapTo != null
+    ? [[from, gapFrom], [gapTo, to]]
+    : [[from, to]];
+
+  let hasRemovedBlock = false;
+
+  for (const [rangeFrom, rangeTo] of deletedRanges) {
+    if (rangeFrom >= rangeTo) continue;
+    docBefore.nodesBetween(rangeFrom, rangeTo, (node: any, pos: number) => {
+      if (hasRemovedBlock || !node.isBlock) return;
+      if (pos >= rangeFrom && pos + node.nodeSize <= rangeTo) {
+        hasRemovedBlock = true;
+      }
+    });
+    if (hasRemovedBlock) return false;
+  }
+
+  // ReplaceAroundStep: a block spanning the outer range but not wholly in the
+  // preserved gap is structurally removed (e.g. liftListItem on an empty bullet).
+  if (gapFrom != null && gapTo != null) {
+    docBefore.nodesBetween(from, to, (node: any, pos: number) => {
+      if (hasRemovedBlock || !node.isBlock) return;
+      const nodeEnd = pos + node.nodeSize;
+      if (pos >= from && nodeEnd <= to && !(pos >= gapFrom && nodeEnd <= gapTo)) {
+        hasRemovedBlock = true;
+      }
+    });
+  }
+
+  return !hasRemovedBlock;
+}
+
 function classifyStepDeletion(step: any, docBefore: any): DeletionClass {
   if (!(step instanceof ReplaceStep) && !(step instanceof ReplaceAroundStep)) return { kind: 'none' };
   const from: number = step.from;
@@ -174,7 +215,8 @@ function classifyStepDeletion(step: any, docBefore: any): DeletionClass {
     const deletedText = docBefore.textBetween(from, to, '\u0001', '\u0001');
     return deletedText.length > 0 ? { kind: 'inline', from, to } : { kind: 'none' };
   }
-  if (deletedInlineTextLength(step, docBefore) === 0) return { kind: 'structural-preserving' };
+  if (deletedInlineTextLength(step, docBefore) > 0) return { kind: 'structural-destructive' };
+  if (isTextblockJoin(step, docBefore)) return { kind: 'structural-preserving' };
   return { kind: 'structural-destructive' };
 }
 
@@ -381,6 +423,7 @@ function createTrackChangesPlugin(
       if (!transaction.docChanged) return true;
       if (transaction.getMeta('trackChangesApply')) return true;
       if (transaction.getMeta('history$')) return true;
+      if (isUpdatingRef.current) return true;
 
       for (let i = 0; i < transaction.steps.length; i++) {
         const cls = classifyStepDeletion(transaction.steps[i], transaction.docs[i]);
