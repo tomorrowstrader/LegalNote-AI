@@ -9,7 +9,7 @@ import Highlight from '@tiptap/extension-highlight';
 import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import CharacterCount from '@tiptap/extension-character-count';
-import { Mark, Node, Extension, mergeAttributes } from '@tiptap/core';
+import { Mark, Node, Extension, mergeAttributes, generateJSON } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { ReplaceStep, ReplaceAroundStep } from '@tiptap/pm/transform';
 import { Fragment } from '@tiptap/pm/model';
@@ -63,21 +63,17 @@ function stripEmptyListItems(content: string): string {
     .replace(/\n{3,}/g, '\n\n');
 }
 
-function stripPersistedTrackMarks(editor: any) {
-  try {
-    const { state } = editor;
-    const insertion = state.schema.marks.insertion;
-    const deletion = state.schema.marks.deletion;
-    if (!insertion && !deletion) return;
-    let tr = state.tr;
-    if (insertion) tr = tr.removeMark(0, state.doc.content.size, insertion);
-    if (deletion) tr = tr.removeMark(0, state.doc.content.size, deletion);
-    tr.setMeta('trackChangesApply', true);
-    tr.setMeta('addToHistory', false);
-    editor.view.dispatch(tr);
-  } catch (e) {
-    console.error('[RichTextEditor] Failed to strip persisted track marks:', e);
-  }
+function trackChangeAttrsFromElement(el: HTMLElement) {
+  return {
+    user: el.getAttribute('user'),
+    timestamp: el.getAttribute('timestamp'),
+    changeId: el.getAttribute('changeid') || el.getAttribute('changeId'),
+  };
+}
+
+/** Content saved via getHTML() when track-change marks are present. */
+function isTrackedChangesHtml(content: string): boolean {
+  return /<(?:ins|del)\b[^>]*\bdata-track-change\s*=/i.test(content);
 }
 
 function ensureBoldHeadings(content: string): string {
@@ -181,6 +177,7 @@ function newChangeId(): string {
 
 const InsertionMark = Mark.create({
   name: 'insertion',
+  priority: 1000,
   addAttributes() {
     return {
       user: { default: null },
@@ -189,7 +186,11 @@ const InsertionMark = Mark.create({
     };
   },
   parseHTML() {
-    return [{ tag: 'ins[data-track-change]' }];
+    return [
+      { tag: 'ins[data-track-change]', getAttrs: trackChangeAttrsFromElement },
+      { tag: 'ins.track-change-insertion', getAttrs: trackChangeAttrsFromElement },
+      { tag: 'span.track-change-insertion', getAttrs: trackChangeAttrsFromElement },
+    ];
   },
   renderHTML({ HTMLAttributes }) {
     return ['ins', mergeAttributes(HTMLAttributes, { 'data-track-change': 'insertion', class: 'track-change-insertion' }), 0];
@@ -198,6 +199,7 @@ const InsertionMark = Mark.create({
 
 const DeletionMark = Mark.create({
   name: 'deletion',
+  priority: 1000,
   addAttributes() {
     return {
       user: { default: null },
@@ -207,7 +209,11 @@ const DeletionMark = Mark.create({
     };
   },
   parseHTML() {
-    return [{ tag: 'del[data-track-change]' }];
+    return [
+      { tag: 'del[data-track-change]', getAttrs: trackChangeAttrsFromElement },
+      { tag: 'del.track-change-deletion', getAttrs: trackChangeAttrsFromElement },
+      { tag: 'span.track-change-deletion', getAttrs: trackChangeAttrsFromElement },
+    ];
   },
   renderHTML({ HTMLAttributes }) {
     return ['del', mergeAttributes(HTMLAttributes, { 'data-track-change': 'deletion', class: 'track-change-deletion' }), 0];
@@ -266,6 +272,7 @@ const LegalFieldNode = Node.create({
 
 function createTrackChangesPlugin(
   isTrackingRef: React.MutableRefObject<boolean>,
+  isUpdatingRef: React.MutableRefObject<boolean>,
   userNameRef: React.MutableRefObject<string>,
   composingRef: React.MutableRefObject<boolean>,
   onChangeLogged?: (change: TrackedChange) => void,
@@ -295,6 +302,7 @@ function createTrackChangesPlugin(
     // All tracking happens here, after the user's transaction has applied.
     appendTransaction(transactions, oldState, newState) {
       if (!isTrackingRef.current) return null;
+      if (isUpdatingRef.current) return null;
       if (composingRef.current) return null;
 
       type ReinsertOp = {
@@ -671,7 +679,7 @@ export function RichTextEditor({
   useEffect(() => {
     if (!editor) return;
 
-    const plugin = createTrackChangesPlugin(isTrackingRef, userNameRef, composingRef, handleChangeLogged, handleStructuralBlocked);
+    const plugin = createTrackChangesPlugin(isTrackingRef, isUpdatingRef, userNameRef, composingRef, handleChangeLogged, handleStructuralBlocked);
     const { state } = editor;
     const newState = state.reconfigure({
       plugins: [...state.plugins.filter(p => p.spec.key !== trackChangesPluginKey), plugin],
@@ -857,14 +865,17 @@ export function RichTextEditor({
     lastEmittedContentRef.current = content;
     isUpdatingRef.current = true;
     try {
-      const processedContent = ensureBoldHeadings(content ?? '');
-      const doc = editor.storage.markdown.parser.parse(processedContent).toJSON();
-      editor.commands.setContent(doc, false);
-      stripPersistedTrackMarks(editor);
+      if (isTrackedChangesHtml(content)) {
+        // Bypass tiptap-markdown's setContent (which always runs markdown-it) by passing JSON.
+        const json = generateJSON(content, editor.extensionManager.extensions);
+        editor.commands.setContent(json, false);
+      } else {
+        const processedContent = ensureBoldHeadings(content ?? '');
+        editor.commands.setContent(processedContent, false);
+      }
     } catch (err) {
-      console.error('[RichTextEditor] Markdown hydration failed, falling back to raw:', err);
+      console.error('[RichTextEditor] Content hydration failed, falling back to raw:', err);
       editor.commands.setContent(content ?? '', false);
-      stripPersistedTrackMarks(editor);
     } finally {
       requestAnimationFrame(() => { isUpdatingRef.current = false; });
     }
