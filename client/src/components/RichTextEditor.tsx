@@ -175,6 +175,47 @@ function newChangeId(): string {
     : `tc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** Reuse changeId when a new insertion is position-adjacent to same-author insertion mark. */
+function findAdjacentInsertionMark(
+  doc: any,
+  from: number,
+  to: number,
+  author: string,
+): { changeId: string; timestamp: string } | null {
+  const matchesAuthor = (mark: any) =>
+    mark.type.name === 'insertion'
+    && mark.attrs.changeId
+    && (mark.attrs.user || 'Unknown') === author;
+
+  if (from > 0) {
+    const nodeBefore = doc.resolve(from).nodeBefore;
+    if (nodeBefore?.isText) {
+      const mark = nodeBefore.marks.find(matchesAuthor);
+      if (mark) {
+        return {
+          changeId: mark.attrs.changeId,
+          timestamp: mark.attrs.timestamp || new Date().toISOString(),
+        };
+      }
+    }
+  }
+
+  if (to < doc.content.size) {
+    const nodeAfter = doc.resolve(to).nodeAfter;
+    if (nodeAfter?.isText) {
+      const mark = nodeAfter.marks.find(matchesAuthor);
+      if (mark) {
+        return {
+          changeId: mark.attrs.changeId,
+          timestamp: mark.attrs.timestamp || new Date().toISOString(),
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 const InsertionMark = Mark.create({
   name: 'insertion',
   priority: 1000,
@@ -410,22 +451,26 @@ function createTrackChangesPlugin(
 
       // Insertion marks second, mapped through the re-inserts.
       const insertionMarkType = newState.schema.marks.insertion;
+      const author = userNameRef.current;
       for (const op of insertionRanges) {
         const text = newState.doc.textBetween(op.from, op.to, '\u0001', '\u0001');
         if (!text) continue; // structure-only insert (e.g. Enter) — nothing to mark
         const from = tr.mapping.map(op.from, 1);
         const to = tr.mapping.map(op.to, -1);
         if (to <= from) continue;
-        const changeId = newChangeId();
-        const timestamp = new Date().toISOString();
+
+        const adjacent = findAdjacentInsertionMark(tr.doc, from, to, author);
+        const isNewChange = !adjacent;
+        const changeId = adjacent?.changeId ?? newChangeId();
+        const timestamp = adjacent?.timestamp ?? new Date().toISOString();
+
         tr = tr.addMark(from, to, insertionMarkType.create({
-          user: userNameRef.current, timestamp, changeId,
+          user: author, timestamp, changeId,
         }));
-        if (onChangeLogged) {
-          const visibleText = newState.doc.textBetween(op.from, op.to, ' ');
+        if (isNewChange && onChangeLogged) {
           onChangeLogged({
-            id: changeId, type: 'insertion', text: visibleText,
-            user: userNameRef.current, timestamp, from, to,
+            id: changeId, type: 'insertion', text: tr.doc.textBetween(from, to, ' '),
+            user: author, timestamp, from, to,
           });
         }
       }
@@ -738,46 +783,55 @@ export function RichTextEditor({
 
   const scanForTrackedChanges = useCallback((editorInstance: any) => {
     if (!editorInstance) return;
-    const changes: TrackedChange[] = [];
     const { doc } = editorInstance.state;
+    const byId = new Map<string, {
+      type: 'insertion' | 'deletion';
+      fragments: { pos: number; text: string; originalText?: string | null }[];
+      user: string;
+      timestamp: string;
+    }>();
 
     doc.descendants((node: any, pos: number) => {
-      if (node.isText) {
-        node.marks.forEach((mark: any) => {
-          if (mark.type.name === 'insertion') {
-            changes.push({
-              id: mark.attrs.changeId || `tc-scan-${pos}`,
-              type: 'insertion',
-              text: node.text || '',
-              user: mark.attrs.user || 'Unknown',
-              timestamp: mark.attrs.timestamp || new Date().toISOString(),
-              from: pos,
-              to: pos + (node.text?.length || 0),
-            });
-          } else if (mark.type.name === 'deletion') {
-            changes.push({
-              id: mark.attrs.changeId || `tc-scan-${pos}`,
-              type: 'deletion',
-              text: node.text || '',
-              originalText: mark.attrs.originalText,
-              user: mark.attrs.user || 'Unknown',
-              timestamp: mark.attrs.timestamp || new Date().toISOString(),
-              from: pos,
-              to: pos + (node.text?.length || 0),
-            });
-          }
+      if (!node.isText) return;
+      node.marks.forEach((mark: any) => {
+        if (mark.type.name !== 'insertion' && mark.type.name !== 'deletion') return;
+        const id = mark.attrs.changeId || `tc-scan-${pos}`;
+        if (!byId.has(id)) {
+          byId.set(id, {
+            type: mark.type.name,
+            fragments: [],
+            user: mark.attrs.user || 'Unknown',
+            timestamp: mark.attrs.timestamp || new Date().toISOString(),
+          });
+        }
+        byId.get(id)!.fragments.push({
+          pos,
+          text: node.text || '',
+          originalText: mark.attrs.originalText,
         });
-      }
+      });
     });
 
-    const seen = new Set<string>();
-    const deduped = changes.filter(c => {
-      if (seen.has(c.id)) return false;
-      seen.add(c.id);
-      return true;
+    const aggregated: TrackedChange[] = Array.from(byId.entries()).map(([id, { type, fragments, user, timestamp }]) => {
+      fragments.sort((a, b) => a.pos - b.pos);
+      const from = fragments[0].pos;
+      const last = fragments[fragments.length - 1];
+      return {
+        id,
+        type,
+        text: fragments.map(f => f.text).join(''),
+        originalText: type === 'deletion'
+          ? (fragments.find(f => f.originalText)?.originalText ?? undefined)
+          : undefined,
+        user,
+        timestamp,
+        from,
+        to: last.pos + last.text.length,
+      };
     });
-    setTrackedChanges(deduped);
-    setChangeCount(deduped.length);
+
+    setTrackedChanges(aggregated);
+    setChangeCount(aggregated.length);
   }, []);
 
   useEffect(() => {
