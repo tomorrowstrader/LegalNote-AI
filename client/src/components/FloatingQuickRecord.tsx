@@ -48,7 +48,7 @@ export default function FloatingQuickRecord() {
   };
 
   const saveCase = () => {
-    console.log('Saving case:', { caseTitle, clientName, matterRef });
+    console.log('Saving case:', { matterRef });
     setShowMetadataModal(false);
     setRecordingDuration(0);
     setCaseTitle("");

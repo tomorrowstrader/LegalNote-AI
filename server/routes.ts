@@ -7857,7 +7857,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
 
       console.log('[SYNC] Case found:', {
-        title: caseData.title,
+        caseId: req.params.id,
         deadline: caseData.deadline?.toISOString(),
       });
 
@@ -10851,7 +10851,7 @@ ${firmName}`;
         billingRate: billingRate ? parseInt(billingRate, 10) : null,
         demoUrl: demoUrl || null,
       });
-      console.log(`[DEMO] Lead captured: ${firstName} ${lastName} @ ${firmName} (${practiceArea})`);
+      console.log(`[DEMO] Lead captured (practiceArea: ${practiceArea || 'unknown'})`);
       res.json({ success: true });
     } catch (error) {
       next(error);
@@ -10886,7 +10886,7 @@ ${firmName}`;
     try {
       const { recipientEmail, caseTitle, senderName, firmName, demoUrl } = req.body;
       if (!recipientEmail) return res.status(400).json({ message: "recipientEmail required" });
-      console.log(`[DEMO] Share request: ${senderName} @ ${firmName} → ${recipientEmail} (${caseTitle})`);
+      console.log('[DEMO] Share request received');
       if (process.env.RESEND_API_KEY) {
         try {
           const { Resend } = await import("resend");
@@ -10911,7 +10911,7 @@ ${firmName}`;
     try {
       const { phone, clientName, solicitorName, firmName } = req.body;
       if (!phone) return res.status(400).json({ message: "phone required" });
-      console.log(`[DEMO] Consent SMS request: ${solicitorName} → ${clientName} at ${phone}`);
+      console.log('[DEMO] Consent SMS request received');
       const smsBody = `${solicitorName} at ${firmName || "the firm"} is requesting your consent to record your upcoming meeting. Reply YES to consent. Sent via LegalNote.`;
       if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
         try {
@@ -10921,7 +10921,7 @@ ${firmName}`;
             from: process.env.TWILIO_PHONE_NUMBER,
             to: phone,
           });
-          console.log(`[DEMO] Consent SMS delivered to ${phone}`);
+          console.log('[DEMO] Consent SMS delivered');
           return res.json({ success: true, delivered: true, message: "Consent request sent to " + phone });
         } catch (smsErr) {
           console.error("[DEMO] Twilio SMS send failed:", smsErr);
@@ -10937,7 +10937,7 @@ ${firmName}`;
     try {
       const { email, senderName, firmName, demoUrl } = req.body;
       if (!email) return res.status(400).json({ message: "email required" });
-      console.log(`[DEMO] Colleague link: ${senderName} @ ${firmName} → ${email} (${demoUrl})`);
+      console.log('[DEMO] Colleague link request received');
       if (process.env.RESEND_API_KEY) {
         try {
           const { Resend } = await import("resend");

@@ -1011,17 +1011,15 @@ export default function DocumentViewer({
 
   const editMutation = useMutation({
     mutationFn: async ({ documentId, content }: { documentId: string; content: string }) => {
-      console.log('[EDIT] Attempting to save document:', { documentId, contentLength: content.length, contentPreview: content.substring(0, 100) });
+      console.log('[EDIT] Attempting to save document:', { documentId, contentLength: content.length });
       
       try {
         const result = await apiRequest('PATCH', `/api/documents/${documentId}`, { content });
-        console.log('[EDIT] Save successful:', result);
+        console.log('[EDIT] Save successful:', { documentId });
         return result;
       } catch (error: any) {
         console.error('[EDIT] Save failed:', {
-          error,
           message: error?.message,
-          body: error?.body,
           status: error?.status,
         });
         throw error;

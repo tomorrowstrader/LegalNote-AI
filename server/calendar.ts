@@ -119,7 +119,6 @@ async function createGoogleCalendarEvent(
     console.log('[CALENDAR] User ID:', userId);
     console.log('[CALENDAR] Event data:', {
       caseId: data.caseId,
-      title: data.title,
       deadline: data.deadline.toISOString(),
       priority: data.priority,
       isAllDay: data.isAllDay,

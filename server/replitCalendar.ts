@@ -78,7 +78,7 @@ export async function createReplitCalendarEvent(eventData: {
   isAllDay?: boolean;
 }): Promise<{ success: boolean; eventId?: string; error?: string }> {
   try {
-    console.log('[REPLIT-CALENDAR] Creating event:', eventData);
+    console.log('[REPLIT-CALENDAR] Creating event for case:', eventData.caseId);
     
     const calendar = await getReplitGoogleCalendarClient();
     
@@ -170,7 +170,7 @@ export async function updateReplitCalendarEvent(eventId: string, eventData: {
   isAllDay?: boolean;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    console.log('[REPLIT-CALENDAR] Updating event:', eventId, eventData);
+    console.log('[REPLIT-CALENDAR] Updating event:', eventId);
     
     const calendar = await getReplitGoogleCalendarClient();
     
