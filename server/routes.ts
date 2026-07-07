@@ -9017,34 +9017,6 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
   // ── Live Bot Workflow ──────────────────────────────────────────────────────
 
-  // Diagnostic: probe all Recall.ai region+auth combinations to identify working config
-  app.get("/api/recall/diagnose", isAuthenticated, async (req: any, res) => {
-    const rawKey = process.env.RECALL_API_KEY || '';
-    const apiKey = rawKey.replace(/^(Token|Bearer)\s+/i, '').replace(/[^\x21-\x7E]/g, '').trim();
-    const regions = ['us-west-2', 'us-east-1', 'eu-central-1', 'ap-southeast-1'];
-    const schemes = ['Token', 'Bearer'];
-    const results: Record<string, any> = { keyLength: apiKey.length, keyPrefix: apiKey.substring(0, 4) + '...' };
-
-    for (const region of regions) {
-      for (const scheme of schemes) {
-        const url = `https://${region}.recall.ai/api/v1/bot/?limit=1`;
-        try {
-          const r = await fetch(url, {
-            headers: {
-              'Authorization': `${scheme} ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-          });
-          const body = await r.text().catch(() => '');
-          results[`${region}:${scheme}`] = { status: r.status, bodyPreview: body.slice(0, 100), wwwAuth: r.headers.get('www-authenticate') };
-        } catch (err: any) {
-          results[`${region}:${scheme}`] = { error: err.message };
-        }
-      }
-    }
-    res.json(results);
-  });
-
   // Send a bot to join a live meeting right now (ad-hoc, no calendar required)
   app.post("/api/recall/bot", isAuthenticated, async (req: any, res, next) => {
     try {
