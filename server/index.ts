@@ -1,3 +1,4 @@
+import "./logSanitize";
 import express, { type Request, Response, NextFunction } from "express";
 import { runMigrations } from 'stripe-replit-sync';
 import crypto from "crypto";
