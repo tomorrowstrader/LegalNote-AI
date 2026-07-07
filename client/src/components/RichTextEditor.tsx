@@ -2,7 +2,6 @@ import { useEffect, useCallback, useRef, useState } from "react";
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
-import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import Highlight from '@tiptap/extension-highlight';
@@ -738,7 +737,6 @@ export function RichTextEditor({
         transformCopiedText: true,
         transformPastedText: true,
       }),
-      Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Table.configure({ resizable: true }),
       TableRow,
