@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import Highlight from '@tiptap/extension-highlight';
@@ -142,7 +141,6 @@ export function PageView({ content }: PageViewProps) {
         transformCopiedText: false,
         transformPastedText: false,
       }),
-      Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Table.configure({ resizable: false }),
       TableRow,
