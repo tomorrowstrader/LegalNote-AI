@@ -731,6 +731,14 @@ nav.sticky {
   color: hsl(var(--foreground));
 }
 
+/* When tiptap-pagination-plus is active it owns ALL page geometry:
+   left/right via inline styles, vertical via its injected page elements.
+   Our global vertical padding must not add unaccounted height. */
+.ProseMirror.rm-with-pagination {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 /* Paginated (Word-like) editor: A4 page simulation */
 .paginated-page-card {
   position: relative;
@@ -988,4 +996,29 @@ nav.sticky {
   0% { background-position: -200% 0; }
   50% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+/* tiptap-pagination-plus: theme-aware page gap (library hardcodes white inline) */
+/* Google-Docs-style page separation: gap matches the translucent "desk"
+   (bg-muted/30, dark /10, over background) so pages float as discrete cards.
+   Gap side borders erase the column border across the gap (library design);
+   gap top/bottom edges form the page-bottom and page-top borders. */
+.rm-with-pagination .rm-pagination-gap {
+  background-color: color-mix(in srgb, hsl(var(--muted)) 30%, hsl(var(--background))) !important;
+  border-left-color: color-mix(in srgb, hsl(var(--muted)) 30%, hsl(var(--background))) !important;
+  border-right-color: color-mix(in srgb, hsl(var(--muted)) 30%, hsl(var(--background))) !important;
+  border-top: 1px solid hsl(var(--border)) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  box-shadow: none !important;
+}
+.dark .rm-with-pagination .rm-pagination-gap {
+  background-color: color-mix(in srgb, hsl(var(--muted)) 10%, hsl(var(--background))) !important;
+  border-left-color: color-mix(in srgb, hsl(var(--muted)) 10%, hsl(var(--background))) !important;
+  border-right-color: color-mix(in srgb, hsl(var(--muted)) 10%, hsl(var(--background))) !important;
+}
+
+/* Page side edges: theme-aware instead of hardcoded #e5e5e5 */
+.ProseMirror.rm-with-pagination {
+  border-left: 1px solid hsl(var(--border)) !important;
+  border-right: 1px solid hsl(var(--border)) !important;
 }

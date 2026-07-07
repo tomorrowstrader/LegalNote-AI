@@ -7,7 +7,7 @@ import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table
 import Highlight from '@tiptap/extension-highlight';
 import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
-import { Mark, Node, mergeAttributes } from '@tiptap/core';
+import { Mark, Node, mergeAttributes, generateJSON } from '@tiptap/core';
 import { Markdown } from 'tiptap-markdown';
 import { FileText } from "lucide-react";
 
@@ -23,20 +23,60 @@ const CONTENT_H = 930;   // usable content height per page (1122 - 96 - 96)
 // These mirror the ones in RichTextEditor but are stripped to rendering only.
 // ---------------------------------------------------------------------------
 
+function trackChangeAttrsFromElement(el: HTMLElement) {
+  return {
+    user: el.getAttribute('user'),
+    timestamp: el.getAttribute('timestamp'),
+    changeId: el.getAttribute('changeid') || el.getAttribute('changeId'),
+  };
+}
+
+function isTrackedChangesHtml(content: string): boolean {
+  return /<(?:ins|del)\b[^>]*\bdata-track-change\s*=/i.test(content);
+}
+
 const InsertionMark = Mark.create({
   name: 'insertion',
-  renderHTML({ HTMLAttributes }) {
-    return ['span', mergeAttributes(HTMLAttributes, { class: 'track-change-insertion' }), 0];
+  priority: 1000,
+  addAttributes() {
+    return {
+      user: { default: null },
+      timestamp: { default: null },
+      changeId: { default: null },
+    };
   },
-  parseHTML() { return [{ tag: 'span.track-change-insertion' }]; },
+  renderHTML({ HTMLAttributes }) {
+    return ['ins', mergeAttributes(HTMLAttributes, { 'data-track-change': 'insertion', class: 'track-change-insertion' }), 0];
+  },
+  parseHTML() {
+    return [
+      { tag: 'ins[data-track-change]', getAttrs: trackChangeAttrsFromElement },
+      { tag: 'ins.track-change-insertion', getAttrs: trackChangeAttrsFromElement },
+      { tag: 'span.track-change-insertion', getAttrs: trackChangeAttrsFromElement },
+    ];
+  },
 });
 
 const DeletionMark = Mark.create({
   name: 'deletion',
-  renderHTML({ HTMLAttributes }) {
-    return ['span', mergeAttributes(HTMLAttributes, { class: 'track-change-deletion' }), 0];
+  priority: 1000,
+  addAttributes() {
+    return {
+      user: { default: null },
+      timestamp: { default: null },
+      changeId: { default: null },
+    };
   },
-  parseHTML() { return [{ tag: 'span.track-change-deletion' }]; },
+  renderHTML({ HTMLAttributes }) {
+    return ['del', mergeAttributes(HTMLAttributes, { 'data-track-change': 'deletion', class: 'track-change-deletion' }), 0];
+  },
+  parseHTML() {
+    return [
+      { tag: 'del[data-track-change]', getAttrs: trackChangeAttrsFromElement },
+      { tag: 'del.track-change-deletion', getAttrs: trackChangeAttrsFromElement },
+      { tag: 'span.track-change-deletion', getAttrs: trackChangeAttrsFromElement },
+    ];
+  },
 });
 
 const RedactionMark = Mark.create({
@@ -124,7 +164,17 @@ export function PageView({ content }: PageViewProps) {
   // Set content once editor is ready
   useEffect(() => {
     if (!measureEditor || !content) return;
-    measureEditor.commands.setContent(content);
+    try {
+      if (isTrackedChangesHtml(content)) {
+        const json = generateJSON(content, measureEditor.extensionManager.extensions);
+        measureEditor.commands.setContent(json, false);
+      } else {
+        measureEditor.commands.setContent(content, false);
+      }
+    } catch (err) {
+      console.error('[PageView] Content hydration failed, falling back to raw:', err);
+      measureEditor.commands.setContent(content, false);
+    }
   }, [measureEditor, content]);
 
   // Compute page distribution after the editor renders
@@ -250,7 +300,12 @@ export function PageView({ content }: PageViewProps) {
                   }}
                 >
                   <div
-                    className="page-view-content"
+                    className="page-view-content
+                      [&_.track-change-insertion]:bg-green-100 [&_.track-change-insertion]:dark:bg-green-900/40
+                      [&_.track-change-insertion]:text-green-800 [&_.track-change-insertion]:dark:text-green-200
+                      [&_.track-change-deletion]:bg-red-100 [&_.track-change-deletion]:dark:bg-red-900/40
+                      [&_.track-change-deletion]:text-red-800 [&_.track-change-deletion]:dark:text-red-200
+                      [&_.track-change-deletion]:line-through"
                     style={{ outline: 'none' }}
                     dangerouslySetInnerHTML={{
                       __html: page.blocks.join(''),

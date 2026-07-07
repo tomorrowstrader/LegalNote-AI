@@ -8137,23 +8137,41 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   app.post("/api/cases/:id/audit/track-change", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const { action, changeId } = req.body;
-      
+      const { action, documentId, changes } = req.body;
+
+      if (!action || !Array.isArray(changes) || changes.length === 0) {
+        return res.status(400).json({ message: "action and a non-empty changes array are required" });
+      }
+
       const caseData = await storage.getCase(req.params.id, userId);
       if (!caseData) {
         return res.status(404).json({ message: "Case not found" });
       }
 
-      await logAuditEvent(userId, "track_change_action", {
-        caseId: req.params.id,
-        metadata: { 
-          action,
-          changeId: changeId || null,
-        },
-        req,
-      });
-      
-      res.json({ success: true });
+      const TEXT_CAP = 1000;
+      for (const change of changes) {
+        const rawText = typeof change.text === 'string' ? change.text : '';
+        const fullLength = rawText.length;
+        const truncated = fullLength > TEXT_CAP;
+        const text = truncated ? rawText.slice(0, TEXT_CAP) : rawText;
+
+        await logAuditEvent(userId, "track_change_action", {
+          caseId: req.params.id,
+          documentId: documentId || undefined,
+          metadata: {
+            action,
+            changeId: change.changeId || null,
+            changeType: change.changeType || null,
+            text,
+            author: change.author || null,
+            changeTimestamp: change.changeTimestamp || null,
+            ...(truncated ? { truncated: true, fullLength } : {}),
+          },
+          req,
+        });
+      }
+
+      res.json({ success: true, loggedCount: changes.length });
     } catch (error: any) {
       next(error);
     }

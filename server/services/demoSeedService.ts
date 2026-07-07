@@ -54,14 +54,15 @@ async function deleteAllUserCaseData(userId: string) {
         DELETE FROM quick_notes WHERE case_id = r.id;
         DELETE FROM time_entries WHERE case_id = r.id;
         DELETE FROM undertakings WHERE case_id = r.id;
-        DELETE FROM documents WHERE case_id = r.id;
-        DELETE FROM action_items WHERE case_id = r.id;
         DELETE FROM audit_trail WHERE case_id = r.id;
+        DELETE FROM action_items WHERE case_id = r.id;
+        DELETE FROM documents WHERE case_id = r.id;
         DELETE FROM transcripts WHERE case_id = r.id;
         DELETE FROM consent_logs WHERE case_id = r.id;
         DELETE FROM pre_meeting_briefings WHERE case_id = r.id;
         DELETE FROM audio_recordings WHERE case_id = r.id;
         DELETE FROM meeting_sessions WHERE case_id = r.id;
+        UPDATE cases SET parent_case_id = NULL WHERE parent_case_id = r.id;
         DELETE FROM cases WHERE id = r.id;
       END LOOP;
     END $$;
