@@ -70,11 +70,55 @@ const BLOCKED_KEYS = new Set([
 const EMAIL_PATTERN =
   /[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*/g;
 const E164_PATTERN = /\+[0-9]{10,15}\b/g;
-const BARE_PHONE_PATTERN = /(?<![0-9])[0-9]{10,15}(?![0-9])/g;
+const BARE_PHONE_PATTERN =
+  /(?<![0-9a-fA-F-])(?<=(?:^|[\s(,]))[0-9]{10,15}(?![0-9a-fA-F-])(?=$|[\s),.])/g;
+const LOG_PREFIX_PATTERN = /^\[[A-Za-z0-9_\- ]+\]/;
 
 function looksLikeJsonApiBody(s: string): boolean {
   const trimmed = s.trim();
-  return (trimmed.startsWith("{") || trimmed.startsWith("[")) && trimmed.length > 40;
+
+  if (trimmed.length <= 40) {
+    return false;
+  }
+
+  if (LOG_PREFIX_PATTERN.test(trimmed)) {
+    return false;
+  }
+
+  if (trimmed.startsWith("{")) {
+    return true;
+  }
+
+  if (trimmed.startsWith("[")) {
+    let i = 1;
+    while (i < trimmed.length && /\s/.test(trimmed[i]!)) {
+      i++;
+    }
+    if (i < trimmed.length) {
+      const c = trimmed[i]!;
+      if (c === "{" || c === '"' || c === "[" || (c >= "0" && c <= "9") || c === "-") {
+        return true;
+      }
+      if (
+        trimmed.startsWith("true", i) ||
+        trimmed.startsWith("false", i) ||
+        trimmed.startsWith("null", i)
+      ) {
+        return true;
+      }
+    }
+  }
+
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      return typeof parsed === "object" && parsed !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
 }
 
 function redactPiiFromMessage(s: string): string {
@@ -182,7 +226,18 @@ function sanitizeLogArg(arg: unknown, depth: number, visited?: WeakSet<object>):
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(arg)) {
     if (SAFE_KEYS.has(key)) {
-      result[key] = sanitizeLogArg(value, depth + 1, seen);
+      if (
+        value === null ||
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+      ) {
+        result[key] = value;
+      } else if (typeof value === "object") {
+        result[key] = sanitizeLogArg(value, depth + 1, seen);
+      } else {
+        result[key] = value;
+      }
     } else if (BLOCKED_KEYS.has(key)) {
       result[key] = "[REDACTED]";
     } else if (typeof value === "string" && value.length > 40) {
