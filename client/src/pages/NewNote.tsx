@@ -409,7 +409,7 @@ export default function NewNote() {
   };
 
   const saveCase = async () => {
-    console.log('Saving case:', { matterRef, noteMode, recordingType });
+    console.log('Saving case:', { noteMode, recordingType });
     
     if (!user?.id) {
       toast({
@@ -610,7 +610,7 @@ export default function NewNote() {
   };
 
   const saveTextNotes = async (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
-    console.log('Saving text-based case:', { matterRef: data.matterRef, contentLength: data.notes?.length ?? 0 });
+    console.log('Saving text-based case:', { contentLength: data.notes?.length ?? 0 });
     
     if (!user?.id) {
       toast({

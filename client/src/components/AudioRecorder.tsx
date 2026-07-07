@@ -35,7 +35,7 @@ export default function AudioRecorder({ onRecordingComplete, onFileUpload }: Aud
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      console.log('File uploaded:', file.name);
+      console.log('File uploaded:', { size: file.size, type: file.type });
       onFileUpload?.(file);
     }
   };

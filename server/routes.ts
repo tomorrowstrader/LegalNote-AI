@@ -3515,7 +3515,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         // File is already in memory as Buffer (req.file.buffer)
         const audioBuffer = req.file.buffer;
         
-        console.log(`Received audio file: ${req.file.originalname}, size: ${audioBuffer.length} bytes, type: ${req.file.mimetype}`);
+        console.log(`Received audio file: size: ${audioBuffer.length} bytes, type: ${req.file.mimetype}`);
 
         // Upload to Backblaze B2 using S3 SDK
         const objectStorageService = new ObjectStorageService();

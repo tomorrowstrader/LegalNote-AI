@@ -26,7 +26,7 @@ export class OpenAIService {
   }
   async transcribeAudio(audioBuffer: Buffer, filename: string = "audio.webm"): Promise<TranscriptionResult> {
     try {
-      console.log(`Starting transcription for ${filename}, size: ${audioBuffer.length} bytes`);
+      console.log(`Starting transcription, size: ${audioBuffer.length} bytes`);
       
       const client = this.getClient();
       
@@ -42,14 +42,14 @@ export class OpenAIService {
         response_format: "verbose_json",
       });
       
-      console.log(`Transcription completed: ${transcription.text.substring(0, 100)}...`);
+      console.log(`Transcription completed. Text length: ${transcription.text.length}`);
       
       return {
         text: transcription.text,
         duration: transcription.duration,
       };
     } catch (error: any) {
-      console.error('Transcription error:', error);
+      console.error('Transcription error:', error?.message ?? error);
       throw new Error(`Failed to transcribe audio: ${error.message}`);
     }
   }
@@ -63,7 +63,7 @@ export class OpenAIService {
     }
   ): Promise<DocumentGenerationResult> {
     try {
-      console.log(`Generating documents for case: ${caseMetadata.title}`);
+      console.log('Generating documents...');
       
       const attendanceNote = await this.generateAttendanceNote(transcript, caseMetadata);
       
@@ -71,7 +71,7 @@ export class OpenAIService {
         attendanceNote,
       };
     } catch (error: any) {
-      console.error('Document generation error:', error);
+      console.error('Document generation error:', error?.message ?? error);
       throw new Error(`Failed to generate documents: ${error.message}`);
     }
   }

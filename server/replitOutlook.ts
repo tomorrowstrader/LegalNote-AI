@@ -94,7 +94,7 @@ export async function createReplitOutlookEvent(eventData: {
   isAllDay?: boolean;
 }): Promise<{ success: boolean; eventId?: string; error?: string }> {
   try {
-    console.log('[OUTLOOK] Creating event:', eventData);
+    console.log('[OUTLOOK] Creating event for case:', eventData.caseId, 'deadline:', eventData.deadline);
     
     const client = await getUncachableOutlookClient();
     const deadlineDate = new Date(eventData.deadline);
@@ -183,7 +183,7 @@ export async function updateReplitOutlookEvent(eventId: string, eventData: {
   isAllDay?: boolean;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    console.log('[OUTLOOK] Updating event:', eventId, eventData);
+    console.log('[OUTLOOK] Updating event:', eventId);
     
     const client = await getUncachableOutlookClient();
     const deadlineDate = new Date(eventData.deadline);

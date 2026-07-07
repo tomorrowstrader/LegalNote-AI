@@ -192,7 +192,7 @@ export async function createFolder(
         '@microsoft.graph.conflictBehavior': 'rename'
       });
     
-    console.log(`[${provider.toUpperCase()}] Created folder: ${folderName}`);
+    console.log(`[${provider.toUpperCase()}] Created folder: id=${folder.id}`);
     return {
       id: folder.id,
       name: folder.name,
@@ -248,7 +248,7 @@ export async function uploadFile(
       .header('Content-Type', mimeType)
       .put(content);
     
-    console.log(`[${provider.toUpperCase()}] Uploaded file: ${fileName}`);
+    console.log(`[${provider.toUpperCase()}] Uploaded file: id=${uploadSession.id}`);
     return {
       id: uploadSession.id,
       name: uploadSession.name,
