@@ -624,7 +624,7 @@ export default function NewNote() {
       
       if (savedCaseId && !consentLogFailed) {
         await advanceStep("complete");
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+        await new Promise((resolve) => setTimeout(resolve, 500));
         setLocation(`/case/${savedCaseId}`);
         setIsProcessing(false);
         setProcessingStep("saving");

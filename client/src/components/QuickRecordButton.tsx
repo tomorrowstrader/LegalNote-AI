@@ -751,7 +751,7 @@ export default function QuickRecordButton() {
           await advanceStep('complete');
           
           // Wait a moment to show completion, then close and show toast
-          await new Promise(resolve => setTimeout(resolve, 1200));
+          await new Promise(resolve => setTimeout(resolve, 500));
           
           // Success
           toast({
