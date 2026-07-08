@@ -17,7 +17,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
 import ConsentModal from "@/components/ConsentModal";
+import MeetingToMatterProcessingOverlay, { type ProcessingStep } from "@/components/MeetingToMatterProcessingOverlay";
 import TextNotesModal from "@/components/TextNotesModal";
 import CaseTemplatesModal, { CaseTemplate } from "@/components/CaseTemplatesModal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -92,6 +97,8 @@ export default function NewNote() {
   const [conflictCheckNote, setConflictCheckNote] = useState("");
   const [costsEstimate, setCostsEstimate] = useState("");
   const [sessionLabel, setSessionLabel] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStep, setProcessingStep] = useState<ProcessingStep>("saving");
 
   const { data: clientSearchResults = [] } = useQuery<Client[]>({
     queryKey: [`/api/clients/search?q=${encodeURIComponent(clientSearchQuery)}`],
@@ -458,6 +465,9 @@ export default function NewNote() {
     
     let caseResult: CaseResponse | null = null;
     let consentLogFailed = false;
+
+    setIsProcessing(true);
+    setProcessingStep("saving");
     
     try {
       let targetCaseId: string;
@@ -503,6 +513,8 @@ export default function NewNote() {
         meetingSessionId: sessionResult.id,
       });
       
+      setProcessingStep("uploading");
+
       if (audioBlobRef.current) {
         console.log('Uploading audio file via multipart...');
         
@@ -522,29 +534,21 @@ export default function NewNote() {
         }
         
         console.log('Audio upload completed successfully');
-
-        if (noteMode === "add_session") {
-          apiRequest("POST", `/api/cases/${targetCaseId}/process`, { sessionId: sessionResult.id })
-            .then(() => console.log('Processing triggered for new session'))
-            .catch((processError: unknown) => {
-              console.error('Failed to auto-trigger processing:', processError);
-              toast({
-                title: "Recording saved — tap Process to generate documents",
-                description: "The recording was saved but processing could not start automatically.",
-                duration: 8000,
-              });
-            });
-        }
       }
       
       if (consentGiven !== null) {
         try {
+          const disclaimerWordingText = "I am recording this meeting for legal record purposes. This recording will be used to create attendance notes and transcripts. The audio will be retained for up to 7 days or until processing completes, whichever comes first. Do you consent to this recording?";
+
           const consentPayload = {
             caseId: targetCaseId,
             audioRecordingId: audioResult.id,
             consentGiven: consentGiven,
             consentModality: "verbal_recorded" as const,
             disclaimerScriptVersion: "v1.0",
+            disclaimerWordingText,
+            lawfulBasis: "consent" as const,
+            recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
           };
           console.log('Saving consent log to backend...', consentPayload);
           await apiRequest("POST", "/api/consent", consentPayload);
@@ -553,8 +557,8 @@ export default function NewNote() {
           console.error('Consent log failed:', consentError);
           console.error('Consent error details:', consentError?.message || consentError);
           consentLogFailed = true;
+          setIsProcessing(false);
           
-          // Show critical error - don't navigate away
           toast({
             title: "GDPR Compliance Error",
             description: "Failed to save consent record. This case cannot be processed without proper consent logging.",
@@ -562,9 +566,34 @@ export default function NewNote() {
             duration: 10000,
           });
           
-          // Don't navigate - let user retry or contact support
           return;
         }
+      }
+
+      if (!consentLogFailed) {
+        setProcessingStep("processing");
+
+        const processBody = noteMode === "add_session"
+          ? { sessionId: sessionResult.id }
+          : {};
+
+        apiRequest("POST", `/api/cases/${targetCaseId}/process`, processBody)
+          .then(() => {
+            queryClient.invalidateQueries({
+              predicate: (query) => {
+                const key = query.queryKey[0] as string;
+                return key?.startsWith("/api/cases");
+              },
+            });
+          })
+          .catch((processError: unknown) => {
+            console.error('Failed to auto-trigger processing:', processError);
+            toast({
+              title: "Recording saved — tap Process to generate documents",
+              description: "The recording was saved but processing could not start automatically.",
+              duration: 8000,
+            });
+          });
       }
       
       queryClient.invalidateQueries({ 
@@ -578,11 +607,7 @@ export default function NewNote() {
       
       toast({
         title: noteMode === "add_session" ? "Session added successfully" : "Case created successfully",
-        description: consentLogFailed 
-          ? "Case saved but consent logging had issues. Please check before processing." 
-          : noteMode === "add_session"
-            ? "A new session has been added to the existing matter."
-            : "Your case has been saved and is ready for processing.",
+        description: "Meeting-to-Matter™ Engine is preparing your documents.",
         duration: 6000,
         action: savedCaseId ? (
           <ToastAction 
@@ -595,11 +620,16 @@ export default function NewNote() {
         ) : undefined,
       });
       
-      // Navigate to the case detail page
-      if (savedCaseId) {
+      if (savedCaseId && !consentLogFailed) {
+        setProcessingStep("complete");
+        await new Promise((resolve) => setTimeout(resolve, 1200));
         setLocation(`/case/${savedCaseId}`);
+        setIsProcessing(false);
+        setProcessingStep("saving");
       }
     } catch (error: any) {
+      setIsProcessing(false);
+      setProcessingStep("saving");
       toast({
         title: "Error creating case",
         description: error.message || "Something went wrong",
@@ -1267,6 +1297,17 @@ export default function NewNote() {
         onConsentGiven={handleConsentGiven}
         onConsentDeclined={handleConsentDeclined}
       />
+
+      <Dialog open={isProcessing} onOpenChange={() => {}}>
+        <DialogContent
+          className="sm:max-w-md"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          data-testid="dialog-new-note-processing"
+        >
+          <MeetingToMatterProcessingOverlay processingStep={processingStep} />
+        </DialogContent>
+      </Dialog>
 
       <TextNotesModal
         open={showTextNotesModal}
