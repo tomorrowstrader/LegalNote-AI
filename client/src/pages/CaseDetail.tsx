@@ -94,6 +94,20 @@ const SECTION_LABELS: Record<CaseSection, string> = {
   supervision: "Supervision",
 };
 
+const PROCESSING_PROGRESS_MILESTONES = [10, 20, 25, 35, 40, 50, 60, 75, 100];
+
+function getNextProcessingMilestone(progress: number): number {
+  for (const milestone of PROCESSING_PROGRESS_MILESTONES) {
+    if (milestone > progress) return milestone;
+  }
+  return 100;
+}
+
+function getProcessingCreepCap(realProgress: number): number {
+  if (realProgress >= 100) return 100;
+  return getNextProcessingMilestone(realProgress) - 1;
+}
+
 function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void }) {
   const { toast } = useToast();
   const { data, isLoading } = useQuery<SessionWithDetails>({
@@ -409,6 +423,36 @@ export default function CaseDetail() {
     enabled: !!caseId && caseData?.status === 'processing',
     refetchInterval: 5000,
   });
+
+  const realProcessingProgress = processingStatus?.processingMetadata?.progress ?? 0;
+  const [displayProgress, setDisplayProgress] = useState(0);
+
+  useEffect(() => {
+    setDisplayProgress((prev) => Math.max(prev, realProcessingProgress));
+  }, [realProcessingProgress]);
+
+  useEffect(() => {
+    if (caseData?.status !== "processing") {
+      setDisplayProgress(0);
+      return;
+    }
+
+    if (realProcessingProgress >= 100) {
+      setDisplayProgress(100);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setDisplayProgress((prev) => {
+        const cap = getProcessingCreepCap(realProcessingProgress);
+        if (prev >= cap) return prev;
+        const next = prev + (cap - prev) * 0.08;
+        return Math.min(next, cap);
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [caseData?.status, realProcessingProgress]);
 
   const { data: meetingSessions = [] } = useQuery<MeetingSession[]>({
     queryKey: [`/api/cases/${caseId}/sessions`],
@@ -1465,9 +1509,9 @@ export default function CaseDetail() {
               </div>
               {processingStatus?.processingMetadata && (
                 <div className="space-y-1.5">
-                  <Progress value={processingStatus.processingMetadata.progress || 0} className="h-1.5" data-testid="progress-bar" />
+                  <Progress value={Math.round(displayProgress)} className="h-1.5" data-testid="progress-bar" />
                   <p className="text-xs text-muted-foreground" data-testid="text-progress-percentage">
-                    {processingStatus.processingMetadata.progress || 0}% complete
+                    {Math.round(displayProgress)}% complete
                   </p>
                 </div>
               )}

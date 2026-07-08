@@ -33,6 +33,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ConsentModal from "@/components/ConsentModal";
 import MeetingToMatterProcessingOverlay, { type ProcessingStep } from "@/components/MeetingToMatterProcessingOverlay";
+import { createProcessingStepTimer } from "@/lib/processingStepTimer";
 import TextNotesModal from "@/components/TextNotesModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -584,6 +585,7 @@ export default function QuickRecordButton() {
 
     // Show processing overlay immediately
     setIsProcessing(true);
+    const advanceStep = createProcessingStepTimer(setProcessingStep);
     setProcessingStep('saving');
     
     let caseResult: CaseResponse | null = null;
@@ -610,7 +612,7 @@ export default function QuickRecordButton() {
         caseId: caseResult.id,
       });
       
-      setProcessingStep('uploading');
+      await advanceStep('uploading');
       
       if (useChunkedUpload && chunkedRecording.chunkSessionId) {
         try {
@@ -673,7 +675,7 @@ export default function QuickRecordButton() {
       // Critical: Only trigger if consent was successfully logged (GDPR requirement)
       if (!consentLogFailed) {
         // Update processing step
-        setProcessingStep('processing');
+        await advanceStep('processing');
         
         // Trigger processing asynchronously (don't wait for completion)
         apiRequest("POST", `/api/cases/${caseResult.id}/process`, {})
@@ -746,7 +748,7 @@ export default function QuickRecordButton() {
           return;
         } else {
           // Show complete step briefly before closing
-          setProcessingStep('complete');
+          await advanceStep('complete');
           
           // Wait a moment to show completion, then close and show toast
           await new Promise(resolve => setTimeout(resolve, 1200));

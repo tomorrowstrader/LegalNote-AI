@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import ConsentModal from "@/components/ConsentModal";
 import MeetingToMatterProcessingOverlay, { type ProcessingStep } from "@/components/MeetingToMatterProcessingOverlay";
+import { createProcessingStepTimer } from "@/lib/processingStepTimer";
 import TextNotesModal from "@/components/TextNotesModal";
 import CaseTemplatesModal, { CaseTemplate } from "@/components/CaseTemplatesModal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -467,6 +468,7 @@ export default function NewNote() {
     let consentLogFailed = false;
 
     setIsProcessing(true);
+    const advanceStep = createProcessingStepTimer(setProcessingStep);
     setProcessingStep("saving");
     
     try {
@@ -513,7 +515,7 @@ export default function NewNote() {
         meetingSessionId: sessionResult.id,
       });
       
-      setProcessingStep("uploading");
+      await advanceStep("uploading");
 
       if (audioBlobRef.current) {
         console.log('Uploading audio file via multipart...');
@@ -571,7 +573,7 @@ export default function NewNote() {
       }
 
       if (!consentLogFailed) {
-        setProcessingStep("processing");
+        await advanceStep("processing");
 
         const processBody = noteMode === "add_session"
           ? { sessionId: sessionResult.id }
@@ -621,7 +623,7 @@ export default function NewNote() {
       });
       
       if (savedCaseId && !consentLogFailed) {
-        setProcessingStep("complete");
+        await advanceStep("complete");
         await new Promise((resolve) => setTimeout(resolve, 1200));
         setLocation(`/case/${savedCaseId}`);
         setIsProcessing(false);
