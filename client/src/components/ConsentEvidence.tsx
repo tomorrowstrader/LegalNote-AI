@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Shield, Play, Pause, Download, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import type { AudioRecording, ConsentLog } from "@shared/schema";
 
@@ -17,20 +16,36 @@ interface ConsentEvidenceProps {
 export function ConsentEvidence({ caseId, audioRecording, consentLogs }: ConsentEvidenceProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [streamStatus, setStreamStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   const hasConsentSegment = !!audioRecording?.consentSegmentPath;
   const consentLog = consentLogs.find(log => log.consentGiven === true);
-  
-  const { data: consentUrl, isLoading: urlLoading, error: urlError, refetch } = useQuery<{ url: string; expiresAt: string }>({
-    queryKey: [`/api/audio/${audioRecording?.id}/consent-segment`],
-    enabled: !!audioRecording?.id && hasConsentSegment,
-  });
+  const consentSegmentUrl = audioRecording?.id
+    ? `/api/audio/${audioRecording.id}/consent-segment`
+    : null;
+
+  const checkStream = useCallback(async () => {
+    if (!consentSegmentUrl) return;
+    setStreamStatus("loading");
+    try {
+      const response = await fetch(consentSegmentUrl, { credentials: "include", method: "HEAD" });
+      setStreamStatus(response.ok ? "ready" : "error");
+    } catch {
+      setStreamStatus("error");
+    }
+  }, [consentSegmentUrl]);
+
+  useEffect(() => {
+    if (hasConsentSegment && consentSegmentUrl) {
+      checkStream();
+    }
+  }, [hasConsentSegment, consentSegmentUrl, checkStream]);
 
   const handlePlayPause = () => {
-    if (!consentUrl?.url) return;
-    
+    if (!consentSegmentUrl) return;
+
     if (!audioElement) {
-      const audio = new Audio(consentUrl.url);
+      const audio = new Audio(consentSegmentUrl);
       audio.onended = () => setIsPlaying(false);
       audio.onerror = () => setIsPlaying(false);
       setAudioElement(audio);
@@ -48,19 +63,20 @@ export function ConsentEvidence({ caseId, audioRecording, consentLogs }: Consent
   };
 
   const handleDownload = async () => {
-    if (!consentUrl?.url) return;
-    
+    if (!consentSegmentUrl) return;
+
     try {
-      const response = await fetch(consentUrl.url);
+      const response = await fetch(consentSegmentUrl, { credentials: "include" });
+      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
       link.download = `consent-evidence-${caseId}.webm`;
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Failed to download consent segment:', error);
+      console.error("Failed to download consent segment:", error);
     }
   };
 
@@ -79,8 +95,8 @@ export function ConsentEvidence({ caseId, audioRecording, consentLogs }: Consent
             <CardTitle className="text-base text-foreground">Consent Evidence</CardTitle>
             <CardDescription className="text-xs">Preserved indefinitely for compliance</CardDescription>
           </div>
-          <Badge 
-            variant="outline" 
+          <Badge
+            variant="outline"
             className="ml-auto bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/30"
             data-testid="badge-consent-verified"
           >
@@ -102,10 +118,13 @@ export function ConsentEvidence({ caseId, audioRecording, consentLogs }: Consent
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Modality:</span>
               <Badge variant="secondary" className="text-xs" data-testid="badge-consent-modality">
-                {consentLog.consentModality === 'verbal_recorded' ? 'Verbal (Recorded)' : 
-                 consentLog.consentModality === 'verbal_witnessed' ? 'Verbal (Witnessed)' : 
-                 consentLog.consentModality === 'written' ? 'Written' : 
-                 consentLog.consentModality}
+                {consentLog.consentModality === "verbal_recorded"
+                  ? "Verbal (Recorded)"
+                  : consentLog.consentModality === "verbal_witnessed"
+                    ? "Verbal (Witnessed)"
+                    : consentLog.consentModality === "written"
+                      ? "Written"
+                      : consentLog.consentModality}
               </Badge>
             </div>
           </div>
@@ -113,13 +132,13 @@ export function ConsentEvidence({ caseId, audioRecording, consentLogs }: Consent
 
         {hasConsentSegment && (
           <div className="flex items-center gap-3 p-3 rounded-lg bg-background border">
-            {urlLoading ? (
+            {streamStatus === "loading" ? (
               <Skeleton className="h-10 w-full" />
-            ) : urlError ? (
+            ) : streamStatus === "error" ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <AlertCircle className="w-4 h-4" />
                 <span>Unable to load consent recording</span>
-                <Button variant="ghost" size="sm" onClick={() => refetch()}>
+                <Button variant="ghost" size="sm" onClick={() => checkStream()}>
                   Retry
                 </Button>
               </div>
@@ -132,18 +151,18 @@ export function ConsentEvidence({ caseId, audioRecording, consentLogs }: Consent
                   className="shrink-0"
                   data-testid="button-play-consent"
                 >
-                  {isPlaying ? (
-                    <Pause className="w-4 h-4" />
-                  ) : (
-                    <Play className="w-4 h-4" />
-                  )}
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 </Button>
-                
+
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">Consent Recording Segment</p>
                   <p className="text-xs text-muted-foreground">
                     {audioRecording?.consentDurationSeconds ? (
-                      <>Duration: {Math.floor(audioRecording.consentDurationSeconds / 60)}:{(audioRecording.consentDurationSeconds % 60).toString().padStart(2, '0')} (from meeting start to consent confirmation)</>
+                      <>
+                        Duration: {Math.floor(audioRecording.consentDurationSeconds / 60)}:
+                        {(audioRecording.consentDurationSeconds % 60).toString().padStart(2, "0")} (from meeting
+                        start to consent confirmation)
+                      </>
                     ) : (
                       <>Captured from meeting start to consent confirmation</>
                     )}
@@ -165,9 +184,8 @@ export function ConsentEvidence({ caseId, audioRecording, consentLogs }: Consent
         )}
 
         <p className="text-xs text-muted-foreground">
-          This consent evidence is preserved indefinitely to document the legal basis for processing 
-          client data (GDPR Article 7). It provides proof of informed consent in case of disputes or 
-          professional liability claims.
+          This consent evidence is preserved indefinitely to document the legal basis for processing client data (GDPR
+          Article 7). It provides proof of informed consent in case of disputes or professional liability claims.
         </p>
       </CardContent>
     </Card>

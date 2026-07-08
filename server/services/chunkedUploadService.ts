@@ -280,7 +280,7 @@ export class ChunkedUploadService {
           const consentFileKey = `consent/${consentObjectInfo.key}_consent${extension}`;
           
           await this.objectStorage.uploadFile(consentFileKey, consentAudio, session.mimeType);
-          consentSegmentPath = `consent/${consentObjectInfo.dbPath}_consent${extension}`;
+          consentSegmentPath = consentFileKey;
           consentDurationSeconds = session.consentElapsedSeconds ?? chunksToPreserve * CHUNK_INTERVAL_SECONDS;
           session.consentSegmentPreserved = true;
           

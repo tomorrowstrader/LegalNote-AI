@@ -4046,24 +4046,31 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
-  // Get presigned URL for consent segment audio (preserved indefinitely for compliance)
+  // Stream consent segment audio (preserved indefinitely for compliance)
   app.get("/api/audio/:audioId/consent-segment", isAuthenticated, async (req: any, res, next) => {
+    const objectStorageService = new ObjectStorageService();
     try {
       const userId = req.user.claims.sub;
       const { audioId } = req.params;
 
-      const audioRecording = await storage.getAudioRecording(audioId, userId);
+      const audioRecording = await storage.getAudioRecording(audioId);
       if (!audioRecording) {
         return res.status(404).json({ message: "Audio recording not found" });
+      }
+
+      const caseRecord = await storage.getCase(audioRecording.caseId, userId);
+      if (!caseRecord) {
+        return res.status(403).json({ message: "Access denied" });
       }
 
       if (!audioRecording.consentSegmentPath) {
         return res.status(404).json({ message: "No consent segment available for this recording" });
       }
 
-      const objectStorageService = new ObjectStorageService();
-      const presignedUrl = await objectStorageService.getPresignedUrl(audioRecording.consentSegmentPath);
-      
+      if (req.method === "HEAD") {
+        return res.status(200).end();
+      }
+
       await logAuditEvent(userId, "consent_segment_accessed", {
         audioRecordingId: audioId,
         caseId: audioRecording.caseId,
@@ -4074,10 +4081,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         req,
       });
 
-      res.json({ 
-        url: presignedUrl,
-        expiresAt: new Date(Date.now() + 3600000).toISOString(),
-      });
+      await objectStorageService.downloadObject(audioRecording.consentSegmentPath, res);
     } catch (error: any) {
       next(error);
     }

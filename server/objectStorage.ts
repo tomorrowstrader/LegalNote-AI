@@ -227,6 +227,15 @@ export class ObjectStorageService {
   }
 
   resolveS3KeyFromPath(dbPath: string): string {
+    // Legacy-compatibility shims for pre-fix stored paths.
+    // The consent branch can be retired once the Jazz-001 backfill (B5) is confirmed.
+    if (dbPath.startsWith("consent//objects/")) {
+      return dbPath.replace("consent//objects/", "consent/.private/uploads/");
+    }
+    // Forward-compat for recovered-audio paths (not used by consent segments; see Phase D deletion work).
+    if (dbPath.startsWith("recovered//objects/")) {
+      return dbPath.replace("recovered//objects/", "recovered/.private/uploads/");
+    }
     // Convert database path format (/objects/{uuid}) to S3 key (.private/uploads/{uuid})
     if (dbPath.startsWith("/objects/")) {
       const id = dbPath.replace("/objects/", "");
