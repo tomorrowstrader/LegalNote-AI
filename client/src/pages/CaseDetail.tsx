@@ -122,7 +122,7 @@ function getProcessingCreepCap(realProgress: number): number {
   return next - 1;
 }
 
-function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void }) {
+function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHold, litigationHoldReason }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void; litigationHold?: boolean; litigationHoldReason?: string | null }) {
   const { toast } = useToast();
   const { data, isLoading } = useQuery<SessionWithDetails>({
     queryKey: ['/api/sessions', sessionId],
@@ -179,6 +179,8 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId
               caseId={caseId}
               audioRecordingId={sessionAudio.id}
               knownDurationSeconds={sessionAudio.duration ?? undefined}
+              litigationHold={litigationHold}
+              litigationHoldReason={litigationHoldReason}
             />
           ) : (
             <p className="text-xs text-muted-foreground">Audio not yet available.</p>
@@ -1543,6 +1545,8 @@ export default function CaseDetail() {
               audioRecordingId={audioData?.id}
               playerRef={audioPlayerRef}
               knownDurationSeconds={audioData?.duration ?? undefined}
+              litigationHold={caseData.litigationHold}
+              litigationHoldReason={caseData.litigationHoldReason}
             />
           )}
 
@@ -1760,7 +1764,13 @@ export default function CaseDetail() {
                           </div>
                           {isExpanded && (
                             <div className="border-t border-border">
-                              <SessionDetails sessionId={session.id} caseId={caseId!} onOpenAttendanceNote={navigateToSessionDocs} />
+                              <SessionDetails
+                                sessionId={session.id}
+                                caseId={caseId!}
+                                onOpenAttendanceNote={navigateToSessionDocs}
+                                litigationHold={caseData.litigationHold}
+                                litigationHoldReason={caseData.litigationHoldReason}
+                              />
                             </div>
                           )}
                         </CardContent>

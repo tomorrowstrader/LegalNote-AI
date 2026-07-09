@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useImperativeHandle, useCallback, type Ref } from "react";
-import { Play, Pause, Volume2, VolumeX, Clock, SkipBack, SkipForward, ShieldCheck } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Clock, SkipBack, SkipForward, ShieldCheck, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { formatDistanceToNow, differenceInDays, differenceInHours, differenceInMinutes } from "date-fns";
@@ -38,9 +38,11 @@ interface AudioPlayerProps {
   audioRecordingId?: string;
   playerRef?: Ref<AudioPlayerHandle>;
   knownDurationSeconds?: number;
+  litigationHold?: boolean;
+  litigationHoldReason?: string | null;
 }
 
-export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecordingId, playerRef, knownDurationSeconds }: AudioPlayerProps) {
+export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecordingId, playerRef, knownDurationSeconds, litigationHold, litigationHoldReason }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
@@ -55,11 +57,13 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   const duration = getEffectiveDuration(elementDuration, knownDurationSeconds);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [isExpired, setIsExpired] = useState(false);
+  const [isPastRetentionExpiry, setIsPastRetentionExpiry] = useState(false);
+
+  const isPlaybackBlocked = isPastRetentionExpiry && !litigationHold;
 
   useImperativeHandle(playerRef, () => ({
     seekTo: async (timeMs: number) => {
-      if (!audioRef.current || isExpired) return;
+      if (!audioRef.current || isPlaybackBlocked) return;
       const timeSeconds = timeMs / 1000;
       if (!isFinite(timeSeconds)) return;
       const previousTime = audioRef.current.currentTime;
@@ -79,18 +83,19 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
         severity: "info",
       });
     },
-  }), [isExpired, caseId, audioRecordingId]);
+  }), [isPlaybackBlocked, caseId, audioRecordingId]);
 
   useEffect(() => {
-    setIsExpired(false);
-  }, [audioUrl, expiresAt]);
+    setIsPastRetentionExpiry(false);
+  }, [audioUrl, expiresAt, litigationHold]);
 
   useEffect(() => {
     if (!expiresAt) return;
 
     const checkExpiration = () => {
-      if (new Date() > expiresAt) {
-        setIsExpired(true);
+      const past = new Date() > expiresAt;
+      setIsPastRetentionExpiry(past);
+      if (past && !litigationHold) {
         if (audioRef.current) {
           audioRef.current.pause();
         }
@@ -102,7 +107,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
     const interval = setInterval(checkExpiration, 60000);
 
     return () => clearInterval(interval);
-  }, [expiresAt, onExpired]);
+  }, [expiresAt, onExpired, litigationHold]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -198,7 +203,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   }, [audioUrl, knownDurationSeconds]);
 
   const togglePlayPause = async () => {
-    if (!audioRef.current || isExpired) return;
+    if (!audioRef.current || isPlaybackBlocked) return;
 
     if (isPlaying) {
       audioRef.current.pause();
@@ -236,7 +241,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   };
 
   const skipBy = useCallback(async (seconds: number) => {
-    if (!audioRef.current || isExpired || duration <= 0) return;
+    if (!audioRef.current || isPlaybackBlocked || duration <= 0) return;
     const prevTime = audioRef.current.currentTime;
     const newTime = Math.max(0, Math.min(duration, prevTime + seconds));
     audioRef.current.currentTime = newTime;
@@ -249,7 +254,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
       metadata: { from: prevTime, to: newTime, duration, source: "skip_button" },
       severity: "info",
     });
-  }, [isExpired, duration, caseId, audioRecordingId]);
+  }, [isPlaybackBlocked, duration, caseId, audioRecordingId]);
 
   const seekToFraction = useCallback((clientX: number) => {
     if (!audioRef.current || duration <= 0) return;
@@ -263,12 +268,12 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   }, [duration]);
 
   const handleWaveformPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!audioRef.current || isExpired || duration <= 0) return;
+    if (!audioRef.current || isPlaybackBlocked || duration <= 0) return;
     dragStartTimeRef.current = audioRef.current.currentTime;
     isDraggingRef.current = true;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     seekToFraction(e.clientX);
-  }, [isExpired, duration, seekToFraction]);
+  }, [isPlaybackBlocked, duration, seekToFraction]);
 
   const handleWaveformPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDraggingRef.current) return;
@@ -294,7 +299,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   }, [caseId, audioRecordingId, seekToFraction]);
 
   const handleWaveformKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!audioRef.current || isExpired || duration <= 0) return;
+    if (!audioRef.current || isPlaybackBlocked || duration <= 0) return;
     let seekDelta = 0;
     switch (e.key) {
       case 'ArrowRight': seekDelta = 5; break;
@@ -315,7 +320,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
     const newTime = Math.max(0, Math.min(duration, audioRef.current.currentTime + seekDelta));
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
-  }, [isExpired, duration]);
+  }, [isPlaybackBlocked, duration]);
 
   const handleVolumeChange = (value: number[]) => {
     if (!audioRef.current) return;
@@ -340,7 +345,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   };
 
   const getRetentionCountdown = () => {
-    if (!expiresAt || isExpired) return null;
+    if (!expiresAt || isPastRetentionExpiry) return null;
     const isDemoMode = window.location.pathname.startsWith("/demo/");
     const now = new Date();
     const days = differenceInDays(expiresAt, now);
@@ -375,7 +380,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   };
 
   const getExpirationWarning = () => {
-    if (!expiresAt || isExpired) return null;
+    if (!expiresAt || isPastRetentionExpiry) return null;
     const now = new Date();
     const hoursLeft = (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60);
     
@@ -390,7 +395,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
     return null;
   };
 
-  if (isExpired || !audioUrl) {
+  if (!audioUrl || isPlaybackBlocked) {
     return (
       <div className="relative" data-testid="audio-player-expired">
         <div className="bg-gradient-to-b from-card to-muted/20 border border-border/60 rounded-2xl px-5 py-4 opacity-40 pointer-events-none select-none">
@@ -434,7 +439,23 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-testid={isPastRetentionExpiry && litigationHold ? "audio-player-litigation-hold-preserved" : undefined}>
+      {isPastRetentionExpiry && litigationHold && (
+        <div
+          className="flex items-start gap-2 text-xs bg-red-50 dark:bg-red-950/30 border border-red-400/60 dark:border-red-700/60 rounded-md px-3 py-2"
+          data-testid="alert-audio-litigation-hold-preserved"
+        >
+          <Lock className="h-3.5 w-3.5 shrink-0 mt-0.5 text-red-700 dark:text-red-400" />
+          <div>
+            <p className="font-medium text-red-900 dark:text-red-200">
+              This recording is preserved under litigation hold
+            </p>
+            {litigationHoldReason && (
+              <p className="text-red-800/80 dark:text-red-300/80 mt-0.5">{litigationHoldReason}</p>
+            )}
+          </div>
+        </div>
+      )}
       {getExpirationWarning()}
       
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
