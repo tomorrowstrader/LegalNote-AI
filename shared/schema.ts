@@ -792,7 +792,7 @@ export const insertQuickNoteSchema = createInsertSchema(quickNotes).omit({
 export const insertAudioRecordingSchema = createInsertSchema(audioRecordings).omit({
   id: true,
   recordedAt: true,
-  expiresAt: true, // Server calculates this (24 hours from creation)
+  expiresAt: true, // Server calculates this (7 days from creation)
   deletedAt: true,
 }).extend({
   caseId: z.string().uuid(),
