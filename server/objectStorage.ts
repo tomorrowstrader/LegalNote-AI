@@ -80,10 +80,11 @@ export class ObjectStorageService {
 
       if (parsedRange) {
         let { start, end } = parsedRange;
+        let totalSize: number | undefined;
 
         if (parsedRange.openEnded) {
           const head = await s3Client.send(new HeadObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
-          const totalSize = head.ContentLength ?? 0;
+          totalSize = head.ContentLength ?? 0;
           if (start >= totalSize) {
             res.status(416);
             res.set({ "Content-Range": `bytes */${totalSize}` });
@@ -113,12 +114,22 @@ export class ObjectStorageService {
           throw rangeError;
         }
 
+        let contentRange = data.ContentRange;
+        if (!contentRange) {
+          if (totalSize === undefined) {
+            const head = await s3Client.send(new HeadObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+            totalSize = head.ContentLength ?? 0;
+          }
+          const servedEnd = end ?? start + (data.ContentLength ?? 0) - 1;
+          contentRange = `bytes ${start}-${servedEnd}/${totalSize}`;
+        }
+
         const contentType = data.ContentType || "application/octet-stream";
         res.status(206);
         res.set({
           "Content-Type": contentType,
           "Content-Length": (data.ContentLength ?? 0).toString(),
-          ...(data.ContentRange ? { "Content-Range": data.ContentRange } : {}),
+          "Content-Range": contentRange,
           "Accept-Ranges": "bytes",
           "Cache-Control": `private, max-age=${cacheTtlSec}`,
         });
