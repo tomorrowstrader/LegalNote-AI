@@ -3423,7 +3423,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(404).json({ message: "Case not found" });
       }
       
-      // GDPR Compliance: 7-day retention OR until successful processing (whichever comes first)
+      // GDPR Compliance: 7-day retention window (expiresAt)
       // UK GDPR allows retention "as long as necessary" for processing purpose
       // 7 days ensures reliable AI processing even with API failures/retries
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -3976,7 +3976,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           }
         }
         
-        return res.status(410).json({ message: "Audio recording has expired (24hr retention policy)" });
+        return res.status(410).json({ message: "Audio recording has expired (7-day retention policy)" });
       }
       
       res.json(audioRecording);
@@ -6581,7 +6581,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             console.error("Failed to delete expired audio:", deleteError);
           }
           
-          return res.status(410).json({ message: "Audio recording has expired (24hr retention policy)" });
+          return res.status(410).json({ message: "Audio recording has expired (7-day retention policy)" });
         }
       }
       
@@ -11169,7 +11169,7 @@ ${firmName}`;
             break;
           case 'audio_expiring_soon':
             title = 'Audio Expiring Soon';
-            message = `Recording for ${caseRecord?.title || 'a case'} will be auto-deleted within 24 hours (GDPR retention).`;
+            message = `Recording for ${caseRecord?.title || 'a case'} will be auto-deleted when its 7-day retention period ends (GDPR).`;
             break;
           case 'deadline_approaching':
             title = 'Deadline Approaching';

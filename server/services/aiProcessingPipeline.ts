@@ -522,43 +522,6 @@ export class AIProcessingPipeline {
         console.error('[OBLIGATIONS] Auto-extraction failed (non-blocking):', obligationError);
       }
 
-      // GDPR Compliance: Delete audio immediately after successful processing
-      // Exception: bot recordings (stored under .private/imports/) follow the same 7-day
-      // retention window as regular in-browser recordings — they are left to expire naturally.
-      try {
-        const { ObjectStorageService } = await import('../objectStorage');
-        const objectStorageService = new ObjectStorageService();
-        
-        const isBotRecording = audio.filePath?.startsWith('.private/imports/') || !!audio.meetingSessionId;
-        
-        if (audio.filePath && !audio.deletedAt && !isBotRecording) {
-          await objectStorageService.deleteObjectEntity(audio.filePath);
-          await this.storage.updateAudioRecording(audio.id, { deletedAt: new Date() });
-          
-          // Log audit event using auditLogger (no req object needed for system events)
-          auditLogger.log({
-            eventType: AuditEventType.AUDIO_DELETED,
-            userId,
-            resourceId: audio.id,
-            resourceType: 'audio_recording',
-            details: {
-              caseId,
-              reason: "successful_processing_completion",
-              filePath: audio.filePath,
-              deletedAt: new Date().toISOString(),
-            },
-            severity: 'low',
-          });
-          
-          console.log(`[GDPR] Deleted audio after successful processing: ${audio.id} (case: ${caseId})`);
-        } else if (isBotRecording) {
-          console.log(`[GDPR] Skipping immediate deletion for bot recording ${audio.id} — will expire at ${audio.expiresAt}`);
-        }
-      } catch (deleteError) {
-        // Don't fail the processing if deletion fails - it will be cleaned up by expiration
-        console.error(`[GDPR] Failed to delete audio after processing (will be cleaned up on expiration):`, deleteError);
-      }
-
       console.log(`AI processing completed for case ${caseId}. Total cost: $${totalCost.toFixed(4)}`);
 
       return {
