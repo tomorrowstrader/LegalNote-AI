@@ -95,6 +95,9 @@ const SECTION_LABELS: Record<CaseSection, string> = {
 };
 
 const PROCESSING_PROGRESS_MILESTONES = [10, 20, 25, 35, 40, 50, 60, 75, 100];
+const INITIAL_PROGRESS = 3;
+const CREEP_EASE_FACTOR = 0.06;
+const CREEP_MIN_INCREMENT = 0.03;
 
 function getNextProcessingMilestone(progress: number): number {
   for (const milestone of PROCESSING_PROGRESS_MILESTONES) {
@@ -105,7 +108,17 @@ function getNextProcessingMilestone(progress: number): number {
 
 function getProcessingCreepCap(realProgress: number): number {
   if (realProgress >= 100) return 100;
-  return getNextProcessingMilestone(realProgress) - 1;
+  // During transcription (below doc-gen at 40%), creep toward 39 for visible motion
+  if (realProgress < 40) {
+    const docGenMilestone = PROCESSING_PROGRESS_MILESTONES.find((m) => m >= 40);
+    if (docGenMilestone) return docGenMilestone - 1;
+  }
+  let next = getNextProcessingMilestone(realProgress);
+  if (next - realProgress <= 5) {
+    const further = getNextProcessingMilestone(next);
+    if (further > next) next = further;
+  }
+  return next - 1;
 }
 
 function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void }) {
@@ -425,34 +438,74 @@ export default function CaseDetail() {
   });
 
   const realProcessingProgress = processingStatus?.processingMetadata?.progress ?? 0;
-  const [displayProgress, setDisplayProgress] = useState(0);
+  const [displayProgress, setDisplayProgress] = useState(INITIAL_PROGRESS);
+  const realProgressRef = useRef(0);
+  const displayProgressRef = useRef(INITIAL_PROGRESS);
+  const rafIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    setDisplayProgress((prev) => Math.max(prev, realProcessingProgress));
+    realProgressRef.current = realProcessingProgress;
+    if (realProcessingProgress >= 100) {
+      displayProgressRef.current = 100;
+      setDisplayProgress(100);
+    } else if (realProcessingProgress > displayProgressRef.current) {
+      displayProgressRef.current = realProcessingProgress;
+      setDisplayProgress(realProcessingProgress);
+    }
   }, [realProcessingProgress]);
 
   useEffect(() => {
     if (caseData?.status !== "processing") {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      displayProgressRef.current = 0;
       setDisplayProgress(0);
       return;
     }
 
-    if (realProcessingProgress >= 100) {
-      setDisplayProgress(100);
-      return;
-    }
+    displayProgressRef.current = INITIAL_PROGRESS;
+    setDisplayProgress(INITIAL_PROGRESS);
+    realProgressRef.current = realProcessingProgress;
 
-    const interval = setInterval(() => {
-      setDisplayProgress((prev) => {
-        const cap = getProcessingCreepCap(realProcessingProgress);
-        if (prev >= cap) return prev;
-        const next = prev + (cap - prev) * 0.08;
-        return Math.min(next, cap);
-      });
-    }, 100);
+    const animate = () => {
+      const real = realProgressRef.current;
+      let display = displayProgressRef.current;
 
-    return () => clearInterval(interval);
-  }, [caseData?.status, realProcessingProgress]);
+      if (real >= 100) {
+        display = 100;
+      } else if (real > display) {
+        display = real;
+      } else {
+        const cap = getProcessingCreepCap(real);
+        if (display < cap) {
+          const delta = (cap - display) * CREEP_EASE_FACTOR;
+          display = display + Math.max(delta, CREEP_MIN_INCREMENT);
+          display = Math.min(display, cap);
+        }
+        display = Math.min(display, 99);
+      }
+
+      display = Math.max(display, real);
+
+      if (display !== displayProgressRef.current) {
+        displayProgressRef.current = display;
+        setDisplayProgress(display);
+      }
+
+      rafIdRef.current = requestAnimationFrame(animate);
+    };
+
+    rafIdRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+    };
+  }, [caseData?.status]);
 
   const { data: meetingSessions = [] } = useQuery<MeetingSession[]>({
     queryKey: [`/api/cases/${caseId}/sessions`],

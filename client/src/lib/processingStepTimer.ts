@@ -1,6 +1,6 @@
 import type { ProcessingStep } from "@/components/MeetingToMatterProcessingOverlay";
 
-const DEFAULT_MIN_MS = 1000;
+const DEFAULT_MIN_MS = 2000;
 
 export function createProcessingStepTimer(
   setStep: (step: ProcessingStep) => void,
