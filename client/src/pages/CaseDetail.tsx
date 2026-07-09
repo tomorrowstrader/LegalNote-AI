@@ -94,6 +94,33 @@ const SECTION_LABELS: Record<CaseSection, string> = {
   supervision: "Supervision",
 };
 
+const PROCESSING_PROGRESS_MILESTONES = [10, 20, 25, 35, 40, 50, 60, 75, 100];
+const INITIAL_PROGRESS = 3;
+const CREEP_EASE_FACTOR = 0.06;
+const CREEP_MIN_INCREMENT = 0.03;
+
+function getNextProcessingMilestone(progress: number): number {
+  for (const milestone of PROCESSING_PROGRESS_MILESTONES) {
+    if (milestone > progress) return milestone;
+  }
+  return 100;
+}
+
+function getProcessingCreepCap(realProgress: number): number {
+  if (realProgress >= 100) return 100;
+  // During transcription (below doc-gen at 40%), creep toward 39 for visible motion
+  if (realProgress < 40) {
+    const docGenMilestone = PROCESSING_PROGRESS_MILESTONES.find((m) => m >= 40);
+    if (docGenMilestone) return docGenMilestone - 1;
+  }
+  let next = getNextProcessingMilestone(realProgress);
+  if (next - realProgress <= 5) {
+    const further = getNextProcessingMilestone(next);
+    if (further > next) next = further;
+  }
+  return next - 1;
+}
+
 function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void }) {
   const { toast } = useToast();
   const { data, isLoading } = useQuery<SessionWithDetails>({
@@ -409,6 +436,76 @@ export default function CaseDetail() {
     enabled: !!caseId && caseData?.status === 'processing',
     refetchInterval: 5000,
   });
+
+  const realProcessingProgress = processingStatus?.processingMetadata?.progress ?? 0;
+  const [displayProgress, setDisplayProgress] = useState(INITIAL_PROGRESS);
+  const realProgressRef = useRef(0);
+  const displayProgressRef = useRef(INITIAL_PROGRESS);
+  const rafIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    realProgressRef.current = realProcessingProgress;
+    if (realProcessingProgress >= 100) {
+      displayProgressRef.current = 100;
+      setDisplayProgress(100);
+    } else if (realProcessingProgress > displayProgressRef.current) {
+      displayProgressRef.current = realProcessingProgress;
+      setDisplayProgress(realProcessingProgress);
+    }
+  }, [realProcessingProgress]);
+
+  useEffect(() => {
+    if (caseData?.status !== "processing") {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      displayProgressRef.current = 0;
+      setDisplayProgress(0);
+      return;
+    }
+
+    displayProgressRef.current = INITIAL_PROGRESS;
+    setDisplayProgress(INITIAL_PROGRESS);
+    realProgressRef.current = realProcessingProgress;
+
+    const animate = () => {
+      const real = realProgressRef.current;
+      let display = displayProgressRef.current;
+
+      if (real >= 100) {
+        display = 100;
+      } else if (real > display) {
+        display = real;
+      } else {
+        const cap = getProcessingCreepCap(real);
+        if (display < cap) {
+          const delta = (cap - display) * CREEP_EASE_FACTOR;
+          display = display + Math.max(delta, CREEP_MIN_INCREMENT);
+          display = Math.min(display, cap);
+        }
+        display = Math.min(display, 99);
+      }
+
+      display = Math.max(display, real);
+
+      if (display !== displayProgressRef.current) {
+        displayProgressRef.current = display;
+        setDisplayProgress(display);
+      }
+
+      rafIdRef.current = requestAnimationFrame(animate);
+    };
+
+    rafIdRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+    };
+  }, [caseData?.status]);
 
   const { data: meetingSessions = [] } = useQuery<MeetingSession[]>({
     queryKey: [`/api/cases/${caseId}/sessions`],
@@ -1465,9 +1562,9 @@ export default function CaseDetail() {
               </div>
               {processingStatus?.processingMetadata && (
                 <div className="space-y-1.5">
-                  <Progress value={processingStatus.processingMetadata.progress || 0} className="h-1.5" data-testid="progress-bar" />
+                  <Progress value={Math.round(displayProgress)} className="h-1.5" data-testid="progress-bar" />
                   <p className="text-xs text-muted-foreground" data-testid="text-progress-percentage">
-                    {processingStatus.processingMetadata.progress || 0}% complete
+                    {Math.round(displayProgress)}% complete
                   </p>
                 </div>
               )}
