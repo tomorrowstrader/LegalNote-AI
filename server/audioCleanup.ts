@@ -1,6 +1,9 @@
 import { storage } from "./storage";
-import { ObjectStorageService } from "./objectStorage";
 import { logAuditEvent } from "./auditMiddleware";
+import {
+  deleteCaseAudioRecording,
+  LitigationHoldDeletionBlockedError,
+} from "./services/audioDeletionService";
 
 /**
  * GDPR Compliance: Clean up expired audio recordings
@@ -22,22 +25,39 @@ export async function cleanupExpiredAudio(): Promise<void> {
     
     console.log(`[GDPR] Found ${expiredRecordings.length} expired audio recording(s) to clean up`);
     
-    const objectStorageService = new ObjectStorageService();
-    
     for (const recording of expiredRecordings) {
       try {
         if (recording.filePath) {
-          // Delete main audio file from Backblaze B2
-          await objectStorageService.deleteObjectEntity(recording.filePath);
-          
+          const caseRecord = await storage.getCaseById(recording.caseId);
+          const holdStatus = await storage.getCaseLitigationHoldStatus(recording.caseId);
+          const auditUserId =
+            holdStatus?.litigationHoldAppliedBy ||
+            caseRecord?.createdBy ||
+            process.env.ADMIN_USER_ID ||
+            "system";
+
+          try {
+            await deleteCaseAudioRecording({
+              caseId: recording.caseId,
+              audioRecordingId: recording.id,
+              filePath: recording.filePath,
+              trigger: "startup_cleanup",
+              userId: auditUserId,
+              expiresAt: recording.expiresAt,
+            });
+          } catch (deleteError) {
+            if (deleteError instanceof LitigationHoldDeletionBlockedError) {
+              console.log(`[GDPR] Skipped expired audio ${recording.id} — case under litigation hold`);
+              continue;
+            }
+            throw deleteError;
+          }
+
           const deletionTimestamp = new Date();
           
           // Mark as deleted in database (consent segment path preserved)
           await storage.updateAudioRecording(recording.id, { deletedAt: deletionTimestamp });
 
-          // Look up the case to get matter reference for the audit entry
-          const caseRecord = await storage.getCaseById(recording.caseId);
-          
           // Log audit event (system-initiated deletion)
           await logAuditEvent("system", "audio_deleted", {
             caseId: recording.caseId,

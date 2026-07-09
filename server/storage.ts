@@ -422,6 +422,13 @@ export interface ComplianceOverview {
   }>;
 }
 
+export type CaseLitigationHoldStatus = {
+  litigationHold: boolean;
+  litigationHoldAppliedAt: Date | null;
+  litigationHoldAppliedBy: string | null;
+  litigationHoldReason: string | null;
+};
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -696,6 +703,7 @@ export interface IStorage {
   getLastAmlActivityDates(caseIds: string[]): Promise<Record<string, Date>>;
 
   getCaseById(id: string): Promise<Case | undefined>;
+  getCaseLitigationHoldStatus(caseId: string): Promise<CaseLitigationHoldStatus | undefined>;
 
   getExternalDocumentRefs(caseId: string): Promise<ExternalDocumentRef[]>;
   createExternalDocumentRef(data: InsertExternalDocumentRef, userId: string): Promise<ExternalDocumentRef>;
@@ -2366,6 +2374,17 @@ export class MemStorage implements IStorage {
 
   async getCaseById(id: string): Promise<Case | undefined> {
     return this.cases.get(id);
+  }
+
+  async getCaseLitigationHoldStatus(caseId: string): Promise<CaseLitigationHoldStatus | undefined> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord) return undefined;
+    return {
+      litigationHold: caseRecord.litigationHold,
+      litigationHoldAppliedAt: caseRecord.litigationHoldAppliedAt,
+      litigationHoldAppliedBy: caseRecord.litigationHoldAppliedBy,
+      litigationHoldReason: caseRecord.litigationHoldReason,
+    };
   }
 
   async getExternalDocumentRefs(_caseId: string): Promise<ExternalDocumentRef[]> {
@@ -5608,6 +5627,20 @@ export class DbStorage implements IStorage {
 
   async getCaseById(id: string): Promise<Case | undefined> {
     const result = await db.select().from(cases).where(eq(cases.id, id));
+    return result[0];
+  }
+
+  async getCaseLitigationHoldStatus(caseId: string): Promise<CaseLitigationHoldStatus | undefined> {
+    const result = await db
+      .select({
+        litigationHold: cases.litigationHold,
+        litigationHoldAppliedAt: cases.litigationHoldAppliedAt,
+        litigationHoldAppliedBy: cases.litigationHoldAppliedBy,
+        litigationHoldReason: cases.litigationHoldReason,
+      })
+      .from(cases)
+      .where(eq(cases.id, caseId))
+      .limit(1);
     return result[0];
   }
 

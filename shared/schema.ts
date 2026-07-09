@@ -231,6 +231,13 @@ export const quickNotes = pgTable("quick_notes", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const COLP_REVIEW_STATUSES = [
+  "awaiting_review",
+  "reviewed_preserve",
+  "reviewed_delete",
+] as const;
+export type ColpReviewStatus = (typeof COLP_REVIEW_STATUSES)[number];
+
 export const audioRecordings = pgTable("audio_recordings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id),
@@ -243,6 +250,8 @@ export const audioRecordings = pgTable("audio_recordings", {
   recordedAt: timestamp("recorded_at").notNull().defaultNow(),
   expiresAt: timestamp("expires_at").notNull(), // 7 days from recording
   deletedAt: timestamp("deleted_at"), // Actual deletion timestamp
+  holdReleaseGraceUntil: timestamp("hold_release_grace_until"), // COLP grace window after hold release (Stage 1b+)
+  colpReviewStatus: text("colp_review_status"), // COLP_REVIEW_STATUSES when set (Stage 1b+)
 });
 
 export const consentLogs = pgTable("consent_logs", {

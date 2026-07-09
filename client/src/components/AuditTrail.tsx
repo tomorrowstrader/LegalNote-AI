@@ -31,6 +31,7 @@ const EVENT_ICONS: Record<string, any> = {
   audio_playback_paused: Eye,
   audio_seeked: Search,
   audio_deleted: Shield,
+  audio_deletion_blocked_litigation_hold: Shield,
   document_viewed: Eye,
   document_created: FileText,
   document_updated: FileText,
@@ -88,6 +89,7 @@ const EVENT_LABELS: Record<string, string> = {
   audio_playback_paused: "Audio Playback Paused",
   audio_seeked: "Audio Seeked",
   audio_deleted: "Audio Deleted",
+  audio_deletion_blocked_litigation_hold: "Audio Deletion Blocked (Litigation Hold)",
   document_viewed: "Document Viewed",
   document_created: "Document Created",
   document_updated: "Document Updated",
@@ -208,6 +210,11 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
       return metadata.reason 
         ? `Audio removed: ${metadata.reason}`
         : "Audio recording deleted";
+
+    case "audio_deletion_blocked_litigation_hold":
+      return metadata.trigger
+        ? `Retention deletion blocked (${metadata.trigger}) — litigation hold active`
+        : "Retention deletion blocked — litigation hold active";
     
     case "track_change_action": {
       const actionLabels: Record<string, string> = {

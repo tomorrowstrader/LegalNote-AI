@@ -58,6 +58,10 @@ import {
 } from "./rateLimiting";
 import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
+import {
+  deleteCaseAudioRecording,
+  LitigationHoldDeletionBlockedError,
+} from "./services/audioDeletionService";
 import { openaiService } from "./openaiService";
 import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail } from "./email";
 import { generateSignedAuditPDF } from "./services/signedAuditExport";
@@ -3953,13 +3957,19 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
       
       if (new Date() > audioRecording.expiresAt && !audioRecording.deletedAt) {
-        // GDPR Compliance: Delete expired audio and log audit event
         if (audioRecording.filePath) {
           try {
-            const objectStorageService = new ObjectStorageService();
-            await objectStorageService.deleteObjectEntity(audioRecording.filePath);
+            await deleteCaseAudioRecording({
+              caseId: audioRecording.caseId,
+              audioRecordingId: audioRecording.id,
+              filePath: audioRecording.filePath,
+              trigger: "lazy_by_case",
+              userId,
+              expiresAt: audioRecording.expiresAt,
+              req,
+            });
             await storage.updateAudioRecording(audioRecording.id, { deletedAt: new Date() });
-            
+
             await logAuditEvent(userId, "audio_deleted", {
               caseId: audioRecording.caseId,
               audioRecordingId: audioRecording.id,
@@ -3973,10 +3983,16 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
               req,
             });
           } catch (deleteError) {
+            if (deleteError instanceof LitigationHoldDeletionBlockedError) {
+              return res.json({
+                ...audioRecording,
+                preservedByLitigationHold: true,
+              });
+            }
             console.error("Failed to delete expired audio:", deleteError);
           }
         }
-        
+
         return res.status(410).json({ message: "Audio recording has expired (7-day retention policy)" });
       }
       
@@ -4030,15 +4046,30 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
 
       if (new Date() > audioRecording.expiresAt) {
-        if (!audioRecording.deletedAt) {
+        if (!audioRecording.deletedAt && audioRecording.filePath) {
           try {
-            await objectStorageService.deleteObjectEntity(audioRecording.filePath);
+            await deleteCaseAudioRecording({
+              caseId: audioRecording.caseId,
+              audioRecordingId: audioRecording.id,
+              filePath: audioRecording.filePath,
+              trigger: "lazy_stream",
+              userId,
+              expiresAt: audioRecording.expiresAt,
+              req,
+            });
             await storage.updateAudioRecording(audioRecording.id, { deletedAt: new Date() });
+            return res.status(410).json({ message: "Audio recording has expired (retention policy)" });
           } catch (deleteError) {
-            console.error("Failed to delete expired audio:", deleteError);
+            if (deleteError instanceof LitigationHoldDeletionBlockedError) {
+              // Hold active — preserve and stream despite expiry
+            } else {
+              console.error("Failed to delete expired audio:", deleteError);
+              return res.status(410).json({ message: "Audio recording has expired (retention policy)" });
+            }
           }
+        } else {
+          return res.status(410).json({ message: "Audio recording has expired (retention policy)" });
         }
-        return res.status(410).json({ message: "Audio recording has expired (retention policy)" });
       }
 
       await objectStorageService.downloadObject(audioRecording.filePath, res);
@@ -6562,27 +6593,43 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         
         // GDPR Compliance: Check expiration and delete if expired
         if (new Date() > audioRecording.expiresAt && !audioRecording.deletedAt) {
-          try {
-            await objectStorageService.deleteObjectEntity(objectPath);
-            await storage.updateAudioRecording(audioRecording.id, { deletedAt: new Date() });
-            
-            await logAuditEvent(userId, "audio_deleted", {
-              caseId: audioRecording.caseId,
-              audioRecordingId: audioRecording.id,
-              metadata: {
-                reason: "24hr_retention_policy_expiration",
+          if (audioRecording.filePath) {
+            try {
+              await deleteCaseAudioRecording({
+                caseId: audioRecording.caseId,
+                audioRecordingId: audioRecording.id,
                 filePath: objectPath,
-                expiresAt: audioRecording.expiresAt.toISOString(),
-                deletedAt: new Date().toISOString(),
-              },
-              severity: "warning",
-              req,
-            });
-          } catch (deleteError) {
-            console.error("Failed to delete expired audio:", deleteError);
+                trigger: "lazy_objects",
+                userId,
+                expiresAt: audioRecording.expiresAt,
+                req,
+              });
+              await storage.updateAudioRecording(audioRecording.id, { deletedAt: new Date() });
+
+              await logAuditEvent(userId, "audio_deleted", {
+                caseId: audioRecording.caseId,
+                audioRecordingId: audioRecording.id,
+                metadata: {
+                  reason: "24hr_retention_policy_expiration",
+                  filePath: objectPath,
+                  expiresAt: audioRecording.expiresAt.toISOString(),
+                  deletedAt: new Date().toISOString(),
+                },
+                severity: "warning",
+                req,
+              });
+              return res.status(410).json({ message: "Audio recording has expired (7-day retention policy)" });
+            } catch (deleteError) {
+              if (deleteError instanceof LitigationHoldDeletionBlockedError) {
+                // Hold active — fall through to serve the file
+              } else {
+                console.error("Failed to delete expired audio:", deleteError);
+                return res.status(410).json({ message: "Audio recording has expired (7-day retention policy)" });
+              }
+            }
+          } else {
+            return res.status(410).json({ message: "Audio recording has expired (7-day retention policy)" });
           }
-          
-          return res.status(410).json({ message: "Audio recording has expired (7-day retention policy)" });
         }
       }
       
