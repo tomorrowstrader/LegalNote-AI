@@ -40,6 +40,7 @@ import { logAuditEvent } from "@/lib/auditLogger";
 import type { Case, Client } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
+import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 
 interface CaseResponse {
   id: string;
@@ -544,7 +545,8 @@ export default function NewNote() {
             audioRecordingId: audioResult.id,
             consentGiven: consentGiven,
             consentModality: "verbal_recorded" as const,
-            disclaimerScriptVersion: "v1.0",
+            disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
+            disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
           };
           console.log('Saving consent log to backend...', consentPayload);
           await apiRequest("POST", "/api/consent", consentPayload);

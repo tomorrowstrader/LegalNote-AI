@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Square } from "lucide-react";
+import { CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
 
 type ModalStep = "setup" | "connecting" | "in_call";
 
@@ -14,8 +15,6 @@ interface DemoMeetingSetupModalProps {
   onConsentConfirmed: () => void;
   onConnectClick?: () => void;
 }
-
-const CONSENT_SCRIPT_TEXT = `"I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and deleted after 7 days. Do you consent?"`;
 
 const CONNECTING_MESSAGES = [
   { text: "Joining Microsoft Teams call...", duration: 1000 },
@@ -186,7 +185,7 @@ export function DemoMeetingSetupModal({
 
               <div className="rounded-md border border-border bg-muted/40 px-3 py-3 space-y-1.5">
                 <p className="text-xs text-muted-foreground font-medium">Read this to your client:</p>
-                <p className="text-xs text-foreground leading-relaxed italic">{CONSENT_SCRIPT_TEXT}</p>
+                <p className="text-xs text-foreground leading-relaxed italic">{CONSENT_DISCLAIMER_TEXT}</p>
                 <p className="text-xs text-muted-foreground/70 pt-0.5">
                   This script is standardized by the platform — identical GDPR-compliant wording, every time.
                 </p>
@@ -251,7 +250,7 @@ export function DemoMeetingSetupModal({
                   </p>
                   <div className="rounded-md bg-background/70 border border-border px-3 py-2.5 space-y-1">
                     <p className="text-xs text-muted-foreground font-medium">Standardized consent script:</p>
-                    <p className="text-xs text-foreground leading-relaxed italic">{CONSENT_SCRIPT_TEXT}</p>
+                    <p className="text-xs text-foreground leading-relaxed italic">{CONSENT_DISCLAIMER_TEXT}</p>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Confirm verbal consent now — timestamped, GDPR Article 7 compliant, HMAC-sealed to the audit trail.

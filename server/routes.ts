@@ -40,6 +40,7 @@ function resolveTemplatePath(filename: string): string {
 import { storage } from "./storage";
 import { db } from "./db";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads } from "@shared/schema";
+import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -8851,6 +8852,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             attestedAt: new Date().toISOString(),
             meetingPlatform: importData.meetingPlatform,
             source: auditSource,
+            disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
+            disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
             ...(elapsedLabel ? { elapsedIntoRecording: elapsedLabel } : {}),
           },
           severity: 'info',
