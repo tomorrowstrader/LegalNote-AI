@@ -40,6 +40,25 @@ export class ObjectStorageService {
     return ".private";
   }
 
+  /** Parse a single `bytes=start-end` range header; returns null if unparseable. */
+  private parseByteRange(rangeHeader: string): { start: number; end?: number; openEnded: boolean } | null {
+    const match = /^bytes=(\d+)-(\d*)$/i.exec(rangeHeader.trim());
+    if (!match) return null;
+
+    const start = parseInt(match[1], 10);
+    if (isNaN(start) || start < 0) return null;
+
+    const endStr = match[2];
+    if (endStr === "") {
+      return { start, openEnded: true };
+    }
+
+    const end = parseInt(endStr, 10);
+    if (isNaN(end) || end < start) return null;
+
+    return { start, end, openEnded: false };
+  }
+
   async downloadObject(fileKey: string | Buffer, res: Response, cacheTtlSec: number = 3600) {
     try {
       // If fileKey is a Buffer, it's already been fetched, just stream it
@@ -56,7 +75,63 @@ export class ObjectStorageService {
 
       // Convert database path to S3 key
       const key = this.resolveS3KeyFromPath(fileKey);
+      const rangeHeader = res.req?.headers.range;
+      const parsedRange = typeof rangeHeader === "string" ? this.parseByteRange(rangeHeader) : null;
 
+      if (parsedRange) {
+        let { start, end } = parsedRange;
+
+        if (parsedRange.openEnded) {
+          const head = await s3Client.send(new HeadObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+          const totalSize = head.ContentLength ?? 0;
+          if (start >= totalSize) {
+            res.status(416);
+            res.set({ "Content-Range": `bytes */${totalSize}` });
+            res.end();
+            return;
+          }
+          end = totalSize - 1;
+        }
+
+        const rangeSpec = `bytes=${start}-${end}`;
+        let data;
+        try {
+          data = await s3Client.send(new GetObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: key,
+            Range: rangeSpec,
+          }));
+        } catch (rangeError: any) {
+          if (rangeError?.$metadata?.httpStatusCode === 416 || rangeError?.name === "InvalidRange") {
+            const head = await s3Client.send(new HeadObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+            const totalSize = head.ContentLength ?? 0;
+            res.status(416);
+            res.set({ "Content-Range": `bytes */${totalSize}` });
+            res.end();
+            return;
+          }
+          throw rangeError;
+        }
+
+        const contentType = data.ContentType || "application/octet-stream";
+        res.status(206);
+        res.set({
+          "Content-Type": contentType,
+          "Content-Length": (data.ContentLength ?? 0).toString(),
+          ...(data.ContentRange ? { "Content-Range": data.ContentRange } : {}),
+          "Accept-Ranges": "bytes",
+          "Cache-Control": `private, max-age=${cacheTtlSec}`,
+        });
+
+        if (data.Body instanceof Readable) {
+          data.Body.pipe(res);
+        } else {
+          res.end(data.Body);
+        }
+        return;
+      }
+
+      // Full file download (no range header, or unparseable range)
       const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key,
@@ -65,45 +140,19 @@ export class ObjectStorageService {
       const data = await s3Client.send(command);
       const contentType = data.ContentType || "application/octet-stream";
       const contentLength = data.ContentLength || 0;
-      const rangeHeader = res.req?.headers.range;
 
-      // Support Range requests for audio/video playback
-      if (rangeHeader) {
-        const parts = rangeHeader.replace(/bytes=/, "").split("-");
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : contentLength - 1;
-        const chunkSize = end - start + 1;
+      res.status(200);
+      res.set({
+        "Content-Type": contentType,
+        "Content-Length": contentLength.toString(),
+        "Accept-Ranges": "bytes",
+        "Cache-Control": `private, max-age=${cacheTtlSec}`,
+      });
 
-        res.status(206);
-        res.set({
-          "Content-Type": contentType,
-          "Content-Length": chunkSize.toString(),
-          "Content-Range": `bytes ${start}-${end}/${contentLength}`,
-          "Accept-Ranges": "bytes",
-          "Cache-Control": `private, max-age=${cacheTtlSec}`,
-        });
-
-        // For range requests, we need to read and slice the stream
-        if (data.Body instanceof Readable) {
-          data.Body.pipe(res);
-        } else {
-          res.end(data.Body);
-        }
+      if (data.Body instanceof Readable) {
+        data.Body.pipe(res);
       } else {
-        // Full file download
-        res.status(200);
-        res.set({
-          "Content-Type": contentType,
-          "Content-Length": contentLength.toString(),
-          "Accept-Ranges": "bytes",
-          "Cache-Control": `private, max-age=${cacheTtlSec}`,
-        });
-
-        if (data.Body instanceof Readable) {
-          data.Body.pipe(res);
-        } else {
-          res.end(data.Body);
-        }
+        res.end(data.Body);
       }
     } catch (error) {
       console.error("Error downloading file from Backblaze B2:", error);
