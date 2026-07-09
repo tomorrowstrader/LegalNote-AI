@@ -128,7 +128,7 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId
     queryKey: ['/api/sessions', sessionId],
   });
 
-  const { data: sessionAudio } = useQuery<{ id: string; filePath: string | null; deletedAt: string | null; expiresAt: string | null } | undefined>({
+  const { data: sessionAudio } = useQuery<{ id: string; filePath: string | null; deletedAt: string | null; expiresAt: string | null; duration?: number | null } | undefined>({
     queryKey: [`/api/audio/by-session/${sessionId}`],
     enabled: !!sessionId,
   });
@@ -178,6 +178,7 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote }: { sessionId
               expiresAt={sessionAudio.expiresAt ? new Date(sessionAudio.expiresAt) : null}
               caseId={caseId}
               audioRecordingId={sessionAudio.id}
+              knownDurationSeconds={sessionAudio.duration ?? undefined}
             />
           ) : (
             <p className="text-xs text-muted-foreground">Audio not yet available.</p>
@@ -1541,6 +1542,7 @@ export default function CaseDetail() {
               caseId={caseData.id}
               audioRecordingId={audioData?.id}
               playerRef={audioPlayerRef}
+              knownDurationSeconds={audioData?.duration ?? undefined}
             />
           )}
 

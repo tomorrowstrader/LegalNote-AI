@@ -20,6 +20,12 @@ function generateWaveformBars(): number[] {
 
 const WAVEFORM_BARS = generateWaveformBars();
 
+function getEffectiveDuration(elementDuration: number, knownDurationSeconds?: number): number {
+  if (isFinite(elementDuration) && elementDuration > 0) return elementDuration;
+  if (knownDurationSeconds && knownDurationSeconds > 0) return knownDurationSeconds;
+  return 0;
+}
+
 export interface AudioPlayerHandle {
   seekTo: (timeMs: number) => void;
 }
@@ -31,9 +37,10 @@ interface AudioPlayerProps {
   caseId?: string;
   audioRecordingId?: string;
   playerRef?: Ref<AudioPlayerHandle>;
+  knownDurationSeconds?: number;
 }
 
-export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecordingId, playerRef }: AudioPlayerProps) {
+export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecordingId, playerRef, knownDurationSeconds }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
@@ -44,7 +51,8 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [elementDuration, setElementDuration] = useState(0);
+  const duration = getEffectiveDuration(elementDuration, knownDurationSeconds);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
@@ -101,23 +109,25 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
     if (!audio) return;
 
     setCurrentTime(0);
-    setDuration(0);
+    setElementDuration(0);
     setIsPlaying(false);
 
     const updateDuration = () => {
       if (isFinite(audio.duration) && audio.duration > 0) {
-        setDuration(audio.duration);
+        setElementDuration(audio.duration);
       }
     };
     
     const handleEnded = () => {
       setIsPlaying(false);
-      setCurrentTime(audio.duration);
+      const endedAt = getEffectiveDuration(audio.duration, knownDurationSeconds);
+      setCurrentTime(endedAt > 0 ? endedAt : audio.currentTime);
     };
 
     const updateTimeSmooth = () => {
       if (!isDraggingRef.current && audio && !audio.paused) {
-        const progress = audio.duration > 0 ? audio.currentTime / audio.duration : 0;
+        const timelineDuration = getEffectiveDuration(audio.duration, knownDurationSeconds);
+        const progress = timelineDuration > 0 ? audio.currentTime / timelineDuration : 0;
         const playedBars = Math.floor(progress * BAR_COUNT);
         barRefsArray.current.forEach((bar, i) => {
           if (bar) {
@@ -185,7 +195,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
       audio.removeEventListener("pause", handlePause);
       audio.removeEventListener("error", handleError);
     };
-  }, [audioUrl]);
+  }, [audioUrl, knownDurationSeconds]);
 
   const togglePlayPause = async () => {
     if (!audioRef.current || isExpired) return;
