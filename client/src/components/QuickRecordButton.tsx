@@ -39,6 +39,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Client } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
+import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
@@ -650,16 +651,13 @@ export default function QuickRecordButton() {
       // Step 4: Save consent log to backend (GDPR compliance)
       if (consentGiven !== null) {
         try {
-          // Actual disclaimer wording for UK legal defensibility
-          const disclaimerWordingText = "I am recording this meeting for legal record purposes. This recording will be used to create attendance notes and transcripts. The audio will be retained for up to 7 days or until processing completes, whichever comes first. Do you consent to this recording?";
-          
           const consentPayload = {
             caseId: caseResult.id,
             audioRecordingId: audioResult.id,
             consentGiven: consentGiven,
             consentModality: "verbal_recorded" as const,
-            disclaimerScriptVersion: "v1.0",
-            disclaimerWordingText, // Store actual wording for defensibility
+            disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
+            disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
             lawfulBasis: "consent" as const, // GDPR Article 6(1)(a)
             recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
           };

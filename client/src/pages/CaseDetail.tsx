@@ -60,6 +60,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Case, AudioRecording, ConsentLog, MeetingSession, Transcript, Document } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREA_LABELS, PRACTICE_AREAS, type PracticeArea } from "@shared/schema";
+import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SessionTranscript extends Omit<Transcript, 'utterances'> {
@@ -665,9 +666,9 @@ export default function CaseDetail() {
       return apiRequest("POST", `/api/consent`, {
         caseId,
         consentGiven,
-        disclaimerScriptVersion: 'v1',
+        disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
         consentModality: 'verbal_attested',
-        disclaimerWordingText: "I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?",
+        disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
         audioRecordingId: audioData?.id,
       });
     },
@@ -1459,7 +1460,7 @@ export default function CaseDetail() {
               </button>
               {showScriptInBanner && (
                 <div className="bg-background rounded-md p-3 border border-border text-sm italic leading-relaxed">
-                  "I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?"
+                  "{CONSENT_DISCLAIMER_TEXT}"
                 </div>
               )}
 
@@ -2132,7 +2133,7 @@ export default function CaseDetail() {
             <div className="bg-muted/40 rounded-md p-3 border border-border">
               <p className="text-xs font-medium text-muted-foreground mb-1.5">CONSENT SCRIPT (for reference):</p>
               <p className="text-sm leading-relaxed italic">
-                "I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?"
+                "{CONSENT_DISCLAIMER_TEXT}"
               </p>
             </div>
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3">

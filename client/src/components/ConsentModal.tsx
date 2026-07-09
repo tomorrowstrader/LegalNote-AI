@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Check, X } from "lucide-react";
+import { CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
 
 interface ConsentModalProps {
   open: boolean;
@@ -20,8 +21,6 @@ export default function ConsentModal({
   onConsentGiven, 
   onConsentDeclined 
 }: ConsentModalProps) {
-  const disclaimerScript = `I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?`;
-
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent 
@@ -44,7 +43,7 @@ export default function ConsentModal({
           <div className="bg-muted p-4 rounded-lg border border-border">
             <p className="text-sm font-medium mb-2">READ TO CLIENT:</p>
             <p className="text-sm leading-relaxed italic">
-              "{disclaimerScript}"
+              "{CONSENT_DISCLAIMER_TEXT}"
             </p>
           </div>
 

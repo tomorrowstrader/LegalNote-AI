@@ -7,6 +7,7 @@ import { Scale, FileText, ShieldCheck, Clock, Calendar, Check, Building2, User, 
 import { useQuery } from "@tanstack/react-query";
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
 import Logo from "@/components/Logo";
+import { CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
 import {
   Dialog,
   DialogContent,
@@ -593,7 +594,7 @@ function ComparisonSlider() {
                               <Clock className="w-3 h-3 text-blue-400 dark:text-blue-500" />
                               <span className="text-[9px] sm:text-[10px] font-mono text-blue-600 dark:text-blue-400" data-testid="timestamp-0">00:15</span>
                             </div>
-                            <p className="text-[hsl(25,20%,25%)] dark:text-[hsl(30,15%,85%)] text-[11px] sm:text-xs leading-relaxed" data-testid="text-utterance-0">I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?</p>
+                            <p className="text-[hsl(25,20%,25%)] dark:text-[hsl(30,15%,85%)] text-[11px] sm:text-xs leading-relaxed" data-testid="text-utterance-0">{CONSENT_DISCLAIMER_TEXT}</p>
                           </div>
                         </div>
                       </div>

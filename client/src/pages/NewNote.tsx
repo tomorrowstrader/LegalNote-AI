@@ -46,6 +46,7 @@ import { logAuditEvent } from "@/lib/auditLogger";
 import type { Case, Client } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
+import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 
 interface CaseResponse {
   id: string;
@@ -540,15 +541,14 @@ export default function NewNote() {
       
       if (consentGiven !== null) {
         try {
-          const disclaimerWordingText = "I am recording this meeting for legal record purposes. This recording will be used to create attendance notes and transcripts. The audio will be retained for up to 7 days or until processing completes, whichever comes first. Do you consent to this recording?";
 
           const consentPayload = {
             caseId: targetCaseId,
             audioRecordingId: audioResult.id,
             consentGiven: consentGiven,
             consentModality: "verbal_recorded" as const,
-            disclaimerScriptVersion: "v1.0",
-            disclaimerWordingText,
+            disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
+            disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
             lawfulBasis: "consent" as const,
             recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
           };

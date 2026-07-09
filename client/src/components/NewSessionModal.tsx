@@ -11,6 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
+import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 
 interface NewSessionModalProps {
   open: boolean;
@@ -176,7 +177,8 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
           audioRecordingId: audioResult.id,
           consentGiven,
           consentModality: "verbal_recorded",
-          disclaimerScriptVersion: "v1.0",
+          disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
+          disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
         });
       }
 

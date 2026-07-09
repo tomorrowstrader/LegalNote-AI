@@ -40,6 +40,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Case } from "@shared/schema";
+import { CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
 
 interface LiveBotModalProps {
   caseId?: string | null;
@@ -90,8 +91,6 @@ const ACTIVE_STATUSES = new Set([
   "in_call_recording",
   "call_ended",
 ]);
-
-const CONSENT_SCRIPT = `I'm recording this meeting to create accurate attendance notes and evidence proper client care. The audio stays confidential in your case file only, used by me or my direct team if needed, and the audio is deleted after 7 days. Do you consent?`;
 
 function detectPlatform(url: string): "zoom" | "teams" | "meet" | null {
   const lower = url.toLowerCase();
@@ -732,7 +731,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
                 </div>
                 <div className="bg-background rounded-md p-3 border border-border">
                   <p className="text-xs font-medium text-muted-foreground mb-1.5">READ TO CLIENT:</p>
-                  <p className="text-sm leading-relaxed italic">"{CONSENT_SCRIPT}"</p>
+                  <p className="text-sm leading-relaxed italic">"{CONSENT_DISCLAIMER_TEXT}"</p>
                 </div>
                 <div className="bg-muted/40 p-2.5 rounded-md">
                   <p className="text-xs text-muted-foreground">
