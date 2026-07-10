@@ -32,7 +32,10 @@ export async function logAuditEvent(
 
     await storage.createAuditLog(auditData);
   } catch (error) {
-    console.error("[AUDIT] Failed to log audit event:", error);
+    console.error(
+      `[AUDIT-FAILURE-CRITICAL] Audit write failed — eventType=${eventType} userId=${userId}`,
+      error,
+    );
   }
 }
 

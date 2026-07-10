@@ -6,6 +6,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { configureSecurityHeaders } from "./securityHeaders";
 import { cleanupExpiredAudio } from "./audioCleanup";
+import { ensureSystemUser } from "./systemUser";
 import { initializeWorkers } from "./workers";
 import { migrateClientsFromCases } from "./clientMigration";
 import { backfillSessions } from "./sessionMigration";
@@ -238,7 +239,9 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
-  
+
+  await ensureSystemUser();
+
   // GDPR Compliance: Clean up expired audio on server startup
   await cleanupExpiredAudio();
 

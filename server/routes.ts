@@ -58,6 +58,7 @@ import {
 } from "./rateLimiting";
 import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
+import { SYSTEM_USER_ID } from "./systemUser";
 import {
   deleteCaseAudioRecording,
   LitigationHoldDeletionBlockedError,
@@ -2086,7 +2087,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
       const userStats = await storage.getUserStatistics();
       const candidates = userStats
-        .filter(stat => stat.userId !== userId)
+        .filter(stat => stat.userId !== userId && stat.userId !== SYSTEM_USER_ID)
         .map(stat => ({
           id: stat.userId,
           firstName: stat.firstName,
