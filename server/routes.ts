@@ -1898,6 +1898,27 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  app.get("/api/cases/:id/audio-recordings", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseData = await storage.getCase(req.params.id, userId);
+
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      const recordings = await storage.getAudioRecordingsByCaseId(req.params.id);
+      res.json(recordings.map((recording) => ({
+        id: recording.id,
+        holdReleaseGraceUntil: recording.holdReleaseGraceUntil,
+        colpReviewStatus: recording.colpReviewStatus,
+        deletedAt: recording.deletedAt,
+      })));
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.get("/api/cases/:id/processing-status", isAuthenticated, pollingLimiter, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
@@ -2587,10 +2608,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(404).json({ message: "Case not found" });
       }
       
-      // Validate reason is provided when applying hold
-      if (apply && !reason) {
+      // Validate reason is provided for both applying and releasing a hold.
+      if (!reason) {
         return res.status(400).json({ 
-          message: "Reason is required when applying a litigation hold" 
+          message: apply
+            ? "Reason is required when applying a litigation hold"
+            : "Reason is required when releasing a litigation hold"
         });
       }
       
@@ -2610,6 +2633,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         // This creates a complete audit trail of hold lifecycle
         updates.litigationHoldReleasedAt = new Date();
         updates.litigationHoldReleasedBy = userId;
+        updates.litigationHoldReleaseReason = reason;
         // Note: We preserve litigationHoldAppliedAt/By to maintain history
       }
       
@@ -2642,6 +2666,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
             actionTimestamp: new Date().toISOString(),
           }
         : {
+            reason: reason,
             releasedBy: userId,
             originalAppliedBy: (currentCase as any).litigationHoldAppliedBy,
             originalAppliedAt: (currentCase as any).litigationHoldAppliedAt,

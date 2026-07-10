@@ -219,6 +219,7 @@ export const cases = pgTable("cases", {
   litigationHoldReason: text("litigation_hold_reason"),
   litigationHoldReleasedAt: timestamp("litigation_hold_released_at"),
   litigationHoldReleasedBy: varchar("litigation_hold_released_by").references(() => users.id),
+  litigationHoldReleaseReason: text("litigation_hold_release_reason"),
   supervisorId: varchar("supervisor_id").references(() => users.id),
   supervisorName: text("supervisor_name"),
 });
@@ -770,6 +771,7 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   litigationHoldAppliedBy: true,
   litigationHoldReleasedAt: true,
   litigationHoldReleasedBy: true,
+  litigationHoldReleaseReason: true,
   clientCareLetterId: true,
   clientCareLetterSentAt: true,
 }).extend({

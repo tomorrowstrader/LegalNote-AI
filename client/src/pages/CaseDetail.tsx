@@ -50,6 +50,7 @@ import TimeRecordingModal from "@/components/TimeRecordingModal";
 import ClientCareLetterModal from "@/components/ClientCareLetterModal";
 import UndertakingsViewer from "@/components/UndertakingsViewer";
 import SupervisionSection from "@/components/SupervisionSection";
+import LitigationHoldSection from "@/components/LitigationHoldSection";
 import { useLocation, useParams, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -75,7 +76,7 @@ interface SessionWithDetails extends MeetingSession {
 type CaseSection =
   | "documents" | "obligations" | "sessions" | "notes" | "briefing"
   | "time" | "undertakings" | "external-refs" | "linked-calls"
-  | "consent" | "compliance" | "activity" | "sharing" | "audit" | "supervision";
+  | "consent" | "compliance" | "litigation-hold" | "activity" | "sharing" | "audit" | "supervision";
 
 const SECTION_LABELS: Record<CaseSection, string> = {
   documents: "Documents",
@@ -89,6 +90,7 @@ const SECTION_LABELS: Record<CaseSection, string> = {
   "linked-calls": "Telephone Notes",
   consent: "Consent Evidence",
   compliance: "Compliance Thread",
+  "litigation-hold": "Litigation Hold",
   activity: "Activity Timeline",
   sharing: "Sharing History",
   audit: "Audit Trail",
@@ -956,6 +958,14 @@ export default function CaseDetail() {
         : undefined,
     },
     { id: 'supervision', label: 'Supervision', icon: ShieldCheck },
+    {
+      id: 'litigation-hold',
+      label: 'Litigation Hold',
+      icon: Lock,
+      badge: caseData.litigationHold
+        ? <Badge variant="destructive" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">Hold</Badge>
+        : undefined,
+    },
     { id: 'activity', label: 'Activity Timeline', icon: Calendar },
     { id: 'sharing', label: 'Sharing History', icon: Share2 },
     { id: 'audit', label: 'Audit Trail', icon: ScrollText },
@@ -1070,6 +1080,7 @@ export default function CaseDetail() {
     compliance: sharedCaseActionsGroup,
     consent: sharedCaseActionsGroup,
     supervision: sharedCaseActionsGroup,
+    "litigation-hold": sharedCaseActionsGroup,
     activity: sharedCaseActionsGroup,
     sharing: sharedCaseActionsGroup,
     audit: sharedCaseActionsGroup,
@@ -1345,7 +1356,7 @@ export default function CaseDetail() {
                     </p>
                   )}
                   <p className="text-xs text-red-700 dark:text-red-400 mt-2">
-                    All session records, transcripts, and attendance notes on this matter are preserved. Edits, redactions, and deletions are blocked pending court disclosure assessment. Contact your COLP to release.
+                    All session records, transcripts, and attendance notes on this matter are preserved. Manage the hold from the Litigation Hold section.
                   </p>
                 </div>
               </div>
@@ -1935,6 +1946,12 @@ export default function CaseDetail() {
           {activeSection === 'supervision' && (
             <div className="max-w-3xl">
               <SupervisionSection caseId={caseId!} />
+            </div>
+          )}
+
+          {activeSection === 'litigation-hold' && (
+            <div className="max-w-3xl">
+              <LitigationHoldSection caseData={caseData} />
             </div>
           )}
         </div>
