@@ -1,38 +1,19 @@
 import { storage } from '../storage';
-import { ObjectStorageService } from '../objectStorage';
 import { DateTime } from 'luxon';
+import { deleteExpiredAudioRecording } from './expiredAudioRecordingDeletion';
 
 /**
  * Data Retention Cleanup Service
- * 
+ *
  * GDPR Compliance: Automatically removes expired data
  * - Expired share links
- * - Old audio files (7-day retention)
+ * - Old audio files (7-day retention) — global, hold-aware
  * - Expired consent logs
  * - Old session data
  */
 
-const AUDIO_RETENTION_DAYS = 7;
 const SHARE_LINK_GRACE_PERIOD_DAYS = 7; // Keep for 7 days after expiration
 const CONSENT_LOG_RETENTION_YEARS = 7; // UK GDPR requirement for legal records
-
-/**
- * Consent segment retention: INDEFINITE
- * 
- * Consent audio segments are preserved indefinitely because:
- * 1. They document the legal basis for processing client data (GDPR Article 7)
- * 2. They provide evidence of informed consent in case of disputes
- * 3. Solicitor professional liability cases can arise years after the meeting
- * 4. The storage cost is minimal (typically 20-60 seconds per recording)
- * 
- * Consent segments are identified by:
- * - Path containing 'consent/' directory
- * - Filename containing '_consent' suffix
- */
-function isConsentSegment(filePath: string): boolean {
-  if (!filePath) return false;
-  return filePath.includes('consent/') || filePath.includes('_consent');
-}
 
 /**
  * Clean up expired share links
@@ -57,7 +38,7 @@ export async function cleanupExpiredShareLinks(userId: string): Promise<{
         try {
           await storage.deleteShareLink(link.id, userId);
           deleted++;
-          
+
           console.log('[DATA-RETENTION] Deleted expired share link:', {
             linkId: link.id,
             caseId: link.caseId,
@@ -92,145 +73,117 @@ export async function cleanupExpiredShareLinks(userId: string): Promise<{
   }
 }
 
-/**
- * Clean up old audio files (7-day retention policy)
- * IMPORTANT: Respects litigation holds - cases under litigation hold are exempt from auto-deletion
- */
-export async function cleanupOldAudioFiles(userId: string): Promise<{
+export type AudioRetentionCleanupResult = {
   deleted: number;
+  expiryDeleted: number;
+  graceDeleted: number;
   errors: number;
   skippedLitigationHold: number;
-}> {
+};
+
+/**
+ * Global hold-aware audio retention cleanup (daily cron backstop).
+ * Processes expired recordings and lapsed COLP grace windows through deleteCaseAudioRecording.
+ */
+export async function cleanupExpiredAudioRecordings(): Promise<AudioRetentionCleanupResult> {
+  const result: AudioRetentionCleanupResult = {
+    deleted: 0,
+    expiryDeleted: 0,
+    graceDeleted: 0,
+    errors: 0,
+    skippedLitigationHold: 0,
+  };
+
   try {
-    const cases = await storage.getCases(userId);
-    const cutoffDate = DateTime.now()
-      .minus({ days: AUDIO_RETENTION_DAYS })
-      .toJSDate();
+    const expiredRecordings = await storage.getExpiredAudioRecordings();
+    const graceExpiredRecordings = await storage.getGraceExpiredAudioRecordings();
+    const processedIds = new Set<string>();
 
-    let deleted = 0;
-    let errors = 0;
-    let skippedLitigationHold = 0;
+    console.log('[DATA-RETENTION] Audio cleanup candidates:', {
+      expired: expiredRecordings.length,
+      graceExpired: graceExpiredRecordings.length,
+    });
 
-    for (const caseRecord of cases) {
-      if (caseRecord.audioUrl && caseRecord.recordedAt) {
-        // Check if audio is older than retention period
-        if (caseRecord.recordedAt < cutoffDate) {
-          // CRITICAL: Respect litigation holds - never auto-delete data under hold
-          if ((caseRecord as any).litigationHold === true) {
-            skippedLitigationHold++;
-            console.log('[DATA-RETENTION] Skipped audio deletion - case under litigation hold:', {
-              caseId: caseRecord.id,
-              litigationHoldAppliedAt: (caseRecord as any).litigationHoldAppliedAt,
-              litigationHoldReason: (caseRecord as any).litigationHoldReason,
-            });
-            
-            // Audit the skip for compliance trail - attribute properly for defensibility
-            // Priority: 1) Hold applier (known actor), 2) Case owner (matter owner), 3) "legacy_hold" for unknown
-            const holdAppliedBy = (caseRecord as any).litigationHoldAppliedBy;
-            const auditUserId = holdAppliedBy || userId; // Fallback to matter owner if applier unknown
-            const isLegacyHold = !holdAppliedBy; // Track if this is a legacy hold without proper attribution
-            
-            await storage.createAuditLog({
-              userId: auditUserId,
-              action: 'cleanup.audio_skipped_litigation_hold',
-              resourceType: 'case',
-              resourceId: caseRecord.id,
-              details: JSON.stringify({
-                recordedAt: caseRecord.recordedAt,
-                retentionDays: AUDIO_RETENTION_DAYS,
-                litigationHold: true,
-                litigationHoldAppliedAt: (caseRecord as any).litigationHoldAppliedAt || 'unknown',
-                litigationHoldAppliedBy: holdAppliedBy || 'unknown_legacy',
-                isLegacyHold, // Flag for cases without proper hold attribution
-                reason: 'litigation_hold_prevents_deletion',
-                matterOwner: userId, // Always record the matter owner for reference
-              }),
-              ipAddress: 'server-process',
-              userAgent: 'data-retention-service',
-            });
-            continue;
-          }
-          
-          try {
-            // Delete from Backblaze B2
-            const objectStorage = new ObjectStorageService();
-            const urlParts = caseRecord.audioUrl.split('/');
-            const objectKey = urlParts[urlParts.length - 1];
-            
-            // Actually delete the audio file from Backblaze B2
-            await objectStorage.deleteObjectEntity(objectKey);
+    for (const recording of expiredRecordings) {
+      if (processedIds.has(recording.id)) continue;
+      processedIds.add(recording.id);
 
-            // Update case to remove audio URL
-            await storage.updateCase(caseRecord.id, userId, {
-              audioUrl: null,
-            });
+      const deletion = await deleteExpiredAudioRecording({
+        recording,
+        trigger: 'cron_retention',
+        auditReason: 'cron_retention_7day_retention_policy',
+      });
 
-            deleted++;
-
-            console.log('[DATA-RETENTION] Deleted old audio file from Backblaze B2:', {
-              caseId: caseRecord.id,
-              recordedAt: caseRecord.recordedAt,
-              objectKey,
-              daysOld: Math.floor(
-                (Date.now() - caseRecord.recordedAt.getTime()) / (1000 * 60 * 60 * 24)
-              ),
-            });
-
-            // Audit log
-            await storage.createAuditLog({
-              userId,
-              action: 'cleanup.audio_deleted',
-              resourceType: 'case',
-              resourceId: caseRecord.id,
-              details: JSON.stringify({
-                recordedAt: caseRecord.recordedAt,
-                objectKey,
-                retentionDays: AUDIO_RETENTION_DAYS,
-                reason: 'automatic_retention_cleanup',
-                storage: 'backblaze_b2',
-              }),
-              ipAddress: 'server-process',
-              userAgent: 'data-retention-service',
-            });
-
-            let audioDurationSeconds: number | null = null;
-            try {
-              const audioRec = await storage.getAudioRecordingByCase(caseRecord.id, userId);
-              if (audioRec?.duration) {
-                audioDurationSeconds = audioRec.duration;
-              }
-            } catch (err) {
-              console.warn('[DATA-RETENTION] Could not retrieve audio duration for GDPR audit entry:', {
-                caseId: caseRecord.id,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            }
-
-            const { logAuditEvent } = await import('../auditMiddleware');
-            await logAuditEvent(userId, "audio_permanently_deleted", {
-              caseId: caseRecord.id,
-              ipAddress: "server-process",
-              metadata: {
-                matterReference: caseRecord.matterReference || "N/A",
-                deletionTimestamp: new Date().toISOString(),
-                audioDurationSeconds,
-                gdprBasis: "retention_period_expired",
-                retentionDays: AUDIO_RETENTION_DAYS,
-              },
-              severity: "warning",
-            });
-          } catch (error) {
-            console.error('[DATA-RETENTION] Error deleting audio file from Backblaze B2:', error);
-            errors++;
-          }
-        }
+      switch (deletion.outcome) {
+        case 'deleted':
+          result.deleted++;
+          result.expiryDeleted++;
+          console.log('[DATA-RETENTION] Deleted expired audio:', {
+            audioRecordingId: recording.id,
+            caseId: recording.caseId,
+          });
+          break;
+        case 'skipped_hold':
+          result.skippedLitigationHold++;
+          console.log('[DATA-RETENTION] Skipped expired audio — litigation hold:', {
+            audioRecordingId: recording.id,
+            caseId: recording.caseId,
+          });
+          break;
+        case 'error':
+          result.errors++;
+          console.error('[DATA-RETENTION] Error deleting expired audio:', {
+            audioRecordingId: recording.id,
+            error: deletion.error,
+          });
+          break;
+        case 'skipped_no_path':
+          break;
       }
     }
 
-    return { deleted, errors, skippedLitigationHold };
+    for (const recording of graceExpiredRecordings) {
+      if (processedIds.has(recording.id)) continue;
+      processedIds.add(recording.id);
+
+      const deletion = await deleteExpiredAudioRecording({
+        recording,
+        trigger: 'cron_grace_expiry',
+        auditReason: 'cron_grace_expiry_colp_window_lapsed',
+      });
+
+      switch (deletion.outcome) {
+        case 'deleted':
+          result.deleted++;
+          result.graceDeleted++;
+          console.log('[DATA-RETENTION] Deleted grace-lapsed audio:', {
+            audioRecordingId: recording.id,
+            caseId: recording.caseId,
+          });
+          break;
+        case 'skipped_hold':
+          result.skippedLitigationHold++;
+          console.log('[DATA-RETENTION] Skipped grace-lapsed audio — litigation hold:', {
+            audioRecordingId: recording.id,
+            caseId: recording.caseId,
+          });
+          break;
+        case 'error':
+          result.errors++;
+          console.error('[DATA-RETENTION] Error deleting grace-lapsed audio:', {
+            audioRecordingId: recording.id,
+            error: deletion.error,
+          });
+          break;
+        case 'skipped_no_path':
+          break;
+      }
+    }
+
+    return result;
   } catch (error) {
-    console.error('[DATA-RETENTION] Error in cleanupOldAudioFiles:', error);
-    return { deleted: 0, errors: 1, skippedLitigationHold: 0 };
+    console.error('[DATA-RETENTION] Error in cleanupExpiredAudioRecordings:', error);
+    return { ...result, errors: result.errors + 1 };
   }
 }
 
@@ -273,51 +226,30 @@ export async function archiveOldConsentLogs(userId: string): Promise<{
 }
 
 /**
- * Run full data retention cleanup for a user
+ * Run per-user data retention cleanup (share links + consent logs only).
+ * Audio cleanup runs globally via cleanupExpiredAudioRecordings().
  */
 export async function runDataRetentionCleanup(userId: string): Promise<{
   shareLinks: { deleted: number; errors: number };
-  audioFiles: { deleted: number; errors: number; skippedLitigationHold: number };
   consentLogs: { archived: number; errors: number };
   totalErrors: number;
 }> {
   console.log('[DATA-RETENTION] Starting data retention cleanup for user:', userId);
 
   const shareLinks = await cleanupExpiredShareLinks(userId);
-  const audioFiles = await cleanupOldAudioFiles(userId);
   const consentLogs = await archiveOldConsentLogs(userId);
 
-  const totalErrors = shareLinks.errors + audioFiles.errors + consentLogs.errors;
+  const totalErrors = shareLinks.errors + consentLogs.errors;
 
-  console.log('[DATA-RETENTION] Cleanup complete:', {
+  console.log('[DATA-RETENTION] Per-user cleanup complete:', {
     userId,
     shareLinksDeleted: shareLinks.deleted,
-    audioFilesDeleted: audioFiles.deleted,
-    audioFilesSkippedLitigationHold: audioFiles.skippedLitigationHold,
     consentLogsArchived: consentLogs.archived,
     totalErrors,
   });
 
-  // Audit log for cleanup execution
-  await storage.createAuditLog({
-    userId,
-    action: 'cleanup.retention_policy_executed',
-    resourceType: 'system',
-    resourceId: 'data-retention',
-    details: JSON.stringify({
-      shareLinksDeleted: shareLinks.deleted,
-      audioFilesDeleted: audioFiles.deleted,
-      audioFilesSkippedLitigationHold: audioFiles.skippedLitigationHold,
-      consentLogsArchived: consentLogs.archived,
-      totalErrors,
-    }),
-    ipAddress: 'server-process',
-    userAgent: 'data-retention-service',
-  });
-
   return {
     shareLinks,
-    audioFiles,
     consentLogs,
     totalErrors,
   };
@@ -330,19 +262,20 @@ export async function runGlobalDataRetentionCleanup(): Promise<void> {
   try {
     console.log('[DATA-RETENTION] Starting global data retention cleanup...');
 
-    // Get all users and run cleanup for each
+    const audioFiles = await cleanupExpiredAudioRecordings();
+
     const allUsers = await storage.getAllUsers();
-    console.log(`[DATA-RETENTION] Processing ${allUsers.length} user(s)`);
+    console.log(`[DATA-RETENTION] Processing ${allUsers.length} user(s) for share links and consent logs`);
 
     let totalShareLinksDeleted = 0;
-    let totalAudioFilesDeleted = 0;
-    let totalErrors = 0;
+    let totalConsentLogsArchived = 0;
+    let totalErrors = audioFiles.errors;
 
     for (const user of allUsers) {
       try {
         const result = await runDataRetentionCleanup(user.id);
         totalShareLinksDeleted += result.shareLinks.deleted;
-        totalAudioFilesDeleted += result.audioFiles.deleted;
+        totalConsentLogsArchived += result.consentLogs.archived;
         totalErrors += result.totalErrors;
       } catch (error) {
         console.error(`[DATA-RETENTION] Error processing user ${user.id}:`, error);
@@ -353,8 +286,31 @@ export async function runGlobalDataRetentionCleanup(): Promise<void> {
     console.log('[DATA-RETENTION] Global cleanup complete:', {
       usersProcessed: allUsers.length,
       shareLinksDeleted: totalShareLinksDeleted,
-      audioFilesDeleted: totalAudioFilesDeleted,
+      audioFilesDeleted: audioFiles.deleted,
+      audioFilesExpiryDeleted: audioFiles.expiryDeleted,
+      audioFilesGraceDeleted: audioFiles.graceDeleted,
+      audioFilesSkippedLitigationHold: audioFiles.skippedLitigationHold,
+      consentLogsArchived: totalConsentLogsArchived,
       totalErrors,
+    });
+
+    const auditUserId = process.env.ADMIN_USER_ID || allUsers[0]?.id || 'system';
+    await storage.createAuditLog({
+      userId: auditUserId,
+      action: 'cleanup.retention_policy_executed',
+      resourceType: 'system',
+      resourceId: 'data-retention',
+      details: JSON.stringify({
+        shareLinksDeleted: totalShareLinksDeleted,
+        audioFilesDeleted: audioFiles.deleted,
+        audioFilesExpiryDeleted: audioFiles.expiryDeleted,
+        audioFilesGraceDeleted: audioFiles.graceDeleted,
+        audioFilesSkippedLitigationHold: audioFiles.skippedLitigationHold,
+        consentLogsArchived: totalConsentLogsArchived,
+        totalErrors,
+      }),
+      ipAddress: 'server-process',
+      userAgent: 'data-retention-service',
     });
 
     // Also clean up expired session tracking from security monitor

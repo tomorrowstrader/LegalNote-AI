@@ -84,7 +84,7 @@ import {
 } from "@shared/schema";
 import crypto, { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, or, gte, lte, desc, isNull, sql, count, inArray } from "drizzle-orm";
+import { eq, and, or, gte, lte, lt, desc, isNull, isNotNull, not, sql, count, inArray } from "drizzle-orm";
 import { generateDocumentHash } from "./utils/documentHash";
 import { expandSearchWithSynonyms } from "./services/legalSynonyms";
 
@@ -465,6 +465,7 @@ export interface IStorage {
   getAudioRecordingBySession(meetingSessionId: string): Promise<AudioRecording | undefined>;
   updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined>;
   getExpiredAudioRecordings(): Promise<AudioRecording[]>;
+  getGraceExpiredAudioRecordings(): Promise<AudioRecording[]>;
   getExpiringAudioCount(userId: string, withinHours: number): Promise<number>;
   getProductivityStats(userId: string, since?: Date): Promise<{
     totalCases: number;
@@ -770,6 +771,14 @@ function generateContentSignature(contentHash: string): string {
   return crypto.createHmac('sha256', signingKey).update(contentHash).digest('hex');
 }
 
+function isInActiveColpGraceWindow(recording: AudioRecording, now: Date = new Date()): boolean {
+  return (
+    recording.colpReviewStatus === "awaiting_review" &&
+    recording.holdReleaseGraceUntil != null &&
+    recording.holdReleaseGraceUntil >= now
+  );
+}
+
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private cases: Map<string, Case>;
@@ -1016,6 +1025,8 @@ export class MemStorage implements IStorage {
       deletedAt: null,
       consentSegmentPath: null,
       consentDurationSeconds: null,
+      holdReleaseGraceUntil: insertAudioRecording.holdReleaseGraceUntil ?? null,
+      colpReviewStatus: insertAudioRecording.colpReviewStatus ?? null,
     };
     this.audioRecordings.set(id, audioRecording);
     return audioRecording;
@@ -1060,7 +1071,22 @@ export class MemStorage implements IStorage {
   async getExpiredAudioRecordings(): Promise<AudioRecording[]> {
     const now = new Date();
     return Array.from(this.audioRecordings.values()).filter(
-      (recording) => recording.expiresAt < now && !recording.deletedAt
+      (recording) =>
+        recording.expiresAt < now &&
+        !recording.deletedAt &&
+        !isInActiveColpGraceWindow(recording, now),
+    );
+  }
+
+  async getGraceExpiredAudioRecordings(): Promise<AudioRecording[]> {
+    const now = new Date();
+    return Array.from(this.audioRecordings.values()).filter(
+      (recording) =>
+        recording.holdReleaseGraceUntil != null &&
+        recording.holdReleaseGraceUntil < now &&
+        recording.colpReviewStatus === "awaiting_review" &&
+        !recording.deletedAt &&
+        recording.filePath != null,
     );
   }
 
@@ -2937,7 +2963,25 @@ export class DbStorage implements IStorage {
       .from(audioRecordings)
       .where(and(
         lte(audioRecordings.expiresAt, now),
-        isNull(audioRecordings.deletedAt)
+        isNull(audioRecordings.deletedAt),
+        not(and(
+          eq(audioRecordings.colpReviewStatus, "awaiting_review"),
+          isNotNull(audioRecordings.holdReleaseGraceUntil),
+          gte(audioRecordings.holdReleaseGraceUntil, now),
+        )),
+      ));
+  }
+
+  async getGraceExpiredAudioRecordings(): Promise<AudioRecording[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(audioRecordings)
+      .where(and(
+        lt(audioRecordings.holdReleaseGraceUntil, now),
+        eq(audioRecordings.colpReviewStatus, "awaiting_review"),
+        isNull(audioRecordings.deletedAt),
+        isNotNull(audioRecordings.filePath),
       ));
   }
 

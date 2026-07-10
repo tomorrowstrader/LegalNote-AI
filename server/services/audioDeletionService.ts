@@ -7,7 +7,9 @@ export type AudioDeletionTrigger =
   | "lazy_by_case"
   | "lazy_stream"
   | "lazy_objects"
-  | "startup_cleanup";
+  | "startup_cleanup"
+  | "cron_retention"
+  | "cron_grace_expiry";
 
 export class LitigationHoldDeletionBlockedError extends Error {
   readonly caseId: string;
