@@ -67,6 +67,10 @@ const EVENT_ICONS: Record<string, any> = {
   priority_changed: FileText,
   litigation_hold_applied: Shield,
   litigation_hold_released: Shield,
+  litigation_hold_object_lock_applied: Shield,
+  litigation_hold_object_lock_failed: Shield,
+  litigation_hold_object_lock_release_failed: Shield,
+  litigation_hold_object_lock_new_recording: Shield,
   calendar_synced: FileText,
   calendar_sync_failed: FileText,
 };
@@ -125,6 +129,10 @@ const EVENT_LABELS: Record<string, string> = {
   priority_changed: "Priority Changed",
   litigation_hold_applied: "Litigation Hold Applied",
   litigation_hold_released: "Litigation Hold Released",
+  litigation_hold_object_lock_applied: "Storage Legal Hold Applied",
+  litigation_hold_object_lock_failed: "Storage Legal Hold Failed (Apply)",
+  litigation_hold_object_lock_release_failed: "Storage Legal Hold Release Failed",
+  litigation_hold_object_lock_new_recording: "Storage Legal Hold Applied (New Recording)",
   calendar_synced: "Calendar Synced",
   calendar_sync_failed: "Calendar Sync Failed",
 };

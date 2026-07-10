@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { ObjectStorageService } from "../objectStorage";
 import { storage } from "../storage";
+import { applyObjectLegalHoldForNewRecording } from "./litigationHoldObjectLockService";
 import { db } from "../db";
 import { recordingSessions } from "@shared/schema";
 import { eq, and, lt, or } from "drizzle-orm";
@@ -628,6 +629,13 @@ export class ChunkedUploadService {
         mimeType: sessionMeta.mimeType,
         duration: durationSeconds,
         expiresAt: expiryDate,
+      });
+
+      await applyObjectLegalHoldForNewRecording({
+        caseId: caseData.id,
+        audioRecordingId: audioRecord.id,
+        filePath: dbPath,
+        userId,
       });
 
       // Mark session as recovered

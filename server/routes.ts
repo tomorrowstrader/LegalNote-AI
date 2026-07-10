@@ -62,6 +62,11 @@ import {
   deleteCaseAudioRecording,
   LitigationHoldDeletionBlockedError,
 } from "./services/audioDeletionService";
+import {
+  applyObjectLegalHoldForNewRecording,
+  buildObjectLockResponse,
+  syncCaseObjectLegalHolds,
+} from "./services/litigationHoldObjectLockService";
 import { openaiService } from "./openaiService";
 import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail } from "./email";
 import { generateSignedAuditPDF } from "./services/signedAuditExport";
@@ -2632,6 +2637,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         severity: "critical", // Litigation holds are always critical events
         req,
       });
+
+      const objectLockResult = await syncCaseObjectLegalHolds({
+        caseId: req.params.id,
+        apply,
+        userId,
+        req,
+      });
+      const { objectLock, warning: objectLockWarning } = buildObjectLockResponse(objectLockResult);
       
       res.json({
         success: true,
@@ -2640,6 +2653,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           ? "Litigation hold applied - automatic data deletion is now suspended for this case"
           : "Litigation hold released - normal retention policies will apply",
         updatedCase,
+        objectLock,
+        ...(objectLockWarning ? { warning: objectLockWarning } : {}),
       });
     } catch (error: any) {
       next(error);
@@ -3552,7 +3567,23 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           severity: "medium",
         });
 
-        res.json(updated);
+        const holdResult = await applyObjectLegalHoldForNewRecording({
+          caseId: audioRecording.caseId,
+          audioRecordingId: audioId,
+          filePath: objectPath,
+          userId,
+          req,
+        });
+        const response: Record<string, unknown> = { ...(updated ?? {}) };
+        if (holdResult) {
+          const { objectLock, warning } = buildObjectLockResponse(holdResult);
+          response.objectLock = objectLock;
+          if (warning) {
+            response.warning = warning;
+          }
+        }
+
+        res.json(response);
       } catch (error: any) {
         console.error('Audio upload error:', error);
         next(error);
@@ -3710,6 +3741,16 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         },
       });
 
+      const holdResult = await applyObjectLegalHoldForNewRecording({
+        caseId: audioRecording.caseId,
+        audioRecordingId: audioRecordingId,
+        filePath: result.filePath,
+        consentSegmentPath: result.consentSegmentPath,
+        userId,
+        req,
+      });
+      const holdResponse = holdResult ? buildObjectLockResponse(holdResult) : null;
+
       // Send recording confirmation email asynchronously (only if user preference enabled)
       (async () => {
         try {
@@ -3759,6 +3800,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         totalChunks: result.totalChunks,
         totalBytes: result.totalBytes,
         consentSegmentPreserved: !!result.consentSegmentPath,
+        ...(holdResponse?.objectLock ? { objectLock: holdResponse.objectLock } : {}),
+        ...(holdResponse?.warning ? { warning: holdResponse.warning } : {}),
       });
     } catch (error: any) {
       if (error.message.includes("not found") || error.message.includes("Unauthorized")) {

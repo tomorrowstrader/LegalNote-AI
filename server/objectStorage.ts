@@ -1,4 +1,13 @@
-import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  PutObjectLegalHoldCommand,
+  GetObjectLegalHoldCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Response } from "express";
 import { randomUUID } from "crypto";
@@ -191,6 +200,28 @@ export class ObjectStorageService {
       console.error("Error generating presigned URL:", error);
       throw new Error("Failed to generate upload URL");
     }
+  }
+
+  async setObjectLegalHold(dbPath: string, status: "ON" | "OFF"): Promise<void> {
+    const key = this.resolveS3KeyFromPath(dbPath);
+    await s3Client.send(
+      new PutObjectLegalHoldCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        LegalHold: { Status: status },
+      })
+    );
+  }
+
+  async getObjectLegalHold(dbPath: string): Promise<"ON" | "OFF" | undefined> {
+    const key = this.resolveS3KeyFromPath(dbPath);
+    const result = await s3Client.send(
+      new GetObjectLegalHoldCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+      })
+    );
+    return result.LegalHold?.Status as "ON" | "OFF" | undefined;
   }
 
   async deleteObjectEntity(objectPath: string): Promise<void> {

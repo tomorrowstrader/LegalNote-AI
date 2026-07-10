@@ -460,6 +460,7 @@ export interface IStorage {
   
   createAudioRecording(audioData: ServerAudioRecordingInsert): Promise<AudioRecording>;
   getAudioRecording(id: string): Promise<AudioRecording | undefined>;
+  getAudioRecordingsByCaseId(caseId: string): Promise<AudioRecording[]>;
   getAudioRecordingByCase(caseId: string, userId: string): Promise<AudioRecording | undefined>;
   getAudioRecordingBySession(meetingSessionId: string): Promise<AudioRecording | undefined>;
   updateAudioRecording(id: string, updates: Partial<AudioRecording>): Promise<AudioRecording | undefined>;
@@ -1022,6 +1023,12 @@ export class MemStorage implements IStorage {
 
   async getAudioRecording(id: string): Promise<AudioRecording | undefined> {
     return this.audioRecordings.get(id);
+  }
+
+  async getAudioRecordingsByCaseId(caseId: string): Promise<AudioRecording[]> {
+    return Array.from(this.audioRecordings.values())
+      .filter((recording) => recording.caseId === caseId)
+      .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
   }
 
   async getAudioRecordingByCase(caseId: string, userId: string): Promise<AudioRecording | undefined> {
@@ -2887,6 +2894,14 @@ export class DbStorage implements IStorage {
   async getAudioRecording(id: string): Promise<AudioRecording | undefined> {
     const result = await db.select().from(audioRecordings).where(eq(audioRecordings.id, id));
     return result[0];
+  }
+
+  async getAudioRecordingsByCaseId(caseId: string): Promise<AudioRecording[]> {
+    return await db
+      .select()
+      .from(audioRecordings)
+      .where(eq(audioRecordings.caseId, caseId))
+      .orderBy(audioRecordings.recordedAt);
   }
 
   async getAudioRecordingByCase(caseId: string, userId: string): Promise<AudioRecording | undefined> {

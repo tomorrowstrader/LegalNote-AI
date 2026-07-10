@@ -4,6 +4,7 @@
  */
 import { storage } from '../storage';
 import { ObjectStorageService } from '../objectStorage';
+import { applyObjectLegalHoldForNewRecording } from './litigationHoldObjectLockService';
 import type { MeetingImport } from '@shared/schema';
 
 /**
@@ -231,12 +232,19 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
   // Create audio recording linked to the case
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
-  await storage.createAudioRecording({
+  const audioRecord = await storage.createAudioRecording({
     caseId,
     filePath: audioPath,
     mimeType,
     duration: fresh.durationSeconds || undefined,
     expiresAt,
+  });
+
+  await applyObjectLegalHoldForNewRecording({
+    caseId,
+    audioRecordingId: audioRecord.id,
+    filePath: audioPath,
+    userId,
   });
 
   await storage.updateMeetingImport(importId, {
