@@ -250,8 +250,11 @@ export const audioRecordings = pgTable("audio_recordings", {
   recordedAt: timestamp("recorded_at").notNull().defaultNow(),
   expiresAt: timestamp("expires_at").notNull(), // 7 days from recording
   deletedAt: timestamp("deleted_at"), // Actual deletion timestamp
-  holdReleaseGraceUntil: timestamp("hold_release_grace_until"), // COLP grace window after hold release (Stage 1b+)
-  colpReviewStatus: text("colp_review_status"), // COLP_REVIEW_STATUSES when set (Stage 1b+)
+  // colpReviewStatus = 'awaiting_review' is the internal grace-window marker. There is deliberately
+  // NO COLP review workflow (Option 2a); it simply marks audio as being in the 30-day post-release
+  // grace buffer before auto-deletion. The colp* field names are retained for forward-compatibility.
+  holdReleaseGraceUntil: timestamp("hold_release_grace_until"),
+  colpReviewStatus: text("colp_review_status"),
 });
 
 export const consentLogs = pgTable("consent_logs", {

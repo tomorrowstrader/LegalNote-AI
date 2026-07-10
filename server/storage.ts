@@ -771,6 +771,9 @@ function generateContentSignature(contentHash: string): string {
   return crypto.createHmac('sha256', signingKey).update(contentHash).digest('hex');
 }
 
+// colpReviewStatus = 'awaiting_review' is the internal grace-window marker. There is deliberately
+// NO COLP review workflow (Option 2a); it simply marks audio as being in the 30-day post-release
+// grace buffer before auto-deletion. The colp* field/function names are retained for forward-compatibility.
 function isInActiveColpGraceWindow(recording: AudioRecording, now: Date = new Date()): boolean {
   return (
     recording.colpReviewStatus === "awaiting_review" &&
@@ -1068,6 +1071,7 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
+  // Stage 2: excludes active grace windows (Option 2a marker — see isInActiveColpGraceWindow).
   async getExpiredAudioRecordings(): Promise<AudioRecording[]> {
     const now = new Date();
     return Array.from(this.audioRecordings.values()).filter(
@@ -1078,6 +1082,7 @@ export class MemStorage implements IStorage {
     );
   }
 
+  // Stage 2: returns lapsed grace-window recordings for auto-deletion (Option 2a marker).
   async getGraceExpiredAudioRecordings(): Promise<AudioRecording[]> {
     const now = new Date();
     return Array.from(this.audioRecordings.values()).filter(
@@ -2956,6 +2961,7 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  // Stage 2: excludes active grace windows (Option 2a marker — see isInActiveColpGraceWindow).
   async getExpiredAudioRecordings(): Promise<AudioRecording[]> {
     const now = new Date();
     return await db
@@ -2972,6 +2978,7 @@ export class DbStorage implements IStorage {
       ));
   }
 
+  // Stage 2: returns lapsed grace-window recordings for auto-deletion (Option 2a marker).
   async getGraceExpiredAudioRecordings(): Promise<AudioRecording[]> {
     const now = new Date();
     return await db

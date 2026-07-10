@@ -67,6 +67,10 @@ import {
   buildObjectLockResponse,
   syncCaseObjectLegalHolds,
 } from "./services/litigationHoldObjectLockService";
+import {
+  clearCaseGraceWindow,
+  setCaseGraceWindowOnRelease,
+} from "./services/litigationHoldGraceWindowService";
 import { openaiService } from "./openaiService";
 import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail } from "./email";
 import { generateSignedAuditPDF } from "./services/signedAuditExport";
@@ -2610,7 +2614,23 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
       
       const updatedCase = await storage.updateCase(req.params.id, updates, userId);
-      
+
+      if (apply) {
+        await clearCaseGraceWindow({
+          caseId: req.params.id,
+          userId,
+          req,
+        });
+      } else {
+        await setCaseGraceWindowOnRelease({
+          caseId: req.params.id,
+          userId,
+          req,
+          clientName: currentCase.clientName,
+          caseTitle: currentCase.title,
+        });
+      }
+
       // Log audit event for litigation hold change - includes acting solicitor for defensibility
       const auditMetadata = apply 
         ? {
