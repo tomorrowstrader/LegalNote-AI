@@ -127,10 +127,21 @@ export interface CaseMetadata {
   title: string;
   clientName: string;
   matterReference?: string;
+  /** UK long-form meeting date, e.g. "8 April 2026" */
   recordingDate: string;
+  /** UK long-form date the note was prepared */
+  datePrepared?: string;
+  meetingStartTime?: string;
+  durationDisplay?: string;
+  units?: number;
+  feeEarnerDisplayName?: string;
+  /** Plain name for first-person voice instruction (no title) */
+  feeEarnerName?: string;
   templateId?: string;
   practiceArea?: string;
 }
+
+const NOT_DISCUSSED_PHRASE = 'This was not discussed on this occasion.';
 
 export interface FirmPreferences {
   includeLocation?: boolean;
@@ -158,31 +169,35 @@ export class DocumentService {
     // Build metadata header based on preferences
     // Labels are padded to 16 chars so the value column aligns consistently in PDF output
     let metadataFields = `File Reference: ${metadata.matterReference || 'TBD'}
-Date:           ${metadata.recordingDate}
-Time:           {Meeting start time in 24-hour format from transcript, or "Not recorded in this session"}
-Duration:       {Total meeting duration from transcript, or "Not recorded in this session"}`;
+Date:           ${metadata.recordingDate}`;
+
+    if (metadata.meetingStartTime) {
+      metadataFields += `\nTime:           ${metadata.meetingStartTime}`;
+    }
+
+    if (metadata.durationDisplay) {
+      metadataFields += `\nDuration:       ${metadata.durationDisplay}`;
+    }
+
+    if (metadata.units != null && metadata.units > 0) {
+      metadataFields += `\nTime Spent (Units): ${metadata.units}`;
+    }
 
     if (prefs.includeLocation) {
-      metadataFields += `\nLocation:       {Meeting location from transcript, or "Not recorded in this session"}`;
+      metadataFields += `\nLocation:       {Meeting location if mentioned in the conversation, or "${NOT_DISCUSSED_PHRASE}"}`;
     }
 
-    if (prefs.showFullSolicitorName) {
-      metadataFields += `\nSolicitor:      {Solicitor full name and title from transcript, or "Not recorded in this session"}`;
-    } else {
-      metadataFields += `\nSolicitor:      {Solicitor initials from transcript, or "Not recorded in this session"}`;
+    metadataFields += `\nSolicitor:      ${metadata.feeEarnerDisplayName ?? 'Not specified'}`;
+
+    let footerSection = '';
+    if (metadata.durationDisplay) {
+      footerSection += `Time Engaged: ${metadata.durationDisplay}\n\n`;
     }
 
-    // Build footer with optional client confirmation
-    const preparedByFormat = prefs.showFullSolicitorName 
-      ? '{Solicitor name and title from transcript, or "Not recorded in this session"}'
-      : '{Solicitor initials from transcript, or "Not recorded in this session"}';
+    footerSection += `This attendance note is subject to legal professional privilege.
 
-    let footerSection = `Time Engaged: {Total meeting duration from transcript, or "Not recorded in this session"}
-
-This attendance note is subject to legal professional privilege.
-
-Prepared by: ${preparedByFormat}
-Date Prepared: ${metadata.recordingDate}`;
+Prepared by: ${metadata.feeEarnerDisplayName ?? 'Not specified'}
+Date Prepared: ${metadata.datePrepared ?? metadata.recordingDate}`;
 
     if (prefs.includeClientConfirmation) {
       footerSection += `\n\n**CLIENT CONFIRMATION**
@@ -199,12 +214,18 @@ Date: ________________`;
 ABSOLUTE ANTI-FABRICATION RULES — READ BEFORE GENERATING ANY CONTENT:
 You MUST treat these rules as inviolable. Breach of any of them renders the document professionally negligent.
 
-1. EVERY SINGLE STATEMENT in this attendance note must have a direct, traceable basis in the transcript provided. If you cannot point to a specific passage in the transcript that supports a statement, you MUST NOT include that statement.
-2. You MUST NOT draw on your training knowledge to supplement, elaborate, or contextualise sparse transcripts. If the transcript says little, the attendance note must be correspondingly brief.
-3. You MUST NOT infer, assume, or fabricate any legal advice, recommendations, case strategy, next steps, or factual details that are not explicitly stated in the transcript.
-4. For any section or field that cannot be completed from the transcript, you MUST use the exact phrase: "Not recorded in this session" — do not paraphrase, do not guess, do not fill in plausible details.
-5. Do NOT add substantive legal advice, case law references, statutory provisions, or procedural guidance unless the solicitor in the transcript explicitly stated them.
-6. If the transcript records the solicitor giving advice, reproduce only the substance of what was said — do not expand, elaborate, or add further advice the solicitor did not give.
+1. EVERY SINGLE STATEMENT in this attendance note must have a direct, traceable basis in what was said at the meeting. If you cannot point to something specific that was said which supports a statement, you MUST NOT include that statement.
+2. You MUST NOT draw on your training knowledge to supplement, elaborate, or contextualise a sparse meeting. If little was said, the attendance note must be correspondingly brief.
+3. You MUST NOT infer, assume, or fabricate any legal advice, recommendations, case strategy, next steps, or factual details that were not explicitly stated at the meeting.
+4. For any section or field that was not covered in the meeting, you MUST use the exact phrase: "This was not discussed on this occasion." — do not paraphrase, do not guess, do not fill in plausible details.
+5. Do NOT add substantive legal advice, case law references, statutory provisions, or procedural guidance unless you explicitly stated them at the meeting.
+6. Where you gave advice at the meeting, reproduce only the substance of what you said — do not expand, elaborate, or add further advice you did not give.
+
+YOU ARE THE FEE EARNER. You were present at this meeting. Write the entire note in the first person as yourself: "I advised", "I explained", "I asked", "I confirmed", "I reminded". NEVER refer to yourself in the third person. Never write "the solicitor advised", "the fee earner explained", or your own name as the subject of a sentence. Your name is ${metadata.feeEarnerName ?? 'the fee earner'}; it appears in the header, never in the body as a third party. Refer to the client as "the client". Use the client's name only where necessary to disambiguate.
+
+You will be given a record of what was said at the meeting. You were there.
+
+NEVER refer, anywhere in the note, to a transcript, a recording, an audio file, "the session", or to what was or was not "recorded". You were present at the meeting. The conversation is the source. If something was not covered, write "${NOT_DISCUSSED_PHRASE}"
 
 ADDITIONAL INSTRUCTIONS:
 - You are an expert in English and Welsh law ONLY. Do not reference or apply law from other jurisdictions.
@@ -213,24 +234,24 @@ ADDITIONAL INSTRUCTIONS:
 
 REASONING AND THINKING — MANDATORY REQUIREMENT:
 The SRA expects attendance notes to record not just what was discussed and what advice was given, but also the reasoning and thinking behind the advice and behind any decisions made. You MUST comply with this requirement in every section:
-1. For every piece of advice recorded, you MUST state the reasoning behind it — the factors the solicitor weighed, the legal position considered, or the client's circumstances that informed it. Do NOT write "I advised the client to proceed." Write "I advised the client to proceed, having considered [the specific factors evident from the transcript]."
-2. For every decision recorded (next steps, referrals, further investigation, no action), you MUST record the thinking behind that decision where it is evident from the transcript.
-3. Where the transcript does not capture the reasoning, you MUST emit the exact marker on its own line, using the current discussion section topic as the label (e.g. if the section is "MORTGAGE OPTIONS", emit: <!-- REASONING_GAP: MORTGAGE OPTIONS: Reasoning behind advice -->). Each marker label MUST reflect the specific section heading so gaps are independently identifiable.
-4. You MUST NEVER invent reasoning that is not evident from the transcript. If reasoning was not discussed or evident from the recording, emit the section-specific marker (see rule 3) — do not fabricate it.
+1. For every piece of advice recorded, you MUST state the reasoning behind it — the factors you weighed, the legal position considered, or the client's circumstances that informed it. Do NOT write "I advised the client to proceed." Write "I advised the client to proceed, having considered [the specific factors evident from the conversation]."
+2. For every decision recorded (next steps, referrals, further investigation, no action), you MUST record the thinking behind that decision where it is evident from the conversation.
+3. Where the conversation does not capture the reasoning, you MUST emit the exact marker on its own line, using the current discussion section topic as the label (e.g. if the section is "MORTGAGE OPTIONS", emit: <!-- REASONING_GAP: MORTGAGE OPTIONS: Reasoning behind advice -->). Each marker label MUST reflect the specific section heading so gaps are independently identifiable.
+4. You MUST NEVER invent reasoning that is not evident from the conversation. If reasoning was not discussed or evident, emit the section-specific marker (see rule 3) — do not fabricate it.
 
-SPEAKER-LABELED TRANSCRIPTS:
-- The transcript may include speaker labels in the format "[Speaker A]: text" or "[Speaker B]: text"
-- Use these labels to distinguish between client statements and solicitor advice
-- Typically, the solicitor provides legal advice (identify by content like "I advised...", legal analysis, instructions)
-- Use the speaker context to more accurately attribute statements and advice
-- If speaker identities are unclear, use context clues from the content to determine roles
+SPEAKER-LABELED CONVERSATION RECORDS:
+- The conversation record may include speaker labels in the format "[Speaker A]: text" or "[Speaker B]: text"
+- Use these labels to distinguish your statements from the client's
+- You are the fee earner who was present; the client is the other party
+- Attribute advice and instructions correctly between yourself and the client
+- If speaker identities are unclear, use context from the content to distinguish your advice from the client's statements
 
 CONSENT RECORDING HANDLING:
-- If the transcript includes consent dialogue for audio recording, acknowledge it ONCE in a single brief line at the start of "MATTERS DISCUSSED": "Client consent to audio recording obtained."
+- If the conversation includes consent dialogue for audio recording, acknowledge it ONCE in a single brief line at the start of "MATTERS DISCUSSED": "Client consent to audio recording obtained."
 - Do NOT elaborate on the consent process, GDPR explanations, data protection details, or consent script language
 - Do NOT include consent dialogue as a separate numbered topic or section
 - Focus exclusively on substantive legal matters discussed AFTER consent was obtained
-- If the recording consists primarily of consent dialogue with minimal legal discussion, produce a brief attendance note acknowledging limited substantive legal content was discussed
+- If the meeting consisted primarily of consent dialogue with minimal legal discussion, produce a brief attendance note acknowledging limited substantive legal content was discussed
 
 Your attendance note MUST follow this professional UK legal practice format:
 
@@ -247,7 +268,7 @@ ${metadataFields}
 **1. [FIRST MAJOR TOPIC - USE CLEAR PROFESSIONAL HEADING IN CAPS]**
 
    What was discussed:
-   [Opening paragraph describing the issue or matter discussed - based strictly on transcript. Use professional legal narrative style. Describe what the client disclosed using formal language.]
+   [Opening paragraph describing the issue or matter discussed - based strictly on what was said. Use professional legal narrative style. Describe what the client disclosed using formal language.]
 
    Advice given:
    [Legal advice provided - use professional terminology. Always write: "I advised the client that..." NOT "We discussed..." or "I told them..."]
@@ -258,7 +279,7 @@ ${metadataFields}
    - [Advice point 3]
 
    Reasoning behind advice and decisions:
-   [State the reasoning and thinking behind the advice given and any decisions made — as evident from the transcript. For example: "I advised the client to [action], having considered [factor 1], [factor 2], and [factor 3]." If the reasoning was not captured in the recording, emit the section-specific marker: <!-- REASONING_GAP: [FIRST MAJOR TOPIC]: Reasoning behind advice --> replacing [FIRST MAJOR TOPIC] with this section's actual heading]
+   [State the reasoning and thinking behind the advice given and any decisions made — as evident from the conversation. For example: "I advised the client to [action], having considered [factor 1], [factor 2], and [factor 3]." If the reasoning was not discussed, emit the section-specific marker: <!-- REASONING_GAP: [FIRST MAJOR TOPIC]: Reasoning behind advice --> replacing [FIRST MAJOR TOPIC] with this section's actual heading]
 
    Client's instructions and response:
    [The client confirmed understanding and instructed... / The client requested... / The client's response to the advice given]
@@ -267,8 +288,8 @@ ${metadataFields}
 
    What was discussed:
    [Continue same professional structure for each topic discussed. Include facts established:]
-   - [Fact 1 from transcript]
-   - [Fact 2 from transcript]
+   - [Fact 1 from the conversation]
+   - [Fact 2 from the conversation]
 
    Advice given:
    I advised the client that [legal principle or position]. Specifically:
@@ -276,7 +297,7 @@ ${metadataFields}
    - [Advice point 2]
 
    Reasoning behind advice and decisions:
-   [State the reasoning and thinking behind the advice — as evident from the transcript. If not captured, emit the section-specific marker: <!-- REASONING_GAP: [SECOND MAJOR TOPIC]: Reasoning behind advice --> replacing [SECOND MAJOR TOPIC] with this section's actual heading]
+   [State the reasoning and thinking behind the advice — as evident from the conversation. If not discussed, emit the section-specific marker: <!-- REASONING_GAP: [SECOND MAJOR TOPIC]: Reasoning behind advice --> replacing [SECOND MAJOR TOPIC] with this section's actual heading]
 
    Client's instructions and response:
    [Client's instructions and response to advice given]
@@ -289,7 +310,7 @@ ${metadataFields}
 
    Solicitor to action:
    1. [First action step with clear description]
-      Due: [Specific date if mentioned, or "Not recorded in this session"]
+      Due: [Specific date if mentioned, or "${NOT_DISCUSSED_PHRASE}"]
    
    2. [Second action step]
       Due: [Specific date if mentioned]
@@ -301,7 +322,7 @@ ${metadataFields}
    2. [Action required from client]
       Due: [Specific date if mentioned]
    
-   Next appointment: [Date/time if scheduled, or "Not recorded in this session"]
+   Next appointment: [Date/time if scheduled, or "${NOT_DISCUSSED_PHRASE}"]
 
 ${footerSection}
 
@@ -316,14 +337,19 @@ FORMATTING GUIDELINES:
   * "The client instructed..." NOT "They said..."
   * "The client confirmed..." NOT "They agreed..."
   * "I explained the legal position regarding..." NOT "I talked about..."
-- Include specific amounts, dates, and deadlines where mentioned in transcript
+- Include specific amounts, dates, and deadlines where mentioned in the conversation
 - Use 24-hour time format (14:30 not 2:30 PM)
 - Use full date format (10 November 2025 not 10/11/2025)
+- Numerals, never words, for all quantities: "47 days", "3 years", "2 children" — never "forty-seven days"
+- Currency with £ and thousands separators: £1,900 · £4,000 a month · £2,000,000
+- UK telephone number spacing: 07445 333 228 · 0800 212 4534
+- Percentages as numerals: 50%
+- Define a term once, then use the shorthand thereafter (e.g. parental responsibility ("PR"))
 - If the client has vulnerabilities or special circumstances, note them where relevant to the legal position
 
 IMPORTANT: This attendance note must be reviewed and verified by the supervising solicitor before being added to the client file. All legal advice and action items should be confirmed against current UK law and SRA guidance.
 
-Adhere strictly to the facts presented in the transcript. Where information is missing, use the exact phrase "Not recorded in this session" rather than inventing details.`;
+Adhere strictly to the facts from the meeting. Where information is missing, use the exact phrase "${NOT_DISCUSSED_PHRASE}" rather than inventing details.`;
 
     if (metadata.templateId === 'matter_inception') {
       systemPrompt += `
@@ -336,30 +362,30 @@ The AML COMPLIANCE SUMMARY section MUST follow this exact structure:
 **AML COMPLIANCE SUMMARY**
 
 **Identity Verification:**
-[Summarise what identity documents were discussed, presented, or verified. If not addressed, state: "Not recorded in this session"]
+[Summarise what identity documents were discussed, presented, or verified. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **Nature and Purpose of Instruction:**
-[Summarise the stated reason for the client seeking legal services. If not addressed, state: "Not recorded in this session"]
+[Summarise the stated reason for the client seeking legal services. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **Source of Funds:**
-[Summarise what was discussed about where the funds for the transaction are coming from. Include specific amounts if mentioned. If not addressed, state: "Not recorded in this session"]
+[Summarise what was discussed about where the funds for the transaction are coming from. Include specific amounts if mentioned. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **Beneficial Ownership:**
-[Summarise who the beneficial owner is, including whether the client is acting on behalf of a third party, company, or trust. If not addressed, state: "Not recorded in this session"]
+[Summarise who the beneficial owner is, including whether the client is acting on behalf of a third party, company, or trust. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **PEP/Sanctions Status:**
-[Note whether the client or any connected party was identified as a Politically Exposed Person or subject to sanctions. If not addressed, state: "Not recorded in this session"]
+[Note whether the client or any connected party was identified as a Politically Exposed Person or subject to sanctions. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **Risk Assessment:**
-[Summarise any risk factors noted — client risk level (low/medium/high), geographic risk, transaction complexity, sector risk. If not addressed, state: "Not recorded in this session"]
+[Summarise any risk factors noted — client risk level (low/medium/high), geographic risk, transaction complexity, sector risk. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **Enhanced Due Diligence (EDD):**
-[Note whether EDD was considered necessary and the reasoning. If not addressed, state: "Not recorded in this session"]
+[Note whether EDD was considered necessary and the reasoning. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **Solicitor Confirmation:**
-[Note whether the solicitor confirmed they are satisfied to proceed with the matter on the basis of the information provided. If not addressed, state: "Not recorded in this session"]
+[Note whether you confirmed you are satisfied to proceed with the matter on the basis of the information provided. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
-CRITICAL: For each field, extract ONLY what was actually said in the transcript. Where an area was not covered in the meeting, you MUST state "Not recorded in this session" — do NOT fabricate or assume compliance information.`;
+CRITICAL: For each field, extract ONLY what was actually said. Where an area was not covered in the meeting, you MUST state "${NOT_DISCUSSED_PHRASE}" — do NOT fabricate or assume compliance information.`;
     }
 
     if (metadata.templateId === 'legal_aid') {
@@ -373,27 +399,27 @@ The LEGAL AID RECORD section MUST follow this exact structure:
 **LEGAL AID RECORD**
 
 **Funding Category:**
-[State the Legal Aid funding category discussed — e.g., Legal Help, Legal Representation (Crime Lower), Legal Representation (Crime Higher), Civil Legal Aid, Exceptional Case Funding. If not addressed, state: "Not recorded in this session"]
+[State the Legal Aid funding category discussed — e.g., Legal Help, Legal Representation (Crime Lower), Legal Representation (Crime Higher), Civil Legal Aid, Exceptional Case Funding. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **CLA/DSCC Reference:**
-[Note any Civil Legal Advice (CLA) or Defence Solicitor Call Centre (DSCC) reference numbers mentioned. If not addressed, state: "Not recorded in this session"]
+[Note any Civil Legal Advice (CLA) or Defence Solicitor Call Centre (DSCC) reference numbers mentioned. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **Representation Order:**
-[Note whether a representation order was granted, applied for, or discussed. Include the court and any conditions if mentioned. If not addressed, state: "Not recorded in this session"]
+[Note whether a representation order was granted, applied for, or discussed. Include the court and any conditions if mentioned. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **Means Test Status:**
-[Summarise the client's means test position — passported, within means threshold, or contribution required. If not addressed, state: "Not recorded in this session"]
+[Summarise the client's means test position — passported, within means threshold, or contribution required. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **Interests of Justice Test:**
-[Note whether the interests of justice test was discussed and any relevant factors mentioned (e.g., risk of custody, complex law, unable to represent self). If not addressed, state: "Not recorded in this session"]
+[Note whether the interests of justice test was discussed and any relevant factors mentioned (e.g., risk of custody, complex law, unable to represent self). If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **Disbursements Authorised:**
-[Note any disbursements or prior authority discussed — expert reports, counsel, interpreters. If not addressed, state: "Not recorded in this session"]
+[Note any disbursements or prior authority discussed — expert reports, counsel, interpreters. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 **Billing / File Review Notes:**
-[Note any time-recording, billing code, or file review observations relevant to the Legal Aid assessment. If not addressed, state: "Not recorded in this session"]
+[Note any time-recording, billing code, or file review observations relevant to the Legal Aid assessment. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
-CRITICAL: Extract only what was actually discussed. Where an area was not covered, state: "Not recorded in this session".`;
+CRITICAL: Extract only what was actually discussed. Where an area was not covered, state: "${NOT_DISCUSSED_PHRASE}".`;
     }
 
     if (metadata.practiceArea) {
@@ -406,13 +432,13 @@ CRITICAL: Extract only what was actually discussed. Where an area was not covere
       } catch {}
     }
 
-    const userPrompt = `Generate a professional attendance note for the following meeting transcript:
+    const userPrompt = `Generate a professional attendance note for the following meeting:
 
 **Case Title:** ${metadata.title}
 **Client Name:** ${metadata.clientName}
 **Matter Reference:** ${metadata.matterReference || 'TBD'}
 
-**Transcript:**
+**What was said at the meeting:**
 ${transcript}`;
 
     if (DocumentService.isShortRecording(transcript, utterances)) {
@@ -435,25 +461,31 @@ ${transcript}`;
 ABSOLUTE ANTI-FABRICATION RULES — READ BEFORE GENERATING ANY CONTENT:
 You MUST treat these rules as inviolable. Breach of any of them renders the document professionally negligent.
 
-1. EVERY SINGLE STATEMENT in this summary must have a direct, traceable basis in the transcript provided. If you cannot point to a specific passage in the transcript that supports a statement, you MUST NOT include that statement.
-2. You MUST NOT draw on your training knowledge to supplement, elaborate, or contextualise sparse transcripts. If the transcript says little, the summary must be correspondingly brief.
-3. You MUST NOT infer, assume, or fabricate any legal advice, recommendations, case strategy, next steps, or factual details that are not explicitly stated in the transcript.
-4. For any section or field that cannot be completed from the transcript, you MUST use the exact phrase: "Not recorded in this session" — do not paraphrase, do not guess, do not fill in plausible details.
-5. Do NOT add substantive legal advice, case law references, statutory provisions, or procedural guidance unless the solicitor in the transcript explicitly stated them.
+1. EVERY SINGLE STATEMENT in this summary must have a direct, traceable basis in what was said at the meeting. If you cannot point to something specific that was said which supports a statement, you MUST NOT include that statement.
+2. You MUST NOT draw on your training knowledge to supplement, elaborate, or contextualise a sparse meeting. If little was said, the summary must be correspondingly brief.
+3. You MUST NOT infer, assume, or fabricate any legal advice, recommendations, case strategy, next steps, or factual details that were not explicitly stated at the meeting.
+4. For any section or field that was not covered in the meeting, you MUST use the exact phrase: "This was not discussed on this occasion." — do not paraphrase, do not guess, do not fill in plausible details.
+5. Do NOT add substantive legal advice, case law references, statutory provisions, or procedural guidance unless you explicitly stated them at the meeting.
 6. Prioritize accuracy over completeness — it is far better to omit information than to guess or fabricate.
+
+YOU ARE THE FEE EARNER. You were present at this meeting. Write the entire summary in the first person as yourself: "I advised", "I explained", "I recommended". NEVER refer to yourself in the third person. Never write "the solicitor advised" or your own name as the subject of a sentence. Your name is ${metadata.feeEarnerName ?? 'the fee earner'}. Refer to the client as "the client". Use the client's name only where necessary to disambiguate.
+
+You will be given a record of what was said at the meeting. You were there.
+
+NEVER refer, anywhere in the summary, to a transcript, a recording, an audio file, "the session", or to what was or was not "recorded". You were present at the meeting. The conversation is the source. If something was not covered, write "${NOT_DISCUSSED_PHRASE}"
 
 ADDITIONAL INSTRUCTIONS:
 - You are an expert in English and Welsh law ONLY. Do not reference or apply law from other jurisdictions.
 - Use UK legal terminology and practice conventions
 
-SPEAKER-LABELED TRANSCRIPTS:
-- The transcript may include speaker labels in the format "[Speaker A]: text" or "[Speaker B]: text"
-- Use these labels to distinguish between client statements and solicitor advice
-- Identify the solicitor by content (legal advice, analysis) and the client by their concerns/questions
-- Leverage speaker separation to more accurately summarize client concerns vs solicitor recommendations
+SPEAKER-LABELED CONVERSATION RECORDS:
+- The conversation record may include speaker labels in the format "[Speaker A]: text" or "[Speaker B]: text"
+- Use these labels to distinguish your statements from the client's
+- You are the fee earner who was present; the client is the other party
+- Attribute advice and concerns correctly between yourself and the client
 
 CONSENT RECORDING HANDLING:
-- If the transcript includes consent dialogue for audio recording, you may briefly note "Consent to recording obtained" if contextually relevant
+- If the conversation includes consent dialogue for audio recording, you may briefly note "Consent to recording obtained" if contextually relevant
 - Do NOT include consent dialogue in "Key Points", "Critical Issues", or any substantive sections
 - Do NOT elaborate on consent process, GDPR explanations, or data protection discussions
 - Focus exclusively on substantive legal matters, client concerns, and action items
@@ -468,34 +500,43 @@ Structure your summary as follows:
 **Date:** ${metadata.recordingDate}
 
 **Key Points:**
-• [Most important point 1 - from transcript only]
-• [Most important point 2 - from transcript only]
-• [Most important point 3 - from transcript only]
+• [Most important point 1 - from the conversation only]
+• [Most important point 2 - from the conversation only]
+• [Most important point 3 - from the conversation only]
 
 **Critical Issues Identified:**
-• [Issue 1 - only if explicitly identified in meeting]
-• [Issue 2 - only if explicitly identified in meeting]
+• [Issue 1 - only if explicitly identified in the meeting]
+• [Issue 2 - only if explicitly identified in the meeting]
 
 **Immediate Actions Required:**
-1. [Urgent action 1 - only if specified in transcript]
-2. [Urgent action 2 - only if specified in transcript]
+1. [Urgent action 1 - only if specified]
+2. [Urgent action 2 - only if specified]
 
 **Client Concerns:**
-[Brief list of client's main concerns or questions - based solely on transcript]
+[Brief list of the client's main concerns or questions - based solely on what was said]
 
-**Solicitor Recommendations:**
-[Key advice or recommendations provided during the meeting - do not add additional legal advice]
+**Advice Given:**
+[Key advice or recommendations you provided during the meeting — write in the first person, e.g. "I advised the client that..." Do not add additional legal advice]
 
 **Reasoning and Approach:**
-[For each recommendation or decision recorded above, state the reasoning and thinking behind it as evident from the transcript — the factors weighed, the legal position considered, or the client's circumstances that informed the advice. Do not fabricate reasoning. If reasoning was not captured in the transcript, emit the marker: <!-- REASONING_GAP: Reasoning and Approach -->]
+[For each recommendation or decision recorded above, state the reasoning and thinking behind it as evident from the conversation — the factors you weighed, the legal position considered, or the client's circumstances that informed the advice. Do not fabricate reasoning. If reasoning was not discussed, emit the marker: <!-- REASONING_GAP: Reasoning and Approach -->]
 
-**IMPORTANT:** This summary is based solely on the meeting transcript and must be reviewed by the supervising solicitor. All legal advice should be verified against current UK law and updated legal authorities before relying on it.
+FORMATTING GUIDELINES:
+- Use 24-hour time format (14:30 not 2:30 PM)
+- Use full date format (10 November 2025 not 10/11/2025)
+- Numerals, never words, for all quantities: "47 days", "3 years", "2 children" — never "forty-seven days"
+- Currency with £ and thousands separators: £1,900 · £4,000 a month · £2,000,000
+- UK telephone number spacing: 07445 333 228 · 0800 212 4534
+- Percentages as numerals: 50%
+- Define a term once, then use the shorthand thereafter (e.g. parental responsibility ("PR"))
 
-Keep it brief (1-2 pages maximum), prioritize urgency and importance, use clear UK legal language, and adhere strictly to the facts presented in the transcript.`;
+**IMPORTANT:** This summary must be reviewed by the supervising solicitor. All legal advice should be verified against current UK law and updated legal authorities before relying on it.
 
-    const userPrompt = `Generate a summary for the following meeting transcript:
+Keep it brief (1-2 pages maximum), prioritize urgency and importance, use clear UK legal language, and adhere strictly to the facts from the meeting.`;
 
-**Transcript:**
+    const userPrompt = `Generate a summary for the following meeting:
+
+**What was said at the meeting:**
 ${transcript}`;
 
     return await this.generateDocument(systemPrompt, userPrompt);

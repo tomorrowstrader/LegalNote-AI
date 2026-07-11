@@ -1,10 +1,144 @@
 import { TranscriptionService } from './transcriptionService';
 import { AssemblyAIService, formatDiarizedTranscript, type SpeakerUtterance } from './assemblyAIService';
-import { DocumentService } from './documentService';
+import { DocumentService, type CaseMetadata } from './documentService';
 import { TranscriptCorrectionService } from './transcriptCorrectionService';
 import { IStorage } from '../storage';
 import { auditLogger, AuditEventType } from '../auditLog';
 import { buildKeytermsConfig } from './legalVocabulary';
+import {
+  PRIMARY_ROLE_LABELS,
+  type PrimaryRole,
+  type User,
+} from '@shared/schema';
+
+function formatUkLongDate(date: Date): string {
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function format24HourTime(date: Date): string {
+  return date.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Europe/London',
+  });
+}
+
+function formatDurationMinutes(totalMinutes: number): string {
+  if (totalMinutes < 60) {
+    return `${totalMinutes} minute${totalMinutes === 1 ? '' : 's'}`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (mins === 0) {
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  return `${hours} hour${hours === 1 ? '' : 's'} ${mins} minutes`;
+}
+
+function resolveFeeEarnerTitle(user: User): string {
+  if (user.primaryRole === 'custom' && user.customRoleLabel?.trim()) {
+    return user.customRoleLabel.trim();
+  }
+  if (user.primaryRole && user.primaryRole in PRIMARY_ROLE_LABELS) {
+    return PRIMARY_ROLE_LABELS[user.primaryRole as PrimaryRole];
+  }
+  if (user.role?.trim()) {
+    const r = user.role.trim();
+    return r.charAt(0).toUpperCase() + r.slice(1);
+  }
+  return 'Solicitor';
+}
+
+function buildFeeEarnerInitials(user: User): string {
+  const parts: string[] = [];
+  if (user.firstName?.trim()) parts.push(user.firstName.trim().charAt(0).toUpperCase());
+  if (user.lastName?.trim()) parts.push(user.lastName.trim().charAt(0).toUpperCase());
+  if (parts.length > 0) return parts.join('.') + '.';
+  if (user.email) return user.email.split('@')[0].slice(0, 2).toUpperCase();
+  return 'S';
+}
+
+function buildFeeEarnerDisplayName(user: User, showFullSolicitorName: boolean): string {
+  const title = resolveFeeEarnerTitle(user);
+  if (showFullSolicitorName) {
+    const name =
+      [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+      user.email ||
+      'Solicitor';
+    return `${name}, ${title}`;
+  }
+  return `${buildFeeEarnerInitials(user)}, ${title}`;
+}
+
+function buildFeeEarnerPlainName(user: User): string {
+  return (
+    [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+    user.email ||
+    'Solicitor'
+  );
+}
+
+async function buildDocumentGenerationMetadata(
+  storage: IStorage,
+  params: {
+    caseData: {
+      title: string;
+      clientName: string;
+      matterReference?: string | null;
+      templateId?: string | null;
+      practiceArea?: string | null;
+      assignedToUserId?: string | null;
+      createdBy: string;
+    };
+    audio: { duration?: number | null; recordedAt?: Date | string | null };
+    meetingSession: { createdBy: string; startedAt?: Date | string | null } | null | undefined;
+    showFullSolicitorName: boolean;
+  },
+): Promise<CaseMetadata> {
+  const feeEarnerUserId =
+    params.meetingSession?.createdBy ??
+    params.caseData.assignedToUserId ??
+    params.caseData.createdBy;
+
+  const feeEarnerUser = await storage.getUser(feeEarnerUserId);
+  const feeEarnerDisplayName = feeEarnerUser
+    ? buildFeeEarnerDisplayName(feeEarnerUser, params.showFullSolicitorName)
+    : undefined;
+  const feeEarnerName = feeEarnerUser ? buildFeeEarnerPlainName(feeEarnerUser) : undefined;
+
+  const meetingTimestamp = params.audio.recordedAt
+    ? new Date(params.audio.recordedAt)
+    : params.meetingSession?.startedAt
+      ? new Date(params.meetingSession.startedAt)
+      : undefined;
+
+  let durationMinutes: number | undefined;
+  let units: number | undefined;
+  let durationDisplay: string | undefined;
+  if (params.audio.duration != null && params.audio.duration > 0) {
+    durationMinutes = Math.ceil(params.audio.duration / 60);
+    units = Math.ceil(durationMinutes / 6);
+    durationDisplay = formatDurationMinutes(durationMinutes);
+  }
+
+  return {
+    title: params.caseData.title,
+    clientName: params.caseData.clientName,
+    matterReference: params.caseData.matterReference || undefined,
+    recordingDate: meetingTimestamp
+      ? formatUkLongDate(meetingTimestamp)
+      : formatUkLongDate(new Date()),
+    datePrepared: formatUkLongDate(new Date()),
+    meetingStartTime: meetingTimestamp ? format24HourTime(meetingTimestamp) : undefined,
+    durationDisplay,
+    units,
+    feeEarnerDisplayName,
+    feeEarnerName,
+    templateId: params.caseData.templateId || undefined,
+    practiceArea: params.caseData.practiceArea || undefined,
+  };
+}
 
 export interface AIProcessingResult {
   success: boolean;
@@ -278,15 +412,21 @@ export class AIProcessingPipeline {
         ? formatDiarizedTranscript(transcriptUtterances)
         : transcriptText;
 
+      const firmProfile = await this.storage.getFirmProfile();
+      const showFullSolicitorName = firmProfile?.showFullSolicitorName ?? true;
+
+      const meetingSession = sessionInfo.sessionId
+        ? await this.storage.getMeetingSession(sessionInfo.sessionId)
+        : undefined;
+
+      const metadata = await buildDocumentGenerationMetadata(this.storage, {
+        caseData,
+        audio,
+        meetingSession,
+        showFullSolicitorName,
+      });
+
       // Step 2: Generate documents
-      const metadata = {
-        title: caseData.title,
-        clientName: caseData.clientName,
-        matterReference: caseData.matterReference || undefined,
-        recordingDate: new Date().toISOString().split('T')[0],
-        templateId: caseData.templateId || undefined,
-        practiceArea: caseData.practiceArea || undefined,
-      };
 
       // Generate summary
       console.log(`Generating summary for case ${caseId}...`);
@@ -341,11 +481,9 @@ export class AIProcessingPipeline {
         currentStep: 'Generating attendance note...',
       });
 
-      // Get firm preferences for document generation
-      const firmProfile = await this.storage.getFirmProfile();
       const firmPreferences = {
         includeLocation: firmProfile?.includeLocation ?? true,
-        showFullSolicitorName: firmProfile?.showFullSolicitorName ?? true,
+        showFullSolicitorName,
         includeClientConfirmation: firmProfile?.includeClientConfirmation ?? false,
       };
 
