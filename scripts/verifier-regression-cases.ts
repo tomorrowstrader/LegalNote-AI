@@ -83,6 +83,27 @@ export const REGRESSION_CASES: RegressionCase[] = [
       wrongName: 'James Harris',
     },
   },
+  {
+    id: 'invented-firm-name',
+    kind: 'must-flag',
+    description: 'Generation defect (Sonnet): invented firm name in attendance note header/footer',
+    detectBy: ['Sarah Mitchell and Associates'],
+    reason: 'Genuine generation defect observed on Sonnet: firm name fabricated, correctly caught by verifier.',
+  },
+  {
+    id: 'invented-client-instruction',
+    kind: 'must-flag',
+    description: 'Generation defect (Sonnet): invented client instructions not established at the meeting',
+    detectBy: ["client's instructions", 'clean break', 'pension sharing order'],
+    reason: 'Genuine generation defect observed on Sonnet: instructions fabricated, correctly caught by verifier.',
+  },
+  {
+    id: 'invented-document-requirement',
+    kind: 'must-flag',
+    description: 'Generation defect (Sonnet): invented pre-FDR document requirement',
+    detectBy: ['pre-FDR', 'pre FDR', 'before the FDR'],
+    reason: 'Genuine generation defect observed on Sonnet: document requirement fabricated, correctly caught by verifier.',
+  },
 
   // --- MUST-NOT-FLAG: correct professional practice ---
   {

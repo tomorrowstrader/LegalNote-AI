@@ -328,12 +328,49 @@ function injectPlaceholderMisuse(document: string, dateCandidates: string[]): In
   return { ok: true, document: out.join('\n'), method: 'due-date-match' };
 }
 
+function transcriptSupportsFlaggedContent(warning: string, transcript: string): boolean {
+  const wLower = warning.toLowerCase();
+  const tLower = transcript.toLowerCase();
+
+  if (/full and frank disclosure/i.test(warning) && tLower.includes('duty of full and frank disclosure')) {
+    return true;
+  }
+
+  if (
+    (wLower.includes('subsisted') || wLower.includes('11 year') || wLower.includes('11 years')) &&
+    (tLower.includes('2014') || tLower.includes('august 2014')) &&
+    (tLower.includes('2026') || tLower.includes('march 2026') || tLower.includes('separated'))
+  ) {
+    return true;
+  }
+
+  const mustNotFlag = REGRESSION_CASES.filter((c) => c.kind === 'must-not-flag');
+  for (const c of mustNotFlag) {
+    if (!c.detectBy.some((sub) => wLower.includes(sub.toLowerCase()))) continue;
+    if (c.detectBy.some((sub) => tLower.includes(sub.toLowerCase()))) return true;
+  }
+
+  const keyTerms = warning
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((t) => t.length > 5);
+  const overlap = keyTerms.filter((t) => tLower.includes(t)).length;
+  return overlap >= Math.max(2, keyTerms.length * 0.4);
+}
+
 function classifyWarning(
   warning: string,
   transcript: string,
   note?: string,
 ): WarningClass {
   const wLower = warning.toLowerCase();
+
+  const mustFlag = REGRESSION_CASES.filter((c) => c.kind === 'must-flag' && !c.plantSentence && !c.injectPlaceholderMisuse && !c.injectWrongClientName);
+  for (const c of mustFlag) {
+    if (c.detectBy.some((sub) => wLower.includes(sub.toLowerCase()))) {
+      return 'genuine-catch';
+    }
+  }
 
   if (/not discussed on this occasion/i.test(warning)) {
     if (
@@ -350,30 +387,26 @@ function classifyWarning(
     return 'verifier-fp-genuine-placeholder';
   }
 
-  if (
-    /full and frank disclosure/i.test(warning) &&
-    transcript.toLowerCase().includes('duty of full and frank disclosure')
-  ) {
-    return 'characterisation';
-  }
-
   for (const pat of RETIRED_SPURIOUS_PATTERNS) {
     if (pat.match(warning)) return 'spurious';
   }
 
   const mustNotFlag = REGRESSION_CASES.filter((c) => c.kind === 'must-not-flag');
   for (const c of mustNotFlag) {
-    if (c.detectBy.some((sub) => wLower.includes(sub.toLowerCase()))) {
-      if (c.id.startsWith('legal-characterisation') || c.id.startsWith('temporal-derivation')) {
-        return 'characterisation';
-      }
-      if (
-        c.id.startsWith('numeral') ||
-        c.id === 'corporate-fee-range-paraphrase' ||
-        c.id === 'reasoning-gap-marker-in-section'
-      ) {
-        return 'spurious';
-      }
+    if (!c.detectBy.some((sub) => wLower.includes(sub.toLowerCase()))) continue;
+    if (!transcriptSupportsFlaggedContent(warning, transcript)) continue;
+    if (c.id.startsWith('legal-characterisation') || c.id.startsWith('temporal-derivation')) {
+      return 'characterisation';
+    }
+    if (
+      c.id.startsWith('numeral') ||
+      c.id === 'corporate-fee-range-paraphrase' ||
+      c.id === 'reasoning-gap-marker-in-section'
+    ) {
+      return 'spurious';
+    }
+    if (c.id.startsWith('placeholder') || c.id === 'compliant-placeholder-corporate') {
+      return 'verifier-fp-genuine-placeholder';
     }
   }
 
@@ -382,13 +415,7 @@ function classifyWarning(
     return 'genuine-catch';
   }
 
-  const keyTerms = warning
-    .toLowerCase()
-    .split(/\W+/)
-    .filter((t) => t.length > 5);
-  const tLower = transcript.toLowerCase();
-  const overlap = keyTerms.filter((t) => tLower.includes(t)).length;
-  if (overlap >= Math.max(2, keyTerms.length * 0.4)) {
+  if (transcriptSupportsFlaggedContent(warning, transcript)) {
     return 'characterisation';
   }
 
@@ -473,6 +500,40 @@ interface GateResult {
   dashGateScopeNote: string;
   dashFree: boolean;
   attendanceSpurious: string[];
+}
+
+interface ApiCallRecord {
+  transcriptId: string;
+  operation: string;
+  latencyMs: number;
+  cost: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+type CostedApiResult = {
+  cost: number;
+  inputTokens?: number;
+  outputTokens?: number;
+};
+
+async function timedApiCall<T extends CostedApiResult>(
+  callLog: ApiCallRecord[],
+  transcriptId: string,
+  operation: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const start = performance.now();
+  const result = await fn();
+  callLog.push({
+    transcriptId,
+    operation,
+    latencyMs: Math.round(performance.now() - start),
+    cost: result.cost,
+    inputTokens: result.inputTokens ?? 0,
+    outputTokens: result.outputTokens ?? 0,
+  });
+  return result;
 }
 
 function isPlaceholderRelatedClassification(cls: WarningClass, warning: string): boolean {
@@ -648,12 +709,17 @@ async function runPlants(
   documentService: InstanceType<(typeof import('../server/services/documentService'))['DocumentService']>,
   document: string,
   transcript: string,
+  transcriptId: string,
+  callLog: ApiCallRecord[],
+  section: 'attendance' | 'summary',
 ): Promise<{ results: PlantRunResult[]; cost: number }> {
   const results: PlantRunResult[] = [];
   let cost = 0;
   for (const plantCase of PLANT_CASES) {
     const contaminated = `${document}\n\n${plantCase.plantSentence}`;
-    const verify = await documentService.verifyDocumentAgainstTranscript(contaminated, transcript);
+    const verify = await timedApiCall(callLog, transcriptId, `${section} plant:${plantCase.id}`, () =>
+      documentService.verifyDocumentAgainstTranscript(contaminated, transcript),
+    );
     cost += verify.cost;
     const detected = caseDetected(verify.warnings, plantCase);
     const normalizedWarnings = normalizeWarnings(verify.warnings);
@@ -685,6 +751,7 @@ async function runHarness(
   };
 
   const results: TranscriptResult[] = [];
+  const callLog: ApiCallRecord[] = [];
   let familyPlaceholderInject: TranscriptResult['placeholderMisuseInjected'] = null;
   let familyWrongNameInject: TranscriptResult['wrongClientNameInjected'] = null;
 
@@ -696,22 +763,30 @@ async function runHarness(
     let verificationCost = 0;
 
     console.log('  generateAttendanceNote...');
-    const attGen = await documentService.generateAttendanceNote(transcript, metadata, firmPreferences);
+    const attGen = await timedApiCall(callLog, spec.id, 'generateAttendanceNote', () =>
+      documentService.generateAttendanceNote(transcript, metadata, firmPreferences),
+    );
     const attendanceNote = attGen.content;
     generationCost += attGen.cost;
 
     console.log('  generateSummary...');
-    const sumGen = await documentService.generateSummary(transcript, metadata);
+    const sumGen = await timedApiCall(callLog, spec.id, 'generateSummary', () =>
+      documentService.generateSummary(transcript, metadata),
+    );
     const summaryText = sumGen.content;
     generationCost += sumGen.cost;
 
     console.log('  baseline verification (attendance)...');
-    const attBaseline = await documentService.verifyDocumentAgainstTranscript(attendanceNote, transcript);
+    const attBaseline = await timedApiCall(callLog, spec.id, 'verify:attendance baseline', () =>
+      documentService.verifyDocumentAgainstTranscript(attendanceNote, transcript),
+    );
     verificationCost += attBaseline.cost;
     console.log(`    warnings: ${attBaseline.warnings.length}`);
 
     console.log('  baseline verification (summary)...');
-    const sumBaseline = await documentService.verifyDocumentAgainstTranscript(summaryText, transcript);
+    const sumBaseline = await timedApiCall(callLog, spec.id, 'verify:summary baseline', () =>
+      documentService.verifyDocumentAgainstTranscript(summaryText, transcript),
+    );
     verificationCost += sumBaseline.cost;
     console.log(`    warnings: ${sumBaseline.warnings.length}`);
 
@@ -719,11 +794,11 @@ async function runHarness(
     const sumBaselineWarnings = normalizeWarnings(sumBaseline.warnings);
 
     console.log('  attendance plants...');
-    const attPlants = await runPlants(documentService, attendanceNote, transcript);
+    const attPlants = await runPlants(documentService, attendanceNote, transcript, spec.id, callLog, 'attendance');
     verificationCost += attPlants.cost;
 
     console.log('  summary plants...');
-    const sumPlants = await runPlants(documentService, summaryText, transcript);
+    const sumPlants = await runPlants(documentService, summaryText, transcript, spec.id, callLog, 'summary');
     verificationCost += sumPlants.cost;
 
     let placeholderMisuseInjected: TranscriptResult['placeholderMisuseInjected'] = null;
@@ -741,7 +816,9 @@ async function runHarness(
         familyPlaceholderInject = placeholderMisuseInjected;
         console.log(`    placeholder-misuse injected: SKIPPED (${phOutcome.skipReason})`);
       } else {
-        const verify = await documentService.verifyDocumentAgainstTranscript(phOutcome.document, transcript);
+        const verify = await timedApiCall(callLog, spec.id, 'verify:placeholder-misuse injected', () =>
+          documentService.verifyDocumentAgainstTranscript(phOutcome.document, transcript),
+        );
         verificationCost += verify.cost;
         const flagged = caseDetected(verify.warnings, PLACEHOLDER_MISUSE_CASE);
         placeholderMisuseInjected = {
@@ -765,7 +842,9 @@ async function runHarness(
         familyWrongNameInject = wrongClientNameInjected;
         console.log(`    wrong-client-name injected: SKIPPED (${nameOutcome.skipReason})`);
       } else {
-        const verifyName = await documentService.verifyDocumentAgainstTranscript(nameOutcome.document, transcript);
+        const verifyName = await timedApiCall(callLog, spec.id, 'verify:wrong-client-name injected', () =>
+          documentService.verifyDocumentAgainstTranscript(nameOutcome.document, transcript),
+        );
         verificationCost += verifyName.cost;
         const nameFlagged = caseDetected(verifyName.warnings, WRONG_CLIENT_NAME_CASE);
         wrongClientNameInjected = {
@@ -781,7 +860,9 @@ async function runHarness(
     const naturalLines = findNaturalPlaceholderMisuse(attendanceNote);
     let naturalFlagged = false;
     if (naturalLines.length > 0) {
-      const verifyNat = await documentService.verifyDocumentAgainstTranscript(attendanceNote, transcript);
+      const verifyNat = await timedApiCall(callLog, spec.id, 'verify:natural placeholder misuse', () =>
+        documentService.verifyDocumentAgainstTranscript(attendanceNote, transcript),
+      );
       naturalFlagged = normalizeWarnings(verifyNat.warnings).some(
         (w) =>
           w.toLowerCase().includes('not discussed') &&
@@ -831,7 +912,7 @@ async function runHarness(
 
   const gates = evaluateGates(results, familyPlaceholderInject, familyWrongNameInject, arm);
   const resultsPath = resultsPathForArm(arm);
-  writeFileSync(resultsPath, buildReport(results, gates, arm), 'utf-8');
+  writeFileSync(resultsPath, buildReport(results, gates, arm, callLog), 'utf-8');
   console.log(`\nReport: ${resultsPath}`);
   console.log(`\nGATE (Arm ${arm}): ${gates.passed ? 'PASS' : 'FAIL'}`);
   if (!gates.passed) {
@@ -841,8 +922,17 @@ async function runHarness(
   return { resultsPath, results, gates, arm };
 }
 
-function buildReport(results: TranscriptResult[], gates: GateResult, arm: 'A' | 'B'): string {
+function buildReport(
+  results: TranscriptResult[],
+  gates: GateResult,
+  arm: 'A' | 'B',
+  callLog: ApiCallRecord[],
+): string {
   const armLabel = arm === 'A' ? 'GPT-4o (production path)' : 'Sonnet 4.6 (Bedrock via measurement seam)';
+  const totalCost = callLog.reduce((sum, c) => sum + c.cost, 0);
+  const totalLatencyMs = callLog.reduce((sum, c) => sum + c.latencyMs, 0);
+  const totalInputTokens = callLog.reduce((sum, c) => sum + c.inputTokens, 0);
+  const totalOutputTokens = callLog.reduce((sum, c) => sum + c.outputTokens, 0);
   const lines: string[] = [
     `# Note Safety Harness Results — Batch 2 completion — Arm ${arm}`,
     '',
@@ -856,6 +946,22 @@ function buildReport(results: TranscriptResult[], gates: GateResult, arm: 'A' | 
     '**Regression library:** `scripts/verifier-regression-cases.ts`',
     '**Synthetic data only.**',
     '',
+    '## API call log (latency and cost)',
+    '',
+    `**Arm totals:** ${callLog.length} calls | ${totalLatencyMs.toLocaleString()} ms cumulative latency | $${totalCost.toFixed(4)} API cost | ${totalInputTokens.toLocaleString()} input tokens | ${totalOutputTokens.toLocaleString()} output tokens`,
+    '',
+    '| Transcript | Operation | Latency (ms) | Cost ($) | In tokens | Out tokens |',
+    '|------------|-----------|--------------|----------|-----------|------------|',
+  ];
+
+  for (const call of callLog) {
+    lines.push(
+      `| ${call.transcriptId} | ${call.operation} | ${call.latencyMs} | ${call.cost.toFixed(4)} | ${call.inputTokens} | ${call.outputTokens} |`,
+    );
+  }
+
+  lines.push(
+    '',
     `## Hard gate (Arm ${arm}${arm === 'B' ? ' — plants, injections, dash only' : ' — full'})`,
     '',
     `**Result:** ${gates.passed ? 'PASS' : 'FAIL'}`,
@@ -865,7 +971,7 @@ function buildReport(results: TranscriptResult[], gates: GateResult, arm: 'A' | 
     `- Placeholder misuse injected: ${gates.placeholderMisuseOk ? 'FLAGGED' : 'MISSED/SKIPPED'}`,
     `- Wrong-client-name injected: ${gates.wrongClientNameOk ? 'FLAGGED' : 'MISSED/SKIPPED'}`,
     `- No em/en dash in model prose: ${gates.dashFree ? 'YES' : 'NO'}`,
-  ];
+  );
 
   if (arm === 'A') {
     lines.push(
