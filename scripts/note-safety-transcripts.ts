@@ -33,14 +33,14 @@ const CONSENT_PREFIX = `[Speaker A — Solicitor]: Before we begin, I need to co
 function familyFinancialRemedyBody(): string {
   return `
 [Speaker A — Solicitor]: Good morning. This is our financial remedy conference in matter reference HARRIS/FIN/2026/0142. Today is 10 March 2026. The meeting started at 10:30 and we expect about ninety minutes. We are at our Manchester office, Conference Room 3. I am Sarah Mitchell, associate solicitor.
-[Speaker B — Client]: Good morning. I'm James Harris. My ex-wife is Emma Harris. We are discussing the matrimonial home at 14 Linden Avenue, Didsbury — value about four hundred and fifty thousand pounds — and my NHS pension CETV of roughly one hundred and twenty thousand pounds.
+[Speaker B — Client]: Good morning. I'm Jon Harris. My ex-wife is Emma Harris. We married in August 2014 and separated in March 2026. We are discussing the matrimonial home at 14 Linden Avenue, Didsbury — value about four hundred and fifty thousand pounds — and my NHS pension CETV of roughly one hundred and twenty thousand pounds.
 [Speaker A — Solicitor]: Thank you. For Form E purposes, you mentioned mortgage redemption of sixty-two thousand pounds on Linden Avenue and joint savings of eighteen thousand four hundred pounds in the Halifax account ending 3312.
 [Speaker B — Client]: Yes. Emma wants a fifty-fifty split but I contributed the deposit of ninety-five thousand from my inheritance in two thousand and twelve. I am worried about spousal maintenance because she earns thirty-eight thousand as a teacher and I earn one hundred and five thousand as a consultant.
 [Speaker A — Solicitor]: I advised the client that Section 25 Matrimonial Causes Act 1973 factors include needs, resources, and the standard of living during marriage, having considered the disparity in incomes and the deposit contribution argument you raised.
 [Speaker B — Client]: What about the FDR on 22 April 2026 at the Manchester Family Court?
 [Speaker A — Solicitor]: I advised the client to prepare updated bank statements for the twelve months to March 2026 and pension statements for both parties before FDR. Without those, our without prejudice proposal lacks credibility.
 [Speaker B — Client]: I can gather my bank statements and the Nationwide joint account statements by 24 March 2026.
-[Speaker A — Solicitor]: I advised the client that a clean break with a pension sharing order may be preferable to ongoing periodical payments, having considered Emma's earning capacity and the length of the marriage — twelve years.
+[Speaker A — Solicitor]: I advised the client that a clean break with a pension sharing order may be preferable to ongoing periodical payments, having considered Emma's earning capacity.
 [Speaker B — Client]: Emma's solicitor proposed she keep Linden Avenue and I take my pension intact. I do not agree.
 [Speaker A — Solicitor]: I advised the client that we should respond with a counter-proposal before 17 March 2026, having considered the liquidity issues if you retain the property and pay a lump sum.
 [Speaker B — Client]: Please draft that without prejudice letter.
@@ -113,16 +113,16 @@ function expandTranscript(body: string, fillerTopic: string): string {
 export const SYNTHETIC_TRANSCRIPTS: SyntheticTranscriptSpec[] = [
   {
     id: 'family-financial-remedy',
-    label: 'Family — Financial Remedy Conference',
+    label: 'Family: Financial Remedy Conference',
     practiceArea: 'family_divorce_financial',
     metadata: {
-      title: 'Harris v Harris — Financial Remedy Conference',
-      clientName: 'James Harris',
+      title: 'Harris v Harris: Financial Remedy Conference',
+      clientName: 'Jon Harris',
       matterReference: 'HARRIS/FIN/2026/0142',
       recordingDate: '2026-03-10',
     },
     rawTranscript: CONSENT_PREFIX + expandTranscript(
-      familyFinancialRemedyBody().replace(/James Harris/g, 'Jon Harris').replace(/four hundred and fifty/g, 'fourty hundred and fifty'),
+      familyFinancialRemedyBody().replace(/four hundred and fifty/g, 'fourty hundred and fifty'),
       'matrimonial asset disclosure',
     ),
     expectedActionItems: [
@@ -134,10 +134,10 @@ export const SYNTHETIC_TRANSCRIPTS: SyntheticTranscriptSpec[] = [
   },
   {
     id: 'immigration-case-history',
-    label: 'Immigration — Case History Conference',
+    label: 'Immigration: Case History Conference',
     practiceArea: 'immigration',
     metadata: {
-      title: 'Hassan — Skilled Worker Refusal & Further Representations',
+      title: 'Hassan: Skilled Worker Refusal and Further Representations',
       clientName: 'Amir Hassan',
       matterReference: 'HASSAN/IMM/2026/0088',
       recordingDate: '2026-03-11',
@@ -155,10 +155,10 @@ export const SYNTHETIC_TRANSCRIPTS: SyntheticTranscriptSpec[] = [
   },
   {
     id: 'corporate-fiduciary-duty',
-    label: 'Corporate / Commercial — Fiduciary Duty / Financial Crime Conference',
+    label: 'Corporate: Fiduciary Duty / Financial Crime Conference',
     practiceArea: 'corporate_commercial',
     metadata: {
-      title: 'Vasquez — Northstar Logistics Ltd Director Misapplication Investigation',
+      title: 'Vasquez: Northstar Logistics Ltd Director Misapplication Investigation',
       clientName: 'Elena Vasquez',
       matterReference: 'NORTHSTAR/CC/2026/0317',
       recordingDate: '2026-03-12',

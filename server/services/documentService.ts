@@ -149,7 +149,34 @@ export interface FirmPreferences {
   includeClientConfirmation?: boolean;
 }
 
+/** Harness / measurement only: optional chat completion override (inert when absent). */
+export interface DocumentChatCompletionRequest {
+  systemPrompt: string;
+  userPrompt: string;
+  maxTokens: number;
+  temperature: number;
+  responseFormat?: 'json_object';
+}
+
+export interface DocumentChatCompletionResult {
+  content: string;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+}
+
+export type DocumentChatCompletionFn = (
+  request: DocumentChatCompletionRequest,
+) => Promise<DocumentChatCompletionResult>;
+
 export class DocumentService {
+  private readonly chatCompletion?: DocumentChatCompletionFn;
+
+  /** When chatCompletion is omitted, behaviour is identical to the production OpenAI path. */
+  constructor(options?: { chatCompletion?: DocumentChatCompletionFn }) {
+    this.chatCompletion = options?.chatCompletion;
+  }
+
   /**
    * Generate attendance note from transcript
    */
@@ -214,10 +241,11 @@ Date: ________________`;
 ABSOLUTE ANTI-FABRICATION RULES — READ BEFORE GENERATING ANY CONTENT:
 You MUST treat these rules as inviolable. Breach of any of them renders the document professionally negligent.
 
-1. EVERY SINGLE STATEMENT in this attendance note must have a direct, traceable basis in what was said at the meeting. If you cannot point to something specific that was said which supports a statement, you MUST NOT include that statement.
-2. You MUST NOT draw on your training knowledge to supplement, elaborate, or contextualise a sparse meeting. If little was said, the attendance note must be correspondingly brief.
-3. You MUST NOT infer, assume, or fabricate any legal advice, recommendations, case strategy, next steps, or factual details that were not explicitly stated at the meeting.
+1. FACTS. Every factual statement in this attendance note must be established by what was said at the meeting. You may re-express established facts in professional legal register and in standard notation (numerals, currency with separators, formatted dates and times); you may NOT assert any fact that was not established. If little was said, the note must be correspondingly brief.
+2. DERIVATION. You may state what follows arithmetically or temporally from established facts. If the client married in August 2021 and separated in 2024, you may and should write that the marriage subsisted for some 3 years. If income is £4,000 a month, you may state £48,000 a year. A derivation must follow strictly from established facts; if it requires an assumption, do not make it. Where the meeting establishes dates or figures from which a duration, total or difference follows, you are expected to state the derived value in numerals; stating only the raw facts when a derivation is available is incomplete drafting.
+3. LEGAL CHARACTERISATION (REQUIRED). Apply the correct legal terms of art to established facts; this is what distinguishes an attendance note from a summary. The jointly owned home is "the matrimonial home". A client who says the marriage is over for good "is of the view that the marriage has broken down irretrievably". Characterisation may never introduce a fact that was not established, never draw a conclusion the established facts do not support, and never make a finding: where the client alleges wrongdoing, characterise the allegation ("the client raised concerns as to the potential misapplication of company funds"), never find the fact ("the director breached his fiduciary duty"). You must not record advice that was not given.
 4. For any section or field that was not covered in the meeting, you MUST use the exact phrase: "This was not discussed on this occasion." — do not paraphrase, do not guess, do not fill in plausible details.
+4a. PLACEHOLDER DISCIPLINE. Use "This was not discussed on this occasion." ONLY where the item genuinely was not covered at the meeting. If a date, commitment or detail WAS discussed, record it; using the placeholder for something that was discussed is a false statement. A relative timing stated at the meeting (tonight, within 10 working days, by the end of the month) IS a due date; record it as stated. The placeholder is only for items where no timing of any kind was given.
 5. Do NOT add substantive legal advice, case law references, statutory provisions, or procedural guidance unless you explicitly stated them at the meeting.
 6. Where you gave advice at the meeting, reproduce only the substance of what you said — do not expand, elaborate, or add further advice you did not give.
 
@@ -268,7 +296,7 @@ ${metadataFields}
 **1. [FIRST MAJOR TOPIC - USE CLEAR PROFESSIONAL HEADING IN CAPS]**
 
    What was discussed:
-   [Opening paragraph describing the issue or matter discussed - based strictly on what was said. Use professional legal narrative style. Describe what the client disclosed using formal language.]
+   [Opening paragraph describing the issue or matter discussed - based strictly on what was said. Include facts established, re-expressed in legal register, and state any value that follows from them, e.g. "The client married in August 2014 and separated in March 2026; the marriage has therefore subsisted for some 11 years."]
 
    Advice given:
    [Legal advice provided - use professional terminology. Always write: "I advised the client that..." NOT "We discussed..." or "I told them..."]
@@ -287,7 +315,7 @@ ${metadataFields}
 **2. [SECOND MAJOR TOPIC - IN CAPS]**
 
    What was discussed:
-   [Continue same professional structure for each topic discussed. Include facts established:]
+   [Include facts established, re-expressed in legal register, and state any value that follows from them, e.g. "The client married in August 2014 and separated in March 2026; the marriage has therefore subsisted for some 11 years."]
    - [Fact 1 from the conversation]
    - [Fact 2 from the conversation]
 
@@ -308,21 +336,23 @@ ${metadataFields}
 
 **[FINAL NUMBERED SECTION]. NEXT STEPS**
 
+   [Each action has a description and a Due entry. If a timing was given at the meeting, it belongs in the Due entry, NOT inside the action description. Write the action as the thing to be done, and put the timing, however it was expressed, in Due. Do not write the timing in both places, and never write a timing in the description and then record Due as not discussed.]
+
    Solicitor to action:
    1. [First action step with clear description]
-      Due: [Specific date if mentioned, or "${NOT_DISCUSSED_PHRASE}"]
+      Due: [The date or timing stated at the meeting, exactly as given (e.g. "24 March 2026", "tonight", "within 10 working days of submission"), or "${NOT_DISCUSSED_PHRASE}" only if no timing of any kind was given]
    
    2. [Second action step]
-      Due: [Specific date if mentioned]
+      Due: [The date or timing stated at the meeting, exactly as given (e.g. "24 March 2026", "tonight", "within 10 working days of submission"), or "${NOT_DISCUSSED_PHRASE}" only if no timing of any kind was given]
    
    Client to action:
    1. [Action required from client]
-      Due: [Specific date if mentioned]
+      Due: [The date or timing stated at the meeting, exactly as given (e.g. "24 March 2026", "tonight", "within 10 working days of submission"), or "${NOT_DISCUSSED_PHRASE}" only if no timing of any kind was given]
    
    2. [Action required from client]
-      Due: [Specific date if mentioned]
+      Due: [The date or timing stated at the meeting, exactly as given (e.g. "24 March 2026", "tonight", "within 10 working days of submission"), or "${NOT_DISCUSSED_PHRASE}" only if no timing of any kind was given]
    
-   Next appointment: [Date/time if scheduled, or "${NOT_DISCUSSED_PHRASE}"]
+   Next appointment: [The date or timing stated at the meeting, exactly as given (e.g. "24 March 2026", "tonight", "within 10 working days of submission"), or "${NOT_DISCUSSED_PHRASE}" only if no timing of any kind was given]
 
 ${footerSection}
 
@@ -461,10 +491,11 @@ ${transcript}`;
 ABSOLUTE ANTI-FABRICATION RULES — READ BEFORE GENERATING ANY CONTENT:
 You MUST treat these rules as inviolable. Breach of any of them renders the document professionally negligent.
 
-1. EVERY SINGLE STATEMENT in this summary must have a direct, traceable basis in what was said at the meeting. If you cannot point to something specific that was said which supports a statement, you MUST NOT include that statement.
-2. You MUST NOT draw on your training knowledge to supplement, elaborate, or contextualise a sparse meeting. If little was said, the summary must be correspondingly brief.
-3. You MUST NOT infer, assume, or fabricate any legal advice, recommendations, case strategy, next steps, or factual details that were not explicitly stated at the meeting.
+1. FACTS. Every factual statement in this summary must be established by what was said at the meeting. You may re-express established facts in professional legal register and in standard notation (numerals, currency with separators, formatted dates and times); you may NOT assert any fact that was not established. If little was said, the summary must be correspondingly brief.
+2. DERIVATION. You may state what follows arithmetically or temporally from established facts. If the client married in August 2021 and separated in 2024, you may and should write that the marriage subsisted for some 3 years. If income is £4,000 a month, you may state £48,000 a year. A derivation must follow strictly from established facts; if it requires an assumption, do not make it. Where the meeting establishes dates or figures from which a duration, total or difference follows, you are expected to state the derived value in numerals; stating only the raw facts when a derivation is available is incomplete drafting.
+3. LEGAL CHARACTERISATION (REQUIRED). Apply the correct legal terms of art to established facts; this is what distinguishes a summary from a summary. The jointly owned home is "the matrimonial home". A client who says the marriage is over for good "is of the view that the marriage has broken down irretrievably". Characterisation may never introduce a fact that was not established, never draw a conclusion the established facts do not support, and never make a finding: where the client alleges wrongdoing, characterise the allegation ("the client raised concerns as to the potential misapplication of company funds"), never find the fact ("the director breached his fiduciary duty"). You must not record advice that was not given.
 4. For any section or field that was not covered in the meeting, you MUST use the exact phrase: "This was not discussed on this occasion." — do not paraphrase, do not guess, do not fill in plausible details.
+4a. PLACEHOLDER DISCIPLINE. Use "This was not discussed on this occasion." ONLY where the item genuinely was not covered at the meeting. If a date, commitment or detail WAS discussed, record it; using the placeholder for something that was discussed is a false statement. A relative timing stated at the meeting (tonight, within 10 working days, by the end of the month) IS a due date; record it as stated. The placeholder is only for items where no timing of any kind was given.
 5. Do NOT add substantive legal advice, case law references, statutory provisions, or procedural guidance unless you explicitly stated them at the meeting.
 6. Prioritize accuracy over completeness — it is far better to omit information than to guess or fabricate.
 
@@ -503,6 +534,7 @@ Structure your summary as follows:
 • [Most important point 1 - from the conversation only]
 • [Most important point 2 - from the conversation only]
 • [Most important point 3 - from the conversation only]
+[Where established dates or figures yield a duration, total or difference, state the derived value in numerals.]
 
 **Critical Issues Identified:**
 • [Issue 1 - only if explicitly identified in the meeting]
@@ -529,6 +561,7 @@ FORMATTING GUIDELINES:
 - UK telephone number spacing: 07445 333 228 · 0800 212 4534
 - Percentages as numerals: 50%
 - Define a term once, then use the shorthand thereafter (e.g. parental responsibility ("PR"))
+- Never use em dashes (—) or en dashes (–) as punctuation. Use commas, colons, semicolons, parentheses or full stops instead. A hyphen (-) is permitted only within hyphenated words and number ranges.
 
 **IMPORTANT:** This summary must be reviewed by the supervising solicitor. All legal advice should be verified against current UK law and updated legal authorities before relying on it.
 
@@ -633,45 +666,47 @@ This file note is subject to legal professional privilege.`;
     try {
       console.log('Running post-generation verification against transcript...');
 
-      const response = await openaiClient.chat.completions.create({
-        model: MODELS.DOCUMENT_GENERATION,
-        max_tokens: 2000,
+      const systemPrompt = `You are a legal document auditor for a UK law firm. You will be given the record of what was said at a client meeting, and a document generated from it. Identify genuine defects. You must distinguish defects from correct professional practice.
+THE GOVERNING TEST: a statement is defective if it asserts factual content that was NOT established at the meeting, or reaches a conclusion the established facts do not support. A statement is NOT defective merely because its exact words were not spoken. Professional legal documents re-express what was said in legal register and standard notation; that is correct practice, not fabrication.
+CATEGORY 1 (UNSUPPORTED CONTENT). Flag a statement when it:
+
+asserts a concrete fact (an amount, a transfer, an agreement, a party, a date, an event, an instruction) with no basis in what was said. Fabricated concrete specifics are the most serious defect; never let one pass;
+reaches a conclusion the established facts do not support;
+records advice that was not given;
+makes a finding that a breach, offence or liability occurred, rather than recording an allegation or concern;
+contradicts what was said (a wrong name, a wrong figure, a wrong date);
+claims something was not discussed when it was: flag the phrase "This was not discussed on this occasion." ONLY if you can quote the specific timing, date or detail from the meeting record that contradicts it. If you cannot quote such content, the placeholder is correct practice and must not be flagged.
+
+DO NOT FLAG: these are correct practice:
+
+Notation: numerals for spoken numbers, currency with separators, formatted dates, times and telephone numbers. "£450,000" is a faithful record of "four hundred and fifty thousand pounds".
+Derived computation: arithmetic or temporal derivation from established facts ("married August 2021, separated 2024, therefore the marriage subsisted for some 3 years").
+Legal characterisation: the correct term of art applied to established facts ("the matrimonial home"; "broken down irretrievably"; an allegation characterised as "concerns raised as to the potential misapplication of funds"), provided the underlying facts were established and no new factual content is introduced.
+Professional paraphrase that preserves meaning.
+The exact placeholder "This was not discussed on this occasion." where the item genuinely was not covered, including in Due dates and Next appointment.
+HTML comment markers of the form <!-- REASONING_GAP: ... -->.
+Headings, structure, and standard framing such as "subject to legal professional privilege".
+Defined-term shorthand after first definition (e.g. "PR").
+
+Before flagging any statement, first check whether it is a notation, derivation or characterisation of something that was said; if it is, it must not be flagged.
+
+CATEGORY 2 (ADVICE WITHOUT REASONING). The SRA expects the note to record the reasoning behind advice. Flag advice only when, within its own section, there is neither stated reasoning nor a <!-- REASONING_GAP: ... --> marker. A marker within the section satisfies the requirement for that section; do not flag advice whose section contains one, and never flag the marker itself.
+Return JSON only, in exactly this structure: {"unverifiable_statements": [...], "advice_without_reasoning": [...]}. Empty arrays where there are no issues. Each flagged item must quote or clearly identify the offending statement.`;
+
+      const userPrompt = `MEETING RECORD:\n${transcript}\n\n---\n\nGENERATED DOCUMENT:\n${document}\n\nIdentify unsupported content and any advice recorded without reasoning. Return JSON only.`;
+
+      const completion = await this.callChatCompletion({
+        systemPrompt,
+        userPrompt,
+        maxTokens: 2000,
         temperature: 0,
-        messages: [
-          {
-            role: 'system',
-            content: `You are a legal document auditor. Your task is to compare a generated legal document against the source transcript and identify two categories of issues:
-
-CATEGORY 1 — UNVERIFIABLE STATEMENTS: Any substantive statement in the document that CANNOT be traced to specific content in the transcript.
-
-CATEGORY 2 — ADVICE WITHOUT REASONING: Any instance where advice is recorded in the document without either (a) a statement of the reasoning behind it, or (b) an HTML comment marker of the form <!-- REASONING_GAP: [any section label] --> The SRA requires attendance notes to capture not just the advice but the reasoning behind it. Flag any advice statement that lacks this.
-
-RULES:
-- Standard formatting elements (headings, boilerplate disclaimers like "subject to legal professional privilege") are NOT considered fabrications.
-- "Not recorded in this session" placeholder entries and HTML comment markers of the form <!-- REASONING_GAP: ... --> are NOT fabrications.
-- Focus on substantive claims: legal advice, factual assertions, action items, dates, amounts, and recommendations.
-- A statement is unverifiable if the transcript does not contain content that directly supports it.
-- For Category 2: if the document records advice (e.g. "I advised the client to...") but neither states reasoning nor includes any <!-- REASONING_GAP: ... --> marker (regardless of label), flag it.
-
-Return your response as a JSON object with this structure:
-{
-  "unverifiable_statements": ["description of statement 1 not found in transcript", "description of statement 2 not found in transcript"],
-  "advice_without_reasoning": ["description of advice statement 1 that lacks reasoning", "description of advice statement 2 that lacks reasoning"]
-}
-
-If there are no issues in a category, return an empty array for that category.`,
-          },
-          {
-            role: 'user',
-            content: `TRANSCRIPT:\n${transcript}\n\n---\n\nGENERATED DOCUMENT:\n${document}\n\nIdentify unverifiable statements and any advice recorded without reasoning. Return JSON only.`,
-          },
-        ],
+        responseFormat: 'json_object',
       });
 
-      const content = response.choices[0]?.message?.content || '';
-      const inputTokens = response.usage?.prompt_tokens || 0;
-      const outputTokens = response.usage?.completion_tokens || 0;
-      const cost = calculateGPT4oCost(inputTokens, outputTokens);
+      const content = completion.content;
+      const inputTokens = completion.inputTokens;
+      const outputTokens = completion.outputTokens;
+      const cost = completion.cost;
 
       let warnings: string[] = [];
       try {
@@ -700,6 +735,34 @@ If there are no issues in a category, return an empty array for that category.`,
     }
   }
 
+  private async callChatCompletion(
+    request: DocumentChatCompletionRequest,
+  ): Promise<DocumentChatCompletionResult> {
+    if (this.chatCompletion) {
+      return this.chatCompletion(request);
+    }
+
+    const response = await openaiClient.chat.completions.create({
+      model: MODELS.DOCUMENT_GENERATION,
+      max_tokens: request.maxTokens,
+      temperature: request.temperature,
+      messages: [
+        { role: 'system', content: request.systemPrompt },
+        { role: 'user', content: request.userPrompt },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content || '';
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    return {
+      content,
+      inputTokens,
+      outputTokens,
+      cost: calculateGPT4oCost(inputTokens, outputTokens),
+    };
+  }
+
   private async generateDocument(
     systemPrompt: string,
     userPrompt: string
@@ -707,20 +770,17 @@ If there are no issues in a category, return an empty array for that category.`,
     try {
       console.log('Generating document with GPT-4o...');
 
-      const response = await openaiClient.chat.completions.create({
-        model: MODELS.DOCUMENT_GENERATION,
-        max_tokens: 4000,
+      const completion = await this.callChatCompletion({
+        systemPrompt,
+        userPrompt,
+        maxTokens: 4000,
         temperature: 0,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
       });
 
-      const rawContent = response.choices[0]?.message?.content || '';
-      const inputTokens = response.usage?.prompt_tokens || 0;
-      const outputTokens = response.usage?.completion_tokens || 0;
-      const cost = calculateGPT4oCost(inputTokens, outputTokens);
+      const rawContent = completion.content;
+      const inputTokens = completion.inputTokens;
+      const outputTokens = completion.outputTokens;
+      const cost = completion.cost;
 
       const content = ensureBoldHeadings(rawContent);
 
