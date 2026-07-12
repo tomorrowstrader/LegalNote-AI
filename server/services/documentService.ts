@@ -114,6 +114,285 @@ function ensureSectionSpacing(content: string): string {
   return result.join('\n');
 }
 
+const VERIFICATION_PARSE_FALLBACK =
+  'Verification response could not be parsed — solicitor review is required before this document is added to the client file';
+
+function normalizeVerificationStatementItem(item: unknown): string | null {
+  if (typeof item === 'string') {
+    const trimmed = item.trim();
+    if (!trimmed || isVerifierNonDefectEntry(trimmed)) return null;
+    return assertNormalizedWarningString(trimmed);
+  }
+  if (item && typeof item === 'object') {
+    const record = item as Record<string, unknown>;
+
+    const offendingStatement =
+      typeof record.offending_statement === 'string' ? record.offending_statement.trim() : '';
+    if (offendingStatement && !isVerifierNonDefectEntry(offendingStatement)) {
+      const explanation = pickVerificationExplanation(record);
+      if (explanation && explanation !== offendingStatement) {
+        const combined = `${offendingStatement} — ${explanation}`;
+        if (isVerifierNonDefectEntry(combined)) return null;
+        return assertNormalizedWarningString(combined);
+      }
+      return assertNormalizedWarningString(offendingStatement);
+    }
+
+    for (const key of ['statement', 'text', 'quote', 'description', 'content']) {
+      const value = record[key];
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed && !isVerifierNonDefectEntry(trimmed)) {
+          return assertNormalizedWarningString(trimmed);
+        }
+      }
+    }
+
+    for (const key of ['issue', 'reason']) {
+      const value = record[key];
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed && !isVerifierNonDefectEntry(trimmed)) {
+          return assertNormalizedWarningString(trimmed);
+        }
+      }
+    }
+
+    console.error('Verification warning normalisation failure — could not extract statement from object:', JSON.stringify(item));
+    return null;
+  }
+  if (item != null) {
+    const asString = String(item).trim();
+    if (!asString || isVerifierNonDefectEntry(asString)) return null;
+    return assertNormalizedWarningString(asString);
+  }
+  return null;
+}
+
+function isVerifierNonDefectEntry(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('withdraw') ||
+    lower.includes('withdrawing') ||
+    lower.includes('not a defect') ||
+    lower.includes('no defect') ||
+    lower.includes('not defective') ||
+    lower.includes('is correct arithmetic') ||
+    lower.includes('correct practice') ||
+    lower.includes('not flagged') ||
+    lower.includes('no unsupported content')
+  );
+}
+
+function pickVerificationExplanation(record: Record<string, unknown>): string | null {
+  for (const key of ['issue', 'reason', 'explanation', 'rationale']) {
+    const value = record[key];
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed && !isVerifierNonDefectEntry(trimmed)) return trimmed;
+    }
+  }
+  return null;
+}
+
+function assertNormalizedWarningString(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{') || /"issue"\s*:/.test(trimmed)) {
+    console.error('Verification warning normalisation failure — raw object reached warnings array:', trimmed);
+  }
+  return trimmed;
+}
+
+function normalizeVerificationStatements(items: unknown): string[] {
+  if (items == null) return [];
+  if (!Array.isArray(items)) {
+    const single = normalizeVerificationStatementItem(items);
+    return single ? [single] : [];
+  }
+  const normalized: string[] = [];
+  for (const item of items) {
+    const statement = normalizeVerificationStatementItem(item);
+    if (statement) normalized.push(statement);
+  }
+  return normalized;
+}
+
+/** Model prose starts here; header/metadata above may legitimately contain dashes. */
+function modelProseStartIndex(document: string): number {
+  const attendanceIdx = document.indexOf('**MATTERS DISCUSSED**');
+  if (attendanceIdx >= 0) return attendanceIdx;
+  const summaryIdx = document.indexOf('**Key Points:**');
+  if (summaryIdx >= 0) return summaryIdx;
+  const callIdx = document.indexOf('**CALL SUMMARY**');
+  if (callIdx >= 0) return callIdx;
+  return -1;
+}
+
+function replaceEmEnDashes(text: string): string {
+  const fired: string[] = [];
+
+  let result = text.replace(
+    /([\d£][\d,£.]*\d)\s*[\u2013\u2014]\s*([\d£][\d,£.]*\d)/g,
+    (match, left, right) => {
+      fired.push(match);
+      return `${left} to ${right}`;
+    },
+  );
+
+  result = result.replace(/\s+[\u2013\u2014]\s+/g, (match) => {
+    fired.push(match);
+    return ', ';
+  });
+
+  result = result.replace(/[\u2013\u2014]/g, (match) => {
+    fired.push(match);
+    return ', ';
+  });
+
+  if (fired.length > 0) {
+    console.warn(`[dash-guard] Replaced em/en dash in: ${fired.map((s) => JSON.stringify(s)).join(', ')}`);
+  }
+
+  return result;
+}
+
+function extractAuthoritativeNamesFromDocument(document: string): {
+  clientName?: string;
+  feeEarnerName?: string;
+} {
+  const clientMatch =
+    document.match(/^\*\*CLIENT:\*\*\s+(.+)$/m) ?? document.match(/^\*\*Client:\*\*\s+(.+)$/m);
+  const preparedMatch = document.match(/^Prepared by:\s*(.+)$/m);
+  return {
+    clientName: clientMatch?.[1]?.trim(),
+    feeEarnerName: preparedMatch?.[1]?.trim(),
+  };
+}
+
+function resolveVerificationAuthoritativeNames(
+  document: string,
+  metadata?: Pick<CaseMetadata, 'clientName' | 'feeEarnerName'>,
+): { clientName?: string; feeEarnerName?: string } {
+  const fromDocument = extractAuthoritativeNamesFromDocument(document);
+  return {
+    clientName: metadata?.clientName ?? fromDocument.clientName,
+    feeEarnerName: metadata?.feeEarnerName ?? fromDocument.feeEarnerName,
+  };
+}
+
+function sanitizeModelProseDashes(document: string): string {
+  const proseStart = modelProseStartIndex(document);
+  if (proseStart < 0) return document;
+  return document.slice(0, proseStart) + replaceEmEnDashes(document.slice(proseStart));
+}
+
+function buildAttendanceNoteHeader(metadata: CaseMetadata, prefs: Required<FirmPreferences>): string {
+  let metadataFields = `File Reference: ${metadata.matterReference || 'TBD'}
+Date:           ${metadata.recordingDate}`;
+
+  if (metadata.meetingStartTime) {
+    metadataFields += `\nTime:           ${metadata.meetingStartTime}`;
+  }
+
+  if (metadata.durationDisplay) {
+    metadataFields += `\nDuration:       ${metadata.durationDisplay}`;
+  }
+
+  if (metadata.units != null && metadata.units > 0) {
+    metadataFields += `\nTime Spent (Units): ${metadata.units}`;
+  }
+
+  metadataFields += `\nSolicitor:      ${metadata.feeEarnerDisplayName ?? 'Not specified'}`;
+
+  return `**ATTENDANCE NOTE**
+
+${metadataFields}
+
+**MATTER:**     ${metadata.title}
+
+**CLIENT:**     ${metadata.clientName}
+
+`;
+}
+
+function buildAttendanceNoteFooter(metadata: CaseMetadata, prefs: Required<FirmPreferences>): string {
+  let footer = '';
+  if (metadata.durationDisplay) {
+    footer += `\n\nTime Engaged: ${metadata.durationDisplay}\n`;
+  }
+
+  footer += `\nThis attendance note is subject to legal professional privilege.
+
+Prepared by: ${metadata.feeEarnerDisplayName ?? 'Not specified'}
+Date Prepared: ${metadata.datePrepared ?? metadata.recordingDate}`;
+
+  if (prefs.includeClientConfirmation) {
+    footer += `\n\n**CLIENT CONFIRMATION**
+
+I confirm the above is an accurate record of our meeting.
+
+Client Signature: ________________
+
+Date: ________________`;
+  }
+
+  return footer;
+}
+
+function stripTrailingAttendanceFooter(body: string): string {
+  const footerPatterns = [
+    /\nTime Engaged:/i,
+    /\nThis attendance note is subject to legal professional privilege/i,
+    /\nPrepared by:/i,
+    /\n\*\*CLIENT CONFIRMATION\*\*/i,
+  ];
+  let cutAt = body.length;
+  for (const pattern of footerPatterns) {
+    const idx = body.search(pattern);
+    if (idx >= 0 && idx < cutAt) cutAt = idx;
+  }
+  return body.slice(0, cutAt).trimEnd();
+}
+
+function extractGeneratedBody(content: string, startMarker: string): string {
+  const idx = content.indexOf(startMarker);
+  if (idx >= 0) {
+    return stripTrailingAttendanceFooter(content.slice(idx).trim());
+  }
+  console.warn(`Expected start marker "${startMarker}" not found in model output; using full output`);
+  return stripTrailingAttendanceFooter(content.trim());
+}
+
+function assembleAttendanceNoteDocument(
+  modelBody: string,
+  metadata: CaseMetadata,
+  prefs: Required<FirmPreferences>,
+): string {
+  const body = extractGeneratedBody(modelBody, '**MATTERS DISCUSSED**');
+  const mattersBody = body.startsWith('**MATTERS DISCUSSED**')
+    ? body
+    : `**MATTERS DISCUSSED**\n\n${body}`;
+  return `${buildAttendanceNoteHeader(metadata, prefs)}${mattersBody}${buildAttendanceNoteFooter(metadata, prefs)}`;
+}
+
+function buildSummaryHeader(metadata: CaseMetadata): string {
+  return `**MEETING SUMMARY**
+
+**Case:** ${metadata.title}
+**Client:** ${metadata.clientName}
+**Date:** ${metadata.recordingDate}
+
+`;
+}
+
+function assembleSummaryDocument(modelBody: string, metadata: CaseMetadata): string {
+  const body = extractGeneratedBody(modelBody, '**Key Points:**');
+  const keyPointsBody = body.includes('**Key Points:**')
+    ? body
+    : `**Key Points:**\n${body}`;
+  return `${buildSummaryHeader(metadata)}${keyPointsBody}`;
+}
+
 export interface DocumentGenerationResult {
   content: string;
   inputTokens: number;
@@ -156,6 +435,7 @@ export interface DocumentChatCompletionRequest {
   maxTokens: number;
   temperature: number;
   responseFormat?: 'json_object';
+  frequencyPenalty?: number;
 }
 
 export interface DocumentChatCompletionResult {
@@ -192,49 +472,6 @@ export class DocumentService {
       showFullSolicitorName: firmPreferences?.showFullSolicitorName ?? true,
       includeClientConfirmation: firmPreferences?.includeClientConfirmation ?? false,
     };
-
-    // Build metadata header based on preferences
-    // Labels are padded to 16 chars so the value column aligns consistently in PDF output
-    let metadataFields = `File Reference: ${metadata.matterReference || 'TBD'}
-Date:           ${metadata.recordingDate}`;
-
-    if (metadata.meetingStartTime) {
-      metadataFields += `\nTime:           ${metadata.meetingStartTime}`;
-    }
-
-    if (metadata.durationDisplay) {
-      metadataFields += `\nDuration:       ${metadata.durationDisplay}`;
-    }
-
-    if (metadata.units != null && metadata.units > 0) {
-      metadataFields += `\nTime Spent (Units): ${metadata.units}`;
-    }
-
-    if (prefs.includeLocation) {
-      metadataFields += `\nLocation:       {Meeting location if mentioned in the conversation, or "${NOT_DISCUSSED_PHRASE}"}`;
-    }
-
-    metadataFields += `\nSolicitor:      ${metadata.feeEarnerDisplayName ?? 'Not specified'}`;
-
-    let footerSection = '';
-    if (metadata.durationDisplay) {
-      footerSection += `Time Engaged: ${metadata.durationDisplay}\n\n`;
-    }
-
-    footerSection += `This attendance note is subject to legal professional privilege.
-
-Prepared by: ${metadata.feeEarnerDisplayName ?? 'Not specified'}
-Date Prepared: ${metadata.datePrepared ?? metadata.recordingDate}`;
-
-    if (prefs.includeClientConfirmation) {
-      footerSection += `\n\n**CLIENT CONFIRMATION**
-
-I confirm the above is an accurate record of our meeting.
-
-Client Signature: ________________
-
-Date: ________________`;
-    }
 
     let systemPrompt = `You are a UK-qualified solicitor specializing in creating professional attendance notes compliant with Solicitors Regulation Authority (SRA) standards and English law practice requirements.
 
@@ -281,15 +518,9 @@ CONSENT RECORDING HANDLING:
 - Focus exclusively on substantive legal matters discussed AFTER consent was obtained
 - If the meeting consisted primarily of consent dialogue with minimal legal discussion, produce a brief attendance note acknowledging limited substantive legal content was discussed
 
-Your attendance note MUST follow this professional UK legal practice format:
+Your attendance note MUST follow this professional UK legal practice format.
 
-**ATTENDANCE NOTE**
-
-${metadataFields}
-
-**MATTER:**     ${metadata.title}
-
-**CLIENT:**     ${metadata.clientName}
+The system supplies the attendance note header (File Reference, Date, Time, Duration, Time Spent (Units), Solicitor), MATTER, CLIENT, and footer (Time Engaged, privilege wording, Prepared by, Date Prepared) from known metadata. Generate ONLY the meeting-content portion below. Do NOT include those header or footer blocks. Start your output with **MATTERS DISCUSSED**.
 
 **MATTERS DISCUSSED**
 
@@ -353,8 +584,6 @@ ${metadataFields}
       Due: [The date or timing stated at the meeting, exactly as given (e.g. "24 March 2026", "tonight", "within 10 working days of submission"), or "${NOT_DISCUSSED_PHRASE}" only if no timing of any kind was given]
    
    Next appointment: [The date or timing stated at the meeting, exactly as given (e.g. "24 March 2026", "tonight", "within 10 working days of submission"), or "${NOT_DISCUSSED_PHRASE}" only if no timing of any kind was given]
-
-${footerSection}
 
 FORMATTING GUIDELINES:
 - Use **bold** for ALL section headings (ATTENDANCE NOTE, MATTERS DISCUSSED, each numbered topic, NEXT STEPS)
@@ -476,7 +705,11 @@ ${transcript}`;
       return await this.generateBriefFileNote(transcript, metadata);
     }
 
-    return await this.generateDocument(systemPrompt, userPrompt);
+    const result = await this.generateDocument(systemPrompt, userPrompt);
+    return {
+      ...result,
+      content: assembleAttendanceNoteDocument(result.content, metadata, prefs),
+    };
   }
 
   /**
@@ -522,13 +755,9 @@ CONSENT RECORDING HANDLING:
 - Focus exclusively on substantive legal matters, client concerns, and action items
 - Exclude all consent-related dialogue from the summary entirely
 
-Structure your summary as follows:
+Structure your summary as follows.
 
-**MEETING SUMMARY**
-
-**Case:** ${metadata.title}
-**Client:** ${metadata.clientName}
-**Date:** ${metadata.recordingDate}
+The system supplies the summary header (Case, Client, Date) from known metadata. Generate ONLY the meeting-content portion below. Do NOT include the **MEETING SUMMARY** header or Case/Client/Date lines. Start your output with **Key Points:**
 
 **Key Points:**
 • [Most important point 1 - from the conversation only]
@@ -561,7 +790,7 @@ FORMATTING GUIDELINES:
 - UK telephone number spacing: 07445 333 228 · 0800 212 4534
 - Percentages as numerals: 50%
 - Define a term once, then use the shorthand thereafter (e.g. parental responsibility ("PR"))
-- Never use em dashes (—) or en dashes (–) as punctuation. Use commas, colons, semicolons, parentheses or full stops instead. A hyphen (-) is permitted only within hyphenated words and number ranges.
+- Do not use em dashes or en dashes anywhere in the note. Where you would use one, use a comma, a semicolon, or parentheses instead. For ranges, use the word "to" (for example, "£5,000 to £8,000 plus VAT", "September 2025 to January 2026"). Hyphens in compound words (pre-marital, without-prejudice, know-your-customer) are correct and should be used normally.
 
 **IMPORTANT:** This summary must be reviewed by the supervising solicitor. All legal advice should be verified against current UK law and updated legal authorities before relying on it.
 
@@ -572,7 +801,11 @@ Keep it brief (1-2 pages maximum), prioritize urgency and importance, use clear 
 **What was said at the meeting:**
 ${transcript}`;
 
-    return await this.generateDocument(systemPrompt, userPrompt);
+    const result = await this.generateDocument(systemPrompt, userPrompt);
+    return {
+      ...result,
+      content: assembleSummaryDocument(result.content, metadata),
+    };
   }
 
   private static get SHORT_RECORDING_SECONDS_THRESHOLD(): number {
@@ -661,13 +894,22 @@ This file note is subject to legal professional privilege.`;
 
   async verifyDocumentAgainstTranscript(
     document: string,
-    transcript: string
+    transcript: string,
+    metadata?: Pick<CaseMetadata, 'clientName' | 'feeEarnerName'>,
   ): Promise<{ warnings: string[]; inputTokens: number; outputTokens: number; cost: number }> {
     try {
       console.log('Running post-generation verification against transcript...');
 
+      const authoritativeNames = resolveVerificationAuthoritativeNames(document, metadata);
+      const authoritativeNamesBlock =
+        authoritativeNames.clientName || authoritativeNames.feeEarnerName
+          ? `\nSYSTEM-SUPPLIED AUTHORITATIVE NAMES (use these; do not treat transcript spelling as authoritative):\n${
+              authoritativeNames.clientName ? `Client: ${authoritativeNames.clientName}\n` : ''
+            }${authoritativeNames.feeEarnerName ? `Fee earner: ${authoritativeNames.feeEarnerName}\n` : ''}`
+          : '';
+
       const systemPrompt = `You are a legal document auditor for a UK law firm. You will be given the record of what was said at a client meeting, and a document generated from it. Identify genuine defects. You must distinguish defects from correct professional practice.
-THE GOVERNING TEST: a statement is defective if it asserts factual content that was NOT established at the meeting, or reaches a conclusion the established facts do not support. A statement is NOT defective merely because its exact words were not spoken. Professional legal documents re-express what was said in legal register and standard notation; that is correct practice, not fabrication.
+THE GOVERNING TEST: content is ESTABLISHED if it was said at the meeting, or if it follows from what was said by arithmetic, by date computation, or by applying the correct legal term of art to it. A statement is defective ONLY if it introduces content that was neither said nor follows from what was said. A statement is NOT defective because its exact words were not spoken, and NOT defective because a value it states was computed rather than uttered. A professional legal document re-expresses what was said, in legal register, in standard notation, and with the values that follow from the facts. That is the job. It is not fabrication.
 CATEGORY 1 (UNSUPPORTED CONTENT). Flag a statement when it:
 
 asserts a concrete fact (an amount, a transfer, an agreement, a party, a date, an event, an instruction) with no basis in what was said. Fabricated concrete specifics are the most serious defect; never let one pass;
@@ -687,20 +929,25 @@ The exact placeholder "This was not discussed on this occasion." where the item 
 HTML comment markers of the form <!-- REASONING_GAP: ... -->.
 Headings, structure, and standard framing such as "subject to legal professional privilege".
 Defined-term shorthand after first definition (e.g. "PR").
+Header and footer metadata: file reference, date, time, duration, time spent in units, location, solicitor name, matter, client name, date prepared, and the legal professional privilege wording. These are supplied by the system and are not derived from the meeting record. They are not within the scope of this check and must never be flagged.
+The client's name and the fee earner's name are supplied to you by the system and are authoritative. The record of the meeting may contain transcription errors in the spelling of names. Where the note uses the system-supplied name and the meeting record spells it differently, the note is correct and must not be flagged. Never flag a name as contradicted on the basis of the meeting record's spelling alone.
 
 Before flagging any statement, first check whether it is a notation, derivation or characterisation of something that was said; if it is, it must not be flagged.
 
 CATEGORY 2 (ADVICE WITHOUT REASONING). The SRA expects the note to record the reasoning behind advice. Flag advice only when, within its own section, there is neither stated reasoning nor a <!-- REASONING_GAP: ... --> marker. A marker within the section satisfies the requirement for that section; do not flag advice whose section contains one, and never flag the marker itself.
-Return JSON only, in exactly this structure: {"unverifiable_statements": [...], "advice_without_reasoning": [...]}. Empty arrays where there are no issues. Each flagged item must quote or clearly identify the offending statement.`;
+Return JSON only, in exactly this structure: {"unverifiable_statements": [...], "advice_without_reasoning": [...]}. Each array contains ONLY confirmed defects. Do NOT include statements you have considered and decided are not defects, do NOT include your reasoning about statements you are not flagging, and do NOT include entries whose text says a statement is correct, is not a defect, or is being withdrawn. If a statement is correct practice, it does not appear in the output at all. Empty arrays where there are no defects. Each entry must be a single string: the offending statement itself, optionally followed by a brief explanation. Do not return objects.
+
+List each distinct defect once. Never repeat a statement. Never restate the same defect in multiple entries.${authoritativeNamesBlock}`;
 
       const userPrompt = `MEETING RECORD:\n${transcript}\n\n---\n\nGENERATED DOCUMENT:\n${document}\n\nIdentify unsupported content and any advice recorded without reasoning. Return JSON only.`;
 
       const completion = await this.callChatCompletion({
         systemPrompt,
         userPrompt,
-        maxTokens: 2000,
+        maxTokens: 4096,
         temperature: 0,
         responseFormat: 'json_object',
+        frequencyPenalty: 0.3,
       });
 
       const content = completion.content;
@@ -713,17 +960,19 @@ Return JSON only, in exactly this structure: {"unverifiable_statements": [...], 
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
-          const unverifiable: string[] = parsed.unverifiable_statements || [];
-          const missingReasoning: string[] = (parsed.advice_without_reasoning || []).map(
-            (s: string) => `[Advice without reasoning] ${s}`
+          const unverifiable = normalizeVerificationStatements(parsed.unverifiable_statements);
+          const missingReasoning = normalizeVerificationStatements(parsed.advice_without_reasoning).map(
+            (s) => `[Advice without reasoning] ${s}`,
           );
           warnings = [...unverifiable, ...missingReasoning];
         } else {
-          warnings = ['Verification response could not be parsed — solicitor review is required before this document is added to the client file'];
+          console.error('Verification response contained no JSON object. Raw response:', content);
+          warnings = [VERIFICATION_PARSE_FALLBACK];
         }
       } catch (parseError) {
-        console.warn('Failed to parse verification response:', parseError);
-        warnings = ['Verification response could not be parsed — solicitor review is required before this document is added to the client file'];
+        console.error('Failed to parse verification response:', parseError);
+        console.error('Raw verification response:', content);
+        warnings = [VERIFICATION_PARSE_FALLBACK];
       }
 
       console.log(`Verification complete. Found ${warnings.length} unverifiable statement(s). Cost: $${cost.toFixed(4)}`);
@@ -746,6 +995,8 @@ Return JSON only, in exactly this structure: {"unverifiable_statements": [...], 
       model: MODELS.DOCUMENT_GENERATION,
       max_tokens: request.maxTokens,
       temperature: request.temperature,
+      ...(request.frequencyPenalty != null ? { frequency_penalty: request.frequencyPenalty } : {}),
+      ...(request.responseFormat === 'json_object' ? { response_format: { type: 'json_object' as const } } : {}),
       messages: [
         { role: 'system', content: request.systemPrompt },
         { role: 'user', content: request.userPrompt },
@@ -763,12 +1014,20 @@ Return JSON only, in exactly this structure: {"unverifiable_statements": [...], 
     };
   }
 
+  private getGenerationModelLabel(): string {
+    if (this.chatCompletion) {
+      return process.env.BEDROCK_PRIVILEGED_MODEL_ID ?? 'measurement-seam';
+    }
+    return MODELS.DOCUMENT_GENERATION;
+  }
+
   private async generateDocument(
     systemPrompt: string,
     userPrompt: string
   ): Promise<DocumentGenerationResult> {
     try {
-      console.log('Generating document with GPT-4o...');
+      const modelLabel = this.getGenerationModelLabel();
+      console.log(`Generating document with ${modelLabel}...`);
 
       const completion = await this.callChatCompletion({
         systemPrompt,
@@ -782,9 +1041,9 @@ Return JSON only, in exactly this structure: {"unverifiable_statements": [...], 
       const outputTokens = completion.outputTokens;
       const cost = completion.cost;
 
-      const content = ensureBoldHeadings(rawContent);
+      const content = sanitizeModelProseDashes(ensureBoldHeadings(rawContent));
 
-      console.log(`Document generated with GPT-4o. Input tokens: ${inputTokens}, Output tokens: ${outputTokens}, Cost: $${cost.toFixed(4)}`);
+      console.log(`Document generated with ${modelLabel}. Input tokens: ${inputTokens}, Output tokens: ${outputTokens}, Cost: $${cost.toFixed(4)}`);
 
       return {
         content,
