@@ -525,8 +525,16 @@ AN EMPTY REASONING SECTION IS NOT A DEFICIENCY IN THE NOTE. It is a fact about t
 
 A HEADING IS A STATEMENT, bound by the same rule as the body: characterise the allegation, never find the fact.
 
-WRONG: "3. THE VENDOR'S FAILURE TO DISCLOSE THE JAPANESE KNOTWEED"
-RIGHT: "3. CLIENT'S CONCERNS AS TO DISCLOSURE OF JAPANESE KNOTWEED"
+A hedge on the client's state of mind does not hedge the finding. "The client's concerns as to the concealment" still asserts that concealment occurred; it says only that the client is concerned about it. THE UNCERTAINTY MUST ATTACH TO THE CONDUCT, NOT TO THE CLIENT.
+
+WRONG (the verb adjudicates):
+"3. THE VENDOR'S FAILURE TO DISCLOSE THE JAPANESE KNOTWEED"
+
+ALSO WRONG (the client is hedged, but the noun still adjudicates):
+"3. CLIENT'S CONCERNS AS TO THE VENDOR'S CONCEALMENT OF THE JAPANESE KNOTWEED"
+
+RIGHT:
+"3. CLIENT'S CONCERNS AS TO DISCLOSURE OF THE JAPANESE KNOTWEED"
 
 WRITE NO SECTION, PARAGRAPH, OR CLOSING REMARK THAT WAS NOT ASKED FOR. In particular, the note never discusses the transcript, the recording, the conversation record, or the completeness of these notes. If an exchange added no new facts, instructions, or advice, it requires no section and no commentary. This does not affect the required elements of the structure, which remain exactly as specified elsewhere in these instructions: the consent line, and the placeholder wording for items genuinely not discussed at the meeting.
 

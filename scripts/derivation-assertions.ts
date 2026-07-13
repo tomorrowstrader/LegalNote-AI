@@ -58,11 +58,11 @@ const DERIVE_ASSERTIONS: DeriveAssertionSpec[] = [
   {
     id: 'income-annualised',
     contextPatterns: [
-      /per annum/i,
-      /\ba year\b/i,
-      /annual(?:ly|ised)?/i,
       /£3,?500.{0,40}after tax/i,
       /after tax.{0,40}£3,?500/i,
+      /(?:the )?client.{0,100}(?:£3,?500|three and a half).{0,60}(?:month|per month|a month)/i,
+      /(?:equating to|annualis(?:ed|ing)).{0,40}£?\s*42,?000/i,
+      /£?\s*42,?000.{0,40}(?:per annum|p\.?a\.?|a year)/i,
     ],
     valuePatterns: [/£?\s*42,?000\b/i, /\b42k\b/i],
     wrongPatterns: [/£?\s*3,?500\s*(?:per annum|p\.?a\.?|a year)/i],
@@ -96,13 +96,22 @@ const DERIVE_ASSERTIONS: DeriveAssertionSpec[] = [
   },
   {
     id: 'pension-differential',
-    contextPatterns: [/pension.{0,60}(differen|dispar)/i, /dispar.{0,40}pension/i],
+    contextPatterns: [
+      /pension.{0,60}\b(?:difference|differential|disparity)\b/i,
+      /\bdisparity\b.{0,60}pension/i,
+      /\b(?:difference|differential)\b.{0,40}pension/i,
+    ],
     valuePatterns: [/£?\s*230,?000\b/i, /\b230k\b/i],
     valueShape: 'currency',
   },
   {
     id: 'pension-total',
-    contextPatterns: [/pension.{0,60}(total|combined)/i, /combined pension/i, /total pension/i],
+    contextPatterns: [
+      /(?:combined|total) pension (?:assets|resources)/i,
+      /pension (?:assets|resources).{0,20}(?:combined|total)/i,
+      /(?:both parties|parties).{0,60}pension.{0,60}(?:combined|total|cetv)/i,
+      /(?:combined|total) cetv.{0,40}(?:parties|both)/i,
+    ],
     valuePatterns: [/£?\s*410,?000\b/i, /\b410k\b/i],
     valueShape: 'currency',
   },
@@ -198,10 +207,25 @@ function hasCompetingCurrencyAssertion(sentence: string, spec: DeriveAssertionSp
   if (!/£[\d,]+/.test(sentence)) return false;
   if (spec.id === 'net-equity') return /net equity/i.test(sentence);
   if (spec.id === 'income-annualised') {
-    return /per annum|a year|annual|£42,?000|equating to/i.test(sentence);
+    const clientBound =
+      /£3,?500.{0,40}after tax/i.test(sentence) ||
+      /after tax.{0,40}£3,?500/i.test(sentence) ||
+      /(?:the )?client.{0,100}(?:£3,?500|three and a half).{0,60}(?:month|per month|a month)/i.test(
+        sentence,
+      ) ||
+      /(?:equating to|annualis(?:ed|ing)).{0,40}£?\s*42,?000/i.test(sentence) ||
+      /£?\s*42,?000.{0,40}(?:per annum|p\.?a\.?|a year)/i.test(sentence);
+    if (!clientBound) return false;
+    if (/£?\s*3,?500\s*(?:per annum|p\.?a\.?|a year)/i.test(sentence)) return true;
+    const clientPortion = sentence.split(/\bwhereas\b|\bwhile\b/i)[0];
+    return (
+      /(?:equating to|per annum|a year)/i.test(clientPortion) &&
+      /£[\d,]+/.test(clientPortion) &&
+      !/£?\s*42,?000\b/.test(clientPortion)
+    );
   }
   if (spec.id === 'pension-differential') {
-    return /differen|dispar/i.test(sentence) && /£[\d,]+/.test(sentence);
+    return /\b(?:difference|differential|disparity)\b/i.test(sentence) && /£[\d,]+/.test(sentence);
   }
   if (spec.id === 'pension-total') {
     return /(?:combined|total).{0,20}pension|pension.{0,20}(?:combined|total)/i.test(sentence);
