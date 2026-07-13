@@ -117,10 +117,55 @@ function ensureSectionSpacing(content: string): string {
 const VERIFICATION_PARSE_FALLBACK =
   'Verification response could not be parsed — solicitor review is required before this document is added to the client file';
 
+const VERIFIER_NON_DEFECT_TRIGGERS = [
+  'withdraw',
+  'withdrawing',
+  'not a defect',
+  'no defect',
+  'not defective',
+  'is correct arithmetic',
+  'correct practice',
+  'not flagged',
+  'no unsupported content',
+] as const;
+
+function getVerifierNonDefectTrigger(text: string): string | null {
+  const lower = text.toLowerCase();
+  for (const trigger of VERIFIER_NON_DEFECT_TRIGGERS) {
+    if (lower.includes(trigger)) return trigger;
+  }
+  return null;
+}
+
+function isVerifierNonDefectEntry(text: string): boolean {
+  return getVerifierNonDefectTrigger(text) !== null;
+}
+
+function logVerifierNonDefectDrop(text: string, context: string): void {
+  const trigger = getVerifierNonDefectTrigger(text);
+  if (!trigger) return;
+  if (process.env.VERIFY_RAW_LOG === '1') {
+    console.log('[verify-drop-non-defect]', JSON.stringify({ context, trigger, text }));
+  }
+}
+
+function shouldDropVerifierNonDefectEntry(text: string, context: string): boolean {
+  const trigger = getVerifierNonDefectTrigger(text);
+  if (!trigger) return false;
+  logVerifierNonDefectDrop(text, context);
+  return true;
+}
+
+function logVerifierShapeDrop(item: unknown): void {
+  if (process.env.VERIFY_RAW_LOG === '1') {
+    console.log('[verify-drop-shape]', JSON.stringify({ item }));
+  }
+}
+
 function normalizeVerificationStatementItem(item: unknown): string | null {
   if (typeof item === 'string') {
     const trimmed = item.trim();
-    if (!trimmed || isVerifierNonDefectEntry(trimmed)) return null;
+    if (!trimmed || shouldDropVerifierNonDefectEntry(trimmed, 'string')) return null;
     return assertNormalizedWarningString(trimmed);
   }
   if (item && typeof item === 'object') {
@@ -128,11 +173,11 @@ function normalizeVerificationStatementItem(item: unknown): string | null {
 
     const offendingStatement =
       typeof record.offending_statement === 'string' ? record.offending_statement.trim() : '';
-    if (offendingStatement && !isVerifierNonDefectEntry(offendingStatement)) {
+    if (offendingStatement && !shouldDropVerifierNonDefectEntry(offendingStatement, 'offending_statement')) {
       const explanation = pickVerificationExplanation(record);
       if (explanation && explanation !== offendingStatement) {
         const combined = `${offendingStatement} — ${explanation}`;
-        if (isVerifierNonDefectEntry(combined)) return null;
+        if (shouldDropVerifierNonDefectEntry(combined, 'offending_statement+explanation')) return null;
         return assertNormalizedWarningString(combined);
       }
       return assertNormalizedWarningString(offendingStatement);
@@ -142,7 +187,7 @@ function normalizeVerificationStatementItem(item: unknown): string | null {
       const value = record[key];
       if (typeof value === 'string') {
         const trimmed = value.trim();
-        if (trimmed && !isVerifierNonDefectEntry(trimmed)) {
+        if (trimmed && !shouldDropVerifierNonDefectEntry(trimmed, key)) {
           return assertNormalizedWarningString(trimmed);
         }
       }
@@ -152,36 +197,22 @@ function normalizeVerificationStatementItem(item: unknown): string | null {
       const value = record[key];
       if (typeof value === 'string') {
         const trimmed = value.trim();
-        if (trimmed && !isVerifierNonDefectEntry(trimmed)) {
+        if (trimmed && !shouldDropVerifierNonDefectEntry(trimmed, key)) {
           return assertNormalizedWarningString(trimmed);
         }
       }
     }
 
     console.error('Verification warning normalisation failure — could not extract statement from object:', JSON.stringify(item));
+    logVerifierShapeDrop(item);
     return null;
   }
   if (item != null) {
     const asString = String(item).trim();
-    if (!asString || isVerifierNonDefectEntry(asString)) return null;
+    if (!asString || shouldDropVerifierNonDefectEntry(asString, 'coerced')) return null;
     return assertNormalizedWarningString(asString);
   }
   return null;
-}
-
-function isVerifierNonDefectEntry(text: string): boolean {
-  const lower = text.toLowerCase();
-  return (
-    lower.includes('withdraw') ||
-    lower.includes('withdrawing') ||
-    lower.includes('not a defect') ||
-    lower.includes('no defect') ||
-    lower.includes('not defective') ||
-    lower.includes('is correct arithmetic') ||
-    lower.includes('correct practice') ||
-    lower.includes('not flagged') ||
-    lower.includes('no unsupported content')
-  );
 }
 
 function pickVerificationExplanation(record: Record<string, unknown>): string | null {
@@ -971,11 +1002,22 @@ List each distinct defect once. Never repeat a statement. Never restate the same
       const outputTokens = completion.outputTokens;
       const cost = completion.cost;
 
+      if (process.env.VERIFY_RAW_LOG === '1') {
+        console.log('[verify-raw]', JSON.stringify({ outputTokens, len: content.length, content }));
+      }
+
       let warnings: string[] = [];
       try {
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
+          if (process.env.VERIFY_RAW_LOG === '1') {
+            const knownKeys = new Set(['unverifiable_statements', 'advice_without_reasoning']);
+            const extraKeys = Object.keys(parsed).filter((k) => !knownKeys.has(k));
+            if (extraKeys.length > 0) {
+              console.log('[verify-extra-keys]', JSON.stringify({ keys: extraKeys }));
+            }
+          }
           const unverifiable = normalizeVerificationStatements(parsed.unverifiable_statements);
           const missingReasoning = normalizeVerificationStatements(parsed.advice_without_reasoning).map(
             (s) => `[Advice without reasoning] ${s}`,

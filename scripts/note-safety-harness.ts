@@ -293,18 +293,11 @@ function injectWrongClientName(
     return { ok: true, document: head + body, method: 'body-name' };
   }
 
-  const namedClientRe = new RegExp(`(\\*\\*CLIENT:\\*\\*\\s+)${escapeRegExp(correctName)}`, 'i');
-  if (namedClientRe.test(head)) {
-    head = head.replace(namedClientRe, `$1${wrongName}`);
-  } else if (/\*\*CLIENT:\*\*/i.test(head)) {
-    head = head.replace(/(\*\*CLIENT:\*\*\s+).+/i, `$1${wrongName}`);
-  }
-
   const assertion = `\n   The client, ${wrongName}, confirmed his instructions.\n`;
   const firstNl = body.indexOf('\n');
   body = firstNl >= 0 ? body.slice(0, firstNl + 1) + assertion + body.slice(firstNl + 1) : body + assertion;
 
-  return { ok: true, document: head + body, method: 'header-and-body-assertion' };
+  return { ok: true, document: head + body, method: 'body-assertion' };
 }
 
 function injectPlaceholderMisuse(document: string, dateCandidates: string[]): InjectionOutcome {
