@@ -94,6 +94,7 @@ async function buildDocumentGenerationMetadata(
     audio: { duration?: number | null; recordedAt?: Date | string | null };
     meetingSession: { createdBy: string; startedAt?: Date | string | null } | null | undefined;
     showFullSolicitorName: boolean;
+    firmName?: string;
   },
 ): Promise<CaseMetadata> {
   const feeEarnerUserId =
@@ -135,6 +136,7 @@ async function buildDocumentGenerationMetadata(
     units,
     feeEarnerDisplayName,
     feeEarnerName,
+    firmName: params.firmName,
     templateId: params.caseData.templateId || undefined,
     practiceArea: params.caseData.practiceArea || undefined,
   };
@@ -403,7 +405,7 @@ export class AIProcessingPipeline {
       await this.updateProcessingStatus(caseId, userId, {
         status: 'generating_documents',
         progress: 40,
-        currentStep: 'Generating summary...',
+        currentStep: 'Generating attendance note...',
         transcriptionCost: transcriptionCost,
       });
 
@@ -424,61 +426,7 @@ export class AIProcessingPipeline {
         audio,
         meetingSession,
         showFullSolicitorName,
-      });
-
-      // Step 2: Generate documents
-
-      // Generate summary
-      console.log(`Generating summary for case ${caseId}...`);
-      const summaryResult = await this.documentService.generateSummary(
-        transcriptForDocGen,
-        metadata
-      );
-
-      await this.updateProcessingStatus(caseId, userId, {
-        status: 'generating_documents',
-        progress: 50,
-        currentStep: 'Verifying summary against transcript...',
-      });
-
-      const summaryVerification = await this.documentService.verifyDocumentAgainstTranscript(
-        summaryResult.content,
-        transcriptForDocGen
-      );
-
-      const summaryDoc = await this.storage.createDocument({
-        caseId,
-        transcriptSnapshotId: transcript.id,
-        type: 'summary',
-        content: summaryResult.content,
-        version: 1,
-        versionType: 'system_generated',
-        createdBy: userId,
-        isActive: true,
-        verificationWarnings: summaryVerification.warnings.length > 0 ? summaryVerification.warnings : undefined,
-        isShortRecording: summaryResult.isShortRecording || false,
-        meetingSessionId: sessionInfo.sessionId ?? undefined,
-      });
-
-      auditLogger.log({
-        eventType: AuditEventType.AI_DOCUMENT_GENERATED,
-        userId,
-        resourceId: summaryDoc.id,
-        resourceType: 'document',
-        details: { 
-          caseId,
-          documentType: 'summary',
-          inputTokens: summaryResult.inputTokens,
-          outputTokens: summaryResult.outputTokens,
-          cost: summaryResult.cost,
-        },
-        severity: 'medium',
-      });
-
-      await this.updateProcessingStatus(caseId, userId, {
-        status: 'generating_documents',
-        progress: 60,
-        currentStep: 'Generating attendance note...',
+        firmName: firmProfile?.firmName ?? undefined,
       });
 
       const firmPreferences = {
@@ -491,6 +439,8 @@ export class AIProcessingPipeline {
       const isInternalMeeting = recordingType === 'internal_meeting';
       const docType = isInternalMeeting ? 'meeting_notes' : 'attendance_note';
       const logLabel = isInternalMeeting ? 'meeting notes' : 'attendance note';
+
+      // Step 2: Generate primary document first (attendance note or meeting notes)
       console.log(`Generating ${logLabel} for case ${caseId} (recording type: ${recordingType}, session: ${sessionInfo.sessionId})...`);
       const attendanceResult = await this.documentService.generateDocumentByRecordingType(
         recordingType,
@@ -502,7 +452,7 @@ export class AIProcessingPipeline {
 
       await this.updateProcessingStatus(caseId, userId, {
         status: 'generating_documents',
-        progress: 75,
+        progress: 55,
         currentStep: `Verifying ${logLabel} against transcript...`,
       });
 
@@ -540,16 +490,74 @@ export class AIProcessingPipeline {
         severity: 'medium',
       });
 
-      const verificationCost = summaryVerification.cost + attendanceVerification.cost;
+      let clientLetterResult: typeof attendanceResult | undefined;
+      let clientLetterVerification: Awaited<ReturnType<DocumentService['verifyDocumentAgainstTranscript']>> | undefined;
+      let clientLetterDoc: typeof attendanceDoc | undefined;
+
+      if (!isInternalMeeting) {
+        await this.updateProcessingStatus(caseId, userId, {
+          status: 'generating_documents',
+          progress: 70,
+          currentStep: 'Generating client letter...',
+        });
+
+        console.log(`Generating client letter for case ${caseId}...`);
+        clientLetterResult = await this.documentService.generateSummary(
+          attendanceResult.content,
+          metadata
+        );
+
+        await this.updateProcessingStatus(caseId, userId, {
+          status: 'generating_documents',
+          progress: 85,
+          currentStep: 'Verifying client letter against attendance note...',
+        });
+
+        clientLetterVerification = await this.documentService.verifyDocumentAgainstTranscript(
+          clientLetterResult.content,
+          attendanceResult.content
+        );
+
+        clientLetterDoc = await this.storage.createDocument({
+          caseId,
+          transcriptSnapshotId: transcript.id,
+          type: 'client_letter',
+          content: clientLetterResult.content,
+          version: 1,
+          versionType: 'system_generated',
+          createdBy: userId,
+          isActive: true,
+          verificationWarnings: clientLetterVerification.warnings.length > 0 ? clientLetterVerification.warnings : undefined,
+          isShortRecording: clientLetterResult.isShortRecording || false,
+          meetingSessionId: sessionInfo.sessionId ?? undefined,
+        });
+
+        auditLogger.log({
+          eventType: AuditEventType.AI_DOCUMENT_GENERATED,
+          userId,
+          resourceId: clientLetterDoc.id,
+          resourceType: 'document',
+          details: { 
+            caseId,
+            documentType: 'client_letter',
+            inputTokens: clientLetterResult.inputTokens,
+            outputTokens: clientLetterResult.outputTokens,
+            cost: clientLetterResult.cost,
+          },
+          severity: 'medium',
+        });
+      }
+
+      const verificationCost = attendanceVerification.cost + (clientLetterVerification?.cost ?? 0);
 
       const totalCost = transcriptionCost + 
-                       summaryResult.cost + 
                        attendanceResult.cost +
+                       (clientLetterResult?.cost ?? 0) +
                        verificationCost;
 
       const totalTokens = {
-        input: summaryResult.inputTokens + attendanceResult.inputTokens + summaryVerification.inputTokens + attendanceVerification.inputTokens,
-        output: summaryResult.outputTokens + attendanceResult.outputTokens + summaryVerification.outputTokens + attendanceVerification.outputTokens,
+        input: attendanceResult.inputTokens + (clientLetterResult?.inputTokens ?? 0) + attendanceVerification.inputTokens + (clientLetterVerification?.inputTokens ?? 0),
+        output: attendanceResult.outputTokens + (clientLetterResult?.outputTokens ?? 0) + attendanceVerification.outputTokens + (clientLetterVerification?.outputTokens ?? 0),
       };
 
       // Update final status
@@ -558,7 +566,7 @@ export class AIProcessingPipeline {
         progress: 100,
         currentStep: 'Processing complete',
         transcriptionCost: transcriptionCost,
-        documentGenerationCost: summaryResult.cost + attendanceResult.cost + verificationCost,
+        documentGenerationCost: attendanceResult.cost + (clientLetterResult?.cost ?? 0) + verificationCost,
         totalCost,
         totalTokens,
         completedAt: new Date().toISOString(),
@@ -667,7 +675,7 @@ export class AIProcessingPipeline {
         caseId,
         transcriptId: transcript.id,
         documentIds: {
-          summary: summaryDoc.id,
+          summary: clientLetterDoc?.id ?? '',
           attendanceNote: attendanceDoc.id,
         },
         totalCost,

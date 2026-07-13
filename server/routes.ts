@@ -3270,7 +3270,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         smsProtection: z.boolean().default(false),
         smsPhoneNumber: z.string().optional(),
         customMessage: z.string().optional(),
-        sharedDocuments: z.array(z.enum(["attendance_note", "summary", "transcript"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
+        sharedDocuments: z.array(z.enum(["attendance_note", "summary", "transcript", "client_letter"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
       });
       
       const validationResult = shareLinkRequestSchema.safeParse(req.body);

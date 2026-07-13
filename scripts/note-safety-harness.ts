@@ -137,6 +137,7 @@ function buildHarnessMetadata(spec: SyntheticTranscriptSpec) {
     units: Math.ceil(extras.durationMinutes / 6),
     feeEarnerDisplayName: extras.feeEarnerDisplayName,
     feeEarnerName: extras.feeEarnerName,
+    firmName: 'Test Firm LLP',
     practiceArea: spec.practiceArea,
   };
 }
@@ -176,6 +177,8 @@ function containsEmOrEnDash(text: string): boolean {
 function modelProseForDashGate(document: string): string {
   const attendanceIdx = document.indexOf('**MATTERS DISCUSSED**');
   if (attendanceIdx >= 0) return document.slice(attendanceIdx);
+  const letterIdx = document.indexOf('**What we discussed**');
+  if (letterIdx >= 0) return document.slice(letterIdx);
   const summaryIdx = document.indexOf('**Key Points:**');
   if (summaryIdx >= 0) return document.slice(summaryIdx);
   return document;
@@ -364,6 +367,40 @@ function checkDocumentFooter(document: string): FooterCheckResult {
     datePreparedCount: datePrepared.length,
     lines,
   };
+}
+
+/** Report-only: client letter voice and content gates (not yet hard-fail). */
+function checkClientLetterReportOnly(document: string): string[] {
+  const issues: string[] = [];
+  if (/I advised the client\b/i.test(document)) {
+    issues.push('Contains "I advised the client" (expected second person: "I advised you")');
+  }
+  if (/REASONING_GAP/i.test(document)) {
+    issues.push('Contains REASONING_GAP marker');
+  }
+  if (/Reasoning and Approach/i.test(document)) {
+    issues.push('Contains "Reasoning and Approach" section');
+  }
+  if (/must be reviewed by the supervising solicitor/i.test(document)) {
+    issues.push('Contains supervision banner text');
+  }
+  if (/legal professional privilege/i.test(document)) {
+    issues.push('Contains legal professional privilege wording');
+  }
+  return issues;
+}
+
+function extractClientLetterSectionHeadings(doc: string): string[] {
+  const headings: string[] = [];
+  const re = /^\s*\*\*([^*]+)\*\*\s*$/gm;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(doc)) !== null) {
+    const label = m[1].trim();
+    if (!/^(Client|Matter reference|Date):?$/i.test(label)) {
+      headings.push(label);
+    }
+  }
+  return headings;
 }
 
 function findSubsectionHeader(
@@ -620,6 +657,7 @@ interface TranscriptResult {
   attendanceFooter: FooterCheckResult;
   summaryFooter: FooterCheckResult;
   sectionHeadings: { attendance: string[]; summary: string[] };
+  clientLetterReportOnly: string[];
   generationCost: number;
   verificationCost: number;
 }
@@ -995,7 +1033,7 @@ async function runHarness(
 
     console.log('  generateSummary...');
     const sumGen = await timedApiCall(callLog, spec.id, 'generateSummary', () =>
-      documentService.generateSummary(transcript, metadata),
+      documentService.generateSummary(attendanceNote, metadata),
     );
     const summaryText = sumGen.content;
     generationCost += sumGen.cost;
@@ -1007,9 +1045,9 @@ async function runHarness(
     verificationCost += attBaseline.cost;
     console.log(`    warnings: ${attBaseline.warnings.length}`);
 
-    console.log('  baseline verification (summary)...');
-    const sumBaseline = await timedApiCall(callLog, spec.id, 'verify:summary baseline', () =>
-      documentService.verifyDocumentAgainstTranscript(summaryText, transcript),
+    console.log('  baseline verification (client letter vs attendance note)...');
+    const sumBaseline = await timedApiCall(callLog, spec.id, 'verify:client letter baseline', () =>
+      documentService.verifyDocumentAgainstTranscript(summaryText, attendanceNote),
     );
     verificationCost += sumBaseline.cost;
     console.log(`    warnings: ${sumBaseline.warnings.length}`);
@@ -1021,8 +1059,8 @@ async function runHarness(
     const attPlants = await runPlants(documentService, attendanceNote, transcript, spec.id, callLog, 'attendance');
     verificationCost += attPlants.cost;
 
-    console.log('  summary plants...');
-    const sumPlants = await runPlants(documentService, summaryText, transcript, spec.id, callLog, 'summary');
+    console.log('  client letter plants...');
+    const sumPlants = await runPlants(documentService, summaryText, attendanceNote, spec.id, callLog, 'summary');
     verificationCost += sumPlants.cost;
 
     let attendanceNonFactualPlants: PlantRunResult[] = [];
@@ -1055,9 +1093,10 @@ async function runHarness(
 
     const attendanceFooter = checkDocumentFooter(attendanceNote);
     const summaryFooter = checkDocumentFooter(summaryText);
+    const clientLetterReportOnly = checkClientLetterReportOnly(summaryText);
     const sectionHeadings = {
       attendance: extractSectionHeadings(attendanceNote),
-      summary: extractSectionHeadings(summaryText),
+      summary: extractClientLetterSectionHeadings(summaryText),
     };
 
     let placeholderMisuseInjected: TranscriptResult['placeholderMisuseInjected'] = null;
@@ -1145,7 +1184,7 @@ async function runHarness(
       })),
       summaryBaselineClassified: sumBaselineWarnings.map((w) => ({
         warning: w,
-        classification: classifyWarning(w, transcript, summaryText),
+        classification: classifyWarning(w, attendanceNote, summaryText),
       })),
       attendancePlants: attPlants.results,
       summaryPlants: sumPlants.results,
@@ -1169,6 +1208,7 @@ async function runHarness(
       attendanceFooter,
       summaryFooter,
       sectionHeadings,
+      clientLetterReportOnly,
       generationCost,
       verificationCost,
     });
@@ -1285,11 +1325,19 @@ function buildReport(
     } else {
       for (const h of r.sectionHeadings.attendance) lines.push(`- ${h}`);
     }
-    lines.push('**Summary:**');
+    lines.push('**Client letter:**');
     if (r.sectionHeadings.summary.length === 0) {
       lines.push('_None detected._');
     } else {
       for (const h of r.sectionHeadings.summary) lines.push(`- ${h}`);
+    }
+    lines.push('');
+
+    lines.push('### Client letter report-only assertions', '');
+    if (r.clientLetterReportOnly.length === 0) {
+      lines.push('_All report-only checks clean._');
+    } else {
+      for (const issue of r.clientLetterReportOnly) lines.push(`- **REPORT:** ${issue}`);
     }
     lines.push('');
 
@@ -1299,13 +1347,13 @@ function buildReport(
     );
     for (const l of r.attendanceFooter.lines) lines.push(`- \`${l}\``);
     lines.push(
-      `**Summary:** Prepared by: ${r.summaryFooter.preparedByCount} | Date Prepared: ${r.summaryFooter.datePreparedCount} | ${r.summaryFooter.ok ? 'OK' : '**FAIL**'}`,
+      `**Client letter:** Prepared by: ${r.summaryFooter.preparedByCount} | Date Prepared: ${r.summaryFooter.datePreparedCount} | ${r.summaryFooter.ok ? 'OK' : '**FAIL**'}`,
     );
     for (const l of r.summaryFooter.lines) lines.push(`- \`${l}\``);
     lines.push('');
 
     if (r.spec.id === 'family-derivation-lay-speech') {
-      lines.push('### Generated summary', '');
+      lines.push('### Generated client letter', '');
       lines.push('```');
       lines.push(r.summaryText);
       lines.push('```');
@@ -1314,6 +1362,10 @@ function buildReport(
       lines.push('```');
       if (r.derivationReport) {
         lines.push(...formatDerivationReportLines(r.derivationReport));
+        lines.push('');
+        lines.push(
+          'Note: Post-Change-1, any cross-document contradiction indicates a wiring/strip bug, not a model failure.',
+        );
       } else {
         lines.push('_Derivation report not computed._');
       }
@@ -1346,7 +1398,7 @@ function buildReport(
     }
     lines.push('');
 
-    lines.push('### Clean baseline warnings (summary)', '');
+    lines.push('### Clean baseline warnings (client letter vs attendance note)', '');
     if (r.summaryBaseline.length === 0) {
       lines.push('_None._');
     } else {

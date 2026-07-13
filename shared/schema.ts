@@ -562,7 +562,7 @@ export const shareLinks = pgTable("share_links", {
   smsVerifiedAt: timestamp("sms_verified_at"), // When SMS verification was completed
   smsCodeSentCount: integer("sms_code_sent_count").notNull().default(0), // Rate limit: max 3 SMS sends per link
   smsVerificationAttempts: integer("sms_verification_attempts").notNull().default(0), // Rate limit: max 5 verification attempts per link
-  sharedDocuments: text("shared_documents").array().notNull().default(sql`ARRAY['attendance_note']::text[]`), // Document types to share: attendance_note, summary, transcript
+  sharedDocuments: text("shared_documents").array().notNull().default(sql`ARRAY['client_letter']::text[]`), // Document types to share: attendance_note, client_letter, summary, transcript
 });
 
 // Recall.ai video conferencing connection (per-user OAuth)
@@ -897,7 +897,7 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   caseId: z.string().uuid(),
   meetingSessionId: z.string().uuid().optional(),
   transcriptSnapshotId: z.string().uuid().optional(),
-  type: z.enum(["attendance_note", "meeting_notes", "summary", "transcript", "client_care_letter"]),
+  type: z.enum(["attendance_note", "meeting_notes", "summary", "transcript", "client_care_letter", "client_letter"]),
   content: z.string().max(1000000), // 1MB max for documents
   version: z.number().int().min(1).default(1),
   versionType: z.enum(["system_generated", "fee_earner_amended", "fee_earner_approved", "supervisor_approved"]),
@@ -1044,7 +1044,7 @@ export const insertShareLinkSchema = createInsertSchema(shareLinks).omit({
   smsPhoneNumber: z.string().max(50).transform(sanitizeString).optional(),
   smsVerificationCode: z.string().max(10).optional(),
   smsCodeExpiresAt: z.date().optional(),
-  sharedDocuments: z.array(z.enum(["attendance_note", "summary", "transcript"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
+  sharedDocuments: z.array(z.enum(["attendance_note", "summary", "transcript", "client_letter"])).min(1, "Must select at least one document to share").default(["client_letter"]),
 });
 
 export const insertRecallConnectionSchema = createInsertSchema(recallConnections).omit({

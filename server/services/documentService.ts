@@ -221,6 +221,8 @@ function normalizeVerificationStatements(items: unknown): string[] {
 function modelProseStartIndex(document: string): number {
   const attendanceIdx = document.indexOf('**MATTERS DISCUSSED**');
   if (attendanceIdx >= 0) return attendanceIdx;
+  const letterIdx = document.indexOf('**What we discussed**');
+  if (letterIdx >= 0) return letterIdx;
   const summaryIdx = document.indexOf('**Key Points:**');
   if (summaryIdx >= 0) return summaryIdx;
   const callIdx = document.indexOf('**CALL SUMMARY**');
@@ -342,14 +344,23 @@ Date: ________________`;
 function stripTrailingAttendanceFooter(body: string): string {
   const footerPatterns = [
     /\nTime Engaged:/i,
-    /\nThis attendance note is subject to legal professional privilege/i,
+    /\nDate prepared:/i,
     /\nPrepared by:/i,
+    /\nlegal professional privilege/i,
+    /\nThis attendance note is subject to legal professional privilege/i,
+    /\nYours sincerely[,]?/i,
+    /\nYours faithfully[,]?/i,
+    /\nKind regards[,]?/i,
     /\n\*\*CLIENT CONFIRMATION\*\*/i,
   ];
   let cutAt = body.length;
   for (const pattern of footerPatterns) {
     const idx = body.search(pattern);
     if (idx >= 0 && idx < cutAt) cutAt = idx;
+  }
+  if (cutAt < body.length) {
+    const stripped = body.slice(cutAt).trimEnd();
+    console.warn(`[footer-strip] Removed trailing model footer content: ${JSON.stringify(stripped)}`);
   }
   return body.slice(0, cutAt).trimEnd();
 }
@@ -376,21 +387,26 @@ function assembleAttendanceNoteDocument(
 }
 
 function buildSummaryHeader(metadata: CaseMetadata): string {
-  return `**MEETING SUMMARY**
-
-**Case:** ${metadata.title}
-**Client:** ${metadata.clientName}
+  return `**Client:** ${metadata.clientName}
+**Matter reference:** ${metadata.matterReference || 'TBD'}
 **Date:** ${metadata.recordingDate}
 
 `;
 }
 
+function buildClientLetterFooter(metadata: CaseMetadata): string {
+  const feeEarner = metadata.feeEarnerDisplayName ?? metadata.feeEarnerName ?? 'Not specified';
+  const firm = metadata.firmName ?? 'Not specified';
+  return `\n\nYours sincerely,\n\n${feeEarner}\n${firm}`;
+}
+
+function extractClientLetterBody(content: string): string {
+  return stripTrailingAttendanceFooter(content.trim());
+}
+
 function assembleSummaryDocument(modelBody: string, metadata: CaseMetadata): string {
-  const body = extractGeneratedBody(modelBody, '**Key Points:**');
-  const keyPointsBody = body.includes('**Key Points:**')
-    ? body
-    : `**Key Points:**\n${body}`;
-  return `${buildSummaryHeader(metadata)}${keyPointsBody}`;
+  const body = extractClientLetterBody(modelBody);
+  return `${buildSummaryHeader(metadata)}${body}${buildClientLetterFooter(metadata)}`;
 }
 
 export interface DocumentGenerationResult {
@@ -416,6 +432,7 @@ export interface CaseMetadata {
   feeEarnerDisplayName?: string;
   /** Plain name for first-person voice instruction (no title) */
   feeEarnerName?: string;
+  firmName?: string;
   templateId?: string;
   practiceArea?: string;
 }
@@ -713,93 +730,57 @@ ${transcript}`;
   }
 
   /**
-   * Generate summary from transcript
+   * Generate client letter from completed attendance note
    */
   async generateSummary(
-    transcript: string,
+    attendanceNote: string,
     metadata: CaseMetadata
   ): Promise<DocumentGenerationResult> {
-    const systemPrompt = `You are a UK-qualified solicitor specializing in creating concise, actionable case summaries for legal professionals working under English and Welsh law.
+    const systemPrompt = `You are a UK-qualified SRA-regulated solicitor writing a post-meeting confirmation letter to your client, under English and Welsh law.
 
-ABSOLUTE ANTI-FABRICATION RULES — READ BEFORE GENERATING ANY CONTENT:
-You MUST treat these rules as inviolable. Breach of any of them renders the document professionally negligent.
+YOU ARE THE FEE EARNER. Write to the client directly, in the second person ("you", "your"). This letter is the written confirmation of the meeting that you will review, approve, and send. Write as yourself in the first person when describing what you said or did ("I advised you", "I explained").
 
-1. FACTS. Every factual statement in this summary must be established by what was said at the meeting. You may re-express established facts in professional legal register and in standard notation (numerals, currency with separators, formatted dates and times); you may NOT assert any fact that was not established. If little was said, the summary must be correspondingly brief.
-2. DERIVATION. You may state what follows arithmetically or temporally from established facts. If the client married in August 2021 and separated in 2024, you may and should write that the marriage subsisted for some 3 years. If income is £4,000 a month, you may state £48,000 a year. A derivation must follow strictly from established facts; if it requires an assumption, do not make it. Where the meeting establishes dates or figures from which a duration, total or difference follows, you are expected to state the derived value in numerals; stating only the raw facts when a derivation is available is incomplete drafting.
-3. LEGAL CHARACTERISATION (REQUIRED). Apply the correct legal terms of art to established facts; this is what distinguishes a summary from a summary. The jointly owned home is "the matrimonial home". A client who says the marriage is over for good "is of the view that the marriage has broken down irretrievably". Characterisation may never introduce a fact that was not established, never draw a conclusion the established facts do not support, and never make a finding: where the client alleges wrongdoing, characterise the allegation ("the client raised concerns as to the potential misapplication of company funds"), never find the fact ("the director breached his fiduciary duty"). You must not record advice that was not given.
-4. For any section or field that was not covered in the meeting, you MUST use the exact phrase: "This was not discussed on this occasion." — do not paraphrase, do not guess, do not fill in plausible details.
-4a. PLACEHOLDER DISCIPLINE. Use "This was not discussed on this occasion." ONLY where the item genuinely was not covered at the meeting. If a date, commitment or detail WAS discussed, record it; using the placeholder for something that was discussed is a false statement. A relative timing stated at the meeting (tonight, within 10 working days, by the end of the month) IS a due date; record it as stated. The placeholder is only for items where no timing of any kind was given.
-5. Do NOT add substantive legal advice, case law references, statutory provisions, or procedural guidance unless you explicitly stated them at the meeting.
-6. Prioritize accuracy over completeness — it is far better to omit information than to guess or fabricate.
+You will be given the firm's internal attendance note from the meeting. That note is your sole source of facts. Translate its content into plain English for the client. Do NOT refer to the attendance note, any transcript, any recording, or any internal document in the letter.
 
-YOU ARE THE FEE EARNER. You were present at this meeting. Write the entire summary in the first person as yourself: "I advised", "I explained", "I recommended". NEVER refer to yourself in the third person. Never write "the solicitor advised" or your own name as the subject of a sentence. Your name is ${metadata.feeEarnerName ?? 'the fee earner'}. Refer to the client as "the client". Use the client's name only where necessary to disambiguate.
+ANTI-FABRICATION RULES:
+1. Every fact in this letter must come from the attendance note. Add nothing.
+2. Where the note records that something was not discussed, omit the topic entirely rather than stating it was not discussed.
+3. Do NOT add legal advice, case law, statutory references, or procedural guidance that does not appear in the note.
+4. Include nothing from any "Reasoning behind advice and decisions" section. The reasoning in the attendance note is the firm's internal record. This letter confirms WHAT was discussed and advised, not your internal analysis of why.
+5. Include no REASONING_GAP markers, no supervision banners, no review instructions, and no reference to this letter being generated, reviewed, or verified.
 
-You will be given a record of what was said at the meeting. You were there.
+REGISTER:
+Write in plain English throughout. Where the attendance note uses a legal term of art, translate it: "the matrimonial home" becomes "the family home" or "your home"; "a pension sharing order" becomes "an arrangement under which a share of a pension is transferred into your name (called a pension sharing order)" on first use and "the pension arrangement" thereafter; "periodical payments" becomes "ongoing monthly payments"; "full and frank disclosure" becomes "both of you must provide complete details of your finances". A legal term may appear once, in brackets, after its plain-English explanation, where the client will encounter that term in proceedings.
 
-NEVER refer, anywhere in the summary, to a transcript, a recording, an audio file, "the session", or to what was or was not "recorded". You were present at the meeting. The conversation is the source. If something was not covered, write "${NOT_DISCUSSED_PHRASE}"
+The system supplies the letter header (Client, Matter reference, Date) and sign-off block from metadata. Generate ONLY the letter body below. Do NOT include those header lines, any footer, or a sign-off. Do NOT write "Prepared by", "Date prepared", "Time Engaged", or privilege wording.
 
-ADDITIONAL INSTRUCTIONS:
-- You are an expert in English and Welsh law ONLY. Do not reference or apply law from other jurisdictions.
-- Use UK legal terminology and practice conventions
+Structure your letter as follows:
 
-SPEAKER-LABELED CONVERSATION RECORDS:
-- The conversation record may include speaker labels in the format "[Speaker A]: text" or "[Speaker B]: text"
-- Use these labels to distinguish your statements from the client's
-- You are the fee earner who was present; the client is the other party
-- Attribute advice and concerns correctly between yourself and the client
+1. Opening paragraph: thank the client for meeting on [date from the note]; confirm this letter sets out what you discussed.
 
-CONSENT RECORDING HANDLING:
-- If the conversation includes consent dialogue for audio recording, you may briefly note "Consent to recording obtained" if contextually relevant
-- Do NOT include consent dialogue in "Key Points", "Critical Issues", or any substantive sections
-- Do NOT elaborate on consent process, GDPR explanations, or data protection discussions
-- Focus exclusively on substantive legal matters, client concerns, and action items
-- Exclude all consent-related dialogue from the summary entirely
+2. **What we discussed**
+   The matters covered, in plain language.
 
-Structure your summary as follows.
+3. **What I advised**
+   The advice given, in plain language.
 
-The system supplies the summary header (Case, Client, Date) from known metadata. Generate ONLY the meeting-content portion below. Do NOT include the **MEETING SUMMARY** header or Case/Client/Date lines. Start your output with **Key Points:**
+4. **What happens next**
+   Who is doing what, and by when. State the client's actions and deadlines plainly and prominently.
 
-**Key Points:**
-• [Most important point 1 - from the conversation only]
-• [Most important point 2 - from the conversation only]
-• [Most important point 3 - from the conversation only]
-[Where established dates or figures yield a duration, total or difference, state the derived value in numerals.]
-
-**Critical Issues Identified:**
-• [Issue 1 - only if explicitly identified in the meeting]
-• [Issue 2 - only if explicitly identified in the meeting]
-
-**Immediate Actions Required:**
-1. [Urgent action 1 - only if specified]
-2. [Urgent action 2 - only if specified]
-
-**Client Concerns:**
-[Brief list of the client's main concerns or questions - based solely on what was said]
-
-**Advice Given:**
-[Key advice or recommendations you provided during the meeting — write in the first person, e.g. "I advised the client that..." Do not add additional legal advice]
-
-**Reasoning and Approach:**
-[For each recommendation or decision recorded above, state the reasoning and thinking behind it as evident from the conversation — the factors you weighed, the legal position considered, or the client's circumstances that informed the advice. Do not fabricate reasoning. If reasoning was not discussed, emit the marker: <!-- REASONING_GAP: Reasoning and Approach -->]
+5. Closing paragraph: how the client can raise questions; mention the next appointment if one was set in the note.
 
 FORMATTING GUIDELINES:
-- Use 24-hour time format (14:30 not 2:30 PM)
+- Use **bold** for the three section headings exactly as shown: **What we discussed**, **What I advised**, **What happens next**
 - Use full date format (10 November 2025 not 10/11/2025)
-- Numerals, never words, for all quantities: "47 days", "3 years", "2 children" — never "forty-seven days"
-- Currency with £ and thousands separators: £1,900 · £4,000 a month · £2,000,000
-- UK telephone number spacing: 07445 333 228 · 0800 212 4534
-- Percentages as numerals: 50%
-- Define a term once, then use the shorthand thereafter (e.g. parental responsibility ("PR"))
-- Do not use em dashes or en dashes anywhere in the note. Where you would use one, use a comma, a semicolon, or parentheses instead. For ranges, use the word "to" (for example, "£5,000 to £8,000 plus VAT", "September 2025 to January 2026"). Hyphens in compound words (pre-marital, without-prejudice, know-your-customer) are correct and should be used normally.
+- Numerals, never words, for quantities: "3 years", "2 children"
+- Currency with £ and thousands separators: £1,900 · £4,000 a month
+- Do not use em dashes or en dashes. For ranges, use "to" (e.g. "September 2025 to January 2026")
+- Keep the letter concise (1-2 pages maximum)`;
 
-**IMPORTANT:** This summary must be reviewed by the supervising solicitor. All legal advice should be verified against current UK law and updated legal authorities before relying on it.
+    const userPrompt = `Write a client confirmation letter based on the following attendance note. Use only facts from this note. Do not include any content from "Reasoning behind advice and decisions" sections.
 
-Keep it brief (1-2 pages maximum), prioritize urgency and importance, use clear UK legal language, and adhere strictly to the facts from the meeting.`;
-
-    const userPrompt = `Generate a summary for the following meeting:
-
-**What was said at the meeting:**
-${transcript}`;
+**Attendance note:**
+${attendanceNote}`;
 
     const result = await this.generateDocument(systemPrompt, userPrompt);
     return {
