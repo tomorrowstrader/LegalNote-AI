@@ -1,4 +1,3 @@
-import { TranscriptionService } from './transcriptionService';
 import { AssemblyAIService, formatDiarizedTranscript, type SpeakerUtterance } from './assemblyAIService';
 import { DocumentService, type CaseMetadata } from './documentService';
 import { TranscriptCorrectionService } from './transcriptCorrectionService';
@@ -170,28 +169,17 @@ export interface ProcessingMetadata {
 }
 
 export class AIProcessingPipeline {
-  private transcriptionService: TranscriptionService;
-  private assemblyAIService: AssemblyAIService | null = null;
+  private assemblyAIService: AssemblyAIService;
   private documentService: DocumentService;
   private correctionService: TranscriptCorrectionService;
   private storage: IStorage;
 
   constructor(storage: IStorage) {
-    this.transcriptionService = new TranscriptionService();
+    this.assemblyAIService = new AssemblyAIService();
     this.documentService = new DocumentService();
     this.correctionService = new TranscriptCorrectionService();
     this.storage = storage;
-
-    if (process.env.ASSEMBLYAI_API_KEY) {
-      try {
-        this.assemblyAIService = new AssemblyAIService();
-        console.log('[AI Pipeline] AssemblyAI service initialized - speaker diarization enabled');
-      } catch (error) {
-        console.warn('[AI Pipeline] AssemblyAI not available, falling back to Whisper (no diarization)');
-      }
-    } else {
-      console.log('[AI Pipeline] No AssemblyAI key - using Whisper transcription (no diarization)');
-    }
+    console.log('[AI Pipeline] AssemblyAI service initialized — speaker diarization enabled');
   }
 
   private async getLatestSessionForCase(caseId: string, userId: string): Promise<{ recordingType: string; sessionId: string | null }> {
@@ -256,9 +244,7 @@ export class AIProcessingPipeline {
       await this.updateProcessingStatus(caseId, userId, {
         status: 'transcribing',
         progress: 20,
-        currentStep: this.assemblyAIService 
-          ? 'Converting speech to text with speaker identification...'
-          : 'Converting speech to text...',
+        currentStep: 'Converting speech to text with speaker identification...',
       });
 
       let transcriptText: string;
@@ -291,43 +277,17 @@ export class AIProcessingPipeline {
         sessionType: earlySessionType,
       });
 
-      if (this.assemblyAIService) {
-        try {
-          const diarizedResult = await this.assemblyAIService.transcribeWithDiarization(
-            audio.filePath,
-            audio.duration || 0,
-            undefined,
-            keytermsConfig
-          );
-          transcriptText = diarizedResult.text;
-          transcriptUtterances = diarizedResult.utterances;
-          speakerCount = diarizedResult.speakerCount;
-          transcriptionCost = diarizedResult.cost;
-          console.log(`[Diarization] Detected ${speakerCount} speakers, ${transcriptUtterances.length} utterances`);
-        } catch (assemblyError) {
-          console.error('[AI Pipeline] AssemblyAI transcription failed, falling back to Whisper:', assemblyError);
-          await this.updateProcessingStatus(caseId, userId, {
-            status: 'transcribing',
-            progress: 25,
-            currentStep: 'Retrying with alternative transcription service...',
-          });
-          const whisperResult = await this.transcriptionService.transcribeAudio(
-            audio.filePath,
-            audio.duration || 0,
-            audio.mimeType || undefined
-          );
-          transcriptText = whisperResult.text;
-          transcriptionCost = whisperResult.cost;
-        }
-      } else {
-        const whisperResult = await this.transcriptionService.transcribeAudio(
-          audio.filePath,
-          audio.duration || 0,
-          audio.mimeType || undefined
-        );
-        transcriptText = whisperResult.text;
-        transcriptionCost = whisperResult.cost;
-      }
+      const diarizedResult = await this.assemblyAIService.transcribeWithDiarization(
+        audio.filePath,
+        audio.duration || 0,
+        undefined,
+        keytermsConfig
+      );
+      transcriptText = diarizedResult.text;
+      transcriptUtterances = diarizedResult.utterances;
+      speakerCount = diarizedResult.speakerCount;
+      transcriptionCost = diarizedResult.cost;
+      console.log(`[Diarization] Detected ${speakerCount} speakers, ${transcriptUtterances.length} utterances`);
 
       // Step 1.5: Apply GPT post-processing for context-aware error correction
       await this.updateProcessingStatus(caseId, userId, {
@@ -723,8 +683,13 @@ export class AIProcessingPipeline {
     const currentMetadata = (caseData.aiProcessingMetadata as ProcessingMetadata) || {};
     const updatedMetadata = { ...currentMetadata, ...metadata };
 
-    await this.storage.updateCase(caseId, {
+    const caseUpdate: { aiProcessingMetadata: ProcessingMetadata; status?: string } = {
       aiProcessingMetadata: updatedMetadata,
-    }, userId);
+    };
+    if (metadata.status === 'failed') {
+      caseUpdate.status = 'failed';
+    }
+
+    await this.storage.updateCase(caseId, caseUpdate, userId);
   }
 }

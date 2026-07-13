@@ -72,7 +72,7 @@ import {
   clearCaseGraceWindow,
   setCaseGraceWindowOnRelease,
 } from "./services/litigationHoldGraceWindowService";
-import { openaiService } from "./openaiService";
+import { AssemblyAIService } from "./services/assemblyAIService";
 import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail } from "./email";
 import { generateSignedAuditPDF } from "./services/signedAuditExport";
 import { assembleSraReportData, buildSraReportPreview } from "./services/sraReportService";
@@ -4266,152 +4266,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(400).json({ message: "Invalid audio format" });
       }
 
-      // Transcribe using OpenAI Whisper
-      console.log('Starting quick note transcription');
-      const result = await openaiService.transcribeAudio(req.file.buffer);
-      
+      console.log('Starting quick note transcription via AssemblyAI (EU)');
+      const assemblyAI = new AssemblyAIService();
+      const text = await assemblyAI.transcribeBuffer(req.file.buffer);
+
       console.log('Quick note transcription completed');
-      res.json({ text: result.text });
+      res.json({ text });
     } catch (error: any) {
       console.error('Quick note transcription error:', error);
-      next(error);
-    }
-  });
-  
-  app.post("/api/cases/:id/transcribe", isAuthenticated, async (req: any, res, next) => {
-    try {
-      const userId = req.user.claims.sub;
-      const caseId = req.params.id;
-      
-      // Verify ownership
-      const caseData = await storage.getCase(caseId, userId);
-      if (!caseData) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      
-      // Get audio recording
-      const audioRecording = await storage.getAudioRecordingByCase(caseId, userId);
-      if (!audioRecording || !audioRecording.filePath) {
-        return res.status(404).json({ message: "No audio recording found for this case" });
-      }
-      
-      // Check if transcript already exists
-      const existingTranscript = await storage.getTranscriptByCase(caseId, userId);
-      if (existingTranscript) {
-        return res.json({ transcript: existingTranscript, message: "Transcript already exists" });
-      }
-      
-      // Download audio file from storage
-      const objectStorageService = new ObjectStorageService();
-      const audioBuffer = await objectStorageService.getObjectEntityFile(audioRecording.filePath);
-      
-      // Transcribe using OpenAI Whisper
-      console.log(`Starting transcription for case ${caseId}`);
-      const result = await openaiService.transcribeAudio(audioBuffer);
-      
-      // Save transcript
-      const transcript = await storage.createTranscript({
-        caseId,
-        content: result.text,
-      });
-      
-      // Update case status
-      await storage.updateCase(caseId, { status: "processing" }, userId);
-      
-      auditLogger.logFromRequest(AuditEventType.TRANSCRIPT_GENERATED, req, {
-        resourceId: transcript.id,
-        resourceType: "transcript",
-        action: "generate",
-        severity: "low",
-      });
-
-      try {
-        const transcribeUser = await storage.getUser(userId);
-        if (transcribeUser?.complianceThread && result.text) {
-          const { detectAmlTriggersAI, getAmlRiskSuggestion } = await import('./services/amlTriggerService');
-          const triggers = await detectAmlTriggersAI(result.text);
-          if (triggers.length > 0) {
-            const suggestedRisk = getAmlRiskSuggestion(triggers);
-            const updatePayload: { riskLevel?: string; aiProcessingMetadata?: Record<string, unknown> } = {};
-            if (!caseData.riskLevel && suggestedRisk) {
-              updatePayload.riskLevel = suggestedRisk;
-            }
-            const currentMetadata = (caseData.aiProcessingMetadata || {}) as Record<string, unknown>;
-            updatePayload.aiProcessingMetadata = { ...currentMetadata, amlTriggers: triggers };
-            await storage.updateCase(caseId, updatePayload, userId);
-            console.log(`[AML] Transcribe path: detected ${triggers.length} trigger(s) in case ${caseId}, suggested risk: ${suggestedRisk}`);
-          }
-        }
-      } catch (amlError) {
-        console.error('[AML] Post-transcribe trigger detection failed (non-blocking):', amlError);
-      }
-      
-      res.json({ transcript, message: "Transcription completed" });
-    } catch (error: any) {
-      console.error('Transcription error:', error);
-      next(error);
-    }
-  });
-
-  app.post("/api/cases/:id/generate-documents", isAuthenticated, async (req: any, res, next) => {
-    try {
-      const userId = req.user.claims.sub;
-      const caseId = req.params.id;
-      
-      // Verify ownership
-      const caseData = await storage.getCase(caseId, userId);
-      if (!caseData) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      
-      // Get transcript
-      const transcript = await storage.getTranscriptByCase(caseId, userId);
-      if (!transcript) {
-        return res.status(404).json({ message: "No transcript found. Please transcribe the audio first." });
-      }
-      
-      // Check if documents already exist
-      const existingDocs = await storage.getActiveDocumentsByCase(caseId, userId);
-      if (existingDocs.length > 0) {
-        return res.json({ documents: existingDocs, message: "Documents already exist" });
-      }
-      
-      // Generate documents using GPT-4
-      console.log(`Generating documents for case ${caseId}`);
-      const result = await openaiService.generateDocuments(transcript.content, {
-        title: caseData.title,
-        clientName: caseData.clientName,
-        matterReference: caseData.matterReference || undefined,
-      });
-      
-      // Save attendance note
-      const attendanceNote = await storage.createDocument({
-        caseId,
-        transcriptSnapshotId: transcript.id,
-        type: "attendance_note",
-        content: result.attendanceNote,
-        version: 1,
-        versionType: "system_generated",
-        createdBy: userId,
-        isActive: true,
-      });
-      
-      // Update case status
-      await storage.updateCase(caseId, { status: "completed" }, userId);
-      
-      auditLogger.logFromRequest(AuditEventType.DOCUMENT_GENERATED, req, {
-        resourceId: attendanceNote.id,
-        resourceType: "document",
-        action: "generate",
-        severity: "low",
-      });
-      
-      res.json({ 
-        attendanceNote, 
-        message: "Documents generated successfully" 
-      });
-    } catch (error: any) {
-      console.error('Document generation error:', error);
       next(error);
     }
   });
@@ -4510,7 +4372,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         const userId = (req as any).user?.claims?.sub;
         if (userId) {
           await storage.updateCase(req.params.id, { 
-            status: "pending",
+            status: "failed",
             aiProcessingMetadata: {
               status: 'failed',
               error: error.message,

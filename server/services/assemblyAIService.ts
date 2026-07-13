@@ -68,6 +68,25 @@ export class AssemblyAIService {
     this.apiKey = apiKey;
   }
 
+  /**
+   * Transcribe an in-memory audio buffer (no diarization). Used by Quick Note.
+   * Universal-2 for speed; succeeds or throws — no fallback.
+   */
+  async transcribeBuffer(buffer: Buffer): Promise<string> {
+    console.log(`[AssemblyAI] Starting buffer transcription (Universal-2, no diarization): ${buffer.length} bytes`);
+
+    const uploadUrl = await this.uploadAudio(buffer);
+    console.log(`[AssemblyAI] Audio uploaded to: ${uploadUrl}`);
+
+    const transcriptId = await this.createPlainTranscript(uploadUrl);
+    console.log(`[AssemblyAI] Plain transcript job created: ${transcriptId}`);
+
+    const result = await this.pollForCompletion(transcriptId);
+    console.log(`[AssemblyAI] Buffer transcription completed (${result.text?.length ?? 0} chars)`);
+
+    return result.text || '';
+  }
+
   async transcribeWithDiarization(
     audioPath: string,
     audioDuration: number,
@@ -151,6 +170,32 @@ export class AssemblyAIService {
 
     const data = await response.json() as { upload_url: string };
     return data.upload_url;
+  }
+
+  private async createPlainTranscript(audioUrl: string): Promise<string> {
+    const body: Record<string, unknown> = {
+      audio_url: audioUrl,
+      speech_models: ['universal-2'],
+      speaker_labels: false,
+      language_code: 'en_uk',
+    };
+
+    const response = await fetch(`${ASSEMBLYAI_API_URL}/transcript`, {
+      method: 'POST',
+      headers: {
+        'Authorization': this.apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to create transcript: ${error}`);
+    }
+
+    const data = await response.json() as { id: string };
+    return data.id;
   }
 
   private async createTranscript(
