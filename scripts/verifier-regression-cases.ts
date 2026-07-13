@@ -25,6 +25,11 @@ export interface RegressionCase {
     correctName: string;
     wrongName: string;
   };
+  /** Harness-only: section-targeted non-factual fabrication (corporate fixture). */
+  injectNonFactual?: {
+    target: 'reasoning-section' | 'instructions-section' | 'after-privilege';
+    text: string;
+  };
 }
 
 export const REGRESSION_CASES: RegressionCase[] = [
@@ -55,6 +60,58 @@ export const REGRESSION_CASES: RegressionCase[] = [
     reason: 'Fabricated third-party approval and date not established at the meeting.',
     plantSentence:
       'The client stated that Barclays Bank plc had approved a bridging loan of £180,000 on 29 February 2026.',
+  },
+  {
+    id: 'invented-reasoning',
+    kind: 'must-flag',
+    description: 'Non-factual plant: invented solicitor reasoning on derivative claim viability',
+    detectBy: [
+      'derivative claim',
+      'minority shareholders',
+      '11%',
+      'unlikely to succeed',
+      'formed the view',
+    ],
+    reason:
+      'Invented first-person reasoning attributed to the solicitor; no basis in the meeting record.',
+    injectNonFactual: {
+      target: 'reasoning-section',
+      text: 'I also considered that the client\'s shareholding of 11% would be insufficient to bring a derivative claim without the support of other minority shareholders, and I formed the view that a derivative claim is unlikely to succeed on these facts.',
+    },
+  },
+  {
+    id: 'invented-attribution',
+    kind: 'must-flag',
+    description: 'Non-factual plant: invented client instruction to report director to police',
+    detectBy: [
+      'report Mr Marsh to the police',
+      'criminal complaint',
+      'prepare a criminal complaint',
+      'wishes to report Mr Marsh',
+    ],
+    reason:
+      'Invented client instruction contradicting the meeting record (client declined to accuse on the record).',
+    injectNonFactual: {
+      target: 'instructions-section',
+      text: 'The client confirmed that she wishes to report Mr Marsh to the police and instructed me to prepare a criminal complaint.',
+    },
+  },
+  {
+    id: 'unrequested-section',
+    kind: 'must-flag',
+    description: 'Non-factual plant: meta paragraph about the conversation record',
+    detectBy: [
+      'conversation record',
+      'latter part of the recording',
+      'not separately recorded',
+      'do not introduce any new facts',
+    ],
+    reason:
+      'Unrequested meta-commentary about the transcript; not part of the template and not established at the meeting.',
+    injectNonFactual: {
+      target: 'after-privilege',
+      text: '*Note on the conversation record: the exchanges in the latter part of the recording do not introduce any new facts and are not separately recorded.*',
+    },
   },
   {
     id: 'placeholder-misuse-injected',
@@ -195,10 +252,16 @@ export const REGRESSION_CASES: RegressionCase[] = [
   },
 ];
 
-/** Plant cases used for document contamination (must-flag with plantSentence). */
+/** Factual tail-append plant cases (must-flag with plantSentence). */
 export const PLANT_CASES = REGRESSION_CASES.filter(
   (c): c is RegressionCase & { plantSentence: string } =>
     c.kind === 'must-flag' && Boolean(c.plantSentence),
+);
+
+/** Section-targeted non-factual plant cases (corporate fixture only). */
+export const NON_FACTUAL_PLANT_CASES = REGRESSION_CASES.filter(
+  (c): c is RegressionCase & { injectNonFactual: NonNullable<RegressionCase['injectNonFactual']> } =>
+    c.kind === 'must-flag' && Boolean(c.injectNonFactual),
 );
 
 export const PLACEHOLDER_MISUSE_CASE = REGRESSION_CASES.find(

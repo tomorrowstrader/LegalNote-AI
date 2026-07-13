@@ -6,6 +6,7 @@
  *   npx tsx scripts/note-safety-harness.ts
  *
  * Env: OPENAI_API_KEY, AWS_REGION=eu-west-2, BEDROCK_PRIVILEGED_MODEL_ID=eu.anthropic.claude-sonnet-4-6
+ *       HARNESS_ARM=A|B|both (default: both)
  */
 
 import { writeFileSync, readFileSync, existsSync } from 'fs';
@@ -14,12 +15,19 @@ import { fileURLToPath } from 'url';
 import { SYNTHETIC_TRANSCRIPTS, type SyntheticTranscriptSpec } from './note-safety-transcripts';
 import {
   PLANT_CASES,
+  NON_FACTUAL_PLANT_CASES,
   PLACEHOLDER_MISUSE_CASE,
   WRONG_CLIENT_NAME_CASE,
   REGRESSION_CASES,
   RETIRED_SPURIOUS_PATTERNS,
   type RegressionCase,
 } from './verifier-regression-cases';
+import {
+  evaluateDerivationAssertions,
+  formatDerivationReportLines,
+  extractSectionHeadings,
+  type DerivationReport,
+} from './derivation-assertions';
 import { createBedrockChatCompletion } from './harness-bedrock-completion';
 import type { DocumentChatCompletionFn } from '../server/services/documentService';
 
@@ -73,6 +81,12 @@ const HARNESS_EXTRAS: Record<string, HarnessMetadataExtras> = {
     feeEarnerName: 'Sarah Mitchell',
     meetingStartTime: '10:30',
     durationMinutes: 95,
+  },
+  'family-derivation-lay-speech': {
+    feeEarnerDisplayName: 'Michael Reyes, Partner Solicitor',
+    feeEarnerName: 'Michael Reyes',
+    meetingStartTime: '10:00',
+    durationMinutes: 75,
   },
   'immigration-case-history': {
     feeEarnerDisplayName: 'David Okonkwo, Immigration Solicitor',
@@ -328,6 +342,119 @@ function injectPlaceholderMisuse(document: string, dateCandidates: string[]): In
   return { ok: true, document: out.join('\n'), method: 'due-date-match' };
 }
 
+interface FooterCheckResult {
+  ok: boolean;
+  preparedByCount: number;
+  datePreparedCount: number;
+  lines: string[];
+}
+
+function checkDocumentFooter(document: string): FooterCheckResult {
+  const preparedBy = document.match(/prepared by:/gi) ?? [];
+  const datePrepared = document.match(/date prepared:/gi) ?? [];
+  const lines: string[] = [];
+  for (const line of document.split('\n')) {
+    if (/prepared by:|date prepared:/i.test(line)) {
+      lines.push(line.trim());
+    }
+  }
+  return {
+    ok: preparedBy.length <= 1 && datePrepared.length <= 1,
+    preparedByCount: preparedBy.length,
+    datePreparedCount: datePrepared.length,
+    lines,
+  };
+}
+
+function findSubsectionHeader(
+  document: string,
+  patterns: RegExp[],
+): { index: number; length: number; label: string } | null {
+  for (const pat of patterns) {
+    const m = document.match(pat);
+    if (m && m.index !== undefined) {
+      return { index: m.index, length: m[0].length, label: m[0].trim() };
+    }
+  }
+  return null;
+}
+
+function findNextSubsectionBoundary(rest: string): number {
+  const patterns = [
+    /\n\s+Client'?s instructions and response:/i,
+    /\n\s+What was discussed:/i,
+    /\n\s+Advice given:/i,
+    /\n\s+Key points advised:/i,
+    /\n\s+Reasoning behind advice/i,
+    /\n\*\*\d+\./,
+    /\n\*\*[A-Z]/,
+  ];
+  let earliest = -1;
+  for (const pat of patterns) {
+    const idx = rest.search(pat);
+    if (idx >= 0 && (earliest < 0 || idx < earliest)) {
+      earliest = idx;
+    }
+  }
+  return earliest;
+}
+
+function injectNonFactualPlant(
+  document: string,
+  inject: NonNullable<RegressionCase['injectNonFactual']>,
+): InjectionOutcome {
+  if (!document.trim()) {
+    return { ok: false, document, skipReason: 'Empty document' };
+  }
+
+  if (inject.target === 'reasoning-section') {
+    const header = findSubsectionHeader(document, [
+      /\*\*Reasoning behind advice[^*]*\*\*:?/i,
+      /Reasoning behind advice and decisions:/i,
+      /Reasoning behind advice:/i,
+    ]);
+    if (!header) {
+      return { ok: false, document, skipReason: 'No Reasoning behind advice section found' };
+    }
+    const afterHeader = header.index + header.length;
+    const rest = document.slice(afterHeader);
+    const nextSection = findNextSubsectionBoundary(rest);
+    const insertAt = afterHeader + (nextSection >= 0 ? nextSection : rest.length);
+    const injected =
+      document.slice(0, insertAt) + `\n${inject.text}\n` + document.slice(insertAt);
+    return { ok: true, document: injected, method: `reasoning-section (${header.label})` };
+  }
+
+  if (inject.target === 'instructions-section') {
+    const header = findSubsectionHeader(document, [
+      /\*\*Client'?s instructions and response[^*]*\*\*:?/i,
+      /Client'?s instructions and response:/i,
+      /Client instructions and response:/i,
+    ]);
+    if (!header) {
+      return { ok: false, document, skipReason: "No Client's instructions and response section found" };
+    }
+    const afterHeader = header.index + header.length;
+    const rest = document.slice(afterHeader);
+    const nextSection = findNextSubsectionBoundary(rest);
+    const insertAt = afterHeader + (nextSection >= 0 ? nextSection : rest.length);
+    const injected =
+      document.slice(0, insertAt) + `\n${inject.text}\n` + document.slice(insertAt);
+    return { ok: true, document: injected, method: `instructions-section (${header.label})` };
+  }
+
+  const privilegeMatch = document.match(
+    /(\*?This attendance note is subject to legal professional privilege\.?\*?)/i,
+  );
+  if (!privilegeMatch || privilegeMatch.index === undefined) {
+    return { ok: false, document, skipReason: 'No legal professional privilege line found' };
+  }
+  const insertAt = privilegeMatch.index + privilegeMatch[0].length;
+  const injected =
+    document.slice(0, insertAt) + `\n\n${inject.text}\n` + document.slice(insertAt);
+  return { ok: true, document: injected, method: 'after-privilege' };
+}
+
 function transcriptSupportsFlaggedContent(warning: string, transcript: string): boolean {
   const wLower = warning.toLowerCase();
   const tLower = transcript.toLowerCase();
@@ -365,7 +492,14 @@ function classifyWarning(
 ): WarningClass {
   const wLower = warning.toLowerCase();
 
-  const mustFlag = REGRESSION_CASES.filter((c) => c.kind === 'must-flag' && !c.plantSentence && !c.injectPlaceholderMisuse && !c.injectWrongClientName);
+  const mustFlag = REGRESSION_CASES.filter(
+    (c) =>
+      c.kind === 'must-flag' &&
+      !c.plantSentence &&
+      !c.injectPlaceholderMisuse &&
+      !c.injectWrongClientName &&
+      !c.injectNonFactual,
+  );
   for (const c of mustFlag) {
     if (c.detectBy.some((sub) => wLower.includes(sub.toLowerCase()))) {
       return 'genuine-catch';
@@ -443,9 +577,11 @@ function findNaturalPlaceholderMisuse(note: string): string[] {
 
 interface PlantRunResult {
   case: RegressionCase;
-  status: 'DETECTED' | 'MISSED';
+  status: 'DETECTED' | 'MISSED' | 'SKIPPED';
   matchingWarnings: string[];
   allWarnings: string[];
+  skipReason?: string;
+  injectMethod?: string;
 }
 
 type InjectionRegressionStatus = 'FLAGGED' | 'MISSED' | 'SKIPPED';
@@ -467,6 +603,8 @@ interface TranscriptResult {
   summaryBaselineClassified: Array<{ warning: string; classification: WarningClass }>;
   attendancePlants: PlantRunResult[];
   summaryPlants: PlantRunResult[];
+  attendanceNonFactualPlants: PlantRunResult[];
+  derivationReport: DerivationReport | null;
   placeholderMisuseInjected: InjectionRegressionResult | null;
   wrongClientNameInjected: InjectionRegressionResult | null;
   naturalPlaceholderMisuseLines: string[];
@@ -479,6 +617,9 @@ interface TranscriptResult {
   };
   attendanceHasDash: boolean;
   summaryHasDash: boolean;
+  attendanceFooter: FooterCheckResult;
+  summaryFooter: FooterCheckResult;
+  sectionHeadings: { attendance: string[]; summary: string[] };
   generationCost: number;
   verificationCost: number;
 }
@@ -490,6 +631,9 @@ interface GateResult {
   attendancePlantsTotal: number;
   summaryPlantsDetected: number;
   summaryPlantsTotal: number;
+  nonFactualPlantsDetected: number;
+  nonFactualPlantsTotal: number;
+  nonFactualPlantsSkipped: number;
   retiredSpuriousPresent: string[];
   placeholderMisuseOk: boolean;
   wrongClientNameOk: boolean;
@@ -589,6 +733,9 @@ function evaluateGates(
   let attendanceTotal = 0;
   let summaryDetected = 0;
   let summaryTotal = 0;
+  let nonFactualDetected = 0;
+  let nonFactualTotal = 0;
+  let nonFactualSkipped = 0;
   const retiredSpuriousPresent: string[] = [];
   const attendanceSpurious: string[] = [];
   const corporateCompliantPlaceholderViolations: string[] = [];
@@ -597,11 +744,40 @@ function evaluateGates(
     for (const p of r.attendancePlants) {
       attendanceTotal++;
       if (p.status === 'DETECTED') attendanceDetected++;
-      else failures.push(`Attendance plant MISSED: ${r.spec.id} / ${p.case.id}`);
+      else if (p.status === 'MISSED') {
+        failures.push(`Attendance factual plant MISSED: ${r.spec.id} / ${p.case.id}`);
+      }
     }
     for (const p of r.summaryPlants) {
       summaryTotal++;
       if (p.status === 'DETECTED') summaryDetected++;
+    }
+    for (const p of r.attendanceNonFactualPlants) {
+      nonFactualTotal++;
+      if (p.status === 'DETECTED') nonFactualDetected++;
+      if (p.status === 'SKIPPED') {
+        nonFactualSkipped++;
+        failures.push(
+          `Non-factual plant SKIPPED: ${r.spec.id} / ${p.case.id} (${p.skipReason ?? 'unknown'})`,
+        );
+      }
+    }
+
+    if (!r.attendanceFooter.ok) {
+      failures.push(
+        `Double/missing footer (attendance): ${r.spec.id} — Prepared by: ${r.attendanceFooter.preparedByCount}, Date Prepared: ${r.attendanceFooter.datePreparedCount}`,
+      );
+    }
+    if (!r.summaryFooter.ok) {
+      failures.push(
+        `Double/missing footer (summary): ${r.spec.id} — Prepared by: ${r.summaryFooter.preparedByCount}, Date Prepared: ${r.summaryFooter.datePreparedCount}`,
+      );
+    }
+
+    if (r.derivationReport) {
+      for (const f of r.derivationReport.hardGateFailures) {
+        failures.push(f);
+      }
     }
 
     for (const w of r.attendanceBaseline) {
@@ -692,6 +868,9 @@ function evaluateGates(
     attendancePlantsTotal: attendanceTotal,
     summaryPlantsDetected: summaryDetected,
     summaryPlantsTotal: summaryTotal,
+    nonFactualPlantsDetected: nonFactualDetected,
+    nonFactualPlantsTotal: nonFactualTotal,
+    nonFactualPlantsSkipped: nonFactualSkipped,
     retiredSpuriousPresent,
     placeholderMisuseOk,
     wrongClientNameOk,
@@ -730,6 +909,51 @@ async function runPlants(
       allWarnings: normalizedWarnings,
     });
     console.log(`    Plant "${plantCase.id}": ${detected ? 'DETECTED' : 'MISSED'}`);
+  }
+  return { results, cost };
+}
+
+async function runNonFactualPlants(
+  documentService: InstanceType<(typeof import('../server/services/documentService'))['DocumentService']>,
+  document: string,
+  transcript: string,
+  transcriptId: string,
+  callLog: ApiCallRecord[],
+): Promise<{ results: PlantRunResult[]; cost: number }> {
+  const results: PlantRunResult[] = [];
+  let cost = 0;
+  for (const plantCase of NON_FACTUAL_PLANT_CASES) {
+    const inject = plantCase.injectNonFactual!;
+    const injectOutcome = injectNonFactualPlant(document, inject);
+    if (!injectOutcome.ok) {
+      results.push({
+        case: plantCase,
+        status: 'SKIPPED',
+        matchingWarnings: [],
+        allWarnings: [],
+        skipReason: injectOutcome.skipReason,
+      });
+      console.log(`    Non-factual plant "${plantCase.id}": SKIPPED (${injectOutcome.skipReason})`);
+      continue;
+    }
+    const verify = await timedApiCall(
+      callLog,
+      transcriptId,
+      `attendance non-factual plant:${plantCase.id}`,
+      () =>
+        documentService.verifyDocumentAgainstTranscript(injectOutcome.document, transcript),
+    );
+    cost += verify.cost;
+    const detected = caseDetected(verify.warnings, plantCase);
+    const normalizedWarnings = normalizeWarnings(verify.warnings);
+    results.push({
+      case: plantCase,
+      status: detected ? 'DETECTED' : 'MISSED',
+      matchingWarnings: matchingWarnings(verify.warnings, plantCase),
+      allWarnings: normalizedWarnings,
+      injectMethod: injectOutcome.method,
+    });
+    console.log(`    Non-factual plant "${plantCase.id}": ${detected ? 'DETECTED' : 'MISSED'}`);
   }
   return { results, cost };
 }
@@ -800,6 +1024,41 @@ async function runHarness(
     console.log('  summary plants...');
     const sumPlants = await runPlants(documentService, summaryText, transcript, spec.id, callLog, 'summary');
     verificationCost += sumPlants.cost;
+
+    let attendanceNonFactualPlants: PlantRunResult[] = [];
+    if (spec.nonFactualPlantTarget) {
+      console.log('  non-factual plants (section-targeted)...');
+      const nfPlants = await runNonFactualPlants(
+        documentService,
+        attendanceNote,
+        transcript,
+        spec.id,
+        callLog,
+      );
+      attendanceNonFactualPlants = nfPlants.results;
+      verificationCost += nfPlants.cost;
+    }
+
+    const derivationReport =
+      spec.id === 'family-derivation-lay-speech'
+        ? evaluateDerivationAssertions(attendanceNote, summaryText)
+        : null;
+
+    if (derivationReport) {
+      const derivePassed = derivationReport.mustDerive.filter((a) => a.status === 'PASS').length;
+      const deriveWrong = derivationReport.mustDerive.filter((a) => a.status === 'WRONG').length;
+      const charPassed = derivationReport.mustCharacterise.filter((a) => a.status === 'PASS').length;
+      console.log(
+        `  derivation test: MUST-DERIVE ${derivePassed}/${derivationReport.mustDerive.length} pass, ${deriveWrong} wrong; MUST-CHARACTERISE ${charPassed}/${derivationReport.mustCharacterise.length}; hard gates: ${derivationReport.hardGateFailures.length === 0 ? 'CLEAN' : derivationReport.hardGateFailures.length + ' FAIL'}`,
+      );
+    }
+
+    const attendanceFooter = checkDocumentFooter(attendanceNote);
+    const summaryFooter = checkDocumentFooter(summaryText);
+    const sectionHeadings = {
+      attendance: extractSectionHeadings(attendanceNote),
+      summary: extractSectionHeadings(summaryText),
+    };
 
     let placeholderMisuseInjected: TranscriptResult['placeholderMisuseInjected'] = null;
     let wrongClientNameInjected: TranscriptResult['wrongClientNameInjected'] = null;
@@ -890,6 +1149,8 @@ async function runHarness(
       })),
       attendancePlants: attPlants.results,
       summaryPlants: sumPlants.results,
+      attendanceNonFactualPlants,
+      derivationReport,
       placeholderMisuseInjected,
       wrongClientNameInjected,
       naturalPlaceholderMisuseLines: naturalLines,
@@ -905,6 +1166,9 @@ async function runHarness(
             },
       attendanceHasDash: containsEmOrEnDash(modelProseForDashGate(attendanceNote)),
       summaryHasDash: containsEmOrEnDash(modelProseForDashGate(summaryText)),
+      attendanceFooter,
+      summaryFooter,
+      sectionHeadings,
       generationCost,
       verificationCost,
     });
@@ -966,8 +1230,9 @@ function buildReport(
     '',
     `**Result:** ${gates.passed ? 'PASS' : 'FAIL'}`,
     '',
-    `- Attendance plants: ${gates.attendancePlantsDetected}/${gates.attendancePlantsTotal} DETECTED`,
-    `- Summary plants: ${gates.summaryPlantsDetected}/${gates.summaryPlantsTotal} DETECTED (informative)`,
+    `- Factual plants (attendance): ${gates.attendancePlantsDetected}/${gates.attendancePlantsTotal} DETECTED`,
+    `- Factual plants (summary): ${gates.summaryPlantsDetected}/${gates.summaryPlantsTotal} DETECTED (informative)`,
+    `- Non-factual plants: ${gates.nonFactualPlantsDetected}/${gates.nonFactualPlantsTotal} DETECTED (informative; SKIPPED is gate failure${gates.nonFactualPlantsSkipped > 0 ? `; ${gates.nonFactualPlantsSkipped} SKIPPED` : ''})`,
     `- Placeholder misuse injected: ${gates.placeholderMisuseOk ? 'FLAGGED' : 'MISSED/SKIPPED'}`,
     `- Wrong-client-name injected: ${gates.wrongClientNameOk ? 'FLAGGED' : 'MISSED/SKIPPED'}`,
     `- No em/en dash in model prose: ${gates.dashFree ? 'YES' : 'NO'}`,
@@ -1013,6 +1278,49 @@ function buildReport(
     lines.push('```');
     lines.push('');
 
+    lines.push('### Section headings (diagnostic)', '');
+    lines.push('**Attendance:**');
+    if (r.sectionHeadings.attendance.length === 0) {
+      lines.push('_None detected._');
+    } else {
+      for (const h of r.sectionHeadings.attendance) lines.push(`- ${h}`);
+    }
+    lines.push('**Summary:**');
+    if (r.sectionHeadings.summary.length === 0) {
+      lines.push('_None detected._');
+    } else {
+      for (const h of r.sectionHeadings.summary) lines.push(`- ${h}`);
+    }
+    lines.push('');
+
+    lines.push('### Footer integrity', '');
+    lines.push(
+      `**Attendance:** Prepared by: ${r.attendanceFooter.preparedByCount} | Date Prepared: ${r.attendanceFooter.datePreparedCount} | ${r.attendanceFooter.ok ? 'OK' : '**FAIL**'}`,
+    );
+    for (const l of r.attendanceFooter.lines) lines.push(`- \`${l}\``);
+    lines.push(
+      `**Summary:** Prepared by: ${r.summaryFooter.preparedByCount} | Date Prepared: ${r.summaryFooter.datePreparedCount} | ${r.summaryFooter.ok ? 'OK' : '**FAIL**'}`,
+    );
+    for (const l of r.summaryFooter.lines) lines.push(`- \`${l}\``);
+    lines.push('');
+
+    if (r.spec.id === 'family-derivation-lay-speech') {
+      lines.push('### Generated summary', '');
+      lines.push('```');
+      lines.push(r.summaryText);
+      lines.push('```');
+      lines.push('');
+      lines.push('### Derivation test assertions', '');
+      lines.push('```');
+      if (r.derivationReport) {
+        lines.push(...formatDerivationReportLines(r.derivationReport));
+      } else {
+        lines.push('_Derivation report not computed._');
+      }
+      lines.push('```');
+      lines.push('');
+    }
+
     if (r.spec.id === 'family-financial-remedy') {
       lines.push('### Family derive/characterise check', '');
       lines.push(`- Duration derivation from marriage/separation dates: ${r.deriveCharacterise.hasSubsistenceDerivation ? 'YES' : 'NO'}`);
@@ -1048,7 +1356,7 @@ function buildReport(
     }
     lines.push('');
 
-    lines.push('### Attendance plants', '');
+    lines.push('### Attendance plants (factual)', '');
     lines.push('| Plant | Status | Matching |');
     lines.push('|-------|--------|----------|');
     for (const p of r.attendancePlants) {
@@ -1057,7 +1365,19 @@ function buildReport(
     }
     lines.push('');
 
-    lines.push('### Summary plants', '');
+    if (r.attendanceNonFactualPlants.length > 0) {
+      lines.push('### Attendance plants (non-factual, section-targeted)', '');
+      lines.push('| Plant | Status | Matching |');
+      lines.push('|-------|--------|----------|');
+      for (const p of r.attendanceNonFactualPlants) {
+        const m = p.matchingWarnings.join('; ') || '—';
+        const skip = p.skipReason ? ` (${p.skipReason})` : '';
+        lines.push(`| ${p.case.id} | **${p.status}**${skip} | ${m.replace(/\|/g, '\\|')} |`);
+      }
+      lines.push('');
+    }
+
+    lines.push('### Summary plants (factual)', '');
     lines.push('| Plant | Status | Matching |');
     lines.push('|-------|--------|----------|');
     for (const p of r.summaryPlants) {
@@ -1115,9 +1435,9 @@ function buildReport(
 
 runDualHarness()
   .then(({ armA, armB }) => {
-    console.log('\n=== Gate results (informational — run completed both arms) ===');
-    console.log(`Arm A: ${armA.gates.passed ? 'PASS' : 'FAIL'}`);
-    console.log(`Arm B: ${armB.gates.passed ? 'PASS' : 'FAIL'}`);
+    console.log('\n=== Gate results (informational) ===');
+    if (armA) console.log(`Arm A: ${armA.gates.passed ? 'PASS' : 'FAIL'}`);
+    if (armB) console.log(`Arm B: ${armB.gates.passed ? 'PASS' : 'FAIL'}`);
   })
   .catch((err) => {
     console.error('[note-safety-harness] Failed:', err);
@@ -1125,8 +1445,8 @@ runDualHarness()
   });
 
 async function runDualHarness(): Promise<{
-  armA: { results: TranscriptResult[]; gates: GateResult };
-  armB: { results: TranscriptResult[]; gates: GateResult };
+  armA: { results: TranscriptResult[]; gates: GateResult } | null;
+  armB: { results: TranscriptResult[]; gates: GateResult } | null;
 }> {
   if (!process.env.AWS_REGION) {
     process.env.AWS_REGION = 'eu-west-2';
@@ -1135,28 +1455,46 @@ async function runDualHarness(): Promise<{
     process.env.BEDROCK_PRIVILEGED_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6';
   }
 
-  const armA = await runHarness('A');
-  if (!armA.gates.passed) {
-    console.warn('\nArm A gate: FAIL (continuing to Arm B)');
-  } else {
-    console.log('\nArm A gate: PASS');
+  const harnessArm = (process.env.HARNESS_ARM ?? 'both').toLowerCase();
+  const runA = harnessArm === 'a' || harnessArm === 'both';
+  const runB = harnessArm === 'b' || harnessArm === 'both';
+
+  if (!runA && !runB) {
+    console.error('[note-safety-harness] HARNESS_ARM must be A, B, or both');
+    process.exit(1);
   }
 
-  const armB = await runHarness('B', createBedrockChatCompletion());
-  if (!armB.gates.passed) {
-    console.warn('\nArm B gate: FAIL');
-  } else {
-    console.log('\nArm B gate: PASS');
+  let armA: { results: TranscriptResult[]; gates: GateResult } | null = null;
+  let armB: { results: TranscriptResult[]; gates: GateResult } | null = null;
+
+  if (runA) {
+    armA = await runHarness('A');
+    if (!armA.gates.passed) {
+      console.warn('\nArm A gate: FAIL' + (runB ? ' (continuing to Arm B)' : ''));
+    } else {
+      console.log('\nArm A gate: PASS');
+    }
   }
 
-  const comparisonPath = join(SCRIPT_DIR, `note-safety-results-${RESULTS_DATE}-batch2-comparison.md`);
-  writeFileSync(comparisonPath, buildComparisonReport(armA, armB), 'utf-8');
-  console.log(`\nComparison report: ${comparisonPath}`);
+  if (runB) {
+    armB = await runHarness('B', createBedrockChatCompletion());
+    if (!armB.gates.passed) {
+      console.warn('\nArm B gate: FAIL');
+    } else {
+      console.log('\nArm B gate: PASS');
+    }
+  }
+
+  if (armA && armB) {
+    const comparisonPath = join(SCRIPT_DIR, `note-safety-results-${RESULTS_DATE}-batch2-comparison.md`);
+    writeFileSync(comparisonPath, buildComparisonReport(armA, armB), 'utf-8');
+    console.log(`\nComparison report: ${comparisonPath}`);
+  }
 
   return { armA, armB };
 }
 
-function formatPlantStatus(status: 'DETECTED' | 'MISSED'): string {
+function formatPlantStatus(status: PlantRunResult['status']): string {
   return status;
 }
 
@@ -1216,8 +1554,9 @@ function buildComparisonReport(
     '| Check | Arm A (GPT-4o) | Arm B (Sonnet 4.6) |',
     '|-------|----------------|---------------------|',
     `| Hard gate | ${armA.gates.passed ? 'PASS' : 'FAIL'} | ${armB.gates.passed ? 'PASS' : 'FAIL'} |`,
-    `| Attendance plants | ${armA.gates.attendancePlantsDetected}/${armA.gates.attendancePlantsTotal} | ${armB.gates.attendancePlantsDetected}/${armB.gates.attendancePlantsTotal} |`,
-    `| Summary plants | ${armA.gates.summaryPlantsDetected}/${armA.gates.summaryPlantsTotal} | ${armB.gates.summaryPlantsDetected}/${armB.gates.summaryPlantsTotal} |`,
+    `| Factual plants (attendance) | ${armA.gates.attendancePlantsDetected}/${armA.gates.attendancePlantsTotal} | ${armB.gates.attendancePlantsDetected}/${armB.gates.attendancePlantsTotal} |`,
+    `| Factual plants (summary) | ${armA.gates.summaryPlantsDetected}/${armA.gates.summaryPlantsTotal} | ${armB.gates.summaryPlantsDetected}/${armB.gates.summaryPlantsTotal} |`,
+    `| Non-factual plants | ${armA.gates.nonFactualPlantsDetected}/${armA.gates.nonFactualPlantsTotal} | ${armB.gates.nonFactualPlantsDetected}/${armB.gates.nonFactualPlantsTotal} |`,
     `| Injections FLAGGED | ${armA.gates.placeholderMisuseOk && armA.gates.wrongClientNameOk ? 'YES' : 'NO'} | ${armB.gates.placeholderMisuseOk && armB.gates.wrongClientNameOk ? 'YES' : 'NO'} |`,
     `| Family derive + numerals | ${armA.gates.familyDeriveNumeralsOk ? 'YES' : 'NO'} | ${armB.gates.familyDeriveNumeralsOk ? 'YES' : 'NO'} |`,
     `| Immigration placeholder misuse gone | ${armA.gates.immigrationPlaceholderGone ? 'YES' : 'NO'} | ${armB.gates.immigrationPlaceholderGone ? 'YES' : 'NO'} |`,

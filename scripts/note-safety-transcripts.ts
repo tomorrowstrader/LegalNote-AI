@@ -23,6 +23,8 @@ export interface SyntheticTranscriptSpec {
   expectedAmlSignals?: string[];
   /** Phrases that must NOT appear in extractions (invented items). */
   forbiddenExtractionHints: string[];
+  /** Corporate fixture only: target for section-targeted non-factual verifier plants. */
+  nonFactualPlantTarget?: boolean;
 }
 
 const CONSENT_PREFIX = `[Speaker A — Solicitor]: Before we begin, I need to confirm you consent to this meeting being recorded for the purpose of preparing an attendance note. Do you agree?
@@ -74,6 +76,87 @@ function immigrationBody(): string {
 [Speaker B — Client]: I will email the passport scans tonight.
 [Speaker A — Solicitor]: We will also prepare a witness statement on absences if needed. Next review call 26 March 2026 at 11:00. Meeting ended 10:40.
 `.trim();
+}
+
+function familyDerivationLaySpeechBody(): string {
+  return `[Speaker A — Solicitor]: Craig, thanks for coming in. Before we start, I'd like to record this so I can write up an accurate note for the file. Everything stays confidential, same as if I were writing it by hand. Are you happy with that?
+[Speaker B — Client]: Yeah, that's fine.
+[Speaker A — Solicitor]: Thank you. I'm Michael Reyes, I'm a solicitor and a partner here, and I'm regulated by the Solicitors Regulation Authority. You've got the terms of business letter, so you'll have seen how to complain if you ever need to. One thing I ask everyone. Is there anything about your health, or your circumstances, that means you'd want me to do things differently for you?
+[Speaker B — Client]: No, I'm all right. Bit tired, that's all.
+[Speaker A — Solicitor]: Understood. Let's start at the beginning. Tell me about you and Sophie.
+[Speaker B — Client]: So we met in 2009. Been together ever since. We got married in June 2015.
+[Speaker A — Solicitor]: And when did things end?
+[Speaker B — Client]: I moved out in November last year. Just before Bonfire Night.
+[Speaker A — Solicitor]: And is that it? Is there any chance of the two of you working it out?
+[Speaker B — Client]: No. It's done. There's no coming back from it, honestly.
+[Speaker A — Solicitor]: All right. And the children, tell me about them.
+[Speaker B — Client]: Ellie's eleven. Tom's eight. He's the young one.
+[Speaker A — Solicitor]: Right. Let's talk about the house.
+[Speaker B — Client]: So the house. It's in both our names. The estate agent came round and said about six eighty.
+[Speaker A — Solicitor]: Six hundred and eighty thousand?
+[Speaker B — Client]: Yeah. And there's still about two hundred and ten thousand left on the mortgage.
+[Speaker A — Solicitor]: And who's living there?
+[Speaker B — Client]: Sophie and the kids. I'm at my brother's.
+[Speaker A — Solicitor]: And who's paying the mortgage?
+[Speaker B — Client]: Me. Still. And I've been giving her money on top.
+[Speaker A — Solicitor]: How much on top?
+[Speaker B — Client]: Eight hundred a month. I can't keep doing it, honestly, I'm running on fumes.
+[Speaker A — Solicitor]: And what do you earn?
+[Speaker B — Client]: I bring home about three and a half grand a month. That's after tax.
+[Speaker A — Solicitor]: And Sophie?
+[Speaker B — Client]: She's on about seventy-five. She's an operations manager. She's always earned more than me, that's never bothered me.
+[Speaker A — Solicitor]: And pensions?
+[Speaker B — Client]: So hers is the big one. She got that transfer value thing done and it came back at three hundred and twenty. Mine's about ninety. I've moved around a lot, I've got bits everywhere.
+[Speaker A — Solicitor]: All right. That's useful. Now, the deposit on the house. Where did that come from?
+[Speaker B — Client]: My dad. He gave us forty grand for the deposit. That was 2016, I think. Maybe early 2017. He said it was a gift, but honestly I've always felt like I owed him.
+[Speaker A — Solicitor]: Was anything written down?
+[Speaker B — Client]: No. Nothing. It was just my dad.
+[Speaker A — Solicitor]: All right. I'm going to be straight with you about that, because I don't want you to have false hope. It matters that your father gave it, but it was given after you were married, and there's nothing in writing. That makes it harder to argue it should come off the top for you, and I want you to hear that from me now rather than in six months. It's still worth raising, but it isn't the trump card you might be hoping for.
+[Speaker B — Client]: Right. Okay.
+[Speaker A — Solicitor]: Now. Anything else about the money that's bothering you?
+[Speaker B — Client]: Yeah, actually. There was fifteen grand in the joint account in September. And it's gone. All of it.
+[Speaker A — Solicitor]: Gone where?
+[Speaker B — Client]: She says she paid off a credit card. But she won't show me anything. Won't send me a statement, won't tell me which card. And I don't, look, I'm not saying she's stolen it. But I don't know where it's gone and she won't tell me.
+[Speaker A — Solicitor]: All right. I'm going to note down that you've raised that, and I'm not going to draw a conclusion about it today and nor should you. What we do is we deal with it through disclosure. She has to put everything on the table, everything, and if that money went somewhere it has to be explained. If it can't be, that becomes a very different conversation. But we don't accuse anybody of anything until we've seen the paperwork.
+[Speaker B — Client]: Yeah. That's fair.
+[Speaker A — Solicitor]: Anything else?
+[Speaker B — Client]: There is, and I don't really know how to say it. She's been saying things to the kids. About me. Ellie came back last time and she was different with me. Wouldn't look at me.
+[Speaker A — Solicitor]: That sounds hard.
+[Speaker B — Client]: It is.
+[Speaker A — Solicitor]: I'm going to write down that you've raised a concern about your relationship with the children. I'm deliberately not going to put a label on it, because labels in these situations tend to become weapons, and I'd rather have the facts first. If it carries on, we'll deal with it properly.
+[Speaker B — Client]: Okay.
+[Speaker A — Solicitor]: Now, the court. If we can't agree this, a judge decides. And a judge has to look at a whole list of things: how long you were married, what you each earn, what you each need going forward, what the children need, what each of you put in. The children's needs come first, always. And I'll tell you now, the thing that will drive this case more than anything is that Tom is eight and Ellie is eleven, and they need a roof, and so do you.
+[Speaker B — Client]: So what does that mean for the house?
+[Speaker A — Solicitor]: In practice it probably means both of you need somewhere the children can live properly. Which affects how the house gets split, and it might mean the house doesn't get sold straight away.
+[Speaker B — Client]: And what about the pensions? Hers is huge compared to mine.
+[Speaker A — Solicitor]: It is, and that's a real point in your favour. There's a way of splitting a pension so a share of hers moves into your name. That's often the thing that lets us stop the monthly payments altogether, and I think that's what you want, isn't it? You don't want to be tied to her for the next fifteen years.
+[Speaker B — Client]: God, no. I want it finished.
+[Speaker A — Solicitor]: Then that's what we aim for.
+[Speaker B — Client]: And what about the money I'm paying her?
+[Speaker A — Solicitor]: Stop paying the mortgage. Pay her direct instead.
+[Speaker B — Client]: Why?
+[Speaker A — Solicitor]: Because at the moment you're paying the mortgage on a house she lives in, and paying her on top, and nobody is writing any of it down in your favour. If you pay her direct, it's visible, it's recorded, and a judge can take it into account. As it stands you're subsidising her and getting no credit for it.
+[Speaker B — Client]: Right. That makes sense.
+[Speaker A — Solicitor]: Also stop paying into the joint account.
+[Speaker B — Client]: Okay.
+[Speaker A — Solicitor]: Now, there's a hearing listed. Fourteenth of May.
+[Speaker B — Client]: That's quick.
+[Speaker A — Solicitor]: It is. So there are things we have to do before then. I need twelve months of bank statements from you, and your pension paperwork. All of it, including the bits you've forgotten about.
+[Speaker B — Client]: When do you need them?
+[Speaker A — Solicitor]: By the end of the month.
+[Speaker B — Client]: All right.
+[Speaker A — Solicitor]: And I want you to send me a copy of your father's bank statement showing that forty thousand leaving his account, if he'll give it to you.
+[Speaker B — Client]: I'll ask him tonight.
+[Speaker A — Solicitor]: Good. On my side, I'm going to write to the other side proposing we sit down and try to sort this out before the hearing. I'll get that letter out by close of business on Friday, you have my word on that. And I'll draft you a proposal to look at.
+[Speaker B — Client]: Do you think she'll go for it?
+[Speaker A — Solicitor]: I don't know. But it costs us nothing to try, and if she refuses, that goes in front of the judge too.
+[Speaker B — Client]: Okay.
+[Speaker A — Solicitor]: Do you want to talk about my fees today, or shall I put it in writing?
+[Speaker B — Client]: In writing. I can't take any more in today, to be honest.
+[Speaker A — Solicitor]: In writing then. Let's speak Thursday. Half three?
+[Speaker B — Client]: Half three Thursday's fine.
+[Speaker A — Solicitor]: Good. We'll get there, Craig.
+[Speaker B — Client]: Thanks.`;
 }
 
 function corporateFiduciaryBody(): string {
@@ -154,9 +237,36 @@ export const SYNTHETIC_TRANSCRIPTS: SyntheticTranscriptSpec[] = [
     forbiddenExtractionHints: ['deportation order issued', 'visa cancelled yesterday'],
   },
   {
+    id: 'family-derivation-lay-speech',
+    label: 'Family: Derivation Test (Lay Speech)',
+    practiceArea: 'family_divorce_financial',
+    metadata: {
+      title: 'Bennett v Bennett: Financial Remedy Conference',
+      clientName: 'Craig Bennett',
+      matterReference: 'BENNETT/FIN/2026/0203',
+      recordingDate: '2026-03-16',
+    },
+    rawTranscript: familyDerivationLaySpeechBody(),
+    expectedActionItems: [
+      { descriptionHint: 'bank statements', assignee: 'Client' },
+      { descriptionHint: 'pension paperwork', assignee: 'Client' },
+      { descriptionHint: "father's bank statement", assignee: 'Client' },
+      { descriptionHint: 'letter to the other side', assignee: 'Solicitor' },
+      { descriptionHint: 'proposal', assignee: 'Solicitor' },
+    ],
+    expectedUndertakings: [{ wordingHint: 'letter out by close of business on Friday' }],
+    forbiddenExtractionHints: [
+      'parental alienation',
+      'dissipated the funds',
+      'pre-marital deposit',
+      'Cayman Islands trust',
+    ],
+  },
+  {
     id: 'corporate-fiduciary-duty',
     label: 'Corporate: Fiduciary Duty / Financial Crime Conference',
     practiceArea: 'corporate_commercial',
+    nonFactualPlantTarget: true,
     metadata: {
       title: 'Vasquez: Northstar Logistics Ltd Director Misapplication Investigation',
       clientName: 'Elena Vasquez',
