@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['server/**/*.test.ts', 'server/**/*.spec.ts'],
+    include: ['server/**/*.test.ts', 'server/**/*.spec.ts', 'shared/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/client/**', '**/.cache/**'],
   },
   resolve: {

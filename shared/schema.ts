@@ -295,7 +295,13 @@ export const consentLogs = pgTable("consent_logs", {
   sealingStatus: text("sealing_status").notNull().default("sealed"), // sealed | pre_sealing
 });
 
-export const RECORDING_TYPES = ["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station", "internal_meeting", "supervision"] as const;
+export const RECORDING_TYPES = [
+  "full_meeting",
+  "telephone_call",
+  "file_note",
+  "court_hearing",
+  "police_station",
+] as const;
 export type RecordingType = typeof RECORDING_TYPES[number];
 
 export const RECORDING_TYPE_LABELS: Record<RecordingType, string> = {
@@ -304,8 +310,6 @@ export const RECORDING_TYPE_LABELS: Record<RecordingType, string> = {
   file_note: "File Note",
   court_hearing: "Court Hearing",
   police_station: "Police Station",
-  internal_meeting: "Internal Meeting",
-  supervision: "Supervision",
 };
 
 export const meetingSessions = pgTable("meeting_sessions", {
@@ -863,7 +867,7 @@ export const insertMeetingSessionSchema = createInsertSchema(meetingSessions).om
   startedAt: true,
 }).extend({
   caseId: z.string().uuid(),
-  recordingType: z.enum(["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station", "internal_meeting", "supervision"]).default("full_meeting"),
+  recordingType: z.enum(["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station"]).default("full_meeting"),
   sessionTitle: z.string().max(200).optional(),
   durationSeconds: z.number().int().min(0).max(43200).optional(),
   status: z.enum(["pending", "processing", "completed", "failed"]).default("pending"),

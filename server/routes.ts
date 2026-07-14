@@ -55,6 +55,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
+import { validateRecordingType } from "@shared/recordingTypes";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
 import { isFeatureVisible, type FeatureKey } from "@shared/featureVisibility";
 import { z } from "zod";
@@ -8637,15 +8638,16 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         const resolvedTitle = (newCaseData?.title || 'Meeting recording').trim();
         const resolvedClientName = (newCaseData?.clientName || '').trim();
 
-        // For internal meetings, client is optional — use placeholder if absent
-        const clientData = resolvedClientName
-          ? await storage.createClient({ name: resolvedClientName }, userId)
-          : null;
+        if (!resolvedClientName) {
+          return res.status(400).json({ message: "caseData.clientName is required when createCase is true" });
+        }
+
+        const clientData = await storage.createClient({ name: resolvedClientName }, userId);
 
         const newCase = await storage.createCase({
           title: resolvedTitle,
-          clientId: clientData?.id || undefined,
-          clientName: resolvedClientName || 'Internal meeting',
+          clientId: clientData.id,
+          clientName: resolvedClientName,
           status: 'pending',
           priority: 'normal',
           sourceType: 'audio',
@@ -8659,8 +8661,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         }
       }
 
-      // Determine the session type to use
-      const resolvedRecordingType = recordingType || 'full_meeting';
+      const recordingTypeResult = validateRecordingType(recordingType || 'full_meeting');
+      if (!recordingTypeResult.ok) {
+        return res.status(400).json({ message: recordingTypeResult.message });
+      }
+      const resolvedRecordingType = recordingTypeResult.recordingType;
 
       // Create a meeting session for this recording with all required fields
       let createdSessionId: string | undefined;
@@ -11451,10 +11456,11 @@ ${firmName}`;
       const caseData = await storage.getCase(caseId, userId);
       if (!caseData) return res.status(404).json({ message: "Case not found" });
 
-      const validRecordingTypes = ["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station"];
-      const recordingType = validRecordingTypes.includes(req.body.recordingType)
-        ? req.body.recordingType
-        : "full_meeting";
+      const recordingTypeResult = validateRecordingType(req.body.recordingType ?? 'full_meeting');
+      if (!recordingTypeResult.ok) {
+        return res.status(400).json({ message: recordingTypeResult.message });
+      }
+      const recordingType = recordingTypeResult.recordingType;
 
       const sessionData = {
         caseId,

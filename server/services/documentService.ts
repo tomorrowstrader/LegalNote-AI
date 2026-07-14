@@ -1,5 +1,6 @@
 import { getPrivilegedLLMProvider } from './llm/providerFactory';
 import { privilegedComplete } from './llm/privilegedComplete';
+import { CLIENT_FACING_RECORDING_TYPES } from '@shared/recordingTypes';
 
 /**
  * Post-process document content to ensure known section headings are bold.
@@ -1312,138 +1313,6 @@ ${transcript}`;
     return await this.generateDocument(systemPrompt, userPrompt);
   }
 
-  async generateMeetingNotes(
-    transcript: string,
-    metadata: CaseMetadata,
-    utterances?: Array<{ speaker?: string; text: string; start: number; end: number }>
-  ): Promise<DocumentGenerationResult> {
-    const speakerNames = utterances?.map(u => u.speaker).filter(Boolean) ?? [];
-    const attendeesList = speakerNames.length > 0
-      ? [...new Set(speakerNames)].join(', ')
-      : '{Attendees from transcript, or "Not recorded in this session"}';
-
-    const systemPrompt = `You are a UK legal professional creating a structured internal meeting notes document. This is for an internal firm meeting (not a client meeting) so it does NOT require client care provisions, billing prompts, or PACE references.
-
-ABSOLUTE ANTI-FABRICATION RULES:
-1. Every statement must have a direct basis in the transcript provided.
-2. Do NOT invent details, decisions, or obligations not mentioned in the transcript.
-3. For any section that cannot be completed from the transcript, use: "Not recorded in this session"
-4. Be concise and professional.
-
-ATTENDEES: Extract the names or roles of all speakers from the transcript. If speaker labels are present (e.g., [Speaker A]), use them.
-
-Format the output as follows:
-
-**MEETING NOTES**
-
-Date: ${metadata.recordingDate}
-Attendees: ${attendeesList}
-Purpose: {State the stated purpose of the meeting from the transcript, or "Not recorded in this session"}
-
-**Discussion Points**
-
-[For each main topic discussed, provide a numbered heading and a brief factual summary. Only include topics explicitly discussed in the transcript.]
-
-**Decisions Made**
-
-[List any decisions made during the meeting. If none, state "No formal decisions recorded in this session."]
-
-**Obligations**
-
-[List any commitments, tasks, or undertakings agreed during the meeting with the responsible party and deadline if mentioned. If none, state "No obligations recorded in this session."]
-
----
-*These meeting notes are for internal firm use only.*
-
-FORMATTING GUIDELINES:
-- Use **bold** for section headings
-- Use numbered lists for discussion points
-- Use dash (-) for bullet points within sections
-- Keep language professional but less formal than client attendance notes
-- Do NOT include billing time prompts, PACE references, or AML sections`;
-
-    const userPrompt = `Generate structured meeting notes for this internal meeting transcript:
-
-**Meeting Title:** ${metadata.title}
-**Date:** ${metadata.recordingDate}
-
-**Transcript:**
-${transcript}`;
-
-    return await this.generateDocument(systemPrompt, userPrompt);
-  }
-
-  async generateSupervisionLog(
-    transcript: string,
-    metadata: CaseMetadata
-  ): Promise<DocumentGenerationResult> {
-    const systemPrompt = `You are a UK legal supervisor producing an SQE-compliant supervision log. This document records a supervision session between a supervising solicitor and a supervisee and forms part of the supervisee's training record. It must be factual, structured, and suitable for SRA inspection.
-
-ABSOLUTE ANTI-FABRICATION RULES:
-1. Every statement must have a direct basis in the transcript provided.
-2. Do NOT invent competencies discussed, feedback given, or actions not mentioned.
-3. For any section that cannot be completed from the transcript, use: "Not recorded in this session"
-4. Identify supervisor and supervisee from context or speaker labels where possible.
-
-REASONING AND THINKING — MANDATORY REQUIREMENT:
-For any guidance or direction given by the supervisor on legal matters or case handling, you MUST record the reasoning and thinking behind it as evident from the transcript. This is particularly important for competency evidence:
-1. Where the supervisor gives guidance on a legal matter, record the reasoning behind that guidance — e.g. "The supervisor directed [action], having considered [the specific factors from the session]."
-2. Where reasoning behind guidance was not captured in the session, state: "Reasoning behind guidance not recorded in this session."
-3. Do NOT fabricate reasoning not evident from the transcript.
-
-Format the output as follows:
-
-**SUPERVISION LOG**
-
-Date: ${metadata.recordingDate}
-Supervisor: {Name or role from transcript, or "Not identified in transcript"}
-Supervisee: {Name or role from transcript, or "Not identified in transcript"}
-Session type: Supervision session
-
----
-
-**Matters Reviewed**
-
-[List each matter or legal issue discussed. For each, provide: matter reference if mentioned, brief description of the issue reviewed, and any guidance given by the supervisor.]
-
-**Competencies Addressed**
-
-[List the SQE or SRA competency areas covered in this session, based on topics discussed. E.g.: Legal research, Client communication, Professional conduct, Drafting, Advocacy. Only include areas explicitly evidenced in the transcript.]
-
-**Supervisor Feedback**
-
-[Summarise any feedback, observations, or guidance given by the supervisor. If praise or criticism was given, record it factually.]
-
-**Agreed Development Actions**
-
-[List any specific actions, reading, training, or targets agreed for the supervisee. Include any deadlines mentioned. If none, state "No development actions recorded in this session."]
-
-**Supervisee Reflections**
-
-[Summarise any reflections or concerns raised by the supervisee. If none recorded, state "Not recorded in this session."]
-
----
-*This supervision log has been produced from a recording of the supervision session. It forms part of the supervisee's continuing professional development record and training portfolio.*
-
-FORMATTING GUIDELINES:
-- Use **bold** for section headings
-- Use numbered lists for matters reviewed
-- Use dash (-) for bullet points within sections
-- Maintain professional, objective language throughout
-- Do NOT include client care provisions or PACE references`;
-
-    const userPrompt = `Generate an SQE-compliant supervision log from this supervision session transcript:
-
-**Session Reference:** ${metadata.title}
-**Date:** ${metadata.recordingDate}
-${metadata.clientName ? `**Practice context:** ${metadata.clientName}` : ''}
-
-**Transcript:**
-${transcript}`;
-
-    return await this.generateDocument(systemPrompt, userPrompt);
-  }
-
   async generateDocumentByRecordingType(
     recordingType: string,
     transcript: string,
@@ -1465,16 +1334,13 @@ ${transcript}`;
       case 'police_station':
         result = await this.generatePoliceStationAttendanceNote(transcript, metadata, firmPreferences);
         break;
-      case 'internal_meeting':
-        result = await this.generateMeetingNotes(transcript, metadata, utterances);
-        break;
-      case 'supervision':
-        result = await this.generateSupervisionLog(transcript, metadata);
-        break;
       case 'full_meeting':
-      default:
         result = await this.generateAttendanceNote(transcript, metadata, firmPreferences, utterances);
         break;
+      default:
+        throw new Error(
+          `Unsupported recording type: ${recordingType}. Permitted types: ${CLIENT_FACING_RECORDING_TYPES.join(', ')}`,
+        );
     }
     return result;
   }

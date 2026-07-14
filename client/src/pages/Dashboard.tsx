@@ -808,18 +808,16 @@ export default function Dashboard() {
                     data-testid="input-new-matter-title"
                   />
                 </div>
-                {assignRecordingType !== "internal_meeting" && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="new-matter-client">Client name <span className="text-accent">*</span></Label>
-                    <Input
-                      id="new-matter-client"
-                      placeholder="e.g. Jane Smith"
-                      value={newMatterClient}
-                      onChange={(e) => setNewMatterClient(e.target.value)}
-                      data-testid="input-new-matter-client"
-                    />
-                  </div>
-                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="new-matter-client">Client name <span className="text-accent">*</span></Label>
+                  <Input
+                    id="new-matter-client"
+                    placeholder="e.g. Jane Smith"
+                    value={newMatterClient}
+                    onChange={(e) => setNewMatterClient(e.target.value)}
+                    data-testid="input-new-matter-client"
+                  />
+                </div>
                 <p className="text-xs text-muted-foreground">A new matter will be created and the recording will be processed against it.</p>
               </div>
             )}
@@ -833,7 +831,6 @@ export default function Dashboard() {
                 <SelectContent>
                   <SelectItem value="full_meeting">Client Meeting</SelectItem>
                   <SelectItem value="telephone_call">Telephone Call</SelectItem>
-                  <SelectItem value="internal_meeting">Internal Meeting</SelectItem>
                   <SelectItem value="court_hearing">Court Hearing</SelectItem>
                   <SelectItem value="police_station">Police Station</SelectItem>
                 </SelectContent>
@@ -850,7 +847,7 @@ export default function Dashboard() {
               </Button>
               <Button
                 className="flex-1"
-                disabled={assignMutation.isPending || (assignMode === "existing" ? !assignCaseId : !newMatterTitle.trim() || (assignRecordingType !== "internal_meeting" && !newMatterClient.trim()))}
+                disabled={assignMutation.isPending || (assignMode === "existing" ? !assignCaseId : !newMatterTitle.trim() || !newMatterClient.trim())}
                 onClick={() => {
                   if (!assignImport) return;
                   if (assignMode === "existing" && assignCaseId) {

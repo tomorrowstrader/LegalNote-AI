@@ -391,11 +391,10 @@ export class AIProcessingPipeline {
       };
 
       const recordingType = sessionInfo.recordingType;
-      const isInternalMeeting = recordingType === 'internal_meeting';
-      const docType = isInternalMeeting ? 'meeting_notes' : 'attendance_note';
-      const logLabel = isInternalMeeting ? 'meeting notes' : 'attendance note';
+      const docType = 'attendance_note';
+      const logLabel = 'attendance note';
 
-      // Step 2: Generate primary document first (attendance note or meeting notes)
+      // Step 2: Generate primary document (attendance note)
       console.log(`Generating ${logLabel} for case ${caseId} (recording type: ${recordingType}, session: ${sessionInfo.sessionId})...`);
       const attendanceResult = await this.documentService.generateDocumentByRecordingType(
         recordingType,
@@ -446,56 +445,54 @@ export class AIProcessingPipeline {
       let clientLetterVerification: Awaited<ReturnType<DocumentService['verifyDocumentAgainstTranscript']>> | undefined;
       let clientLetterDoc: typeof attendanceDoc | undefined;
 
-      if (!isInternalMeeting) {
-        await this.updateProcessingStatus(caseId, userId, {
-          status: 'generating_documents',
-          progress: 70,
-          currentStep: 'Generating client letter...',
-        });
+      await this.updateProcessingStatus(caseId, userId, {
+        status: 'generating_documents',
+        progress: 70,
+        currentStep: 'Generating client letter...',
+      });
 
-        console.log(`Generating client letter for case ${caseId}...`);
-        clientLetterResult = await this.documentService.generateSummary(
-          attendanceResult.content,
-          metadata
-        );
+      console.log(`Generating client letter for case ${caseId}...`);
+      clientLetterResult = await this.documentService.generateSummary(
+        attendanceResult.content,
+        metadata
+      );
 
-        logDocumentGovernanceViolations(clientLetterResult.content, 'client_letter', { caseId });
+      logDocumentGovernanceViolations(clientLetterResult.content, 'client_letter', { caseId });
 
-        await this.updateProcessingStatus(caseId, userId, {
-          status: 'generating_documents',
-          progress: 85,
-          currentStep: 'Verifying client letter against attendance note...',
-        });
+      await this.updateProcessingStatus(caseId, userId, {
+        status: 'generating_documents',
+        progress: 85,
+        currentStep: 'Verifying client letter against attendance note...',
+      });
 
-        clientLetterVerification = await this.documentService.verifyDocumentAgainstTranscript(
-          clientLetterResult.content,
-          attendanceResult.content
-        );
+      clientLetterVerification = await this.documentService.verifyDocumentAgainstTranscript(
+        clientLetterResult.content,
+        attendanceResult.content
+      );
 
-        clientLetterDoc = await this.storage.createDocument({
-          caseId,
-          transcriptSnapshotId: transcript.id,
-          type: 'client_letter',
-          content: clientLetterResult.content,
-          version: 1,
-          versionType: 'system_generated',
-          createdBy: userId,
-          isActive: true,
-          verificationWarnings: clientLetterVerification.warnings.length > 0 ? clientLetterVerification.warnings : undefined,
-          meetingSessionId: sessionInfo.sessionId ?? undefined,
-        });
+      clientLetterDoc = await this.storage.createDocument({
+        caseId,
+        transcriptSnapshotId: transcript.id,
+        type: 'client_letter',
+        content: clientLetterResult.content,
+        version: 1,
+        versionType: 'system_generated',
+        createdBy: userId,
+        isActive: true,
+        verificationWarnings: clientLetterVerification.warnings.length > 0 ? clientLetterVerification.warnings : undefined,
+        meetingSessionId: sessionInfo.sessionId ?? undefined,
+      });
 
-        await logAuditEvent(userId, "document_generated", {
-          caseId,
-          documentId: clientLetterDoc.id,
-          metadata: {
-            documentType: "client_letter",
-            inputTokens: clientLetterResult.inputTokens,
-            outputTokens: clientLetterResult.outputTokens,
-            cost: clientLetterResult.cost,
-          },
-        });
-      }
+      await logAuditEvent(userId, "document_generated", {
+        caseId,
+        documentId: clientLetterDoc.id,
+        metadata: {
+          documentType: "client_letter",
+          inputTokens: clientLetterResult.inputTokens,
+          outputTokens: clientLetterResult.outputTokens,
+          cost: clientLetterResult.cost,
+        },
+      });
 
       const verificationCost = attendanceVerification.cost + (clientLetterVerification?.cost ?? 0);
 
@@ -558,8 +555,8 @@ export class AIProcessingPipeline {
         console.error('[UNDERTAKINGS] Detection failed (non-blocking):', undertakingError);
       }
 
-      // AML Trigger Detection: scan transcript for compliance-relevant language (only for entitled users, skip for internal meetings)
-      if (!isInternalMeeting && isFeatureVisible("amlCompliance")) {
+      // AML Trigger Detection: scan transcript for compliance-relevant language (only for entitled users)
+      if (isFeatureVisible("amlCompliance")) {
         try {
           const pipelineUser = await this.storage.getUser(userId);
           if (!pipelineUser?.complianceThread) {
@@ -582,8 +579,6 @@ export class AIProcessingPipeline {
         } catch (amlError) {
           console.error('[AML] Trigger detection failed (non-blocking):', amlError);
         }
-      } else {
-        console.log(`[AML] Skipping trigger detection for internal meeting in case ${caseId}`);
       }
 
       // Obligations Auto-Extraction: extract obligations from transcript after processing

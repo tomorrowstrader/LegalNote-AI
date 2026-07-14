@@ -1002,7 +1002,6 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
                         <SelectContent>
                           <SelectItem value="full_meeting">Client Meeting</SelectItem>
                           <SelectItem value="telephone_call">Telephone Call</SelectItem>
-                          <SelectItem value="internal_meeting">Internal Meeting</SelectItem>
                           <SelectItem value="court_hearing">Court Hearing</SelectItem>
                           <SelectItem value="police_station">Police Station</SelectItem>
                         </SelectContent>
@@ -1043,29 +1042,26 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
                         <SelectContent>
                           <SelectItem value="full_meeting">Client Meeting</SelectItem>
                           <SelectItem value="telephone_call">Telephone Call</SelectItem>
-                          <SelectItem value="internal_meeting">Internal Meeting</SelectItem>
                           <SelectItem value="court_hearing">Court Hearing</SelectItem>
                           <SelectItem value="police_station">Police Station</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    {postMeetingRecordingType !== "internal_meeting" && (
-                      <div className="space-y-1.5">
-                        <Label htmlFor="post-matter-client">Client name <span className="text-accent">*</span></Label>
-                        <Input
-                          id="post-matter-client"
-                          placeholder="e.g. Jane Smith"
-                          value={postMeetingClient}
-                          onChange={(e) => setPostMeetingClient(e.target.value)}
-                          data-testid="input-post-matter-client"
-                        />
-                      </div>
-                    )}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="post-matter-client">Client name <span className="text-accent">*</span></Label>
+                      <Input
+                        id="post-matter-client"
+                        placeholder="e.g. Jane Smith"
+                        value={postMeetingClient}
+                        onChange={(e) => setPostMeetingClient(e.target.value)}
+                        data-testid="input-post-matter-client"
+                      />
+                    </div>
                     <div className="flex gap-2">
                       <Button variant="outline" className="flex-1" onClick={() => setPostMeetingMode("choose")} data-testid="button-post-back-create">Back</Button>
                       <Button
                         className="flex-1"
-                        disabled={!postMeetingTitle.trim() || (postMeetingRecordingType !== "internal_meeting" && !postMeetingClient.trim()) || postAssignMutation.isPending}
+                        disabled={!postMeetingTitle.trim() || !postMeetingClient.trim() || postAssignMutation.isPending}
                         onClick={() => postAssignMutation.mutate({
                           recordingType: postMeetingRecordingType,
                           createCase: true,
