@@ -87,11 +87,14 @@ describe.skipIf(!hasDatabase)("Phase 0: identity collision leaves sealed columns
 
   afterAll(async () => {
     if (!db || !pool) return;
-    await db.delete(auditTrail).where(eq(auditTrail.id, auditEntryId));
-    await db.delete(consentLogs).where(eq(consentLogs.id, consentLogId));
-    await db.delete(cases).where(eq(cases.id, caseId));
-    await db.delete(users).where(eq(users.id, originalUserId));
-    await db.delete(users).where(eq(users.id, collidingUserId));
+    const { withSealBypass } = await import("./sealTriggerAssertion");
+    await withSealBypass(async (tx) => {
+      await tx.delete(auditTrail).where(eq(auditTrail.id, auditEntryId));
+      await tx.delete(consentLogs).where(eq(consentLogs.id, consentLogId));
+      await tx.delete(cases).where(eq(cases.id, caseId));
+      await tx.delete(users).where(eq(users.id, originalUserId));
+      await tx.delete(users).where(eq(users.id, collidingUserId));
+    });
     await pool.end();
   });
 

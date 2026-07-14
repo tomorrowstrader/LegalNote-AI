@@ -5,6 +5,7 @@ import { db, pool } from "../db";
 import { audioRecordings, auditTrail, cases, consentLogs, users } from "@shared/schema";
 import { recordConsentEvent } from "./recordConsentEvent";
 import { assertSealedConsent } from "./assertSealedConsent";
+import { withSealBypass } from "../sealTriggerAssertion";
 
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 const TEST_KEY = process.env.AUDIT_SIGNING_KEY || "integration-test-audit-signing-key";
@@ -65,19 +66,25 @@ describe.skipIf(!hasDatabase)("sealed consent DB tamper gate", () => {
   });
 
   afterAll(async () => {
-    await db.delete(auditTrail).where(eq(auditTrail.caseId, caseId));
-    await db.delete(consentLogs).where(eq(consentLogs.caseId, caseId));
-    await db.delete(audioRecordings).where(eq(audioRecordings.caseId, caseId));
-    await db.delete(cases).where(eq(cases.id, caseId));
-    await db.delete(users).where(eq(users.id, userId));
+    // Controlled bypass: cleanup only. Coverage remains when triggers are live.
+    await withSealBypass(async (tx) => {
+      await tx.delete(auditTrail).where(eq(auditTrail.caseId, caseId));
+      await tx.delete(consentLogs).where(eq(consentLogs.caseId, caseId));
+      await tx.delete(audioRecordings).where(eq(audioRecordings.caseId, caseId));
+      await tx.delete(cases).where(eq(cases.id, caseId));
+      await tx.delete(users).where(eq(users.id, userId));
+    });
     await pool.end();
   });
 
   it("refuses processing gate after consent_given is tampered in the database", async () => {
-    await db
-      .update(consentLogs)
-      .set({ consentGiven: false })
-      .where(eq(consentLogs.id, consentLogId));
+    // Controlled bypass: forge sealed row as if trigger were absent / backup restored.
+    await withSealBypass(async (tx) => {
+      await tx
+        .update(consentLogs)
+        .set({ consentGiven: false })
+        .where(eq(consentLogs.id, consentLogId));
+    });
 
     await expect(assertSealedConsent(caseId, userId, audioRecordingId)).rejects.toMatchObject({
       name: "SealedConsentError",
@@ -86,10 +93,12 @@ describe.skipIf(!hasDatabase)("sealed consent DB tamper gate", () => {
   });
 
   it("refuses processing gate after content_hash is tampered in the database", async () => {
-    await db
-      .update(consentLogs)
-      .set({ consentGiven: true, contentHash: "deadbeef" })
-      .where(eq(consentLogs.id, consentLogId));
+    await withSealBypass(async (tx) => {
+      await tx
+        .update(consentLogs)
+        .set({ consentGiven: true, contentHash: "deadbeef" })
+        .where(eq(consentLogs.id, consentLogId));
+    });
 
     await expect(assertSealedConsent(caseId, userId, audioRecordingId)).rejects.toMatchObject({
       name: "SealedConsentError",

@@ -16,6 +16,7 @@ import { clearScheduledMeetingGuessedRecipients } from "./clearScheduledMeetingR
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
+import { assertSealTriggersInstalled } from "./sealTriggerAssertion";
 
 // Development-only fallback when AUDIT_SIGNING_KEY is unset (production gate is in envValidation).
 if (!process.env.AUDIT_SIGNING_KEY && process.env.NODE_ENV !== "production") {
@@ -232,6 +233,8 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await assertSealTriggersInstalled();
+
   const server = await registerRoutes(app);
 
   await ensureSystemUser();
