@@ -33,6 +33,9 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { format, differenceInDays, formatDistanceToNow } from "date-fns";
 import { PRACTICE_AREA_LABELS } from "@shared/schema";
+import { isFeatureVisible } from "@/lib/features";
+
+const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
 
 interface MatterComplianceStatus {
   caseId: string;
@@ -198,12 +201,12 @@ export default function FirmCompliance() {
 
   const { data: overview, isLoading } = useQuery<ComplianceOverview>({
     queryKey: ["/api/firm/compliance-overview"],
-    enabled: canAccessFirmCompliance,
+    enabled: canAccessFirmCompliance && firmComplianceDashboardVisible,
   });
 
   const { data: financeData, isLoading: financeLoading } = useQuery<FinanceComplianceData>({
     queryKey: ["/api/firm/finance-compliance"],
-    enabled: canAccessFinance,
+    enabled: canAccessFinance && firmComplianceDashboardVisible,
   });
 
   if (authLoading) {
@@ -215,7 +218,7 @@ export default function FirmCompliance() {
     );
   }
 
-  if (!canAccessFirmCompliance) {
+  if (!canAccessFirmCompliance || !firmComplianceDashboardVisible) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
         <div className="flex flex-col items-center justify-center py-24 text-center">

@@ -1645,9 +1645,14 @@ interface RiskDigest {
 function GrowthSettings() {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const complianceScoreVisible = isFeatureVisible("complianceScore");
+  const publicComplianceBadgeVisible = isFeatureVisible("publicComplianceBadge");
 
   const { data: firmProfile } = useQuery<FirmProfile>({ queryKey: ['/api/firm-profile'] });
-  const { data: score, isLoading: scoreLoading } = useQuery<ComplianceScore>({ queryKey: ['/api/firm/compliance-score'] });
+  const { data: score, isLoading: scoreLoading } = useQuery<ComplianceScore>({
+    queryKey: ['/api/firm/compliance-score'],
+    enabled: complianceScoreVisible,
+  });
   const { data: digest, isLoading: digestLoading, refetch: refetchDigest } = useQuery<RiskDigest>({ queryKey: ['/api/firm/risk-digest'] });
 
   const [digestEnabled, setDigestEnabled] = useState(false);
@@ -1699,7 +1704,7 @@ function GrowthSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Compliance Score */}
+      {complianceScoreVisible && (
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -1747,6 +1752,7 @@ function GrowthSettings() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Risk Digest */}
       <Card>
@@ -1827,7 +1833,7 @@ function GrowthSettings() {
         </CardContent>
       </Card>
 
-      {/* Compliance Badge */}
+      {publicComplianceBadgeVisible && (
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -1903,6 +1909,7 @@ function GrowthSettings() {
           </Button>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

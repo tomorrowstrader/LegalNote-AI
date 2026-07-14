@@ -6,6 +6,13 @@
 export const FEATURE_VISIBILITY = {
   amlCompliance: false,
   sraReadiness: false,
+  supervision: false,
+  externalReferences: false,
+  firmComplianceDashboard: false,
+  complianceScore: false,
+  publicComplianceBadge: false,
+  profileNotificationPrefs: false,
+  profileDisplayNameEdit: false,
   /** Auto-record + cron bot deploy for scheduled meetings (Phase 3). */
   calendarAutoRecord: false,
 } as const;

@@ -14,6 +14,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Case } from "@shared/schema";
+import { isFeatureVisible } from "@/lib/features";
+
+const profileNotificationPrefsVisible = isFeatureVisible("profileNotificationPrefs");
+const profileDisplayNameEditVisible = isFeatureVisible("profileDisplayNameEdit");
 
 export default function MyProfile() {
   const [, setLocation] = useLocation();
@@ -90,14 +94,21 @@ export default function MyProfile() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="display-name">Display Name</Label>
-                <Input id="display-name" defaultValue={displayName} data-testid="input-display-name" />
+                <Input
+                  id="display-name"
+                  defaultValue={displayName}
+                  disabled={!profileDisplayNameEditVisible}
+                  data-testid="input-display-name"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" defaultValue={user?.email || ''} disabled data-testid="input-email" />
                 <p className="text-xs text-muted-foreground">Contact your administrator to change your email</p>
               </div>
-              <Button className="bg-accent hover:bg-accent" data-testid="button-save-profile">Save Changes</Button>
+              {profileDisplayNameEditVisible && (
+                <Button className="bg-accent hover:bg-accent" data-testid="button-save-profile">Save Changes</Button>
+              )}
             </CardContent>
           </Card>
 
@@ -123,6 +134,7 @@ export default function MyProfile() {
             </CardContent>
           </Card>
 
+          {profileNotificationPrefsVisible && (
           <Card>
             <CardHeader>
               <CardTitle>Notifications</CardTitle>
@@ -146,6 +158,7 @@ export default function MyProfile() {
               </div>
             </CardContent>
           </Card>
+          )}
 
           <Card>
             <CardHeader>

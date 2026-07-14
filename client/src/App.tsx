@@ -47,6 +47,10 @@ import PendingApproval from "@/pages/PendingApproval";
 import ScrollToTop from "@/components/ScrollToTop";
 import PublicDemo from "@/pages/PublicDemo";
 import DemoGenerator from "@/pages/DemoGenerator";
+import { isFeatureVisible } from "@/lib/features";
+
+const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
+const publicComplianceBadgeVisible = isFeatureVisible("publicComplianceBadge");
 
 function RedirectTo({ to }: { to: string }) {
   const [, setLocation] = useLocation();
@@ -66,7 +70,7 @@ function Router() {
       <Route path="/demo-generation" component={() => <RedirectTo to="/demo-generator" />} />
       <Route path="/share/:linkId" component={ShareLinkView} />
       <Route path="/acknowledge/:token" component={AcknowledgePage} />
-      <Route path="/badge/:slug" component={ComplianceBadge} />
+      {publicComplianceBadgeVisible && <Route path="/badge/:slug" component={ComplianceBadge} />}
       <Route path="/invite/accept/:token" component={InviteAccept} />
       <Route path="/oauth/callback" component={OAuthCallback} />
       <Route path="/calendar-sync-confirmation" component={CalendarSyncConfirmation} />
@@ -108,7 +112,7 @@ function Router() {
           <Route path="/time-summary" component={TimeSummary} />
           <Route path="/undertakings" component={UndertakingsDashboard} />
           {isFirmAdmin && <Route path="/team" component={TeamManagement} />}
-          {canAccessFirmCompliance && <Route path="/compliance" component={FirmCompliance} />}
+          {canAccessFirmCompliance && firmComplianceDashboardVisible && <Route path="/compliance" component={FirmCompliance} />}
           <Route path="/waitlist" component={WaitlistPage} />
         </>
       )}

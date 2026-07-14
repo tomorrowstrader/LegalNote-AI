@@ -67,6 +67,8 @@ import { isFeatureVisible } from "@/lib/features";
 
 const amlComplianceVisible = isFeatureVisible("amlCompliance");
 const sraReadinessVisible = isFeatureVisible("sraReadiness");
+const supervisionVisible = isFeatureVisible("supervision");
+const externalReferencesVisible = isFeatureVisible("externalReferences");
 
 interface SessionTranscript extends Omit<Transcript, 'utterances'> {
   utterances: Array<{ speaker: string; text: string; start: number; end: number }> | null;
@@ -954,7 +956,7 @@ export default function CaseDetail() {
         ? <Badge variant="destructive" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{outstandingUndertakingsCount}</Badge>
         : undefined,
     },
-    { id: 'external-refs', label: 'External References', icon: FileText },
+    { id: 'external-refs', label: 'External References', icon: FileText, show: externalReferencesVisible },
     { id: 'linked-calls', label: 'Telephone Notes', icon: Phone, show: linkedDictations.length > 0, badge: linkedDictations.length > 0 ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{linkedDictations.length}</Badge> : undefined },
   ].filter(item => item.show !== false);
 
@@ -967,7 +969,7 @@ export default function CaseDetail() {
         ? <Badge className={cn("text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate", riskColors[caseData.riskLevel] || '')}>{(caseData.riskLevel as string).toUpperCase()}</Badge>
         : undefined,
     },
-    { id: 'supervision', label: 'Supervision', icon: ShieldCheck },
+    { id: 'supervision', label: 'Supervision', icon: ShieldCheck, show: supervisionVisible },
     {
       id: 'litigation-hold',
       label: 'Litigation Hold',
@@ -1852,7 +1854,7 @@ export default function CaseDetail() {
             </div>
           )}
 
-          {activeSection === 'external-refs' && (
+          {activeSection === 'external-refs' && externalReferencesVisible && (
             <div className="max-w-3xl">
               <ExternalDocumentRefs caseId={caseId!} />
             </div>
@@ -1957,7 +1959,7 @@ export default function CaseDetail() {
             </div>
           )}
 
-          {activeSection === 'supervision' && (
+          {activeSection === 'supervision' && supervisionVisible && (
             <div className="max-w-3xl">
               <SupervisionSection caseId={caseId!} />
             </div>

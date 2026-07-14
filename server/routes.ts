@@ -56,7 +56,7 @@ import { db } from "./db";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
-import { isFeatureVisible } from "@shared/featureVisibility";
+import { isFeatureVisible, type FeatureKey } from "@shared/featureVisibility";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
@@ -127,6 +127,15 @@ const REFERRAL_CODES: Record<string, { code: string; description: string; discou
 function validateReferralCode(code: string): typeof REFERRAL_CODES[string] | null {
   const normalized = code?.toUpperCase()?.trim();
   return REFERRAL_CODES[normalized] || null;
+}
+
+function requireFeatureVisible(key: FeatureKey) {
+  return (_req: any, res: any, next: any) => {
+    if (!isFeatureVisible(key)) {
+      return res.status(404).json({ message: "Not found" });
+    }
+    next();
+  };
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -2170,7 +2179,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
-  app.get("/api/cases/:id/external-documents", isAuthenticated, async (req: any, res, next) => {
+  app.get("/api/cases/:id/external-documents", isAuthenticated, requireFeatureVisible("externalReferences"), async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const caseRecord = await storage.getCase(req.params.id, userId);
@@ -2184,7 +2193,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
-  app.post("/api/cases/:id/external-documents", isAuthenticated, async (req: any, res, next) => {
+  app.post("/api/cases/:id/external-documents", isAuthenticated, requireFeatureVisible("externalReferences"), async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const caseRecord = await storage.getCase(req.params.id, userId);
@@ -6342,7 +6351,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   });
 
   // Supervision sign-offs
-  app.get("/api/cases/:id/supervision-signoffs", isAuthenticated, async (req: any, res, next) => {
+  app.get("/api/cases/:id/supervision-signoffs", isAuthenticated, requireFeatureVisible("supervision"), async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const caseId = req.params.id;
@@ -6360,7 +6369,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
-  app.post("/api/cases/:id/supervision-signoffs", isAuthenticated, async (req: any, res, next) => {
+  app.post("/api/cases/:id/supervision-signoffs", isAuthenticated, requireFeatureVisible("supervision"), async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const caseId = req.params.id;
@@ -6408,7 +6417,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   });
 
   // Firm compliance overview (COLP/partner/admin only)
-  app.get("/api/firm/compliance-overview", isAuthenticated, async (req: any, res, next) => {
+  app.get("/api/firm/compliance-overview", isAuthenticated, requireFeatureVisible("firmComplianceDashboard"), async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
@@ -6934,7 +6943,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   });
 
   // Compliance score
-  app.get("/api/firm/compliance-score", isAuthenticated, async (_req, res, next) => {
+  app.get("/api/firm/compliance-score", isAuthenticated, requireFeatureVisible("complianceScore"), async (_req, res, next) => {
     try {
       const score = await storage.getComplianceScore();
       res.json(score);
@@ -6942,7 +6951,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   });
 
   // Finance compliance overview — restricted to COFA, firm admin, and managing partner
-  app.get("/api/firm/finance-compliance", isAuthenticated, async (req: any, res, next) => {
+  app.get("/api/firm/finance-compliance", isAuthenticated, requireFeatureVisible("firmComplianceDashboard"), async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -7051,6 +7060,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   // Public compliance badge (no auth — embeddable on firm website)
   app.get("/api/public/badge/:slug", async (req, res, next) => {
     try {
+      if (!isFeatureVisible("publicComplianceBadge")) {
+        return res.status(404).json({ message: "Not found" });
+      }
       const { slug } = req.params;
       const profile = await storage.getFirmProfile();
       if (!profile || profile.complianceBadgeSlug !== slug || !profile.complianceBadgeEnabled) {
@@ -7059,6 +7071,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const score = await storage.getComplianceScore();
       res.json({ firmName: profile.firmName, score: score.overall, grade: score.grade, lastUpdated: score.lastUpdated });
     } catch (error) { next(error); }
+  });
+
+  app.get("/api/public/badge/:slug/image", async (_req, res) => {
+    if (!isFeatureVisible("publicComplianceBadge")) {
+      return res.status(404).json({ message: "Not found" });
+    }
+    return res.status(404).json({ message: "Not found" });
   });
 
   // PI Defence Pack — PDF bundle of all matter documentation for one case

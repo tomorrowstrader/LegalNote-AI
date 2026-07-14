@@ -17,6 +17,9 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { NotificationsPanel } from "@/components/NotificationsPanel";
 import { useAuth } from "@/hooks/useAuth";
 import AdminQuickAccess from "@/components/AdminQuickAccess";
+import { isFeatureVisible } from "@/lib/features";
+
+const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
 
 interface TopNavigationProps {
   onRestartTour: () => void;
@@ -147,7 +150,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 <DropdownMenuItem asChild data-testid="menu-item-undertakings">
                   <Link href="/undertakings">Undertakings Register</Link>
                 </DropdownMenuItem>
-                {canAccessFirmCompliance && (
+                {canAccessFirmCompliance && firmComplianceDashboardVisible && (
                   <DropdownMenuItem asChild data-testid="menu-item-firm-compliance">
                     <Link href="/compliance">
                       <BadgePoundSterling className="w-4 h-4 mr-2" />
