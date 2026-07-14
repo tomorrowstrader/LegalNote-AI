@@ -8,6 +8,40 @@ import { storage } from "./storage";
 
 const SESSION_TTL = 4 * 60 * 60 * 1000;
 
+/** Comma-separated Google subject IDs (users.id). Empty list = admin only. */
+export function getAccessAllowlist(): Set<string> {
+  const raw = process.env.ACCESS_ALLOWLIST || "";
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+}
+
+export function getAdminUserId(): string {
+  return process.env.ADMIN_USER_ID || "48381245";
+}
+
+export function isUserAccessAllowed(userId: string): boolean {
+  if (userId === getAdminUserId()) return true;
+  return getAccessAllowlist().has(userId);
+}
+
+/**
+ * Paths that may proceed past the allowlist after a valid session exists.
+ * Everything else that uses isAuthenticated is denied with 403.
+ * Logout is not listed — it never uses isAuthenticated.
+ */
+function isAllowlistExemptPath(method: string, path: string): boolean {
+  if (path === "/api/auth/user") return true;
+  // Invite accept: POST /api/invite/:token/accept
+  if (method === "POST" && /^\/api\/invite\/[^/]+\/accept\/?$/.test(path)) {
+    return true;
+  }
+  return false;
+}
+
 export function getSession() {
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
@@ -171,6 +205,17 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const now = Math.floor(Date.now() / 1000);
   if (user.expires_at && now > user.expires_at) {
     return res.status(401).json({ message: "Session expired" });
+  }
+
+  const userId = user.claims.sub as string;
+  if (
+    !isAllowlistExemptPath(req.method, req.path) &&
+    !isUserAccessAllowed(userId)
+  ) {
+    return res.status(403).json({
+      message: "Access denied",
+      code: "NOT_ALLOWLISTED",
+    });
   }
 
   return next();

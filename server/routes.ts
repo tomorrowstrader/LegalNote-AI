@@ -60,7 +60,7 @@ import { isFeatureVisible, type FeatureKey } from "@shared/featureVisibility";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated, isUserAccessAllowed, getAdminUserId } from "./replitAuth";
 import { MAX_AUDIO_SIZE_BYTES } from "./uploadSecurity";
 import {
   generalApiLimiter,
@@ -1329,8 +1329,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
       
       // Add admin flag to user object (MVP: configurable via env)
-      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+      const ADMIN_USER_ID = getAdminUserId();
       const isAdmin = userId === ADMIN_USER_ID;
+      const accessAllowed = isUserAccessAllowed(userId);
       
       // Check waitlist status for non-admin users
       let waitlistStatus: string | null = null;
@@ -1342,6 +1343,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const userWithFlags = {
         ...user,
         isAdmin,
+        accessAllowed,
         waitlistStatus,
         role: isAdmin ? 'admin' : (user?.role || 'solicitor'),
       };
