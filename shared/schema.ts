@@ -127,6 +127,19 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Provider subjects (Google sub, Entra oid, …). users.id is the permanent principal.
+export const authIdentities = pgTable("auth_identities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  provider: text("provider").notNull(), // google | microsoft
+  providerUserId: text("provider_user_id").notNull(),
+  emailAtLink: text("email_at_link"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  providerSubjectUnique: unique().on(table.provider, table.providerUserId),
+  userProviderUnique: unique().on(table.userId, table.provider),
+}));
+
 export const clients = pgTable("clients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   firmId: varchar("firm_id").references(() => firms.id),
@@ -1170,6 +1183,8 @@ export const insertClioMatterLinkSchema = createInsertSchema(clioMatterLinks).om
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type AuthIdentity = typeof authIdentities.$inferSelect;
+export type InsertAuthIdentity = typeof authIdentities.$inferInsert;
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type Client = typeof clients.$inferSelect;

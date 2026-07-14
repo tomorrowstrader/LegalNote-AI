@@ -71,8 +71,8 @@ async function upsertGoogleUser(profile: any) {
   const lastName = profile.name?.familyName || null;
   const profileImageUrl = profile.photos?.[0]?.value || null;
 
-  await storage.upsertUser({
-    id: profile.id,
+  return storage.resolveGoogleAuthUser({
+    providerUserId: profile.id,
     email,
     firstName,
     lastName,
@@ -117,14 +117,14 @@ export async function setupAuth(app: Express) {
         },
         async (_accessToken: string, _refreshToken: string, profile: any, done: any) => {
           try {
-            await upsertGoogleUser(profile);
+            const user = await upsertGoogleUser(profile);
             const sessionUser = {
               claims: {
-                sub: profile.id,
-                email: profile.emails?.[0]?.value || null,
-                first_name: profile.name?.givenName || null,
-                last_name: profile.name?.familyName || null,
-                profile_image_url: profile.photos?.[0]?.value || null,
+                sub: user.id,
+                email: user.email || profile.emails?.[0]?.value || null,
+                first_name: user.firstName || profile.name?.givenName || null,
+                last_name: user.lastName || profile.name?.familyName || null,
+                profile_image_url: user.profileImageUrl || profile.photos?.[0]?.value || null,
               },
               expires_at: Math.floor(Date.now() / 1000) + SESSION_TTL / 1000,
             };

@@ -1,5 +1,6 @@
 import { 
-  type User, type InsertUser, type UpsertUser, 
+  type User, type InsertUser, type UpsertUser,
+  type AuthIdentity,
   type Client, type InsertClient,
   type Case, type InsertCase, 
   type AudioRecording, type InsertAudioRecording, 
@@ -41,6 +42,7 @@ import {
   type ConflictCheck, type InsertConflictCheck,
   type SupervisionSignoff, type InsertSupervisionSignoff,
   users,
+  authIdentities,
   clients,
   cases,
   audioRecordings,
@@ -438,6 +440,20 @@ export type CaseLitigationHoldStatus = {
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  getAuthIdentity(provider: string, providerUserId: string): Promise<AuthIdentity | undefined>;
+  createAuthIdentity(data: {
+    userId: string;
+    provider: string;
+    providerUserId: string;
+    emailAtLink?: string | null;
+  }): Promise<AuthIdentity>;
+  resolveGoogleAuthUser(profile: {
+    providerUserId: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    profileImageUrl: string | null;
+  }): Promise<User>;
   updateUserStripeInfo(userId: string, stripeInfo: {
     stripeCustomerId?: string;
     stripeSubscriptionId?: string;
@@ -848,6 +864,35 @@ export class MemStorage implements IStorage {
     };
     this.users.set(userData.id, user);
     return user;
+  }
+
+  async getAuthIdentity(_provider: string, _providerUserId: string): Promise<AuthIdentity | undefined> {
+    return undefined;
+  }
+
+  async createAuthIdentity(_data: {
+    userId: string;
+    provider: string;
+    providerUserId: string;
+    emailAtLink?: string | null;
+  }): Promise<AuthIdentity> {
+    throw new Error("Not implemented");
+  }
+
+  async resolveGoogleAuthUser(profile: {
+    providerUserId: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    profileImageUrl: string | null;
+  }): Promise<User> {
+    return this.upsertUser({
+      id: profile.providerUserId,
+      email: profile.email ?? undefined,
+      firstName: profile.firstName ?? undefined,
+      lastName: profile.lastName ?? undefined,
+      profileImageUrl: profile.profileImageUrl ?? undefined,
+    });
   }
 
   async updateUserStripeInfo(userId: string, stripeInfo: {
@@ -2548,6 +2593,83 @@ export class DbStorage implements IStorage {
       })
       .returning();
     return result[0];
+  }
+
+  async getAuthIdentity(provider: string, providerUserId: string): Promise<AuthIdentity | undefined> {
+    const [row] = await db
+      .select()
+      .from(authIdentities)
+      .where(and(eq(authIdentities.provider, provider), eq(authIdentities.providerUserId, providerUserId)))
+      .limit(1);
+    return row;
+  }
+
+  async createAuthIdentity(data: {
+    userId: string;
+    provider: string;
+    providerUserId: string;
+    emailAtLink?: string | null;
+  }): Promise<AuthIdentity> {
+    const [row] = await db
+      .insert(authIdentities)
+      .values({
+        userId: data.userId,
+        provider: data.provider,
+        providerUserId: data.providerUserId,
+        emailAtLink: data.emailAtLink ?? null,
+      })
+      .returning();
+    return row;
+  }
+
+  async resolveGoogleAuthUser(profile: {
+    providerUserId: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    profileImageUrl: string | null;
+  }): Promise<User> {
+    const identity = await this.getAuthIdentity("google", profile.providerUserId);
+    if (identity) {
+      return this.upsertUser({
+        id: identity.userId,
+        email: profile.email ?? undefined,
+        firstName: profile.firstName ?? undefined,
+        lastName: profile.lastName ?? undefined,
+        profileImageUrl: profile.profileImageUrl ?? undefined,
+      });
+    }
+
+    // Email is never a merge key. If taken, leave users.email null on the new principal.
+    let emailForUser: string | null = profile.email;
+    if (emailForUser) {
+      const [emailOwner] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, emailForUser))
+        .limit(1);
+      if (emailOwner) {
+        emailForUser = null;
+      }
+    }
+
+    const newUserId = randomUUID();
+    const user = await this.upsertUser({
+      id: newUserId,
+      email: emailForUser ?? undefined,
+      firstName: profile.firstName ?? undefined,
+      lastName: profile.lastName ?? undefined,
+      profileImageUrl: profile.profileImageUrl ?? undefined,
+    });
+
+    await this.createAuthIdentity({
+      userId: user.id,
+      provider: "google",
+      providerUserId: profile.providerUserId,
+      emailAtLink: profile.email,
+    });
+
+    return user;
   }
 
   async updateUserStripeInfo(userId: string, stripeInfo: {
