@@ -1,6 +1,7 @@
 import { getPrivilegedLLMProvider } from './llm/providerFactory';
 import { privilegedComplete } from './llm/privilegedComplete';
 import { CLIENT_FACING_RECORDING_TYPES } from '@shared/recordingTypes';
+import { getPracticeAreaPromptContext } from './practiceAreaConfig';
 
 /**
  * Post-process document content to ensure known section headings are bold.
@@ -766,7 +767,6 @@ CRITICAL: Extract only what was actually discussed. Where an area was not covere
 
     if (metadata.practiceArea) {
       try {
-        const { getPracticeAreaPromptContext } = require('./practiceAreaConfig');
         const paContext = getPracticeAreaPromptContext(metadata.practiceArea);
         if (paContext) {
           systemPrompt += `\n\n${paContext}`;
