@@ -1,8 +1,12 @@
 -- Seal triggers: make signed tables append-only at the database.
 -- Run by hand against production Neon, then local-dev. Do NOT rely on drizzle-kit push.
 --
--- Bypass (tests only): SELECT set_config('legalnote.seal_bypass', 'true', true);
--- Never set legalnote.seal_bypass in application or production code.
+-- Bypass (tests only):
+--   1. Create a Neon role named legalnote_seal_bypass (LOGIN) via the Neon console.
+--   2. Grant DML on public tables to that role (never use it as the app DATABASE_URL).
+--   3. Connect tests with that role, then:
+--        SELECT set_config('legalnote.seal_bypass', 'true', true);
+--   The production application role cannot bypass, even if it sets the GUC.
 
 BEGIN;
 
@@ -11,7 +15,8 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF current_setting('legalnote.seal_bypass', true) = 'true' THEN
+  IF current_setting('legalnote.seal_bypass', true) = 'true'
+     AND current_user = 'legalnote_seal_bypass' THEN
     IF TG_OP = 'DELETE' THEN
       RETURN OLD;
     END IF;
@@ -30,7 +35,8 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF current_setting('legalnote.seal_bypass', true) = 'true' THEN
+  IF current_setting('legalnote.seal_bypass', true) = 'true'
+     AND current_user = 'legalnote_seal_bypass' THEN
     IF TG_OP = 'DELETE' THEN
       RETURN OLD;
     END IF;

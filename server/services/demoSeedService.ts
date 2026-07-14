@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { cases, meetingSessions, audioRecordings, consentLogs, transcripts, documents, auditTrail, actionItems, preMeetingBriefings, timeEntries, undertakings, quickNotes, securityIncidents, calendarEvents, shareLinks, meetingImports, scheduledMeetings, preConsentEmails, clioMatterLinks, recordingSessions, amlMonitoringNotes, amlDecisionRecords, externalDocumentRefs, conflictChecks, supervisionSignoffs, clientVersionTracking, documentComments } from "../../shared/schema";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -22,51 +22,17 @@ function daysFromNow(n: number): Date {
   return d;
 }
 
-async function deleteAllUserCaseData(userId: string) {
-  const userCases = await db.select({ id: cases.id }).from(cases).where(eq(cases.createdBy, userId));
-  if (userCases.length === 0) return;
-  const ids = userCases.map(c => c.id);
-  const idList = ids.map(id => `'${id}'`).join(',');
-  await db.execute(sql`
-    DO $$
-    DECLARE
-      r RECORD;
-    BEGIN
-      FOR r IN (SELECT id FROM cases WHERE id IN (${sql.raw(idList)}))
-      LOOP
-        UPDATE cases SET client_care_letter_id = NULL WHERE id = r.id;
-        UPDATE documents SET transcript_snapshot_id = NULL WHERE case_id = r.id;
-        DELETE FROM document_comments WHERE document_id IN (SELECT id FROM documents WHERE case_id = r.id);
-        DELETE FROM client_version_tracking WHERE document_id IN (SELECT id FROM documents WHERE case_id = r.id);
-        DELETE FROM supervision_signoffs WHERE case_id = r.id;
-        DELETE FROM conflict_checks WHERE case_id = r.id;
-        DELETE FROM external_document_refs WHERE case_id = r.id;
-        DELETE FROM aml_decision_records WHERE case_id = r.id;
-        DELETE FROM aml_monitoring_notes WHERE case_id = r.id;
-        DELETE FROM recording_sessions WHERE case_id = r.id;
-        DELETE FROM clio_matter_links WHERE case_id = r.id;
-        DELETE FROM pre_consent_emails WHERE case_id = r.id;
-        DELETE FROM scheduled_meetings WHERE case_id = r.id;
-        DELETE FROM meeting_imports WHERE case_id = r.id;
-        DELETE FROM share_links WHERE case_id = r.id;
-        DELETE FROM calendar_events WHERE case_id = r.id;
-        DELETE FROM security_incidents WHERE affected_case_id = r.id;
-        DELETE FROM quick_notes WHERE case_id = r.id;
-        DELETE FROM time_entries WHERE case_id = r.id;
-        DELETE FROM undertakings WHERE case_id = r.id;
-        DELETE FROM audit_trail WHERE case_id = r.id;
-        DELETE FROM action_items WHERE case_id = r.id;
-        DELETE FROM documents WHERE case_id = r.id;
-        DELETE FROM transcripts WHERE case_id = r.id;
-        DELETE FROM consent_logs WHERE case_id = r.id;
-        DELETE FROM pre_meeting_briefings WHERE case_id = r.id;
-        DELETE FROM audio_recordings WHERE case_id = r.id;
-        DELETE FROM meeting_sessions WHERE case_id = r.id;
-        UPDATE cases SET parent_case_id = NULL WHERE parent_case_id = r.id;
-        DELETE FROM cases WHERE id = r.id;
-      END LOOP;
-    END $$;
-  `);
+/**
+ * Demo reset archives active cases and seeds fresh ones.
+ * Does not DELETE audit_trail or consent_logs — sealed history accumulates.
+ */
+async function archiveUserActiveCases(userId: string): Promise<number> {
+  const result = await db
+    .update(cases)
+    .set({ archived: true })
+    .where(and(eq(cases.createdBy, userId), eq(cases.archived, false)))
+    .returning({ id: cases.id });
+  return result.length;
 }
 
 // ─── Matter 1: Family — Private Children (COLP Showcase) ────────────────────
@@ -2541,7 +2507,7 @@ Termination notice defective. Break clause not validly triggered. Full claim val
 
 export async function seedDemoData(userId: string): Promise<{ success: boolean; message: string; casesCreated: number }> {
   try {
-    await deleteAllUserCaseData(userId);
+    const archivedCount = await archiveUserActiveCases(userId);
     await seedMatter1Webb(userId);
     await seedMatter2Kestrel(userId);
     await seedMatter3Osei(userId);
@@ -2552,7 +2518,15 @@ export async function seedDemoData(userId: string): Promise<{ success: boolean; 
     await seedMatter8Callahan(userId);
     await seedMatter9AlRashidi(userId);
     await seedMatter10Northgate(userId);
-    return { success: true, message: "Demo data seeded successfully — 10 matters.", casesCreated: 10 };
+    const archiveNote =
+      archivedCount > 0
+        ? ` Archived ${archivedCount} prior active matter(s); sealed audit/consent history retained.`
+        : "";
+    return {
+      success: true,
+      message: `Demo data seeded successfully — 10 matters.${archiveNote}`,
+      casesCreated: 10,
+    };
   } catch (error: any) {
     console.error("[SEED] Error seeding demo data:", error);
     return { success: false, message: error.message, casesCreated: 0 };
@@ -2566,8 +2540,14 @@ export async function resetDemoData(userId: string): Promise<{ success: boolean;
 
 export async function clearDemoData(userId: string): Promise<{ success: boolean; message: string }> {
   try {
-    await deleteAllUserCaseData(userId);
-    return { success: true, message: "Demo data cleared." };
+    const archivedCount = await archiveUserActiveCases(userId);
+    return {
+      success: true,
+      message:
+        archivedCount > 0
+          ? `Archived ${archivedCount} active matter(s). Sealed audit/consent history was not deleted.`
+          : "No active demo matters to archive. Sealed history was not deleted.",
+    };
   } catch (error: any) {
     return { success: false, message: error.message };
   }

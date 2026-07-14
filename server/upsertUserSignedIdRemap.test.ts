@@ -87,14 +87,23 @@ describe.skipIf(!hasDatabase)("Phase 0: identity collision leaves sealed columns
 
   afterAll(async () => {
     if (!db || !pool) return;
-    const { withSealBypass } = await import("./sealTriggerAssertion");
-    await withSealBypass(async (tx) => {
-      await tx.delete(auditTrail).where(eq(auditTrail.id, auditEntryId));
-      await tx.delete(consentLogs).where(eq(consentLogs.id, consentLogId));
-      await tx.delete(cases).where(eq(cases.id, caseId));
-      await tx.delete(users).where(eq(users.id, originalUserId));
-      await tx.delete(users).where(eq(users.id, collidingUserId));
-    });
+    const { SEAL_BYPASS_DB_ROLE, withSealBypass } = await import("./sealTriggerAssertion");
+    const { sql } = await import("drizzle-orm");
+    const who = await db.execute(sql`SELECT current_user AS role`);
+    const rows = (who.rows ?? who) as Array<{ role: string }>;
+    if (rows[0]?.role === SEAL_BYPASS_DB_ROLE) {
+      await withSealBypass(async (tx) => {
+        await tx.delete(auditTrail).where(eq(auditTrail.id, auditEntryId));
+        await tx.delete(consentLogs).where(eq(consentLogs.id, consentLogId));
+        await tx.delete(cases).where(eq(cases.id, caseId));
+        await tx.delete(users).where(eq(users.id, originalUserId));
+        await tx.delete(users).where(eq(users.id, collidingUserId));
+      });
+    } else {
+      console.warn(
+        `[SEAL] Phase 0 cleanup skipped — connect as ${SEAL_BYPASS_DB_ROLE} to remove sealed fixtures.`,
+      );
+    }
     await pool.end();
   });
 

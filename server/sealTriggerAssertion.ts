@@ -7,29 +7,41 @@ export const SEAL_TRIGGER_NAMES = [
   "trg_consent_logs_seal_immutable",
 ] as const;
 
-/** Session GUC checked by seal triggers. Never set in application or production paths. */
+/**
+ * Neon / Postgres role allowed to use legalnote.seal_bypass.
+ * Must never be the application DATABASE_URL role.
+ */
+export const SEAL_BYPASS_DB_ROLE = "legalnote_seal_bypass";
+
+/** Session GUC checked by seal triggers (together with current_user). */
 export const SEAL_BYPASS_GUC = "legalnote.seal_bypass";
 
-function isProduction(): boolean {
-  return process.env.NODE_ENV === "production";
-}
-
 /**
- * Test-only / cleanup bypass inside one transaction (safe with pooled connections).
+ * Test-only / cleanup bypass inside one transaction.
+ * Only succeeds when connected as legalnote_seal_bypass — the app role cannot bypass.
  * Callers must use the provided `tx` for any UPDATE/DELETE of sealed tables.
- * Production application code must never call this.
+ * Application code must never call this.
  */
 export async function withSealBypass<T>(
   fn: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>,
 ): Promise<T> {
   return db.transaction(async (tx) => {
+    const who = await tx.execute(sql`SELECT current_user AS role`);
+    const rows = (who.rows ?? who) as Array<{ role: string }>;
+    const role = rows[0]?.role;
+    if (role !== SEAL_BYPASS_DB_ROLE) {
+      throw new Error(
+        `withSealBypass requires DB role ${SEAL_BYPASS_DB_ROLE} (connected as ${role ?? "unknown"}). ` +
+          `The application role cannot defeat seal triggers.`,
+      );
+    }
     await tx.execute(sql`SELECT set_config('legalnote.seal_bypass', 'true', true)`);
     return fn(tx);
   });
 }
 
 /**
- * Production refuses to boot if seal triggers are missing or disabled.
+ * Refuses to boot in every environment if seal triggers are missing or disabled.
  * drizzle-kit push does not know about these triggers and can drop them silently.
  */
 export async function assertSealTriggersInstalled(): Promise<void> {
@@ -80,12 +92,8 @@ export async function assertSealTriggersInstalled(): Promise<void> {
   if (disabled.length > 0) {
     parts.push(`disabled: ${disabled.join(", ")}`);
   }
-  const message =
+  throw new Error(
     `Seal triggers required but not healthy (${parts.join("; ")}). ` +
-    `Run scripts/seal-triggers.sql against this database.`;
-
-  if (isProduction()) {
-    throw new Error(message);
-  }
-  console.warn(`[SEAL] ${message}`);
+      `Run scripts/seal-triggers.sql against this database.`,
+  );
 }

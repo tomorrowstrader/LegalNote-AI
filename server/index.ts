@@ -11,7 +11,6 @@ import { initializeWorkers } from "./workers";
 import { migrateClientsFromCases } from "./clientMigration";
 import { backfillSessions } from "./sessionMigration";
 import { migrateReasoningGapPlaceholders } from "./reasoningGapMigration";
-import { markPreSealingConsentLogs } from "./consentPreSealingMigration";
 import { clearScheduledMeetingGuessedRecipients } from "./clearScheduledMeetingRecipientsMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
@@ -250,9 +249,6 @@ app.use((req, res, next) => {
 
   // Replace any legacy visible placeholder text with HTML comment markers (idempotent)
   await migrateReasoningGapPlaceholders();
-
-  // Mark unsigned historic consent rows as pre_sealing (idempotent)
-  await markPreSealingConsentLogs();
 
   // Remove calendar-scraped consent recipients (solicitor must choose explicitly)
   await clearScheduledMeetingGuessedRecipients();
