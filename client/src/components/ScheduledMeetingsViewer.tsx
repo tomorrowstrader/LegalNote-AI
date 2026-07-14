@@ -40,6 +40,22 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { isFeatureVisible } from "@/lib/features";
+
+type MeetingAttendee = { email: string; name?: string; responseStatus?: string };
+
+function getMeetingAttendees(meeting: ScheduledMeeting): MeetingAttendee[] {
+  if (!Array.isArray(meeting.attendees)) return [];
+  return meeting.attendees.filter(
+    (a): a is MeetingAttendee =>
+      typeof a === "object" &&
+      a !== null &&
+      typeof (a as MeetingAttendee).email === "string" &&
+      (a as MeetingAttendee).email.length > 0,
+  );
+}
+
+const calendarAutoRecordVisible = isFeatureVisible("calendarAutoRecord");
 
 function getConsentStatusBadge(status: string) {
   switch (status) {
@@ -360,12 +376,13 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   const { toast } = useToast();
   const [showUrlDialog, setShowUrlDialog] = useState(false);
   const [meetingUrl, setMeetingUrl] = useState('');
-  const [showClientDialog, setShowClientDialog] = useState(false);
-  const [clientEmail, setClientEmail] = useState(meeting.clientEmail || '');
-  const [clientName, setClientName] = useState(meeting.clientName || '');
+  const [showRecipientDialog, setShowRecipientDialog] = useState(false);
+  const [selectedAttendeeEmail, setSelectedAttendeeEmail] = useState('');
   const [showCaseDialog, setShowCaseDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+
+  const attendees = getMeetingAttendees(meeting);
   
   const startTime = new Date(meeting.startTime);
   const isMeetingSoon = !isPast(startTime) && startTime.getTime() - Date.now() < 30 * 60 * 1000;
@@ -424,10 +441,27 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   const handleToggleAutoRecord = (enabled: boolean) => {
     updateMutation.mutate({ autoRecordEnabled: enabled });
   };
-  
-  const handleSaveClient = () => {
-    updateMutation.mutate({ clientEmail, clientName });
-    setShowClientDialog(false);
+
+  const openRecipientDialog = () => {
+    setSelectedAttendeeEmail(meeting.clientEmail || '');
+    setShowRecipientDialog(true);
+  };
+
+  const handleConfirmRecipient = () => {
+    const attendee = attendees.find((a) => a.email === selectedAttendeeEmail);
+    if (!attendee) {
+      toast({
+        title: "Select a recipient",
+        description: "Choose an attendee from the meeting invite.",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateMutation.mutate({
+      clientEmail: attendee.email,
+      clientName: attendee.name || attendee.email,
+    });
+    setShowRecipientDialog(false);
   };
 
   const { data: linkedCase } = useQuery<Case>({
@@ -457,7 +491,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                 </div>
               </div>
               
-              {isActive && (
+              {isActive && calendarAutoRecordVisible && (
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <label className="text-xs text-muted-foreground">Auto-record</label>
                   <Switch
@@ -493,7 +527,12 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
             {meeting.clientEmail && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Users className="w-4 h-4" />
-                <span>{meeting.clientName || meeting.clientEmail}</span>
+                <span>
+                  Consent recipient: {meeting.clientName || meeting.clientEmail}
+                  {meeting.clientName && meeting.clientName !== meeting.clientEmail && (
+                    <span className="text-xs"> ({meeting.clientEmail})</span>
+                  )}
+                </span>
               </div>
             )}
             
@@ -546,50 +585,63 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                   </Dialog>
                 )}
                 
-                {!meeting.clientEmail && (
-                  <Dialog open={showClientDialog} onOpenChange={setShowClientDialog}>
-                    <DialogTrigger asChild>
-                      <Button size="sm" variant="outline" data-testid={`button-set-client-${meeting.id}`}>
-                        <Users className="w-3 h-3 mr-1" /> Set Client
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Set Client Details</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 pt-4">
-                        <div>
-                          <Label>Client Name</Label>
-                          <Input
-                            placeholder="John Smith"
-                            value={clientName}
-                            onChange={(e) => setClientName(e.target.value)}
-                            data-testid="input-client-name"
-                          />
-                        </div>
-                        <div>
-                          <Label>Client Email</Label>
-                          <Input
-                            type="email"
-                            placeholder="client@example.com"
-                            value={clientEmail}
-                            onChange={(e) => setClientEmail(e.target.value)}
-                            data-testid="input-client-email"
-                          />
-                        </div>
-                        <Button 
-                          onClick={handleSaveClient}
-                          disabled={!clientEmail || updateMutation.isPending}
-                          data-testid="button-save-client"
-                        >
-                          Save
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                {attendees.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={openRecipientDialog}
+                    data-testid={`button-choose-recipient-${meeting.id}`}
+                  >
+                    <Users className="w-3 h-3 mr-1" />
+                    {meeting.clientEmail ? 'Change recipient' : 'Choose recipient'}
+                  </Button>
                 )}
+
+                <Dialog open={showRecipientDialog} onOpenChange={setShowRecipientDialog}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Choose consent recipient</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-muted-foreground">
+                      Select who will receive the recording consent email. This must be someone on the meeting invite.
+                    </p>
+                    <div className="space-y-2 pt-2 max-h-64 overflow-y-auto">
+                      {attendees.map((attendee) => (
+                        <button
+                          key={attendee.email}
+                          type="button"
+                          onClick={() => setSelectedAttendeeEmail(attendee.email)}
+                          className={`w-full text-left p-3 rounded-md border transition-colors ${
+                            selectedAttendeeEmail === attendee.email
+                              ? 'border-primary bg-primary/5'
+                              : 'hover:bg-muted/50'
+                          }`}
+                          data-testid={`attendee-option-${attendee.email}`}
+                        >
+                          <div className="font-medium text-sm">
+                            {attendee.name || attendee.email}
+                          </div>
+                          {attendee.name && (
+                            <div className="text-xs text-muted-foreground">{attendee.email}</div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    <Button
+                      onClick={handleConfirmRecipient}
+                      disabled={!selectedAttendeeEmail || updateMutation.isPending}
+                      data-testid="button-confirm-recipient"
+                    >
+                      {updateMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        'Confirm recipient'
+                      )}
+                    </Button>
+                  </DialogContent>
+                </Dialog>
                 
-                {meeting.autoRecordEnabled && meeting.clientEmail && meeting.consentStatus === 'pending' && (
+                {meeting.clientEmail && meeting.consentStatus === 'pending' && (
                   <Button 
                     size="sm" 
                     variant="outline"

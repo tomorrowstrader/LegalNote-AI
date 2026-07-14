@@ -19,6 +19,18 @@ function getCanonicalBaseUrl(req: any): string {
   return `${req.protocol}://${req.get('host')}`;
 }
 
+function meetingAttendeeEmails(meeting: ScheduledMeeting): string[] {
+  if (!Array.isArray(meeting.attendees)) return [];
+  return meeting.attendees
+    .map((a) => (typeof a === 'object' && a !== null && 'email' in a ? String((a as { email?: string }).email || '') : ''))
+    .filter(Boolean);
+}
+
+function isConsentRecipientAmongAttendees(meeting: ScheduledMeeting, email: string): boolean {
+  const normalized = email.trim().toLowerCase();
+  return meetingAttendeeEmails(meeting).some((e) => e.trim().toLowerCase() === normalized);
+}
+
 // Helper to resolve template paths in both dev and production
 function resolveTemplatePath(filename: string): string {
   // Try multiple possible locations - prioritize cwd for Autoscale deployments
@@ -9761,11 +9773,32 @@ ${firmName}`;
       if (meeting.status === 'cancelled') {
         return res.status(400).json({ message: "Cannot update a cancelled meeting" });
       }
+
+      if (autoRecordEnabled === true && !isFeatureVisible('calendarAutoRecord')) {
+        return res.status(403).json({ message: "Auto-record is not available" });
+      }
       
       const updates: Partial<ScheduledMeeting> = {};
       if (autoRecordEnabled !== undefined) updates.autoRecordEnabled = !!autoRecordEnabled;
-      if (clientEmail !== undefined) updates.clientEmail = clientEmail;
-      if (clientName !== undefined) updates.clientName = clientName;
+      if (clientEmail !== undefined) {
+        if (clientEmail === null || clientEmail === '') {
+          updates.clientEmail = null;
+          if (clientName === undefined) {
+            updates.clientName = null;
+          }
+        } else if (typeof clientEmail !== 'string') {
+          return res.status(400).json({ message: "clientEmail must be a string" });
+        } else if (!isConsentRecipientAmongAttendees(meeting, clientEmail)) {
+          return res.status(400).json({
+            message: "Consent recipient must be selected from this meeting's attendee list",
+          });
+        } else {
+          updates.clientEmail = clientEmail.trim();
+        }
+      }
+      if (clientName !== undefined) {
+        updates.clientName = clientName === null || clientName === '' ? null : String(clientName).trim();
+      }
       
       if (caseId !== undefined) {
         if (caseId) {
@@ -10033,7 +10066,17 @@ ${firmName}`;
       }
       
       if (!meeting.clientEmail) {
-        return res.status(400).json({ message: "No client email set for this meeting" });
+        return res.status(400).json({ message: "No consent recipient set for this meeting" });
+      }
+
+      if (!meeting.clientName) {
+        return res.status(400).json({ message: "Consent recipient name is required" });
+      }
+
+      if (!isConsentRecipientAmongAttendees(meeting, meeting.clientEmail)) {
+        return res.status(400).json({
+          message: "Consent recipient must be selected from this meeting's attendee list",
+        });
       }
       
       const { meetingSchedulerService } = await import("./services/meetingSchedulerService");

@@ -187,12 +187,6 @@ export class MeetingSchedulerService {
       const { url: meetingUrl, platform: meetingPlatform } = extractMeetingUrl(event);
       const attendees = parseAttendees(event);
 
-      const primaryAttendee = attendees.find(a => 
-        a.responseStatus === 'accepted' || 
-        a.responseStatus === 'tentative' ||
-        a.responseStatus === 'needsAction'
-      ) || attendees[0];
-
       const validPlatforms = ['zoom', 'teams', 'meet', 'webex'] as const;
       const validatedPlatform = validPlatforms.includes(meetingPlatform as typeof validPlatforms[number])
         ? (meetingPlatform as typeof validPlatforms[number])
@@ -209,8 +203,8 @@ export class MeetingSchedulerService {
         startTime,
         endTime: endTime || undefined,
         attendees: attendees,
-        clientEmail: primaryAttendee?.email || undefined,
-        clientName: primaryAttendee?.name || undefined,
+        clientEmail: undefined,
+        clientName: undefined,
         autoRecordEnabled: false,
         consentStatus: 'pending',
         status: 'scheduled',
@@ -439,10 +433,8 @@ Your Legal Team
   }
 
   async runScheduledTasks(userId: string): Promise<void> {
-    const meetingsNeedingConsent = await storage.getMeetingsNeedingConsent(userId);
-    for (const meeting of meetingsNeedingConsent) {
-      await this.sendConsentEmailForMeeting(meeting);
-    }
+    // Consent emails are human-initiated only (POST /api/scheduled-meetings/:id/send-consent).
+    // Cron must not originate correspondence to calendar attendees.
 
     const meetingsReadyForBot = await storage.getMeetingsReadyForBot(userId);
     for (const meeting of meetingsReadyForBot) {

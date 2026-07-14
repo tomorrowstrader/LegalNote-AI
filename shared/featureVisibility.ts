@@ -6,6 +6,8 @@
 export const FEATURE_VISIBILITY = {
   amlCompliance: false,
   sraReadiness: false,
+  /** Auto-record + cron bot deploy for scheduled meetings (Phase 3). */
+  calendarAutoRecord: false,
 } as const;
 
 export type FeatureKey = keyof typeof FEATURE_VISIBILITY;

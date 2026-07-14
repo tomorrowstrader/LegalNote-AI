@@ -12,6 +12,7 @@ import { migrateClientsFromCases } from "./clientMigration";
 import { backfillSessions } from "./sessionMigration";
 import { migrateReasoningGapPlaceholders } from "./reasoningGapMigration";
 import { markPreSealingConsentLogs } from "./consentPreSealingMigration";
+import { clearScheduledMeetingGuessedRecipients } from "./clearScheduledMeetingRecipientsMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
@@ -249,6 +250,9 @@ app.use((req, res, next) => {
 
   // Mark unsigned historic consent rows as pre_sealing (idempotent)
   await markPreSealingConsentLogs();
+
+  // Remove calendar-scraped consent recipients (solicitor must choose explicitly)
+  await clearScheduledMeetingGuessedRecipients();
 
   // Initialize background job workers
   initializeWorkers();
