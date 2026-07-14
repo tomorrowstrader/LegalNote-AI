@@ -87,6 +87,12 @@ import { db } from "./db";
 import { eq, and, or, gte, lte, lt, desc, isNull, isNotNull, not, sql, count, inArray } from "drizzle-orm";
 import { generateDocumentHash } from "./utils/documentHash";
 import { expandSearchWithSynonyms } from "./services/legalSynonyms";
+import {
+  AUDIT_PAYLOAD_V2,
+  buildAuditEntryContent,
+  computeAuditChainHash,
+  getAuditSigningKey,
+} from "./services/auditChain";
 
 // Enhanced search result with granular match information
 export interface SearchMatch {
@@ -477,7 +483,6 @@ export interface IStorage {
     monthlyChange: number;
   }>;
   
-  createConsentLog(consentData: InsertConsentLog, userId: string): Promise<ConsentLog>;
   getConsentLogsByCase(caseId: string, userId: string): Promise<ConsentLog[]>;
   
   createTranscript(transcriptData: InsertTranscript): Promise<Transcript>;
@@ -1209,6 +1214,7 @@ export class MemStorage implements IStorage {
       severity: insertAuditLog.severity ?? "info",
       previousEntryId: null,
       chainHash: "",
+      payloadVersion: 2,
     };
     this.auditLogs.set(id, auditLog);
     return auditLog;
@@ -1255,29 +1261,6 @@ export class MemStorage implements IStorage {
 
   async getAuditLogsByCase(caseId: string, limit?: number): Promise<AuditTrail[]> {
     return this.getAuditLogs({ caseId, limit });
-  }
-
-  async createConsentLog(insertConsentLog: InsertConsentLog, userId: string): Promise<ConsentLog> {
-    const caseRecord = this.cases.get(insertConsentLog.caseId);
-    if (!caseRecord || caseRecord.createdBy !== userId) throw new Error('Case not found or unauthorized');
-    
-    const id = randomUUID();
-    const consentLog: ConsentLog = {
-      id,
-      caseId: insertConsentLog.caseId,
-      audioRecordingId: insertConsentLog.audioRecordingId ?? null,
-      solicitorId: insertConsentLog.solicitorId,
-      consentGiven: insertConsentLog.consentGiven,
-      consentTimestamp: new Date(),
-      disclaimerScriptVersion: insertConsentLog.disclaimerScriptVersion,
-      disclaimerWordingText: insertConsentLog.disclaimerWordingText ?? null,
-      consentModality: insertConsentLog.consentModality,
-      ipAddress: insertConsentLog.ipAddress ?? null,
-      deletionTimestamp: insertConsentLog.deletionTimestamp ?? null,
-      deletionReason: insertConsentLog.deletionReason ?? null,
-    };
-    this.consentLogs.set(id, consentLog);
-    return consentLog;
   }
 
   async getConsentLogsByCase(caseId: string, userId: string): Promise<ConsentLog[]> {
@@ -3104,28 +3087,6 @@ export class DbStorage implements IStorage {
     };
   }
 
-  async createConsentLog(consentData: InsertConsentLog, userId: string): Promise<ConsentLog> {
-    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, consentData.caseId), eq(cases.createdBy, userId)));
-    if (!caseRecord[0]) throw new Error('Case not found or unauthorized');
-    
-    const result = await db
-      .insert(consentLogs)
-      .values({
-        caseId: consentData.caseId,
-        audioRecordingId: consentData.audioRecordingId ?? null,
-        solicitorId: consentData.solicitorId,
-        consentGiven: consentData.consentGiven,
-        disclaimerScriptVersion: consentData.disclaimerScriptVersion,
-        disclaimerWordingText: consentData.disclaimerWordingText ?? null,
-        consentModality: consentData.consentModality,
-        ipAddress: consentData.ipAddress ?? null,
-        deletionTimestamp: consentData.deletionTimestamp ?? null,
-        deletionReason: consentData.deletionReason ?? null,
-      })
-      .returning();
-    return result[0];
-  }
-
   async getConsentLogsByCase(caseId: string, userId: string): Promise<ConsentLog[]> {
     const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
     if (!caseRecord[0]) return [];
@@ -3812,60 +3773,66 @@ export class DbStorage implements IStorage {
   }
 
   async createAuditLog(auditData: InsertAuditTrail): Promise<AuditTrail> {
-    const signingKey = process.env.AUDIT_SIGNING_KEY || '';
+    const signingKey = getAuditSigningKey();
+    const payloadVersion = AUDIT_PAYLOAD_V2;
+    const auditTimestamp = new Date().toISOString();
 
-    let previousEntry: AuditTrail | null = null;
-    try {
+    const insertWithChain = async (tx: typeof db): Promise<AuditTrail> => {
+      if (auditData.caseId) {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${auditData.caseId}))`);
+      }
+
       const query = auditData.caseId
-        ? db.select().from(auditTrail)
+        ? tx
+            .select()
+            .from(auditTrail)
             .where(eq(auditTrail.caseId, auditData.caseId))
             .orderBy(desc(auditTrail.timestamp))
             .limit(1)
-        : db.select().from(auditTrail)
-            .orderBy(desc(auditTrail.timestamp))
-            .limit(1);
+        : tx.select().from(auditTrail).orderBy(desc(auditTrail.timestamp)).limit(1);
       const prev = await query;
-      previousEntry = prev[0] ?? null;
-    } catch {
-      previousEntry = null;
-    }
+      const previousEntry = prev[0] ?? null;
 
-    const entryContent = JSON.stringify({
-      eventType: auditData.eventType,
-      userId: auditData.userId,
-      caseId: auditData.caseId ?? null,
-      documentId: auditData.documentId ?? null,
-      transcriptId: auditData.transcriptId ?? null,
-      metadata: auditData.metadata ?? {},
-      severity: auditData.severity ?? 'info',
-      timestamp: new Date().toISOString(),
-    });
-
-    const previousChainHash = previousEntry?.chainHash ?? 'GENESIS';
-    const chainHash = signingKey
-      ? crypto.createHmac('sha256', signingKey)
-          .update(entryContent + previousChainHash)
-          .digest('hex')
-      : '';
-
-    const result = await db
-      .insert(auditTrail)
-      .values({
+      const entryContent = buildAuditEntryContent(payloadVersion, {
         eventType: auditData.eventType,
         userId: auditData.userId,
         caseId: auditData.caseId ?? null,
         documentId: auditData.documentId ?? null,
         transcriptId: auditData.transcriptId ?? null,
         audioRecordingId: auditData.audioRecordingId ?? null,
-        ipAddress: auditData.ipAddress ?? null,
-        userAgent: auditData.userAgent ?? null,
-        metadata: auditData.metadata ?? {},
-        severity: auditData.severity ?? 'info',
-        previousEntryId: previousEntry?.id ?? null,
-        chainHash,
-      })
-      .returning();
-    return result[0];
+        metadata: (auditData.metadata ?? {}) as Record<string, unknown>,
+        severity: auditData.severity ?? "info",
+        timestamp: auditTimestamp,
+      });
+
+      const previousChainHash = previousEntry?.chainHash ?? "GENESIS";
+      const chainHash = computeAuditChainHash(entryContent, previousChainHash, signingKey);
+
+      const result = await tx
+        .insert(auditTrail)
+        .values({
+          eventType: auditData.eventType,
+          userId: auditData.userId,
+          caseId: auditData.caseId ?? null,
+          documentId: auditData.documentId ?? null,
+          transcriptId: auditData.transcriptId ?? null,
+          audioRecordingId: auditData.audioRecordingId ?? null,
+          ipAddress: auditData.ipAddress ?? null,
+          userAgent: auditData.userAgent ?? null,
+          metadata: auditData.metadata ?? {},
+          severity: auditData.severity ?? "info",
+          previousEntryId: previousEntry?.id ?? null,
+          chainHash,
+          payloadVersion,
+        })
+        .returning();
+      return result[0];
+    };
+
+    if (auditData.caseId) {
+      return db.transaction(insertWithChain);
+    }
+    return insertWithChain(db);
   }
 
   async getAuditLogs(filters?: {

@@ -2,7 +2,7 @@ import { AssemblyAIService, formatDiarizedTranscript, type SpeakerUtterance } fr
 import { DocumentService, type CaseMetadata } from './documentService';
 import { TranscriptCorrectionService } from './transcriptCorrectionService';
 import { IStorage } from '../storage';
-import { auditLogger, AuditEventType } from '../auditLog';
+import { logAuditEvent } from '../auditMiddleware';
 import { buildKeytermsConfig } from './legalVocabulary';
 import {
   PRIMARY_ROLE_LABELS,
@@ -230,13 +230,10 @@ export class AIProcessingPipeline {
         currentStep: 'Downloading audio file...',
       });
 
-      auditLogger.log({
-        eventType: AuditEventType.AI_PROCESSING_STARTED,
-        userId,
-        resourceId: caseId,
-        resourceType: 'case',
-        details: { audioId: audio.id },
-        severity: 'medium',
+      await logAuditEvent(userId, "ai_processing_started", {
+        caseId,
+        audioRecordingId: audio.id,
+        metadata: { audioId: audio.id },
       });
 
       // Step 1: Transcribe audio (with diarization if AssemblyAI available)
@@ -347,19 +344,15 @@ export class AIProcessingPipeline {
         meetingSessionId: sessionInfo.sessionId ?? undefined,
       });
 
-      auditLogger.log({
-        eventType: AuditEventType.AI_TRANSCRIPTION_COMPLETED,
-        userId,
-        resourceId: transcript.id,
-        resourceType: 'transcript',
-        details: { 
-          caseId,
+      await logAuditEvent(userId, "transcription_completed", {
+        caseId,
+        transcriptId: transcript.id,
+        metadata: {
           textLength: transcriptText.length,
           cost: transcriptionCost,
           hasDiarization: transcriptUtterances.length > 0,
           speakerCount: speakerCount,
         },
-        severity: 'medium',
       });
 
       await this.updateProcessingStatus(caseId, userId, {
@@ -435,19 +428,15 @@ export class AIProcessingPipeline {
         meetingSessionId: sessionInfo.sessionId ?? undefined,
       });
 
-      auditLogger.log({
-        eventType: AuditEventType.AI_DOCUMENT_GENERATED,
-        userId,
-        resourceId: attendanceDoc.id,
-        resourceType: 'document',
-        details: { 
-          caseId,
+      await logAuditEvent(userId, "document_generated", {
+        caseId,
+        documentId: attendanceDoc.id,
+        metadata: {
           documentType: docType,
           inputTokens: attendanceResult.inputTokens,
           outputTokens: attendanceResult.outputTokens,
           cost: attendanceResult.cost,
         },
-        severity: 'medium',
       });
 
       let clientLetterResult: typeof attendanceResult | undefined;
@@ -492,19 +481,15 @@ export class AIProcessingPipeline {
           meetingSessionId: sessionInfo.sessionId ?? undefined,
         });
 
-        auditLogger.log({
-          eventType: AuditEventType.AI_DOCUMENT_GENERATED,
-          userId,
-          resourceId: clientLetterDoc.id,
-          resourceType: 'document',
-          details: { 
-            caseId,
-            documentType: 'client_letter',
+        await logAuditEvent(userId, "document_generated", {
+          caseId,
+          documentId: clientLetterDoc.id,
+          metadata: {
+            documentType: "client_letter",
             inputTokens: clientLetterResult.inputTokens,
             outputTokens: clientLetterResult.outputTokens,
             cost: clientLetterResult.cost,
           },
-          severity: 'medium',
         });
       }
 
@@ -644,13 +629,10 @@ export class AIProcessingPipeline {
       console.error(`AI processing failed for case ${caseId}:`, error);
 
       // Log failure
-      auditLogger.log({
-        eventType: AuditEventType.AI_PROCESSING_FAILED,
-        userId,
-        resourceId: caseId,
-        resourceType: 'case',
-        details: { error: error.message },
-        severity: 'critical',
+      await logAuditEvent(userId, "ai_processing_failed", {
+        caseId,
+        metadata: { error: error.message },
+        severity: "critical",
       });
 
       // Update status with error

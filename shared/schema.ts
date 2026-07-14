@@ -277,6 +277,9 @@ export const consentLogs = pgTable("consent_logs", {
   withdrawalTimestamp: timestamp("withdrawal_timestamp"),
   withdrawalReason: text("withdrawal_reason"),
   withdrawnBy: varchar("withdrawn_by").references(() => users.id),
+  contentHash: text("content_hash"),
+  contentSignature: text("content_signature"),
+  sealingStatus: text("sealing_status").notNull().default("sealed"), // sealed | pre_sealing
 });
 
 export const RECORDING_TYPES = ["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station", "internal_meeting", "supervision"] as const;
@@ -427,6 +430,7 @@ export const auditTrail = pgTable("audit_trail", {
   severity: text("severity").notNull().default("info"), // info, warning, critical
   previousEntryId: varchar("previous_entry_id"),
   chainHash: text("chain_hash"),
+  payloadVersion: integer("payload_version").notNull().default(1), // 1 = legacy; 2 = includes audioRecordingId in signed payload
 });
 
 export const dsarRequests = pgTable("dsar_requests", {

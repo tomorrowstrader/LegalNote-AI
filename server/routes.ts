@@ -55,7 +55,6 @@ import {
   authLimiter,
   pollingLimiter,
 } from "./rateLimiting";
-import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { SYSTEM_USER_ID } from "./systemUser";
 import {
@@ -1630,20 +1629,18 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
 
       const newCase = await storage.createCase(validatedData, userId);
-      auditLogger.logFromRequest(AuditEventType.CASE_CREATED, req, {
-        resourceId: newCase.id,
-        resourceType: "case",
-        action: "create",
-        severity: "low",
+      await logAuditEvent(userId, "case_created", {
+        caseId: newCase.id,
+        req,
+        metadata: { action: "create" },
       });
 
       if (validatedData.conflictCheckCompleted !== undefined) {
-        auditLogger.logFromRequest(AuditEventType.CASE_UPDATED, req, {
-          resourceId: newCase.id,
-          resourceType: "case",
-          action: "conflict_check",
-          severity: "medium",
-          additionalInfo: {
+        await logAuditEvent(userId, "case_updated", {
+          caseId: newCase.id,
+          req,
+          metadata: {
+            action: "conflict_check",
             conflictCheckCompleted: validatedData.conflictCheckCompleted,
             conflictCheckNote: validatedData.conflictCheckNote || null,
           },
@@ -1686,13 +1683,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
             createdBy: userId,
           });
           await storage.updateCase(newCase.id, { clientCareLetterId: doc.id }, userId);
-          auditLogger.logFromRequest(AuditEventType.DOCUMENT_GENERATED, req, {
-            resourceId: doc.id,
-            resourceType: "document",
-            action: "auto_generate_client_care_letter",
-            severity: "medium",
-            additionalInfo: {
-              caseId: newCase.id,
+          await logAuditEvent(userId, "document_generated", {
+            caseId: newCase.id,
+            documentId: doc.id,
+            req,
+            metadata: {
+              action: "auto_generate_client_care_letter",
               practiceArea: newCase.practiceArea,
               generationCost: result.cost,
               automatic: true,
@@ -2732,11 +2728,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         if (reasoningGapsFilled !== undefined) gapUpdates.reasoningGapsFilled = reasoningGapsFilled;
         await storage.updateDocument(req.params.id, gapUpdates, userId);
         if ((reasoningGapsFilled ?? 0) > 0) {
-          auditLogger.logFromRequest(AuditEventType.DOCUMENT_GAPS_FILLED, req, {
-            resourceId: req.params.id,
-            resourceType: 'document',
-            action: 'fill_reasoning_gaps',
-            additionalInfo: {
+          await logAuditEvent(userId, "document_gaps_filled", {
+            caseId: document.caseId,
+            documentId: req.params.id,
+            req,
+            metadata: {
+              action: "fill_reasoning_gaps",
               gapsIdentified: reasoningGapsIdentified,
               gapsFilled: reasoningGapsFilled,
             },
@@ -2746,12 +2743,15 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
       // Emit AML confirmation audit event if the solicitor explicitly confirmed
       if (amlConfirmed === true) {
-        auditLogger.logFromRequest(AuditEventType.DOCUMENT_AML_CONFIRMED, req, {
-          resourceId: req.params.id,
-          resourceType: 'document',
-          action: 'aml_consideration_confirmed',
-          severity: 'medium',
-          additionalInfo: { confirmedBy: userId, confirmedAt: new Date().toISOString() },
+        await logAuditEvent(userId, "document_aml_confirmed", {
+          caseId: document.caseId,
+          documentId: req.params.id,
+          req,
+          metadata: {
+            action: "aml_consideration_confirmed",
+            confirmedBy: userId,
+            confirmedAt: new Date().toISOString(),
+          },
         });
       }
 
@@ -3567,11 +3567,11 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           duration: parseFloat(req.body.duration),
         });
 
-        auditLogger.logFromRequest(AuditEventType.AUDIO_UPLOADED, req, {
-          resourceId: audioId,
-          resourceType: "audio",
-          action: "upload",
-          severity: "medium",
+        await logAuditEvent(userId, "audio_uploaded", {
+          caseId: audioRecording.caseId,
+          audioRecordingId: audioId,
+          req,
+          metadata: { action: "upload" },
         });
 
         const holdResult = await applyObjectLegalHoldForNewRecording({
@@ -3736,12 +3736,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         consentDurationSeconds: result.consentDurationSeconds,
       });
 
-      auditLogger.logFromRequest(AuditEventType.AUDIO_UPLOADED, req, {
-        resourceId: audioRecordingId,
-        resourceType: "audio",
-        action: "chunked_upload_finalized",
-        severity: "medium",
+      await logAuditEvent(userId, "audio_uploaded", {
+        caseId: audioRecording.caseId,
+        audioRecordingId: audioRecordingId,
+        req,
         metadata: {
+          action: "chunked_upload_finalized",
           totalChunks: result.totalChunks,
           totalBytes: result.totalBytes,
           consentSegmentPreserved: !!result.consentSegmentPath,
@@ -4175,23 +4175,30 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const userId = req.user.claims.sub;
       const validatedData = insertConsentLogSchema.parse({
         ...req.body,
-        solicitorId: userId, // Ensure solicitorId matches authenticated user
+        solicitorId: userId,
       });
-      
-      // Verify user owns the case and create consent log
-      const consentLog = await storage.createConsentLog(validatedData, userId);
-      
-      auditLogger.logFromRequest(
-        validatedData.consentGiven ? AuditEventType.CONSENT_GIVEN : AuditEventType.CONSENT_DECLINED,
+
+      const { recordConsentEvent } = await import("./services/recordConsentEvent");
+      const source =
+        typeof req.body?.source === "string" && req.body.source.trim()
+          ? req.body.source.trim()
+          : "api_consent";
+
+      const result = await recordConsentEvent({
+        caseId: validatedData.caseId,
+        audioRecordingId: validatedData.audioRecordingId ?? null,
+        solicitorId: userId,
+        consentGiven: validatedData.consentGiven,
+        disclaimerScriptVersion: validatedData.disclaimerScriptVersion,
+        disclaimerWordingText: validatedData.disclaimerWordingText ?? null,
+        consentModality: validatedData.consentModality,
+        lawfulBasis: validatedData.lawfulBasis ?? null,
+        recordingPurpose: validatedData.recordingPurpose ?? null,
+        source,
         req,
-        {
-          resourceId: consentLog.id,
-          resourceType: "consent",
-          severity: "medium",
-        }
-      );
-      
-      res.json(consentLog);
+      });
+
+      res.json(result.consentLog);
     } catch (error: any) {
       if (error.name === "ZodError") {
         return res.status(400).json({ message: error.message });
@@ -4251,27 +4258,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(403).json({ message: "Not authorized" });
       }
       
-      // GDPR Compliance: Verify valid consent exists before processing
-      // Dictation recordings (solicitor's own recollection) do not require client consent
-      const isDictation = caseData.sourceType === 'dictation';
-      
-      if (!isDictation) {
-        const consentLogs = await storage.getConsentLogsByCase(caseId, userId);
-        const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
-        
-        if (!hasValidConsent) {
-          auditLogger.logFromRequest(AuditEventType.ACCESS_CONTROL_VIOLATION, req, {
-            resourceId: caseId,
-            resourceType: "case",
-            action: "process_without_consent",
-            severity: "high",
-          });
-          return res.status(403).json({ 
-            message: "GDPR compliance error: Valid client consent must be recorded before processing audio recordings" 
-          });
-        }
-      }
-      
+      // GDPR Compliance: sealed consent required before processing (no dictation bypass)
+      const { assertSealedConsent, SealedConsentError } = await import("./services/assertSealedConsent");
       const sessionId = req.body.sessionId;
 
       let audioRecording;
@@ -4283,6 +4271,25 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       } else {
         audioRecording = await storage.getAudioRecordingByCase(caseId, userId);
       }
+
+      try {
+        await assertSealedConsent(caseId, userId, audioRecording?.id);
+      } catch (error: any) {
+        if (error instanceof SealedConsentError) {
+          await logAuditEvent(userId, "access_control_violation", {
+            caseId,
+            req,
+            metadata: {
+              action: "process_without_sealed_consent",
+              reason: error.reason,
+            },
+            severity: "critical",
+          });
+          return res.status(403).json({ message: error.message });
+        }
+        throw error;
+      }
+
       if (!audioRecording || !audioRecording.filePath) {
         return res.status(404).json({ message: "No audio recording found for this case" });
       }
@@ -4313,12 +4320,10 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const { jobQueue } = await import('./services/jobQueue');
       const jobId = await jobQueue.addJob('ai-processing', { caseId, userId, sessionId: effectiveSessionId });
       
-      auditLogger.logFromRequest(AuditEventType.AI_PROCESSING_STARTED, req, {
-        resourceId: caseId,
-        resourceType: "case",
-        action: "queue_processing",
-        severity: "medium",
-        additionalInfo: { jobId },
+      await logAuditEvent(userId, "ai_processing_started", {
+        caseId,
+        req,
+        metadata: { action: "queue_processing", jobId },
       });
       
       res.json({ 
@@ -4363,21 +4368,10 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(400).json({ message: "Only failed cases can be retried" });
       }
       
-      // GDPR Compliance: Verify valid consent exists (not required for dictation)
-      const isDictation = caseData.sourceType === 'dictation';
-      
-      if (!isDictation) {
-        const consentLogs = await storage.getConsentLogsByCase(caseId, userId);
-        const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
-        
-        if (!hasValidConsent) {
-          return res.status(403).json({ 
-            message: "GDPR compliance error: Valid client consent required" 
-          });
-        }
-      }
-      
+      // GDPR Compliance: sealed consent required (no dictation bypass)
+      const { assertSealedConsent, SealedConsentError } = await import("./services/assertSealedConsent");
       const retrySessionId = req.body.sessionId;
+
       let audioRecording;
       if (retrySessionId) {
         audioRecording = await storage.getAudioRecordingBySession(retrySessionId);
@@ -4387,6 +4381,16 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       } else {
         audioRecording = await storage.getAudioRecordingByCase(caseId, userId);
       }
+
+      try {
+        await assertSealedConsent(caseId, userId, audioRecording?.id);
+      } catch (error: any) {
+        if (error instanceof SealedConsentError) {
+          return res.status(403).json({ message: error.message });
+        }
+        throw error;
+      }
+
       if (!audioRecording || !audioRecording.filePath) {
         return res.status(404).json({ message: "No audio recording found" });
       }
@@ -4407,12 +4411,10 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const { jobQueue } = await import('./services/jobQueue');
       const jobId = await jobQueue.addJob('ai-processing', { caseId, userId, sessionId: effectiveRetrySessionId });
       
-      auditLogger.logFromRequest(AuditEventType.AI_PROCESSING_STARTED, req, {
-        resourceId: caseId,
-        resourceType: "case",
-        action: "retry_processing",
-        severity: "medium",
-        additionalInfo: { jobId, retry: true },
+      await logAuditEvent(userId, "ai_processing_started", {
+        caseId,
+        req,
+        metadata: { action: "retry_processing", jobId, retry: true },
       });
       
       res.json({ 
@@ -5692,13 +5694,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
       await storage.updateCase(caseId, { clientCareLetterId: document.id }, userId);
 
-      auditLogger.logFromRequest(AuditEventType.DOCUMENT_GENERATED, req, {
-        resourceId: document.id,
-        resourceType: "document",
-        action: "generate_client_care_letter",
-        severity: "medium",
-        additionalInfo: {
-          caseId,
+      await logAuditEvent(userId, "document_generated", {
+        caseId,
+        documentId: document.id,
+        req,
+        metadata: {
+          action: "generate_client_care_letter",
           practiceArea: caseData.practiceArea,
           generationCost: result.cost,
         },
@@ -5819,13 +5820,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         firmPhone: fp?.phone || undefined,
       });
 
-      auditLogger.logFromRequest(AuditEventType.DOCUMENT_GENERATED, req, {
-        resourceId: caseData.clientCareLetterId,
-        resourceType: "document",
-        action: "send_client_care_letter",
-        severity: "medium",
-        additionalInfo: {
-          caseId,
+      await logAuditEvent(userId, "document_generated", {
+        caseId,
+        documentId: caseData.clientCareLetterId ?? undefined,
+        req,
+        metadata: {
+          action: "send_client_care_letter",
           recipientEmail,
           success: emailResult.success,
           messageId: emailResult.messageId,
@@ -6871,11 +6871,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       
       const updatedProfile = await storage.upsertFirmProfile(validatedData);
       
-      auditLogger.logFromRequest(AuditEventType.FIRM_PROFILE_UPDATED, req, {
-        resourceId: updatedProfile.id,
-        resourceType: "firm_profile",
-        action: "update",
-        severity: "medium",
+      await logAuditEvent(userId, "firm_profile_updated", {
+        req,
+        metadata: { action: "update", firmProfileId: updatedProfile.id },
       });
       
       res.json(updatedProfile);
@@ -8225,50 +8223,36 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       if (!caseData) return res.status(404).json({ message: "Case not found" });
 
       const entries = await storage.getAuditLogsByCase(caseId);
-      const sorted = [...entries].sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-
-      const signingKey = process.env.AUDIT_SIGNING_KEY || '';
-      let chainIntact = true;
-      const failures: string[] = [];
-
-      for (let i = 0; i < sorted.length; i++) {
-        const entry = sorted[i];
-        if (!entry.chainHash) continue;
-
-        const previousChainHash = i === 0
-          ? 'GENESIS'
-          : (sorted[i - 1].chainHash ?? 'GENESIS');
-
-        const entryContent = JSON.stringify({
-          eventType: entry.eventType,
-          userId: entry.userId,
-          caseId: entry.caseId ?? null,
-          documentId: entry.documentId ?? null,
-          transcriptId: entry.transcriptId ?? null,
-          metadata: entry.metadata ?? {},
-          severity: entry.severity ?? 'info',
-          timestamp: new Date(entry.timestamp).toISOString(),
-        });
-
-        const expectedHash = signingKey
-          ? crypto.createHmac('sha256', signingKey)
-              .update(entryContent + previousChainHash)
-              .digest('hex')
-          : '';
-
-        if (signingKey && entry.chainHash !== expectedHash) {
-          chainIntact = false;
-          failures.push(entry.id);
-        }
-      }
+      const { getAuditSigningKey, verifyAuditChainEntries } = await import("./services/auditChain");
+      const signingKey = getAuditSigningKey();
+      const { chainIntact, failedEntryIds } = verifyAuditChainEntries(entries, signingKey);
 
       res.json({
         caseId,
-        totalEntries: sorted.length,
+        totalEntries: entries.length,
         chainIntact,
-        failedEntryIds: failures,
+        failedEntryIds,
+        verifiedAt: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/cases/:id/consent/verify", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(404).json({ message: "Case not found" });
+
+      const { verifyCaseConsentSealing } = await import("./services/assertSealedConsent");
+      const result = await verifyCaseConsentSealing(caseId);
+
+      res.json({
+        caseId,
+        ...result,
         verifiedAt: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -8674,6 +8658,27 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         severity: 'info',
       });
 
+      // Seal prior in-meeting attestation onto the case now that it has a matter ID.
+      if (importData.consentConfirmed) {
+        const { recordConsentEvent } = await import('./services/recordConsentEvent');
+        await recordConsentEvent({
+          caseId,
+          solicitorId: userId,
+          consentGiven: true,
+          disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
+          disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
+          consentModality: 'verbal_attested',
+          lawfulBasis: 'consent',
+          recordingPurpose: 'Creation of attendance notes and transcripts for legal record-keeping',
+          source: 'recall_assign_prior_attestation',
+          req,
+          auditMetadataExtras: {
+            importId: importData.id,
+            sealedOnAssignment: true,
+          },
+        });
+      }
+
       // Trigger the AI processing pipeline asynchronously
       // The pipeline will use the stored audio at audioStoragePath to avoid relying on Recall URL availability
       const updatedImport = await storage.getMeetingImport(importData.id);
@@ -8799,24 +8804,44 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         // Align API response source with audit source for consistency
         consentSource = auditSource;
 
-        // Create audit log of the user's attestation
-        await storage.createAuditLog({
-          eventType: 'consent_attestation',
-          userId,
-          caseId: importData.caseId || undefined,
-          ipAddress: req.ip || req.socket?.remoteAddress,
-          metadata: {
-            importId: importData.id,
-            attestationType: 'verbal_consent_obtained',
-            attestedAt: new Date().toISOString(),
-            meetingPlatform: importData.meetingPlatform,
-            source: auditSource,
+        if (importData.caseId) {
+          const { recordConsentEvent } = await import("./services/recordConsentEvent");
+          await recordConsentEvent({
+            caseId: importData.caseId,
+            solicitorId: userId,
+            consentGiven: true,
             disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
             disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
-            ...(elapsedLabel ? { elapsedIntoRecording: elapsedLabel } : {}),
-          },
-          severity: 'info',
-        });
+            consentModality: "verbal_attested",
+            lawfulBasis: "consent",
+            recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
+            source: auditSource,
+            req,
+            ipAddress: req.ip || req.socket?.remoteAddress,
+            auditMetadataExtras: {
+              importId: importData.id,
+              meetingPlatform: importData.meetingPlatform,
+              ...(elapsedLabel ? { elapsedIntoRecording: elapsedLabel } : {}),
+            },
+          });
+        } else {
+          await storage.createAuditLog({
+            eventType: "consent_attestation",
+            userId,
+            ipAddress: req.ip || req.socket?.remoteAddress,
+            metadata: {
+              importId: importData.id,
+              attestationType: "verbal_consent_obtained",
+              attestedAt: new Date().toISOString(),
+              meetingPlatform: importData.meetingPlatform,
+              source: auditSource,
+              disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
+              disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
+              ...(elapsedLabel ? { elapsedIntoRecording: elapsedLabel } : {}),
+            },
+            severity: "info",
+          });
+        }
       }
       
       if (!consentConfirmed) {

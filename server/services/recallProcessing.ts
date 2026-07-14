@@ -247,6 +247,21 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     userId,
   });
 
+  const { assertSealedConsent, SealedConsentError } = await import('./assertSealedConsent');
+  try {
+    await assertSealedConsent(caseId, userId, audioRecord.id);
+  } catch (error: any) {
+    if (error instanceof SealedConsentError) {
+      console.error(`[RecallProcessing] Sealed consent gate failed for case ${caseId}:`, error.message);
+      await storage.updateMeetingImport(importId, {
+        status: 'failed',
+        errorMessage: error.message,
+      });
+      return;
+    }
+    throw error;
+  }
+
   await storage.updateMeetingImport(importId, {
     status: 'transcribing',
     audioStoragePath: audioPath,

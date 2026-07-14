@@ -19,6 +19,27 @@ export function initializeWorkers() {
   // Register AI processing job handler
   jobQueue.registerHandler('ai-processing', async (data: { caseId: string; userId: string; sessionId?: string }) => {
     console.log(`[AI-WORKER] Starting AI processing for case ${data.caseId}${data.sessionId ? ` session ${data.sessionId}` : ''}`);
+
+    const { assertSealedConsent, SealedConsentError } = await import('./services/assertSealedConsent');
+    let audioRecordingId: string | undefined;
+    if (data.sessionId) {
+      const sessionAudio = await storage.getAudioRecordingBySession(data.sessionId);
+      audioRecordingId = sessionAudio?.id;
+    }
+    if (!audioRecordingId) {
+      const caseAudio = await storage.getAudioRecordingByCase(data.caseId, data.userId);
+      audioRecordingId = caseAudio?.id;
+    }
+
+    try {
+      await assertSealedConsent(data.caseId, data.userId, audioRecordingId);
+    } catch (error: any) {
+      if (error instanceof SealedConsentError) {
+        console.error(`[AI-WORKER] Sealed consent gate failed for case ${data.caseId}:`, error.message);
+        throw new Error(error.message);
+      }
+      throw error;
+    }
     
     const pipeline = new AIProcessingPipeline(storage);
     

@@ -11,23 +11,16 @@ import { initializeWorkers } from "./workers";
 import { migrateClientsFromCases } from "./clientMigration";
 import { backfillSessions } from "./sessionMigration";
 import { migrateReasoningGapPlaceholders } from "./reasoningGapMigration";
+import { markPreSealingConsentLogs } from "./consentPreSealingMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
 
-// Ensure AUDIT_SIGNING_KEY is set before any audit export routes are called.
-// In production, this should be set as a persistent secret (e.g. via Replit Secrets).
-// If absent at startup, generate a cryptographically random 64-byte hex key for this
-// process lifetime. Signatures will be valid within this session but WILL NOT match
-// across restarts, so set AUDIT_SIGNING_KEY as a persistent secret for production use.
-if (!process.env.AUDIT_SIGNING_KEY) {
-  const sessionKey = crypto.randomBytes(64).toString('hex');
-  process.env.AUDIT_SIGNING_KEY = sessionKey;
+// Development-only fallback when AUDIT_SIGNING_KEY is unset (production gate is in envValidation).
+if (!process.env.AUDIT_SIGNING_KEY && process.env.NODE_ENV !== "production") {
+  process.env.AUDIT_SIGNING_KEY = crypto.randomBytes(64).toString("hex");
   console.warn(
-    '[AUDIT] WARNING: AUDIT_SIGNING_KEY is not set as an environment variable. ' +
-    'A session-scoped key has been generated for this process. ' +
-    'Audit export signatures will NOT be verifiable across server restarts. ' +
-    'Set AUDIT_SIGNING_KEY as a persistent secret for production deployments.'
+    "[AUDIT] AUDIT_SIGNING_KEY not set — generated ephemeral dev key for this process.",
   );
 }
 
@@ -253,6 +246,9 @@ app.use((req, res, next) => {
 
   // Replace any legacy visible placeholder text with HTML comment markers (idempotent)
   await migrateReasoningGapPlaceholders();
+
+  // Mark unsigned historic consent rows as pre_sealing (idempotent)
+  await markPreSealingConsentLogs();
 
   // Initialize background job workers
   initializeWorkers();

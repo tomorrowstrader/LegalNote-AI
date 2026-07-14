@@ -129,6 +129,10 @@ export function validateEnvironment(): void {
 
   validatePrivilegedDataPath();
 
+  if (isProduction() && !process.env.AUDIT_SIGNING_KEY?.trim()) {
+    throw new Error("AUDIT_SIGNING_KEY is required in production");
+  }
+
   // Touch endpoint helper so misconfiguration fails early when objectStorage is not yet imported
   if (process.env.BACKBLAZE_S3_ENDPOINT?.trim()) {
     getBackblazeS3Endpoint();

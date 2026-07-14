@@ -290,15 +290,7 @@ export default function NewNote() {
     setConsentGiven(true);
     setShowConsentModal(false);
     
-    // Log consent given event
-    await logAuditEvent({
-      eventType: "consent_given",
-      metadata: { 
-        source: "new_note_page",
-        consentModality: "verbal_recorded",
-      },
-      severity: "warning",
-    });
+    // Consent is sealed server-side via POST /api/consent — no duplicate client audit entry.
   };
 
   const handleConsentDeclined = async () => {
@@ -551,6 +543,7 @@ export default function NewNote() {
             disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
             lawfulBasis: "consent" as const,
             recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
+            source: "new_note_page",
           };
           console.log('Saving consent log to backend...', consentPayload);
           await apiRequest("POST", "/api/consent", consentPayload);

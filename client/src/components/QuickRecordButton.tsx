@@ -469,15 +469,7 @@ export default function QuickRecordButton() {
       }
     }
     
-    // Log consent given event (client-side audit)
-    await logAuditEvent({
-      eventType: "consent_given",
-      metadata: { 
-        source: "quick_record_button",
-        consentModality: "verbal_recorded",
-      },
-      severity: "warning",
-    });
+    // Consent is sealed server-side via POST /api/consent — no duplicate client audit entry.
   };
 
   const handleConsentDeclined = async () => {
@@ -658,8 +650,9 @@ export default function QuickRecordButton() {
             consentModality: "verbal_recorded" as const,
             disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
             disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
-            lawfulBasis: "consent" as const, // GDPR Article 6(1)(a)
+            lawfulBasis: "consent" as const,
             recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
+            source: "quick_record_button",
           };
           await apiRequest("POST", "/api/consent", consentPayload);
         } catch (consentError: any) {

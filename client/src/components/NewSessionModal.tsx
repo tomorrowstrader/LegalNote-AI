@@ -109,11 +109,7 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
   const handleConsentGiven = async () => {
     setConsentGiven(true);
     setShowConsentModal(false);
-    await logAuditEvent({
-      eventType: "consent_given",
-      metadata: { source: "case_detail_new_session_modal", consentModality: "verbal_recorded" },
-      severity: "warning",
-    });
+    // Consent is sealed server-side via POST /api/consent — no duplicate client audit entry.
   };
 
   const handleConsentDeclined = async () => {
@@ -179,6 +175,7 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
           consentModality: "verbal_recorded",
           disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
           disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
+          source: "case_detail_new_session_modal",
         });
       }
 
