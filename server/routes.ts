@@ -6,13 +6,15 @@ import fs from "fs";
 import crypto from "crypto";
 import puppeteer from "puppeteer";
 
-// Returns the canonical base URL for generating public-facing links (consent, share, etc.)
+// Returns the canonical base URL for generating public-facing links (consent, share, OAuth, etc.)
 // Prefers APP_URL env var to prevent host-header spoofing. Falls back to request-derived
 // host in development, but warns in production if APP_URL is not configured.
 function getCanonicalBaseUrl(req: any): string {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
+  const replitDomain = process.env.REPLIT_DOMAINS?.split(',')[0]?.trim();
+  if (replitDomain) return `https://${replitDomain}`;
   if (process.env.NODE_ENV === 'production') {
-    console.warn('[SECURITY] APP_URL is not set. Consent/share link URLs are derived from request host header — configure APP_URL in production to harden against host-header spoofing.');
+    console.warn('[SECURITY] APP_URL is not set. Public URLs are derived from request host header — configure APP_URL in production to harden against host-header spoofing.');
   }
   return `${req.protocol}://${req.get('host')}`;
 }
@@ -42,6 +44,7 @@ import { db } from "./db";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
+import { isFeatureVisible } from "@shared/featureVisibility";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
@@ -5979,6 +5982,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   // ---- SRA Compliance Readiness ----
   app.get("/api/cases/:id/sra-readiness", isAuthenticated, async (req: any, res, next) => {
     try {
+      if (!isFeatureVisible("sraReadiness")) {
+        return res.status(404).json({ message: "Not found" });
+      }
       const userId = req.user.claims.sub;
       const caseId = req.params.id;
       const caseData = await storage.getCase(caseId, userId);
@@ -6273,6 +6279,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   // ---- SRA Matter Report Preview (section counts for modal) ----
   app.get("/api/cases/:id/sra-report/preview", isAuthenticated, async (req: any, res, next) => {
     try {
+      if (!isFeatureVisible("sraReadiness")) {
+        return res.status(404).json({ message: "Not found" });
+      }
       const userId = req.user.claims.sub;
       const caseId = req.params.id;
       const caseData = await storage.getCase(caseId, userId);
@@ -6291,6 +6300,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   // ---- SRA Matter Report (compile PDF) ----
   app.post("/api/cases/:id/sra-report", isAuthenticated, async (req: any, res, next) => {
     try {
+      if (!isFeatureVisible("sraReadiness")) {
+        return res.status(404).json({ message: "Not found" });
+      }
       const userId = req.user.claims.sub;
       const caseId = req.params.id;
       const caseData = await storage.getCase(caseId, userId);
@@ -7320,9 +7332,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const signedState = signOAuthState(statePayload);
 
       // Get base URL from request
-      const protocol = req.headers['x-forwarded-proto'] || 'https';
-      const host = req.headers.host;
-      const baseUrl = `${protocol}://${host}`;
+      const baseUrl = getCanonicalBaseUrl(req);
 
       try {
         const client = createGoogleOAuthClient(baseUrl);
@@ -7381,9 +7391,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           };
 
           const signedState = signOAuthState(statePayload);
-          const protocol = req.headers['x-forwarded-proto'] || 'https';
-          const host = req.headers.host;
-          const baseUrl = `${protocol}://${host}`;
+          const baseUrl = getCanonicalBaseUrl(req);
           const authUrl = getMicrosoftAuthUrl(baseUrl, signedState);
 
           return res.json({ authUrl });
@@ -7420,9 +7428,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const signedState = signOAuthState(statePayload);
 
       // Get base URL from request
-      const protocol = req.headers['x-forwarded-proto'] || 'https';
-      const host = req.headers.host;
-      const baseUrl = `${protocol}://${host}`;
+      const baseUrl = getCanonicalBaseUrl(req);
 
       try {
         const client = createGoogleOAuthClient(baseUrl);
@@ -7477,9 +7483,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
 
       // Get base URL
-      const protocol = req.headers['x-forwarded-proto'] || 'https';
-      const host = req.headers.host;
-      const baseUrl = `${protocol}://${host}`;
+      const baseUrl = getCanonicalBaseUrl(req);
 
       try {
         if (provider === 'outlook') {
@@ -7726,21 +7730,21 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   // OAuth configuration diagnostic endpoint (shows exact redirect URIs needed)
   app.get("/api/calendar/oauth-config", isAuthenticated, async (req: any, res, next) => {
     try {
-      const protocol = req.headers['x-forwarded-proto'] || 'https';
-      const host = req.headers.host;
-      const baseUrl = `${protocol}://${host}`;
+      const baseUrl = getCanonicalBaseUrl(req);
 
       const config = {
         baseUrl,
         redirectUris: {
           google: `${baseUrl}/api/calendar/callback/google`,
+          googleLogin: `${baseUrl}/api/auth/google/callback`,
         },
         instructions: {
           google: {
             step1: "Go to Google Cloud Console: https://console.cloud.google.com/apis/credentials",
-            step2: "Select your OAuth 2.0 Client ID",
-            step3: `Add this to 'Authorized redirect URIs': ${baseUrl}/api/calendar/callback/google`,
-            step4: "Click Save",
+            step2: "Select your OAuth 2.0 Client ID (the same one used for login)",
+            step3: `Add this calendar redirect URI to 'Authorized redirect URIs': ${baseUrl}/api/calendar/callback/google`,
+            step4: "Note: this is separate from the login URI (/api/auth/google/callback). Both must be listed if you use both features.",
+            step5: "Click Save and wait a few minutes for Google to propagate changes",
           },
         },
         status: {
@@ -7854,9 +7858,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         }
 
         const { ensureFreshOutlookToken } = await import('./oauth');
-        const protocol = req.headers['x-forwarded-proto'] || 'https';
-        const host = req.headers.host;
-        const baseUrl = `${protocol}://${host}`;
+        const baseUrl = getCanonicalBaseUrl(req);
         const accessToken = await ensureFreshOutlookToken(storage, userId, baseUrl);
 
         const { Client } = await import('@microsoft/microsoft-graph-client');
@@ -11166,6 +11168,13 @@ ${firmName}`;
 
   // ==================== Compliance Thread Routes ====================
 
+  const requireAmlComplianceFeature = (_req: any, res: any, next: any) => {
+    if (!isFeatureVisible("amlCompliance")) {
+      return res.status(404).json({ message: "Not found" });
+    }
+    next();
+  };
+
   const requireComplianceThread = async (req: any, res: any, next: any) => {
     try {
       const userId = req.user.claims.sub;
@@ -11179,7 +11188,7 @@ ${firmName}`;
     }
   };
 
-  app.get("/api/cases/:caseId/aml-monitoring-notes", isAuthenticated, requireComplianceThread, async (req: any, res) => {
+  app.get("/api/cases/:caseId/aml-monitoring-notes", isAuthenticated, requireAmlComplianceFeature, requireComplianceThread, async (req: any, res) => {
     try {
       const { caseId } = req.params;
       const userId = req.user.claims.sub;
@@ -11193,7 +11202,7 @@ ${firmName}`;
     }
   });
 
-  app.post("/api/cases/:caseId/aml-monitoring-notes", isAuthenticated, requireComplianceThread, async (req: any, res) => {
+  app.post("/api/cases/:caseId/aml-monitoring-notes", isAuthenticated, requireAmlComplianceFeature, requireComplianceThread, async (req: any, res) => {
     try {
       const { caseId } = req.params;
       const userId = req.user.claims.sub;
@@ -11235,7 +11244,7 @@ ${firmName}`;
     }
   });
 
-  app.get("/api/cases/:caseId/aml-decision-records", isAuthenticated, requireComplianceThread, async (req: any, res) => {
+  app.get("/api/cases/:caseId/aml-decision-records", isAuthenticated, requireAmlComplianceFeature, requireComplianceThread, async (req: any, res) => {
     try {
       const { caseId } = req.params;
       const userId = req.user.claims.sub;
@@ -11249,7 +11258,7 @@ ${firmName}`;
     }
   });
 
-  app.post("/api/cases/:caseId/aml-decision-records", isAuthenticated, requireComplianceThread, async (req: any, res) => {
+  app.post("/api/cases/:caseId/aml-decision-records", isAuthenticated, requireAmlComplianceFeature, requireComplianceThread, async (req: any, res) => {
     try {
       const { caseId } = req.params;
       const userId = req.user.claims.sub;
@@ -11307,7 +11316,7 @@ ${firmName}`;
     }
   });
 
-  app.patch("/api/cases/:caseId/risk-level", isAuthenticated, requireComplianceThread, async (req: any, res) => {
+  app.patch("/api/cases/:caseId/risk-level", isAuthenticated, requireAmlComplianceFeature, requireComplianceThread, async (req: any, res) => {
     try {
       const { caseId } = req.params;
       const userId = req.user.claims.sub;
@@ -11335,7 +11344,7 @@ ${firmName}`;
     }
   });
 
-  app.post("/api/aml-activity-dates", isAuthenticated, requireComplianceThread, async (req: any, res) => {
+  app.post("/api/aml-activity-dates", isAuthenticated, requireAmlComplianceFeature, requireComplianceThread, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { caseIds } = req.body;
@@ -11355,7 +11364,7 @@ ${firmName}`;
     }
   });
 
-  app.patch("/api/user/compliance-thread", isAuthenticated, isAdmin, async (req: any, res) => {
+  app.patch("/api/user/compliance-thread", isAuthenticated, requireAmlComplianceFeature, isAdmin, async (req: any, res) => {
     try {
       const { enabled, targetUserId } = req.body;
       const userId = targetUserId || req.user.claims.sub;

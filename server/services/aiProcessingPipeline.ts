@@ -9,6 +9,7 @@ import {
   type PrimaryRole,
   type User,
 } from '@shared/schema';
+import { isFeatureVisible } from '@shared/featureVisibility';
 
 function formatUkLongDate(date: Date): string {
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -555,7 +556,7 @@ export class AIProcessingPipeline {
       }
 
       // AML Trigger Detection: scan transcript for compliance-relevant language (only for entitled users, skip for internal meetings)
-      if (!isInternalMeeting) {
+      if (!isInternalMeeting && isFeatureVisible("amlCompliance")) {
         try {
           const pipelineUser = await this.storage.getUser(userId);
           if (!pipelineUser?.complianceThread) {

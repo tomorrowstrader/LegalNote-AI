@@ -63,6 +63,10 @@ import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREA_LABELS, PRACTICE_AREAS, type PracticeArea } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { isFeatureVisible } from "@/lib/features";
+
+const amlComplianceVisible = isFeatureVisible("amlCompliance");
+const sraReadinessVisible = isFeatureVisible("sraReadiness");
 
 interface SessionTranscript extends Omit<Transcript, 'utterances'> {
   utterances: Array<{ speaker: string; text: string; start: number; end: number }> | null;
@@ -338,12 +342,16 @@ export default function CaseDetail() {
   const urlSessionId = searchParams.get('sessionId');
 
   const [activeSection, setActiveSection] = useState<CaseSection>(() => {
-    if (urlTab === 'compliance') return 'compliance';
+    if (urlTab === 'compliance' && amlComplianceVisible) return 'compliance';
     return 'documents';
   });
 
   useEffect(() => {
-    if (urlTab === 'compliance') setActiveSection('compliance');
+    if (urlTab === 'compliance' && amlComplianceVisible) {
+      setActiveSection('compliance');
+    } else if (urlTab === 'compliance' && !amlComplianceVisible) {
+      setActiveSection('documents');
+    }
   }, [urlTab]);
 
   const handleTranscriptTimestampClick = (timeMs: number) => {
@@ -522,6 +530,7 @@ export default function CaseDetail() {
   type ReadinessData = { overall: "green" | "amber" | "red"; outstandingCount: number; criteria: ReadinessCriterion[]; disclaimer: string };
   const { data: sraReadiness, isLoading: readinessLoading } = useQuery<ReadinessData>({
     queryKey: [`/api/cases/${caseId}/sra-readiness`],
+    enabled: !!caseId && sraReadinessVisible,
     enabled: !!caseId,
   });
 
@@ -953,6 +962,7 @@ export default function CaseDetail() {
     { id: 'consent', label: 'Consent Evidence', icon: Shield, show: caseData.sourceType === 'audio' },
     {
       id: 'compliance', label: 'Compliance Thread', icon: ShieldCheck,
+      show: amlComplianceVisible,
       badge: caseData.riskLevel
         ? <Badge className={cn("text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate", riskColors[caseData.riskLevel] || '')}>{(caseData.riskLevel as string).toUpperCase()}</Badge>
         : undefined,
@@ -1058,11 +1068,15 @@ export default function CaseDetail() {
             <ArrowRightLeft className="w-4 h-4 mr-2" />
             Handover Case
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => setShowSraReportModal(true)} data-testid="action-sra-report">
-            <ShieldCheck className="w-4 h-4 mr-2" />
-            Prepare SRA Matter Report
-          </DropdownMenuItem>
+          {sraReadinessVisible && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowSraReportModal(true)} data-testid="action-sra-report">
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                Prepare SRA Matter Report
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => archiveMutation.mutate(true)} className="text-destructive focus:text-destructive" data-testid="action-archive">
             <Archive className="w-4 h-4 mr-2" />
@@ -1157,7 +1171,7 @@ export default function CaseDetail() {
               </p>
             )}
             <div className="flex flex-wrap gap-1 mt-2">
-              {caseData.riskLevel && (
+              {amlComplianceVisible && caseData.riskLevel && (
                 <Badge className={cn("text-[10px] no-default-hover-elevate no-default-active-elevate", riskColors[caseData.riskLevel] || '')} data-testid="badge-risk-panel">
                   {(caseData.riskLevel as string).toUpperCase()} RISK
                 </Badge>
@@ -1169,7 +1183,7 @@ export default function CaseDetail() {
                   : caseData.status === 'failed' ? 'Failed'
                   : 'Pending'}
               </Badge>
-              {!readinessLoading && sraReadiness && (
+              {sraReadinessVisible && !readinessLoading && sraReadiness && (
                 <button
                   onClick={() => setShowReadinessPanel(prev => !prev)}
                   className={cn(
@@ -1199,7 +1213,7 @@ export default function CaseDetail() {
                 </Badge>
               )}
             </div>
-            {showReadinessPanel && sraReadiness && (
+            {sraReadinessVisible && showReadinessPanel && sraReadiness && (
               <div className="mt-3 rounded-md border border-border bg-background p-3 space-y-2" data-testid="panel-sra-readiness">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide">Compliance Readiness</p>
@@ -1676,7 +1690,7 @@ export default function CaseDetail() {
                   initialTab={urlTab !== 'compliance' ? (urlTab || undefined) : undefined}
                   initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
                   focusSessionId={focusSessionId || urlSessionId || undefined}
-                  hasAmlFlag={!!caseData.riskLevel && ['high', 'medium'].includes(caseData.riskLevel as string)}
+                  hasAmlFlag={amlComplianceVisible && !!caseData.riskLevel && ['high', 'medium'].includes(caseData.riskLevel as string)}
                   litigationHold={caseData.litigationHold}
                 />
               </div>
@@ -1886,7 +1900,7 @@ export default function CaseDetail() {
             </div>
           )}
 
-          {activeSection === 'compliance' && (
+          {activeSection === 'compliance' && amlComplianceVisible && (
             <div className="max-w-3xl space-y-4">
               {user?.complianceThread && (
                 <AmlTriggerBanner

@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { isFeatureVisible } from "@/lib/features";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertFirmProfileSchema } from "@shared/schema";
@@ -657,7 +658,7 @@ function CalendarConnections() {
     baseUrl: string;
     redirectUris: { google: string };
     instructions: {
-      google: { step1: string; step2: string; step3: string; step4: string };
+      google: { step1: string; step2: string; step3: string; step4: string; step5?: string };
     };
     status: { googleConfigured: boolean };
   }>({
@@ -893,6 +894,9 @@ function CalendarConnections() {
                         <li>{oauthConfig.instructions.google.step2}</li>
                         <li>{oauthConfig.instructions.google.step3}</li>
                         <li>{oauthConfig.instructions.google.step4}</li>
+                        {oauthConfig.instructions.google.step5 && (
+                          <li>{oauthConfig.instructions.google.step5}</li>
+                        )}
                       </ol>
                     </div>
                   </div>
@@ -2213,6 +2217,7 @@ export default function Settings() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
+                  {isFeatureVisible("amlCompliance") && (
                   <div className="p-4 bg-muted rounded-md">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3 flex-1">
@@ -2250,6 +2255,7 @@ export default function Settings() {
                       )}
                     </div>
                   </div>
+                  )}
 
                   <div className="p-4 bg-muted rounded-md">
                     <div className="flex items-start gap-3">

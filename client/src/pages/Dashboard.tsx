@@ -13,6 +13,9 @@ import type { Case, MeetingImport } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInDays, differenceInHours, isPast } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { isFeatureVisible } from "@/lib/features";
+
+const amlComplianceVisible = isFeatureVisible("amlCompliance");
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -139,7 +142,7 @@ export default function Dashboard() {
   const { data: amlActivityDates } = useQuery<Record<string, string>>({
     queryKey: ["/api/aml-activity-dates", riskCaseIds],
     queryFn: () => apiRequest("POST", "/api/aml-activity-dates", { caseIds: riskCaseIds }),
-    enabled: riskCaseIds.length > 0 && !!user?.complianceThread,
+    enabled: amlComplianceVisible && riskCaseIds.length > 0 && !!user?.complianceThread,
   });
 
   const { data: productivityStats } = useQuery<ProductivityStats>({
@@ -193,7 +196,7 @@ export default function Dashboard() {
     const audioExpiring = attentionStats?.audioExpiringCount || 0;
 
     const RISK_THRESHOLDS: Record<string, number> = { low: 365, medium: 183, high: 91 };
-    const amlReviewDue = user?.complianceThread ? cases.filter(c => {
+    const amlReviewDue = amlComplianceVisible && user?.complianceThread ? cases.filter(c => {
       if (!c.riskLevel || c.archived || c.reviewed) return false;
       const threshold = RISK_THRESHOLDS[c.riskLevel as string];
       if (!threshold) return false;
@@ -525,7 +528,7 @@ export default function Dashboard() {
                 <span className="font-medium">{needsAttention.audioExpiring} audio expiring</span>
               </span>
             )}
-            {needsAttention.amlReviewDue.length > 0 && (
+            {amlComplianceVisible && needsAttention.amlReviewDue.length > 0 && (
               <button
                 onClick={() => {
                   const first = needsAttention.amlReviewDue[0];
@@ -641,7 +644,7 @@ export default function Dashboard() {
                       {searchQuery && ` matching "${searchQuery}"`}
                     </p>
                   </div>
-                  <CaseListView cases={filteredAndSortedCases} amlActivityDates={amlActivityDates} complianceEnabled={!!user?.complianceThread} />
+                  <CaseListView cases={filteredAndSortedCases} amlActivityDates={amlActivityDates} complianceEnabled={amlComplianceVisible && !!user?.complianceThread} />
                 </>
               ) : searchQuery ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
