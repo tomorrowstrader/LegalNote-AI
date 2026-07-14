@@ -16,10 +16,12 @@ CREATE TABLE IF NOT EXISTS auth_identities (
 );
 
 -- Existing users: Google subject was stored as users.id. Link without renumbering.
+-- Exclude synthetic system user — it never authenticated with Google.
 INSERT INTO auth_identities (user_id, provider, provider_user_id, email_at_link)
 SELECT u.id, 'google', u.id, u.email
 FROM users u
-WHERE NOT EXISTS (
+WHERE u.id <> 'system'
+  AND NOT EXISTS (
   SELECT 1
   FROM auth_identities ai
   WHERE ai.provider = 'google'
