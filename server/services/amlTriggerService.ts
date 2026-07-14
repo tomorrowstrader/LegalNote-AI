@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { privilegedComplete } from './llm/privilegedComplete';
 
 const AML_TRIGGER_PATTERNS = [
   { pattern: /\bcash\s+payment/i, category: "source_of_funds", label: "Cash payment mentioned" },
@@ -68,17 +68,10 @@ export async function detectAmlTriggersAI(text: string): Promise<AmlTrigger[]> {
   const regexTriggers = detectAmlTriggers(text);
 
   try {
-    const openai = new OpenAI();
     const truncated = text.length > 8000 ? text.slice(0, 8000) + "..." : text;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      temperature: 0,
-      max_tokens: 1000,
-      messages: [
-        {
-          role: "system",
-          content: `You are a UK AML compliance analyst reviewing legal meeting transcripts for potential money laundering, terrorist financing, and regulatory compliance indicators.
+    const completion = await privilegedComplete({
+      systemPrompt: `You are a UK AML compliance analyst reviewing legal meeting transcripts for potential money laundering, terrorist financing, and regulatory compliance indicators.
 
 Analyse the transcript and identify AML-relevant triggers in these categories:
 - source_of_funds: Unexplained wealth, unusual transaction patterns, cash-heavy dealings, gifted deposits
@@ -95,17 +88,14 @@ Analyse the transcript and identify AML-relevant triggers in these categories:
 - value_changes: Sudden property value changes, unexplained price adjustments, below-market transactions
 
 Return a JSON array of objects with: category, label (short description), excerpt (relevant text snippet, max 120 chars).
-Return [] if no AML triggers found. Only return genuine compliance concerns, not routine legal discussions.`
-        },
-        {
-          role: "user",
-          content: truncated
-        }
-      ],
-      response_format: { type: "json_object" }
+Return [] if no AML triggers found. Only return genuine compliance concerns, not routine legal discussions.`,
+      userPrompt: truncated,
+      temperature: 0,
+      maxTokens: 1000,
+      responseFormat: 'json_object',
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = completion.content;
     if (!content) return regexTriggers;
 
     interface AiTriggerResponse {

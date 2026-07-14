@@ -18,7 +18,6 @@ const envConfig: EnvConfig = {
     "PORT",
     "NODE_ENV",
     "ALLOWED_ORIGINS", // Production CORS domains
-    "OPENAI_API_KEY", // AI features (not required for MVP auth testing)
     "ISSUER_URL", // Replit Auth (set dynamically by Replit)
     "CLIENT_ID", // Replit Auth (set dynamically by Replit)
     "CLIENT_SECRET", // Replit Auth (set dynamically by Replit)

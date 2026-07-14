@@ -54,7 +54,6 @@ import {
   audioUploadLimiter,
   authLimiter,
   pollingLimiter,
-  demoTtsLimiter,
 } from "./rateLimiting";
 import { auditLogger, AuditEventType } from "./auditLog";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
@@ -73,6 +72,7 @@ import {
   setCaseGraceWindowOnRelease,
 } from "./services/litigationHoldGraceWindowService";
 import { AssemblyAIService } from "./services/assemblyAIService";
+import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail } from "./email";
 import { generateSignedAuditPDF } from "./services/signedAuditExport";
 import { assembleSraReportData, buildSraReportPreview } from "./services/sraReportService";
@@ -206,12 +206,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
-      const { openaiClient } = await import('./config/openai');
+      let historyBlock = '';
+      if (history && Array.isArray(history)) {
+        historyBlock = history
+          .filter((h: any) => (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string')
+          .map((h: any) => `${h.role === 'assistant' ? 'Assistant' : 'User'}: ${h.content}`)
+          .join('\n\n');
+        if (historyBlock) historyBlock += '\n\n';
+      }
 
-      const messages: any[] = [
-        {
-          role: 'system' as const,
-          content: `You are helping refine a LinkedIn post for a legal tech founder. The post is part of a 60-day content calendar for LegalNote, a compliance-first legal documentation platform.
+      const completion = await privilegedComplete({
+        systemPrompt: `You are helping refine a LinkedIn post for a legal tech founder. The post is part of a 60-day content calendar for LegalNote, a compliance-first legal documentation platform.
 
 Your role:
 - Help edit, improve, or discuss the post content based on the user's request
@@ -230,31 +235,14 @@ The user may ask you to:
 Current post #${postNumber}: "${theme}"
 
 If the user asks for an edit or amendment, respond with JSON: {"type":"edit","content":"<full amended post>","explanation":"<brief note on what changed>"}
-If the user asks a question or wants discussion, respond with JSON: {"type":"discussion","response":"<your response>"}`
-        }
-      ];
-
-      if (history && Array.isArray(history)) {
-        history.forEach((h: any) => {
-          if ((h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string') {
-            messages.push({ role: h.role, content: h.content });
-          }
-        });
-      }
-
-      messages.push({
-        role: 'user' as const,
-        content: `Current post content:\n\n${currentContent}\n\nMy request: ${message}`
+If the user asks a question or wants discussion, respond with JSON: {"type":"discussion","response":"<your response>"}`,
+        userPrompt: `${historyBlock}Current post content:\n\n${currentContent}\n\nMy request: ${message}`,
+        maxTokens: 4096,
+        temperature: 0,
+        responseFormat: 'json_object',
       });
 
-      const response = await openaiClient.chat.completions.create({
-        model: 'gpt-4o',
-        messages,
-        response_format: { type: 'json_object' },
-        max_completion_tokens: 4096,
-      });
-
-      const result = JSON.parse(response.choices[0].message.content || '{}');
+      const result = JSON.parse(completion.content || '{}');
       res.json(result);
     } catch (error) {
       next(error);
@@ -380,23 +368,14 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
       if (!postNumber || !currentHook) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
-      const { openaiClient } = await import('./config/openai');
-      const response = await openaiClient.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: `Generate 3 alternative LinkedIn post hooks (opening lines) for a legal tech founder. Each hook must be 8 words or fewer. The hooks should be punchy, attention-grabbing, and follow the "How I" > "How to" principle. Return JSON: {"hooks":["hook1","hook2","hook3"]}`
-          },
-          {
-            role: 'user',
-            content: `Current hook: "${currentHook}"\nPost theme: "${theme || 'LegalNote legal tech'}"\n\nGenerate 3 alternative hooks.`
-          }
-        ],
-        response_format: { type: 'json_object' },
-        max_completion_tokens: 500,
+      const completion = await privilegedComplete({
+        systemPrompt: `Generate 3 alternative LinkedIn post hooks (opening lines) for a legal tech founder. Each hook must be 8 words or fewer. The hooks should be punchy, attention-grabbing, and follow the "How I" > "How to" principle. Return JSON: {"hooks":["hook1","hook2","hook3"]}`,
+        userPrompt: `Current hook: "${currentHook}"\nPost theme: "${theme || 'LegalNote legal tech'}"\n\nGenerate 3 alternative hooks.`,
+        maxTokens: 500,
+        temperature: 0,
+        responseFormat: 'json_object',
       });
-      const result = JSON.parse(response.choices[0].message.content || '{"hooks":[]}');
+      const result = JSON.parse(completion.content || '{"hooks":[]}');
       for (const hook of result.hooks) {
         await storage.addHookVariant({ postNumber, variant: hook, used: false });
       }
@@ -419,13 +398,8 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
       if (!content) {
         return res.status(400).json({ error: 'Content is required' });
       }
-      const { openaiClient } = await import('./config/openai');
-      const response = await openaiClient.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a content consistency checker for a legal tech founder's LinkedIn content. The founder has four voices:
+      const completion = await privilegedComplete({
+        systemPrompt: `You are a content consistency checker for a legal tech founder's LinkedIn content. The founder has four voices:
 1. Client Who Got Burned - personal experience with bad legal documentation
 2. Compliance Professional - corporate background at Clifford Chance, Coutts, Lloyd's, Standard Chartered
 3. Obsessed Vibe Coder - passion for building, technical craftsmanship
@@ -433,17 +407,13 @@ If the user asks a question or wants discussion, respond with JSON: {"type":"dis
 
 Score the content on: authenticity (1-10), voice consistency with the stated voice (1-10), LinkedIn best practices (1-10), engagement potential (1-10).
 Provide brief actionable feedback.
-Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPractices":N,"engagementPotential":N},"overall":N,"feedback":"brief feedback","strengths":["strength1"],"improvements":["improvement1"]}`
-          },
-          {
-            role: 'user',
-            content: `Voice: ${voice || 'Not specified'}\n\nContent:\n${content}`
-          }
-        ],
-        response_format: { type: 'json_object' },
-        max_completion_tokens: 1000,
+Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPractices":N,"engagementPotential":N},"overall":N,"feedback":"brief feedback","strengths":["strength1"],"improvements":["improvement1"]}`,
+        userPrompt: `Voice: ${voice || 'Not specified'}\n\nContent:\n${content}`,
+        maxTokens: 1000,
+        temperature: 0,
+        responseFormat: 'json_object',
       });
-      const result = JSON.parse(response.choices[0].message.content || '{}');
+      const result = JSON.parse(completion.content || '{}');
       res.json(result);
     } catch (error) { next(error); }
   });
@@ -455,23 +425,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (!content) {
         return res.status(400).json({ error: 'Content is required' });
       }
-      const { openaiClient } = await import('./config/openai');
-      const response = await openaiClient.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: `You help a legal tech founder engage with comments on their LinkedIn posts. Given a post, generate 4 suggested reply templates for common comment types they might receive. Each reply should be warm, authentic, and encourage further conversation. Return JSON: {"prompts":[{"commentType":"type","suggestedReply":"reply"},...]}`
-          },
-          {
-            role: 'user',
-            content: `Post theme: ${theme || 'Legal tech'}\n\nPost content:\n${content}`
-          }
-        ],
-        response_format: { type: 'json_object' },
-        max_completion_tokens: 1000,
+      const completion = await privilegedComplete({
+        systemPrompt: `You help a legal tech founder engage with comments on their LinkedIn posts. Given a post, generate 4 suggested reply templates for common comment types they might receive. Each reply should be warm, authentic, and encourage further conversation. Return JSON: {"prompts":[{"commentType":"type","suggestedReply":"reply"},...]}`,
+        userPrompt: `Post theme: ${theme || 'Legal tech'}\n\nPost content:\n${content}`,
+        maxTokens: 1000,
+        temperature: 0,
+        responseFormat: 'json_object',
       });
-      const result = JSON.parse(response.choices[0].message.content || '{"prompts":[]}');
+      const result = JSON.parse(completion.content || '{"prompts":[]}');
       res.json(result);
     } catch (error) { next(error); }
   });
@@ -10958,77 +10919,6 @@ ${firmName}`;
         }
       }
       res.json({ success: true, message: "Colleague invitation sent" });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Demo TTS: generate spoken narration for tour steps
-  const demoTtsCache = new Map<string, { buffer: Buffer; expires: number }>();
-
-  app.post("/api/demo/tts", demoTtsLimiter, async (req, res, next) => {
-    try {
-      const { stepId, name, firmName } = req.body;
-      const sid = Number(stepId);
-      if (!Number.isInteger(sid) || sid < 1 || sid > 16) {
-        return res.status(400).json({ message: "stepId must be 1-16" });
-      }
-
-      const resolvedName = typeof name === "string" && name.trim() ? name.trim() : "";
-      const resolvedFirm = typeof firmName === "string" && firmName.trim() ? firmName.trim() : "your firm";
-      const namePrefix = resolvedName ? `${resolvedName}, ` : "";
-
-      const SCRIPTS: Record<number, string> = {
-        1: `${namePrefix}this is your LegalNote dashboard — every active matter, upcoming meeting, and compliance obligation in one place. For neurodivergent fee earners and every solicitor under caseload pressure, no more post-meeting scramble. Removing the documentation burden is both good practice and a reasonable adjustment under the Equality Act 2010.`,
-        2: `Tap Join Meeting to run this session through LegalNote's Meeting-to-Matter engine. It converts a client conversation into a compliance-ready attendance note, a sealed consent record, and a defensible matter trail — running entirely in the background while you stay focused on the client.`,
-        3: `This script is standardised by the platform. Every fee earner reads identical GDPR-compliant wording, every time. No guesswork, no variation. Tap Connect to continue.`,
-        4: `Your client has just agreed. Tap to log it — timestamped, GDPR Article 7 compliant, HMAC-sealed to the audit trail. The same evidence standard every time, regardless of who runs the meeting.`,
-        5: `Tap End Recording when your session is complete. Meeting-to-Matter produces your attendance note, extracts obligations, flags any AML risk indicators and conflict of interest changes from the session, and seals the full audit trail — all from one recording.`,
-        6: `Your recording is accessible here for seven days, then permanently and automatically deleted — GDPR Article 17 by default, not by choice. The full diarized transcript and audio log live in Sessions, compiled in under sixty seconds.`,
-        7: `Every word, every speaker, timestamped and attributed. The diarized transcript is compiled automatically from your recording and stored here alongside the session audio. Ready in under sixty seconds.`,
-        8: `The complete speaker log — every utterance attributed, every timestamp preserved. This is the verbatim record of your session, available alongside the audio for review or export.`,
-        9: `Produced in under sixty seconds. No typing, no dictation. For neurodivergent fee earners and every solicitor under caseload pressure, removing the transcription burden is a meaningful cognitive reduction and a reasonable adjustment under the Equality Act 2010.`,
-        10: `Structured, accurate, and ready to approve. Every section compiled directly from what was said in the meeting — not typed, not dictated. Compliance-ready from the first draft.`,
-        11: `The attendance note is ready to share. Opening the case actions menu now to send a secure link to your client. They will need to verify by SMS before accessing it.`,
-        12: `Tapping Secure Share. Your client receives a link and must verify by SMS before viewing. Every access attempt is timestamped and logged to the tamper-evident audit trail — the full chain of custody, preserved automatically.`,
-        13: `Any undertakings or obligations given during the session were captured automatically from the transcript. Each one is tracked until discharged — flagged, logged, and verifiable.`,
-        14: `Every event — consent, recording, document approval, secure share access — is logged here with a cryptographic fingerprint. The share link access from the previous step is already in this trail. Proof of everything, if it is ever disputed.`,
-        15: `If the SRA investigates or a professional indemnity claim is made, generate a complete defence pack here — sessions, consent log, documents, audit trail, and a tamper-evidence declaration. Everything bundled in under five minutes.`,
-        16: `Solo practitioners and boutique firms are most exposed when things go wrong — and least likely to have the documented processes that protect them. You have just seen what protection looks like in practice. This is not a nice-to-have. Book a fifteen-minute call with a LegalNote solicitor today.`,
-      };
-
-      const script = SCRIPTS[sid];
-      const cacheKey = `${sid}|${resolvedName}|${resolvedFirm}`;
-      const now = Date.now();
-
-      // Prune expired entries on each write cycle
-      for (const [key, entry] of demoTtsCache) {
-        if (entry.expires <= now) demoTtsCache.delete(key);
-      }
-
-      const cached = demoTtsCache.get(cacheKey);
-      if (cached && cached.expires > now) {
-        res.setHeader("Content-Type", "audio/mpeg");
-        res.setHeader("Cache-Control", "no-store");
-        return res.send(cached.buffer);
-      }
-
-      const { openaiClient } = await import("./config/openai");
-      const mp3Response = await openaiClient.audio.speech.create({
-        model: "gpt-4o-mini-tts",
-        voice: "coral",
-        input: script,
-        instructions: "Speak with a calm, warm, and confident British accent. You are a professional woman presenting a legal software demonstration to solicitors. Maintain a measured, assured pace — clear enough to follow but never rushed.",
-      });
-
-      const arrayBuffer = await mp3Response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      demoTtsCache.set(cacheKey, { buffer, expires: now + 60 * 60 * 1000 });
-
-      res.setHeader("Content-Type", "audio/mpeg");
-      res.setHeader("Cache-Control", "no-store");
-      res.send(buffer);
     } catch (error) {
       next(error);
     }

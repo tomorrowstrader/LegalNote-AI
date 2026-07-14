@@ -82,14 +82,12 @@ export function configureSecurityHeaders(app: Express) {
           "https://*.replit.app",
           "ws://*.replit.dev", // Vite HMR websocket
           "wss://*.replit.dev",
-          "https://api.openai.com",
         ]
       : [
           "'self'",
           "https://*.replit.app",
           "https://legalnote.ai",
           "https://www.legalnote.ai",
-          "https://api.openai.com",
         ],
     objectSrc: ["'none'"],
     mediaSrc: [

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Volume2, VolumeX } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export interface TourStep {
   id: number;
@@ -209,7 +209,6 @@ const TOUR_STEPS: TourStep[] = [
 ];
 
 const TOUR_KEY = "legalnote_demo_tour_complete_v16";
-const VOICE_KEY = "legalnote_demo_voice";
 
 interface TooltipPosition {
   top?: number;
@@ -253,7 +252,6 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   const [tooltipPos, setTooltipPos] = useState<TooltipPosition>({ top: 100, left: 20 });
   const [visible, setVisible] = useState(false);
   const [elementMissing, setElementMissing] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(() => localStorage.getItem(VOICE_KEY) !== "off");
   const [spotlightRect, setSpotlightRect] = useState<SpotlightRect | null>(null);
   const [yellowWashRect, setYellowWashRect] = useState<SpotlightRect | null>(null);
   const [stepActionCompleted, setStepActionCompleted] = useState(false);
@@ -262,42 +260,10 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   const positionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const spotlightTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cursorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioBlobUrlRef = useRef<string | null>(null);
 
   const currentStep = TOUR_STEPS[stepIndex];
 
   const isNavTarget = (target: string) => NAV_TARGETS.includes(target);
-
-  const stopAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-    if (audioBlobUrlRef.current) {
-      URL.revokeObjectURL(audioBlobUrlRef.current);
-      audioBlobUrlRef.current = null;
-    }
-  }, []);
-
-  const playStepAudio = useCallback(async (stepId: number) => {
-    stopAudio();
-    try {
-      const response = await fetch("/api/demo/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stepId, name, firmName }),
-      });
-      if (!response.ok) return;
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      audioBlobUrlRef.current = url;
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.play().catch(() => {});
-    } catch {
-    }
-  }, [stopAudio, name, firmName]);
 
   const updateSpotlight = useCallback((step: TourStep) => {
     const el = document.querySelector(`[data-testid="${step.target}"]`);
@@ -455,7 +421,6 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       if (!active) return;
       const step = TOUR_STEPS[index];
       if (!step) return;
-      stopAudio();
       onStepTargetChange?.(step.target);
 
       if (step.delayMs && step.delayMs > 0) {
@@ -474,7 +439,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       if (!active) return;
       setStepActionCompleted(true);
     },
-  }), [active, stopAudio, positionTooltip, onStepTargetChange]);
+  }), [active, positionTooltip, onStepTargetChange]);
 
   useEffect(() => {
     const done = localStorage.getItem(tourKey);
@@ -529,16 +494,6 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   }, [active, currentStep, positionTooltip]);
 
   useEffect(() => {
-    if (!active || !currentStep || !visible || hidden) return;
-    if (voiceEnabled) {
-      playStepAudio(currentStep.id);
-    }
-    return () => {
-      stopAudio();
-    };
-  }, [active, currentStep, visible, voiceEnabled, playStepAudio, stopAudio, hidden]);
-
-  useEffect(() => {
     if (!active || !currentStep || !elementMissing) return;
     const interval = setInterval(() => {
       const el = document.querySelector(`[data-testid="${currentStep.target}"]`);
@@ -571,10 +526,9 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
 
   useEffect(() => {
     return () => {
-      stopAudio();
       if (spotlightTimerRef.current) clearInterval(spotlightTimerRef.current);
     };
-  }, [stopAudio]);
+  }, []);
 
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -649,7 +603,6 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   };
 
   const handleComplete = () => {
-    stopAudio();
     setActive(false);
     setVisible(false);
     setSpotlightRect(null);
@@ -657,17 +610,6 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
     onStepTargetChange?.(null);
     localStorage.setItem(tourKey, "1");
     onComplete?.();
-  };
-
-  const toggleVoice = () => {
-    const next = !voiceEnabled;
-    setVoiceEnabled(next);
-    localStorage.setItem(VOICE_KEY, next ? "on" : "off");
-    if (!next) {
-      stopAudio();
-    } else if (active && currentStep && visible) {
-      playStepAudio(currentStep.id);
-    }
   };
 
   if (!active || !currentStep || !visible || hidden) return null;
@@ -705,18 +647,6 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
               <span className="text-xs text-muted-foreground">
                 {stepIndex + 1} of {TOUR_STEPS.length}
               </span>
-              <button
-                onClick={toggleVoice}
-                className="text-muted-foreground hover:text-foreground"
-                data-testid="button-tour-voice-toggle"
-                title={voiceEnabled ? "Mute voice guidance" : "Enable voice guidance"}
-              >
-                {voiceEnabled ? (
-                  <Volume2 className="w-3.5 h-3.5" />
-                ) : (
-                  <VolumeX className="w-3.5 h-3.5" />
-                )}
-              </button>
             </div>
           </div>
         </div>
@@ -754,18 +684,6 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
           <span className="text-xs text-muted-foreground">
             {stepIndex + 1} of {TOUR_STEPS.length}
           </span>
-          <button
-            onClick={toggleVoice}
-            className="text-muted-foreground hover:text-foreground"
-            data-testid="button-tour-voice-toggle"
-            title={voiceEnabled ? "Mute voice guidance" : "Enable voice guidance"}
-          >
-            {voiceEnabled ? (
-              <Volume2 className="w-3.5 h-3.5" />
-            ) : (
-              <VolumeX className="w-3.5 h-3.5" />
-            )}
-          </button>
         </div>
         {isActionRequired && !stepActionCompleted ? (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">

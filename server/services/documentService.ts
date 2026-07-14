@@ -1,5 +1,5 @@
-import { openaiClient, MODELS, calculateGPT4oCost } from '../config/openai';
-import { anthropicClient, CLAUDE_MODELS, calculateClaudeCost } from '../config/anthropic';
+import { getPrivilegedLLMProvider } from './llm/providerFactory';
+import { privilegedComplete } from './llm/privilegedComplete';
 
 /**
  * Post-process document content to ensure known section headings are bold.
@@ -500,7 +500,7 @@ export type DocumentChatCompletionFn = (
 export class DocumentService {
   private readonly chatCompletion?: DocumentChatCompletionFn;
 
-  /** When chatCompletion is omitted, behaviour is identical to the production OpenAI path. */
+  /** When chatCompletion is omitted, production routes through Bedrock via getPrivilegedLLMProvider(). */
   constructor(options?: { chatCompletion?: DocumentChatCompletionFn }) {
     this.chatCompletion = options?.chatCompletion;
   }
@@ -1049,26 +1049,19 @@ List each distinct defect once. Never repeat a statement. Never restate the same
       return this.chatCompletion(request);
     }
 
-    const response = await openaiClient.chat.completions.create({
-      model: MODELS.DOCUMENT_GENERATION,
-      max_tokens: request.maxTokens,
+    const result = await getPrivilegedLLMProvider().generate({
+      systemPrompt: request.systemPrompt,
+      userPrompt: request.userPrompt,
+      maxTokens: request.maxTokens,
       temperature: request.temperature,
-      ...(request.frequencyPenalty != null ? { frequency_penalty: request.frequencyPenalty } : {}),
-      ...(request.responseFormat === 'json_object' ? { response_format: { type: 'json_object' as const } } : {}),
-      messages: [
-        { role: 'system', content: request.systemPrompt },
-        { role: 'user', content: request.userPrompt },
-      ],
+      responseFormat: request.responseFormat,
     });
 
-    const content = response.choices[0]?.message?.content || '';
-    const inputTokens = response.usage?.prompt_tokens || 0;
-    const outputTokens = response.usage?.completion_tokens || 0;
     return {
-      content,
-      inputTokens,
-      outputTokens,
-      cost: calculateGPT4oCost(inputTokens, outputTokens),
+      content: result.text,
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens,
+      cost: result.cost,
     };
   }
 
@@ -1076,7 +1069,7 @@ List each distinct defect once. Never repeat a statement. Never restate the same
     if (this.chatCompletion) {
       return process.env.BEDROCK_PRIVILEGED_MODEL_ID ?? 'measurement-seam';
     }
-    return MODELS.DOCUMENT_GENERATION;
+    return process.env.BEDROCK_PRIVILEGED_MODEL_ID ?? 'bedrock';
   }
 
   private async generateDocument(
@@ -1110,7 +1103,7 @@ List each distinct defect once. Never repeat a statement. Never restate the same
         cost,
       };
     } catch (error: any) {
-      console.error('GPT-4o document generation failed:', error);
+      console.error('Document generation failed:', error);
       throw new Error(`Document generation failed: ${error.message}`);
     }
   }
@@ -1616,23 +1609,20 @@ ${transcript}
 Return the action items as a JSON object with an "items" array:`;
 
     try {
-      console.log('Extracting action items with GPT-4o...');
-      
-      const response = await openaiClient.chat.completions.create({
-        model: MODELS.DOCUMENT_GENERATION,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
+      console.log('Extracting action items...');
+
+      const completion = await privilegedComplete({
+        systemPrompt,
+        userPrompt,
         temperature: 0.2,
-        max_tokens: 2000,
-        response_format: { type: 'json_object' },
+        maxTokens: 2000,
+        responseFormat: 'json_object',
       });
 
-      const content = response.choices[0]?.message?.content || '[]';
-      const inputTokens = response.usage?.prompt_tokens || 0;
-      const outputTokens = response.usage?.completion_tokens || 0;
-      const cost = calculateGPT4oCost(inputTokens, outputTokens);
+      const content = completion.content || '[]';
+      const inputTokens = completion.inputTokens;
+      const outputTokens = completion.outputTokens;
+      const cost = completion.cost;
 
       let items: ExtractedActionItem[] = [];
       try {
@@ -1801,23 +1791,20 @@ ${transcript}
 Return the undertakings as a JSON object with an "items" array:`;
 
     try {
-      console.log('Extracting undertakings with GPT-4o...');
+      console.log('Extracting undertakings...');
 
-      const response = await openaiClient.chat.completions.create({
-        model: MODELS.DOCUMENT_GENERATION,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
+      const completion = await privilegedComplete({
+        systemPrompt,
+        userPrompt,
         temperature: 0.1,
-        max_tokens: 2000,
-        response_format: { type: 'json_object' },
+        maxTokens: 2000,
+        responseFormat: 'json_object',
       });
 
-      const content = response.choices[0]?.message?.content || '{"items":[]}';
-      const inputTokens = response.usage?.prompt_tokens || 0;
-      const outputTokens = response.usage?.completion_tokens || 0;
-      const cost = calculateGPT4oCost(inputTokens, outputTokens);
+      const content = completion.content || '{"items":[]}';
+      const inputTokens = completion.inputTokens;
+      const outputTokens = completion.outputTokens;
+      const cost = completion.cost;
 
       let items: ExtractedUndertaking[] = [];
       try {

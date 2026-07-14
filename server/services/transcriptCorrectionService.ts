@@ -1,4 +1,4 @@
-import { openaiClient, MODELS, calculateGPT4oCost } from '../config/openai';
+import { privilegedComplete } from './llm/privilegedComplete';
 
 export interface TranscriptCorrectionResult {
   correctedText: string;
@@ -20,13 +20,12 @@ export interface CorrectionContext {
 }
 
 /**
- * GPT-based post-processing for transcript error correction.
+ * LLM-based post-processing for transcript error correction.
  * Focuses on context-aware fixes for names, numbers, and legal terms.
  */
 export class TranscriptCorrectionService {
   /**
    * Apply context-aware corrections to a transcript.
-   * Uses GPT-4o to identify and fix transcription errors based on context.
    */
   async correctTranscript(
     transcript: string,
@@ -70,30 +69,27 @@ ${transcript}
 Return a JSON object with the corrected text and list of corrections made.`;
 
     try {
-      console.log('[TranscriptCorrection] Starting GPT-4o correction pass...');
+      console.log('[TranscriptCorrection] Starting correction pass...');
       
-      const response = await openaiClient.chat.completions.create({
-        model: MODELS.DOCUMENT_GENERATION,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
+      const completion = await privilegedComplete({
+        systemPrompt,
+        userPrompt,
         temperature: 0.1,
-        max_tokens: 8000,
-        response_format: { type: 'json_object' },
+        maxTokens: 8000,
+        responseFormat: 'json_object',
       });
 
-      const content = response.choices[0]?.message?.content || '{}';
-      const inputTokens = response.usage?.prompt_tokens || 0;
-      const outputTokens = response.usage?.completion_tokens || 0;
-      const cost = calculateGPT4oCost(inputTokens, outputTokens);
+      const content = completion.content || '{}';
+      const inputTokens = completion.inputTokens;
+      const outputTokens = completion.outputTokens;
+      const cost = completion.cost;
 
       let result: { correctedText: string; corrections: Array<{ original: string; corrected: string; reason: string }> };
       
       try {
         result = JSON.parse(content);
       } catch (parseError) {
-        console.error('[TranscriptCorrection] Failed to parse GPT response:', parseError);
+        console.error('[TranscriptCorrection] Failed to parse response:', parseError);
         return {
           correctedText: transcript,
           corrections: [],
@@ -113,7 +109,7 @@ Return a JSON object with the corrected text and list of corrections made.`;
         cost,
       };
     } catch (error: any) {
-      console.error('[TranscriptCorrection] GPT correction failed:', error);
+      console.error('[TranscriptCorrection] Correction failed:', error);
       return {
         correctedText: transcript,
         corrections: [],
