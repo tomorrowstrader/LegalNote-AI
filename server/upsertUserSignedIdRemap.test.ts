@@ -17,6 +17,7 @@ describe("Phase 0: upsertUser must not remap signed user ids", () => {
 });
 
 const hasDatabase = Boolean(process.env.DATABASE_URL);
+const hasSealBypassUrl = Boolean(process.env.SEAL_BYPASS_DATABASE_URL);
 
 describe.skipIf(!hasDatabase)("Phase 0: identity collision leaves sealed columns unchanged", () => {
   const originalUserId = `phase0-original-${randomUUID()}`;
@@ -87,11 +88,8 @@ describe.skipIf(!hasDatabase)("Phase 0: identity collision leaves sealed columns
 
   afterAll(async () => {
     if (!db || !pool) return;
-    const { SEAL_BYPASS_DB_ROLE, withSealBypass } = await import("./sealTriggerAssertion");
-    const { sql } = await import("drizzle-orm");
-    const who = await db.execute(sql`SELECT current_user AS role`);
-    const rows = (who.rows ?? who) as Array<{ role: string }>;
-    if (rows[0]?.role === SEAL_BYPASS_DB_ROLE) {
+    if (hasSealBypassUrl) {
+      const { withSealBypass, sealBypassPool } = await import("./sealBypassTestDb");
       await withSealBypass(async (tx) => {
         await tx.delete(auditTrail).where(eq(auditTrail.id, auditEntryId));
         await tx.delete(consentLogs).where(eq(consentLogs.id, consentLogId));
@@ -99,9 +97,10 @@ describe.skipIf(!hasDatabase)("Phase 0: identity collision leaves sealed columns
         await tx.delete(users).where(eq(users.id, originalUserId));
         await tx.delete(users).where(eq(users.id, collidingUserId));
       });
+      await sealBypassPool.end();
     } else {
       console.warn(
-        `[SEAL] Phase 0 cleanup skipped — connect as ${SEAL_BYPASS_DB_ROLE} to remove sealed fixtures.`,
+        "[SEAL] Phase 0 cleanup skipped — set SEAL_BYPASS_DATABASE_URL (role legalnote_seal_bypass).",
       );
     }
     await pool.end();

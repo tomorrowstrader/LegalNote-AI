@@ -1,14 +1,13 @@
 -- Seal triggers: make signed tables append-only at the database.
 -- Run by hand against production Neon, then local-dev. Do NOT rely on drizzle-kit push.
 --
--- Bypass (tests only):
---   1. Create a Neon role named legalnote_seal_bypass (LOGIN) via the Neon console.
---   2. Grant DML on public tables to that role (never use it as the app DATABASE_URL).
---   3. Connect tests with that role, then:
---        SELECT set_config('legalnote.seal_bypass', 'true', true);
---   The production application role cannot bypass, even if it sets the GUC.
+-- Prerequisites: create role legalnote_seal_bypass first (see scripts/seal-bypass-role.sql).
+-- Bypass (tests only): GUC legalnote.seal_bypass = true AND current_user = legalnote_seal_bypass.
+-- Application DATABASE_URL must never use that role. Do not GRANT it to the app role.
 
 BEGIN;
+
+-- ─── Row-level: UPDATE / DELETE ─────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION legalnote_audit_trail_seal_guard()
 RETURNS trigger
@@ -86,5 +85,36 @@ CREATE TRIGGER trg_consent_logs_seal_immutable
   BEFORE UPDATE OR DELETE ON consent_logs
   FOR EACH ROW
   EXECUTE FUNCTION legalnote_consent_logs_seal_guard();
+
+-- ─── Statement-level: TRUNCATE (incl. TRUNCATE … CASCADE from parents) ─────
+
+CREATE OR REPLACE FUNCTION legalnote_sealed_table_truncate_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF current_setting('legalnote.seal_bypass', true) = 'true'
+     AND current_user = 'legalnote_seal_bypass' THEN
+    RETURN NULL;
+  END IF;
+
+  RAISE EXCEPTION
+    '% is sealed: TRUNCATE is not permitted',
+    TG_TABLE_NAME
+    USING ERRCODE = 'integrity_constraint_violation';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_audit_trail_seal_truncate ON audit_trail;
+CREATE TRIGGER trg_audit_trail_seal_truncate
+  BEFORE TRUNCATE ON audit_trail
+  FOR EACH STATEMENT
+  EXECUTE FUNCTION legalnote_sealed_table_truncate_guard();
+
+DROP TRIGGER IF EXISTS trg_consent_logs_seal_truncate ON consent_logs;
+CREATE TRIGGER trg_consent_logs_seal_truncate
+  BEFORE TRUNCATE ON consent_logs
+  FOR EACH STATEMENT
+  EXECUTE FUNCTION legalnote_sealed_table_truncate_guard();
 
 COMMIT;

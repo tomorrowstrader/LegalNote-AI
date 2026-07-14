@@ -5,40 +5,19 @@ import { db } from "./db";
 export const SEAL_TRIGGER_NAMES = [
   "trg_audit_trail_seal_immutable",
   "trg_consent_logs_seal_immutable",
+  "trg_audit_trail_seal_truncate",
+  "trg_consent_logs_seal_truncate",
 ] as const;
 
 /**
  * Neon / Postgres role allowed to use legalnote.seal_bypass.
  * Must never be the application DATABASE_URL role.
+ * Must never be granted TO the application role (SET ROLE would defeat the gate).
  */
 export const SEAL_BYPASS_DB_ROLE = "legalnote_seal_bypass";
 
 /** Session GUC checked by seal triggers (together with current_user). */
 export const SEAL_BYPASS_GUC = "legalnote.seal_bypass";
-
-/**
- * Test-only / cleanup bypass inside one transaction.
- * Only succeeds when connected as legalnote_seal_bypass — the app role cannot bypass.
- * Callers must use the provided `tx` for any UPDATE/DELETE of sealed tables.
- * Application code must never call this.
- */
-export async function withSealBypass<T>(
-  fn: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>,
-): Promise<T> {
-  return db.transaction(async (tx) => {
-    const who = await tx.execute(sql`SELECT current_user AS role`);
-    const rows = (who.rows ?? who) as Array<{ role: string }>;
-    const role = rows[0]?.role;
-    if (role !== SEAL_BYPASS_DB_ROLE) {
-      throw new Error(
-        `withSealBypass requires DB role ${SEAL_BYPASS_DB_ROLE} (connected as ${role ?? "unknown"}). ` +
-          `The application role cannot defeat seal triggers.`,
-      );
-    }
-    await tx.execute(sql`SELECT set_config('legalnote.seal_bypass', 'true', true)`);
-    return fn(tx);
-  });
-}
 
 /**
  * Refuses to boot in every environment if seal triggers are missing or disabled.
@@ -54,7 +33,9 @@ export async function assertSealTriggersInstalled(): Promise<void> {
       AND NOT t.tgisinternal
       AND t.tgname IN (
         'trg_audit_trail_seal_immutable',
-        'trg_consent_logs_seal_immutable'
+        'trg_consent_logs_seal_immutable',
+        'trg_audit_trail_seal_truncate',
+        'trg_consent_logs_seal_truncate'
       )
   `);
 

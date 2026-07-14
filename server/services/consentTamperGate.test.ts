@@ -1,28 +1,57 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "crypto";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import fs from "fs";
+import path from "path";
 import { db, pool } from "../db";
 import { audioRecordings, auditTrail, cases, consentLogs, users } from "@shared/schema";
 import { recordConsentEvent } from "./recordConsentEvent";
 import { assertSealedConsent } from "./assertSealedConsent";
-import { SEAL_BYPASS_DB_ROLE, withSealBypass } from "../sealTriggerAssertion";
 
 const hasDatabase = Boolean(process.env.DATABASE_URL);
+const hasSealBypassUrl = Boolean(process.env.SEAL_BYPASS_DATABASE_URL);
 const TEST_KEY = process.env.AUDIT_SIGNING_KEY || "integration-test-audit-signing-key";
+
+describe("sealBypassTestDb import isolation", () => {
+  it("is only imported by the two seal integration test files", () => {
+    const serverDir = path.resolve(__dirname, "..");
+    const allowed = new Set([
+      path.join(serverDir, "services/consentTamperGate.test.ts"),
+      path.join(serverDir, "upsertUserSignedIdRemap.test.ts"),
+      path.join(serverDir, "sealBypassTestDb.ts"),
+    ]);
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === "node_modules" || entry.name === "dist") continue;
+          walk(full);
+        } else if (/\.(ts|tsx)$/.test(entry.name)) {
+          if (allowed.has(full)) continue;
+          const content = fs.readFileSync(full, "utf8");
+          if (
+            content.includes("sealBypassTestDb") ||
+            content.includes("SEAL_BYPASS_DATABASE_URL")
+          ) {
+            offenders.push(path.relative(serverDir, full));
+          }
+        }
+      }
+    };
+    walk(serverDir);
+    expect(offenders).toEqual([]);
+  });
+});
 
 describe.skipIf(!hasDatabase)("sealed consent DB tamper gate", () => {
   const userId = `tamper-test-user-${randomUUID()}`;
   let caseId: string;
   let audioRecordingId: string;
   let consentLogId: string;
-  let sealBypassRole = false;
 
   beforeAll(async () => {
     process.env.AUDIT_SIGNING_KEY = TEST_KEY;
-
-    const who = await db.execute(sql`SELECT current_user AS role`);
-    const rows = (who.rows ?? who) as Array<{ role: string }>;
-    sealBypassRole = rows[0]?.role === SEAL_BYPASS_DB_ROLE;
 
     await db.insert(users).values({
       id: userId,
@@ -71,7 +100,8 @@ describe.skipIf(!hasDatabase)("sealed consent DB tamper gate", () => {
   });
 
   afterAll(async () => {
-    if (sealBypassRole) {
+    if (hasSealBypassUrl) {
+      const { withSealBypass, sealBypassPool } = await import("../sealBypassTestDb");
       await withSealBypass(async (tx) => {
         await tx.delete(auditTrail).where(eq(auditTrail.caseId, caseId));
         await tx.delete(consentLogs).where(eq(consentLogs.caseId, caseId));
@@ -79,22 +109,24 @@ describe.skipIf(!hasDatabase)("sealed consent DB tamper gate", () => {
         await tx.delete(cases).where(eq(cases.id, caseId));
         await tx.delete(users).where(eq(users.id, userId));
       });
+      await sealBypassPool.end();
     } else {
       console.warn(
-        `[SEAL] Tamper-test cleanup skipped — connect as ${SEAL_BYPASS_DB_ROLE} to remove sealed fixtures.`,
+        "[SEAL] Tamper-test cleanup skipped — set SEAL_BYPASS_DATABASE_URL (role legalnote_seal_bypass).",
       );
     }
     await pool.end();
   });
 
   it("refuses processing gate after consent_given is tampered in the database", async function () {
-    if (!sealBypassRole) {
+    if (!hasSealBypassUrl) {
       console.warn(
-        `[SEAL] Forge test skipped — requires DB role ${SEAL_BYPASS_DB_ROLE}.`,
+        "[SEAL] Forge test skipped — set SEAL_BYPASS_DATABASE_URL (role legalnote_seal_bypass).",
       );
       return;
     }
 
+    const { withSealBypass } = await import("../sealBypassTestDb");
     await withSealBypass(async (tx) => {
       await tx
         .update(consentLogs)
@@ -109,13 +141,14 @@ describe.skipIf(!hasDatabase)("sealed consent DB tamper gate", () => {
   });
 
   it("refuses processing gate after content_hash is tampered in the database", async function () {
-    if (!sealBypassRole) {
+    if (!hasSealBypassUrl) {
       console.warn(
-        `[SEAL] Forge test skipped — requires DB role ${SEAL_BYPASS_DB_ROLE}.`,
+        "[SEAL] Forge test skipped — set SEAL_BYPASS_DATABASE_URL (role legalnote_seal_bypass).",
       );
       return;
     }
 
+    const { withSealBypass } = await import("../sealBypassTestDb");
     await withSealBypass(async (tx) => {
       await tx
         .update(consentLogs)
