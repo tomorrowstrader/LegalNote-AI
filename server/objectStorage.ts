@@ -12,15 +12,19 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Response } from "express";
 import { randomUUID } from "crypto";
 import { Readable } from "stream";
+import { getBackblazeS3Endpoint, getResolvedBackblazeRegion } from "./backblazeConfig";
+
+const backblazeEndpoint = getBackblazeS3Endpoint();
+const backblazeRegion = getResolvedBackblazeRegion();
 
 // Initialize S3 client for Backblaze B2 (S3-compatible)
 const s3Client = new S3Client({
-  region: "us-west-004", // Backblaze region (can vary based on endpoint)
+  region: backblazeRegion,
   credentials: {
     accessKeyId: process.env.BACKBLAZE_KEY_ID || "",
     secretAccessKey: process.env.BACKBLAZE_APPLICATION_KEY || "",
   },
-  endpoint: process.env.BACKBLAZE_S3_ENDPOINT || "https://s3.us-west-004.backblazeb2.com",
+  endpoint: backblazeEndpoint,
   forcePathStyle: true, // Backblaze B2 requires path-style URLs
 });
 
