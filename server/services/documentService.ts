@@ -446,7 +446,6 @@ export interface DocumentGenerationResult {
   outputTokens: number;
   cost: number;
   verificationWarnings?: string[];
-  isShortRecording?: boolean;
 }
 
 export interface CaseMetadata {
@@ -783,11 +782,6 @@ CRITICAL: Extract only what was actually discussed. Where an area was not covere
 **What was said at the meeting:**
 ${transcript}`;
 
-    if (DocumentService.isShortRecording(transcript, utterances)) {
-      console.log('Short recording detected — generating brief file note instead of full attendance note');
-      return await this.generateBriefFileNote(transcript, metadata);
-    }
-
     const result = await this.generateDocument(systemPrompt, userPrompt);
     return {
       ...result,
@@ -853,90 +847,6 @@ ${attendanceNote}`;
       ...result,
       content: assembleSummaryDocument(result.content, metadata),
     };
-  }
-
-  private static get SHORT_RECORDING_SECONDS_THRESHOLD(): number {
-    const envVal = process.env.SHORT_RECORDING_SECONDS_THRESHOLD;
-    if (envVal) {
-      const parsed = parseInt(envVal, 10);
-      if (!isNaN(parsed) && parsed > 0) return parsed;
-    }
-    return 60;
-  }
-
-  static isShortRecording(transcript: string, utterances?: Array<{ text: string; start: number; end: number }>): boolean {
-    const consentPhrases = [
-      /consent to (?:being )?record/i,
-      /recording (?:this|our) (?:meeting|conversation|call)/i,
-      /do you (?:agree|consent)/i,
-      /are you (?:happy|okay|ok) (?:for|with|to)/i,
-      /permission to record/i,
-      /this (?:meeting|call|conversation) (?:is|will be) (?:being )?recorded/i,
-      /gdpr|data protection|privacy notice/i,
-    ];
-
-    if (utterances && utterances.length > 0) {
-      const substantiveUtterances = utterances.filter(u =>
-        !consentPhrases.some(pattern => pattern.test(u.text))
-      );
-
-      const substantiveDurationMs = substantiveUtterances.reduce(
-        (total, u) => total + (u.end - u.start),
-        0
-      );
-      const substantiveDurationSeconds = substantiveDurationMs / 1000;
-      return substantiveDurationSeconds < DocumentService.SHORT_RECORDING_SECONDS_THRESHOLD;
-    }
-
-    const lines = transcript.split('\n');
-    const substantiveLines = lines.filter(line => {
-      const trimmed = line.trim();
-      if (!trimmed) return false;
-      return !consentPhrases.some(pattern => pattern.test(trimmed));
-    });
-
-    const substantiveText = substantiveLines.join(' ');
-    const wordCount = substantiveText.split(/\s+/).filter(w => w.length > 0).length;
-    const estimatedSeconds = (wordCount / 150) * 60;
-    return estimatedSeconds < DocumentService.SHORT_RECORDING_SECONDS_THRESHOLD;
-  }
-
-  private async generateBriefFileNote(
-    transcript: string,
-    metadata: CaseMetadata
-  ): Promise<DocumentGenerationResult> {
-    const systemPrompt = `You are a UK-qualified solicitor creating a brief file note for a short recording.
-
-ABSOLUTE ANTI-FABRICATION RULES:
-1. EVERY statement must have a direct basis in the transcript. If you cannot trace it to the transcript, do not include it.
-2. Do NOT draw on training knowledge to supplement the transcript.
-3. For anything not in the transcript, use: "Not recorded in this session"
-4. Do NOT add legal advice, case law, or procedural guidance not explicitly stated in the transcript.
-
-REASONING AND THINKING — MANDATORY REQUIREMENT:
-Where the recording captures any advice given or decisions made, you MUST record the reasoning behind them as evident from the transcript. If the reasoning was not captured in this brief recording, emit the exact marker on its own line: <!-- REASONING_GAP: File Note: Reasoning behind advice --> Do NOT fabricate reasoning.
-
-This recording was brief and contained limited substantive content. Generate a short file note (not a full attendance note) that captures only what was actually discussed.
-
-Format:
-**FILE NOTE**
-
-File Reference: ${metadata.matterReference || 'TBD'}
-Date: ${metadata.recordingDate}
-Client: ${metadata.clientName}
-Matter: ${metadata.title}
-
-**Note:** This is a brief file note generated from a short recording with limited substantive legal content.
-
-**Content:**
-[Brief summary of what was actually said — only from the transcript. Where advice was given, record the reasoning behind it as evident from the transcript, or emit the marker: <!-- REASONING_GAP: File Note: Reasoning behind advice -->]
-
-This file note is subject to legal professional privilege.`;
-
-    const userPrompt = `Generate a brief file note from this short recording transcript:\n\n${transcript}`;
-
-    const result = await this.generateDocument(systemPrompt, userPrompt);
-    return { ...result, isShortRecording: true };
   }
 
   async verifyDocumentAgainstTranscript(
@@ -1541,23 +1451,32 @@ ${transcript}`;
     firmPreferences?: FirmPreferences,
     utterances?: Array<{ text: string; start: number; end: number }>
   ): Promise<DocumentGenerationResult> {
+    let result: DocumentGenerationResult;
     switch (recordingType) {
       case 'telephone_call':
-        return this.generateTelephoneAttendanceNote(transcript, metadata, firmPreferences);
+        result = await this.generateTelephoneAttendanceNote(transcript, metadata, firmPreferences);
+        break;
       case 'file_note':
-        return this.generateFileNote(transcript, metadata);
+        result = await this.generateFileNote(transcript, metadata);
+        break;
       case 'court_hearing':
-        return this.generateCourtAttendanceNote(transcript, metadata, firmPreferences);
+        result = await this.generateCourtAttendanceNote(transcript, metadata, firmPreferences);
+        break;
       case 'police_station':
-        return this.generatePoliceStationAttendanceNote(transcript, metadata, firmPreferences);
+        result = await this.generatePoliceStationAttendanceNote(transcript, metadata, firmPreferences);
+        break;
       case 'internal_meeting':
-        return this.generateMeetingNotes(transcript, metadata, utterances);
+        result = await this.generateMeetingNotes(transcript, metadata, utterances);
+        break;
       case 'supervision':
-        return this.generateSupervisionLog(transcript, metadata);
+        result = await this.generateSupervisionLog(transcript, metadata);
+        break;
       case 'full_meeting':
       default:
-        return this.generateAttendanceNote(transcript, metadata, firmPreferences, utterances);
+        result = await this.generateAttendanceNote(transcript, metadata, firmPreferences, utterances);
+        break;
     }
+    return result;
   }
 
   /**

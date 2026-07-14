@@ -1,5 +1,6 @@
 import { AssemblyAIService, formatDiarizedTranscript, type SpeakerUtterance } from './assemblyAIService';
 import { DocumentService, type CaseMetadata } from './documentService';
+import { logDocumentGovernanceViolations } from './documentGovernanceGate';
 import { TranscriptCorrectionService } from './transcriptCorrectionService';
 import { IStorage } from '../storage';
 import { logAuditEvent } from '../auditMiddleware';
@@ -404,6 +405,8 @@ export class AIProcessingPipeline {
         transcriptUtterances.length > 0 ? transcriptUtterances : undefined
       );
 
+      logDocumentGovernanceViolations(attendanceResult.content, recordingType, { caseId });
+
       await this.updateProcessingStatus(caseId, userId, {
         status: 'generating_documents',
         progress: 55,
@@ -425,7 +428,6 @@ export class AIProcessingPipeline {
         createdBy: userId,
         isActive: true,
         verificationWarnings: attendanceVerification.warnings.length > 0 ? attendanceVerification.warnings : undefined,
-        isShortRecording: attendanceResult.isShortRecording || false,
         meetingSessionId: sessionInfo.sessionId ?? undefined,
       });
 
@@ -457,6 +459,8 @@ export class AIProcessingPipeline {
           metadata
         );
 
+        logDocumentGovernanceViolations(clientLetterResult.content, 'client_letter', { caseId });
+
         await this.updateProcessingStatus(caseId, userId, {
           status: 'generating_documents',
           progress: 85,
@@ -478,7 +482,6 @@ export class AIProcessingPipeline {
           createdBy: userId,
           isActive: true,
           verificationWarnings: clientLetterVerification.warnings.length > 0 ? clientLetterVerification.warnings : undefined,
-          isShortRecording: clientLetterResult.isShortRecording || false,
           meetingSessionId: sessionInfo.sessionId ?? undefined,
         });
 
