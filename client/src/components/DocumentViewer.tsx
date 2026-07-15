@@ -822,7 +822,7 @@ export default function DocumentViewer({
 
     try {
       const attendanceNote = documents.find(d => d.type === 'attendance_note') ?? documents.find(d => d.type === 'meeting_notes');
-      const summary = documents.find(d => d.type === 'summary');
+      const summary = documents.find(d => d.type === 'summary') ?? documents.find(d => d.type === 'client_letter');
 
       const exportingAttendance = selectedDocs.includes('attendance_note') || selectedDocs.includes('meeting_notes');
       const exportingSummary = selectedDocs.includes('summary');
@@ -1480,6 +1480,13 @@ export default function DocumentViewer({
     const docGaps = parseReasoningGaps(document.content);
     const gapCount = docGaps.length;
     const isGapPanelOpen = showGapPanel === document.id;
+    const canProduceFurtherVersion =
+      !isDemoMode &&
+      !litigationHold &&
+      (document.type === "attendance_note" ||
+        document.type === "meeting_notes" ||
+        document.type === "summary" ||
+        document.type === "client_letter");
 
     const formatApprovalDate = (dateString: string) => {
       const date = new Date(dateString);
@@ -1508,6 +1515,29 @@ export default function DocumentViewer({
           <Badge variant="outline" data-testid="badge-version">
             Version {document.version}
           </Badge>
+          {canProduceFurtherVersion && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setProduceTarget(document);
+                    setProduceReason("");
+                  }}
+                  disabled={produceVersionMutation.isPending}
+                  className="gap-1"
+                  data-testid="button-produce-new-version"
+                >
+                  <RefreshCw className={`w-3 h-3 ${produceVersionMutation.isPending && produceTarget?.id === document.id ? "animate-spin" : ""}`} />
+                  Produce new version
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[240px]">
+                Produce a further version for the file. The current version remains on record.
+              </TooltipContent>
+            </Tooltip>
+          )}
           {gapCount > 0 && !isDemoMode && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1885,11 +1915,11 @@ export default function DocumentViewer({
               </div>
             </div>
           )}
-          {showVersionDiff === 'attendance_note' && (
+          {(showVersionDiff === 'attendance_note' || showVersionDiff === 'meeting_notes') && (
             <div className="mb-4">
               <VersionDiffViewer
                 caseId={caseId}
-                documentType="attendance_note"
+                documentType={showVersionDiff}
                 onClose={() => setShowVersionDiff(null)}
               />
             </div>
@@ -2155,11 +2185,11 @@ export default function DocumentViewer({
               </div>
             </div>
           )}
-          {showVersionDiff === 'summary' && (
+          {(showVersionDiff === 'summary' || showVersionDiff === 'client_letter') && (
             <div className="mb-4">
               <VersionDiffViewer
                 caseId={caseId}
-                documentType="summary"
+                documentType={showVersionDiff}
                 onClose={() => setShowVersionDiff(null)}
               />
             </div>
@@ -2589,6 +2619,69 @@ export default function DocumentViewer({
         sharedDocuments={['attendance_note', 'summary', 'client_care_letter', 'transcript']}
         onDownload={handleDownload}
       />
+
+      <Dialog
+        open={!!produceTarget}
+        onOpenChange={(open) => {
+          if (!open && !produceVersionMutation.isPending) {
+            setProduceTarget(null);
+            setProduceReason("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md" data-testid="dialog-produce-new-version">
+          <DialogHeader>
+            <DialogTitle>Produce new version</DialogTitle>
+            <DialogDescription>
+              A further {produceTarget?.type === "summary" || produceTarget?.type === "client_letter" ? "client letter" : "attendance note"}{" "}
+              will be produced for the file. The current version remains on record and stays
+              visible in Compare Versions and the audit trail.
+              {produceTarget?.status === "approved" && (
+                <span className="block mt-2 text-amber-700 dark:text-amber-400">
+                  The adopted version will be superseded on screen by a new draft for review.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="produce-reason">Reason for file (optional)</Label>
+            <Input
+              id="produce-reason"
+              value={produceReason}
+              onChange={(e) => setProduceReason(e.target.value)}
+              placeholder="e.g. Correct incomplete discussion of next steps"
+              maxLength={500}
+              data-testid="input-produce-reason"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setProduceTarget(null);
+                setProduceReason("");
+              }}
+              disabled={produceVersionMutation.isPending}
+              data-testid="button-cancel-produce-version"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!produceTarget) return;
+                produceVersionMutation.mutate({
+                  documentId: produceTarget.id,
+                  reason: produceReason,
+                });
+              }}
+              disabled={produceVersionMutation.isPending}
+              data-testid="button-confirm-produce-version"
+            >
+              {produceVersionMutation.isPending ? "Producing…" : "Produce new version"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!pendingRedactionData} onOpenChange={(open) => { if (!open) setPendingRedactionData(null); }}>
         <DialogContent className="sm:max-w-md">
