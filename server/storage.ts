@@ -454,6 +454,13 @@ export interface IStorage {
     lastName: string | null;
     profileImageUrl: string | null;
   }): Promise<User>;
+  resolveMicrosoftAuthUser(profile: {
+    providerUserId: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    profileImageUrl: string | null;
+  }): Promise<User>;
   updateUserStripeInfo(userId: string, stripeInfo: {
     stripeCustomerId?: string;
     stripeSubscriptionId?: string;
@@ -893,6 +900,16 @@ export class MemStorage implements IStorage {
       lastName: profile.lastName ?? undefined,
       profileImageUrl: profile.profileImageUrl ?? undefined,
     });
+  }
+
+  async resolveMicrosoftAuthUser(profile: {
+    providerUserId: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    profileImageUrl: string | null;
+  }): Promise<User> {
+    throw new Error("Not implemented in MemStorage");
   }
 
   async updateUserStripeInfo(userId: string, stripeInfo: {
@@ -2721,6 +2738,52 @@ export class DbStorage implements IStorage {
     await this.createAuthIdentity({
       userId: user.id,
       provider: "google",
+      providerUserId: profile.providerUserId,
+      emailAtLink,
+    });
+
+    return user;
+  }
+
+  async resolveMicrosoftAuthUser(profile: {
+    providerUserId: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    profileImageUrl: string | null;
+  }): Promise<User> {
+    const emailAtLink = profile.email;
+    const canonicalEmail = normalizeAuthEmail(profile.email);
+
+    const identity = await this.getAuthIdentity("microsoft", profile.providerUserId);
+    if (identity) {
+      return this.upsertUser({
+        id: identity.userId,
+        email: canonicalEmail ?? undefined,
+        firstName: profile.firstName ?? undefined,
+        lastName: profile.lastName ?? undefined,
+        profileImageUrl: profile.profileImageUrl ?? undefined,
+      });
+    }
+
+    await this.assertNoEmailCollisionForNewIdentity({
+      provider: "microsoft",
+      providerUserId: profile.providerUserId,
+      canonicalEmail,
+    });
+
+    const newUserId = randomUUID();
+    const user = await this.upsertUser({
+      id: newUserId,
+      email: canonicalEmail ?? undefined,
+      firstName: profile.firstName ?? undefined,
+      lastName: profile.lastName ?? undefined,
+      profileImageUrl: profile.profileImageUrl ?? undefined,
+    });
+
+    await this.createAuthIdentity({
+      userId: user.id,
+      provider: "microsoft",
       providerUserId: profile.providerUserId,
       emailAtLink,
     });

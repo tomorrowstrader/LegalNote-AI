@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Shield, Lock, FileText, ArrowRight } from "lucide-react";
-import { SiGoogle } from "react-icons/si";
+import { SiGoogle, SiMicrosoft } from "react-icons/si";
 import Logo from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -29,6 +29,10 @@ export default function Login() {
 
   const handleGoogleLogin = () => {
     window.location.href = "/api/auth/google";
+  };
+
+  const handleMicrosoftLogin = () => {
+    window.location.href = "/api/auth/microsoft";
   };
 
   return (
@@ -127,6 +131,17 @@ export default function Login() {
             >
               <SiGoogle className="w-4 h-4" />
               Continue with Google
+              <ArrowRight className="w-4 h-4 ml-auto" />
+            </Button>
+            <Button
+              onClick={handleMicrosoftLogin}
+              variant="outline"
+              className="w-full gap-3"
+              size="lg"
+              data-testid="button-microsoft-login"
+            >
+              <SiMicrosoft className="w-4 h-4" />
+              Continue with Microsoft
               <ArrowRight className="w-4 h-4 ml-auto" />
             </Button>
           </div>
