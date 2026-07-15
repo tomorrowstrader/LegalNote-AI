@@ -7,7 +7,6 @@ import session from "express-session";
 import type { Express, RequestHandler, Request, Response } from "express";
 import connectPg from "connect-pg-simple";
 import { AuthEmailCollisionError, AuthEmailRequiredError, storage } from "./storage";
-import { debugSessionLog } from "./debugSessionLog";
 
 const SESSION_TTL = 4 * 60 * 60 * 1000;
 const MICROSOFT_LOGIN_SCOPES = "openid profile email https://graph.microsoft.com/User.Read";

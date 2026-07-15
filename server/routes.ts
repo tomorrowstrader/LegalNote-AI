@@ -61,8 +61,7 @@ import { isFeatureVisible, type FeatureKey } from "@shared/featureVisibility";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
-import { setupAuth, isAuthenticated, isUserAccessAllowed, getAdminUserId, getAccessAllowlist, isAccessAllowlistEnforced } from "./replitAuth";
-import { registerDebugSessionRoutes, debugSessionLog } from "./debugSessionLog";
+import { setupAuth, isAuthenticated, isUserAccessAllowed, getAdminUserId } from "./replitAuth";
 import { MAX_AUDIO_SIZE_BYTES } from "./uploadSecurity";
 import {
   generalApiLimiter,
@@ -163,13 +162,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Setup Replit Auth
   await setupAuth(app);
-  registerDebugSessionRoutes(app);
 
   // Apply general rate limiting to all API routes (except polling + session identity)
   app.use('/api/', (req, res, next) => {
-    if (req.path.startsWith('/_debug/')) {
-      return next();
-    }
     // Skip general rate limiter for polling endpoints - they have their own lenient limits
     if (
       req.path.includes('/processing-status') ||
@@ -1348,23 +1343,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // Add admin flag to user object (MVP: configurable via env)
       const ADMIN_USER_ID = getAdminUserId();
       const isAdmin = userId === ADMIN_USER_ID;
-      const emailForAllow = user?.email ?? req.user.claims?.email ?? null;
-      const accessAllowed = isUserAccessAllowed(userId, emailForAllow);
-      // #region agent log
-      debugSessionLog(
-        "routes.ts:auth/user",
-        "access decision",
-        {
-          isAdmin,
-          accessAllowed,
-          allowlistEnforced: isAccessAllowlistEnforced(),
-          allowlistSize: getAccessAllowlist().size,
-          hasEmail: !!emailForAllow,
-          inviteStatus: user?.inviteStatus ?? null,
-        },
-        "H7",
-      );
-      // #endregion
+      const accessAllowed = isUserAccessAllowed(userId, user?.email ?? req.user.claims?.email);
       
       // Check waitlist status for non-admin users
       let waitlistStatus: string | null = null;
