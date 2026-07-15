@@ -68,6 +68,7 @@ import {
   caseCreationLimiter,
   presignedUrlLimiter,
   audioUploadLimiter,
+  audioChunkLimiter,
   authUserIpLimiter,
   pollingLimiter,
 } from "./rateLimiting";
@@ -3478,7 +3479,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
-  app.post("/api/audio", isAuthenticated, audioUploadLimiter, async (req: any, res, next) => {
+  app.post("/api/audio", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const validatedData = insertAudioRecordingSchema.parse(req.body);
@@ -3698,7 +3699,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   // Upload a chunk to an existing session
   app.post("/api/audio/chunk-session/:sessionId/chunk",
     isAuthenticated,
-    audioUploadLimiter,
+    audioChunkLimiter,
     upload.single('chunk'),
     handleMulterError,
     async (req: any, res, next) => {
@@ -3914,7 +3915,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   // Upload a recovery chunk directly to durable storage (for sessions expired from memory after server restart)
   app.post("/api/audio/recovery-chunk/:sessionId",
     isAuthenticated,
-    audioUploadLimiter,
+    audioChunkLimiter,
     upload.single('chunk'),
     handleMulterError,
     async (req: any, res, next) => {

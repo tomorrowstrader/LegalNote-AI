@@ -45,11 +45,27 @@ export const presignedUrlLimiter = rateLimit({
   skip: (req: any) => !req.user,
 });
 
-// Audio upload/update rate limit: 60 uploads per hour per user
+// Completed audio uploads (multipart file upload per recording).
+// Do NOT apply this to per-chunk endpoints — 10s chunked recording would
+// exhaust 60/hour in ~10 minutes and break Quick Record on save.
 export const audioUploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 60, // Limit each user to 60 audio uploads per hour
+  max: 60, // Limit each user to 60 completed audio uploads per hour
   message: "Audio upload limit exceeded. Maximum 60 uploads per hour allowed",
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: any) => {
+    return req.user?.claims?.sub || "unauthenticated";
+  },
+  skip: (req: any) => !req.user,
+});
+
+// Chunked / recovery chunk uploads — many requests per recording session.
+// At 1 chunk / 10s, 1800/hour ≈ 5 hours of continuous recording.
+export const audioChunkLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 1800,
+  message: "Audio chunk upload limit exceeded. Please try again later",
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: any) => {
