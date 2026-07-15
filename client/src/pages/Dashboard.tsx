@@ -83,9 +83,15 @@ export default function Dashboard() {
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
   const [showImpromptuBot, setShowImpromptuBot] = useState(false);
 
-  const { data: cases, isLoading } = useQuery<Case[]>({
+  const { data: cases, isLoading, isError, error, fetchStatus } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
   });
+
+  useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7671/ingest/dfbc9758-293a-480b-a080-cbd261ef30c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'95f25d'},body:JSON.stringify({sessionId:'95f25d',location:'Dashboard.tsx:cases',message:'cases query state',data:{isLoading,isError,fetchStatus,caseCount:cases?.length,errorMsg:error instanceof Error?error.message.slice(0,120):null},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
+  }, [isLoading, isError, fetchStatus, cases?.length, error]);
 
   const { data: unassignedImports } = useQuery<MeetingImport[]>({
     queryKey: ["/api/recall/imports/unassigned"],

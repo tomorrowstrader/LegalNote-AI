@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import fs from "fs";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import * as client from "openid-client";
@@ -10,6 +11,13 @@ import { AuthEmailCollisionError, AuthEmailRequiredError, storage } from "./stor
 
 const SESSION_TTL = 4 * 60 * 60 * 1000;
 const MICROSOFT_LOGIN_SCOPES = "openid profile email https://graph.microsoft.com/User.Read";
+const DEBUG_LOG_PATH = "/Users/jazz/LegalNote AI/Codebase/Cursor Code/LegalNote-AI/.cursor/debug-95f25d.log";
+
+function debugAuthLog(location: string, message: string, data: Record<string, unknown>, hypothesisId: string) {
+  try {
+    fs.appendFileSync(DEBUG_LOG_PATH, JSON.stringify({ sessionId: "95f25d", location, message, data, timestamp: Date.now(), hypothesisId }) + "\n");
+  } catch { /* ignore when not running locally */ }
+}
 
 /** Reject open redirects — only same-origin relative paths are allowed. */
 function sanitizeReturnTo(value: unknown): string | null {
@@ -189,6 +197,9 @@ function completeOAuthLogin(
       console.error("[AUTH] Login failed:", loginErr);
       return res.redirect("/login?error=session_error");
     }
+    // #region agent log
+    debugAuthLog("replitAuth.ts:completeOAuthLogin", "logIn success", { hasSession: !!req.session, hasPassportUser: !!(req.session as any)?.passport?.user, hasClaimsSub: !!(req.user as any)?.claims?.sub }, "H1");
+    // #endregion
     req.session.save((saveErr) => {
       if (saveErr) {
         console.error("[AUTH] Session save failed:", saveErr);
@@ -388,6 +399,11 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user?.claims?.sub) {
+    // #region agent log
+    if (req.path === "/api/auth/user" || req.path === "/auth/user") {
+      debugAuthLog("replitAuth.ts:isAuthenticated", "auth rejected", { path: req.path, isAuthenticated: req.isAuthenticated(), hasClaimsSub: !!user?.claims?.sub, hasPassport: !!(req.session as any)?.passport }, "H1");
+    }
+    // #endregion
     return res.status(401).json({ message: "Unauthorized" });
   }
 

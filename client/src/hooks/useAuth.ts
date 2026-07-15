@@ -23,16 +23,28 @@ export function useAuth() {
     queryKey: ["/api/auth/user"],
     queryFn: async () => {
       const res = await fetch("/api/auth/user", { credentials: "include" });
+      // #region agent log
+      fetch('http://127.0.0.1:7671/ingest/dfbc9758-293a-480b-a080-cbd261ef30c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'95f25d'},body:JSON.stringify({sessionId:'95f25d',location:'useAuth.ts:queryFn',message:'auth/user response',data:{status:res.status,ok:res.ok},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
       if (res.status === 401) return null;
       if (res.status === 429) {
-        // Transient IP limit — keep prior session view by throwing with retry
+        // #region agent log
+        fetch('http://127.0.0.1:7671/ingest/dfbc9758-293a-480b-a080-cbd261ef30c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'95f25d'},body:JSON.stringify({sessionId:'95f25d',location:'useAuth.ts:queryFn',message:'auth/user rate limited',data:{status:429},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+        // #endregion
         throw new Error("429: Too many requests");
       }
       if (!res.ok) {
         const text = (await res.text()) || res.statusText;
+        // #region agent log
+        fetch('http://127.0.0.1:7671/ingest/dfbc9758-293a-480b-a080-cbd261ef30c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'95f25d'},body:JSON.stringify({sessionId:'95f25d',location:'useAuth.ts:queryFn',message:'auth/user error',data:{status:res.status,bodyPreview:text.slice(0,120)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+        // #endregion
         throw new Error(`${res.status}: ${text}`);
       }
-      return res.json();
+      const json = await res.json();
+      // #region agent log
+      fetch('http://127.0.0.1:7671/ingest/dfbc9758-293a-480b-a080-cbd261ef30c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'95f25d'},body:JSON.stringify({sessionId:'95f25d',location:'useAuth.ts:queryFn',message:'auth/user success',data:{hasUser:!!json,accessAllowed:json?.accessAllowed,isAdmin:json?.isAdmin,inviteStatus:json?.inviteStatus},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
+      return json;
     },
     retry: (failureCount, error) => {
       if (error instanceof Error && error.message.startsWith("429:")) {
