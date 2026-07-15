@@ -101,7 +101,7 @@ export function useCaseExport({ caseId, enabled, prefetchedData }: UseCaseExport
     }
 
     // Determine single document type for branding; 'selected' when multiple
-    const knownSingleTypes = ['attendance_note', 'summary', 'transcript', 'client_care_letter'] as const;
+    const knownSingleTypes = ['attendance_note', 'meeting_notes', 'summary', 'transcript', 'client_care_letter'] as const;
     type KnownSingleType = typeof knownSingleTypes[number];
     const isSingleKnownType = (t: string): t is KnownSingleType => (knownSingleTypes as readonly string[]).includes(t);
     const singleDocType = selectedDocs.length === 1 && isSingleKnownType(selectedDocs[0]) ? selectedDocs[0] : ('selected' as const);

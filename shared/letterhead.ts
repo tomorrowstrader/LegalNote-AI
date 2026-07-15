@@ -44,16 +44,33 @@ export function formatLetterheadAddress(lh: LetterheadData): string[] {
   return lines;
 }
 
+// Compact single-line firm details for attendance note footers.
+export function formatLetterheadFooterLine(lh: LetterheadData): string {
+  const parts: string[] = [];
+  if (lh.firmName) parts.push(lh.firmName);
+  const address = formatLetterheadAddress(lh).join(' · ');
+  if (address) parts.push(address);
+  if (lh.phone) parts.push(`Tel: ${lh.phone}`);
+  if (lh.email) parts.push(`Email: ${lh.email}`);
+  if (lh.sraNumber) parts.push(`SRA: ${lh.sraNumber}`);
+  return parts.join(' · ');
+}
+
 // Branding modes for document exports:
 //   'full'         — logo + firm name + full address + contact details + SRA
+//   'logo_only'    — logo top-right only; firm address in compact footer line
 //   'name_sra'     — firm name + SRA number only (used for audit exports, server-side)
 //   'none'         — no firm branding at all
-export type BrandingMode = 'full' | 'name_sra' | 'none';
+export type BrandingMode = 'full' | 'logo_only' | 'name_sra' | 'none';
+
+// Document types that receive logo-only letterhead (Penn Chambers style)
+const LOGO_ONLY_LETTERHEAD_TYPES = new Set([
+  'attendance_note',
+  'meeting_notes',
+]);
 
 // Document types that receive full letterhead (logo + name + address + contact + SRA)
 const FULL_LETTERHEAD_TYPES = new Set([
-  'attendance_note',
-  'meeting_notes',
   'summary',
   'client_care_letter',
 ]);
@@ -81,6 +98,7 @@ export function resolveBrandingMode(
   if (!docType) return 'full';
   if (NO_BRANDING_TYPES.has(docType)) return 'none';
   if (NAME_SRA_TYPES.has(docType)) return 'name_sra';
+  if (LOGO_ONLY_LETTERHEAD_TYPES.has(docType)) return 'logo_only';
   if (FULL_LETTERHEAD_TYPES.has(docType)) return 'full';
   if (contentFlags) {
     const hasNonTranscript = !!(contentFlags.hasAttendance || contentFlags.hasSummary || contentFlags.hasCareLetter);

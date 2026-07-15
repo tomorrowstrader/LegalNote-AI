@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType, LineRuleType, ImageRun, LevelFormat } from 'docx';
 import { saveAs } from 'file-saver';
 import type { FirmProfile } from '@shared/schema';
-import { extractLetterhead, resolveBrandingMode, formatLetterheadAddress } from '@shared/letterhead';
+import { extractLetterhead, resolveBrandingMode, formatLetterheadAddress, formatLetterheadFooterLine } from '@shared/letterhead';
 
 interface DocumentContent {
   summary?: string;
@@ -166,6 +166,22 @@ function getDocumentTitle(documentType?: string): string {
   }
 }
 
+/** PDF logo display box in mm (aspect ratio preserved). */
+const LOGO_PDF_MAX_WIDTH_MM = 55;
+const LOGO_PDF_MAX_HEIGHT_MM = 35;
+const LOGO_PRINT_DPI = 300;
+
+function mmToPx(mm: number, dpi = LOGO_PRINT_DPI): number {
+  return Math.round((mm / 25.4) * dpi);
+}
+
+/** Target raster dimensions for print-quality logo embed (~300 DPI at display size). */
+const LOGO_RASTER_MAX_WIDTH = mmToPx(LOGO_PDF_MAX_WIDTH_MM);
+const LOGO_RASTER_MAX_HEIGHT = mmToPx(LOGO_PDF_MAX_HEIGHT_MM);
+
+/** Label: value lines in markdown — supports parentheses e.g. "Time Spent (Units):" */
+const METADATA_LABEL_PATTERN = /^([A-Za-z][A-Za-z\s()]{0,30}):\s+(.+)/;
+
 // Load image as base64 data URL for embedding
 async function loadImageAsDataUrl(url: string): Promise<string | null> {
   try {
@@ -184,7 +200,12 @@ async function loadImageAsDataUrl(url: string): Promise<string | null> {
 }
 
 /** Rasterize SVG/WEBP (or any image) to PNG via canvas so PDF/Word can embed it. */
-async function rasterizeToPngDataUrl(dataUrl: string, maxWidth = 400, maxHeight = 200): Promise<string | null> {
+async function rasterizeToPngDataUrl(
+  dataUrl: string,
+  maxWidth = LOGO_RASTER_MAX_WIDTH,
+  maxHeight = LOGO_RASTER_MAX_HEIGHT,
+  allowUpscale = true,
+): Promise<string | null> {
   if (typeof Image === 'undefined' || typeof document === 'undefined') return null;
   return new Promise((resolve) => {
     const img = new Image();
@@ -192,17 +213,23 @@ async function rasterizeToPngDataUrl(dataUrl: string, maxWidth = 400, maxHeight 
       try {
         let w = img.naturalWidth || img.width || 1;
         let h = img.naturalHeight || img.height || 1;
-        const scale = Math.min(1, maxWidth / w, maxHeight / h);
+        const scale = allowUpscale
+          ? Math.min(maxWidth / w, maxHeight / h)
+          : Math.min(1, maxWidth / w, maxHeight / h);
         w = Math.max(1, Math.round(w * scale));
         h = Math.max(1, Math.round(h * scale));
+        const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 3) : 1;
         const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
+        canvas.width = Math.max(1, Math.round(w * dpr));
+        canvas.height = Math.max(1, Math.round(h * dpr));
         const ctx = canvas.getContext('2d');
         if (!ctx) {
           resolve(null);
           return;
         }
+        ctx.scale(dpr, dpr);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, w, h);
         resolve(canvas.toDataURL('image/png'));
       } catch {
@@ -258,7 +285,17 @@ async function prepareFirmLogo(logoUrl: string): Promise<PreparedLogo | null> {
     mime === 'image/webp' ||
     (!mime.includes('png') && !mime.includes('jpeg') && !mime.includes('jpg') && !mime.includes('gif') && !mime.includes('bmp'));
 
-  if (needsRaster) {
+  const dims = await new Promise<{ w: number; h: number }>((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth || 140, h: img.naturalHeight || 72 });
+    img.onerror = () => resolve({ w: 140, h: 72 });
+    img.src = dataUrl!;
+  });
+
+  const belowTarget =
+    dims.w < LOGO_RASTER_MAX_WIDTH * 0.75 || dims.h < LOGO_RASTER_MAX_HEIGHT * 0.75;
+
+  if (needsRaster || belowTarget) {
     const rasterized = await rasterizeToPngDataUrl(dataUrl);
     if (!rasterized) return null;
     dataUrl = rasterized;
@@ -270,7 +307,7 @@ async function prepareFirmLogo(logoUrl: string): Promise<PreparedLogo | null> {
     dataUrl = rasterized;
   }
 
-  const dims = await new Promise<{ w: number; h: number }>((resolve) => {
+  const finalDims = await new Promise<{ w: number; h: number }>((resolve) => {
     const img = new Image();
     img.onload = () => resolve({ w: img.naturalWidth || 140, h: img.naturalHeight || 72 });
     img.onerror = () => resolve({ w: 140, h: 72 });
@@ -281,8 +318,8 @@ async function prepareFirmLogo(logoUrl: string): Promise<PreparedLogo | null> {
     dataUrl,
     pdfFormat: getImageFormatFromDataUrl(dataUrl) || 'PNG',
     docxType: getDocxImageTypeFromDataUrl(dataUrl) || 'png',
-    widthPx: dims.w,
-    heightPx: dims.h,
+    widthPx: finalDims.w,
+    heightPx: finalDims.h,
   };
 }
 
@@ -312,6 +349,128 @@ function stripInlineMarkdown(text: string): string {
     .replace(/\*(?!\*)(.*?)\*/g, '$1')
     .replace(/(?<!_)_(?!_)(.*?)_(?!_)/g, '$1')
     .replace(/`([^`]+)`/g, '$1');
+}
+
+interface AttendanceNoteField {
+  label: string;
+  value: string;
+}
+
+interface ParsedAttendanceNoteHeader {
+  fields: AttendanceNoteField[];
+  bodyMarkdown: string;
+}
+
+const ATTENDANCE_NOTE_LABEL_ALIASES: Record<string, string> = {
+  'File Reference': 'File Ref',
+  'File Ref': 'File Ref',
+  'Solicitor': 'Advisor',
+  'Advisor': 'Advisor',
+  'MATTER': 'Matter',
+  'Matter': 'Matter',
+  'CLIENT': 'Client Name',
+  'Client': 'Client Name',
+  'Client Name': 'Client Name',
+};
+
+function normalizeAttendanceNoteLabel(raw: string): string {
+  const trimmed = raw.trim();
+  return ATTENDANCE_NOTE_LABEL_ALIASES[trimmed] ?? ATTENDANCE_NOTE_LABEL_ALIASES[trimmed.toUpperCase()] ?? trimmed;
+}
+
+function parseAttendanceNoteHeader(
+  markdown: string,
+  fallbacks?: { clientName?: string; matterReference?: string; caseTitle?: string },
+): ParsedAttendanceNoteHeader {
+  const bodyIdx = markdown.indexOf('**MATTERS DISCUSSED**');
+  const headerPart = bodyIdx >= 0 ? markdown.slice(0, bodyIdx) : markdown;
+  const bodyMarkdown = bodyIdx >= 0 ? markdown.slice(bodyIdx) : markdown;
+
+  const fields: AttendanceNoteField[] = [];
+  const seenLabels = new Set<string>();
+
+  const addField = (label: string, value: string) => {
+    const normalized = normalizeAttendanceNoteLabel(label);
+    if (!value.trim() || seenLabels.has(normalized)) return;
+    seenLabels.add(normalized);
+    fields.push({ label: normalized, value: value.trim() });
+  };
+
+  for (const line of headerPart.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || /^\*\*ATTENDANCE NOTE\*\*$/i.test(trimmed)) continue;
+
+    const boldKv = trimmed.match(/^\*\*([A-Za-z][A-Za-z\s()]{0,30}):\*\*\s+(.+)$/);
+    if (boldKv) {
+      addField(boldKv[1], stripInlineMarkdown(boldKv[2]));
+      continue;
+    }
+
+    const kv = trimmed.match(METADATA_LABEL_PATTERN);
+    if (kv) {
+      addField(kv[1], stripInlineMarkdown(kv[2]));
+    }
+  }
+
+  if (!seenLabels.has('File Ref') && fallbacks?.matterReference) {
+    fields.unshift({ label: 'File Ref', value: fallbacks.matterReference });
+  }
+  if (!seenLabels.has('Client Name') && fallbacks?.clientName) {
+    fields.push({ label: 'Client Name', value: fallbacks.clientName });
+  }
+  if (!seenLabels.has('Matter') && fallbacks?.caseTitle) {
+    fields.push({ label: 'Matter', value: fallbacks.caseTitle });
+  }
+
+  return { fields, bodyMarkdown };
+}
+
+function buildAttendanceNoteMetadataRows(
+  parsed: ParsedAttendanceNoteHeader,
+  content: DocumentContent,
+): AttendanceNoteField[] {
+  const rows = [...parsed.fields];
+  const hasLabel = (label: string) => rows.some((r) => r.label === label);
+
+  if (!hasLabel('File Ref') && content.matterReference) {
+    rows.unshift({ label: 'File Ref', value: content.matterReference });
+  }
+  if (!hasLabel('Client Name') && content.clientName) {
+    rows.push({ label: 'Client Name', value: content.clientName });
+  }
+  if (!hasLabel('Matter') && content.caseTitle) {
+    rows.push({ label: 'Matter', value: content.caseTitle });
+  }
+
+  return rows;
+}
+
+function embedPdfLogo(
+  doc: jsPDF,
+  preparedLogo: PreparedLogo,
+  pageWidth: number,
+  margin: number,
+  topY: number,
+): number {
+  try {
+    const { width: logoWidth, height: logoHeight } = fitLogoSize(
+      preparedLogo.widthPx,
+      preparedLogo.heightPx,
+      LOGO_PDF_MAX_WIDTH_MM,
+      LOGO_PDF_MAX_HEIGHT_MM,
+    );
+    doc.addImage(
+      preparedLogo.dataUrl,
+      preparedLogo.pdfFormat,
+      pageWidth - margin - logoWidth,
+      topY,
+      logoWidth,
+      logoHeight,
+    );
+    return topY + logoHeight;
+  } catch {
+    return topY;
+  }
 }
 
 // Parse markdown line into TextRuns for Word export
@@ -379,19 +538,30 @@ export async function exportToPDF(content: DocumentContent) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
-  const footerHeight = 12; // Reserved at bottom for per-page footer
+  const isSingleTypedDoc = ['attendance_note', 'meeting_notes', 'summary', 'client_care_letter', 'transcript'].includes(
+    content.documentType || '',
+  );
+  const usePennAttendanceLayout =
+    isSingleTypedDoc &&
+    (content.documentType === 'attendance_note' || content.documentType === 'meeting_notes') &&
+    !!content.attendanceNote;
+  const footerHeight = usePennAttendanceLayout ? 18 : 12;
   const maxWidth = pageWidth - (margin * 2);
   let yPosition = margin;
 
   const brandingMode = getBrandingMode(content.documentType, content);
   const showLetterhead = brandingMode === 'full';
+  const showLogoOnly = brandingMode === 'logo_only';
   const showNameSra = brandingMode === 'name_sra';
 
-  // Pre-load firm logo if available and full letterhead is needed
+  // Pre-load firm logo if available
   let preparedLogo: PreparedLogo | null = null;
-  if (showLetterhead && content.firmProfile?.logoUrl) {
+  if ((showLetterhead || showLogoOnly) && content.firmProfile?.logoUrl) {
     preparedLogo = await prepareFirmLogo(content.firmProfile.logoUrl);
   }
+
+  const lhData = (showLetterhead || showLogoOnly) ? extractLetterhead(content.firmProfile) : null;
+  const firmFooterLine = usePennAttendanceLayout && lhData ? formatLetterheadFooterLine(lhData) : '';
 
   // Compute integrity hash from all exported content for per-page footer
   const allContent = [content.attendanceNote, content.summary, content.clientCareLetter, content.transcript].filter(Boolean).join('|');
@@ -424,6 +594,14 @@ export async function exportToPDF(content: DocumentContent) {
     yPosition += 5;
   };
 
+  const addCenteredText = (text: string, fontSize: number, isBold = false) => {
+    doc.setFontSize(fontSize);
+    doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+    checkNewPage(fontSize * 0.5);
+    doc.text(text, pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += fontSize * 0.5 + 4;
+  };
+
   const addWrappedText = (text: string, fontSize: number, isBold: boolean = false, isItalic: boolean = false, indent: number = 0) => {
     doc.setFontSize(fontSize);
     const fontStyle = isBold && isItalic ? 'bolditalic' : isBold ? 'bold' : isItalic ? 'italic' : 'normal';
@@ -442,10 +620,9 @@ export async function exportToPDF(content: DocumentContent) {
 
   // Pre-scan for header field lines and compute the label column width for alignment
   const computeLabelColumnWidth = (md: string): number => {
-    const labelPattern = /^([A-Za-z][A-Za-z\s]{0,24}):\s+\S/;
     let maxLabelPx = 0;
     for (const line of md.split('\n')) {
-      const m = line.match(labelPattern);
+      const m = line.match(METADATA_LABEL_PATTERN);
       if (m) {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
@@ -456,9 +633,25 @@ export async function exportToPDF(content: DocumentContent) {
     return maxLabelPx > 0 ? maxLabelPx + 2 : 0;
   };
 
+  const renderMetadataRows = (rows: AttendanceNoteField[], labelColWidth: number) => {
+    for (const row of rows) {
+      checkNewPage(6);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${row.label}:`, margin, yPosition);
+      doc.setFont('helvetica', 'normal');
+      const valueLines = doc.splitTextToSize(row.value, maxWidth - labelColWidth);
+      valueLines.forEach((vLine: string, vi: number) => {
+        if (vi > 0) { checkNewPage(5); yPosition += 5; }
+        doc.text(vLine, margin + labelColWidth, yPosition);
+      });
+      yPosition += 5.5;
+    }
+  };
+
   const renderMarkdownSection = (markdown: string) => {
     const labelColWidth = computeLabelColumnWidth(markdown);
-    const labelPattern = /^([A-Za-z][A-Za-z\s]{0,24}):\s+(.+)/;
+    const labelPattern = METADATA_LABEL_PATTERN;
 
     const lines = markdown.split('\n');
     
@@ -642,32 +835,62 @@ export async function exportToPDF(content: DocumentContent) {
     }
   };
 
-  const lhData = showLetterhead ? extractLetterhead(content.firmProfile) : null;
-  if (lhData) {
+  const stripGapMarkers = (text: string) =>
+    text
+      .replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '')
+      .replace(/&lt;!--\s*REASONING_GAP:\s*.+?\s*--&gt;/g, '')
+      .replace(/\{\{RGAP:(?:\\.|[^}])+\}\}/g, '');
+
+  if (usePennAttendanceLayout && content.attendanceNote) {
+    const letterheadTop = yPosition;
+    let logoBottom = letterheadTop;
+    if (preparedLogo) {
+      logoBottom = embedPdfLogo(doc, preparedLogo, pageWidth, margin, letterheadTop);
+    }
+    yPosition = Math.max(yPosition + 8, logoBottom + 6);
+
+    addCenteredText('ATTENDANCE NOTE', 16, true);
+    yPosition += 4;
+
+    const parsed = parseAttendanceNoteHeader(content.attendanceNote, {
+      clientName: content.clientName,
+      matterReference: content.matterReference,
+      caseTitle: content.caseTitle,
+    });
+    const metadataRows = buildAttendanceNoteMetadataRows(parsed, content);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    const labelColWidth = (metadataRows.length > 0
+      ? Math.max(...metadataRows.map((r) => doc.getTextWidth(`${r.label}:`)))
+      : 0) + 4;
+
+    renderMetadataRows(metadataRows, labelColWidth);
+
+    yPosition += 2;
+    doc.setDrawColor(0, 0, 0);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+
+    renderMarkdownSection(stripGapMarkers(parsed.bodyMarkdown || content.attendanceNote));
+
+    if (content.solicitorReasoningNote?.trim()) {
+      if (yPosition > pageHeight - 100) {
+        doc.addPage();
+        yPosition = margin;
+      }
+      addText('ADVICE RATIONALE — SOLICITOR\'S RECORD', 14, true);
+      yPosition += 4;
+      renderMarkdownSection(content.solicitorReasoningNote);
+    }
+  } else {
+  const lhDataFull = showLetterhead ? lhData : null;
+  if (lhDataFull) {
     const letterheadTop = yPosition;
     let logoBottom = letterheadTop;
 
-    // Firm logo fixed in the top-right corner
     if (preparedLogo) {
-      try {
-        const { width: logoWidth, height: logoHeight } = fitLogoSize(
-          preparedLogo.widthPx,
-          preparedLogo.heightPx,
-          52,
-          30,
-        );
-        doc.addImage(
-          preparedLogo.dataUrl,
-          preparedLogo.pdfFormat,
-          pageWidth - margin - logoWidth,
-          letterheadTop,
-          logoWidth,
-          logoHeight,
-        );
-        logoBottom = letterheadTop + logoHeight;
-      } catch {
-        // Logo embedding failed, skip silently
-      }
+      logoBottom = embedPdfLogo(doc, preparedLogo, pageWidth, margin, letterheadTop);
     }
 
     // Firm details on the left; keep clear of the logo column
@@ -684,14 +907,14 @@ export async function exportToPDF(content: DocumentContent) {
       yPosition += 1.5;
     };
 
-    if (lhData.firmName) addLhLine(lhData.firmName, 14, true);
-    for (const line of formatLetterheadAddress(lhData)) {
+    if (lhDataFull.firmName) addLhLine(lhDataFull.firmName, 14, true);
+    for (const line of formatLetterheadAddress(lhDataFull)) {
       addLhLine(line, 9);
     }
-    if (lhData.phone) addLhLine(`Tel: ${lhData.phone}`, 9);
-    if (lhData.email) addLhLine(`Email: ${lhData.email}`, 9);
-    if (lhData.website) addLhLine(`Web: ${lhData.website}`, 9);
-    if (lhData.sraNumber) addLhLine(`SRA No: ${lhData.sraNumber}`, 9);
+    if (lhDataFull.phone) addLhLine(`Tel: ${lhDataFull.phone}`, 9);
+    if (lhDataFull.email) addLhLine(`Email: ${lhDataFull.email}`, 9);
+    if (lhDataFull.website) addLhLine(`Web: ${lhDataFull.website}`, 9);
+    if (lhDataFull.sraNumber) addLhLine(`SRA No: ${lhDataFull.sraNumber}`, 9);
 
     yPosition = Math.max(yPosition, logoBottom) + 4;
     doc.setDrawColor(0, 0, 0);
@@ -712,9 +935,6 @@ export async function exportToPDF(content: DocumentContent) {
   }
 
   const pdfTitle = getDocumentTitle(content.documentType);
-  const isSingleTypedDoc = ['attendance_note', 'meeting_notes', 'summary', 'client_care_letter', 'transcript'].includes(
-    content.documentType || '',
-  );
   addText(pdfTitle, isSingleTypedDoc ? 16 : 18, true);
   yPosition += 3;
   
@@ -747,12 +967,6 @@ export async function exportToPDF(content: DocumentContent) {
       return lower === 'not recorded' || lower.includes('not recorded in this session');
     });
   };
-
-  const stripGapMarkers = (text: string) =>
-    text
-      .replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '')
-      .replace(/&lt;!--\s*REASONING_GAP:\s*.+?\s*--&gt;/g, '')
-      .replace(/\{\{RGAP:(?:\\.|[^}])+\}\}/g, '');
 
   if (content.summary && !isPdfPlaceholder(content.summary)) {
     if (!isSingleTypedDoc || content.documentType !== 'summary') {
@@ -812,6 +1026,7 @@ export async function exportToPDF(content: DocumentContent) {
     }
     renderMarkdownSection(stripGapMarkers(content.transcript));
   }
+  }
 
   // Add per-page footer to every page
   const totalPages = doc.getNumberOfPages();
@@ -822,6 +1037,17 @@ export async function exportToPDF(content: DocumentContent) {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(150, 150, 150);
     doc.setDrawColor(200, 200, 200);
+
+    if (firmFooterLine) {
+      doc.setFontSize(6);
+      const firmLines = doc.splitTextToSize(firmFooterLine, maxWidth);
+      const firmLineY = footerY - 10 - (firmLines.length - 1) * 3;
+      firmLines.forEach((line: string, i: number) => {
+        doc.text(line, pageWidth / 2, firmLineY + i * 3, { align: 'center' });
+      });
+      doc.setFontSize(7);
+    }
+
     doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
 
     const leftText = `${docTypeLabel}${content.matterReference ? ` | Ref: ${content.matterReference}` : ''}`;
@@ -854,26 +1080,137 @@ export async function exportToWord(content: DocumentContent) {
   content = normalizeDocumentContent(content);
   const children: (Paragraph | Table)[] = [];
 
-  const wordBrandingMode = getBrandingMode(content.documentType, content);
-  const showWordLetterhead = wordBrandingMode === 'full';
-  const showWordNameSra = wordBrandingMode === 'name_sra';
   const isSingleTypedDoc = ['attendance_note', 'meeting_notes', 'summary', 'client_care_letter', 'transcript'].includes(
     content.documentType || '',
   );
+  const usePennAttendanceLayout =
+    isSingleTypedDoc &&
+    (content.documentType === 'attendance_note' || content.documentType === 'meeting_notes') &&
+    !!content.attendanceNote;
+
+  const wordBrandingMode = getBrandingMode(content.documentType, content);
+  const showWordLetterhead = wordBrandingMode === 'full';
+  const showWordLogoOnly = wordBrandingMode === 'logo_only';
+  const showWordNameSra = wordBrandingMode === 'name_sra';
 
   // Word doc type label for footer
   const wordDocTypeLabel = getDocumentTitle(content.documentType);
 
   // Pre-load logo for Word embed if needed
   let preparedWordLogo: PreparedLogo | null = null;
-  if (showWordLetterhead && content.firmProfile?.logoUrl) {
+  if ((showWordLetterhead || showWordLogoOnly) && content.firmProfile?.logoUrl) {
     preparedWordLogo = await prepareFirmLogo(content.firmProfile.logoUrl);
   }
 
-  // Firm Letterhead (full letterhead for appropriate document types)
-  const wordLhData = showWordLetterhead ? extractLetterhead(content.firmProfile) : null;
-  if (wordLhData) {
-    const letterheadNoBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+  const wordLhData = (showWordLetterhead || showWordLogoOnly) ? extractLetterhead(content.firmProfile) : null;
+  const wordFirmFooterLine = usePennAttendanceLayout && wordLhData ? formatLetterheadFooterLine(wordLhData) : '';
+
+  const letterheadNoBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+  const noBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+
+  if (usePennAttendanceLayout && content.attendanceNote) {
+    const logoChildren: Paragraph[] = [];
+    if (preparedWordLogo) {
+      try {
+        const base64Data = preparedWordLogo.dataUrl.split(',')[1];
+        if (base64Data) {
+          const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+          const { width, height } = fitLogoSize(
+            preparedWordLogo.widthPx,
+            preparedWordLogo.heightPx,
+            mmToPx(LOGO_PDF_MAX_WIDTH_MM) * 0.55,
+            mmToPx(LOGO_PDF_MAX_HEIGHT_MM) * 0.55,
+          );
+          logoChildren.push(
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              children: [
+                new ImageRun({
+                  data: buffer,
+                  transformation: { width, height },
+                  type: preparedWordLogo.docxType,
+                }),
+              ],
+            }),
+          );
+        }
+      } catch {
+        // Logo embed failed, skip silently
+      }
+    }
+
+    children.push(
+      new Table({
+        width: { size: 9000, type: WidthType.DXA },
+        columnWidths: [6200, 2800],
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 6200, type: WidthType.DXA },
+                borders: { top: letterheadNoBorder, bottom: letterheadNoBorder, left: letterheadNoBorder, right: letterheadNoBorder },
+                children: [new Paragraph({ text: '' })],
+              }),
+              new TableCell({
+                width: { size: 2800, type: WidthType.DXA },
+                borders: { top: letterheadNoBorder, bottom: letterheadNoBorder, left: letterheadNoBorder, right: letterheadNoBorder },
+                children: logoChildren.length > 0 ? logoChildren : [new Paragraph({ text: '' })],
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'ATTENDANCE NOTE', bold: true, size: 32, font: 'Calibri' })],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 120, after: 240 },
+      }),
+    );
+
+    const parsed = parseAttendanceNoteHeader(content.attendanceNote, {
+      clientName: content.clientName,
+      matterReference: content.matterReference,
+      caseTitle: content.caseTitle,
+    });
+    const metadataRows = buildAttendanceNoteMetadataRows(parsed, content);
+
+    const makeMetadataRow = (label: string, value: string) => new TableRow({
+      children: [
+        new TableCell({
+          width: { size: 2400, type: WidthType.DXA },
+          borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+          children: [new Paragraph({
+            children: [new TextRun({ text: `${label}:`, bold: true, size: 22, font: 'Calibri' })],
+            spacing: { after: 60 },
+          })],
+        }),
+        new TableCell({
+          width: { size: 5400, type: WidthType.DXA },
+          borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+          children: [new Paragraph({
+            children: [new TextRun({ text: value, size: 22, font: 'Calibri' })],
+            spacing: { after: 60 },
+          })],
+        }),
+      ],
+    });
+
+    children.push(
+      new Table({
+        width: { size: 7800, type: WidthType.DXA },
+        borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideH: noBorder, insideV: noBorder },
+        rows: metadataRows.map((row) => makeMetadataRow(row.label, row.value)),
+      }),
+      new Paragraph({
+        text: '',
+        border: { bottom: { color: '000000', space: 1, style: BorderStyle.SINGLE, size: 6 } },
+        spacing: { after: 280 },
+      }),
+    );
+  } else if (wordLhData && showWordLetterhead) {
     const firmInfoChildren: Paragraph[] = [];
     if (wordLhData.firmName) {
       firmInfoChildren.push(
@@ -981,6 +1318,7 @@ export async function exportToWord(content: DocumentContent) {
     children.push(new Paragraph({ text: '', border: { bottom: { color: "000000", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { after: 400 } }));
   }
 
+  if (!usePennAttendanceLayout) {
   // Document title (e.g. Attendance Note) — shown once at top for single-doc exports
   children.push(
     new Paragraph({
@@ -990,7 +1328,6 @@ export async function exportToWord(content: DocumentContent) {
   );
 
   // Helper to create a borderless two-column table row for header fields
-  const noBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
   const makeHeaderRow = (label: string, value: string) => new TableRow({
     children: [
       new TableCell({
@@ -1024,6 +1361,7 @@ export async function exportToWord(content: DocumentContent) {
     }),
     new Paragraph({ text: '', spacing: { after: 280 } })
   );
+  }
 
   // Helper to preserve formatting and paragraph breaks with markdown parsing
   const formatTextSection = (text: string): Paragraph[] => {
@@ -1157,11 +1495,19 @@ export async function exportToWord(content: DocumentContent) {
 
   // Attendance Note section
   if (content.attendanceNote) {
-    if (!isSingleTypedDoc || (content.documentType !== 'attendance_note' && content.documentType !== 'meeting_notes')) {
+    const attendanceBody = usePennAttendanceLayout
+      ? (parseAttendanceNoteHeader(content.attendanceNote, {
+          clientName: content.clientName,
+          matterReference: content.matterReference,
+          caseTitle: content.caseTitle,
+        }).bodyMarkdown || content.attendanceNote)
+      : content.attendanceNote;
+
+    if (!usePennAttendanceLayout && (!isSingleTypedDoc || (content.documentType !== 'attendance_note' && content.documentType !== 'meeting_notes'))) {
       children.push(makeSectionHeading('ATTENDANCE NOTE'));
     }
     children.push(
-      ...formatTextSection(stripWordGapMarkers(content.attendanceNote)),
+      ...formatTextSection(stripWordGapMarkers(attendanceBody)),
       new Paragraph({ text: '', spacing: { after: 240 } })
     );
   }
@@ -1209,6 +1555,25 @@ export async function exportToWord(content: DocumentContent) {
 
   children.push(
     new Paragraph({ text: '', spacing: { before: 600 } }),
+  );
+
+  if (wordFirmFooterLine) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: wordFirmFooterLine,
+            size: 12,
+            color: '999999',
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 200, after: 120 },
+      }),
+    );
+  }
+
+  children.push(
     new Paragraph({
       children: [
         new TextRun({

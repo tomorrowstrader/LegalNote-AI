@@ -323,30 +323,30 @@ function sanitizeModelProseDashes(document: string): string {
 }
 
 function buildAttendanceNoteHeader(metadata: CaseMetadata, prefs: Required<FirmPreferences>): string {
-  let metadataFields = `File Reference: ${metadata.matterReference || 'TBD'}
-Date:           ${metadata.recordingDate}`;
+  let metadataFields = `File Ref: ${metadata.matterReference || 'TBD'}
+Date: ${metadata.recordingDate}`;
 
   if (metadata.meetingStartTime) {
-    metadataFields += `\nTime:           ${metadata.meetingStartTime}`;
+    metadataFields += `\nTime: ${metadata.meetingStartTime}`;
   }
 
   if (metadata.durationDisplay) {
-    metadataFields += `\nDuration:       ${metadata.durationDisplay}`;
+    metadataFields += `\nDuration: ${metadata.durationDisplay}`;
   }
 
   if (metadata.units != null && metadata.units > 0) {
     metadataFields += `\nTime Spent (Units): ${metadata.units}`;
   }
 
-  metadataFields += `\nSolicitor:      ${metadata.feeEarnerDisplayName ?? 'Not specified'}`;
+  metadataFields += `\nAdvisor: ${metadata.feeEarnerDisplayName ?? 'Not specified'}`;
 
   return `**ATTENDANCE NOTE**
 
 ${metadataFields}
 
-**MATTER:**     ${metadata.title}
+**MATTER:** ${metadata.title}
 
-**CLIENT:**     ${metadata.clientName}
+**CLIENT:** ${metadata.clientName}
 
 `;
 }
