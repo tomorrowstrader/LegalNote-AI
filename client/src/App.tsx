@@ -48,6 +48,7 @@ import ScrollToTop from "@/components/ScrollToTop";
 import PublicDemo from "@/pages/PublicDemo";
 import DemoGenerator from "@/pages/DemoGenerator";
 import { isFeatureVisible } from "@/lib/features";
+import { debugSessionLog } from "@/lib/debugSessionLog";
 
 const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
 const publicComplianceBadgeVisible = isFeatureVisible("publicComplianceBadge");
@@ -69,9 +70,12 @@ function Router() {
       isPendingApproval && !isAdmin ? "pending_approval" :
       isWaitlisted && !isAdmin ? "waitlisted" :
       "authenticated";
-    // #region agent log
-    fetch('http://127.0.0.1:7671/ingest/dfbc9758-293a-480b-a080-cbd261ef30c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'95f25d'},body:JSON.stringify({sessionId:'95f25d',location:'App.tsx:Router',message:'route branch',data:{route,isLoading,isAuthenticated,inviteStatus:user?.inviteStatus,waitlistStatus:user?.waitlistStatus},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    debugSessionLog(
+      "App.tsx:Router",
+      "route branch",
+      { route, isLoading, isAuthenticated, inviteStatus: user?.inviteStatus, waitlistStatus: user?.waitlistStatus },
+      "H1",
+    );
   }, [isLoading, isAuthenticated, isPendingApproval, isAdmin, isWaitlisted, user?.inviteStatus, user?.waitlistStatus]);
 
   return (
