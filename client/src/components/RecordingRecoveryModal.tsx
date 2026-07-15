@@ -40,6 +40,7 @@ interface RecordingRecoveryModalProps {
 export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecoveryModalProps) {
   const [localSessions, setLocalSessions] = useState<StoredSession[]>([]);
   const [recovering, setRecovering] = useState<string | null>(null);
+  const [recoverStatus, setRecoverStatus] = useState<string | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -82,54 +83,73 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
   });
 
   const recoverMutation = useMutation({
-    mutationFn: async (sessionId: string) => {
-      // First, try to upload any local chunks that weren't synced to cloud
-      try {
-        const localChunks = await indexedDBBackup.getChunks(sessionId);
-        if (localChunks.length > 0) {
-          console.log(`[Recovery] Uploading ${localChunks.length} local chunks for session ${sessionId}`);
-          
-          for (const chunk of localChunks) {
-            try {
-              const formData = new FormData();
-              formData.append('chunk', chunk.data, `chunk_${chunk.chunkNumber}.webm`);
-              formData.append('chunkNumber', chunk.chunkNumber.toString());
-              
-              // Use the recovery-chunk endpoint which bypasses in-memory session requirement
-              const response = await fetch(`/api/audio/recovery-chunk/${sessionId}`, {
-                method: 'POST',
-                credentials: 'include',
-                body: formData,
-              });
-              
-              if (response.ok) {
-                console.log(`[Recovery] Uploaded local chunk ${chunk.chunkNumber}`);
-              } else {
-                console.warn(`[Recovery] Failed to upload chunk ${chunk.chunkNumber}:`, await response.text());
+    mutationFn: async ({
+      sessionId,
+      serverChunksReceived,
+    }: {
+      sessionId: string;
+      serverChunksReceived: number;
+    }) => {
+      // Only backfill local IndexedDB chunks when the server has nothing.
+      // Re-uploading 60 already-synced chunks freezes mobile and looks like a dead button.
+      if (serverChunksReceived <= 0) {
+        try {
+          const localChunks = await indexedDBBackup.getChunks(sessionId);
+          if (localChunks.length > 0) {
+            console.log(`[Recovery] Uploading ${localChunks.length} local-only chunks for session ${sessionId}`);
+            let uploaded = 0;
+            for (const chunk of localChunks) {
+              uploaded += 1;
+              setRecoverStatus(`Uploading chunk ${uploaded} of ${localChunks.length}…`);
+              try {
+                const formData = new FormData();
+                formData.append('chunk', chunk.data, `chunk_${chunk.chunkNumber}.webm`);
+                formData.append('chunkNumber', chunk.chunkNumber.toString());
+
+                const response = await fetch(`/api/audio/recovery-chunk/${sessionId}`, {
+                  method: 'POST',
+                  credentials: 'include',
+                  body: formData,
+                });
+
+                if (!response.ok) {
+                  console.warn(`[Recovery] Failed to upload chunk ${chunk.chunkNumber}:`, await response.text());
+                }
+              } catch (e) {
+                console.warn(`[Recovery] Failed to upload local chunk ${chunk.chunkNumber}:`, e);
               }
-            } catch (e) {
-              console.warn(`[Recovery] Failed to upload local chunk ${chunk.chunkNumber}:`, e);
             }
           }
+        } catch (e) {
+          console.warn('[Recovery] Failed to upload local chunks:', e);
         }
-      } catch (e) {
-        console.warn('[Recovery] Failed to upload local chunks:', e);
+      } else {
+        console.log(`[Recovery] Server already has ${serverChunksReceived} chunks — skipping local re-upload`);
       }
 
-      // Now trigger server-side recovery - use fetch directly to handle 400 responses gracefully
+      setRecoverStatus("Assembling recording…");
+
       const response = await fetch(`/api/audio/recover-session/${sessionId}`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
-      
-      const result: RecoveryResult = await response.json();
+
+      const text = await response.text();
+      let result: RecoveryResult;
+      try {
+        result = JSON.parse(text);
+      } catch {
+        throw new Error(text.slice(0, 160) || `Recovery failed (${response.status})`);
+      }
+      if (!response.ok && !result.message) {
+        throw new Error(`Recovery failed (${response.status})`);
+      }
       return result;
     },
-    onSuccess: async (result, sessionId) => {
+    onSuccess: async (result, { sessionId }) => {
       if (result.success && result.caseId) {
-        // Clean up local storage only on successful recovery
         await indexedDBBackup.clearSession(sessionId);
         setLocalSessions(prev => prev.filter(s => s.id !== sessionId));
         queryClient.invalidateQueries({ queryKey: ["/api/audio/incomplete-sessions"] });
@@ -153,16 +173,13 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
           ),
         });
         
-        // Close modal and redirect to the recovered case
         onOpenChange(false);
         setLocation(`/case/${result.caseId}`);
       } else {
-        // Recovery not complete yet - show informative message, don't clear session
         toast({
           title: "Recovery pending",
           description: result.message || "Some audio data is still syncing. Please try again in a moment.",
         });
-        // Refresh the session list
         refetch();
       }
     },
@@ -175,12 +192,19 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
     },
   });
 
-  const handleRecover = async (sessionId: string) => {
+  const handleRecover = async (sessionId: string, serverChunksReceived: number) => {
+    if (recovering) return;
     setRecovering(sessionId);
+    setRecoverStatus(
+      serverChunksReceived > 0
+        ? "Assembling recording…"
+        : "Preparing local audio…",
+    );
     try {
-      await recoverMutation.mutateAsync(sessionId);
+      await recoverMutation.mutateAsync({ sessionId, serverChunksReceived });
     } finally {
       setRecovering(null);
+      setRecoverStatus(null);
     }
   };
 
@@ -223,7 +247,7 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-500" />
@@ -231,7 +255,7 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
           </DialogTitle>
           <DialogDescription>
             We detected incomplete recording sessions that were interrupted unexpectedly. 
-            Click "Recover" to create a case from the saved audio chunks.
+            Tap Recover to create a case from the saved audio chunks.
           </DialogDescription>
         </DialogHeader>
 
@@ -249,16 +273,16 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
             {allSessions.map(session => (
               <div
                 key={session.id}
-                className="flex items-start justify-between p-4 rounded-lg border bg-card"
+                className="flex flex-col gap-3 p-4 rounded-lg border bg-card"
                 data-testid={`recovery-session-${session.id}`}
               >
                 <div className="flex items-start gap-3">
-                  <FileAudio className="w-5 h-5 text-muted-foreground mt-0.5" />
-                  <div>
+                  <FileAudio className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium">
                       {session.caseName || session.clientName || 'Untitled Recording'}
                     </p>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground mt-1">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5" />
                         {formatDuration(session.durationSeconds)}
@@ -277,29 +301,47 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
                         Saved locally on this device
                       </p>
                     )}
+                    {recovering === session.id && recoverStatus && (
+                      <p className="text-xs text-primary mt-2 flex items-center gap-1.5">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        {recoverStatus}
+                      </p>
+                    )}
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-2">
                   <Button
+                    type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => handleDiscard(session.id)}
+                    className="shrink-0"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDiscard(session.id);
+                    }}
                     disabled={discardMutation.isPending || recovering === session.id}
                     data-testid={`discard-session-${session.id}`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
                   <Button
+                    type="button"
                     size="sm"
-                    onClick={() => handleRecover(session.id)}
+                    className="flex-1 min-h-10"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleRecover(session.id, session.source === 'server' ? session.chunksReceived : 0);
+                    }}
                     disabled={recovering !== null}
                     data-testid={`recover-session-${session.id}`}
                   >
                     {recovering === session.id ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                        Recovering...
+                        Recovering…
                       </>
                     ) : (
                       'Recover'
@@ -319,7 +361,7 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
         </Alert>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={recovering !== null}>
             Close
           </Button>
         </DialogFooter>
