@@ -103,7 +103,7 @@ export default function OAuthCallback() {
       console.log('[OAuth Callback] Showing connection success toast');
       toast({
         title: "Calendar Connected",
-        description: `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook'}. You can now sync case deadlines.`,
+        description: `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook Calendar'}. You can now sync case deadlines and launch upcoming video conference meetings from your dashboard.`,
         duration: 5000,
       });
     } else if (calendarError) {
@@ -141,7 +141,7 @@ export default function OAuthCallback() {
           <p className="text-muted-foreground">
             {syncSuccess 
               ? `Your deadline has been successfully added to your ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook calendar'}.`
-              : `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook'}. You can now sync case deadlines.`
+              : `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook Calendar'}. You can now sync case deadlines and launch upcoming video conference meetings from your dashboard.`
             }
           </p>
           <Button 

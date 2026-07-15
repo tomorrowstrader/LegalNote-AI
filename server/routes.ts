@@ -116,6 +116,8 @@ import {
   exchangeGoogleCode,
   exchangeMicrosoftCode,
   isMicrosoftCalendarConfigured,
+  diagnoseMicrosoftCredentials,
+  mapMicrosoftOAuthErrorCode,
   generateOAuthState,
   signOAuthState,
   verifyOAuthState,
@@ -6715,6 +6717,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const { caseId } = req.params;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(404).json({ message: "Case not found" });
+
       const logs = await storage.getAuditLogsByCase(caseId, limit);
 
       await logAuditEvent(userId, "case_viewed", {
@@ -7834,11 +7839,15 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         );
       } catch (error: any) {
         console.error(`OAuth token exchange failed for ${provider}:`, error);
-        const errorDetail =
+        const rawMessage =
           error instanceof Error ? error.message : 'token_exchange_failed';
+        const calendarError =
+          provider === 'outlook'
+            ? mapMicrosoftOAuthErrorCode(rawMessage)
+            : 'token_exchange_failed';
         res.redirect(
           buildCalendarOAuthReturnUrl(stateData.popup, {
-            calendar_error: errorDetail.slice(0, 200),
+            calendar_error: calendarError,
           }),
         );
       }
@@ -7897,6 +7906,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   app.get("/api/calendar/oauth-config", isAuthenticated, async (req: any, res, next) => {
     try {
       const baseUrl = getCanonicalBaseUrl(req);
+      const microsoftDiagnostics = diagnoseMicrosoftCredentials();
 
       const config = {
         baseUrl,
@@ -7915,14 +7925,19 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           },
           outlook: {
             step1: "Go to Azure Portal → App registrations → your Microsoft app",
-            step2: "Open Authentication → Redirect URIs",
-            step3: `Add this redirect URI: ${baseUrl}/api/calendar/callback/outlook`,
-            step4: "Ensure Calendars.ReadWrite, User.Read, and offline_access are granted",
+            step2: "Open Certificates & secrets → New client secret → copy the Value immediately (not the Secret ID)",
+            step3: `Set MICROSOFT_CLIENT_SECRET (or MICROSOFT_LOGIN_CLIENT_SECRET) to that Value in your deployment secrets`,
+            step4: "Open Authentication → Redirect URIs",
+            step5: `Add this redirect URI: ${baseUrl}/api/calendar/callback/outlook`,
+            step6: "Under API permissions, grant Calendars.ReadWrite, User.Read, and offline_access (with admin consent if required)",
           },
         },
         status: {
           googleConfigured: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-          outlookConfigured: isMicrosoftCalendarConfigured(),
+          outlookConfigured: microsoftDiagnostics.configured && !microsoftDiagnostics.issue,
+          outlookSecretSource: microsoftDiagnostics.secretSource,
+          outlookIssue: microsoftDiagnostics.issue,
+          outlookIssueDetail: microsoftDiagnostics.issueDetail,
         },
       };
 
@@ -9915,7 +9930,7 @@ ${firmName}`;
       
       if (error.message?.includes('not connected')) {
         return res.status(400).json({ 
-          message: "Google Calendar not connected. Please connect your calendar in Settings.",
+          message: "Calendar not connected. Please connect Google Calendar or Outlook in Settings.",
           needsCalendarConnection: true,
         });
       }

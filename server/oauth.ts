@@ -2,6 +2,12 @@ import { OAuth2Client } from 'google-auth-library';
 import type { IStorage } from './storage';
 import type { InsertCalendarIntegration } from '@shared/schema';
 import crypto from 'crypto';
+import {
+  getMicrosoftCalendarCredentials,
+  mapMicrosoftOAuthErrorCode,
+} from './microsoftCredentials';
+
+export { getMicrosoftCalendarCredentials, mapMicrosoftOAuthErrorCode, diagnoseMicrosoftCredentials } from './microsoftCredentials';
 
 // OAuth scopes for calendar access
 const GOOGLE_SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
@@ -245,29 +251,6 @@ const MICROSOFT_SCOPES = [
 const getMicrosoftRedirectUri = (baseUrl: string) =>
   `${baseUrl}/api/calendar/callback/outlook`;
 
-export function getMicrosoftCalendarCredentials(): {
-  clientId: string;
-  clientSecret: string;
-  tenantId: string;
-} {
-  const clientId =
-    process.env.MICROSOFT_CLIENT_ID || process.env.MICROSOFT_LOGIN_CLIENT_ID;
-  const clientSecret =
-    process.env.MICROSOFT_CLIENT_SECRET || process.env.MICROSOFT_LOGIN_CLIENT_SECRET;
-  const tenantId =
-    process.env.MICROSOFT_TENANT_ID ||
-    process.env.MICROSOFT_LOGIN_TENANT_ID ||
-    'common';
-
-  if (!clientId || !clientSecret) {
-    throw new Error(
-      'Microsoft OAuth credentials not configured. Set MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET (or MICROSOFT_LOGIN_* equivalents)',
-    );
-  }
-
-  return { clientId, clientSecret, tenantId };
-}
-
 export function isMicrosoftCalendarConfigured(): boolean {
   try {
     getMicrosoftCalendarCredentials();
@@ -326,9 +309,9 @@ export async function exchangeMicrosoftCode(
   const data = await response.json();
 
   if (!response.ok || !data.access_token) {
-    throw new Error(
-      `Microsoft token exchange failed: ${data.error_description || data.error || 'Unknown error'}`
-    );
+    const azureDetail = data.error_description || data.error || 'Unknown error';
+    const code = mapMicrosoftOAuthErrorCode(String(azureDetail));
+    throw new Error(code === 'token_exchange_failed' ? `Microsoft token exchange failed: ${azureDetail}` : code);
   }
 
   let email: string | null = null;
@@ -381,9 +364,9 @@ export async function refreshMicrosoftToken(
   const data = await response.json();
 
   if (!response.ok || !data.access_token) {
-    throw new Error(
-      `Microsoft token refresh failed: ${data.error_description || data.error || 'Unknown error'}`
-    );
+    const azureDetail = data.error_description || data.error || 'Unknown error';
+    const code = mapMicrosoftOAuthErrorCode(String(azureDetail));
+    throw new Error(code === 'token_exchange_failed' ? `Microsoft token refresh failed: ${azureDetail}` : code);
   }
 
   return {

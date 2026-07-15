@@ -4,6 +4,7 @@
  */
 
 import { getBackblazeS3Endpoint, getResolvedBackblazeRegion } from "./backblazeConfig";
+import { diagnoseMicrosoftCredentials } from "./microsoftCredentials";
 
 interface EnvConfig {
   required: string[];
@@ -128,6 +129,11 @@ export function validateEnvironment(): void {
   }
 
   validatePrivilegedDataPath();
+
+  const microsoftDiagnostics = diagnoseMicrosoftCredentials();
+  if (microsoftDiagnostics.issue && (microsoftDiagnostics.clientId || microsoftDiagnostics.secretSource)) {
+    console.warn(`[ENV] Microsoft OAuth: ${microsoftDiagnostics.issueDetail}`);
+  }
 
   if (isProduction() && !process.env.AUDIT_SIGNING_KEY?.trim()) {
     throw new Error("AUDIT_SIGNING_KEY is required in production");

@@ -45,6 +45,29 @@ For production deployment, ensure these are set in Deployment secrets:
 - `ALLOWED_ORIGINS` - Custom domain(s) for CORS (comma-separated)
 - `NODE_ENV` - Set to `production` (usually automatic)
 - `PORT` - Server port (default: 5000, usually automatic)
+- `APP_URL` - Canonical public URL (e.g. `https://legalnote.ai`) for OAuth redirects and share links
+
+### Microsoft / Outlook Calendar OAuth
+
+Calendar integration uses the same Azure app as Microsoft login unless separate vars are set:
+
+| Variable | Purpose |
+|----------|---------|
+| `MICROSOFT_CLIENT_ID` | Azure app client ID for calendar (falls back to `MICROSOFT_LOGIN_CLIENT_ID`) |
+| `MICROSOFT_CLIENT_SECRET` | Azure client secret **Value** (falls back to `MICROSOFT_LOGIN_CLIENT_SECRET`) |
+| `MICROSOFT_TENANT_ID` | Azure tenant ID (default: `common`) |
+
+**Common mistake:** Setting the secret to the Azure **Secret ID** (a UUID like `550e8400-e29b-41d4-a716-446655440000`) instead of the **Value** shown once when creating the secret. This causes `AADSTS7000215: Invalid client secret provided`.
+
+**Fix:**
+1. Azure Portal → App registrations → your app → **Certificates & secrets**
+2. Create a new client secret and copy the **Value** column immediately
+3. Set `MICROSOFT_CLIENT_SECRET` (or `MICROSOFT_LOGIN_CLIENT_SECRET`) to that Value in deployment secrets
+4. Redeploy the application
+
+**Azure redirect URI required:** `https://your-domain.com/api/calendar/callback/outlook`
+
+**API permissions:** `Calendars.ReadWrite`, `User.Read`, `offline_access` (admin consent may be required)
 
 ## Production vs Development Behavior
 

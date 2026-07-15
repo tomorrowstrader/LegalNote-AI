@@ -686,7 +686,7 @@ function CalendarConnections() {
       queryClient.invalidateQueries({ queryKey: ['/api/oauth/connections'] });
       toast({
         title: "Calendar Connected",
-        description: `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook Calendar'}. You can now sync case deadlines.`,
+        description: `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook Calendar'}. You can now sync case deadlines and launch upcoming video conference meetings from your dashboard.`,
         duration: 5000,
       });
       window.history.replaceState({}, '', '/settings?tab=integrations');
@@ -695,6 +695,12 @@ function CalendarConnections() {
         invalid_state: "Your session expired during sign-in. Please try connecting again.",
         missing_code_or_state: "Microsoft did not return authorization data. Please try again.",
         token_exchange_failed: "Could not complete Microsoft authorization. Check that the Outlook redirect URI in Azure matches the one shown below.",
+        invalid_client_secret:
+          "The Microsoft client secret on the server is misconfigured. Your administrator must set the secret Value (shown once in Azure Portal → Certificates & secrets), not the Secret ID (UUID). Update MICROSOFT_CLIENT_SECRET or MICROSOFT_LOGIN_CLIENT_SECRET and redeploy.",
+        redirect_uri_mismatch:
+          "The Outlook redirect URI in Azure does not match this environment. Add the exact URI shown in Troubleshooting below.",
+        invalid_scope:
+          "Microsoft API permissions are missing. Grant Calendars.ReadWrite, User.Read, and offline_access in Azure Portal.",
         provider_mismatch: "Calendar provider mismatch. Please try connecting again.",
       };
       toast({
@@ -714,7 +720,7 @@ function CalendarConnections() {
       google: { step1: string; step2: string; step3: string; step4: string; step5?: string };
       outlook?: { step1: string; step2: string; step3: string; step4: string };
     };
-    status: { googleConfigured: boolean; outlookConfigured?: boolean };
+    status: { googleConfigured: boolean; outlookConfigured?: boolean; outlookIssue?: string | null; outlookIssueDetail?: string | null };
   }>({
     queryKey: ['/api/calendar/oauth-config'],
   });
@@ -974,6 +980,12 @@ function CalendarConnections() {
                           {oauthConfig.status.outlookConfigured ? "Configured" : "Not Configured"}
                         </Badge>
                       </div>
+                      {oauthConfig.status.outlookIssueDetail && !oauthConfig.status.outlookConfigured && (
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription>{oauthConfig.status.outlookIssueDetail}</AlertDescription>
+                        </Alert>
+                      )}
                       <div className="flex gap-2">
                         <Input 
                           value={oauthConfig.redirectUris.outlook} 
@@ -1000,6 +1012,10 @@ function CalendarConnections() {
                             <li>{oauthConfig.instructions.outlook.step2}</li>
                             <li>{oauthConfig.instructions.outlook.step3}</li>
                             <li>{oauthConfig.instructions.outlook.step4}</li>
+                            <li>{oauthConfig.instructions.outlook.step5}</li>
+                            {'step6' in oauthConfig.instructions.outlook && (
+                              <li>{oauthConfig.instructions.outlook.step6}</li>
+                            )}
                           </ol>
                         </div>
                       )}

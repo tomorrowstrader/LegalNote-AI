@@ -120,7 +120,7 @@ export default function SyncCalendarModal({
           // Just connected, no sync attempt (shouldn't happen with our new flow)
           toast({
             title: "Calendar Connected",
-            description: `Successfully connected ${provider === 'google' ? 'Google Calendar' : 'Outlook'}`,
+            description: `Successfully connected ${provider === 'google' ? 'Google Calendar' : 'Outlook Calendar'}. You can now sync case deadlines and launch upcoming video conference meetings from your dashboard.`,
             duration: 3000,
           });
           

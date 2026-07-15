@@ -222,14 +222,18 @@ function scheduleMaintenanceTasks() {
 async function runMeetingSchedulerTasks() {
   try {
     // First, poll calendars for all users with connected Google Calendar
-    const calendarIntegrations = await storage.getActiveCalendarIntegrations('google');
+    const googleIntegrations = await storage.getActiveCalendarIntegrations('google');
+    const outlookIntegrations = await storage.getActiveCalendarIntegrations('outlook');
+    const userIds = [...new Set(
+      [...googleIntegrations, ...outlookIntegrations].map((integration) => integration.userId),
+    )];
     
-    for (const integration of calendarIntegrations) {
+    for (const userId of userIds) {
       try {
-        console.log(`[MEETING_SCHEDULER] Polling calendar for user ${integration.userId}`);
-        await meetingSchedulerService.pollCalendarMeetings(integration.userId);
+        console.log(`[MEETING_SCHEDULER] Polling calendar for user ${userId}`);
+        await meetingSchedulerService.pollCalendarMeetings(userId);
       } catch (error) {
-        console.error(`[MEETING_SCHEDULER] Error polling calendar for user ${integration.userId}:`, error);
+        console.error(`[MEETING_SCHEDULER] Error polling calendar for user ${userId}:`, error);
       }
     }
 

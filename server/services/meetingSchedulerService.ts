@@ -1,9 +1,13 @@
 import { google, calendar_v3 } from 'googleapis';
+import { Client } from '@microsoft/microsoft-graph-client';
 import { storage } from '../storage';
 import type { ScheduledMeeting, InsertScheduledMeeting, CalendarIntegration } from '@shared/schema';
 import { recallService } from './recallService';
 import { sendPreConsentEmail } from '../email';
+import { ensureFreshOutlookToken } from '../oauth';
 import { randomBytes } from 'crypto';
+
+const APP_BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
 
 interface CalendarMeeting {
   id: string;
@@ -65,7 +69,7 @@ async function getValidAccessToken(userId: string): Promise<{ token: string; int
   const integration = await storage.getCalendarIntegration(userId, 'google');
 
   if (!integration) {
-    throw new Error('Google Calendar not connected for this user');
+    throw new Error('Calendar not connected for this user');
   }
 
   const now = new Date();
@@ -147,10 +151,102 @@ function parseAttendees(event: calendar_v3.Schema$Event): CalendarMeeting['atten
     }));
 }
 
+interface OutlookCalendarEvent {
+  id?: string;
+  subject?: string;
+  body?: { content?: string };
+  start?: { dateTime?: string };
+  end?: { dateTime?: string };
+  location?: { displayName?: string };
+  onlineMeeting?: { joinUrl?: string };
+  isAllDay?: boolean;
+  attendees?: Array<{
+    emailAddress?: { address?: string; name?: string };
+    status?: { response?: string };
+    type?: string;
+  }>;
+}
+
+function extractOutlookMeetingUrl(event: OutlookCalendarEvent): { url?: string; platform?: 'zoom' | 'teams' | 'meet' | 'webex' } {
+  if (event.onlineMeeting?.joinUrl) {
+    const uri = event.onlineMeeting.joinUrl.toLowerCase();
+    if (uri.includes('teams.microsoft.com') || uri.includes('teams.live.com')) {
+      return { url: event.onlineMeeting.joinUrl, platform: 'teams' };
+    }
+    return { url: event.onlineMeeting.joinUrl, platform: 'teams' };
+  }
+
+  const textToSearch = `${event.body?.content || ''} ${event.location?.displayName || ''}`;
+
+  const zoomMatch = textToSearch.match(/https:\/\/[\w.-]*zoom\.us\/j\/[\w?=&-]+/i);
+  if (zoomMatch) {
+    return { url: zoomMatch[0], platform: 'zoom' };
+  }
+
+  const teamsMatch = textToSearch.match(/https:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s"<>]+/i);
+  if (teamsMatch) {
+    return { url: teamsMatch[0], platform: 'teams' };
+  }
+
+  const meetMatch = textToSearch.match(/https:\/\/meet\.google\.com\/[\w-]+/i);
+  if (meetMatch) {
+    return { url: meetMatch[0], platform: 'meet' };
+  }
+
+  const webexMatch = textToSearch.match(/https:\/\/[\w.-]*webex\.com\/[\w/.-]+/i);
+  if (webexMatch) {
+    return { url: webexMatch[0], platform: 'webex' };
+  }
+
+  return {};
+}
+
+function parseOutlookAttendees(event: OutlookCalendarEvent): CalendarMeeting['attendees'] {
+  if (!event.attendees) {
+    return [];
+  }
+
+  return event.attendees
+    .filter(a => a.emailAddress?.address && a.type !== 'resource')
+    .map(a => ({
+      email: a.emailAddress!.address!,
+      name: a.emailAddress!.name || undefined,
+      responseStatus: a.status?.response || undefined,
+    }));
+}
+
+function hasCalendarConnection(integration: CalendarIntegration | undefined): boolean {
+  return !!(integration?.accessToken && integration.accessToken !== 'replit-managed');
+}
+
 export class MeetingSchedulerService {
   async pollCalendarMeetings(userId: string): Promise<ScheduledMeeting[]> {
     console.log(`[MEETING_SCHEDULER] Polling calendar for user ${userId}`);
 
+    const googleIntegration = await storage.getCalendarIntegration(userId, 'google');
+    const outlookIntegration = await storage.getCalendarIntegration(userId, 'outlook');
+    const hasGoogle = hasCalendarConnection(googleIntegration);
+    const hasOutlook = hasCalendarConnection(outlookIntegration);
+
+    if (!hasGoogle && !hasOutlook) {
+      throw new Error('Calendar not connected for this user');
+    }
+
+    const scheduledMeetings: ScheduledMeeting[] = [];
+
+    if (hasGoogle) {
+      scheduledMeetings.push(...await this.pollGoogleCalendarMeetings(userId));
+    }
+
+    if (hasOutlook) {
+      scheduledMeetings.push(...await this.pollOutlookCalendarMeetings(userId));
+    }
+
+    console.log(`[MEETING_SCHEDULER] Found ${scheduledMeetings.length} meetings for user ${userId}`);
+    return scheduledMeetings;
+  }
+
+  private async pollGoogleCalendarMeetings(userId: string): Promise<ScheduledMeeting[]> {
     const { token } = await getValidAccessToken(userId);
 
     const oauth2Client = new google.auth.OAuth2();
@@ -215,7 +311,72 @@ export class MeetingSchedulerService {
       scheduledMeetings.push(meeting);
     }
 
-    console.log(`[MEETING_SCHEDULER] Found ${scheduledMeetings.length} meetings for user ${userId}`);
+    return scheduledMeetings;
+  }
+
+  private async pollOutlookCalendarMeetings(userId: string): Promise<ScheduledMeeting[]> {
+    const accessToken = await ensureFreshOutlookToken(storage, userId, APP_BASE_URL);
+    const graphClient = Client.initWithMiddleware({
+      authProvider: { getAccessToken: async () => accessToken },
+    });
+
+    const now = new Date();
+    const sevenDaysAhead = new Date();
+    sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
+
+    const response = await graphClient
+      .api('/me/calendarView')
+      .query({
+        startDateTime: now.toISOString(),
+        endDateTime: sevenDaysAhead.toISOString(),
+        $top: 50,
+        $orderby: 'start/dateTime',
+      })
+      .get();
+
+    const events: OutlookCalendarEvent[] = response.value || [];
+    const scheduledMeetings: ScheduledMeeting[] = [];
+
+    for (const event of events) {
+      if (!event.id || !event.subject) continue;
+      if (event.isAllDay || !event.start?.dateTime) continue;
+
+      const startTime = new Date(event.start.dateTime);
+      const endTime = event.end?.dateTime ? new Date(event.end.dateTime) : null;
+
+      if (Number.isNaN(startTime.getTime())) continue;
+
+      const { url: meetingUrl, platform: meetingPlatform } = extractOutlookMeetingUrl(event);
+      const attendees = parseOutlookAttendees(event);
+
+      const validPlatforms = ['zoom', 'teams', 'meet', 'webex'] as const;
+      const validatedPlatform = validPlatforms.includes(meetingPlatform as typeof validPlatforms[number])
+        ? (meetingPlatform as typeof validPlatforms[number])
+        : undefined;
+
+      const meetingData: InsertScheduledMeeting = {
+        userId,
+        calendarEventId: event.id,
+        calendarProvider: 'outlook',
+        title: event.subject,
+        description: event.body?.content || undefined,
+        meetingUrl: meetingUrl || undefined,
+        meetingPlatform: validatedPlatform,
+        startTime,
+        endTime: endTime || undefined,
+        attendees,
+        clientEmail: undefined,
+        clientName: undefined,
+        autoRecordEnabled: false,
+        consentStatus: 'pending',
+        status: 'scheduled',
+        lastPolledAt: new Date(),
+      };
+
+      const meeting = await storage.createScheduledMeeting(meetingData);
+      scheduledMeetings.push(meeting);
+    }
+
     return scheduledMeetings;
   }
 
