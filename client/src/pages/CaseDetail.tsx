@@ -6,6 +6,7 @@ import {
   Share2, Eye, Archive, Video, ListChecks, History,
   ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send,
   ShieldCheck, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, Mic, FileCheck,
+  ChevronsLeft, ChevronsRight,
 } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
@@ -537,6 +538,24 @@ export default function CaseDetail() {
   });
 
   const [showSraReportModal, setShowSraReportModal] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("legalnote-case-sidebar-collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("legalnote-case-sidebar-collapsed", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
   type SraReportPreview = {
     sections: {
       matterOverview: { clientName: string | null; matterRef: string | null; practiceArea: string | null };
@@ -1006,20 +1025,29 @@ export default function CaseDetail() {
             demoJustProducedTimerRef.current = setTimeout(() => setShowDemoJustProducedBadge(false), 5000);
           }
         }}
+        title={sidebarCollapsed ? item.label : undefined}
         className={cn(
-          "relative w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors duration-150 text-left group",
+          "relative w-full flex items-center rounded-md text-sm transition-colors duration-150 text-left group",
+          sidebarCollapsed ? "justify-center px-2 py-2.5" : "gap-2.5 px-3 py-2",
           isActive
             ? "bg-accent/10 text-accent font-medium"
             : "text-foreground/70 hover:text-foreground hover-elevate"
         )}
         data-testid={`nav-${item.id}`}
+        aria-label={item.label}
       >
         {isActive && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-accent rounded-r" />
+          <span className={cn(
+            "absolute top-1/2 -translate-y-1/2 w-0.5 h-5 bg-accent rounded-r",
+            sidebarCollapsed ? "left-0" : "left-0",
+          )} />
         )}
         <Icon className={cn("w-4 h-4 shrink-0", isCompliance && !isActive ? "text-muted-foreground" : isActive ? "text-accent" : "text-muted-foreground group-hover:text-foreground")} />
-        <span className="flex-1 truncate text-xs">{item.label}</span>
-        {item.badge}
+        {!sidebarCollapsed && <span className="flex-1 truncate text-xs">{item.label}</span>}
+        {!sidebarCollapsed && item.badge}
+        {sidebarCollapsed && item.badge && (
+          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-destructive" aria-hidden />
+        )}
       </button>
     );
   };
@@ -1143,22 +1171,38 @@ export default function CaseDetail() {
       {/* ── Left Panel ── */}
       {!isFocusMode && (
         <aside
-          className="hidden lg:flex w-[220px] shrink-0 border-r border-border bg-muted/20 flex-col sticky top-0 self-start h-[calc(100vh-4rem)] overflow-y-auto z-40"
+          className={cn(
+            "hidden lg:flex shrink-0 border-r border-border bg-muted/20 flex-col sticky top-0 self-start h-[calc(100vh-4rem)] overflow-y-auto z-40 transition-[width] duration-200",
+            sidebarCollapsed ? "w-14" : "w-[220px]",
+          )}
           data-testid="case-side-nav"
         >
-          {/* Back link */}
-          <div className="px-4 pt-4 pb-2">
-            <button
-              onClick={() => setLocation('/')}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors duration-150"
-              data-testid="link-back-all-cases"
+          {/* Back link + collapse toggle */}
+          <div className={cn("pt-4 pb-2 flex items-center", sidebarCollapsed ? "px-1.5 flex-col gap-1" : "px-4 justify-between gap-2")}>
+            {!sidebarCollapsed && (
+              <button
+                onClick={() => setLocation('/')}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors duration-150"
+                data-testid="link-back-all-cases"
+              >
+                <ArrowLeft className="w-3 h-3" />
+                All Cases
+              </button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={toggleSidebarCollapsed}
+              title={sidebarCollapsed ? "Expand menu" : "Collapse menu"}
+              data-testid="button-toggle-case-sidebar"
             >
-              <ArrowLeft className="w-3 h-3" />
-              All Cases
-            </button>
+              {sidebarCollapsed ? <ChevronsRight className="w-4 h-4" /> : <ChevronsLeft className="w-4 h-4" />}
+            </Button>
           </div>
 
           {/* Case identity */}
+          {!sidebarCollapsed && (
           <div className="px-4 pb-4 border-b border-border">
             <h1 className="font-semibold text-sm leading-snug text-foreground mb-1 line-clamp-2" data-testid="text-case-title-panel">
               {caseData.title}
@@ -1284,33 +1328,39 @@ export default function CaseDetail() {
               </div>
             )}
           </div>
+          )}
 
           {/* Matter nav */}
-          <nav className="flex-1 py-2 px-2 space-y-0.5" aria-label="Matter sections">
+          <nav className={cn("flex-1 py-2 space-y-0.5", sidebarCollapsed ? "px-1" : "px-2")} aria-label="Matter sections">
             {matterNavItems.map(item => <NavItem key={item.id} item={item} />)}
 
             {/* Compliance divider */}
-            <div className="px-3 pt-4 pb-1">
-              <div className="flex items-center gap-1.5">
-                <ShieldCheck className="w-3 h-3 text-muted-foreground" />
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Compliance</p>
-              </div>
+            <div className={cn("pt-4 pb-1", sidebarCollapsed ? "px-1 flex justify-center" : "px-3")}>
+              {sidebarCollapsed ? (
+                <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" aria-label="Compliance" />
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-3 h-3 text-muted-foreground" />
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Compliance</p>
+                </div>
+              )}
             </div>
 
             {complianceNavItems.map(item => <NavItem key={item.id} item={item} isCompliance />)}
           </nav>
 
           {/* Bottom actions */}
-          <div className="p-3 border-t border-border space-y-1.5">
+          <div className={cn("border-t border-border space-y-1.5", sidebarCollapsed ? "p-1.5" : "p-3")}>
             <Button
               variant="ghost"
               size="sm"
-              className="w-full gap-2 justify-start text-xs"
+              className={cn("gap-2 text-xs", sidebarCollapsed ? "w-full justify-center px-0" : "w-full justify-start")}
               onClick={() => setShowTimeRecordingModal(true)}
+              title="Log Time"
               data-testid="button-log-time-panel"
             >
               <Clock className="w-3.5 h-3.5" />
-              Log Time
+              {!sidebarCollapsed && "Log Time"}
             </Button>
           </div>
         </aside>

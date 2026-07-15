@@ -322,6 +322,79 @@ function parseReasoningGaps(content: string): string[] {
   return gaps;
 }
 
+function escapeMarkdownInline(text: string): string {
+  return text.replace(/([*_`\[\]\\])/g, "\\$1");
+}
+
+/**
+ * Replace REASONING_GAP comments with TipTap-safe markdown markers.
+ * (Editor Markdown is configured with html:false, so raw HTML anchors would not survive.)
+ */
+function injectReasoningGapAnchors(content: string): string {
+  let idx = 0;
+  return content.replace(/<!--\s*REASONING_GAP:\s*(.+?)\s*-->/g, (_match, name: string) => {
+    const i = idx++;
+    const label = escapeMarkdownInline(String(name).trim());
+    return ` **⟦REASONING-GAP-${i}⟧ Reasoning required — ${label}** `;
+  });
+}
+
+function prepareDocumentContentForView(content: string, showGapAnchors: boolean): string {
+  return showGapAnchors ? injectReasoningGapAnchors(content) : content.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '');
+}
+
+function findElementContainingText(root: ParentNode, text: string): HTMLElement | null {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    if (node.textContent?.includes(text)) {
+      return (node.parentElement as HTMLElement | null);
+    }
+  }
+  return null;
+}
+
+function scrollToReasoningGap(index: number) {
+  const needle = `⟦REASONING-GAP-${index}⟧`;
+  const roots = document.querySelectorAll(".ProseMirror, .page-view-content");
+  let el: HTMLElement | null = null;
+  for (const root of Array.from(roots)) {
+    el = findElementContainingText(root, needle);
+    if (el) break;
+  }
+  if (!el) {
+    el = findElementContainingText(document.body, needle);
+  }
+  if (!el) return;
+
+  const target = el.closest("p, li, h1, h2, h3, h4, blockquote, div") as HTMLElement | null ?? el;
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  target.classList.add(
+    "ring-2",
+    "ring-amber-500",
+    "ring-offset-2",
+    "dark:ring-offset-background",
+    "bg-amber-50",
+    "dark:bg-amber-950/40",
+    "rounded-sm",
+    "transition-shadow",
+    "duration-300",
+  );
+  window.setTimeout(() => {
+    target.classList.remove(
+      "ring-2",
+      "ring-amber-500",
+      "ring-offset-2",
+      "dark:ring-offset-background",
+      "bg-amber-50",
+      "dark:bg-amber-950/40",
+      "rounded-sm",
+      "transition-shadow",
+      "duration-300",
+    );
+  }, 2200);
+}
+
 // Replace the nth (0-indexed) occurrence of any REASONING_GAP marker with the given text.
 // Works even when multiple markers share the same section name.
 function replaceMarkerAtIndex(content: string, targetIdx: number, replacement: string): string {
@@ -585,10 +658,10 @@ function EditableDocumentContent({
 
       {/* Page View: accurate multi-page layout renderer */}
       {pageViewMode && !isEditing ? (
-        <PageView content={document.content.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '')} legalContext={legalContext} />
+        <PageView content={prepareDocumentContentForView(document.content, true)} legalContext={legalContext} />
       ) : (
         <RichTextEditor
-          content={isEditing ? editContent : document.content.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '')}
+          content={isEditing ? editContent : prepareDocumentContentForView(document.content, true)}
           onChange={onEditContentChange}
           disabled={!isEditing}
           placeholder="Document content..."
@@ -1450,16 +1523,22 @@ export default function DocumentViewer({
               <TooltipTrigger asChild>
                 <Button
                   size="sm"
-                  variant={isGapPanelOpen ? 'secondary' : 'ghost'}
+                  variant="outline"
                   onClick={() => setShowGapPanel(prev => prev === document.id ? null : document.id)}
-                  className="gap-1 text-amber-600 dark:text-amber-400"
+                  className={cn(
+                    "gap-1.5 border-amber-500/70 bg-amber-50 text-amber-800 shadow-sm",
+                    "hover:bg-amber-100 hover:text-amber-900",
+                    "dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-600 dark:hover:bg-amber-950/70",
+                    isGapPanelOpen && "ring-2 ring-amber-500/50",
+                  )}
                   data-testid="button-gap-indicator"
+                  aria-pressed={isGapPanelOpen}
                 >
-                  <AlertTriangle className="w-3 h-3" />
+                  <AlertTriangle className="w-3.5 h-3.5" />
                   {gapCount} reasoning gap{gapCount !== 1 ? 's' : ''}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Review reasoning gaps in this document</TooltipContent>
+              <TooltipContent>Open the reasoning gaps panel to review and fill each gap</TooltipContent>
             </Tooltip>
           )}
           {isApproved ? (
@@ -1515,7 +1594,7 @@ export default function DocumentViewer({
                 data-testid="button-approve-document"
               >
                 <CheckCircle className="w-3 h-3" />
-                Mark as Final
+                I Adopt
               </Button>
             </>
           )}
@@ -1527,7 +1606,7 @@ export default function DocumentViewer({
               {gapCount} reasoning gap{gapCount !== 1 ? 's' : ''} not yet reviewed
             </p>
             <p className="text-xs text-amber-700 dark:text-amber-400 mb-2">
-              You may approve as-is or review the gaps first.
+              You may adopt as-is or review the gaps first.
             </p>
             <div className="flex items-center gap-2 flex-wrap">
               <Button
@@ -1545,13 +1624,13 @@ export default function DocumentViewer({
                 size="sm"
                 variant="default"
                 onClick={() => {
-                  // false = gaps were NOT reviewed before approval (compliance record of bypass)
+                  // false = gaps were NOT reviewed before adoption (compliance record of bypass)
                   approveMutation.mutate({ documentId: document.id, reasoningGapsReviewed: false });
                 }}
                 disabled={isApproving}
                 data-testid="button-approve-anyway"
               >
-                Approve anyway
+                Adopt anyway
               </Button>
               <Button
                 size="sm"
@@ -1784,7 +1863,7 @@ export default function DocumentViewer({
           </TabsList>
         </div>
 
-        <TabsContent value="attendance" className="mt-6 overflow-x-hidden overscroll-x-none touch-pan-y">
+        <TabsContent value="attendance" className="mt-6 overflow-x-clip overscroll-x-none touch-pan-y">
           {attendanceNote?.status === 'draft' && !dismissedReviewBanners.has('attendance') && (
             <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-attendance">
               <div className="flex items-start gap-3">
@@ -1808,7 +1887,7 @@ export default function DocumentViewer({
               />
             </div>
           )}
-          <div className={`flex gap-4 ${showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-col lg:flex-row' : ''}`}>
+          <div className={`flex gap-4 items-start ${showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-col lg:flex-row' : ''}`}>
             <Card className={showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-1 min-w-0' : 'w-full'} data-testid="attendance-note-card">
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -1961,8 +2040,8 @@ export default function DocumentViewer({
             )}
             {/* Gap review panel for attendance note */}
             {attendanceNote && showGapPanel === attendanceNote.id && !isDemoMode && (
-              <Card className="lg:w-80 flex-shrink-0" data-testid="panel-gap-review-attendance">
-                <CardHeader className="pb-2">
+              <Card className="lg:w-80 w-full flex-shrink-0 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-6rem)] flex flex-col overflow-hidden" data-testid="panel-gap-review-attendance">
+                <CardHeader className="pb-2 shrink-0">
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -1973,7 +2052,7 @@ export default function DocumentViewer({
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    These sections require solicitor-authored reasoning. Add your notes to fill each gap.
+                    Tap a heading to jump to it in the note. Add your reasoning for each gap.
                   </p>
                   {hasAmlFlag && (
                     <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-aml-gap-attendance">
@@ -1983,10 +2062,17 @@ export default function DocumentViewer({
                     </div>
                   )}
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 overflow-y-auto flex-1 min-h-0">
                   {parseReasoningGaps(attendanceNote.content).map((sectionName, idx) => (
                     <div key={idx} className="space-y-2" data-testid={`gap-item-attendance-${idx}`}>
-                      <label className="text-xs font-semibold text-foreground">{sectionName}</label>
+                      <button
+                        type="button"
+                        onClick={() => scrollToReasoningGap(idx)}
+                        className="text-left text-xs font-semibold text-foreground hover:text-amber-800 dark:hover:text-amber-300 underline-offset-2 hover:underline w-full"
+                        data-testid={`button-gap-heading-attendance-${idx}`}
+                      >
+                        {sectionName}
+                      </button>
                       <Textarea
                         placeholder={`Enter reasoning for "${sectionName}"...`}
                         value={gapInputs[attendanceNote.id]?.[String(idx)] ?? ''}
@@ -2043,7 +2129,7 @@ export default function DocumentViewer({
           </div>
         </TabsContent>
 
-        <TabsContent value="summary" className="mt-6">
+        <TabsContent value="summary" className="mt-6 overflow-x-clip">
           {summary?.status === 'draft' && !dismissedReviewBanners.has('summary') && (
             <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-summary">
               <div className="flex items-start gap-3">
@@ -2067,7 +2153,7 @@ export default function DocumentViewer({
               />
             </div>
           )}
-          <div className={`flex gap-4 ${showComments || (summary && showGapPanel === summary.id) ? 'flex-col lg:flex-row' : ''}`}>
+          <div className={`flex gap-4 items-start ${showComments || (summary && showGapPanel === summary.id) ? 'flex-col lg:flex-row' : ''}`}>
             <Card className={showComments || (summary && showGapPanel === summary.id) ? 'flex-1 min-w-0' : 'w-full'}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -2233,8 +2319,8 @@ export default function DocumentViewer({
             )}
             {/* Gap review panel for summary — hidden in demo mode */}
             {summary && showGapPanel === summary.id && !isDemoMode && (
-              <Card className="lg:w-80 flex-shrink-0" data-testid="panel-gap-review-summary">
-                <CardHeader className="pb-2">
+              <Card className="lg:w-80 w-full flex-shrink-0 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-6rem)] flex flex-col overflow-hidden" data-testid="panel-gap-review-summary">
+                <CardHeader className="pb-2 shrink-0">
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -2245,7 +2331,7 @@ export default function DocumentViewer({
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    These sections require solicitor-authored reasoning. Add your notes to fill each gap.
+                    Tap a heading to jump to it in the document. Add your reasoning for each gap.
                   </p>
                   {hasAmlFlag && (
                     <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-aml-gap-summary">
@@ -2255,10 +2341,17 @@ export default function DocumentViewer({
                     </div>
                   )}
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 overflow-y-auto flex-1 min-h-0">
                   {parseReasoningGaps(summary.content).map((sectionName, idx) => (
                     <div key={idx} className="space-y-2" data-testid={`gap-item-summary-${idx}`}>
-                      <label className="text-xs font-semibold text-foreground">{sectionName}</label>
+                      <button
+                        type="button"
+                        onClick={() => scrollToReasoningGap(idx)}
+                        className="text-left text-xs font-semibold text-foreground hover:text-amber-800 dark:hover:text-amber-300 underline-offset-2 hover:underline w-full"
+                        data-testid={`button-gap-heading-summary-${idx}`}
+                      >
+                        {sectionName}
+                      </button>
                       <Textarea
                         placeholder={`Enter reasoning for "${sectionName}"...`}
                         value={gapInputs[summary.id]?.[String(idx)] ?? ''}
