@@ -921,7 +921,13 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   type: z.enum(["attendance_note", "meeting_notes", "summary", "transcript", "client_care_letter", "client_letter"]),
   content: z.string().max(1000000), // 1MB max for documents
   version: z.number().int().min(1).default(1),
-  versionType: z.enum(["system_generated", "fee_earner_amended", "fee_earner_approved", "supervisor_approved"]),
+  versionType: z.enum([
+    "system_generated",
+    "further_produced",
+    "fee_earner_amended",
+    "fee_earner_approved",
+    "supervisor_approved",
+  ]),
   createdBy: z.string().uuid(),
   isActive: z.boolean().default(true),
   parentVersionId: z.string().uuid().optional(),

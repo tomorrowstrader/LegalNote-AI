@@ -2951,8 +2951,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(404).json({ message: "Case not found" });
       }
       const allDocs = await storage.getDocumentsByCase(caseId, userId);
+      const CLIENT_LETTER_TYPES = new Set(["summary", "client_letter"]);
       const versions = allDocs
-        .filter(d => d.type === type)
+        .filter((d) => {
+          if (CLIENT_LETTER_TYPES.has(type) && CLIENT_LETTER_TYPES.has(d.type)) return true;
+          return d.type === type;
+        })
         .sort((a, b) => a.version - b.version);
       
       const versionsWithMeta = versions.map(doc => {
@@ -2988,8 +2992,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
       const VALID_VERSION_TYPES = [
         "system_generated",
-        "fee_earner_amended",
-        "fee_earner_approved",
+        "further_produced",
         "fee_earner_amended",
         "fee_earner_approved",
         "supervisor_approved",
@@ -3029,6 +3032,43 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
       res.status(201).json(newVersion);
     } catch (error: any) {
+      next(error);
+    }
+  });
+
+  /**
+   * Produce a further version of an attendance note or client letter from the
+   * existing transcript / attendance note. Prior version remains on file
+   * (inactive); new version is hashed, linked via parentVersionId, and sealed
+   * into the HMAC audit chain as document_regenerated.
+   */
+  app.post("/api/cases/:caseId/documents/:documentId/produce-version", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId, documentId } = req.params;
+      const reason =
+        typeof req.body?.reason === "string" ? req.body.reason.slice(0, 500) : undefined;
+
+      const { produceDocumentVersion, ProduceDocumentVersionError } = await import(
+        "./services/produceDocumentVersion"
+      );
+
+      const newVersion = await produceDocumentVersion({
+        storage,
+        caseId,
+        documentId,
+        userId,
+        reason,
+      });
+
+      res.status(201).json(newVersion);
+    } catch (error: any) {
+      if (error?.name === "ProduceDocumentVersionError") {
+        return res.status(error.statusCode || 400).json({
+          message: error.message,
+          code: error.code,
+        });
+      }
       next(error);
     }
   });
@@ -11088,8 +11128,8 @@ ${firmName}`;
             message = `Attendance note and summary for ${caseRecord?.title || 'your case'} have been generated.`;
             break;
           case 'document_regenerated':
-            title = 'Document Regenerated';
-            message = `Documents for ${caseRecord?.title || 'your case'} have been updated.`;
+            title = 'Further Version Produced';
+            message = `A further document version has been produced for ${caseRecord?.title || 'your case'}.`;
             break;
           case 'case_email_sent':
             title = 'Email Sent';

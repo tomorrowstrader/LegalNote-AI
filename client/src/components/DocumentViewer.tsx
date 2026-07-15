@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, RefreshCw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -47,6 +47,7 @@ function markdownToPlainText(md: string): string {
     .trim();
 }
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -122,7 +123,12 @@ function VersionDiffViewer({
 
   const formatVersionLabel = (v: DocumentVersion) => {
     const date = new Date(v.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const typeLabel = v.versionType === 'ai_generated' ? 'Generated' : v.versionType === 'ai_regenerated' ? 'Regenerated' : 'Edited';
+    const typeLabel =
+      v.versionType === "further_produced" || v.versionType === "ai_regenerated"
+        ? "Further version"
+        : v.versionType === "system_generated" || v.versionType === "ai_generated"
+          ? "Produced"
+          : "Edited";
     return `v${v.version} · ${typeLabel} · ${date}`;
   };
 
@@ -248,7 +254,11 @@ function VersionDiffViewer({
                     v{v.version}
                   </Badge>
                   <span className="text-muted-foreground">
-                    {v.versionType === 'ai_generated' ? 'Produced' : v.versionType === 'ai_regenerated' ? 'Revised' : 'Manually Edited'}
+                    {v.versionType === "further_produced" || v.versionType === "ai_regenerated"
+                      ? "Further version"
+                      : v.versionType === "system_generated" || v.versionType === "ai_generated"
+                        ? "Produced"
+                        : "Manually Edited"}
                   </span>
                   {v.isActive && <Badge variant="outline" className="text-[10px]">Current</Badge>}
                 </div>
@@ -268,7 +278,7 @@ function VersionDiffViewer({
 interface Document {
   id: string;
   caseId: string;
-  type: 'attendance_note' | 'meeting_notes' | 'summary' | 'transcript' | 'client_care_letter';
+  type: 'attendance_note' | 'meeting_notes' | 'summary' | 'transcript' | 'client_care_letter' | 'client_letter';
   content: string;
   version: number;
   createdAt: string;
@@ -699,6 +709,8 @@ export default function DocumentViewer({
   const [showRationaleSection, setShowRationaleSection] = useState<Record<string, boolean>>({}); // docId -> expanded
   const [pendingApprovalDocId, setPendingApprovalDocId] = useState<string | null>(null); // doc waiting for soft gate confirm
   const [amlAcknowledged, setAmlAcknowledged] = useState<Record<string, boolean>>({}); // docId -> confirmed AML consideration
+  const [produceTarget, setProduceTarget] = useState<Document | null>(null);
+  const [produceReason, setProduceReason] = useState("");
   
   // Controlled tab state with support for initial tab from URL
   const [activeTab, setActiveTab] = useState<string>(initialTab || 'attendance');
@@ -715,7 +727,11 @@ export default function DocumentViewer({
   });
 
   const hasMeetingNotesDoc = !documents.some(d => d.type === 'attendance_note') && documents.some(d => d.type === 'meeting_notes');
-  const activeDocForComments = commentDocId || documents.find(d => d.type === (activeTab === 'summary' ? 'summary' : hasMeetingNotesDoc ? 'meeting_notes' : 'attendance_note'))?.id;
+  const activeDocForComments = commentDocId || documents.find(d => {
+    if (activeTab === 'summary') return d.type === 'summary' || d.type === 'client_letter';
+    if (hasMeetingNotesDoc) return d.type === 'meeting_notes';
+    return d.type === 'attendance_note';
+  })?.id;
   
   const { data: commentsData = [] } = useQuery<DocumentComment[]>({
     queryKey: ['/api/documents', activeDocForComments, 'comments'],
@@ -1036,6 +1052,38 @@ export default function DocumentViewer({
         description: "Failed to unlock document. Please try again.",
         variant: "destructive",
         duration: 6000,
+      });
+    },
+  });
+
+  const produceVersionMutation = useMutation({
+    mutationFn: async ({ documentId, reason }: { documentId: string; reason?: string }) => {
+      return await apiRequest("POST", `/api/cases/${caseId}/documents/${documentId}/produce-version`, {
+        reason: reason?.trim() || undefined,
+      });
+    },
+    onSuccess: (newDoc: any) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          typeof q.queryKey[0] === "string" &&
+          (q.queryKey[0] as string).includes(`/api/cases/${caseId}/document-versions`),
+      });
+      setProduceTarget(null);
+      setProduceReason("");
+      toast({
+        title: "Further version produced",
+        description: `Version ${newDoc?.version ?? ""} is now on file for review. The previous version remains in the audit trail.`,
+        duration: 7000,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Could not produce further version",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+        duration: 8000,
       });
     },
   });
@@ -1370,7 +1418,8 @@ export default function DocumentViewer({
 
   const attendanceNote = findDoc('attendance_note') ?? findDoc('meeting_notes');
   const isMeetingNotes = !findDoc('attendance_note') && !!findDoc('meeting_notes');
-  const summary = findDoc('summary');
+  // Pipeline persists as client_letter; older rows and some paths use summary
+  const summary = findDoc('summary') ?? findDoc('client_letter');
   const transcriptDoc = findDoc('transcript');
   const clientCareLetter = findDoc('client_care_letter');
 
