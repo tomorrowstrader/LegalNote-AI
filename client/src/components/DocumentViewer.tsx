@@ -20,6 +20,7 @@ import remarkBreaks from 'remark-breaks';
 import { RichTextEditor, type TrackedChange, type TrackChangeAuditRecord } from "@/components/RichTextEditor";
 import { PageView } from "@/components/PageView";
 import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
+import { debugClientLog } from "@/lib/debugClientLog";
 
 function markdownToPlainText(md: string): string {
   if (!md) return '';
@@ -650,12 +651,6 @@ function EditableDocumentContent({
       </div>
 
       {/* Page View: accurate multi-page layout renderer */}
-      {(() => {
-        // #region agent log
-        fetch('http://127.0.0.1:7671/ingest/dfbc9758-293a-480b-a080-cbd261ef30c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'95f25d'},body:JSON.stringify({sessionId:'95f25d',location:'DocumentViewer.tsx:EditableDocumentContent',message:'Rendering document body',data:{docId:document?.id||null,type:document?.type||null,pageViewMode:!!pageViewMode,isEditing:!!isEditing,contentLen:document?.content==null?-1:String(document.content).length},timestamp:Date.now(),hypothesisId:'B',runId:'white-screen'})}).catch(()=>{});
-        // #endregion
-        return null;
-      })()}
       {pageViewMode && !isEditing ? (
         <PageView content={stripReasoningGapMarkers(document.content)} legalContext={legalContext} />
       ) : (
@@ -705,7 +700,18 @@ export default function DocumentViewer({
   // #region agent log
   useEffect(() => {
     const docs = documents || [];
-    fetch('http://127.0.0.1:7671/ingest/dfbc9758-293a-480b-a080-cbd261ef30c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'95f25d'},body:JSON.stringify({sessionId:'95f25d',location:'DocumentViewer.tsx:mount',message:'DocumentViewer mounted',data:{caseId,docCount:docs.length,types:docs.map((d:any)=>d?.type),contentLens:docs.map((d:any)=>(d?.content==null?-1:String(d.content).length)),pageW:typeof window!=='undefined'?window.innerWidth:0},timestamp:Date.now(),hypothesisId:'B',runId:'white-screen'})}).catch(()=>{});
+    debugClientLog({
+      location: "DocumentViewer.tsx:mount",
+      message: "DocumentViewer mounted",
+      hypothesisId: "B",
+      data: {
+        caseId,
+        docCount: docs.length,
+        types: docs.map((d: any) => d?.type),
+        contentLens: docs.map((d: any) => (d?.content == null ? -1 : String(d.content).length)),
+        pageW: typeof window !== "undefined" ? window.innerWidth : 0,
+      },
+    });
   }, [caseId, documents]);
   // #endregion
 

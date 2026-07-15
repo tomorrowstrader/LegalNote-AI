@@ -1,13 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-
-function debugLog(location: string, message: string, data: Record<string, unknown>, hypothesisId: string) {
-  // #region agent log
-  fetch('http://127.0.0.1:7671/ingest/dfbc9758-293a-480b-a080-cbd261ef30c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'95f25d'},body:JSON.stringify({sessionId:'95f25d',location,message,data,timestamp:Date.now(),hypothesisId,runId:'white-screen'})}).catch(()=>{});
-  // #endregion
-}
+import { debugClientLog } from "@/lib/debugClientLog";
 
 interface Props {
   children: ReactNode;
+  scope?: string;
 }
 
 interface State {
@@ -15,28 +11,29 @@ interface State {
   errorInfo: string | null;
 }
 
-/** Captures case-page render crashes that otherwise produce a blank white screen. */
+/** Captures render crashes that otherwise produce a blank white screen. */
 export class CasePageErrorBoundary extends Component<Props, State> {
   state: State = { error: null, errorInfo: null };
 
-  static getDerivedStateFromError(error: Error): State {
-    return { error, errorInfo: null };
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    return { error };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     const stack = error?.stack || String(error);
     const componentStack = info?.componentStack || "";
-    debugLog(
-      "CasePageErrorBoundary.tsx:componentDidCatch",
-      "Case page crashed",
-      {
+    debugClientLog({
+      location: `CasePageErrorBoundary:${this.props.scope || "case"}`,
+      message: "Case page crash caught",
+      hypothesisId: "A",
+      data: {
+        scope: this.props.scope || "case",
         name: error?.name,
         message: error?.message,
-        stack: stack.slice(0, 1500),
-        componentStack: componentStack.slice(0, 1500),
+        stack: stack.slice(0, 2000),
+        componentStack: componentStack.slice(0, 2000),
       },
-      "A",
-    );
+    });
     this.setState({ errorInfo: componentStack.slice(0, 2000) });
   }
 

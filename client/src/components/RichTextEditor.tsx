@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
+import { debugClientLog } from "@/lib/debugClientLog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
@@ -877,14 +878,42 @@ export function RichTextEditor({
   });
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
+    let cancelled = false;
 
-    const plugin = createTrackChangesPlugin(isTrackingRef, isUpdatingRef, userNameRef, composingRef, handleChangeLogged, handleStructuralBlocked);
-    const { state } = editor;
-    const newState = state.reconfigure({
-      plugins: [...state.plugins.filter(p => p.spec.key !== trackChangesPluginKey), plugin],
-    });
-    editor.view.updateState(newState);
+    const attachTrackChangesPlugin = () => {
+      if (cancelled || editor.isDestroyed) return;
+      try {
+        void editor.view;
+      } catch {
+        requestAnimationFrame(attachTrackChangesPlugin);
+        return;
+      }
+
+      const plugin = createTrackChangesPlugin(isTrackingRef, isUpdatingRef, userNameRef, composingRef, handleChangeLogged, handleStructuralBlocked);
+      const { state } = editor;
+      const newState = state.reconfigure({
+        plugins: [...state.plugins.filter(p => p.spec.key !== trackChangesPluginKey), plugin],
+      });
+      try {
+        editor.view.updateState(newState);
+      } catch (err) {
+        // #region agent log
+        debugClientLog({
+          location: "RichTextEditor.tsx:updateState",
+          message: "editor.view.updateState failed",
+          hypothesisId: "C",
+          data: { err: String((err as any)?.message || err).slice(0, 400) },
+        });
+        // #endregion
+        console.error("[RichTextEditor] updateState failed:", err);
+      }
+    };
+
+    attachTrackChangesPlugin();
+    return () => {
+      cancelled = true;
+    };
   }, [editor, handleChangeLogged, handleStructuralBlocked]);
 
   const scanForTrackedChanges = useCallback((editorInstance: any) => {
