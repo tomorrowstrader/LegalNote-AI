@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
-import { extractLetterhead, formatLetterheadAddress } from "@shared/letterhead";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile, DocumentComment } from "@shared/schema";
@@ -510,40 +509,6 @@ function CommentsPanel({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function LetterheadPreview({ firmProfile }: { firmProfile?: FirmProfile | null }) {
-  const lh = extractLetterhead(firmProfile);
-  if (!lh) return null;
-  const addressLines = formatLetterheadAddress(lh);
-  return (
-    <div className="mb-4 px-6 pt-6 pb-4 border-b border-border" data-testid="letterhead-preview">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <p className="text-base font-bold text-foreground leading-tight" data-testid="letterhead-firm-name">{lh.firmName}</p>
-          {addressLines.map((line, i) => (
-            <p key={i} className="text-xs text-muted-foreground">{line}</p>
-          ))}
-          <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
-            {lh.phone && <p data-testid="letterhead-phone">Tel: {lh.phone}</p>}
-            {lh.email && <p data-testid="letterhead-email">Email: {lh.email}</p>}
-            {lh.website && <p data-testid="letterhead-website">{lh.website}</p>}
-            {lh.sraNumber && (
-              <p className="font-medium" data-testid="letterhead-sra">SRA No: {lh.sraNumber}</p>
-            )}
-          </div>
-        </div>
-        {lh.logoUrl && (
-          <img
-            src={lh.logoUrl}
-            alt={`${lh.firmName} logo`}
-            className="h-16 sm:h-20 w-auto max-w-[40%] flex-shrink-0 object-contain object-right"
-            data-testid="letterhead-logo"
-          />
-        )}
-      </div>
     </div>
   );
 }
@@ -1901,7 +1866,6 @@ export default function DocumentViewer({
                   testIdPrefix="attendance"
                 />
               )}
-              {attendanceNote && <LetterheadPreview firmProfile={firmProfile} />}
               <CardContent className="p-0">
                 {attendanceNote ? (
                   <EditableDocumentContent 
@@ -2172,7 +2136,6 @@ export default function DocumentViewer({
                   testIdPrefix="summary"
                 />
               )}
-              {summary && <LetterheadPreview firmProfile={firmProfile} />}
               <CardContent className="p-0">
                 {summary ? (
                   <EditableDocumentContent 
@@ -2197,7 +2160,7 @@ export default function DocumentViewer({
                 ) : textNotes ? (
                   <div className="p-6">
                     <p className="text-sm text-muted-foreground mb-4 italic">
-                      Meeting notes (matter record will be produced once processing is complete)
+                      Meeting notes (client letter will be produced once processing is complete)
                     </p>
                     <p className="text-foreground whitespace-pre-wrap">{textNotes}</p>
                   </div>
@@ -2207,7 +2170,7 @@ export default function DocumentViewer({
                     <div>
                       <p className="font-medium text-sm text-foreground">Client Letter</p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        The matter record will appear here once the session is processed.
+                        The client letter will appear here once the session is processed.
                       </p>
                     </div>
                   </div>
@@ -2532,7 +2495,6 @@ export default function DocumentViewer({
                   </div>
                 </div>
               </CardHeader>
-              <LetterheadPreview firmProfile={firmProfile} />
               <CardContent className="p-0">
                 <EditableDocumentContent
                   document={clientCareLetter}

@@ -45,6 +45,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { useChunkedRecording } from "@/hooks/useChunkedRecording";
+import { QUICK_RECORD_SHORTCUT_EVENT } from "@/hooks/useQuickRecordShortcut";
 
 // Recording session state management for crash recovery detection
 const RECORDING_SESSION_KEY = 'legalnote_recording_session';
@@ -447,9 +448,19 @@ export default function QuickRecordButton() {
     return () => clearTimeout(resetTimer);
   }, [stopConfirmationPending]);
 
-  const initiateRecording = () => {
+  const initiateRecording = useCallback(() => {
     setCountdown(3); // 3-second countdown
-  };
+  }, []);
+
+  // Control+L is registered globally (useQuickRecordShortcut) and dispatches this event
+  useEffect(() => {
+    const handleShortcut = () => {
+      if (isRecording || countdown !== null) return;
+      initiateRecording();
+    };
+    window.addEventListener(QUICK_RECORD_SHORTCUT_EVENT, handleShortcut);
+    return () => window.removeEventListener(QUICK_RECORD_SHORTCUT_EVENT, handleShortcut);
+  }, [isRecording, countdown, initiateRecording]);
 
   const cancelCountdown = () => {
     setCountdown(null);
@@ -1078,8 +1089,9 @@ export default function QuickRecordButton() {
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p className="text-sm max-w-[200px]">
+          <p className="text-sm max-w-[220px]">
             <strong>Quick Record:</strong> Start recording instantly, add case details after
+            <span className="block mt-1 text-muted-foreground font-mono text-xs">Ctrl+L</span>
           </p>
         </TooltipContent>
       </Tooltip>

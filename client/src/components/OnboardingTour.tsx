@@ -131,9 +131,9 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
       target: "body",
       content: (
         <div className="space-y-3">
-          <h2 className="text-2xl font-bold tracking-tight">Quick Tip: Ctrl+Alt+N</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Quick Tip: Ctrl+L</h2>
           <p className="text-base leading-relaxed text-muted-foreground">
-            Press <kbd className="px-2 py-1 bg-muted border border-border rounded text-sm font-mono">Ctrl+Alt+N</kbd> from anywhere to instantly start a new recording. It's the fastest way to capture your LegalNotes.
+            Press <kbd className="px-2 py-1 bg-muted border border-border rounded text-sm font-mono">Ctrl+L</kbd> from anywhere to start Quick Record — the same as the red microphone in the top bar. It's the fastest way to capture your LegalNotes.
           </p>
         </div>
       ),

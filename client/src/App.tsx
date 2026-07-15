@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { FocusModeProvider, useFocusMode } from "@/contexts/FocusModeContext";
 import { useNewNoteShortcut } from "@/hooks/useNewNoteShortcut";
+import { useQuickRecordShortcut } from "@/hooks/useQuickRecordShortcut";
 import TopNavigation from "@/components/TopNavigation";
 import FirmSetupPrompt from "@/components/FirmSetupPrompt";
 import OnboardingTour from "@/components/OnboardingTour";
@@ -140,6 +141,7 @@ function AuthenticatedAppContent() {
   );
 
   useNewNoteShortcut();
+  useQuickRecordShortcut();
 
   useEffect(() => {
     if (!isLoading && hasAppAccess) {

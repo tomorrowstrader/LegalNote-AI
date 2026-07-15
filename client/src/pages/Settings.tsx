@@ -2123,8 +2123,9 @@ export default function Settings() {
     const tab = params.get('tab');
     const validTabs = ['firm', 'notifications', 'usage', 'integrations', 'security', 'demo'];
     if (tab && validTabs.includes(tab)) {
-      // Non-platform-admins only get the Firm tab; keep them on firm if they deep-link elsewhere
-      if (!isAdmin && tab !== 'firm') {
+      // All users can access Firm + Integrations; other tabs remain platform-admin only
+      const allowedForAll = tab === 'firm' || tab === 'integrations';
+      if (!isAdmin && !allowedForAll) {
         setActiveTab('firm');
       } else {
         setActiveTab(tab);
@@ -2139,19 +2140,19 @@ export default function Settings() {
           <h1 className="text-3xl font-semibold text-foreground">Firm Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {isAdmin
-              ? "Manage firm letterhead, logo, team, and security settings"
-              : "Manage firm letterhead and logo for attendance notes and client care letters"}
+              ? "Manage firm letterhead, logo, team, integrations, and security settings"
+              : "Manage firm letterhead, logo, and calendar integrations"}
           </p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="flex flex-wrap gap-1">
             <TabsTrigger value="firm" data-testid="tab-firm">Firm</TabsTrigger>
+            <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
             {isAdmin && (
               <>
                 <TabsTrigger value="notifications" data-testid="tab-notifications">Notifications</TabsTrigger>
                 <TabsTrigger value="usage" data-testid="tab-usage">Usage</TabsTrigger>
-                <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
                 <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
                 <TabsTrigger value="growth" data-testid="tab-growth">Growth</TabsTrigger>
                 <TabsTrigger value="demo" data-testid="tab-demo">Demo</TabsTrigger>
@@ -2163,6 +2164,13 @@ export default function Settings() {
             <FirmProfileForm />
           </TabsContent>
 
+          <TabsContent value="integrations" className="space-y-6">
+            <CalendarConnections />
+            <VideoConferencing />
+            <StorageIntegrations />
+            <ClioIntegration />
+          </TabsContent>
+
           {isAdmin && (
             <>
           <TabsContent value="notifications" className="space-y-6">
@@ -2171,13 +2179,6 @@ export default function Settings() {
 
           <TabsContent value="usage" className="space-y-6">
             <UsageMetrics />
-          </TabsContent>
-
-          <TabsContent value="integrations" className="space-y-6">
-            <CalendarConnections />
-            <VideoConferencing />
-            <StorageIntegrations />
-            <ClioIntegration />
           </TabsContent>
 
           <TabsContent value="growth" className="space-y-6">
