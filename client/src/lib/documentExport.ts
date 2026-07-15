@@ -526,7 +526,11 @@ export async function exportToPDF(content: DocumentContent) {
     });
   };
 
-  const stripGapMarkers = (text: string) => text.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '');
+  const stripGapMarkers = (text: string) =>
+    text
+      .replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '')
+      .replace(/&lt;!--\s*REASONING_GAP:\s*.+?\s*--&gt;/g, '')
+      .replace(/\{\{RGAP:(?:\\.|[^}])+\}\}/g, '');
 
   if (content.summary && !isPdfPlaceholder(content.summary)) {
     addText('CASE SUMMARY', 16, true);
@@ -880,7 +884,11 @@ export async function exportToWord(content: DocumentContent) {
     });
   };
 
-  const stripWordGapMarkers = (text: string) => text.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '');
+  const stripWordGapMarkers = (text: string) =>
+    text
+      .replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '')
+      .replace(/&lt;!--\s*REASONING_GAP:\s*.+?\s*--&gt;/g, '')
+      .replace(/\{\{RGAP:(?:\\.|[^}])+\}\}/g, '');
 
   // Summary section — skip if all fields are placeholder text
   if (content.summary && !isEntirelyPlaceholder(content.summary)) {

@@ -375,7 +375,8 @@ export default function Dashboard() {
               <div className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2.5 py-1.5 rounded-md border border-border/50">
                 <Keyboard className="w-3 h-3" />
                 <span>Press</span>
-                <kbd className="px-1.5 py-0.5 bg-background border border-border rounded text-[10px] font-mono font-medium">L</kbd>
+                <kbd className="px-1.5 py-0.5 bg-background border border-border rounded text-[10px] font-mono font-medium">Ctrl</kbd>
+                <span>+</span>
                 <kbd className="px-1.5 py-0.5 bg-background border border-border rounded text-[10px] font-mono font-medium">L</kbd>
                 <span>to record</span>
               </div>

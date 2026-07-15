@@ -7531,9 +7531,25 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
           console.log(`[OAUTH] Outlook calendar connected for user ${stateData.userId}`);
 
+          await storage.createAuditLog({
+            eventType: 'calendar_connected',
+            userId: stateData.userId,
+            ipAddress: req.ip || req.socket?.remoteAddress,
+            metadata: {
+              provider: 'outlook',
+              email: tokenData.email || 'N/A',
+            },
+            severity: 'info',
+          });
+
           if (stateData.syncContext) {
+            const { caseId, deadline, notes, priority, isAllDay } = stateData.syncContext;
             try {
-              const { caseId, deadline, notes, priority, isAllDay } = stateData.syncContext;
+              const caseData = await storage.getCase(caseId, stateData.userId);
+              if (!caseData) {
+                return res.redirect(`${redirectBase}?calendar_connected=outlook&sync_error=case_not_found&case_id=${caseId}`);
+              }
+
               const { Client } = await import('@microsoft/microsoft-graph-client');
               const { computeReminderSchedule } = await import('./reminderScheduler');
               const graphClient = Client.initWithMiddleware({
@@ -7545,9 +7561,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
                 isAllDay: isAllDay || false,
                 priority: priority || 'normal',
               });
+              const eventSubject = `${caseData.clientName} - ${caseData.title}`;
               const event: any = {
-                subject: `Deadline: Case ${caseId}`,
-                body: { contentType: 'Text', content: notes || 'LegalNote case deadline' },
+                subject: eventSubject,
+                body: {
+                  contentType: 'Text',
+                  content: notes || `LegalNote deadline for ${caseData.clientName}${caseData.matterReference ? ` (${caseData.matterReference})` : ''}`,
+                },
                 isReminderOn: true,
                 reminderMinutesBeforeStart: minutesBefore[0] || 15,
               };
@@ -7561,16 +7581,44 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
                 event.start = { dateTime: deadlineDate.toISOString(), timeZone: 'Europe/London' };
                 event.end = { dateTime: endDate.toISOString(), timeZone: 'Europe/London' };
               }
-              await graphClient.api('/me/events').post(event);
+              const createdEvent = await graphClient.api('/me/events').post(event);
+
+              if (createdEvent?.id) {
+                await storage.createCalendarEvent({
+                  caseId,
+                  userId: stateData.userId,
+                  provider: 'outlook',
+                  providerEventId: createdEvent.id,
+                  eventType: 'deadline',
+                });
+              }
+
+              await storage.updateCase(caseId, {
+                syncToCalendar: true,
+              }, stateData.userId);
+
+              await storage.createAuditLog({
+                eventType: 'calendar_event_created',
+                userId: stateData.userId,
+                caseId,
+                ipAddress: req.ip || req.socket?.remoteAddress,
+                metadata: {
+                  provider: 'outlook',
+                  eventTitle: eventSubject,
+                  deadline,
+                  autoSync: true,
+                },
+                severity: 'info',
+              });
+
+              return res.redirect(`${redirectBase}?calendar_connected=outlook&sync_success=true&case_id=${caseId}`);
             } catch (syncError: any) {
               console.error('[OAUTH] Outlook auto-sync failed:', syncError);
+              return res.redirect(`${redirectBase}?calendar_connected=outlook&sync_error=event_creation_failed&case_id=${caseId}`);
             }
           }
 
-          const redirectTarget = stateData.popup
-            ? `${redirectBase}?outlook_connected=true&popup=true`
-            : `${redirectBase}?outlook_connected=true`;
-          return res.redirect(redirectTarget);
+          return res.redirect(`${redirectBase}?calendar_connected=outlook`);
         }
 
         if (provider !== 'google') {
@@ -7743,15 +7791,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         };
       }
 
-      const outlookIntegration = await storage.getCalendarIntegration(userId, 'outlook');
-      if (outlookIntegration) {
-        providers.outlook = {
-          connected: true,
-          email: outlookIntegration.email || 'Connected',
-          connectedAt: outlookIntegration.createdAt?.toISOString() || new Date().toISOString(),
-        };
-      }
-      
+      // getConnectedProviders already includes Outlook from calendar_integrations
       res.json(providers);
     } catch (error) {
       next(error);
@@ -7768,6 +7808,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         redirectUris: {
           google: `${baseUrl}/api/calendar/callback/google`,
           googleLogin: `${baseUrl}/api/auth/google/callback`,
+          outlook: `${baseUrl}/api/calendar/callback/outlook`,
         },
         instructions: {
           google: {
@@ -7777,9 +7818,16 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             step4: "Note: this is separate from the login URI (/api/auth/google/callback). Both must be listed if you use both features.",
             step5: "Click Save and wait a few minutes for Google to propagate changes",
           },
+          outlook: {
+            step1: "Go to Azure Portal → App registrations → your Microsoft app",
+            step2: "Open Authentication → Redirect URIs",
+            step3: `Add this redirect URI: ${baseUrl}/api/calendar/callback/outlook`,
+            step4: "Ensure Calendars.ReadWrite, User.Read, and offline_access are granted",
+          },
         },
         status: {
           googleConfigured: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+          outlookConfigured: !!(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET),
         },
       };
 
@@ -7795,11 +7843,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const userId = req.user.claims.sub;
       const provider = req.params.provider;
 
-      if (provider !== 'google') {
-        return res.status(400).json({ message: "Invalid provider. Only 'google' is supported" });
+      if (provider !== 'google' && provider !== 'outlook') {
+        return res.status(400).json({ message: "Invalid provider. Only 'google' and 'outlook' are supported" });
       }
 
-      await storage.deleteCalendarIntegration(userId, 'google');
+      await storage.deleteCalendarIntegration(userId, provider);
 
       // Log audit event
       await storage.createAuditLog({
@@ -10270,17 +10318,17 @@ ${firmName}`;
 
       if (oauthError) {
         console.error("[Clio] OAuth error:", oauthError);
-        return res.redirect("/settings?clio_error=" + encodeURIComponent(String(oauthError)));
+        return res.redirect("/settings?tab=integrations&clio_error=" + encodeURIComponent(String(oauthError)));
       }
 
       if (!code || !state) {
-        return res.redirect("/settings?clio_error=missing_code_or_state");
+        return res.redirect("/settings?tab=integrations&clio_error=missing_code_or_state");
       }
 
       const stateData = verifyOAuthState(state as string);
       
       if (!stateData || stateData.provider !== 'clio') {
-        return res.redirect("/settings?clio_error=invalid_state");
+        return res.redirect("/settings?tab=integrations&clio_error=invalid_state");
       }
 
       const { clioService } = await import("./clio");
@@ -10302,10 +10350,10 @@ ${firmName}`;
           severity: 'info',
         });
 
-        res.redirect("/settings?clio_connected=true");
+        res.redirect("/settings?tab=integrations&clio_connected=true");
       } catch (exchangeError: any) {
         console.error("[Clio] Token exchange error:", exchangeError);
-        res.redirect("/settings?clio_error=" + encodeURIComponent("Failed to connect to Clio"));
+        res.redirect("/settings?tab=integrations&clio_error=" + encodeURIComponent("Failed to connect to Clio"));
       }
     } catch (error) {
       next(error);

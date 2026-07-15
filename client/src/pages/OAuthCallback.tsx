@@ -3,6 +3,15 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { queryClient } from "@/lib/queryClient";
+
+function resolveCalendarConnected(urlParams: URLSearchParams): string | null {
+  const calendarConnected = urlParams.get('calendar_connected');
+  if (calendarConnected) return calendarConnected;
+  // Legacy Outlook redirect param (pre-fix)
+  if (urlParams.get('outlook_connected') === 'true') return 'outlook';
+  return null;
+}
 
 export default function OAuthCallback() {
   const [, setLocation] = useLocation();
@@ -15,7 +24,7 @@ export default function OAuthCallback() {
     
     // Parse URL parameters
     const urlParams = new URLSearchParams(window.location.search);
-    const calendarConnected = urlParams.get('calendar_connected');
+    const calendarConnected = resolveCalendarConnected(urlParams);
     const calendarError = urlParams.get('calendar_error');
     const syncSuccess = urlParams.get('sync_success');
     const syncError = urlParams.get('sync_error');
@@ -29,6 +38,10 @@ export default function OAuthCallback() {
       caseId,
       isPopup: !!(window.opener && !window.opener.closed)
     });
+
+    if (calendarConnected || calendarError) {
+      queryClient.invalidateQueries({ queryKey: ['/api/oauth/connections'] });
+    }
 
     // Check if this is a popup window
     if (window.opener && !window.opener.closed) {
@@ -64,7 +77,7 @@ export default function OAuthCallback() {
       return;
     }
 
-    // FULL-PAGE REDIRECT FLOW (Mobile)
+    // FULL-PAGE REDIRECT FLOW (Mobile / Settings)
     console.log('[OAuth Callback] Full-page redirect flow');
     
     // Determine where to redirect
@@ -75,8 +88,8 @@ export default function OAuthCallback() {
       redirectPath = `/calendar-sync-confirmation?provider=${calendarConnected}&success=${syncSuccess === 'true'}`;
       console.log('[OAuth Callback] Redirecting to confirmation page:', redirectPath);
     } else if (calendarConnected || calendarError) {
-      // If just connecting calendar (no auto-sync), go to settings
-      redirectPath = '/settings';
+      // If just connecting calendar (no auto-sync), go to Integrations tab
+      redirectPath = '/settings?tab=integrations';
       console.log('[OAuth Callback] Redirecting to settings:', redirectPath);
     } else {
       // Fallback to dashboard
@@ -114,7 +127,7 @@ export default function OAuthCallback() {
   if (showPopupConfirmation) {
     const urlParams = new URLSearchParams(window.location.search);
     const syncSuccess = urlParams.get('sync_success') === 'true';
-    const calendarConnected = urlParams.get('calendar_connected');
+    const calendarConnected = resolveCalendarConnected(urlParams);
     
     return (
       <div className="flex items-center justify-center min-h-screen p-6">

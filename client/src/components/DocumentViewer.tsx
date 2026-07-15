@@ -322,21 +322,101 @@ interface DocumentViewerProps {
   litigationHold?: boolean;
 }
 
+/**
+ * TipTap markdown (html:false) turns HTML comments into escaped text entities.
+ * We also round-trip markers as {{RGAP:...}} tokens while editing so they survive
+ * getMarkdown() without being lost or rendered as raw comment litter.
+ */
+const REASONING_GAP_MARKER_RE =
+  /<!--\s*REASONING_GAP:\s*(.+?)\s*-->|&lt;!--\s*REASONING_GAP:\s*(.+?)\s*--&gt;|\{\{RGAP:((?:\\.|[^}])+)\}\}/g;
+
+function encodeGapLabel(label: string): string {
+  return label.replace(/\\/g, "\\\\").replace(/\}/g, "\\}");
+}
+
+function decodeGapLabel(encoded: string): string {
+  return encoded.replace(/\\\}/g, "}").replace(/\\\\/g, "\\").trim();
+}
+
 function parseReasoningGaps(content: string | null | undefined): string[] {
   if (!content) return [];
-  const regex = /<!--\s*REASONING_GAP:\s*(.+?)\s*-->/g;
   const gaps: string[] = [];
+  const regex = new RegExp(REASONING_GAP_MARKER_RE.source, "g");
   let match;
   while ((match = regex.exec(content)) !== null) {
-    gaps.push(match[1].trim());
+    const label = (match[1] ?? match[2] ?? decodeGapLabel(match[3] ?? "")).trim();
+    if (label) gaps.push(label);
   }
   return gaps;
 }
 
-/** Strip gap HTML comments for display — do not inject markdown (breaks TipTap in production). */
+/** Canonicalise escaped / token markers back to HTML comments for storage. */
+function normalizeReasoningGapMarkers(content: string): string {
+  return content
+    .replace(/&lt;!--\s*REASONING_GAP:\s*(.+?)\s*--&gt;/g, (_m, label: string) =>
+      `<!-- REASONING_GAP: ${String(label).trim()} -->`,
+    )
+    .replace(/\{\{RGAP:((?:\\.|[^}])+)\}\}/g, (_m, encoded: string) =>
+      `<!-- REASONING_GAP: ${decodeGapLabel(encoded)} -->`,
+    );
+}
+
+/** Convert stored HTML comments to TipTap-safe tokens for editing. */
+function toEditorContent(content: string): string {
+  return normalizeReasoningGapMarkers(content).replace(
+    /<!--\s*REASONING_GAP:\s*(.+?)\s*-->/g,
+    (_m, label: string) => `{{RGAP:${encodeGapLabel(String(label).trim())}}}`,
+  );
+}
+
+/** Convert editor tokens / escaped litter back to canonical HTML comments. */
+function fromEditorContent(content: string): string {
+  return normalizeReasoningGapMarkers(content);
+}
+
+/** Strip gap markers for display — do not inject markdown (breaks TipTap in production). */
 function stripReasoningGapMarkers(content: string | null | undefined): string {
-  if (!content) return '';
-  return content.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '');
+  if (!content) return "";
+  return content
+    .replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, "")
+    .replace(/&lt;!--\s*REASONING_GAP:\s*.+?\s*--&gt;/g, "")
+    .replace(/\{\{RGAP:(?:\\.|[^}])+\}\}/g, "");
+}
+
+function resolveGapContent(activeContent: string | undefined, versions: DocumentVersion[]): string {
+  if (!activeContent) return "";
+  if (parseReasoningGaps(activeContent).length > 0) return activeContent;
+  const prior = [...versions]
+    .sort((a, b) => a.version - b.version)
+    .find((v) => parseReasoningGaps(v.content).length > 0);
+  return prior?.content ?? activeContent;
+}
+
+/** Re-seat markers from a prior version when the active note lost them. */
+function injectMissingGapMarkers(target: string, source: string): string {
+  if (parseReasoningGaps(target).length > 0) return normalizeReasoningGapMarkers(target);
+  const gaps = parseReasoningGaps(source);
+  if (gaps.length === 0) return target;
+
+  let result = target;
+  for (const gap of gaps) {
+    if (parseReasoningGaps(result).some((g) => g === gap)) continue;
+    const section = gap.split(":")[0]?.trim() || gap;
+    const marker = `<!-- REASONING_GAP: ${gap} -->`;
+    const lower = result.toLowerCase();
+    const sectionIdx = lower.indexOf(section.toLowerCase());
+    if (sectionIdx >= 0) {
+      const afterSection = result.slice(sectionIdx);
+      const reasoningMatch = afterSection.match(/Reasoning behind advice and decisions:\s*/i);
+      if (reasoningMatch && reasoningMatch.index != null) {
+        const insertAt = sectionIdx + reasoningMatch.index + reasoningMatch[0].length;
+        result = `${result.slice(0, insertAt)}\n${marker}\n${result.slice(insertAt)}`;
+        continue;
+      }
+    }
+    result = result.replace(/\s*$/, `\n\n${marker}\n`);
+  }
+  return result;
 }
 
 function findElementContainingText(root: ParentNode, text: string): HTMLElement | null {
@@ -405,21 +485,22 @@ function scrollToReasoningGap(sectionName: string) {
 // Replace the nth (0-indexed) occurrence of any REASONING_GAP marker with the given text.
 // Works even when multiple markers share the same section name.
 function replaceMarkerAtIndex(content: string, targetIdx: number, replacement: string): string {
+  const normalized = normalizeReasoningGapMarkers(content);
   const markerRegex = /<!--\s*REASONING_GAP:\s*.+?\s*-->/g;
   let count = 0;
-  let result = '';
+  let result = "";
   let lastIndex = 0;
   let match;
-  while ((match = markerRegex.exec(content)) !== null) {
+  while ((match = markerRegex.exec(normalized)) !== null) {
     if (count === targetIdx) {
-      result += content.slice(lastIndex, match.index) + replacement;
+      result += normalized.slice(lastIndex, match.index) + replacement;
       lastIndex = match.index + match[0].length;
-      result += content.slice(lastIndex);
+      result += normalized.slice(lastIndex);
       return result;
     }
     count++;
   }
-  return content;
+  return normalized;
 }
 
 function CommentsPanel({ 
@@ -711,6 +792,8 @@ export default function DocumentViewer({
   const [amlAcknowledged, setAmlAcknowledged] = useState<Record<string, boolean>>({}); // docId -> confirmed AML consideration
   const [produceTarget, setProduceTarget] = useState<Document | null>(null);
   const [produceReason, setProduceReason] = useState("");
+  const gapContentByDocIdRef = useRef<Record<string, string>>({});
+  const healedMarkersRef = useRef<Set<string>>(new Set());
   
   // Controlled tab state with support for initial tab from URL
   const [activeTab, setActiveTab] = useState<string>(initialTab || 'attendance');
@@ -967,8 +1050,10 @@ export default function DocumentViewer({
     mutationFn: async ({ documentId, gaps, amlConfirmed }: { documentId: string; gaps: Record<string, string>; amlConfirmed?: boolean }) => {
       const doc = documents.find(d => d.id === documentId);
       if (!doc) throw new Error('Document not found');
-      const gapsBefore = parseReasoningGaps(doc.content);
-      let updatedContent = doc.content;
+      const sourceContent = gapContentByDocIdRef.current[documentId] ?? doc.content;
+      let updatedContent = injectMissingGapMarkers(doc.content, sourceContent);
+      updatedContent = normalizeReasoningGapMarkers(updatedContent);
+      const gapsBefore = parseReasoningGaps(updatedContent);
       let filledCount = 0;
       // Sort descending by index so earlier markers aren't displaced when replacing later ones
       const sortedEntries = Object.entries(gaps)
@@ -997,6 +1082,7 @@ export default function DocumentViewer({
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId, 'document-versions'] });
       const { remainingGaps } = data;
       if (remainingGaps.length === 0) {
         setShowGapPanel(null);
@@ -1259,13 +1345,15 @@ export default function DocumentViewer({
 
   const startEditing = (document: Document) => {
     const savedDraft = localStorage.getItem(`${DRAFT_STORAGE_KEY}${document.id}`);
-    const contentToLoad = savedDraft ? JSON.parse(savedDraft).content : document.content;
-    
+    // Round-trip markers as TipTap-safe tokens so html:false does not escape/lose them.
+    const rawContent = savedDraft ? JSON.parse(savedDraft).content : document.content;
+    const contentToLoad = toEditorContent(rawContent);
+
     setEditingDocId(document.id);
     editingDocIdRef.current = document.id;
     editContentRef.current = contentToLoad;
     setEditContent(contentToLoad);
-    setLastSavedContent(document.content);
+    setLastSavedContent(normalizeReasoningGapMarkers(document.content));
     setAutoSaveStatus('idle');
     setTrackChangesEnabled(true);
 
@@ -1337,7 +1425,7 @@ export default function DocumentViewer({
   }, [caseId]);
 
   const saveEdits = (documentId: string) => {
-    const contentToSave = editContentRef.current || editContent;
+    const contentToSave = fromEditorContent(editContentRef.current || editContent);
     if (!contentToSave.trim()) {
       toast({
         title: "Invalid Content",
@@ -1355,7 +1443,8 @@ export default function DocumentViewer({
   };
 
   const autoSaveDocument = useCallback(async (documentId: string, content: string) => {
-    if (!content.trim() || content === lastSavedContent) {
+    const contentToSave = fromEditorContent(content);
+    if (!contentToSave.trim() || contentToSave === lastSavedContent) {
       return;
     }
 
@@ -1365,13 +1454,13 @@ export default function DocumentViewer({
 
     setAutoSaveStatus('saving');
     try {
-      await apiRequest('PATCH', `/api/documents/${documentId}`, { content, silent: true });
+      await apiRequest('PATCH', `/api/documents/${documentId}`, { content: contentToSave, silent: true });
 
       if (editingDocIdRef.current !== documentId) {
         return;
       }
 
-      setLastSavedContent(content);
+      setLastSavedContent(contentToSave);
       setAutoSaveStatus('saved');
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
       setTimeout(() => setAutoSaveStatus('idle'), 3000);
@@ -1422,6 +1511,57 @@ export default function DocumentViewer({
   const summary = findDoc('summary') ?? findDoc('client_letter');
   const transcriptDoc = findDoc('transcript');
   const clientCareLetter = findDoc('client_care_letter');
+
+  const attendanceDocType = isMeetingNotes ? 'meeting_notes' : 'attendance_note';
+  const needsAttendanceGapRecovery =
+    !!attendanceNote &&
+    parseReasoningGaps(attendanceNote.content).length === 0 &&
+    (attendanceNote.version ?? 1) > 1 &&
+    !isDemoMode;
+
+  const { data: attendanceVersionsForGaps = [] } = useQuery<DocumentVersion[]>({
+    queryKey: ['/api/cases', caseId, 'document-versions', attendanceDocType, 'gap-recovery'],
+    queryFn: async () => {
+      const res = await fetch(`/api/cases/${caseId}/document-versions/${attendanceDocType}`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!caseId && needsAttendanceGapRecovery,
+  });
+
+  const gapContentByDocId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const d of documents) {
+      map[d.id] = d.content;
+    }
+    if (attendanceNote) {
+      map[attendanceNote.id] = resolveGapContent(attendanceNote.content, attendanceVersionsForGaps);
+    }
+    return map;
+  }, [documents, attendanceNote, attendanceVersionsForGaps]);
+
+  gapContentByDocIdRef.current = gapContentByDocId;
+
+  // Heal TipTap-escaped markers back to canonical HTML comments so the gap button stays wired.
+  useEffect(() => {
+    if (isDemoMode) return;
+    for (const doc of documents) {
+      if (healedMarkersRef.current.has(doc.id)) continue;
+      const needsHeal =
+        /&lt;!--\s*REASONING_GAP/.test(doc.content) || /\{\{RGAP:/.test(doc.content);
+      if (!needsHeal) continue;
+      const normalized = normalizeReasoningGapMarkers(doc.content);
+      if (normalized === doc.content) continue;
+      healedMarkersRef.current.add(doc.id);
+      apiRequest('PATCH', `/api/documents/${doc.id}`, { content: normalized, silent: true })
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+        })
+        .catch(() => {
+          healedMarkersRef.current.delete(doc.id);
+        });
+    }
+  }, [documents, caseId, isDemoMode]);
 
   const getSessionLabel = (doc: Document | undefined): string | null => {
     if (!doc?.meetingSessionId || !sessions || sessions.length === 0) return null;
@@ -1477,7 +1617,7 @@ export default function DocumentViewer({
     const isApproving = approveMutation.isPending;
     const isUnlocking = unlockMutation.isPending;
     const isEditing = editMutation.isPending;
-    const docGaps = parseReasoningGaps(document.content);
+    const docGaps = parseReasoningGaps(gapContentByDocId[document.id] ?? document.content);
     const gapCount = docGaps.length;
     const isGapPanelOpen = showGapPanel === document.id;
     const canProduceFurtherVersion =
@@ -2099,12 +2239,12 @@ export default function DocumentViewer({
                   )}
                 </CardHeader>
                 <CardContent className="space-y-4 overflow-y-auto flex-1 min-h-0">
-                  {parseReasoningGaps(attendanceNote.content).length === 0 ? (
+                  {parseReasoningGaps(gapContentByDocId[attendanceNote.id] ?? attendanceNote.content).length === 0 ? (
                     <p className="text-xs text-muted-foreground" data-testid="text-no-gaps-attendance">
                       No open reasoning gaps in this version. Review the note in full, then adopt when you are satisfied.
                     </p>
                   ) : null}
-                  {parseReasoningGaps(attendanceNote.content).map((sectionName, idx) => (
+                  {parseReasoningGaps(gapContentByDocId[attendanceNote.id] ?? attendanceNote.content).map((sectionName, idx) => (
                     <div key={idx} className="space-y-2" data-testid={`gap-item-attendance-${idx}`}>
                       <button
                         type="button"
@@ -2382,12 +2522,12 @@ export default function DocumentViewer({
                   )}
                 </CardHeader>
                 <CardContent className="space-y-4 overflow-y-auto flex-1 min-h-0">
-                  {parseReasoningGaps(summary.content).length === 0 ? (
+                  {parseReasoningGaps(gapContentByDocId[summary.id] ?? summary.content).length === 0 ? (
                     <p className="text-xs text-muted-foreground" data-testid="text-no-gaps-summary">
                       No open reasoning gaps in this version. Review the record in full, then adopt when you are satisfied.
                     </p>
                   ) : null}
-                  {parseReasoningGaps(summary.content).map((sectionName, idx) => (
+                  {parseReasoningGaps(gapContentByDocId[summary.id] ?? summary.content).map((sectionName, idx) => (
                     <div key={idx} className="space-y-2" data-testid={`gap-item-summary-${idx}`}>
                       <button
                         type="button"

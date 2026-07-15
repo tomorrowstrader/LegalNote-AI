@@ -84,6 +84,7 @@ export default function SyncCalendarModal({
 
         // Refetch connections to update UI
         refetchConnections();
+        queryClient.invalidateQueries({ queryKey: ['/api/oauth/connections'] });
 
         // Check if auto-sync was successful
         if (syncSuccess) {

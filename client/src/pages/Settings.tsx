@@ -656,17 +656,18 @@ function CalendarConnections() {
 
   const { data: oauthConfig } = useQuery<{
     baseUrl: string;
-    redirectUris: { google: string };
+    redirectUris: { google: string; outlook?: string };
     instructions: {
       google: { step1: string; step2: string; step3: string; step4: string; step5?: string };
+      outlook?: { step1: string; step2: string; step3: string; step4: string };
     };
-    status: { googleConfigured: boolean };
+    status: { googleConfigured: boolean; outlookConfigured?: boolean };
   }>({
     queryKey: ['/api/calendar/oauth-config'],
   });
 
   const disconnectMutation = useMutation({
-    mutationFn: async (provider: 'google') => {
+    mutationFn: async (provider: 'google' | 'outlook') => {
       const res = await fetch(`/api/calendar/disconnect/${provider}`, {
         method: 'DELETE',
         credentials: 'include',
@@ -677,11 +678,11 @@ function CalendarConnections() {
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, provider) => {
       queryClient.invalidateQueries({ queryKey: ['/api/oauth/connections'] });
       toast({
         title: "Calendar Disconnected",
-        description: "Google Calendar has been disconnected",
+        description: `${provider === 'google' ? 'Google Calendar' : 'Outlook Calendar'} has been disconnected`,
         duration: 4000,
       });
     },
@@ -704,10 +705,10 @@ function CalendarConnections() {
       const response = await fetch('/api/calendar/auth/outlook', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
       });
       if (!response.ok) {
-        throw new Error('Failed to get authorization URL');
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || 'Failed to get authorization URL');
       }
       const { authUrl } = await response.json();
       window.location.href = authUrl;
@@ -719,10 +720,6 @@ function CalendarConnections() {
         variant: "destructive",
       });
     }
-  };
-
-  const handleDisconnect = () => {
-    disconnectMutation.mutate('google');
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -784,7 +781,7 @@ function CalendarConnections() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleDisconnect}
+                    onClick={() => disconnectMutation.mutate('google')}
                     disabled={disconnectMutation.isPending}
                     data-testid="button-disconnect-google"
                   >
@@ -820,10 +817,21 @@ function CalendarConnections() {
             </div>
             <div className="flex items-center gap-2">
               {connections?.outlook?.connected ? (
-                <Badge variant="outline" className="gap-1">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Connected
-                </Badge>
+                <>
+                  <Badge variant="outline" className="gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Connected
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => disconnectMutation.mutate('outlook')}
+                    disabled={disconnectMutation.isPending}
+                    data-testid="button-disconnect-outlook"
+                  >
+                    {disconnectMutation.isPending ? "Disconnecting..." : "Disconnect"}
+                  </Button>
+                </>
               ) : (
                 <Button
                   variant="default"
@@ -900,6 +908,46 @@ function CalendarConnections() {
                       </ol>
                     </div>
                   </div>
+
+                  {oauthConfig.redirectUris.outlook && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">Outlook Calendar Redirect URI</Label>
+                        <Badge variant={oauthConfig.status.outlookConfigured ? "outline" : "destructive"}>
+                          {oauthConfig.status.outlookConfigured ? "Configured" : "Not Configured"}
+                        </Badge>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input 
+                          value={oauthConfig.redirectUris.outlook} 
+                          readOnly 
+                          className="font-mono text-xs"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyToClipboard(oauthConfig.redirectUris.outlook!, "Outlook redirect URI")}
+                        >
+                          {copiedUri === "Outlook redirect URI" ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                      {oauthConfig.instructions.outlook && (
+                        <div className="text-xs text-muted-foreground space-y-1 pl-3">
+                          <p className="font-medium">Configuration steps:</p>
+                          <ol className="list-decimal list-inside space-y-0.5">
+                            <li>{oauthConfig.instructions.outlook.step1}</li>
+                            <li>{oauthConfig.instructions.outlook.step2}</li>
+                            <li>{oauthConfig.instructions.outlook.step3}</li>
+                            <li>{oauthConfig.instructions.outlook.step4}</li>
+                          </ol>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -911,7 +959,7 @@ function CalendarConnections() {
         <div className="space-y-2">
           <p className="text-sm font-medium">How it works</p>
           <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-            <li>Connect your Google Calendar account</li>
+            <li>Connect your Google Calendar or Outlook account</li>
             <li>Set deadlines on cases using "Set Priority & Deadline"</li>
             <li>Sync deadlines to your calendar using "Sync to Calendar"</li>
             <li>Calendar events update automatically when you change case deadlines</li>
@@ -1148,7 +1196,7 @@ function ClioIntegration() {
         description: "Your Clio account has been successfully connected.",
         duration: 4000,
       });
-      window.history.replaceState({}, '', '/settings');
+      window.history.replaceState({}, '', '/settings?tab=integrations');
     } else if (searchParams.get('clio_error')) {
       const error = searchParams.get('clio_error');
       toast({
@@ -1157,7 +1205,7 @@ function ClioIntegration() {
         variant: "destructive",
         duration: 6000,
       });
-      window.history.replaceState({}, '', '/settings');
+      window.history.replaceState({}, '', '/settings?tab=integrations');
     }
   }, []);
 
@@ -1514,7 +1562,7 @@ function StorageIntegrations() {
         <div className="space-y-2">
           <p className="text-sm font-medium">How it works</p>
           <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-            <li>Coming soon — OneDrive and SharePoint integration will be available in a future update</li>
+            <li>Connect OneDrive or SharePoint when the Microsoft connector is available</li>
             <li>Documents from all solicitors sync to: LegalNote / Cases / [Client - Case Title]</li>
             <li>Each case gets organized folders for attendance notes, summaries, and transcripts</li>
             <li>Perfect for boutique firms wanting a shared document library</li>
@@ -1523,8 +1571,8 @@ function StorageIntegrations() {
 
         <div className="p-3 bg-muted rounded-md">
           <p className="text-xs text-muted-foreground">
-            <strong>Setup:</strong> Coming soon — OneDrive and SharePoint integration will be available in a future update.
-            For solo practitioners, this will provide automatic backup of all your generated documents.
+            <strong>Setup:</strong> Connect requires a Microsoft OneDrive or SharePoint connector to be available for your environment.
+            Once connected, documents sync automatically when auto-sync is enabled.
           </p>
         </div>
       </CardContent>
@@ -2132,6 +2180,16 @@ export default function Settings() {
       }
     }
   }, [isAdmin]);
+
+  // Keep Integrations connection status fresh when landing from OAuth
+  useEffect(() => {
+    if (activeTab === 'integrations') {
+      queryClient.invalidateQueries({ queryKey: ['/api/oauth/connections'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/recall/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/storage/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/clio/status'] });
+    }
+  }, [activeTab]);
 
   return (
     <div className="min-h-screen bg-background">
