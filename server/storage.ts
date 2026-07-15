@@ -441,6 +441,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   getAuthIdentity(provider: string, providerUserId: string): Promise<AuthIdentity | undefined>;
+  getAuthIdentitiesForUser(userId: string): Promise<AuthIdentity[]>;
   createAuthIdentity(data: {
     userId: string;
     provider: string;
@@ -875,6 +876,10 @@ export class MemStorage implements IStorage {
 
   async getAuthIdentity(_provider: string, _providerUserId: string): Promise<AuthIdentity | undefined> {
     return undefined;
+  }
+
+  async getAuthIdentitiesForUser(_userId: string): Promise<AuthIdentity[]> {
+    return [];
   }
 
   async createAuthIdentity(_data: {
@@ -2591,6 +2596,16 @@ export class AuthEmailCollisionError extends Error {
   }
 }
 
+/** Thrown when a new Microsoft login presents no usable email claim. */
+export class AuthEmailRequiredError extends Error {
+  constructor() {
+    super(
+      "Your firm's Microsoft account did not release an email address. Contact your firm administrator or support.",
+    );
+    this.name = "AuthEmailRequiredError";
+  }
+}
+
 /** Canonical form for users.email and collision checks. IdP casing is preserved in email_at_link. */
 export function normalizeAuthEmail(email: string | null | undefined): string | null {
   if (email == null) return null;
@@ -2637,6 +2652,13 @@ export class DbStorage implements IStorage {
       .where(and(eq(authIdentities.provider, provider), eq(authIdentities.providerUserId, providerUserId)))
       .limit(1);
     return row;
+  }
+
+  async getAuthIdentitiesForUser(userId: string): Promise<AuthIdentity[]> {
+    return await db
+      .select()
+      .from(authIdentities)
+      .where(eq(authIdentities.userId, userId));
   }
 
   async createAuthIdentity(data: {
@@ -2764,6 +2786,10 @@ export class DbStorage implements IStorage {
         lastName: profile.lastName ?? undefined,
         profileImageUrl: profile.profileImageUrl ?? undefined,
       });
+    }
+
+    if (!canonicalEmail) {
+      throw new AuthEmailRequiredError();
     }
 
     await this.assertNoEmailCollisionForNewIdentity({
@@ -6109,6 +6135,7 @@ export class DbStorage implements IStorage {
       suggestedRole: data.suggestedRole ?? null,
       suggestedCustomRoleLabel: data.suggestedCustomRoleLabel ?? null,
       token: data.token,
+      authProvider: data.authProvider ?? "google",
       status: data.status ?? "pending",
       expiresAt: data.expiresAt,
     }).returning();

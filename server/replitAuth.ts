@@ -6,10 +6,55 @@ import { Strategy as MicrosoftStrategy } from "openid-client/passport";
 import session from "express-session";
 import type { Express, RequestHandler, Request, Response } from "express";
 import connectPg from "connect-pg-simple";
-import { AuthEmailCollisionError, storage } from "./storage";
+import { AuthEmailCollisionError, AuthEmailRequiredError, storage } from "./storage";
 
 const SESSION_TTL = 4 * 60 * 60 * 1000;
 const MICROSOFT_LOGIN_SCOPES = "openid profile email https://graph.microsoft.com/User.Read";
+
+/** Reject open redirects — only same-origin relative paths are allowed. */
+function sanitizeReturnTo(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  let path = value;
+  try {
+    if (value.includes("%")) {
+      const decoded = decodeURIComponent(value);
+      if (decoded !== value) path = decoded;
+    }
+  } catch {
+    return null;
+  }
+  if (!path.startsWith("/")) return null;
+  if (path.startsWith("//")) return null;
+  if (path.includes("://")) return null;
+  if (path.includes("\\")) return null;
+  return path;
+}
+
+function storeOAuthReturnTo(req: Request): void {
+  const returnTo = sanitizeReturnTo(req.query.returnTo);
+  if (returnTo) {
+    (req.session as { oauthReturnTo?: string }).oauthReturnTo = returnTo;
+  }
+}
+
+function consumeOAuthReturnTo(req: Request): string {
+  const stored = (req.session as { oauthReturnTo?: string }).oauthReturnTo;
+  delete (req.session as { oauthReturnTo?: string }).oauthReturnTo;
+  return sanitizeReturnTo(stored) ?? "/";
+}
+
+function startOAuthWithReturnTo(
+  req: Request,
+  res: Response,
+  next: (err?: unknown) => void,
+  authenticate: (req: Request, res: Response, next: (err?: unknown) => void) => void,
+) {
+  storeOAuthReturnTo(req);
+  req.session.save((saveErr) => {
+    if (saveErr) return next(saveErr);
+    authenticate(req, res, next);
+  });
+}
 
 /** Comma-separated Google subject IDs (users.id). Empty list = admin only. */
 export function getAccessAllowlist(): Set<string> {
@@ -127,8 +172,8 @@ function buildSessionUser(user: {
 function completeOAuthLogin(
   req: Request,
   res: Response,
-  redirectPath = "/",
 ) {
+  const redirectPath = consumeOAuthReturnTo(req);
   req.session.regenerate((regenerateErr) => {
     if (regenerateErr) {
       console.error("[AUTH] Session regeneration failed:", regenerateErr);
@@ -265,10 +310,12 @@ export async function setupAuth(app: Express) {
     if (process.env.PREVIEW_MODE === "true") {
       return res.redirect("/?preview_blocked=true");
     }
-    passport.authenticate("google", {
-      scope: ["openid", "email", "profile"],
-      prompt: "select_account",
-    })(req, res, next);
+    startOAuthWithReturnTo(req, res, next, (req, res, next) => {
+      passport.authenticate("google", {
+        scope: ["openid", "email", "profile"],
+        prompt: "select_account",
+      })(req, res, next);
+    });
   });
 
   app.get("/api/auth/google/callback", (req, res, next) => {
@@ -290,7 +337,9 @@ export async function setupAuth(app: Express) {
     if (!process.env.MICROSOFT_LOGIN_CLIENT_ID || !process.env.MICROSOFT_LOGIN_CLIENT_SECRET) {
       return res.redirect("/login?error=auth_failed");
     }
-    passport.authenticate("microsoft")(req, res, next);
+    startOAuthWithReturnTo(req, res, next, (req, res, next) => {
+      passport.authenticate("microsoft")(req, res, next);
+    });
   });
 
   app.get("/api/auth/microsoft/callback", (req, res, next) => {
@@ -299,6 +348,9 @@ export async function setupAuth(app: Express) {
     })(req, res, (err?: unknown) => {
       if (err instanceof AuthEmailCollisionError) {
         return res.redirect("/login?error=email_already_registered");
+      }
+      if (err instanceof AuthEmailRequiredError) {
+        return res.redirect("/login?error=email_required");
       }
       if (err) return next(err);
       completeOAuthLogin(req, res);

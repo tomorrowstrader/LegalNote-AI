@@ -7,32 +7,62 @@ import { SiGoogle, SiMicrosoft } from "react-icons/si";
 import Logo from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
 
+function isSafeReturnTo(path: string | null): path is string {
+  if (!path) return false;
+  return path.startsWith("/") && !path.startsWith("//") && !path.includes("://");
+}
+
+function buildOAuthStartUrl(path: string, returnTo: string | null): string {
+  if (!returnTo || !isSafeReturnTo(returnTo)) return path;
+  const params = new URLSearchParams();
+  params.set("returnTo", returnTo);
+  return `${path}?${params.toString()}`;
+}
+
 export default function Login() {
   const [, setLocation] = useLocation();
   const { isAuthenticated, isLoading } = useAuth();
 
+  const urlParams = new URLSearchParams(window.location.search);
+  const returnTo = urlParams.get("returnTo");
+  const authProvider = urlParams.get("authProvider");
+  const authError = urlParams.get("error");
+
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      setLocation("/");
+      if (isSafeReturnTo(returnTo)) {
+        setLocation(returnTo);
+      } else {
+        setLocation("/");
+      }
     }
-  }, [isAuthenticated, isLoading, setLocation]);
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const authError = urlParams.get("error");
+  }, [isAuthenticated, isLoading, returnTo, setLocation]);
 
   const authErrorMessage =
     authError === "email_already_registered"
       ? "This email address is already registered. Sign in using the method you used originally."
-      : authError
-        ? "Authentication failed. Please try again or contact support."
+      : authError === "email_required"
+        ? "Your firm's Microsoft account did not release an email address. Contact your firm administrator for help."
+        : authError
+          ? "Authentication failed. Please try again or contact support."
+          : null;
+
+  const showGoogle = authProvider !== "microsoft";
+  const showMicrosoft = authProvider !== "google";
+
+  const inviteProviderMessage =
+    authProvider === "microsoft"
+      ? "Your firm invited you to sign in with Microsoft."
+      : authProvider === "google"
+        ? "Your firm invited you to sign in with Google."
         : null;
 
   const handleGoogleLogin = () => {
-    window.location.href = "/api/auth/google";
+    window.location.href = buildOAuthStartUrl("/api/auth/google", returnTo);
   };
 
   const handleMicrosoftLogin = () => {
-    window.location.href = "/api/auth/microsoft";
+    window.location.href = buildOAuthStartUrl("/api/auth/microsoft", returnTo);
   };
 
   return (
@@ -114,6 +144,12 @@ export default function Login() {
             </p>
           </div>
 
+          {inviteProviderMessage && (
+            <p className="text-sm text-muted-foreground" data-testid="text-invite-auth-provider">
+              {inviteProviderMessage}
+            </p>
+          )}
+
           {authErrorMessage && (
             <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2" data-testid="alert-auth-error">
               <p className="text-xs text-destructive">
@@ -123,27 +159,31 @@ export default function Login() {
           )}
 
           <div className="space-y-4">
-            <Button
-              onClick={handleGoogleLogin}
-              className="w-full gap-3"
-              size="lg"
-              data-testid="button-google-login"
-            >
-              <SiGoogle className="w-4 h-4" />
-              Continue with Google
-              <ArrowRight className="w-4 h-4 ml-auto" />
-            </Button>
-            <Button
-              onClick={handleMicrosoftLogin}
-              variant="outline"
-              className="w-full gap-3"
-              size="lg"
-              data-testid="button-microsoft-login"
-            >
-              <SiMicrosoft className="w-4 h-4" />
-              Continue with Microsoft
-              <ArrowRight className="w-4 h-4 ml-auto" />
-            </Button>
+            {showGoogle && (
+              <Button
+                onClick={handleGoogleLogin}
+                className="w-full gap-3"
+                size="lg"
+                data-testid="button-google-login"
+              >
+                <SiGoogle className="w-4 h-4" />
+                Continue with Google
+                <ArrowRight className="w-4 h-4 ml-auto" />
+              </Button>
+            )}
+            {showMicrosoft && (
+              <Button
+                onClick={handleMicrosoftLogin}
+                variant={showGoogle ? "outline" : "default"}
+                className="w-full gap-3"
+                size="lg"
+                data-testid="button-microsoft-login"
+              >
+                <SiMicrosoft className="w-4 h-4" />
+                Continue with Microsoft
+                <ArrowRight className="w-4 h-4 ml-auto" />
+              </Button>
+            )}
           </div>
 
           <div className="space-y-3 pt-4 border-t border-border">

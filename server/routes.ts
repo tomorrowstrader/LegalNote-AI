@@ -11893,11 +11893,12 @@ ${firmName}`;
         email: z.string().email(),
         suggestedRole: z.string().optional().nullable(),
         suggestedCustomRoleLabel: z.string().max(100).optional().nullable(),
+        authProvider: z.enum(["google", "microsoft"]).optional().default("google"),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
 
-      const { email, suggestedRole, suggestedCustomRoleLabel } = parsed.data;
+      const { email, suggestedRole, suggestedCustomRoleLabel, authProvider } = parsed.data;
       const firmId = invitingUser.firmId!;
 
       // Check for existing pending invitation
@@ -11920,6 +11921,7 @@ ${firmName}`;
         suggestedRole: suggestedRole ?? null,
         suggestedCustomRoleLabel: suggestedCustomRoleLabel ?? null,
         token,
+        authProvider,
         status: "pending",
         expiresAt,
       });
@@ -12010,6 +12012,7 @@ ${firmName}`;
         firmName: firm?.name ?? "the firm",
         suggestedRole: invitation.suggestedRole,
         suggestedCustomRoleLabel: invitation.suggestedCustomRoleLabel,
+        authProvider: invitation.authProvider ?? "google",
         expiresAt: invitation.expiresAt,
       });
     } catch (err) {
@@ -12040,6 +12043,15 @@ ${firmName}`;
       if (!user.email || user.email.toLowerCase() !== invitation.email.toLowerCase()) {
         return res.status(403).json({
           message: "This invitation was sent to a different email address. Please sign in with the account matching the invited email.",
+        });
+      }
+
+      const requiredProvider = invitation.authProvider ?? "google";
+      const identities = await storage.getAuthIdentitiesForUser(userId);
+      if (!identities.some((identity) => identity.provider === requiredProvider)) {
+        const providerLabel = requiredProvider === "microsoft" ? "Microsoft" : "Google";
+        return res.status(403).json({
+          message: `This invitation requires you to sign in with ${providerLabel}. Please sign out and sign in with ${providerLabel} using the invited email address.`,
         });
       }
 

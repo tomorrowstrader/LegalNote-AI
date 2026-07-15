@@ -1658,6 +1658,7 @@ export const firmInvitations = pgTable("firm_invitations", {
   suggestedRole: text("suggested_role"), // One of PRIMARY_ROLES
   suggestedCustomRoleLabel: text("suggested_custom_role_label"),
   token: text("token").notNull().unique(),
+  authProvider: text("auth_provider").notNull().default("google"), // google | microsoft
   status: text("status").notNull().default("pending"), // pending, accepted, declined, cancelled, expired
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -1677,6 +1678,7 @@ export const insertFirmInvitationSchema = createInsertSchema(firmInvitations).om
   suggestedRole: z.enum(PRIMARY_ROLES).optional(),
   suggestedCustomRoleLabel: z.string().max(200).optional(),
   token: z.string().min(1),
+  authProvider: z.enum(["google", "microsoft"]).default("google"),
   status: z.enum(["pending", "accepted", "declined", "cancelled", "expired"]).default("pending"),
   expiresAt: z.date(),
 });

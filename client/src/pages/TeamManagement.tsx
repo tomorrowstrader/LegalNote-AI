@@ -128,6 +128,7 @@ interface Firm {
 const inviteSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   suggestedRole: z.string().optional(),
+  authProvider: z.enum(["google", "microsoft"]).default("google"),
 });
 
 const roleSchema = z.object({
@@ -504,7 +505,7 @@ function InviteDialog({ firmId }: { firmId: string }) {
 
   const form = useForm<z.infer<typeof inviteSchema>>({
     resolver: zodResolver(inviteSchema),
-    defaultValues: { email: "", suggestedRole: "" },
+    defaultValues: { email: "", suggestedRole: "", authProvider: "google" },
   });
 
   const inviteMutation = useMutation({
@@ -512,6 +513,7 @@ function InviteDialog({ firmId }: { firmId: string }) {
       apiRequest("POST", "/api/team/invite", {
         email: data.email,
         suggestedRole: data.suggestedRole || null,
+        authProvider: data.authProvider,
       }),
     onSuccess: () => {
       toast({ title: "Invitation sent", description: "An invitation email has been sent to the recipient." });
@@ -575,6 +577,27 @@ function InviteDialog({ firmId }: { firmId: string }) {
                       {PRIMARY_ROLES.map(role => (
                         <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="authProvider"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sign-in method</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-invite-auth-provider">
+                        <SelectValue placeholder="Select sign-in method" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="google">Google</SelectItem>
+                      <SelectItem value="microsoft">Microsoft</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

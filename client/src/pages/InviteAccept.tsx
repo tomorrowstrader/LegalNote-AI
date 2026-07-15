@@ -14,6 +14,7 @@ interface InviteDetails {
   firmName: string;
   suggestedRole: string | null;
   suggestedCustomRoleLabel: string | null;
+  authProvider: "google" | "microsoft";
   expiresAt: string;
 }
 
@@ -41,14 +42,33 @@ export default function InviteAccept() {
   });
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      // Redirect to login, then back here after auth
-      const returnUrl = encodeURIComponent(`/invite/accept/${token}`);
-      setLocation(`/login?returnTo=${returnUrl}`);
+    if (!authLoading && !isAuthenticated && !isLoading && !error && invite && token) {
+      const params = new URLSearchParams();
+      params.set("returnTo", `/invite/accept/${token}`);
+      if (invite.authProvider === "microsoft" || invite.authProvider === "google") {
+        params.set("authProvider", invite.authProvider);
+      }
+      setLocation(`/login?${params.toString()}`);
     }
-  }, [authLoading, isAuthenticated, token, setLocation]);
+  }, [authLoading, isAuthenticated, isLoading, error, invite, token, setLocation]);
 
   if (authLoading || isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-64 mt-2" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
