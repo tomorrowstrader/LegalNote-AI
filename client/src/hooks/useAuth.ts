@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { debugSessionLog } from "@/lib/debugSessionLog";
 
 export interface User {
   id: string;
@@ -32,7 +33,22 @@ export function useAuth() {
         const text = (await res.text()) || res.statusText;
         throw new Error(`${res.status}: ${text}`);
       }
-      return res.json();
+      const json = await res.json();
+      // #region agent log
+      debugSessionLog(
+        "useAuth.ts:queryFn",
+        "auth/user payload",
+        {
+          status: res.status,
+          accessAllowed: json?.accessAllowed,
+          isAdmin: json?.isAdmin,
+          inviteStatus: json?.inviteStatus,
+          waitlistStatus: json?.waitlistStatus,
+        },
+        "H7",
+      );
+      // #endregion
+      return json;
     },
     retry: (failureCount, error) => {
       if (error instanceof Error && error.message.startsWith("429:")) {

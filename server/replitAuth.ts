@@ -7,6 +7,7 @@ import session from "express-session";
 import type { Express, RequestHandler, Request, Response } from "express";
 import connectPg from "connect-pg-simple";
 import { AuthEmailCollisionError, AuthEmailRequiredError, storage } from "./storage";
+import { debugSessionLog } from "./debugSessionLog";
 
 const SESSION_TTL = 4 * 60 * 60 * 1000;
 const MICROSOFT_LOGIN_SCOPES = "openid profile email https://graph.microsoft.com/User.Read";
@@ -58,8 +59,8 @@ function startOAuthWithReturnTo(
 
 /**
  * Comma-separated user IDs and/or emails.
- * Empty / unset = all authenticated users are allowed (invite + waitlist still apply).
- * Non-empty = only matching IDs/emails (plus ADMIN_USER_ID) are allowed.
+ * Only enforced when ACCESS_ALLOWLIST_ENFORCE=true.
+ * Otherwise all authenticated users are allowed (invite + waitlist still apply).
  */
 export function getAccessAllowlist(): Set<string> {
   const raw = process.env.ACCESS_ALLOWLIST || "";
@@ -71,14 +72,19 @@ export function getAccessAllowlist(): Set<string> {
   );
 }
 
+export function isAccessAllowlistEnforced(): boolean {
+  return process.env.ACCESS_ALLOWLIST_ENFORCE === "true";
+}
+
 export function getAdminUserId(): string {
   return process.env.ADMIN_USER_ID || "48381245";
 }
 
 export function isUserAccessAllowed(userId: string, email?: string | null): boolean {
   if (userId === getAdminUserId()) return true;
+  // Allowlist is opt-in lockdown. Without ENFORCE, invite/waitlist are the gates.
+  if (!isAccessAllowlistEnforced()) return true;
   const allowlist = getAccessAllowlist();
-  // No explicit allowlist configured → open to signed-in users.
   if (allowlist.size === 0) return true;
   if (allowlist.has(userId.toLowerCase())) return true;
   const normalizedEmail = email?.trim().toLowerCase();
