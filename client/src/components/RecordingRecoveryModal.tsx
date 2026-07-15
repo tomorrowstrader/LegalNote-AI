@@ -328,12 +328,12 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
   );
 }
 
-export function useRecordingRecovery() {
+export function useRecordingRecovery(enabled: boolean = true) {
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
 
   useEffect(() => {
-    if (hasChecked) return;
+    if (!enabled || hasChecked) return;
 
     const checkForIncompleteSessions = async () => {
       try {
@@ -359,7 +359,7 @@ export function useRecordingRecovery() {
 
     const timeout = setTimeout(checkForIncompleteSessions, 2000);
     return () => clearTimeout(timeout);
-  }, [hasChecked]);
+  }, [enabled, hasChecked]);
 
   return {
     showRecoveryModal,

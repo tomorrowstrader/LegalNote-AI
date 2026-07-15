@@ -174,14 +174,24 @@ function completeOAuthLogin(
   res: Response,
 ) {
   const redirectPath = consumeOAuthReturnTo(req);
-  req.session.regenerate((regenerateErr) => {
-    if (regenerateErr) {
-      console.error("[AUTH] Session regeneration failed:", regenerateErr);
+  // Capture before any session mutation — regenerate clears req.user / passport.
+  const sessionUser = req.user;
+  if (!sessionUser) {
+    console.error("[AUTH] OAuth callback completed with no req.user");
+    return res.redirect("/login?error=session_error");
+  }
+
+  // Passport ≥0.6 regenerates the session inside logIn. Do not call
+  // req.session.regenerate() first — that races with Passport and can
+  // leave a cookie for an empty session → /api/auth/user 401 after redirect.
+  req.logIn(sessionUser, (loginErr) => {
+    if (loginErr) {
+      console.error("[AUTH] Login failed:", loginErr);
       return res.redirect("/login?error=session_error");
     }
-    req.logIn(req.user!, (loginErr) => {
-      if (loginErr) {
-        console.error("[AUTH] Login after regeneration failed:", loginErr);
+    req.session.save((saveErr) => {
+      if (saveErr) {
+        console.error("[AUTH] Session save failed:", saveErr);
         return res.redirect("/login?error=session_error");
       }
       res.redirect(redirectPath);

@@ -126,8 +126,10 @@ function AuthenticatedAppContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const { isFocusMode } = useFocusMode();
   const [restartTourTrigger, setRestartTourTrigger] = useState(0);
-  const { showRecoveryModal, setShowRecoveryModal } = useRecordingRecovery();
   const [location] = useLocation();
+  const { showRecoveryModal, setShowRecoveryModal } = useRecordingRecovery(
+    !isLoading && isAuthenticated,
+  );
 
   useNewNoteShortcut();
 
