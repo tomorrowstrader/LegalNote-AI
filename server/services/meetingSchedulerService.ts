@@ -3,7 +3,7 @@ import { Client } from '@microsoft/microsoft-graph-client';
 import { storage } from '../storage';
 import type { ScheduledMeeting, InsertScheduledMeeting, CalendarIntegration } from '@shared/schema';
 import { recallService } from './recallService';
-import { sendPreConsentEmail } from '../email';
+import { sendPreConsentEmail, sendMeetingReminderEmail } from '../email';
 import { ensureFreshOutlookToken } from '../oauth';
 import { randomBytes } from 'crypto';
 
@@ -591,6 +591,96 @@ Your Legal Team
     }
 
     return true;
+  }
+
+  /**
+   * Email + in-app reminders at ~30 and ~10 minutes before each upcoming synced meeting.
+   * Deduped via reminder30mSentAt / reminder10mSentAt.
+   */
+  async sendDueMeetingReminders(): Promise<void> {
+    for (const minutesBefore of [30, 10] as const) {
+      const meetings = await storage.getMeetingsNeedingReminders(minutesBefore);
+      for (const meeting of meetings) {
+        try {
+          await this.sendMeetingReminder(meeting, minutesBefore);
+        } catch (error) {
+          console.error(
+            `[MEETING_SCHEDULER] Failed ${minutesBefore}m reminder for meeting ${meeting.id}:`,
+            error,
+          );
+        }
+      }
+    }
+  }
+
+  private async sendMeetingReminder(
+    meeting: ScheduledMeeting,
+    minutesBefore: 30 | 10,
+  ): Promise<void> {
+    const user = await storage.getUser(meeting.userId);
+    if (!user?.email) {
+      console.warn(`[MEETING_SCHEDULER] No user email for reminder on meeting ${meeting.id}`);
+      // Still mark sent so we don't retry forever without a recipient
+      await this.markReminderSent(meeting.id, minutesBefore);
+      return;
+    }
+
+    let caseTitle: string | undefined;
+    if (meeting.caseId) {
+      const linkedCase = await storage.getCase(meeting.caseId, meeting.userId);
+      caseTitle = linkedCase?.title;
+    }
+
+    const recipientName = [user.firstName, user.lastName].filter(Boolean).join(' ') || undefined;
+
+    const emailResult = await sendMeetingReminderEmail({
+      to: user.email,
+      recipientName,
+      meetingTitle: meeting.title,
+      startTime: new Date(meeting.startTime),
+      minutesBefore,
+      meetingUrl: meeting.meetingUrl || undefined,
+      meetingPlatform: meeting.meetingPlatform || undefined,
+      caseTitle,
+    });
+
+    if (!emailResult.success) {
+      console.error(
+        `[MEETING_SCHEDULER] Reminder email failed for meeting ${meeting.id}:`,
+        emailResult.error,
+      );
+      // Do not mark sent — retry on next cron tick
+      return;
+    }
+
+    await storage.createAuditLog({
+      eventType: 'meeting_reminder',
+      userId: meeting.userId,
+      caseId: meeting.caseId || undefined,
+      severity: 'info',
+      metadata: {
+        meetingId: meeting.id,
+        meetingTitle: meeting.title,
+        minutesBefore,
+        meetingUrl: meeting.meetingUrl || null,
+        meetingPlatform: meeting.meetingPlatform || null,
+        startTime: new Date(meeting.startTime).toISOString(),
+      },
+    });
+
+    await this.markReminderSent(meeting.id, minutesBefore);
+    console.log(
+      `[MEETING_SCHEDULER] Sent ${minutesBefore}m reminder for meeting ${meeting.id} to ${user.email}`,
+    );
+  }
+
+  private async markReminderSent(meetingId: string, minutesBefore: 30 | 10): Promise<void> {
+    const now = new Date();
+    if (minutesBefore === 30) {
+      await storage.updateScheduledMeeting(meetingId, { reminder30mSentAt: now });
+    } else {
+      await storage.updateScheduledMeeting(meetingId, { reminder10mSentAt: now });
+    }
   }
 
   async runScheduledTasks(userId: string): Promise<void> {

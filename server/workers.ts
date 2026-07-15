@@ -237,7 +237,14 @@ async function runMeetingSchedulerTasks() {
       }
     }
 
-    // Then process meetings: send consent emails, deploy bots, check bot status
+    // Solicitor reminders (~30m and ~10m before upcoming synced meetings)
+    try {
+      await meetingSchedulerService.sendDueMeetingReminders();
+    } catch (error) {
+      console.error('[MEETING_SCHEDULER] Error sending meeting reminders:', error);
+    }
+
+    // Then process meetings: deploy bots, check bot status
     const allMeetings = await storage.getAllScheduledMeetingsWithAutoRecord();
     const meetingUserIds = [...new Set(allMeetings.map(m => m.userId))];
 

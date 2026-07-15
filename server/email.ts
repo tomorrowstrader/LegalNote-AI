@@ -1576,3 +1576,101 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
     return { success: false, error: error.message || 'Unknown error' };
   }
 }
+
+interface SendMeetingReminderEmailParams {
+  to: string;
+  recipientName?: string;
+  meetingTitle: string;
+  startTime: Date;
+  minutesBefore: 30 | 10;
+  meetingUrl?: string;
+  meetingPlatform?: string;
+  caseTitle?: string;
+}
+
+/**
+ * Sends a solicitor-facing reminder email 30 or 10 minutes before a synced calendar meeting.
+ */
+export async function sendMeetingReminderEmail(
+  params: SendMeetingReminderEmailParams
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const {
+    to,
+    recipientName,
+    meetingTitle,
+    startTime,
+    minutesBefore,
+    meetingUrl,
+    meetingPlatform,
+    caseTitle,
+  } = params;
+
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
+  const safeName = escapeHtml(recipientName || 'there');
+  const safeTitle = escapeHtml(meetingTitle);
+  const safeCase = caseTitle ? escapeHtml(caseTitle) : null;
+  const safePlatform = meetingPlatform ? escapeHtml(meetingPlatform) : null;
+  const when = startTime.toLocaleString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/London',
+  });
+  const subject = `Meeting in ${minutesBefore} minutes: ${meetingTitle}`;
+
+  const joinBlock = meetingUrl
+    ? `<p style="margin: 24px 0;"><a href="${escapeHtml(meetingUrl)}" style="display:inline-block;background:#1e3a5f;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;">Join meeting${safePlatform ? ` (${safePlatform})` : ''}</a></p>
+       <p style="font-size:12px;color:#888;word-break:break-all;">${escapeHtml(meetingUrl)}</p>`
+    : `<p style="color:#666;">No meeting link is stored yet — open LegalNote to add or check the calendar invite.</p>`;
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5;">
+      <div style="max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden;">
+        <div style="background: #1e3a5f; color: #fff; padding: 28px 32px;">
+          <h1 style="margin: 0; font-size: 22px;">Meeting reminder</h1>
+          <p style="margin: 8px 0 0; opacity: 0.9; font-size: 14px;">Starts in ${minutesBefore} minutes</p>
+        </div>
+        <div style="padding: 32px;">
+          <p>Hi ${safeName},</p>
+          <p>This is a reminder that the following meeting from your LegalNote Upcoming Meetings list starts soon:</p>
+          <div style="background: #f0f4f8; border-radius: 6px; padding: 16px; margin: 20px 0;">
+            <p style="margin: 0 0 8px;"><strong>${safeTitle}</strong></p>
+            <p style="margin: 0; color: #555;">${escapeHtml(when)} (UK time)</p>
+            ${safeCase ? `<p style="margin: 8px 0 0; color: #555;">Matter: ${safeCase}</p>` : ''}
+          </div>
+          ${joinBlock}
+          <p style="margin-top: 24px;"><a href="${baseUrl}/" style="color: #1e3a5f;">Open LegalNote dashboard</a></p>
+        </div>
+        <div style="padding: 16px 32px; background: #f8f8f8; font-size: 12px; color: #999; text-align: center;">
+          You received this because the meeting is synced in LegalNote Upcoming Meetings.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `LegalNote <noreply@${process.env.RESEND_DOMAIN || 'resend.dev'}>`,
+      to: [to],
+      subject,
+      html: emailHtml,
+    });
+
+    if (error) {
+      console.error('[EMAIL] Failed to send meeting reminder:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[EMAIL] Meeting reminder sent:', data?.id, `(${minutesBefore}m)`);
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending meeting reminder:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}

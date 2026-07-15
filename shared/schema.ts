@@ -649,6 +649,8 @@ export const scheduledMeetings = pgTable("scheduled_meetings", {
   status: text("status").notNull().default("scheduled"), // scheduled, cancelled, rescheduled, completed
   replacedByMeetingId: varchar("replaced_by_meeting_id"),
   cancellationReason: text("cancellation_reason"),
+  reminder30mSentAt: timestamp("reminder_30m_sent_at"),
+  reminder10mSentAt: timestamp("reminder_10m_sent_at"),
   lastPolledAt: timestamp("last_polled_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -1108,6 +1110,8 @@ export const insertScheduledMeetingSchema = createInsertSchema(scheduledMeetings
   id: true,
   createdAt: true,
   updatedAt: true,
+  reminder30mSentAt: true,
+  reminder10mSentAt: true,
 }).extend({
   userId: z.string().min(1),
   caseId: z.string().optional(),

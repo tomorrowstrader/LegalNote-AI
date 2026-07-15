@@ -11231,7 +11231,8 @@ ${firmName}`;
         'transcript_generated', 'document_generated', 'document_regenerated',
         'case_email_sent', 'audio_expiring_soon', 'deadline_approaching', 'consent_given',
         'case_handover_received',
-        'pre_consent_acknowledged', 'pre_consent_declined', 'pre_consent_reschedule_requested'
+        'pre_consent_acknowledged', 'pre_consent_declined', 'pre_consent_reschedule_requested',
+        'meeting_reminder',
       ];
       
       const events = await dbConn
@@ -11317,6 +11318,13 @@ ${firmName}`;
             title = 'Deadline Approaching';
             message = `Case deadline for ${caseRecord?.title || 'a case'} is approaching.`;
             break;
+          case 'meeting_reminder': {
+            const mins = (event.metadata as any)?.minutesBefore;
+            const meetingTitle = (event.metadata as any)?.meetingTitle || 'your meeting';
+            title = mins === 10 ? 'Meeting in 10 minutes' : 'Meeting in 30 minutes';
+            message = `${meetingTitle} starts soon${caseRecord ? ` (${caseRecord.title})` : ''}.`;
+            break;
+          }
           default:
             title = event.eventType.replace(/_/g, ' ');
             message = '';

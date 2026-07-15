@@ -33,6 +33,7 @@ const notificationIcon = (type: string) => {
     case 'pre_consent_reschedule_requested': return Calendar;
     case 'audio_expiring': return AlertCircle;
     case 'deadline_approaching': return Calendar;
+    case 'meeting_reminder': return Calendar;
     default: return Bell;
   }
 };
@@ -41,6 +42,7 @@ const notificationColor = (type: string) => {
   switch (type) {
     case 'audio_expiring': return 'text-red-500';
     case 'deadline_approaching': return 'text-amber-500';
+    case 'meeting_reminder': return 'text-amber-500';
     case 'consent_confirmed': return 'text-emerald-500';
     case 'pre_consent_acknowledged': return 'text-emerald-500';
     case 'pre_consent_declined': return 'text-red-500';

@@ -673,6 +673,7 @@ export interface IStorage {
   getMeetingsNeedingConsent(userId: string): Promise<ScheduledMeeting[]>;
   getMeetingsReadyForBot(userId: string): Promise<ScheduledMeeting[]>;
   getAllScheduledMeetingsWithAutoRecord(): Promise<ScheduledMeeting[]>;
+  getMeetingsNeedingReminders(minutesBefore: 30 | 10): Promise<ScheduledMeeting[]>;
   updateScheduledMeeting(id: string, updates: Partial<ScheduledMeeting>): Promise<ScheduledMeeting | undefined>;
   deleteScheduledMeeting(id: string): Promise<void>;
   
@@ -2333,6 +2334,10 @@ export class MemStorage implements IStorage {
   }
   
   async getAllScheduledMeetingsWithAutoRecord(): Promise<ScheduledMeeting[]> {
+    return [];
+  }
+
+  async getMeetingsNeedingReminders(_minutesBefore: 30 | 10): Promise<ScheduledMeeting[]> {
     return [];
   }
   
@@ -5405,6 +5410,9 @@ export class DbStorage implements IStorage {
           startTime: meetingData.startTime,
           endTime: meetingData.endTime || null,
           attendees: meetingData.attendees || [],
+          // If the event is rescheduled, re-arm reminders
+          reminder30mSentAt: sql`CASE WHEN ${scheduledMeetings.startTime} IS DISTINCT FROM ${meetingData.startTime} THEN NULL ELSE ${scheduledMeetings.reminder30mSentAt} END`,
+          reminder10mSentAt: sql`CASE WHEN ${scheduledMeetings.startTime} IS DISTINCT FROM ${meetingData.startTime} THEN NULL ELSE ${scheduledMeetings.reminder10mSentAt} END`,
           updatedAt: new Date(),
         },
       })
@@ -5539,6 +5547,33 @@ export class DbStorage implements IStorage {
           eq(scheduledMeetings.status, 'scheduled'),
           gte(scheduledMeetings.startTime, now),
           lte(scheduledMeetings.startTime, twoDaysAhead)
+        )
+      )
+      .orderBy(scheduledMeetings.startTime);
+  }
+
+  /**
+   * Meetings due for a solicitor reminder. Window is sized for the 5-minute cron:
+   * e.g. 30m → start in 25–35 minutes; 10m → start in 5–15 minutes.
+   */
+  async getMeetingsNeedingReminders(minutesBefore: 30 | 10): Promise<ScheduledMeeting[]> {
+    const now = new Date();
+    const windowHalfMinutes = 5;
+    const windowStart = new Date(now.getTime() + (minutesBefore - windowHalfMinutes) * 60 * 1000);
+    const windowEnd = new Date(now.getTime() + (minutesBefore + windowHalfMinutes) * 60 * 1000);
+    const sentColumn = minutesBefore === 30
+      ? scheduledMeetings.reminder30mSentAt
+      : scheduledMeetings.reminder10mSentAt;
+
+    return await db
+      .select()
+      .from(scheduledMeetings)
+      .where(
+        and(
+          eq(scheduledMeetings.status, 'scheduled'),
+          isNull(sentColumn),
+          gte(scheduledMeetings.startTime, windowStart),
+          lte(scheduledMeetings.startTime, windowEnd)
         )
       )
       .orderBy(scheduledMeetings.startTime);

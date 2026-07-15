@@ -541,7 +541,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
             )}
             
             {isActive && (
-              <div className="flex flex-wrap gap-2 pt-2 border-t">
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
                 <Button
                   size="sm"
                   variant="outline"
@@ -827,7 +827,7 @@ export function ScheduledMeetingsViewer() {
             <p className="text-sm mt-2">Sync your calendar to see scheduled video calls</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {meetings.map((meeting) => (
               <MeetingCard 
                 key={meeting.id} 
