@@ -1494,25 +1494,7 @@ export default function DocumentViewer({
           <Badge variant="outline" data-testid="badge-version">
             Version {document.version}
           </Badge>
-          {document.version > 1 && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setShowVersionDiff(prev => prev === document.type ? null : document.type)}
-                  className="gap-1"
-                  data-testid="button-compare-versions"
-                >
-                  <GitCompareArrows className="w-3 h-3" />
-                  Compare Versions
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Compare different versions of this document</TooltipContent>
-            </Tooltip>
-          )}
-          {/* Gap indicator — hidden in demo mode */}
-          {gapCount > 0 && !isDemoMode && (
+          {!isApproved && !isDemoMode && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -1520,19 +1502,25 @@ export default function DocumentViewer({
                   variant="outline"
                   onClick={() => setShowGapPanel(prev => prev === document.id ? null : document.id)}
                   className={cn(
-                    "gap-1.5 border-amber-500/70 bg-amber-50 text-amber-800 shadow-sm",
-                    "hover:bg-amber-100 hover:text-amber-900",
-                    "dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-600 dark:hover:bg-amber-950/70",
+                    "gap-1.5",
+                    gapCount > 0
+                      ? "border-amber-500/70 bg-amber-50 text-amber-800 shadow-sm hover:bg-amber-100 hover:text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-600 dark:hover:bg-amber-950/70"
+                      : "border-border",
                     isGapPanelOpen && "ring-2 ring-amber-500/50",
                   )}
                   data-testid="button-gap-indicator"
                   aria-pressed={isGapPanelOpen}
                 >
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  {gapCount} reasoning gap{gapCount !== 1 ? 's' : ''}
+                  Review
+                  {gapCount > 0 ? ` (${gapCount})` : ""}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Open the reasoning gaps panel to review and fill each gap</TooltipContent>
+              <TooltipContent>
+                {gapCount > 0
+                  ? "Open the reasoning gaps panel to review and fill each gap"
+                  : "Open the review panel for this document"}
+              </TooltipContent>
             </Tooltip>
           )}
           {isApproved ? (
@@ -1562,6 +1550,23 @@ export default function DocumentViewer({
                 <Unlock className="w-3 h-3" />
                 Edit Final Document
               </Button>
+              {document.version > 1 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setShowVersionDiff(prev => prev === document.type ? null : document.type)}
+                      className="gap-1"
+                      data-testid="button-compare-versions"
+                    >
+                      <GitCompareArrows className="w-3 h-3" />
+                      Compare Versions
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Compare different versions of this document</TooltipContent>
+                </Tooltip>
+              )}
             </>
           ) : (
             <>
@@ -2057,6 +2062,11 @@ export default function DocumentViewer({
                   )}
                 </CardHeader>
                 <CardContent className="space-y-4 overflow-y-auto flex-1 min-h-0">
+                  {parseReasoningGaps(attendanceNote.content).length === 0 ? (
+                    <p className="text-xs text-muted-foreground" data-testid="text-no-gaps-attendance">
+                      No open reasoning gaps in this version. Review the note in full, then adopt when you are satisfied.
+                    </p>
+                  ) : null}
                   {parseReasoningGaps(attendanceNote.content).map((sectionName, idx) => (
                     <div key={idx} className="space-y-2" data-testid={`gap-item-attendance-${idx}`}>
                       <button
