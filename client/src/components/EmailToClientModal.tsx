@@ -11,8 +11,10 @@ interface EmailToClientModalProps {
   onOpenChange: (open: boolean) => void;
   onSend: (email: string, message: string) => void;
   isPending?: boolean;
-  caseTitle: string;
-  clientName: string;
+  /** @deprecated Kept for call-site compatibility; not shown in email for GDPR. */
+  caseTitle?: string;
+  /** @deprecated Kept for call-site compatibility; not shown in email for GDPR. */
+  clientName?: string;
 }
 
 export default function EmailToClientModal({
@@ -20,8 +22,6 @@ export default function EmailToClientModal({
   onOpenChange,
   onSend,
   isPending = false,
-  caseTitle,
-  clientName,
 }: EmailToClientModalProps) {
   const [email, setEmail] = useState("");
   const [customMessage, setCustomMessage] = useState("");
@@ -48,7 +48,7 @@ export default function EmailToClientModal({
             Email Case Documents to Client
           </DialogTitle>
           <DialogDescription>
-            Send {clientName} secure access to their case documents for: {caseTitle}
+            Send a secure access link for these documents. No case or client details are included in the email.
           </DialogDescription>
         </DialogHeader>
 
@@ -79,17 +79,17 @@ export default function EmailToClientModal({
               data-testid="textarea-custom-message"
             />
             <p className="text-xs text-muted-foreground">
-              Email will include a professional introduction with your firm's letterhead and contact details.
+              Do not include names, matter references, or other personal data in this message.
             </p>
           </div>
 
           <div className="bg-muted p-3 rounded-md text-sm">
             <p className="font-medium mb-1">Email will include:</p>
             <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-              <li>Case details and matter reference</li>
-              <li>Secure link to view documents</li>
-              <li>Firm contact information</li>
-              <li>Professional letterhead branding</li>
+              <li>A secure link to view documents</li>
+              <li>An automated access notice (no case details)</li>
+              <li>Your optional personal message</li>
+              <li>Firm contact information (if configured)</li>
             </ul>
           </div>
         </div>

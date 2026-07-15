@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Lock, FileText, AlertCircle, CheckCircle2, Clock, Smartphone, Loader2, Download } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
+import { apiRequest, getApiErrorMessage } from "@/lib/queryClient";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
 import type { FirmProfile } from "@shared/schema";
 import DownloadModal from "@/components/DownloadModal";
@@ -408,21 +407,33 @@ export default function ShareLinkView() {
                   </AlertDescription>
                 </Alert>
 
-                <div className="space-y-2">
-                  <Label htmlFor="phone-number">Your Mobile Number</Label>
-                  <Input
-                    id="phone-number"
-                    type="tel"
-                    placeholder="+447xxx... or 07xxx..."
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendSms()}
-                    data-testid="input-phone-number"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Enter your UK mobile number to receive a verification code
-                  </p>
-                </div>
+                {data.hasRegisteredPhone ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      We will send a verification code to the mobile number on file
+                      {data.phoneLastFour ? (
+                        <> ending in <strong>····{data.phoneLastFour}</strong></>
+                      ) : null}
+                      .
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="phone-number">Your Mobile Number</Label>
+                    <Input
+                      id="phone-number"
+                      type="tel"
+                      placeholder="+447xxx... or 07xxx..."
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendSms()}
+                      data-testid="input-phone-number"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter your UK mobile number to receive a verification code
+                    </p>
+                  </div>
+                )}
 
                 <Button 
                   onClick={handleSendSms}
@@ -448,7 +459,7 @@ export default function ShareLinkView() {
                 <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-sm text-green-800 dark:text-green-200">
-                    Code sent to {phoneNumber.replace(/\d(?=\d{4})/g, '*')}
+                    Code sent to number ending in ····{sentToLastFour || data.phoneLastFour || "****"}
                   </AlertDescription>
                 </Alert>
 
@@ -457,6 +468,8 @@ export default function ShareLinkView() {
                   <Input
                     id="verification-code"
                     type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
                     placeholder="Enter 6-digit code"
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -508,17 +521,19 @@ export default function ShareLinkView() {
                   </Button>
                 </div>
 
-                <Button 
-                  onClick={() => {
-                    setSmsStep("phone");
-                    setVerificationCode("");
-                  }}
-                  variant="ghost"
-                  className="w-full text-xs"
-                  data-testid="button-change-number"
-                >
-                  Use a different number
-                </Button>
+                {!data.hasRegisteredPhone && (
+                  <Button 
+                    onClick={() => {
+                      setSmsStep("phone");
+                      setVerificationCode("");
+                    }}
+                    variant="ghost"
+                    className="w-full text-xs"
+                    data-testid="button-change-number"
+                  >
+                    Use a different number
+                  </Button>
+                )}
               </>
             )}
 

@@ -323,7 +323,7 @@ export default function ShareLinkModal({
               data-testid="input-custom-message"
             />
             <p className="text-xs text-muted-foreground">
-              This message will appear in the email notification sent to the recipient
+              This message appears in the email. Do not include names, matter references, or other personal or case-specific data — those stay inside the secure link.
             </p>
           </div>
 
