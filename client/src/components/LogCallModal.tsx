@@ -127,9 +127,16 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
         priority: "normal",
       });
 
+      setProcessingStep("Creating telephone session...");
+      const sessionResult = await apiRequest<{ id: string }>("POST", `/api/cases/${dictationCase.id}/sessions`, {
+        recordingType: "telephone_call",
+        sessionTitle: "Telephone Attendance",
+      });
+
       setProcessingStep("Creating audio record...");
       const audioResult = await apiRequest<{ id: string }>("POST", "/api/audio", {
         caseId: dictationCase.id,
+        meetingSessionId: sessionResult.id,
       });
 
       setProcessingStep("Uploading dictation...");
@@ -149,7 +156,7 @@ export default function LogCallModal({ open, onOpenChange, caseId, caseTitle, cl
       }
 
       setProcessingStep("Starting processing...");
-      await apiRequest("POST", `/api/cases/${dictationCase.id}/process`);
+      await apiRequest("POST", `/api/cases/${dictationCase.id}/process`, { sessionId: sessionResult.id });
 
       await logAuditEvent({
         eventType: "case_created",

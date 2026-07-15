@@ -568,11 +568,8 @@ export default function NewNote() {
       if (!consentLogFailed) {
         await advanceStep("processing");
 
-        const processBody = noteMode === "add_session"
-          ? { sessionId: sessionResult.id }
-          : {};
-
-        apiRequest("POST", `/api/cases/${targetCaseId}/process`, processBody)
+        // Always pass sessionId so recordingType reaches the derivation engine
+        apiRequest("POST", `/api/cases/${targetCaseId}/process`, { sessionId: sessionResult.id })
           .then(() => {
             queryClient.invalidateQueries({
               predicate: (query) => {

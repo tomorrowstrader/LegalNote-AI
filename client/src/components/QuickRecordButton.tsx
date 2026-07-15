@@ -628,10 +628,17 @@ export default function QuickRecordButton() {
         conflictCheckNote: conflictCheckNote || undefined,
       });
 
+      // Link to derivation engine via a meeting session (full_meeting for Quick Record)
+      const sessionResult = await apiRequest<{ id: string }>("POST", `/api/cases/${caseResult.id}/sessions`, {
+        recordingType: "full_meeting",
+        sessionTitle: "Quick Record",
+      });
+
       // Step 2: Create audio record placeholder (may fail under rate limit — consent still saved)
       try {
         audioResult = await apiRequest<AudioResponse>("POST", "/api/audio", {
           caseId: caseResult.id,
+          meetingSessionId: sessionResult.id,
         });
       } catch (audioCreateError: any) {
         console.error('Audio record creation failed:', audioCreateError);
@@ -693,7 +700,7 @@ export default function QuickRecordButton() {
         await advanceStep('processing');
         
         // Trigger processing asynchronously (don't wait for completion)
-        apiRequest("POST", `/api/cases/${caseResult.id}/process`, {})
+        apiRequest("POST", `/api/cases/${caseResult.id}/process`, { sessionId: sessionResult.id })
           .then(() => {
             queryClient.invalidateQueries({ 
               predicate: (query) => {

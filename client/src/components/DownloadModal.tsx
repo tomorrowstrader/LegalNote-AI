@@ -219,7 +219,7 @@ export default function DownloadModal({
             ) : (
               <>
                 <FileDown className="w-4 h-4 mr-2" />
-                Download Word
+                Download Word (.docx)
               </>
             )}
           </Button>

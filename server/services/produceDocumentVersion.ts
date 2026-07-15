@@ -141,10 +141,41 @@ async function buildMetadata(
   };
 }
 
+async function updateProduceProgress(
+  storage: IStorage,
+  caseId: string,
+  userId: string,
+  progress: number,
+  currentStep: string,
+  status: "processing" | "completed" | "failed" = "processing",
+  error?: string,
+): Promise<void> {
+  const caseData = await storage.getCase(caseId, userId);
+  if (!caseData) return;
+  const currentMetadata = (caseData.aiProcessingMetadata as Record<string, unknown>) || {};
+  await storage.updateCase(
+    caseId,
+    {
+      status: status === "failed" ? "failed" : status === "completed" ? "review_required" : "processing",
+      aiProcessingMetadata: {
+        ...currentMetadata,
+        status,
+        progress,
+        currentStep,
+        ...(error ? { error } : {}),
+      },
+    },
+    userId,
+  );
+}
+
 /**
  * Produce a further version of an attendance note or client letter from existing
  * transcript / attendance note — does not re-transcribe. Prior version remains
  * on file (inactive) with parentVersionId linkage.
+ *
+ * Uses the same generateDocumentByRecordingType + generateSummary path as the
+ * meeting-end AIProcessingPipeline derivation engine.
  */
 export async function produceDocumentVersion(params: {
   storage: IStorage;
@@ -152,15 +183,383 @@ export async function produceDocumentVersion(params: {
   documentId: string;
   userId: string;
   reason?: string;
+  /** When true, drive case processing UI progress (Meeting-to-Matter Engine card). */
+  trackProgress?: boolean;
 }): Promise<Document> {
-  const { storage, caseId, documentId, userId, reason } = params;
+  const { storage, caseId, documentId, userId, reason, trackProgress = false } = params;
   const documentService = new DocumentService();
+
+  const setProgress = async (progress: number, currentStep: string) => {
+    if (!trackProgress) return;
+    await updateProduceProgress(storage, caseId, userId, progress, currentStep);
+  };
+
+  try {
+    const caseData = await storage.getCase(caseId, userId);
+    if (!caseData) {
+      throw new ProduceDocumentVersionError("Case not found", 404, "case_not_found");
+    }
+
+    if (caseData.litigationHold) {
+      throw new ProduceDocumentVersionError(
+        "Cannot produce a further version while this matter is under litigation hold",
+        403,
+        "litigation_hold",
+      );
+    }
+
+    const parent = await storage.getDocument(documentId);
+    if (!parent || parent.caseId !== caseId) {
+      throw new ProduceDocumentVersionError("Document not found", 404, "document_not_found");
+    }
+
+    if (!parent.isActive) {
+      throw new ProduceDocumentVersionError(
+        "Only the current (active) version can be used to produce a further version",
+        400,
+        "inactive_parent",
+      );
+    }
+
+    if (!PRODUCIBLE_TYPES.has(parent.type)) {
+      throw new ProduceDocumentVersionError(
+        "Further versions can only be produced for attendance notes and client letters",
+        400,
+        "unsupported_type",
+      );
+    }
+
+    await setProgress(10, "Preparing document regeneration...");
+
+    const firmProfile = await storage.getFirmProfile();
+    const firmPreferences = {
+      includeLocation: firmProfile?.includeLocation ?? true,
+      showFullSolicitorName: firmProfile?.showFullSolicitorName ?? true,
+      includeClientConfirmation: firmProfile?.includeClientConfirmation ?? false,
+    };
+
+    const meetingSession = parent.meetingSessionId
+      ? await storage.getMeetingSession(parent.meetingSessionId)
+      : undefined;
+
+    let audio: AudioRecording | undefined;
+    if (parent.meetingSessionId) {
+      audio = await storage.getAudioRecordingBySession(parent.meetingSessionId);
+    }
+    if (!audio) {
+      audio = await storage.getAudioRecordingByCase(caseId, userId);
+    }
+
+    const metadata = await buildMetadata(storage, caseData, audio, meetingSession);
+
+    const isAttendance =
+      parent.type === "attendance_note" || parent.type === "meeting_notes";
+    const isClientLetter = parent.type === "client_letter" || parent.type === "summary";
+
+    let primaryVersion: Document;
+
+    if (isAttendance) {
+      let transcript = parent.transcriptSnapshotId
+        ? await storage.getTranscript(parent.transcriptSnapshotId)
+        : undefined;
+      if (!transcript && parent.meetingSessionId) {
+        transcript = await storage.getTranscriptBySession(parent.meetingSessionId);
+      }
+      if (!transcript) {
+        transcript = await storage.getTranscriptByCase(caseId, userId);
+      }
+      if (!transcript?.content?.trim()) {
+        throw new ProduceDocumentVersionError(
+          "No transcript is available to produce a further attendance note",
+          400,
+          "transcript_required",
+        );
+      }
+
+      const utterances = (transcript.utterances as SpeakerUtterance[] | null) ?? [];
+      const transcriptForDocGen =
+        utterances.length > 0 ? formatDiarizedTranscript(utterances) : transcript.content;
+
+      const recordingType = meetingSession?.recordingType || "full_meeting";
+
+      await setProgress(40, "Generating attendance note via derivation engine...");
+
+      const attendanceResult = await documentService.generateDocumentByRecordingType(
+        recordingType,
+        transcriptForDocGen,
+        metadata,
+        firmPreferences,
+        utterances.length > 0 ? utterances : undefined,
+      );
+
+      logDocumentGovernanceViolations(attendanceResult.content, recordingType, { caseId });
+
+      await setProgress(55, "Verifying attendance note against transcript...");
+
+      const verification = await documentService.verifyDocumentAgainstTranscript(
+        attendanceResult.content,
+        transcriptForDocGen,
+        { clientName: metadata.clientName, feeEarnerName: metadata.feeEarnerName },
+      );
+
+      const attendanceVersion = await storage.createDocumentVersion(
+        documentId,
+        attendanceResult.content,
+        "further_produced",
+        userId,
+        {
+          verificationWarnings:
+            verification.warnings.length > 0 ? verification.warnings : undefined,
+        },
+      );
+
+      if (!attendanceVersion) {
+        throw new ProduceDocumentVersionError(
+          "Could not produce further version — access denied or litigation hold",
+          403,
+          "version_create_failed",
+        );
+      }
+
+      await logAuditEvent(userId, "document_regenerated", {
+        caseId,
+        documentId: attendanceVersion.id,
+        metadata: {
+          action: "produce_new_version",
+          documentType: parent.type,
+          parentDocumentId: documentId,
+          parentVersion: parent.version,
+          newVersion: attendanceVersion.version,
+          versionType: "further_produced",
+          reason: reason?.trim() || undefined,
+          wasApproved: parent.status === "approved",
+          recordingType,
+          inputTokens: attendanceResult.inputTokens,
+          outputTokens: attendanceResult.outputTokens,
+          cost: attendanceResult.cost,
+        },
+      });
+
+      // Mirror meeting-end pipeline: also regenerate client letter from the new note
+      const activeDocs = await storage.getActiveDocumentsByCase(caseId, userId);
+      const clientLetterParent =
+        activeDocs.find(
+          (d) =>
+            (d.type === "client_letter" || d.type === "summary") &&
+            (!parent.meetingSessionId || d.meetingSessionId === parent.meetingSessionId) &&
+            d.id !== attendanceVersion.id,
+        ) ??
+        activeDocs.find(
+          (d) =>
+            (d.type === "client_letter" || d.type === "summary") && d.id !== attendanceVersion.id,
+        );
+
+      if (clientLetterParent) {
+        await setProgress(70, "Generating client letter...");
+        const letterResult = await documentService.generateSummary(
+          attendanceResult.content,
+          metadata,
+        );
+        logDocumentGovernanceViolations(letterResult.content, "client_letter", { caseId });
+
+        await setProgress(85, "Verifying client letter against attendance note...");
+        const letterVerification = await documentService.verifyDocumentAgainstTranscript(
+          letterResult.content,
+          attendanceResult.content,
+          { clientName: metadata.clientName, feeEarnerName: metadata.feeEarnerName },
+        );
+
+        const letterVersion = await storage.createDocumentVersion(
+          clientLetterParent.id,
+          letterResult.content,
+          "further_produced",
+          userId,
+          {
+            verificationWarnings:
+              letterVerification.warnings.length > 0 ? letterVerification.warnings : undefined,
+          },
+        );
+
+        if (letterVersion) {
+          await logAuditEvent(userId, "document_regenerated", {
+            caseId,
+            documentId: letterVersion.id,
+            metadata: {
+              action: "produce_new_version",
+              documentType: clientLetterParent.type,
+              parentDocumentId: clientLetterParent.id,
+              parentVersion: clientLetterParent.version,
+              newVersion: letterVersion.version,
+              versionType: "further_produced",
+              reason: reason?.trim() || undefined,
+              pairedWithAttendanceVersion: attendanceVersion.id,
+              inputTokens: letterResult.inputTokens,
+              outputTokens: letterResult.outputTokens,
+              cost: letterResult.cost,
+            },
+          });
+        }
+      }
+
+      primaryVersion = attendanceVersion;
+    } else if (isClientLetter) {
+      await setProgress(40, "Generating client letter...");
+
+      const activeDocs = await storage.getActiveDocumentsByCase(caseId, userId);
+      const attendanceNote =
+        activeDocs.find(
+          (d) =>
+            (d.type === "attendance_note" || d.type === "meeting_notes") &&
+            (!parent.meetingSessionId || d.meetingSessionId === parent.meetingSessionId),
+        ) ??
+        activeDocs.find((d) => d.type === "attendance_note" || d.type === "meeting_notes");
+
+      if (!attendanceNote?.content?.trim()) {
+        throw new ProduceDocumentVersionError(
+          "An attendance note is required before a further client letter can be produced",
+          400,
+          "attendance_note_required",
+        );
+      }
+
+      const letterResult = await documentService.generateSummary(
+        attendanceNote.content,
+        metadata,
+      );
+
+      logDocumentGovernanceViolations(letterResult.content, "client_letter", { caseId });
+
+      await setProgress(70, "Verifying client letter against attendance note...");
+
+      const verification = await documentService.verifyDocumentAgainstTranscript(
+        letterResult.content,
+        attendanceNote.content,
+        { clientName: metadata.clientName, feeEarnerName: metadata.feeEarnerName },
+      );
+
+      const newVersion = await storage.createDocumentVersion(
+        documentId,
+        letterResult.content,
+        "further_produced",
+        userId,
+        {
+          verificationWarnings:
+            verification.warnings.length > 0 ? verification.warnings : undefined,
+        },
+      );
+
+      if (!newVersion) {
+        throw new ProduceDocumentVersionError(
+          "Could not produce further version — access denied or litigation hold",
+          403,
+          "version_create_failed",
+        );
+      }
+
+      await logAuditEvent(userId, "document_regenerated", {
+        caseId,
+        documentId: newVersion.id,
+        metadata: {
+          action: "produce_new_version",
+          documentType: parent.type,
+          parentDocumentId: documentId,
+          parentVersion: parent.version,
+          newVersion: newVersion.version,
+          versionType: "further_produced",
+          reason: reason?.trim() || undefined,
+          wasApproved: parent.status === "approved",
+          inputTokens: letterResult.inputTokens,
+          outputTokens: letterResult.outputTokens,
+          cost: letterResult.cost,
+        },
+      });
+
+      primaryVersion = newVersion;
+    } else {
+      throw new ProduceDocumentVersionError(
+        "Further versions can only be produced for attendance notes and client letters",
+        400,
+        "unsupported_type",
+      );
+    }
+
+    if (trackProgress) {
+      await updateProduceProgress(
+        storage,
+        caseId,
+        userId,
+        100,
+        "Processing complete",
+        "completed",
+      );
+    }
+
+    return primaryVersion;
+  } catch (error: any) {
+    if (trackProgress) {
+      try {
+        await updateProduceProgress(
+          storage,
+          caseId,
+          userId,
+          0,
+          "Production failed",
+          "failed",
+          error?.message || "Failed to produce further version",
+        );
+      } catch {
+        // ignore status update failure
+      }
+    }
+    throw error;
+  }
+}
+
+/**
+ * Kick off async further-version production with the same case processing UI
+ * as first-time meeting-end AI processing.
+ */
+export async function enqueueProduceDocumentVersion(params: {
+  storage: IStorage;
+  caseId: string;
+  documentId: string;
+  userId: string;
+  reason?: string;
+}): Promise<void> {
+  const { storage, caseId, documentId, userId, reason } = params;
 
   const caseData = await storage.getCase(caseId, userId);
   if (!caseData) {
     throw new ProduceDocumentVersionError("Case not found", 404, "case_not_found");
   }
 
+  const metadata = (caseData.aiProcessingMetadata as any) || {};
+  if (caseData.status === "processing" || metadata.status === "processing") {
+    throw new ProduceDocumentVersionError(
+      "Case is already being processed",
+      400,
+      "already_processing",
+    );
+  }
+
+  const parent = await storage.getDocument(documentId);
+  if (!parent || parent.caseId !== caseId) {
+    throw new ProduceDocumentVersionError("Document not found", 404, "document_not_found");
+  }
+  if (!parent.isActive) {
+    throw new ProduceDocumentVersionError(
+      "Only the current (active) version can be used to produce a further version",
+      400,
+      "inactive_parent",
+    );
+  }
+  if (!PRODUCIBLE_TYPES.has(parent.type)) {
+    throw new ProduceDocumentVersionError(
+      "Further versions can only be produced for attendance notes and client letters",
+      400,
+      "unsupported_type",
+    );
+  }
   if (caseData.litigationHold) {
     throw new ProduceDocumentVersionError(
       "Cannot produce a further version while this matter is under litigation hold",
@@ -169,186 +568,28 @@ export async function produceDocumentVersion(params: {
     );
   }
 
-  const parent = await storage.getDocument(documentId);
-  if (!parent || parent.caseId !== caseId) {
-    throw new ProduceDocumentVersionError("Document not found", 404, "document_not_found");
-  }
-
-  if (!parent.isActive) {
-    throw new ProduceDocumentVersionError(
-      "Only the current (active) version can be used to produce a further version",
-      400,
-      "inactive_parent",
-    );
-  }
-
-  if (!PRODUCIBLE_TYPES.has(parent.type)) {
-    throw new ProduceDocumentVersionError(
-      "Further versions can only be produced for attendance notes and client letters",
-      400,
-      "unsupported_type",
-    );
-  }
-
-  const firmProfile = await storage.getFirmProfile();
-  const firmPreferences = {
-    includeLocation: firmProfile?.includeLocation ?? true,
-    showFullSolicitorName: firmProfile?.showFullSolicitorName ?? true,
-    includeClientConfirmation: firmProfile?.includeClientConfirmation ?? false,
-  };
-
-  const meetingSession = parent.meetingSessionId
-    ? await storage.getMeetingSession(parent.meetingSessionId)
-    : undefined;
-
-  let audio: AudioRecording | undefined;
-  if (parent.meetingSessionId) {
-    audio = await storage.getAudioRecordingBySession(parent.meetingSessionId);
-  }
-  if (!audio) {
-    audio = await storage.getAudioRecordingByCase(caseId, userId);
-  }
-
-  const metadata = await buildMetadata(storage, caseData, audio, meetingSession);
-
-  const isAttendance =
-    parent.type === "attendance_note" || parent.type === "meeting_notes";
-  const isClientLetter = parent.type === "client_letter" || parent.type === "summary";
-
-  let newContent: string;
-  let verificationWarnings: string[] | undefined;
-  let generationMeta: {
-    inputTokens?: number;
-    outputTokens?: number;
-    cost?: number;
-  } = {};
-
-  if (isAttendance) {
-    let transcript = parent.transcriptSnapshotId
-      ? await storage.getTranscript(parent.transcriptSnapshotId)
-      : undefined;
-    if (!transcript && parent.meetingSessionId) {
-      transcript = await storage.getTranscriptBySession(parent.meetingSessionId);
-    }
-    if (!transcript) {
-      transcript = await storage.getTranscriptByCase(caseId, userId);
-    }
-    if (!transcript?.content?.trim()) {
-      throw new ProduceDocumentVersionError(
-        "No transcript is available to produce a further attendance note",
-        400,
-        "transcript_required",
-      );
-    }
-
-    const utterances = (transcript.utterances as SpeakerUtterance[] | null) ?? [];
-    const transcriptForDocGen =
-      utterances.length > 0 ? formatDiarizedTranscript(utterances) : transcript.content;
-
-    const recordingType = meetingSession?.recordingType || "full_meeting";
-    const attendanceResult = await documentService.generateDocumentByRecordingType(
-      recordingType,
-      transcriptForDocGen,
-      metadata,
-      firmPreferences,
-      utterances.length > 0 ? utterances : undefined,
-    );
-
-    logDocumentGovernanceViolations(attendanceResult.content, recordingType, { caseId });
-
-    const verification = await documentService.verifyDocumentAgainstTranscript(
-      attendanceResult.content,
-      transcriptForDocGen,
-      { clientName: metadata.clientName, feeEarnerName: metadata.feeEarnerName },
-    );
-
-    newContent = attendanceResult.content;
-    verificationWarnings =
-      verification.warnings.length > 0 ? verification.warnings : undefined;
-    generationMeta = {
-      inputTokens: attendanceResult.inputTokens,
-      outputTokens: attendanceResult.outputTokens,
-      cost: attendanceResult.cost,
-    };
-  } else if (isClientLetter) {
-    // Prefer active attendance note for the same session, then any active attendance note
-    const activeDocs = await storage.getActiveDocumentsByCase(caseId, userId);
-    const attendanceNote =
-      activeDocs.find(
-        (d) =>
-          (d.type === "attendance_note" || d.type === "meeting_notes") &&
-          (!parent.meetingSessionId || d.meetingSessionId === parent.meetingSessionId),
-      ) ??
-      activeDocs.find((d) => d.type === "attendance_note" || d.type === "meeting_notes");
-
-    if (!attendanceNote?.content?.trim()) {
-      throw new ProduceDocumentVersionError(
-        "An attendance note is required before a further client letter can be produced",
-        400,
-        "attendance_note_required",
-      );
-    }
-
-    const letterResult = await documentService.generateSummary(
-      attendanceNote.content,
-      metadata,
-    );
-
-    logDocumentGovernanceViolations(letterResult.content, "client_letter", { caseId });
-
-    const verification = await documentService.verifyDocumentAgainstTranscript(
-      letterResult.content,
-      attendanceNote.content,
-      { clientName: metadata.clientName, feeEarnerName: metadata.feeEarnerName },
-    );
-
-    newContent = letterResult.content;
-    verificationWarnings =
-      verification.warnings.length > 0 ? verification.warnings : undefined;
-    generationMeta = {
-      inputTokens: letterResult.inputTokens,
-      outputTokens: letterResult.outputTokens,
-      cost: letterResult.cost,
-    };
-  } else {
-    throw new ProduceDocumentVersionError(
-      "Further versions can only be produced for attendance notes and client letters",
-      400,
-      "unsupported_type",
-    );
-  }
-
-  const newVersion = await storage.createDocumentVersion(
-    documentId,
-    newContent,
-    "further_produced",
+  await storage.updateCase(
+    caseId,
+    {
+      status: "processing",
+      aiProcessingMetadata: {
+        status: "processing",
+        progress: 0,
+        currentStep: "Queued for further version production...",
+      },
+    },
     userId,
-    { verificationWarnings },
   );
 
-  if (!newVersion) {
-    throw new ProduceDocumentVersionError(
-      "Could not produce further version — access denied or litigation hold",
-      403,
-      "version_create_failed",
-    );
+  if (parent.meetingSessionId) {
+    await storage.updateMeetingSession(parent.meetingSessionId, { status: "processing" });
   }
 
-  await logAuditEvent(userId, "document_regenerated", {
+  const { jobQueue } = await import("./jobQueue");
+  await jobQueue.addJob("produce-document-version", {
     caseId,
-    documentId: newVersion.id,
-    metadata: {
-      action: "produce_new_version",
-      documentType: parent.type,
-      parentDocumentId: documentId,
-      parentVersion: parent.version,
-      newVersion: newVersion.version,
-      versionType: "further_produced",
-      reason: reason?.trim() || undefined,
-      wasApproved: parent.status === "approved",
-      ...generationMeta,
-    },
+    documentId,
+    userId,
+    reason,
   });
-
-  return newVersion;
 }

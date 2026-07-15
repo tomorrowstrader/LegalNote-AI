@@ -16,11 +16,12 @@ export interface LetterheadData {
   sraNumber?: string;
 }
 
-// Extract letterhead data from a FirmProfile; returns null if no firm name set.
+// Extract letterhead data from a FirmProfile; returns null if nothing to brand with.
 export function extractLetterhead(firmProfile?: FirmProfile | null): LetterheadData | null {
-  if (!firmProfile?.firmName) return null;
+  if (!firmProfile) return null;
+  if (!firmProfile.firmName && !firmProfile.logoUrl) return null;
   return {
-    firmName: firmProfile.firmName,
+    firmName: firmProfile.firmName || '',
     logoUrl: firmProfile.logoUrl || undefined,
     addressLine1: firmProfile.addressLine1 || undefined,
     addressLine2: firmProfile.addressLine2 || undefined,
@@ -52,6 +53,7 @@ export type BrandingMode = 'full' | 'name_sra' | 'none';
 // Document types that receive full letterhead (logo + name + address + contact + SRA)
 const FULL_LETTERHEAD_TYPES = new Set([
   'attendance_note',
+  'meeting_notes',
   'summary',
   'client_care_letter',
 ]);

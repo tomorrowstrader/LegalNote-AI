@@ -3038,9 +3038,11 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
   /**
    * Produce a further version of an attendance note or client letter from the
-   * existing transcript / attendance note. Prior version remains on file
-   * (inactive); new version is hashed, linked via parentVersionId, and sealed
-   * into the HMAC audit chain as document_regenerated.
+   * existing transcript / attendance note — same derivation engine path as
+   * meeting-end processing. Queues a background job and sets case status to
+   * processing so the Meeting-to-Matter Engine progress UI appears. Prior
+   * version remains on file (inactive); new version is hashed and linked via
+   * parentVersionId.
    */
   app.post("/api/cases/:caseId/documents/:documentId/produce-version", isAuthenticated, async (req: any, res, next) => {
     try {
@@ -3049,11 +3051,11 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const reason =
         typeof req.body?.reason === "string" ? req.body.reason.slice(0, 500) : undefined;
 
-      const { produceDocumentVersion, ProduceDocumentVersionError } = await import(
+      const { enqueueProduceDocumentVersion, ProduceDocumentVersionError } = await import(
         "./services/produceDocumentVersion"
       );
 
-      const newVersion = await produceDocumentVersion({
+      await enqueueProduceDocumentVersion({
         storage,
         caseId,
         documentId,
@@ -3061,7 +3063,10 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         reason,
       });
 
-      res.status(201).json(newVersion);
+      res.status(202).json({
+        status: "processing",
+        message: "Further version production started",
+      });
     } catch (error: any) {
       if (error?.name === "ProduceDocumentVersionError") {
         return res.status(error.statusCode || 400).json({

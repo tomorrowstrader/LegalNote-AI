@@ -57,6 +57,38 @@ export function initializeWorkers() {
     }
   });
 
+  // Further version production — same derivation doc-gen path as meeting-end pipeline
+  jobQueue.registerHandler(
+    'produce-document-version',
+    async (data: { caseId: string; documentId: string; userId: string; reason?: string }) => {
+      console.log(
+        `[PRODUCE-VERSION-WORKER] Starting further version for document ${data.documentId} on case ${data.caseId}`,
+      );
+      const { produceDocumentVersion } = await import('./services/produceDocumentVersion');
+      try {
+        const newVersion = await produceDocumentVersion({
+          storage,
+          caseId: data.caseId,
+          documentId: data.documentId,
+          userId: data.userId,
+          reason: data.reason,
+          trackProgress: true,
+        });
+        console.log(
+          `[PRODUCE-VERSION-WORKER] Produced version ${newVersion.version} (${newVersion.id}) for case ${data.caseId}`,
+        );
+
+        const doc = await storage.getDocument(newVersion.id);
+        if (doc?.meetingSessionId) {
+          await storage.updateMeetingSession(doc.meetingSessionId, { status: 'completed' });
+        }
+      } catch (error: any) {
+        console.error(`[PRODUCE-VERSION-WORKER] Error for case ${data.caseId}:`, error);
+        throw error;
+      }
+    },
+  );
+
   // Schedule periodic security and maintenance tasks
   scheduleMaintenanceTasks();
 

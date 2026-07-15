@@ -609,7 +609,6 @@ function EditableDocumentContent({
   isEditing,
   editContent,
   onEditContentChange,
-  onStartEditing,
   onCancelEditing,
   onSaveEdits,
   isSaving,
@@ -629,7 +628,6 @@ function EditableDocumentContent({
   isEditing: boolean;
   editContent: string;
   onEditContentChange: (value: string) => void;
-  onStartEditing: (doc: Document) => void;
   onCancelEditing: () => void;
   onSaveEdits: (documentId: string) => void;
   isSaving: boolean;
@@ -645,66 +643,51 @@ function EditableDocumentContent({
   legalContext?: { clientName?: string; matterRef?: string; solicitorName?: string; firmName?: string };
   pageViewMode?: boolean;
 }) {
-  const isDraft = document.status === 'draft';
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 flex-wrap px-6">
-        {isEditing ? (
-          <>
-            <Button
-              size="sm"
-              onClick={() => onSaveEdits(document.id)}
-              disabled={isSaving}
-              data-testid="button-save-edits"
-            >
-              {isSaving ? "Saving..." : "Save Changes"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onCancelEditing}
-              disabled={isSaving}
-              data-testid="button-cancel-edits"
-            >
-              Cancel
-            </Button>
-            {autoSaveStatus !== 'idle' && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="indicator-autosave">
-                {autoSaveStatus === 'saving' && (
-                  <>
-                    <CloudUpload className="w-3 h-3 animate-pulse text-blue-500" />
-                    <span>Auto-saving...</span>
-                  </>
-                )}
-                {autoSaveStatus === 'saved' && (
-                  <>
-                    <CheckCircle className="w-3 h-3 text-green-500" />
-                    <span className="text-green-600 dark:text-green-400">Saved</span>
-                  </>
-                )}
-                {autoSaveStatus === 'error' && (
-                  <>
-                    <AlertCircle className="w-3 h-3 text-amber-500" />
-                    <span className="text-amber-600 dark:text-amber-400">Auto-save failed</span>
-                  </>
-                )}
-              </div>
-            )}
-          </>
-        ) : isDraft ? (
+      {isEditing && (
+        <div className="flex items-center gap-2 flex-wrap px-6">
           <Button
             size="sm"
-            variant="default"
-            onClick={() => onStartEditing(document)}
-            className="gap-1"
-            data-testid="button-edit-document"
+            onClick={() => onSaveEdits(document.id)}
+            disabled={isSaving}
+            data-testid="button-save-edits"
           >
-            <Edit className="w-3 h-3" />
-            Edit Document
+            {isSaving ? "Saving..." : "Save Changes"}
           </Button>
-        ) : null}
-      </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onCancelEditing}
+            disabled={isSaving}
+            data-testid="button-cancel-edits"
+          >
+            Cancel
+          </Button>
+          {autoSaveStatus !== 'idle' && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="indicator-autosave">
+              {autoSaveStatus === 'saving' && (
+                <>
+                  <CloudUpload className="w-3 h-3 animate-pulse text-blue-500" />
+                  <span>Auto-saving...</span>
+                </>
+              )}
+              {autoSaveStatus === 'saved' && (
+                <>
+                  <CheckCircle className="w-3 h-3 text-green-500" />
+                  <span className="text-green-600 dark:text-green-400">Saved</span>
+                </>
+              )}
+              {autoSaveStatus === 'error' && (
+                <>
+                  <AlertCircle className="w-3 h-3 text-amber-500" />
+                  <span className="text-amber-600 dark:text-amber-400">Auto-save failed</span>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Page View: accurate multi-page layout renderer */}
       {pageViewMode && !isEditing ? (
@@ -1148,19 +1131,15 @@ export default function DocumentViewer({
         reason: reason?.trim() || undefined,
       });
     },
-    onSuccess: (newDoc: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/processing-status`] });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
-      queryClient.invalidateQueries({
-        predicate: (q) =>
-          typeof q.queryKey[0] === "string" &&
-          (q.queryKey[0] as string).includes(`/api/cases/${caseId}/document-versions`),
-      });
       setProduceTarget(null);
       setProduceReason("");
       toast({
-        title: "Further version produced",
-        description: `Version ${newDoc?.version ?? ""} is now on file for review. The previous version remains in the audit trail.`,
+        title: "Producing further version",
+        description: "The Meeting-to-Matter™ Engine is regenerating documents via the derivation pipeline. Progress appears above.",
         duration: 7000,
       });
     },
@@ -1609,6 +1588,64 @@ export default function DocumentViewer({
     );
   };
 
+  // Primary actions under document title: Produce new version (left) + Edit Document (right)
+  const DocumentPrimaryActions = ({ document }: { document?: Document }) => {
+    if (!document) return null;
+    const isEditingThis = editingDocId === document.id;
+    if (isEditingThis) return null;
+
+    const canProduce =
+      !isDemoMode &&
+      !litigationHold &&
+      (document.type === "attendance_note" ||
+        document.type === "meeting_notes" ||
+        document.type === "summary" ||
+        document.type === "client_letter");
+    const canEdit = document.status === "draft";
+
+    if (!canProduce && !canEdit) return null;
+
+    return (
+      <div className="flex items-center gap-2 flex-wrap px-6 pb-3" data-testid="document-primary-actions">
+        {canProduce && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => {
+                  setProduceTarget(document);
+                  setProduceReason("");
+                }}
+                disabled={produceVersionMutation.isPending}
+                className="gap-1"
+                data-testid="button-produce-new-version"
+              >
+                <RefreshCw className={`w-3 h-3 ${produceVersionMutation.isPending && produceTarget?.id === document.id ? "animate-spin" : ""}`} />
+                Produce new version
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[240px]">
+              Re-run the derivation engine to produce a further version. The current version remains on record.
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {canEdit && (
+          <Button
+            size="sm"
+            variant="default"
+            onClick={() => startEditing(document)}
+            className="gap-1"
+            data-testid="button-edit-document"
+          >
+            <Edit className="w-3 h-3" />
+            Edit Document
+          </Button>
+        )}
+      </div>
+    );
+  };
+
   // Helper component for document status and actions
   const DocumentStatusActions = ({ document }: { document?: Document }) => {
     if (!document) return null;
@@ -1620,13 +1657,6 @@ export default function DocumentViewer({
     const docGaps = parseReasoningGaps(gapContentByDocId[document.id] ?? document.content);
     const gapCount = docGaps.length;
     const isGapPanelOpen = showGapPanel === document.id;
-    const canProduceFurtherVersion =
-      !isDemoMode &&
-      !litigationHold &&
-      (document.type === "attendance_note" ||
-        document.type === "meeting_notes" ||
-        document.type === "summary" ||
-        document.type === "client_letter");
 
     const formatApprovalDate = (dateString: string) => {
       const date = new Date(dateString);
@@ -1655,29 +1685,6 @@ export default function DocumentViewer({
           <Badge variant="outline" data-testid="badge-version">
             Version {document.version}
           </Badge>
-          {canProduceFurtherVersion && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setProduceTarget(document);
-                    setProduceReason("");
-                  }}
-                  disabled={produceVersionMutation.isPending}
-                  className="gap-1"
-                  data-testid="button-produce-new-version"
-                >
-                  <RefreshCw className={`w-3 h-3 ${produceVersionMutation.isPending && produceTarget?.id === document.id ? "animate-spin" : ""}`} />
-                  Produce new version
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-[240px]">
-                Produce a further version for the file. The current version remains on record.
-              </TooltipContent>
-            </Tooltip>
-          )}
           {gapCount > 0 && !isDemoMode && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -2079,6 +2086,7 @@ export default function DocumentViewer({
                   <DocumentStatusActions document={attendanceNote} />
                 </div>
               </CardHeader>
+              <DocumentPrimaryActions document={attendanceNote} />
               {attendanceNote?.verificationWarnings && attendanceNote.verificationWarnings.length > 0 && (
                 <VerificationWarningPanel
                   warnings={attendanceNote.verificationWarnings}
@@ -2092,7 +2100,6 @@ export default function DocumentViewer({
                     isEditing={editingDocId === attendanceNote.id}
                     editContent={editContent}
                     onEditContentChange={handleEditContentChange}
-                    onStartEditing={startEditing}
                     onCancelEditing={cancelEditing}
                     onSaveEdits={saveEdits}
                     isSaving={editMutation.isPending}
@@ -2349,6 +2356,7 @@ export default function DocumentViewer({
                   <DocumentStatusActions document={summary} />
                 </div>
               </CardHeader>
+              <DocumentPrimaryActions document={summary} />
               {summary?.verificationWarnings && summary.verificationWarnings.length > 0 && (
                 <VerificationWarningPanel
                   warnings={summary.verificationWarnings}
@@ -2362,7 +2370,6 @@ export default function DocumentViewer({
                     isEditing={editingDocId === summary.id}
                     editContent={editContent}
                     onEditContentChange={handleEditContentChange}
-                    onStartEditing={startEditing}
                     onCancelEditing={cancelEditing}
                     onSaveEdits={saveEdits}
                     isSaving={editMutation.isPending}
@@ -2714,13 +2721,13 @@ export default function DocumentViewer({
                   </div>
                 </div>
               </CardHeader>
+              <DocumentPrimaryActions document={clientCareLetter} />
               <CardContent className="p-0">
                 <EditableDocumentContent
                   document={clientCareLetter}
                   isEditing={editingDocId === clientCareLetter.id}
                   editContent={editContent}
                   onEditContentChange={handleEditContentChange}
-                  onStartEditing={startEditing}
                   onCancelEditing={cancelEditing}
                   onSaveEdits={saveEdits}
                   isSaving={editMutation.isPending}
@@ -2773,9 +2780,10 @@ export default function DocumentViewer({
           <DialogHeader>
             <DialogTitle>Produce new version</DialogTitle>
             <DialogDescription>
-              A further {produceTarget?.type === "summary" || produceTarget?.type === "client_letter" ? "client letter" : "attendance note"}{" "}
-              will be produced for the file. The current version remains on record and stays
-              visible in Compare Versions and the audit trail.
+              The Meeting-to-Matter™ Engine will re-run the derivation pipeline for this matter
+              (same document generation path as when the meeting ended). Progress appears on the
+              case page. The current version remains on record and stays visible in Compare
+              Versions and the audit trail.
               {produceTarget?.status === "approved" && (
                 <span className="block mt-2 text-amber-700 dark:text-amber-400">
                   The adopted version will be superseded on screen by a new draft for review.

@@ -622,6 +622,12 @@ export default function CaseDetail() {
     const terminalStatuses = ['review_required', 'completed', 'pending', 'failed'];
     if (processingStatus?.status && terminalStatuses.includes(processingStatus.status) && caseData?.status === 'processing') {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          typeof q.queryKey[0] === "string" &&
+          (q.queryKey[0] as string).includes(`/api/cases/${caseId}/document-versions`),
+      });
     }
   }, [processingStatus?.status, caseData?.status, caseId]);
 
