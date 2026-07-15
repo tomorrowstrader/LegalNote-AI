@@ -20,6 +20,13 @@ export default function Login() {
   const urlParams = new URLSearchParams(window.location.search);
   const authError = urlParams.get("error");
 
+  const authErrorMessage =
+    authError === "email_already_registered"
+      ? "This email address is already registered. Sign in using the method you used originally."
+      : authError
+        ? "Authentication failed. Please try again or contact support."
+        : null;
+
   const handleGoogleLogin = () => {
     window.location.href = "/api/auth/google";
   };
@@ -103,10 +110,10 @@ export default function Login() {
             </p>
           </div>
 
-          {authError && (
+          {authErrorMessage && (
             <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2" data-testid="alert-auth-error">
               <p className="text-xs text-destructive">
-                Authentication failed. Please try again or contact support.
+                {authErrorMessage}
               </p>
             </div>
           )}

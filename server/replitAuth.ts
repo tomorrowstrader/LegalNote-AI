@@ -4,7 +4,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
-import { storage } from "./storage";
+import { AuthEmailCollisionError, storage } from "./storage";
 
 const SESSION_TTL = 4 * 60 * 60 * 1000;
 
@@ -160,7 +160,10 @@ export async function setupAuth(app: Express) {
   app.get("/api/auth/google/callback", (req, res, next) => {
     passport.authenticate("google", {
       failureRedirect: "/login?error=auth_failed",
-    })(req, res, (err?: any) => {
+    })(req, res, (err?: unknown) => {
+      if (err instanceof AuthEmailCollisionError) {
+        return res.redirect("/login?error=email_already_registered");
+      }
       if (err) return next(err);
       req.session.regenerate((regenerateErr) => {
         if (regenerateErr) {

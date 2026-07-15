@@ -2564,6 +2564,24 @@ export class MemStorage implements IStorage {
   }
 }
 
+/** Thrown when a new IdP subject presents an email already registered to another user. */
+export class AuthEmailCollisionError extends Error {
+  constructor() {
+    super(
+      "This email address is already registered. Sign in using the method you used originally.",
+    );
+    this.name = "AuthEmailCollisionError";
+  }
+}
+
+/** Canonical form for users.email and collision checks. IdP casing is preserved in email_at_link. */
+export function normalizeAuthEmail(email: string | null | undefined): string | null {
+  if (email == null) return null;
+  const trimmed = email.trim();
+  if (!trimmed) return null;
+  return trimmed.toLowerCase();
+}
+
 export class DbStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.id, id));
@@ -2622,6 +2640,48 @@ export class DbStorage implements IStorage {
     return row;
   }
 
+  /**
+   * Refuses when canonicalEmail belongs to another user and this provider subject
+   * is not linked to them. Shared by resolveGoogleAuthUser and Phase 2 Microsoft login.
+   */
+  async assertNoEmailCollisionForNewIdentity(params: {
+    provider: string;
+    providerUserId: string;
+    canonicalEmail: string | null;
+  }): Promise<void> {
+    const { provider, providerUserId, canonicalEmail } = params;
+    if (!canonicalEmail) return;
+
+    const [emailOwner] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          isNotNull(users.email),
+          sql`lower(${users.email}) = ${canonicalEmail}`,
+        ),
+      )
+      .limit(1);
+
+    if (!emailOwner) return;
+
+    const [linkedToOwner] = await db
+      .select({ id: authIdentities.id })
+      .from(authIdentities)
+      .where(
+        and(
+          eq(authIdentities.userId, emailOwner.id),
+          eq(authIdentities.provider, provider),
+          eq(authIdentities.providerUserId, providerUserId),
+        ),
+      )
+      .limit(1);
+
+    if (linkedToOwner) return;
+
+    throw new AuthEmailCollisionError();
+  }
+
   async resolveGoogleAuthUser(profile: {
     providerUserId: string;
     email: string | null;
@@ -2629,34 +2689,30 @@ export class DbStorage implements IStorage {
     lastName: string | null;
     profileImageUrl: string | null;
   }): Promise<User> {
+    const emailAtLink = profile.email;
+    const canonicalEmail = normalizeAuthEmail(profile.email);
+
     const identity = await this.getAuthIdentity("google", profile.providerUserId);
     if (identity) {
       return this.upsertUser({
         id: identity.userId,
-        email: profile.email ?? undefined,
+        email: canonicalEmail ?? undefined,
         firstName: profile.firstName ?? undefined,
         lastName: profile.lastName ?? undefined,
         profileImageUrl: profile.profileImageUrl ?? undefined,
       });
     }
 
-    // Email is never a merge key. If taken, leave users.email null on the new principal.
-    let emailForUser: string | null = profile.email;
-    if (emailForUser) {
-      const [emailOwner] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.email, emailForUser))
-        .limit(1);
-      if (emailOwner) {
-        emailForUser = null;
-      }
-    }
+    await this.assertNoEmailCollisionForNewIdentity({
+      provider: "google",
+      providerUserId: profile.providerUserId,
+      canonicalEmail,
+    });
 
     const newUserId = randomUUID();
     const user = await this.upsertUser({
       id: newUserId,
-      email: emailForUser ?? undefined,
+      email: canonicalEmail ?? undefined,
       firstName: profile.firstName ?? undefined,
       lastName: profile.lastName ?? undefined,
       profileImageUrl: profile.profileImageUrl ?? undefined,
@@ -2666,7 +2722,7 @@ export class DbStorage implements IStorage {
       userId: user.id,
       provider: "google",
       providerUserId: profile.providerUserId,
-      emailAtLink: profile.email,
+      emailAtLink,
     });
 
     return user;
