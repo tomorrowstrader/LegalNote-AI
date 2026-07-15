@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { debugSessionLog } from "@/lib/debugSessionLog";
 
 export interface User {
   id: string;
@@ -25,20 +24,15 @@ export function useAuth() {
     queryKey: ["/api/auth/user"],
     queryFn: async () => {
       const res = await fetch("/api/auth/user", { credentials: "include" });
-      debugSessionLog("useAuth.ts:queryFn", "auth/user response", { status: res.status, ok: res.ok }, "H1");
       if (res.status === 401) return null;
       if (res.status === 429) {
-        debugSessionLog("useAuth.ts:queryFn", "auth/user rate limited", { status: 429 }, "H4");
         throw new Error("429: Too many requests");
       }
       if (!res.ok) {
         const text = (await res.text()) || res.statusText;
-        debugSessionLog("useAuth.ts:queryFn", "auth/user error", { status: res.status, bodyPreview: text.slice(0, 120) }, "H1");
         throw new Error(`${res.status}: ${text}`);
       }
-      const json = await res.json();
-      debugSessionLog("useAuth.ts:queryFn", "auth/user success", { hasUser: !!json, accessAllowed: json?.accessAllowed, isAdmin: json?.isAdmin, inviteStatus: json?.inviteStatus }, "H2");
-      return json;
+      return res.json();
     },
     retry: (failureCount, error) => {
       if (error instanceof Error && error.message.startsWith("429:")) {

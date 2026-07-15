@@ -1,5 +1,4 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { debugSessionLog } from "@/lib/debugSessionLog";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -30,8 +29,7 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const url = queryKey.join("/") as string;
-    const res = await fetch(url, {
+    const res = await fetch(queryKey.join("/") as string, {
       credentials: "include",
     });
 
@@ -39,17 +37,7 @@ export const getQueryFn: <T>(options: {
       return null;
     }
 
-    if (!res.ok) {
-      const text = (await res.text()) || res.statusText;
-      debugSessionLog(
-        "queryClient.ts:getQueryFn",
-        "API query failed",
-        { url, status: res.status, bodyPreview: text.slice(0, 120) },
-        res.status === 403 ? "H2" : res.status === 429 ? "H3" : "H5",
-      );
-      throw new Error(`${res.status}: ${text}`);
-    }
-
+    await throwIfResNotOk(res);
     return await res.json();
   };
 

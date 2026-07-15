@@ -13,7 +13,6 @@ import type { Case, MeetingImport } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInDays, differenceInHours, isPast } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
-import { debugSessionLog } from "@/lib/debugSessionLog";
 import { isFeatureVisible } from "@/lib/features";
 
 const amlComplianceVisible = isFeatureVisible("amlCompliance");
@@ -84,24 +83,9 @@ export default function Dashboard() {
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
   const [showImpromptuBot, setShowImpromptuBot] = useState(false);
 
-  const { data: cases, isLoading, isError, error, fetchStatus } = useQuery<Case[]>({
+  const { data: cases, isLoading } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
   });
-
-  useEffect(() => {
-    debugSessionLog(
-      "Dashboard.tsx:cases",
-      "cases query state",
-      {
-        isLoading,
-        isError,
-        fetchStatus,
-        caseCount: cases?.length,
-        errorMsg: error instanceof Error ? error.message.slice(0, 120) : null,
-      },
-      "H5",
-    );
-  }, [isLoading, isError, fetchStatus, cases?.length, error]);
 
   const { data: unassignedImports } = useQuery<MeetingImport[]>({
     queryKey: ["/api/recall/imports/unassigned"],

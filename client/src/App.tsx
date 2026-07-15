@@ -49,7 +49,6 @@ import ScrollToTop from "@/components/ScrollToTop";
 import PublicDemo from "@/pages/PublicDemo";
 import DemoGenerator from "@/pages/DemoGenerator";
 import { isFeatureVisible } from "@/lib/features";
-import { debugSessionLog } from "@/lib/debugSessionLog";
 
 const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
 const publicComplianceBadgeVisible = isFeatureVisible("publicComplianceBadge");
@@ -64,29 +63,6 @@ function Router() {
   const { user, isAuthenticated, isLoading, isAdmin, isWaitlisted, isFirmAdmin, canAccessFirmCompliance } = useAuth();
   const isPendingApproval = user?.inviteStatus === "pending_approval";
   const isAccessPending = user?.accessAllowed === false && !isAdmin;
-
-  useEffect(() => {
-    const route =
-      isLoading ? "loading" :
-      !isAuthenticated ? "unauthenticated" :
-      isAccessPending ? "access_pending" :
-      isPendingApproval && !isAdmin ? "pending_approval" :
-      isWaitlisted && !isAdmin ? "waitlisted" :
-      "authenticated";
-    debugSessionLog(
-      "App.tsx:Router",
-      "route branch",
-      {
-        route,
-        isLoading,
-        isAuthenticated,
-        accessAllowed: user?.accessAllowed,
-        inviteStatus: user?.inviteStatus,
-        waitlistStatus: user?.waitlistStatus,
-      },
-      isAccessPending ? "H2" : "H1",
-    );
-  }, [isLoading, isAuthenticated, isAccessPending, isPendingApproval, isAdmin, isWaitlisted, user?.accessAllowed, user?.inviteStatus, user?.waitlistStatus]);
 
   return (
     <Switch>

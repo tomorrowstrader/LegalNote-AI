@@ -7,7 +7,6 @@ import session from "express-session";
 import type { Express, RequestHandler, Request, Response } from "express";
 import connectPg from "connect-pg-simple";
 import { AuthEmailCollisionError, AuthEmailRequiredError, storage } from "./storage";
-import { debugSessionLog } from "./debugSessionLog";
 
 const SESSION_TTL = 4 * 60 * 60 * 1000;
 const MICROSOFT_LOGIN_SCOPES = "openid profile email https://graph.microsoft.com/User.Read";
@@ -180,19 +179,6 @@ function completeOAuthLogin(
     authenticatedUser && typeof authenticatedUser === "object"
       ? authenticatedUser
       : req.user;
-  // #region agent log
-  debugSessionLog(
-    "replitAuth.ts:completeOAuthLogin",
-    "enter",
-    {
-      hasAuthenticatedUser: !!(authenticatedUser && typeof authenticatedUser === "object"),
-      hasReqUser: !!req.user,
-      hasSessionUser: !!sessionUser,
-      redirectPath,
-    },
-    "H6",
-  );
-  // #endregion
   if (!sessionUser) {
     console.error("[AUTH] OAuth callback completed with no authenticated user");
     return res.redirect("/login?error=session_error");
@@ -206,18 +192,6 @@ function completeOAuthLogin(
       console.error("[AUTH] Login failed:", loginErr);
       return res.redirect("/login?error=session_error");
     }
-    // #region agent log
-    debugSessionLog(
-      "replitAuth.ts:completeOAuthLogin",
-      "logIn success",
-      {
-        hasSession: !!req.session,
-        hasPassportUser: !!(req.session as any)?.passport?.user,
-        hasClaimsSub: !!(req.user as any)?.claims?.sub,
-      },
-      "H1",
-    );
-    // #endregion
     res.redirect(redirectPath);
   });
 }
@@ -413,11 +387,6 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user?.claims?.sub) {
-    // #region agent log
-    if (req.path === "/api/auth/user" || req.path === "/auth/user") {
-      debugSessionLog("replitAuth.ts:isAuthenticated", "auth rejected", { path: req.path, isAuthenticated: req.isAuthenticated(), hasClaimsSub: !!user?.claims?.sub, hasPassport: !!(req.session as any)?.passport }, "H1");
-    }
-    // #endregion
     return res.status(401).json({ message: "Unauthorized" });
   }
 
