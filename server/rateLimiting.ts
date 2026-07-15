@@ -5,15 +5,16 @@ import rateLimit from "express-rate-limit";
  * Protects against abuse and DoS attacks with proper IPv6 support
  */
 
-// General API rate limit: 100 requests per 15 minutes per IP
+// General API rate limit — per-user when session exists, per-IP otherwise.
+// Dashboard + polling can exceed 100/15min on a single IP during normal use.
 export const generalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: "Too many requests from this IP, please try again later",
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  max: (req: any) => (req.user?.claims?.sub ? 500 : 100),
+  message: "Too many requests, please try again later",
+  standardHeaders: true,
+  legacyHeaders: false,
   skipSuccessfulRequests: false,
-  // Use default IP-based keyGenerator (handles IPv6 correctly)
+  keyGenerator: (req: any) => req.user?.claims?.sub || req.ip || "unknown",
 });
 
 // Case creation rate limit: 50 cases per hour per user

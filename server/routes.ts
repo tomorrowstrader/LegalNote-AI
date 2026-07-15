@@ -166,7 +166,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Apply general rate limiting to all API routes (except polling + session identity)
   app.use('/api/', (req, res, next) => {
     // Skip general rate limiter for polling endpoints - they have their own lenient limits
-    if (req.path.includes('/processing-status')) {
+    if (
+      req.path.includes('/processing-status') ||
+      (req.method === 'GET' && (
+        req.path === '/scheduled-meetings' ||
+        req.path.startsWith('/recall/imports/unassigned')
+      ))
+    ) {
       return next();
     }
     // Never rate-limit the session identity check — a 429 here makes the SPA
@@ -8535,7 +8541,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   });
 
   // Get all unassigned meeting imports (awaiting matter assignment)
-  app.get("/api/recall/imports/unassigned", isAuthenticated, async (req: any, res, next) => {
+  app.get("/api/recall/imports/unassigned", isAuthenticated, pollingLimiter, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const imports = await storage.getUnassignedMeetingImports(userId);
@@ -9661,9 +9667,9 @@ ${firmName}`;
   // ==================== SCHEDULED MEETINGS API ====================
   
   // Get upcoming scheduled meetings (next 7 days)
-  app.get("/api/scheduled-meetings", isAuthenticated, async (req, res, next) => {
+  app.get("/api/scheduled-meetings", isAuthenticated, pollingLimiter, async (req: any, res, next) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user.claims.sub;
       const daysAhead = parseInt(req.query.daysAhead as string) || 7;
       
       const meetings = await storage.getUpcomingScheduledMeetings(userId, daysAhead);
@@ -9673,9 +9679,9 @@ ${firmName}`;
     }
   });
   
-  app.get("/api/scheduled-meetings/by-case/:caseId", isAuthenticated, async (req, res, next) => {
+  app.get("/api/scheduled-meetings/by-case/:caseId", isAuthenticated, async (req: any, res, next) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user.claims.sub;
       const { caseId } = req.params;
       
       const caseData = await storage.getCase(caseId, userId);
@@ -9691,9 +9697,9 @@ ${firmName}`;
   });
   
   // Poll calendar and sync meetings
-  app.post("/api/scheduled-meetings/sync", isAuthenticated, async (req, res, next) => {
+  app.post("/api/scheduled-meetings/sync", isAuthenticated, async (req: any, res, next) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user.claims.sub;
       
       const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
       const meetings = await meetingSchedulerService.pollCalendarMeetings(userId);
@@ -9724,7 +9730,7 @@ ${firmName}`;
   // Update scheduled meeting (enable/disable auto-record, set client info, link case)
   app.patch("/api/scheduled-meetings/:id", isAuthenticated, async (req, res, next) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user.claims.sub;
       const { id } = req.params;
       const { autoRecordEnabled, clientEmail, clientName, caseId } = req.body;
       
@@ -9785,7 +9791,7 @@ ${firmName}`;
   // Cancel a scheduled meeting
   app.post("/api/scheduled-meetings/:id/cancel", isAuthenticated, async (req, res, next) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user.claims.sub;
       const { id } = req.params;
       const { reason } = req.body;
       
@@ -9864,7 +9870,7 @@ ${firmName}`;
   // Reschedule a meeting
   app.post("/api/scheduled-meetings/:id/reschedule", isAuthenticated, async (req, res, next) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user.claims.sub;
       const { id } = req.params;
       const { newStartTime, newEndTime } = req.body;
       
@@ -10020,7 +10026,7 @@ ${firmName}`;
   // Manually trigger consent email for a meeting
   app.post("/api/scheduled-meetings/:id/send-consent", isAuthenticated, async (req, res, next) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user.claims.sub;
       const { id } = req.params;
       
       const meeting = await storage.getScheduledMeeting(id);
@@ -10069,7 +10075,7 @@ ${firmName}`;
   // Manually deploy bot for a meeting
   app.post("/api/scheduled-meetings/:id/deploy-bot", isAuthenticated, async (req, res, next) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user.claims.sub;
       const { id } = req.params;
       
       const meeting = await storage.getScheduledMeeting(id);
@@ -10101,7 +10107,7 @@ ${firmName}`;
   // Set meeting URL manually (for meetings without detected URL)
   app.post("/api/scheduled-meetings/:id/set-url", isAuthenticated, async (req, res, next) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user.claims.sub;
       const { id } = req.params;
       const { meetingUrl } = req.body;
       
