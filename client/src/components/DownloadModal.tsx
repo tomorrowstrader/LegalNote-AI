@@ -75,7 +75,7 @@ export default function DownloadModal({
   const getDocumentLabel = (type: string) => {
     switch (type) {
       case "attendance_note": return "Attendance Note";
-      case "summary": return "Matter Record";
+      case "summary": return "Client Letter";
       case "transcript": return "Full Transcript";
       case "client_care_letter": return "Client Care Letter";
       default: return type;

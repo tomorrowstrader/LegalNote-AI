@@ -177,7 +177,7 @@ export async function exportToPDF(content: DocumentContent) {
 
   // Document type label for footer
   const docTypeLabel = content.documentType === 'attendance_note' ? 'Attendance Note' :
-                        content.documentType === 'summary' ? 'Matter Record' :
+                        content.documentType === 'summary' ? 'Client Letter' :
                         content.documentType === 'client_care_letter' ? 'Client Care Letter' :
                         content.documentType === 'transcript' ? 'Transcript' :
                         'Legal Document';
@@ -426,15 +426,25 @@ export async function exportToPDF(content: DocumentContent) {
 
   const lhData = showLetterhead ? extractLetterhead(content.firmProfile) : null;
   if (lhData) {
-    // Render logo if available
+    const letterheadTop = yPosition;
+    let logoBottom = letterheadTop;
+
+    // Prominent firm logo in the top-right corner (matches reference attendance notes)
     if (logoDataUrl) {
       try {
-        const logoWidth = 40;
-        const logoHeight = 20;
+        const logoWidth = 48;
+        const logoHeight = 28;
         const logoFormat = getImageFormatFromDataUrl(logoDataUrl);
         if (logoFormat) {
-          doc.addImage(logoDataUrl, logoFormat, margin, yPosition, logoWidth, logoHeight);
-          yPosition += logoHeight + 4;
+          doc.addImage(
+            logoDataUrl,
+            logoFormat,
+            pageWidth - margin - logoWidth,
+            letterheadTop,
+            logoWidth,
+            logoHeight,
+          );
+          logoBottom = letterheadTop + logoHeight;
         }
         // If null (e.g. SVG), skip silently — firm name still shown below
       } catch {
@@ -442,15 +452,30 @@ export async function exportToPDF(content: DocumentContent) {
       }
     }
 
-    addText(lhData.firmName, 14, true);
+    // Firm details on the left; keep clear of the logo column
+    const textMaxWidth = logoDataUrl ? maxWidth - 56 : maxWidth;
+    const addLhLine = (text: string, fontSize: number, isBold = false) => {
+      doc.setFontSize(fontSize);
+      doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+      const lines = doc.splitTextToSize(text, textMaxWidth);
+      lines.forEach((line: string) => {
+        checkNewPage(fontSize * 0.5);
+        doc.text(line, margin, yPosition);
+        yPosition += fontSize * 0.5;
+      });
+      yPosition += 2;
+    };
+
+    addLhLine(lhData.firmName, 14, true);
     for (const line of formatLetterheadAddress(lhData)) {
-      addText(line, 9);
+      addLhLine(line, 9);
     }
-    if (lhData.phone) addText(`Tel: ${lhData.phone}`, 9);
-    if (lhData.email) addText(`Email: ${lhData.email}`, 9);
-    if (lhData.website) addText(`Web: ${lhData.website}`, 9);
-    if (lhData.sraNumber) addText(`SRA No: ${lhData.sraNumber}`, 9);
-    yPosition += 5;
+    if (lhData.phone) addLhLine(`Tel: ${lhData.phone}`, 9);
+    if (lhData.email) addLhLine(`Email: ${lhData.email}`, 9);
+    if (lhData.website) addLhLine(`Web: ${lhData.website}`, 9);
+    if (lhData.sraNumber) addLhLine(`SRA No: ${lhData.sraNumber}`, 9);
+
+    yPosition = Math.max(yPosition, logoBottom) + 5;
     doc.setDrawColor(0, 0, 0);
     doc.line(margin, yPosition, pageWidth - margin, yPosition);
     yPosition += 10;
@@ -600,7 +625,7 @@ export async function exportToWord(content: DocumentContent) {
 
   // Word doc type label for footer
   const wordDocTypeLabel = content.documentType === 'attendance_note' ? 'Attendance Note' :
-                            content.documentType === 'summary' ? 'Matter Record' :
+                            content.documentType === 'summary' ? 'Client Letter' :
                             content.documentType === 'client_care_letter' ? 'Client Care Letter' :
                             content.documentType === 'transcript' ? 'Transcript' :
                             'Legal Document';
@@ -614,24 +639,47 @@ export async function exportToWord(content: DocumentContent) {
   // Firm Letterhead (full letterhead for appropriate document types)
   const wordLhData = showWordLetterhead ? extractLetterhead(content.firmProfile) : null;
   if (wordLhData) {
-    // Embed logo if available
+    const letterheadNoBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+    const firmInfoChildren: Paragraph[] = [
+      new Paragraph({
+        children: [new TextRun({ text: wordLhData.firmName, bold: true, size: 28 })],
+        spacing: { after: 80 },
+      }),
+      ...formatLetterheadAddress(wordLhData).map(
+        (line) => new Paragraph({ text: line, spacing: { after: 60 } }),
+      ),
+    ];
+    if (wordLhData.phone) {
+      firmInfoChildren.push(new Paragraph({ text: `Tel: ${wordLhData.phone}`, spacing: { after: 60 } }));
+    }
+    if (wordLhData.email) {
+      firmInfoChildren.push(new Paragraph({ text: `Email: ${wordLhData.email}`, spacing: { after: 60 } }));
+    }
+    if (wordLhData.website) {
+      firmInfoChildren.push(new Paragraph({ text: `Web: ${wordLhData.website}`, spacing: { after: 60 } }));
+    }
+    if (wordLhData.sraNumber) {
+      firmInfoChildren.push(new Paragraph({ text: `SRA No: ${wordLhData.sraNumber}`, spacing: { after: 60 } }));
+    }
+
+    const logoChildren: Paragraph[] = [];
     if (wordLogoData) {
       try {
         const base64Data = wordLogoData.split(',')[1];
         const docxType = getDocxImageTypeFromDataUrl(wordLogoData);
         if (base64Data && docxType) {
           const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-          children.push(
+          logoChildren.push(
             new Paragraph({
+              alignment: AlignmentType.RIGHT,
               children: [
                 new ImageRun({
                   data: buffer,
-                  transformation: { width: 150, height: 60 },
+                  transformation: { width: 140, height: 72 },
                   type: docxType,
                 }),
               ],
-              spacing: { after: 100 },
-            })
+            }),
           );
         }
         // If null (e.g. SVG), skip silently — firm name still shown below
@@ -641,27 +689,27 @@ export async function exportToWord(content: DocumentContent) {
     }
 
     children.push(
-      new Paragraph({
-        children: [new TextRun({ text: wordLhData.firmName, bold: true, size: 28 })],
-        alignment: AlignmentType.LEFT,
-        spacing: { after: 100 },
-      })
+      new Table({
+        width: { size: 9000, type: WidthType.DXA },
+        columnWidths: [6200, 2800],
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 6200, type: WidthType.DXA },
+                borders: { top: letterheadNoBorder, bottom: letterheadNoBorder, left: letterheadNoBorder, right: letterheadNoBorder },
+                children: firmInfoChildren.length > 0 ? firmInfoChildren : [new Paragraph({ text: '' })],
+              }),
+              new TableCell({
+                width: { size: 2800, type: WidthType.DXA },
+                borders: { top: letterheadNoBorder, bottom: letterheadNoBorder, left: letterheadNoBorder, right: letterheadNoBorder },
+                children: logoChildren.length > 0 ? logoChildren : [new Paragraph({ text: '' })],
+              }),
+            ],
+          }),
+        ],
+      }),
     );
-    for (const line of formatLetterheadAddress(wordLhData)) {
-      children.push(new Paragraph({ text: line, spacing: { after: 80 } }));
-    }
-    if (wordLhData.phone) {
-      children.push(new Paragraph({ text: `Tel: ${wordLhData.phone}`, spacing: { after: 80 } }));
-    }
-    if (wordLhData.email) {
-      children.push(new Paragraph({ text: `Email: ${wordLhData.email}`, spacing: { after: 80 } }));
-    }
-    if (wordLhData.website) {
-      children.push(new Paragraph({ text: `Web: ${wordLhData.website}`, spacing: { after: 80 } }));
-    }
-    if (wordLhData.sraNumber) {
-      children.push(new Paragraph({ text: `SRA No: ${wordLhData.sraNumber}`, spacing: { after: 200 } }));
-    }
     children.push(new Paragraph({ text: '', border: { bottom: { color: "000000", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { after: 400 } }));
   }
 

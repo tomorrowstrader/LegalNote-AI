@@ -520,29 +520,29 @@ function LetterheadPreview({ firmProfile }: { firmProfile?: FirmProfile | null }
   const addressLines = formatLetterheadAddress(lh);
   return (
     <div className="mb-4 px-6 pt-6 pb-4 border-b border-border" data-testid="letterhead-preview">
-      {lh.logoUrl && (
-        <img
-          src={lh.logoUrl}
-          alt={`${lh.firmName} logo`}
-          className="h-10 mb-3 object-contain object-left"
-          data-testid="letterhead-logo"
-        />
-      )}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-        <div>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <p className="text-base font-bold text-foreground leading-tight" data-testid="letterhead-firm-name">{lh.firmName}</p>
           {addressLines.map((line, i) => (
             <p key={i} className="text-xs text-muted-foreground">{line}</p>
           ))}
+          <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
+            {lh.phone && <p data-testid="letterhead-phone">Tel: {lh.phone}</p>}
+            {lh.email && <p data-testid="letterhead-email">Email: {lh.email}</p>}
+            {lh.website && <p data-testid="letterhead-website">{lh.website}</p>}
+            {lh.sraNumber && (
+              <p className="font-medium" data-testid="letterhead-sra">SRA No: {lh.sraNumber}</p>
+            )}
+          </div>
         </div>
-        <div className="text-xs text-muted-foreground sm:text-right space-y-0.5">
-          {lh.phone && <p data-testid="letterhead-phone">Tel: {lh.phone}</p>}
-          {lh.email && <p data-testid="letterhead-email">Email: {lh.email}</p>}
-          {lh.website && <p data-testid="letterhead-website">{lh.website}</p>}
-          {lh.sraNumber && (
-            <p className="font-medium" data-testid="letterhead-sra">SRA No: {lh.sraNumber}</p>
-          )}
-        </div>
+        {lh.logoUrl && (
+          <img
+            src={lh.logoUrl}
+            alt={`${lh.firmName} logo`}
+            className="h-16 sm:h-20 w-auto max-w-[40%] flex-shrink-0 object-contain object-right"
+            data-testid="letterhead-logo"
+          />
+        )}
       </div>
     </div>
   );
@@ -1494,7 +1494,7 @@ export default function DocumentViewer({
           <Badge variant="outline" data-testid="badge-version">
             Version {document.version}
           </Badge>
-          {!isApproved && !isDemoMode && (
+          {gapCount > 0 && !isDemoMode && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -1502,25 +1502,19 @@ export default function DocumentViewer({
                   variant="outline"
                   onClick={() => setShowGapPanel(prev => prev === document.id ? null : document.id)}
                   className={cn(
-                    "gap-1.5",
-                    gapCount > 0
-                      ? "border-amber-500/70 bg-amber-50 text-amber-800 shadow-sm hover:bg-amber-100 hover:text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-600 dark:hover:bg-amber-950/70"
-                      : "border-border",
+                    "gap-1.5 border-amber-500/70 bg-amber-50 text-amber-800 shadow-sm",
+                    "hover:bg-amber-100 hover:text-amber-900",
+                    "dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-600 dark:hover:bg-amber-950/70",
                     isGapPanelOpen && "ring-2 ring-amber-500/50",
                   )}
                   data-testid="button-gap-indicator"
                   aria-pressed={isGapPanelOpen}
                 >
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  Review
-                  {gapCount > 0 ? ` (${gapCount})` : ""}
+                  {gapCount} reasoning gap{gapCount !== 1 ? 's' : ''}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                {gapCount > 0
-                  ? "Open the reasoning gaps panel to review and fill each gap"
-                  : "Open the review panel for this document"}
-              </TooltipContent>
+              <TooltipContent>Open the reasoning gaps panel to review and fill each gap</TooltipContent>
             </Tooltip>
           )}
           {isApproved ? (
@@ -1847,7 +1841,7 @@ export default function DocumentViewer({
               )}
             </TabsTrigger>
             <TabsTrigger value="summary" data-testid="tab-summary" className="text-xs sm:text-sm px-2 py-2.5 h-auto">
-              Matter Record
+              Client Letter
             </TabsTrigger>
             <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
               <span className="hidden sm:inline">Transcript</span>
@@ -2162,7 +2156,7 @@ export default function DocumentViewer({
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <CardTitle>Matter Record</CardTitle>
+                    <CardTitle>Client Letter</CardTitle>
                     {summarySessionLabel && (
                       <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="badge-doc-session-summary">
                         {summarySessionLabel}
@@ -2211,7 +2205,7 @@ export default function DocumentViewer({
                   <div className="text-center p-6 py-8 space-y-3" data-testid="placeholder-matter-record">
                     <FileText className="w-10 h-10 mx-auto text-muted-foreground opacity-40" />
                     <div>
-                      <p className="font-medium text-sm text-foreground">Matter Record</p>
+                      <p className="font-medium text-sm text-foreground">Client Letter</p>
                       <p className="text-sm text-muted-foreground mt-1">
                         The matter record will appear here once the session is processed.
                       </p>
