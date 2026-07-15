@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { AlertTriangle, Clock, FileAudio, Loader2, Trash2, CheckCircle, AlertCircle, FolderOpen } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { indexedDBBackup, StoredSession } from "@/lib/indexedDBBackup";
@@ -10,6 +11,13 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 
+function friendlyRecoveryError(message: string | undefined): string {
+  if (!message) return "Could not recover the recording. Please try again.";
+  if (/insert into|values \(|returning "/i.test(message)) {
+    return "Could not create the recovered case. Please try again.";
+  }
+  return message.length > 180 ? `${message.slice(0, 180)}…` : message;
+}
 interface IncompleteSession {
   id: string;
   caseId: string | null;
@@ -41,6 +49,7 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
   const [localSessions, setLocalSessions] = useState<StoredSession[]>([]);
   const [recovering, setRecovering] = useState<string | null>(null);
   const [recoverStatus, setRecoverStatus] = useState<string | null>(null);
+  const [recoverProgress, setRecoverProgress] = useState(0);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -100,6 +109,8 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
             let uploaded = 0;
             for (const chunk of localChunks) {
               uploaded += 1;
+              const pct = Math.min(70, Math.round((uploaded / localChunks.length) * 70));
+              setRecoverProgress(pct);
               setRecoverStatus(`Uploading chunk ${uploaded} of ${localChunks.length}…`);
               try {
                 const formData = new FormData();
@@ -128,6 +139,7 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
       }
 
       setRecoverStatus("Assembling recording…");
+      setRecoverProgress((prev) => Math.max(prev, 72));
 
       const response = await fetch(`/api/audio/recover-session/${sessionId}`, {
         method: 'POST',
@@ -146,6 +158,11 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
       if (!response.ok && !result.message) {
         throw new Error(`Recovery failed (${response.status})`);
       }
+      if (!result.success) {
+        throw new Error(friendlyRecoveryError(result.message));
+      }
+      setRecoverProgress(100);
+      setRecoverStatus("Recovery complete");
       return result;
     },
     onSuccess: async (result, { sessionId }) => {
@@ -178,7 +195,7 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
       } else {
         toast({
           title: "Recovery pending",
-          description: result.message || "Some audio data is still syncing. Please try again in a moment.",
+          description: friendlyRecoveryError(result.message) || "Some audio data is still syncing. Please try again in a moment.",
         });
         refetch();
       }
@@ -186,25 +203,54 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
     onError: (error: Error) => {
       toast({
         title: "Recovery failed",
-        description: error.message || "Could not recover the recording. Please try again.",
+        description: friendlyRecoveryError(error.message),
         variant: "destructive",
       });
     },
   });
 
-  const handleRecover = async (sessionId: string, serverChunksReceived: number) => {
+  const handleRecover = async (
+    sessionId: string,
+    serverChunksReceived: number,
+    totalBytes: number,
+  ) => {
     if (recovering) return;
     setRecovering(sessionId);
+    setRecoverProgress(5);
     setRecoverStatus(
       serverChunksReceived > 0
-        ? "Assembling recording…"
+        ? "Downloading & assembling audio…"
         : "Preparing local audio…",
     );
+
+    // Time-based estimate while the server assembles from durable chunks
+    const estimateMs = Math.max(
+      5000,
+      Math.min(60000, serverChunksReceived * 120 + Math.ceil(totalBytes / 2500)),
+    );
+    const startedAt = Date.now();
+    const tick = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      const ratio = Math.min(1, elapsed / estimateMs);
+      // Ease toward 90% while waiting; real completion jumps to 100%
+      const eased = 8 + Math.round(82 * (1 - Math.pow(1 - ratio, 1.6)));
+      setRecoverProgress((prev) => Math.max(prev, Math.min(90, eased)));
+      if (ratio < 0.45) {
+        setRecoverStatus("Downloading & assembling audio…");
+      } else if (ratio < 0.8) {
+        setRecoverStatus("Creating matter file…");
+      } else {
+        setRecoverStatus("Almost done…");
+      }
+    }, 250);
+
     try {
       await recoverMutation.mutateAsync({ sessionId, serverChunksReceived });
     } finally {
+      window.clearInterval(tick);
       setRecovering(null);
       setRecoverStatus(null);
+      setRecoverProgress(0);
     }
   };
 
@@ -301,11 +347,19 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
                         Saved locally on this device
                       </p>
                     )}
-                    {recovering === session.id && recoverStatus && (
-                      <p className="text-xs text-primary mt-2 flex items-center gap-1.5">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        {recoverStatus}
-                      </p>
+                    {recovering === session.id && (
+                      <div className="mt-3 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="text-primary flex items-center gap-1.5 min-w-0">
+                            <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                            <span className="truncate">{recoverStatus || "Working…"}</span>
+                          </span>
+                          <span className="tabular-nums text-muted-foreground shrink-0">
+                            {recoverProgress}%
+                          </span>
+                        </div>
+                        <Progress value={recoverProgress} className="h-2" data-testid="recovery-progress" />
+                      </div>
                     )}
                   </div>
                 </div>
@@ -333,7 +387,11 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      handleRecover(session.id, session.source === 'server' ? session.chunksReceived : 0);
+                      handleRecover(
+                        session.id,
+                        session.source === 'server' ? session.chunksReceived : 0,
+                        session.totalBytes || session.chunksReceived * 250_000,
+                      );
                     }}
                     disabled={recovering !== null}
                     data-testid={`recover-session-${session.id}`}

@@ -598,26 +598,26 @@ export class ChunkedUploadService {
 
       console.log(`[ChunkedUpload] Recovering session ${sessionId}: ${chunks.length} chunks, ${totalBytes} bytes, ~${durationSeconds}s`);
 
-      // Upload the recovered audio
+      // Upload recovered audio into the private object path (7-day product retention),
+      // not the short-lived recovered/ lifecycle prefix.
       const objectInfo = this.objectStorage.createPrivateObjectId();
       const extension = sessionMeta.mimeType.includes('webm') ? '.webm' : 
                        sessionMeta.mimeType.includes('mp4') ? '.mp4' :
                        sessionMeta.mimeType.includes('ogg') ? '.ogg' : '.webm';
       
-      const fileKey = `recovered/${objectInfo.key}${extension}`;
+      const fileKey = `${objectInfo.key}${extension}`;
       await this.objectStorage.uploadFile(fileKey, combinedAudio, sessionMeta.mimeType);
-      const dbPath = `recovered/${objectInfo.dbPath}${extension}`;
+      const dbPath = `${objectInfo.dbPath}${extension}`;
 
       // Create a draft case for this recovered recording
       const caseData = await storage.createCase({
-        userId,
         title: `Recovered Recording - ${new Date().toLocaleDateString('en-GB')}`,
         clientName: "Unknown Client",
         matterReference: `REC-${sessionId.slice(0, 8).toUpperCase()}`,
         status: "pending",
         priority: "normal",
         sourceType: "audio",
-      });
+      }, userId);
 
       // Create audio recording record
       const expiryDate = new Date();
@@ -671,9 +671,15 @@ export class ChunkedUploadService {
       };
     } catch (error) {
       console.error(`[ChunkedUpload] Failed to recover session ${sessionId}:`, error);
+      const raw = error instanceof Error ? error.message : "Failed to recover recording";
+      // Never surface raw SQL / driver dumps to the client
+      const message =
+        /insert into|values \(|returning "/i.test(raw)
+          ? "Could not create the recovered case. Please try again."
+          : raw.slice(0, 200);
       return { 
         success: false, 
-        message: error instanceof Error ? error.message : "Failed to recover recording" 
+        message,
       };
     }
   }
