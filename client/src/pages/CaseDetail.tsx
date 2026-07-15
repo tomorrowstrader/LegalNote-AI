@@ -622,6 +622,13 @@ export default function CaseDetail() {
   }, [caseData?.status, caseData?.sourceType, hasPromptedTimeRecording, timeRecordingKey]);
 
   const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
+  const hasDeclinedConsent = consentLogs.some(log => log.consentGiven === false);
+  const hasMissingAudio =
+    caseData?.sourceType === 'audio' &&
+    !audioLoading &&
+    !!audioData &&
+    !audioData.filePath &&
+    !audioData.deletedAt;
 
   const processAIMutation = useMutation({
     mutationFn: async () => apiRequest("POST", `/api/cases/${caseId}/process`, {}),
@@ -1553,13 +1560,26 @@ export default function CaseDetail() {
             </div>
           )}
 
-          {/* No-consent text-only alert */}
-          {caseData.sourceType === 'audio' && !hasValidConsent && !consentLoading && !audioLoading && (
+          {/* No-consent text-only alert — only when consent was explicitly declined */}
+          {caseData.sourceType === 'audio' && hasDeclinedConsent && !hasValidConsent && !consentLoading && !audioLoading && (
             <Alert className="bg-card border-muted" data-testid="alert-no-recording-consent">
               <FileText className="w-4 h-4" />
               <AlertDescription>
                 <span className="font-medium">Text notes only — recording consent declined</span>
                 <p className="text-sm text-muted-foreground mt-0.5">Client declined audio recording consent.</p>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Audio upload incomplete — e.g. Quick Record hit rate limit after case creation */}
+          {hasMissingAudio && (
+            <Alert variant="destructive" data-testid="alert-audio-missing">
+              <Mic className="w-4 h-4" />
+              <AlertDescription>
+                <span className="font-medium">Recording not attached to this matter</span>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  The case was saved but the audio file did not upload. Use Quick Record again for this matter, or check for a recovery prompt if you still have the session open.
+                </p>
               </AlertDescription>
             </Alert>
           )}

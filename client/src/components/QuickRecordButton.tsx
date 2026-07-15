@@ -582,8 +582,25 @@ export default function QuickRecordButton() {
     setProcessingStep('saving');
     
     let caseResult: CaseResponse | null = null;
+    let audioResult: AudioResponse | null = null;
     let consentLogFailed = false;
     let uploadFailed = false;
+
+    const saveConsentLog = async (caseId: string, audioRecordingId?: string) => {
+      if (consentGiven === null) return;
+      const consentPayload = {
+        caseId,
+        ...(audioRecordingId ? { audioRecordingId } : {}),
+        consentGiven: consentGiven,
+        consentModality: "verbal_recorded" as const,
+        disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
+        disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
+        lawfulBasis: "consent" as const,
+        recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
+        source: "quick_record_button",
+      };
+      await apiRequest("POST", "/api/consent", consentPayload);
+    };
     
     try {
       // Step 1: Create case
@@ -599,11 +616,30 @@ export default function QuickRecordButton() {
         conflictCheckCompleted,
         conflictCheckNote: conflictCheckNote || undefined,
       });
-      
-      // Step 2: Create audio record placeholder
-      const audioResult = await apiRequest<AudioResponse>("POST", "/api/audio", {
-        caseId: caseResult.id,
-      });
+
+      // Step 2: Create audio record placeholder (may fail under rate limit — consent still saved)
+      try {
+        audioResult = await apiRequest<AudioResponse>("POST", "/api/audio", {
+          caseId: caseResult.id,
+        });
+      } catch (audioCreateError: any) {
+        console.error('Audio record creation failed:', audioCreateError);
+        uploadFailed = true;
+      }
+
+      // Step 3: Persist consent before upload — must survive upload failures
+      if (consentGiven !== null) {
+        try {
+          await saveConsentLog(caseResult.id, audioResult?.id);
+        } catch (consentError: any) {
+          console.error('Consent log failed:', consentError);
+          consentLogFailed = true;
+        }
+      }
+
+      if (!audioResult) {
+        throw new Error("Could not create audio record. Your consent has been saved — try Quick Record again or contact support.");
+      }
       
       await advanceStep('uploading');
       
@@ -640,31 +676,8 @@ export default function QuickRecordButton() {
         }
       }
       
-      // Step 4: Save consent log to backend (GDPR compliance)
-      if (consentGiven !== null) {
-        try {
-          const consentPayload = {
-            caseId: caseResult.id,
-            audioRecordingId: audioResult.id,
-            consentGiven: consentGiven,
-            consentModality: "verbal_recorded" as const,
-            disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
-            disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
-            lawfulBasis: "consent" as const,
-            recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
-            source: "quick_record_button",
-          };
-          await apiRequest("POST", "/api/consent", consentPayload);
-        } catch (consentError: any) {
-          console.error('Consent log failed:', consentError);
-          consentLogFailed = true;
-          // Don't throw - allow processing to continue but mark as failed
-        }
-      }
-      
-      // Step 5: Trigger AI processing (transcription + document generation)
-      // Critical: Only trigger if consent was successfully logged (GDPR requirement)
-      if (!consentLogFailed) {
+      // Step 5: Trigger AI processing only when consent is logged and upload succeeded
+      if (!consentLogFailed && !uploadFailed && consentGiven === true) {
         // Update processing step
         await advanceStep('processing');
         
