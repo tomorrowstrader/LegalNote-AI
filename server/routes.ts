@@ -62,7 +62,6 @@ import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
 import { setupAuth, isAuthenticated, isUserAccessAllowed, getAdminUserId } from "./replitAuth";
-import { registerClientDebugLogRoutes } from "./clientDebugLog";
 import { MAX_AUDIO_SIZE_BYTES } from "./uploadSecurity";
 import {
   generalApiLimiter,
@@ -164,14 +163,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Setup Replit Auth
   await setupAuth(app);
-  registerClientDebugLogRoutes(app);
 
   // Apply general rate limiting to all API routes (except polling + session identity)
   app.use('/api/', (req, res, next) => {
     // Skip general rate limiter for polling endpoints - they have their own lenient limits
     if (
       req.path.includes('/processing-status') ||
-      req.path.startsWith('/_debug/') ||
       (req.method === 'GET' && (
         req.path === '/scheduled-meetings' ||
         req.path.startsWith('/recall/imports/unassigned')

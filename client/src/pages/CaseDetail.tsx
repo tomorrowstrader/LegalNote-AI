@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import DocumentViewer from "@/components/DocumentViewer";
-import { debugClientLog } from "@/lib/debugClientLog";
 import { AudioPlayer, type AudioPlayerHandle } from "@/components/AudioPlayer";
 import { AuditTrail } from "@/components/AuditTrail";
 import { ConsentEvidence } from "@/components/ConsentEvidence";
@@ -287,45 +286,6 @@ export default function CaseDetail() {
   const caseId = params.id;
   const { toast } = useToast();
   const { isFocusMode, toggleFocusMode, exitFocusMode } = useFocusMode();
-
-  // #region agent log
-  useEffect(() => {
-    debugClientLog({
-      location: "CaseDetail.tsx:mount",
-      message: "CaseDetail mounted",
-      hypothesisId: "A",
-      data: { caseId: caseId || null },
-    });
-    const onError = (event: ErrorEvent) => {
-      debugClientLog({
-        location: "CaseDetail.tsx:window.onerror",
-        message: "window error",
-        hypothesisId: "C",
-        data: {
-          msg: String(event.message || ""),
-          file: String(event.filename || ""),
-          line: event.lineno || 0,
-          col: event.colno || 0,
-        },
-      });
-    };
-    const onRejection = (event: PromiseRejectionEvent) => {
-      const reason = event.reason;
-      debugClientLog({
-        location: "CaseDetail.tsx:unhandledrejection",
-        message: "unhandled rejection",
-        hypothesisId: "E",
-        data: { reason: String(reason?.message || reason || "").slice(0, 800) },
-      });
-    };
-    window.addEventListener("error", onError);
-    window.addEventListener("unhandledrejection", onRejection);
-    return () => {
-      window.removeEventListener("error", onError);
-      window.removeEventListener("unhandledrejection", onRejection);
-    };
-  }, [caseId]);
-  // #endregion
 
   const [autoOpenComplianceNote, setAutoOpenComplianceNote] = useState(0);
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
@@ -595,24 +555,6 @@ export default function CaseDetail() {
       return next;
     });
   };
-
-  // #region agent log
-  useEffect(() => {
-    if (!caseData || isLoading) return;
-    debugClientLog({
-      location: "CaseDetail.tsx:render-ready",
-      message: "CaseDetail has case data",
-      hypothesisId: "A",
-      data: {
-        caseId: caseId || null,
-        status: caseData.status,
-        sourceType: caseData.sourceType,
-        activeSection,
-        sidebarCollapsed,
-      },
-    });
-  }, [caseData?.id, caseData?.status, caseData?.sourceType, isLoading, caseId, activeSection, sidebarCollapsed]);
-  // #endregion
 
   type SraReportPreview = {
     sections: {

@@ -21,7 +21,6 @@ import remarkBreaks from 'remark-breaks';
 import { RichTextEditor, type TrackedChange, type TrackChangeAuditRecord } from "@/components/RichTextEditor";
 import { PageView } from "@/components/PageView";
 import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
-import { debugClientLog } from "@/lib/debugClientLog";
 
 function markdownToPlainText(md: string): string {
   if (!md) return '';
@@ -697,25 +696,6 @@ export default function DocumentViewer({
   litigationHold,
 }: DocumentViewerProps) {
   const { toast } = useToast();
-
-  // #region agent log
-  useEffect(() => {
-    const docs = documents || [];
-    debugClientLog({
-      location: "DocumentViewer.tsx:mount",
-      message: "DocumentViewer mounted",
-      hypothesisId: "B",
-      data: {
-        caseId,
-        docCount: docs.length,
-        types: docs.map((d: any) => d?.type),
-        contentLens: docs.map((d: any) => (d?.content == null ? -1 : String(d.content).length)),
-        pageW: typeof window !== "undefined" ? window.innerWidth : 0,
-      },
-    });
-  }, [caseId, documents]);
-  // #endregion
-
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [zoom, setZoom] = useState(100);

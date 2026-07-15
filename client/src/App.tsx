@@ -14,7 +14,6 @@ import { RecordingRecoveryModal, useRecordingRecovery } from "@/components/Recor
 import Dashboard from "@/pages/Dashboard";
 import NewNote from "@/pages/NewNote";
 import CaseDetail from "@/pages/CaseDetail";
-import { CasePageErrorBoundary } from "@/components/CasePageErrorBoundary";
 import SavedCases from "@/pages/SavedCases";
 import Settings from "@/pages/Settings";
 import MyProfile from "@/pages/MyProfile";
@@ -58,14 +57,6 @@ function RedirectTo({ to }: { to: string }) {
   const [, setLocation] = useLocation();
   useEffect(() => { setLocation(to); }, []);
   return null;
-}
-
-function CaseDetailRoute() {
-  return (
-    <CasePageErrorBoundary scope="case">
-      <CaseDetail />
-    </CasePageErrorBoundary>
-  );
 }
 
 function Router() {
@@ -115,7 +106,7 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/new-note" component={NewNote} />
-          <Route path="/case/:id" component={CaseDetailRoute} />
+          <Route path="/case/:id" component={CaseDetail} />
           <Route path="/cases" component={SavedCases} />
           <Route path="/settings" component={Settings} />
           <Route path="/profile" component={MyProfile} />
@@ -167,19 +158,17 @@ function AuthenticatedAppContent() {
 
   return (
     <div className={`min-h-screen bg-background ${!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute ? 'pt-16' : ''}`}>
-      <CasePageErrorBoundary scope="authenticated-app">
-        {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <TopNavigation onRestartTour={handleRestartTour} />}
-        {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <FirmSetupPrompt />}
-        {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <OnboardingTour restartTrigger={restartTourTrigger} />}
-        {!isLoading && hasAppAccess && !isPublicDemoRoute && (
-          <RecordingRecoveryModal
-            open={showRecoveryModal}
-            onOpenChange={setShowRecoveryModal}
-          />
-        )}
-        <ScrollToTop />
-        <Router />
-      </CasePageErrorBoundary>
+      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <TopNavigation onRestartTour={handleRestartTour} />}
+      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <FirmSetupPrompt />}
+      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <OnboardingTour restartTrigger={restartTourTrigger} />}
+      {!isLoading && hasAppAccess && !isPublicDemoRoute && (
+        <RecordingRecoveryModal
+          open={showRecoveryModal}
+          onOpenChange={setShowRecoveryModal}
+        />
+      )}
+      <ScrollToTop />
+      <Router />
     </div>
   );
 }

@@ -9,7 +9,6 @@ import Subscript from '@tiptap/extension-subscript';
 import { Mark, Node, mergeAttributes, generateJSON } from '@tiptap/core';
 import { Markdown } from 'tiptap-markdown';
 import { FileText } from "lucide-react";
-import { debugClientLog } from "@/lib/debugClientLog";
 
 // A4 layout constants matching the editor
 const PAGE_W    = 794;   // A4 width in px
@@ -170,35 +169,11 @@ export function PageView({ content }: PageViewProps) {
       } else {
         measureEditor.commands.setContent(content, false);
       }
-      // #region agent log
-      debugClientLog({
-        location: "PageView.tsx:setContent",
-        message: "PageView setContent ok",
-        hypothesisId: "C",
-        data: { contentLen: content.length, tracked: isTrackedChangesHtml(content) },
-      });
-      // #endregion
     } catch (err) {
-      // #region agent log
-      debugClientLog({
-        location: "PageView.tsx:setContent-error",
-        message: "PageView setContent failed",
-        hypothesisId: "C",
-        data: { err: String((err as any)?.message || err).slice(0, 500), contentLen: content.length },
-      });
-      // #endregion
       console.error('[PageView] Content hydration failed, falling back to raw:', err);
       try {
         measureEditor.commands.setContent(content, false);
       } catch (fallbackErr) {
-        // #region agent log
-        debugClientLog({
-          location: "PageView.tsx:fallback-error",
-          message: "PageView fallback setContent failed",
-          hypothesisId: "C",
-          data: { err: String((fallbackErr as any)?.message || fallbackErr).slice(0, 500) },
-        });
-        // #endregion
         console.error('[PageView] Fallback setContent also failed:', fallbackErr);
       }
     }
