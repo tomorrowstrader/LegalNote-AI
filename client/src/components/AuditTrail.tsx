@@ -258,7 +258,7 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
     case "document_created":
       return metadata.documentType 
         ? `Created ${metadata.documentType}`
-        : "New document generated";
+        : "New document produced";
     
     case "document_updated":
       return metadata.documentType 
@@ -307,10 +307,10 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
         : "Meeting briefing prepared";
     
     case "ai_processing_started":
-      return "Document generation initiated";
+      return "Document production initiated";
     
     case "ai_processing_completed":
-      return "Document generation completed successfully";
+      return "Document production completed successfully";
     
     case "transcription_completed":
       return metadata.duration 

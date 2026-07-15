@@ -462,6 +462,15 @@ export interface IStorage {
     lastName: string | null;
     profileImageUrl: string | null;
   }): Promise<User>;
+  /**
+   * User-facing confirm of display name. Fails if already confirmed unless force (admin).
+   * Sets firstName, lastName, and displayNameConfirmedAt.
+   */
+  confirmUserDisplayName(
+    userId: string,
+    names: { firstName: string; lastName: string },
+    options?: { force?: boolean },
+  ): Promise<User | undefined>;
   updateUserStripeInfo(userId: string, stripeInfo: {
     stripeCustomerId?: string;
     stripeSubscriptionId?: string;
@@ -855,12 +864,19 @@ export class MemStorage implements IStorage {
 
   async upsertUser(userData: UpsertUser): Promise<User> {
     const existing = this.users.get(userData.id);
+    const nameLocked = !!existing?.displayNameConfirmedAt;
     const user: User = {
       id: userData.id,
-      email: userData.email ?? null,
-      firstName: userData.firstName ?? null,
-      lastName: userData.lastName ?? null,
-      profileImageUrl: userData.profileImageUrl ?? null,
+      email: userData.email ?? existing?.email ?? null,
+      // Never blank or overwrite confirmed names from OAuth; only fill gaps when unlocked.
+      firstName: nameLocked
+        ? (existing?.firstName ?? null)
+        : (userData.firstName ?? existing?.firstName ?? null),
+      lastName: nameLocked
+        ? (existing?.lastName ?? null)
+        : (userData.lastName ?? existing?.lastName ?? null),
+      displayNameConfirmedAt: existing?.displayNameConfirmedAt ?? null,
+      profileImageUrl: userData.profileImageUrl ?? existing?.profileImageUrl ?? null,
       stripeCustomerId: existing?.stripeCustomerId ?? null,
       stripeSubscriptionId: existing?.stripeSubscriptionId ?? null,
       subscriptionStatus: existing?.subscriptionStatus ?? null,
@@ -868,11 +884,42 @@ export class MemStorage implements IStorage {
       trialEndsAt: existing?.trialEndsAt ?? null,
       complianceThread: existing?.complianceThread ?? false,
       hourlyRate: existing?.hourlyRate ?? null,
+      firmId: existing?.firmId ?? null,
+      primaryRole: existing?.primaryRole ?? null,
+      customRoleLabel: existing?.customRoleLabel ?? null,
+      regulatoryDesignations: existing?.regulatoryDesignations ?? [],
+      inviteStatus: existing?.inviteStatus ?? "active",
+      invitedBy: existing?.invitedBy ?? null,
+      invitedAt: existing?.invitedAt ?? null,
+      removedAt: existing?.removedAt ?? null,
+      lastActiveAt: existing?.lastActiveAt ?? null,
+      role: existing?.role ?? "solicitor",
       createdAt: existing?.createdAt || new Date(),
       updatedAt: new Date(),
     };
     this.users.set(userData.id, user);
     return user;
+  }
+
+  async confirmUserDisplayName(
+    userId: string,
+    names: { firstName: string; lastName: string },
+    options?: { force?: boolean },
+  ): Promise<User | undefined> {
+    const existing = this.users.get(userId);
+    if (!existing) return undefined;
+    if (existing.displayNameConfirmedAt && !options?.force) {
+      throw new DisplayNameAlreadyConfirmedError();
+    }
+    const updated: User = {
+      ...existing,
+      firstName: names.firstName,
+      lastName: names.lastName,
+      displayNameConfirmedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.set(userId, updated);
+    return updated;
   }
 
   async getAuthIdentity(_provider: string, _providerUserId: string): Promise<AuthIdentity | undefined> {
@@ -2622,6 +2669,16 @@ export class AuthEmailRequiredError extends Error {
   }
 }
 
+/** Thrown when a user tries to change a display name that is already locked. */
+export class DisplayNameAlreadyConfirmedError extends Error {
+  constructor() {
+    super(
+      "Your display name is locked. Contact an administrator to change it.",
+    );
+    this.name = "DisplayNameAlreadyConfirmedError";
+  }
+}
+
 /** Canonical form for users.email and collision checks. IdP casing is preserved in email_at_link. */
 export function normalizeAuthEmail(email: string | null | undefined): string | null {
   if (email == null) return null;
@@ -2637,26 +2694,72 @@ export class DbStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    const existing = userData.id ? await this.getUser(userData.id) : undefined;
+    const nameLocked = !!existing?.displayNameConfirmedAt;
+
+    // OAuth must not wipe or overwrite names once confirmed; otherwise only fill when provided.
+    const nextFirstName = nameLocked
+      ? (existing?.firstName ?? null)
+      : (userData.firstName !== undefined && userData.firstName !== null
+          ? userData.firstName
+          : (existing?.firstName ?? null));
+    const nextLastName = nameLocked
+      ? (existing?.lastName ?? null)
+      : (userData.lastName !== undefined && userData.lastName !== null
+          ? userData.lastName
+          : (existing?.lastName ?? null));
+    const nextProfileImage =
+      userData.profileImageUrl !== undefined && userData.profileImageUrl !== null
+        ? userData.profileImageUrl
+        : (existing?.profileImageUrl ?? null);
+    const nextEmail =
+      userData.email !== undefined && userData.email !== null
+        ? userData.email
+        : (existing?.email ?? null);
+
     const result = await db
       .insert(users)
       .values({
         id: userData.id,
-        email: userData.email ?? null,
-        firstName: userData.firstName ?? null,
-        lastName: userData.lastName ?? null,
-        profileImageUrl: userData.profileImageUrl ?? null,
+        email: nextEmail,
+        firstName: nextFirstName,
+        lastName: nextLastName,
+        profileImageUrl: nextProfileImage,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: users.id,
         set: {
-          email: userData.email ?? null,
-          firstName: userData.firstName ?? null,
-          lastName: userData.lastName ?? null,
-          profileImageUrl: userData.profileImageUrl ?? null,
+          email: nextEmail,
+          firstName: nextFirstName,
+          lastName: nextLastName,
+          profileImageUrl: nextProfileImage,
           updatedAt: new Date(),
         },
       })
+      .returning();
+    return result[0];
+  }
+
+  async confirmUserDisplayName(
+    userId: string,
+    names: { firstName: string; lastName: string },
+    options?: { force?: boolean },
+  ): Promise<User | undefined> {
+    const existing = await this.getUser(userId);
+    if (!existing) return undefined;
+    if (existing.displayNameConfirmedAt && !options?.force) {
+      throw new DisplayNameAlreadyConfirmedError();
+    }
+    const result = await db
+      .update(users)
+      .set({
+        firstName: names.firstName,
+        lastName: names.lastName,
+        displayNameConfirmedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
       .returning();
     return result[0];
   }
@@ -4416,6 +4519,7 @@ export class DbStorage implements IStorage {
           userId,
           dismissedReviewBanner: false,
           completedOnboarding: false,
+          completedIntegrationsOnboarding: false,
           ...updates,
         })
         .returning();

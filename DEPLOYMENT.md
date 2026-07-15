@@ -41,6 +41,15 @@ For production deployment, ensure these are set in Deployment secrets:
 - `SESSION_SECRET` - Strong random string (32+ characters)
 - `DEFAULT_OBJECT_STORAGE_BUCKET_ID` - Object storage bucket ID
 
+### Required for document production (Meeting-to-Matter™ / Bedrock):
+- `PRIVILEGED_LLM_PROVIDER` - Must be `bedrock` (privileged client data must not use other LLM providers)
+- `BEDROCK_PRIVILEGED_MODEL_ID` - EU inference profile ID, e.g. `eu.anthropic.claude-sonnet-4-6`
+- `AWS_REGION` - Must start with `eu-` (e.g. `eu-west-2`)
+- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` - IAM credentials with Bedrock Converse access in that region
+
+If `PRIVILEGED_LLM_PROVIDER` is unset, retries fail with:  
+`PRIVILEGED_LLM_PROVIDER must be "bedrock"; got "(unset)"`
+
 ### Optional:
 - `ALLOWED_ORIGINS` - Custom domain(s) for CORS (comma-separated)
 - `NODE_ENV` - Set to `production` (usually automatic)
@@ -99,3 +108,11 @@ Calendar integration uses the same Azure app as Microsoft login unless separate 
 - Application validates required variables at startup
 - Check logs for "Environment validation failed" errors
 - Ensure `SESSION_SECRET` is 32+ characters in production
+
+## Manual database migrations
+
+Run these on Neon when deploying schema changes that are not applied by `drizzle-kit push`:
+
+- `scripts/display-name-confirmed-at.sql` — adds `users.display_name_confirmed_at` so display names can be confirmed once and locked against OAuth overwrites
+- `scripts/integrations-onboarding-pref.sql` — integrations onboarding preference flag
+- `scripts/meeting-reminder-columns.sql` — adds `scheduled_meetings.reminder_30m_sent_at` / `reminder_10m_sent_at` (required after meeting-reminder deploy; without these, Upcoming Meetings fails to load)

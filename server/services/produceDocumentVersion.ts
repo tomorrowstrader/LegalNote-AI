@@ -149,20 +149,36 @@ async function updateProduceProgress(
   currentStep: string,
   status: "processing" | "completed" | "failed" = "processing",
   error?: string,
+  /** On failure, restore this case status so existing docs stay on the matter file. */
+  restoreStatusOnFailure?: string,
 ): Promise<void> {
   const caseData = await storage.getCase(caseId, userId);
   if (!caseData) return;
   const currentMetadata = (caseData.aiProcessingMetadata as Record<string, unknown>) || {};
+  const restored =
+    restoreStatusOnFailure === "completed" || restoreStatusOnFailure === "review_required"
+      ? restoreStatusOnFailure
+      : "review_required";
   await storage.updateCase(
     caseId,
     {
-      status: status === "failed" ? "failed" : status === "completed" ? "review_required" : "processing",
+      // Further-version failure must not flip the matter to first-time "failed" —
+      // that hides existing attendance notes and makes Retry re-run full AI processing.
+      status:
+        status === "failed"
+          ? restored
+          : status === "completed"
+            ? "review_required"
+            : "processing",
       aiProcessingMetadata: {
         ...currentMetadata,
         status,
         progress,
         currentStep,
-        ...(error ? { error } : {}),
+        ...(error ? { error } : { error: undefined }),
+        ...(status === "failed"
+          ? { produceVersionFailed: true, produceVersionError: error }
+          : { produceVersionFailed: undefined, produceVersionError: undefined }),
       },
     },
     userId,
@@ -188,6 +204,7 @@ export async function produceDocumentVersion(params: {
 }): Promise<Document> {
   const { storage, caseId, documentId, userId, reason, trackProgress = false } = params;
   const documentService = new DocumentService();
+  let statusBeforeProduce: string | undefined;
 
   const setProgress = async (progress: number, currentStep: string) => {
     if (!trackProgress) return;
@@ -199,6 +216,10 @@ export async function produceDocumentVersion(params: {
     if (!caseData) {
       throw new ProduceDocumentVersionError("Case not found", 404, "case_not_found");
     }
+    const meta = (caseData.aiProcessingMetadata as Record<string, unknown>) || {};
+    statusBeforeProduce =
+      (typeof meta.statusBeforeProduce === "string" && meta.statusBeforeProduce) ||
+      caseData.status;
 
     if (caseData.litigationHold) {
       throw new ProduceDocumentVersionError(
@@ -229,7 +250,7 @@ export async function produceDocumentVersion(params: {
       );
     }
 
-    await setProgress(10, "Preparing document regeneration...");
+    await setProgress(10, "Preparing to compile a further version...");
 
     const firmProfile = await storage.getFirmProfile();
     const firmPreferences = {
@@ -282,7 +303,7 @@ export async function produceDocumentVersion(params: {
 
       const recordingType = meetingSession?.recordingType || "full_meeting";
 
-      await setProgress(40, "Generating attendance note via derivation engine...");
+      await setProgress(40, "Compiling attendance note via derivation engine...");
 
       const attendanceResult = await documentService.generateDocumentByRecordingType(
         recordingType,
@@ -355,7 +376,7 @@ export async function produceDocumentVersion(params: {
         );
 
       if (clientLetterParent) {
-        await setProgress(70, "Generating client letter...");
+        await setProgress(70, "Compiling client letter...");
         const letterResult = await documentService.generateSummary(
           attendanceResult.content,
           metadata,
@@ -403,7 +424,7 @@ export async function produceDocumentVersion(params: {
 
       primaryVersion = attendanceVersion;
     } else if (isClientLetter) {
-      await setProgress(40, "Generating client letter...");
+      await setProgress(40, "Compiling client letter...");
 
       const activeDocs = await storage.getActiveDocumentsByCase(caseId, userId);
       const attendanceNote =
@@ -506,7 +527,13 @@ export async function produceDocumentVersion(params: {
           "Production failed",
           "failed",
           error?.message || "Failed to produce further version",
+          statusBeforeProduce,
         );
+        // Restore session status so the matter doesn't look mid-processing forever
+        const parent = await storage.getDocument(documentId);
+        if (parent?.meetingSessionId) {
+          await storage.updateMeetingSession(parent.meetingSessionId, { status: "completed" });
+        }
       } catch {
         // ignore status update failure
       }
@@ -576,6 +603,11 @@ export async function enqueueProduceDocumentVersion(params: {
         status: "processing",
         progress: 0,
         currentStep: "Queued for further version production...",
+        error: undefined,
+        produceVersionFailed: undefined,
+        produceVersionError: undefined,
+        /** Restored if further-version production fails (keeps existing docs on file). */
+        statusBeforeProduce: caseData.status,
       },
     },
     userId,

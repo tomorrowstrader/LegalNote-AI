@@ -47,6 +47,9 @@ export function getApiErrorMessage(
   if (code === "unsupported_type") {
     return "Further versions can only be produced for attendance notes and client letters.";
   }
+  if (code === "SCHEMA_MIGRATION_REQUIRED") {
+    return message || "Database schema needs an update. Please contact support or run pending migrations.";
+  }
 
   message = message.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim();
   if (!message || /doctype|<!html/i.test(message) || message.length > 280) {

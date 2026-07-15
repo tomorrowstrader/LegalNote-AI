@@ -104,6 +104,8 @@ export const users = pgTable("users", {
   email: varchar("email").unique(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
+  /** Set when the user confirms their display name; OAuth must not overwrite after this. */
+  displayNameConfirmedAt: timestamp("display_name_confirmed_at"),
   profileImageUrl: varchar("profile_image_url"),
   stripeCustomerId: varchar("stripe_customer_id"),
   stripeSubscriptionId: varchar("stripe_subscription_id"),
@@ -420,6 +422,8 @@ export const userPreferences = pgTable("user_preferences", {
   userId: varchar("user_id").notNull().unique().references(() => users.id),
   dismissedReviewBanner: boolean("dismissed_review_banner").notNull().default(false),
   completedOnboarding: boolean("completed_onboarding").notNull().default(false),
+  /** First-login integrations wizard (calendar + video + meeting sync). Replays until finished. */
+  completedIntegrationsOnboarding: boolean("completed_integrations_onboarding").notNull().default(false),
   consentWorkflowPreferences: jsonb("consent_workflow_preferences").default({}),
   sendRecordingConfirmationEmails: boolean("send_recording_confirmation_emails").notNull().default(false),
 });
@@ -954,6 +958,7 @@ export const insertUserPreferencesSchema = createInsertSchema(userPreferences).o
   userId: z.string().min(1), // Replit Auth IDs are not UUIDs
   dismissedReviewBanner: z.boolean().default(false),
   completedOnboarding: z.boolean().default(false),
+  completedIntegrationsOnboarding: z.boolean().default(false),
   sendRecordingConfirmationEmails: z.boolean().default(false),
 });
 

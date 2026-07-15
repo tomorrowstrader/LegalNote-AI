@@ -5,6 +5,8 @@ export interface User {
   email?: string;
   firstName?: string;
   lastName?: string;
+  /** ISO timestamp when the user confirmed their display name (locks further self-edits). */
+  displayNameConfirmedAt?: string | null;
   profileImageUrl?: string;
   isAdmin?: boolean;
   waitlistStatus?: "pending" | "approved" | null;
@@ -17,6 +19,10 @@ export interface User {
   inviteStatus?: string | null;
   role?: string;
   accessAllowed?: boolean;
+  /** How this account authenticated (from auth_identities). */
+  authProviders?: ("google" | "microsoft")[];
+  /** Calendar to recommend during integrations onboarding. */
+  preferredCalendarProvider?: "google" | "outlook";
 }
 
 export function useAuth() {

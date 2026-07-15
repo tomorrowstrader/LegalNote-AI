@@ -108,7 +108,7 @@ import { compileSraReportPdf } from "./services/sraReportPdf";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent } from "./calendar";
 import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
 import { isReplitOutlookConnected, createReplitOutlookEvent, updateReplitOutlookEvent, deleteReplitOutlookEvent } from "./replitOutlook";
-import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber } from "./sms";
+import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber, isValidUKPhoneNumber, phoneLastFour } from "./sms";
 import {
   createGoogleOAuthClient,
   getGoogleAuthUrl,
@@ -928,10 +928,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       
       // Check if SMS verification is required and not yet verified
       if (shareLink.smsProtection && !shareLink.smsVerified) {
+        // Never return the full phone number — only a masked hint for UX
         return res.json({
           requiresSmsVerification: true,
           recipientName: shareLink.recipientName,
-          phoneNumber: shareLink.smsPhoneNumber,
+          hasRegisteredPhone: !!shareLink.smsPhoneNumber,
+          phoneLastFour: shareLink.smsPhoneNumber
+            ? phoneLastFour(shareLink.smsPhoneNumber)
+            : undefined,
         });
       }
       
@@ -1075,11 +1079,6 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const { linkId } = req.params;
       const { phoneNumber } = req.body;
 
-      // Validate phone number is provided
-      if (!phoneNumber || typeof phoneNumber !== 'string') {
-        return res.status(400).json({ message: "Phone number is required" });
-      }
-
       // Get share link
       const shareLink = await storage.getShareLink(linkId);
       
@@ -1102,12 +1101,31 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(429).json({ message: "Maximum SMS send attempts exceeded for this link" });
       }
 
-      // Format and validate phone number
-      const formattedPhone = formatUKPhoneNumber(phoneNumber);
+      // Prefer the number registered when the link was created (avoids format mismatches).
+      // Otherwise require the recipient to supply a UK mobile number.
+      let formattedPhone: string;
+      if (shareLink.smsPhoneNumber) {
+        formattedPhone = formatUKPhoneNumber(shareLink.smsPhoneNumber);
+        // Soft confirm if they typed a number: must match after normalisation
+        if (phoneNumber && typeof phoneNumber === 'string' && phoneNumber.trim()) {
+          const entered = formatUKPhoneNumber(phoneNumber);
+          if (isValidUKPhoneNumber(entered) && entered !== formattedPhone) {
+            return res.status(403).json({
+              message: "Phone number does not match the expected recipient",
+            });
+          }
+        }
+      } else {
+        if (!phoneNumber || typeof phoneNumber !== 'string') {
+          return res.status(400).json({ message: "Phone number is required" });
+        }
+        formattedPhone = formatUKPhoneNumber(phoneNumber);
+      }
 
-      // Check if phone number matches (if one was provided during link creation)
-      if (shareLink.smsPhoneNumber && shareLink.smsPhoneNumber !== formattedPhone) {
-        return res.status(403).json({ message: "Phone number does not match the expected recipient" });
+      if (!isValidUKPhoneNumber(formattedPhone)) {
+        return res.status(400).json({
+          message: "Invalid UK mobile number. Please use a number like 07xxx… or +447xxx…",
+        });
       }
 
       // Generate verification code
@@ -1150,6 +1168,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         success: true, 
         message: "Verification code sent successfully",
         expiresIn: 15, // minutes
+        phoneLastFour: phoneLastFour(formattedPhone),
       });
     } catch (error: any) {
       console.error('Error sending SMS:', error);
@@ -1369,12 +1388,26 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         waitlistStatus = waitlistEntry?.status ?? null;
       }
       
+      const identities = await storage.getAuthIdentitiesForUser(userId);
+      const authProviders = identities
+        .map((identity) => identity.provider)
+        .filter((provider): provider is "google" | "microsoft" =>
+          provider === "google" || provider === "microsoft",
+        );
+      // Preferred calendar matches how they signed in (Google → Google Calendar, Microsoft → Outlook).
+      const preferredCalendarProvider: "google" | "outlook" =
+        authProviders.includes("microsoft") && !authProviders.includes("google")
+          ? "outlook"
+          : "google";
+
       const userWithFlags = {
         ...user,
         isAdmin,
         accessAllowed,
         waitlistStatus,
         role: isAdmin ? 'admin' : (user?.role || 'solicitor'),
+        authProviders,
+        preferredCalendarProvider,
       };
       
       res.json(userWithFlags);
@@ -2399,6 +2432,28 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  // Confirm display name once (locks afterward). Admins force-update via /api/admin/users/:id/display-name.
+  app.patch("/api/user/display-name", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const nameSchema = z.object({
+        firstName: z.string().min(1).max(100).transform((s) => s.trim()),
+        lastName: z.string().min(1).max(100).transform((s) => s.trim()),
+      });
+      const { firstName, lastName } = nameSchema.parse(req.body);
+      const user = await storage.confirmUserDisplayName(userId, { firstName, lastName });
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json(user);
+    } catch (error: any) {
+      if (error?.name === "DisplayNameAlreadyConfirmedError") {
+        return res.status(409).json({ message: error.message });
+      }
+      next(error);
+    }
+  });
+
   app.post("/api/time-entries/:id/push-to-clio", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
@@ -3261,14 +3316,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // Get firm profile for email branding
       const firmProfile = await storage.getFirmProfile();
       
-      // Send email with share link
+      // Send email with share link (no case/client PII — GDPR / data residency)
       const result = await sendCaseEmail({
         to: recipientEmail,
-        caseTitle: caseData.title,
-        clientName: caseData.clientName,
-        matterReference: caseData.matterReference || undefined,
         shareLinkId: shareLink.id,
         customMessage: customMessage || undefined,
+        systemMessage: 'This secure link will expire in 7 days.',
         firmProfile: firmProfile ? {
           firmName: firmProfile.firmName,
           phone: firmProfile.phone || undefined,
@@ -3359,6 +3412,11 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           });
         }
         formattedPhoneNumber = formatUKPhoneNumber(smsPhoneNumber);
+        if (!isValidUKPhoneNumber(formattedPhoneNumber)) {
+          return res.status(400).json({
+            message: "Invalid UK mobile number. Please use a number like 07xxx… or +447xxx…",
+          });
+        }
       }
       
       // Get case data (verify user has access)
@@ -3449,17 +3507,24 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // Get firm profile for email branding
       const firmProfile = await storage.getFirmProfile();
       
-      // Send email with share link
-      const systemMessage = `You have been granted ${accessLevel} access to this case. This link will expire in ${expiration.replace(/(\d+)(\w+)/, '$1 $2')}.${password ? ' A password is required to access the documents.' : ''}${smsProtection ? ' SMS verification is required to access the documents.' : ''}`;
-      const fullMessage = customMessage ? `${customMessage}\n\n${systemMessage}` : systemMessage;
-      
+      // Send email with share link (no case/client/matter PII — GDPR / data residency)
+      const expirationLabel =
+        expiration === '24hours' ? '24 hours'
+        : expiration === '7days' ? '7 days'
+        : expiration === '30days' ? '30 days'
+        : 'the configured period';
+      const systemMessage = [
+        `You have been granted ${accessLevel} access to secure documents.`,
+        `This link will expire in ${expirationLabel}.`,
+        password ? 'A password is required to access the documents.' : '',
+        smsProtection ? 'SMS verification is required to access the documents.' : '',
+      ].filter(Boolean).join(' ');
+
       const result = await sendCaseEmail({
         to: recipientEmail,
-        caseTitle: caseData.title,
-        clientName: recipientName,
-        matterReference: caseData.matterReference || undefined,
         shareLinkId: shareLink.id,
-        customMessage: fullMessage,
+        customMessage: customMessage || undefined,
+        systemMessage,
         firmProfile: firmProfile ? {
           firmName: firmProfile.firmName,
           phone: firmProfile.phone || undefined,
@@ -6780,6 +6845,28 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
+  // Force-update a user's locked display name (admin only)
+  app.patch("/api/admin/users/:id/display-name", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const nameSchema = z.object({
+        firstName: z.string().min(1).max(100).transform((s) => s.trim()),
+        lastName: z.string().min(1).max(100).transform((s) => s.trim()),
+      });
+      const { firstName, lastName } = nameSchema.parse(req.body);
+      const user = await storage.confirmUserDisplayName(
+        req.params.id,
+        { firstName, lastName },
+        { force: true },
+      );
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json(user);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Admin statistics endpoints
   app.get("/api/admin/statistics", isAuthenticated, isAdmin, async (req: any, res, next) => {
     try {
@@ -7225,7 +7312,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     try {
       const userId = req.user.claims.sub;
       const preferences = await storage.getUserPreferences(userId);
-      res.json(preferences || { userId, dismissedReviewBanner: false, completedOnboarding: false });
+      res.json(preferences || {
+        userId,
+        dismissedReviewBanner: false,
+        completedOnboarding: false,
+        completedIntegrationsOnboarding: false,
+      });
     } catch (error) {
       next(error);
     }
@@ -9886,7 +9978,19 @@ ${firmName}`;
       
       const meetings = await storage.getUpcomingScheduledMeetings(userId, daysAhead);
       res.json(meetings);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[SCHEDULED_MEETINGS] Error listing upcoming meetings:", error);
+      const msg = String(error?.message || error || "");
+      if (
+        msg.includes("reminder_30m_sent_at") ||
+        msg.includes("reminder_10m_sent_at")
+      ) {
+        return res.status(500).json({
+          message:
+            "Database is missing meeting reminder columns. Run scripts/meeting-reminder-columns.sql (or npm run db:push), then retry.",
+          code: "SCHEMA_MIGRATION_REQUIRED",
+        });
+      }
       next(error);
     }
   });

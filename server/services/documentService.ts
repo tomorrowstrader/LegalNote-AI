@@ -971,8 +971,8 @@ List each distinct defect once. Never repeat a statement. Never restate the same
         cost,
       };
     } catch (error: any) {
-      console.error('Document generation failed:', error);
-      throw new Error(`Document generation failed: ${error.message}`);
+      console.error('Document production failed:', error);
+      throw new Error(`Document production failed: ${error.message}`);
     }
   }
 

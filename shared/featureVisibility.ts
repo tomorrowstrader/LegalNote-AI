@@ -12,7 +12,6 @@ export const FEATURE_VISIBILITY = {
   complianceScore: false,
   publicComplianceBadge: false,
   profileNotificationPrefs: false,
-  profileDisplayNameEdit: false,
   /** Auto-record + cron bot deploy for scheduled meetings (Phase 3). */
   calendarAutoRecord: false,
   /** Transfer a matter to another fee earner within the firm. */

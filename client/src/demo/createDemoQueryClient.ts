@@ -1721,6 +1721,7 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
     id: DEMO_USER_ID,
     firstName: params.name || "Rachel",
     lastName: params.lastName || "Thornton",
+    displayNameConfirmedAt: new Date().toISOString(),
     email: "demo@legalnote.app",
     firmId: DEMO_FIRM_ID,
     primaryRole: "solicitor",
@@ -1730,6 +1731,8 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
     role: "solicitor",
     inviteStatus: "active",
     isAdmin: false,
+    authProviders: ["google"] as ("google" | "microsoft")[],
+    preferredCalendarProvider: "google" as const,
   };
 
   const demoFirmProfile = {
@@ -1903,6 +1906,7 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
     userId: DEMO_USER_ID,
     dismissedReviewBanner: false,
     completedOnboarding: true,
+    completedIntegrationsOnboarding: true,
     consentWorkflowPreferences: {},
     sendRecordingConfirmationEmails: false,
   };

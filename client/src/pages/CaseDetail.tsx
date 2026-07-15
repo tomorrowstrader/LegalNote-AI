@@ -147,12 +147,27 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHol
   const generateDocsMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/cases/${caseId}/process`, { sessionId }),
     onSuccess: () => {
-      toast({ title: "Documents generated", description: "Session documents are being produced.", duration: 5000 });
+      toast({ title: "Producing documents", description: "Meeting-to-Matter™ is compiling this session’s documents.", duration: 5000 });
+      queryClient.setQueryData([`/api/cases/${caseId}`], (old: Case | undefined) =>
+        old
+          ? {
+              ...old,
+              status: "processing",
+              aiProcessingMetadata: {
+                status: "processing",
+                progress: 0,
+                currentStep: "Queued for processing...",
+              },
+            }
+          : old,
+      );
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/processing-status`] });
       queryClient.invalidateQueries({ queryKey: ['/api/sessions', sessionId] });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
     },
     onError: (error: any) => {
-      toast({ title: "Failed to generate documents", description: error.message || "Please try again.", variant: "destructive", duration: 5000 });
+      toast({ title: "Failed to produce documents", description: error.message || "Please try again.", variant: "destructive", duration: 5000 });
     },
   });
 
@@ -243,8 +258,8 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHol
               className="gap-1.5"
             >
               {generateDocsMutation.isPending
-                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</>
-                : <><FileText className="w-3.5 h-3.5" />{activeDocuments.length > 0 ? "Regenerate" : "Generate documents"}</>}
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Producing…</>
+                : <><FileText className="w-3.5 h-3.5" />{activeDocuments.length > 0 ? "Produce again" : "Produce documents"}</>}
             </Button>
           )}
         </div>
@@ -426,13 +441,18 @@ export default function CaseDetail() {
     start: number; end: number; reason: string; redactedBy: string; timestamp: string;
   }
 
+  const shouldLoadCaseContent =
+    !!caseId &&
+    !!caseData &&
+    ['review_required', 'completed', 'processing', 'failed'].includes(caseData.status);
+
   const { data: transcript } = useQuery<{
     id: string; caseId: string; content: string;
     utterances?: SpeakerUtterance[]; speakerCount?: number;
     redactions?: Redaction[]; createdAt: string;
   }>({
     queryKey: [`/api/cases/${caseId}/transcript`],
-    enabled: !!caseId && (caseData?.status === 'review_required' || caseData?.status === 'completed'),
+    enabled: shouldLoadCaseContent,
   });
 
   const { data: documents = [] } = useQuery<Array<{
@@ -441,7 +461,7 @@ export default function CaseDetail() {
     meetingSessionId?: string | null;
   }>>({
     queryKey: [`/api/cases/${caseId}/documents`],
-    enabled: !!caseId && (caseData?.status === 'review_required' || caseData?.status === 'completed'),
+    enabled: shouldLoadCaseContent,
   });
 
   const { data: processingStatus } = useQuery<{
@@ -657,11 +677,43 @@ export default function CaseDetail() {
     !audioData.filePath &&
     !audioData.deletedAt;
 
+  const markCaseAsProcessing = (currentStep: string) => {
+    queryClient.setQueryData([`/api/cases/${caseId}`], (old: Case | undefined) =>
+      old
+        ? {
+            ...old,
+            status: "processing",
+            aiProcessingMetadata: {
+              ...(typeof old.aiProcessingMetadata === "object" && old.aiProcessingMetadata
+                ? (old.aiProcessingMetadata as Record<string, unknown>)
+                : {}),
+              status: "processing",
+              progress: 0,
+              currentStep,
+              error: undefined,
+            },
+          }
+        : old,
+    );
+    queryClient.setQueryData([`/api/cases/${caseId}/processing-status`], {
+      status: "processing",
+      processingMetadata: {
+        status: "processing",
+        progress: 0,
+        currentStep,
+      },
+    });
+    displayProgressRef.current = INITIAL_PROGRESS;
+    setDisplayProgress(INITIAL_PROGRESS);
+    void queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+    void queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/processing-status`] });
+  };
+
   const processAIMutation = useMutation({
     mutationFn: async () => apiRequest("POST", `/api/cases/${caseId}/process`, {}),
     onSuccess: () => {
-      toast({ title: "Processing complete", description: "Documents have been produced successfully", duration: 6000 });
-      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      toast({ title: "Processing started", description: "Documents are being produced. Progress will update on this page.", duration: 6000 });
+      markCaseAsProcessing("Queued for processing...");
     },
     onError: (error: any) => {
       toast({ title: "Processing failed", description: error.message || "Failed to process case. Please try again.", variant: "destructive", duration: 6000 });
@@ -671,8 +723,8 @@ export default function CaseDetail() {
   const retryProcessingMutation = useMutation({
     mutationFn: async () => apiRequest("POST", `/api/cases/${caseId}/retry-processing`, {}),
     onSuccess: () => {
-      toast({ title: "Retry started", description: "Processing has been queued again", duration: 6000 });
-      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      toast({ title: "Retry started", description: "Processing has been queued again. Progress will update on this page.", duration: 6000 });
+      markCaseAsProcessing("Retrying processing...");
     },
     onError: (error: any) => {
       toast({ title: "Retry failed", description: error.message || "Failed to retry processing.", variant: "destructive", duration: 6000 });
@@ -1692,7 +1744,7 @@ export default function CaseDetail() {
             </div>
           )}
 
-          {/* Failed card */}
+          {/* Failed card — first-time AI processing only */}
           {caseData.status === 'failed' && (
             <div className="p-5 bg-destructive/10 rounded-md border border-destructive/40" data-testid="failed-status-card">
               <div className="flex items-start justify-between gap-4">
@@ -1705,6 +1757,22 @@ export default function CaseDetail() {
                 <Button onClick={() => retryProcessingMutation.mutate()} disabled={retryProcessingMutation.isPending} variant="destructive" size="sm" className="gap-2 shrink-0" data-testid="button-retry-processing">
                   {retryProcessingMutation.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Retrying...</> : <><RefreshCw className="w-3.5 h-3.5" />Retry</>}
                 </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Further-version failure — matter stays reviewable; prior docs remain visible */}
+          {caseData.status !== 'failed' && (caseData.aiProcessingMetadata as any)?.produceVersionFailed && (
+            <div className="p-5 bg-destructive/10 rounded-md border border-destructive/40" data-testid="produce-version-failed-card">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <p className="font-semibold text-sm mb-1">Could not produce a further version</p>
+                  <p className="text-sm text-muted-foreground">
+                    {(caseData.aiProcessingMetadata as any)?.produceVersionError
+                      || (caseData.aiProcessingMetadata as any)?.error
+                      || 'The previous version is still on file. You can try Produce new version again.'}
+                  </p>
+                </div>
               </div>
             </div>
           )}

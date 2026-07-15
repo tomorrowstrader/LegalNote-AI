@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Activity, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,22 +18,30 @@ import type { Case } from "@shared/schema";
 import { isFeatureVisible } from "@/lib/features";
 
 const profileNotificationPrefsVisible = isFeatureVisible("profileNotificationPrefs");
-const profileDisplayNameEditVisible = isFeatureVisible("profileDisplayNameEdit");
 
 export default function MyProfile() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
   const [hourlyRate, setHourlyRate] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  const nameLocked = !!user?.displayNameConfirmedAt;
 
   useEffect(() => {
     if (user?.hourlyRate) {
       setHourlyRate(user.hourlyRate);
     }
   }, [user?.hourlyRate]);
+
+  useEffect(() => {
+    setFirstName(user?.firstName?.trim() || '');
+    setLastName(user?.lastName?.trim() || '');
+  }, [user?.firstName, user?.lastName]);
   
-  const displayName = user?.firstName && user?.lastName 
-    ? `${user.firstName} ${user.lastName}` 
+  const displayName = firstName && lastName
+    ? `${firstName} ${lastName}` 
     : user?.email?.split('@')[0] || '';
 
   const { data: cases, isLoading: loadingCases } = useQuery<Case[]>({
@@ -49,6 +58,26 @@ export default function MyProfile() {
     },
     onError: () => {
       toast({ title: "Failed to update", description: "Could not save your hourly rate.", variant: "destructive" });
+    },
+  });
+
+  const displayNameMutation = useMutation({
+    mutationFn: async (names: { firstName: string; lastName: string }) => {
+      return await apiRequest("PATCH", "/api/user/display-name", names);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Display name confirmed",
+        description: "Your name is locked. Contact an administrator if you need to change it later.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update",
+        description: error.message || "Could not save your display name.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -89,26 +118,84 @@ export default function MyProfile() {
             <Card>
             <CardHeader>
               <CardTitle>Personal Information</CardTitle>
-              <CardDescription>Update your display name and contact details</CardDescription>
+              <CardDescription>
+                {nameLocked
+                  ? "Your display name is confirmed and locked"
+                  : "Confirm your display name — it locks after you save"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="display-name">Display Name</Label>
-                <Input
-                  id="display-name"
-                  defaultValue={displayName}
-                  disabled={!profileDisplayNameEditVisible}
-                  data-testid="input-display-name"
-                />
-              </div>
+              {nameLocked ? (
+                <div className="space-y-2">
+                  <Label htmlFor="display-name">Display Name</Label>
+                  <Input
+                    id="display-name"
+                    value={displayName}
+                    disabled
+                    data-testid="input-display-name"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Contact an administrator to change your display name
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="first-name">First name</Label>
+                      <Input
+                        id="first-name"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        autoComplete="given-name"
+                        data-testid="input-first-name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="last-name">Last name</Label>
+                      <Input
+                        id="last-name"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        autoComplete="family-name"
+                        data-testid="input-last-name"
+                      />
+                    </div>
+                  </div>
+                  <Alert>
+                    <AlertDescription className="text-sm">
+                      Once confirmed, your display name is locked. Changing it later requires
+                      contacting an administrator.
+                    </AlertDescription>
+                  </Alert>
+                  <Button
+                    className="bg-accent hover:bg-accent"
+                    disabled={
+                      !firstName.trim() ||
+                      !lastName.trim() ||
+                      displayNameMutation.isPending
+                    }
+                    onClick={() =>
+                      displayNameMutation.mutate({
+                        firstName: firstName.trim(),
+                        lastName: lastName.trim(),
+                      })
+                    }
+                    data-testid="button-save-profile"
+                  >
+                    {displayNameMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      "Confirm display name"
+                    )}
+                  </Button>
+                </>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" defaultValue={user?.email || ''} disabled data-testid="input-email" />
                 <p className="text-xs text-muted-foreground">Contact your administrator to change your email</p>
               </div>
-              {profileDisplayNameEditVisible && (
-                <Button className="bg-accent hover:bg-accent" data-testid="button-save-profile">Save Changes</Button>
-              )}
             </CardContent>
           </Card>
 

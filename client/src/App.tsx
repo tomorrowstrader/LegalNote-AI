@@ -10,6 +10,8 @@ import { useNewNoteShortcut } from "@/hooks/useNewNoteShortcut";
 import { useQuickRecordShortcut } from "@/hooks/useQuickRecordShortcut";
 import TopNavigation from "@/components/TopNavigation";
 import FirmSetupPrompt from "@/components/FirmSetupPrompt";
+import DisplayNameOnboarding from "@/components/DisplayNameOnboarding";
+import IntegrationsOnboarding from "@/components/IntegrationsOnboarding";
 import OnboardingTour from "@/components/OnboardingTour";
 import { RecordingRecoveryModal, useRecordingRecovery } from "@/components/RecordingRecoveryModal";
 import Dashboard from "@/pages/Dashboard";
@@ -162,6 +164,8 @@ function AuthenticatedAppContent() {
     <div className={`min-h-screen bg-background ${!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute ? 'pt-16' : ''}`}>
       {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <TopNavigation onRestartTour={handleRestartTour} />}
       {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <FirmSetupPrompt />}
+      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <DisplayNameOnboarding />}
+      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <IntegrationsOnboarding />}
       {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <OnboardingTour restartTrigger={restartTourTrigger} />}
       {!isLoading && hasAppAccess && !isPublicDemoRoute && (
         <RecordingRecoveryModal

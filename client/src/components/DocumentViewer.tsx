@@ -1132,6 +1132,31 @@ export default function DocumentViewer({
       });
     },
     onSuccess: () => {
+      queryClient.setQueryData([`/api/cases/${caseId}`], (old: { status?: string; aiProcessingMetadata?: unknown } | undefined) =>
+        old
+          ? {
+              ...old,
+              status: "processing",
+              aiProcessingMetadata: {
+                ...(typeof old.aiProcessingMetadata === "object" && old.aiProcessingMetadata
+                  ? (old.aiProcessingMetadata as Record<string, unknown>)
+                  : {}),
+                status: "processing",
+                progress: 0,
+                currentStep: "Queued for further version production...",
+                error: undefined,
+              },
+            }
+          : old,
+      );
+      queryClient.setQueryData([`/api/cases/${caseId}/processing-status`], {
+        status: "processing",
+        processingMetadata: {
+          status: "processing",
+          progress: 0,
+          currentStep: "Queued for further version production...",
+        },
+      });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/processing-status`] });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
@@ -1139,7 +1164,7 @@ export default function DocumentViewer({
       setProduceReason("");
       toast({
         title: "Producing new version",
-        description: "Progress will appear on this case page.",
+        description: "Progress will update on this case page — no need to refresh.",
         duration: 5000,
       });
     },

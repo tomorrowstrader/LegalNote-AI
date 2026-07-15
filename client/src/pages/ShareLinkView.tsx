@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Lock, FileText, AlertCircle, CheckCircle2, Clock, Smartphone, Loader2, Download } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
 import type { FirmProfile } from "@shared/schema";
 import DownloadModal from "@/components/DownloadModal";
@@ -21,7 +21,8 @@ interface ShareLinkData {
   requiresSmsVerification: boolean;
   requiresPassword: boolean;
   recipientName?: string;
-  phoneNumber?: string;
+  hasRegisteredPhone?: boolean;
+  phoneLastFour?: string;
   caseData?: {
     title: string;
     clientName: string;
@@ -55,6 +56,7 @@ export default function ShareLinkView() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [smsStep, setSmsStep] = useState<"phone" | "code">("phone");
+  const [sentToLastFour, setSentToLastFour] = useState<string | undefined>();
   const [password, setPassword] = useState("");
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const { toast } = useToast();
@@ -67,11 +69,15 @@ export default function ShareLinkView() {
   });
 
   const sendSmsMutation = useMutation({
-    mutationFn: async (phone: string) => {
-      const response = await apiRequest('POST', `/api/share/${linkId}/send-sms`, { phoneNumber: phone });
+    mutationFn: async (phone?: string) => {
+      const response = await apiRequest<{
+        success: boolean;
+        phoneLastFour?: string;
+      }>('POST', `/api/share/${linkId}/send-sms`, phone ? { phoneNumber: phone } : {});
       return response;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      setSentToLastFour(result.phoneLastFour || data?.phoneLastFour);
       toast({
         title: "Code Sent",
         description: "Please check your phone for the verification code",
@@ -79,21 +85,14 @@ export default function ShareLinkView() {
       });
       setSmsStep("code");
     },
-    onError: (error: any) => {
-      let errorMsg = error.message || "";
-      try {
-        const jsonMatch = errorMsg.match(/\d+:\s*(.*)/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[1]);
-          errorMsg = parsed.message || errorMsg;
-        }
-      } catch {}
+    onError: (error: unknown) => {
+      const errorMsg = getApiErrorMessage(error, "");
       
       const isPhoneMismatch = errorMsg.includes("does not match") || errorMsg.includes("expected recipient");
       const isRateLimit = errorMsg.includes("Maximum SMS send attempts");
       
       let title = "Failed to Send Code";
-      let description = "We could not send a verification code. Please check your number and try again, or contact the sender directly.";
+      let description = errorMsg || "We could not send a verification code. Please check your number and try again, or contact the sender directly.";
       let duration = 8000;
       
       if (isPhoneMismatch) {
@@ -129,10 +128,10 @@ export default function ShareLinkView() {
       // Refetch to get documents after verification
       refetch();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Verification Failed",
-        description: error.message || "Invalid code. Please try again",
+        description: getApiErrorMessage(error, "Invalid code. Please try again"),
         variant: "destructive",
         duration: 8000,
       });
@@ -140,6 +139,11 @@ export default function ShareLinkView() {
   });
 
   const handleSendSms = () => {
+    // Registered number on file: send without requiring re-entry (avoids format mismatches)
+    if (data?.hasRegisteredPhone) {
+      sendSmsMutation.mutate(undefined);
+      return;
+    }
     if (!phoneNumber.trim()) {
       toast({
         title: "Phone Number Required",
@@ -167,7 +171,11 @@ export default function ShareLinkView() {
 
   const handleResendCode = () => {
     setVerificationCode("");
-    sendSmsMutation.mutate(phoneNumber);
+    if (data?.hasRegisteredPhone) {
+      sendSmsMutation.mutate(undefined);
+    } else {
+      sendSmsMutation.mutate(phoneNumber);
+    }
   };
 
   const verifyPasswordMutation = useMutation({

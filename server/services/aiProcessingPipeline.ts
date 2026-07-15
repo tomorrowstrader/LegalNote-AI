@@ -360,7 +360,7 @@ export class AIProcessingPipeline {
       await this.updateProcessingStatus(caseId, userId, {
         status: 'generating_documents',
         progress: 40,
-        currentStep: 'Generating attendance note...',
+        currentStep: 'Producing attendance note...',
         transcriptionCost: transcriptionCost,
       });
 
@@ -395,7 +395,7 @@ export class AIProcessingPipeline {
       const logLabel = 'attendance note';
 
       // Step 2: Generate primary document (attendance note)
-      console.log(`Generating ${logLabel} for case ${caseId} (recording type: ${recordingType}, session: ${sessionInfo.sessionId})...`);
+      console.log(`Producing ${logLabel} for case ${caseId} (recording type: ${recordingType}, session: ${sessionInfo.sessionId})...`);
       const attendanceResult = await this.documentService.generateDocumentByRecordingType(
         recordingType,
         transcriptForDocGen,
@@ -448,10 +448,10 @@ export class AIProcessingPipeline {
       await this.updateProcessingStatus(caseId, userId, {
         status: 'generating_documents',
         progress: 70,
-        currentStep: 'Generating client letter...',
+        currentStep: 'Producing client letter...',
       });
 
-      console.log(`Generating client letter for case ${caseId}...`);
+      console.log(`Producing client letter for case ${caseId}...`);
       clientLetterResult = await this.documentService.generateSummary(
         attendanceResult.content,
         metadata

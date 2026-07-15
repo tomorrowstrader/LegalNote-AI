@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, getApiErrorMessage } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -771,6 +771,9 @@ export function ScheduledMeetingsViewer() {
           <div className="text-center py-8 text-muted-foreground">
             <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>Failed to load meetings</p>
+            <p className="text-sm mt-2 max-w-md mx-auto">
+              {getApiErrorMessage(error, "Check your connection and try again.")}
+            </p>
             <Button variant="outline" size="sm" onClick={handleRefresh} className="mt-4">
               <RefreshCw className="w-4 h-4 mr-2" />
               Retry

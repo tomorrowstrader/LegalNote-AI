@@ -76,42 +76,50 @@ export async function sendVerificationCode(
 }
 
 /**
- * Validates a phone number format (UK numbers)
- * @param phoneNumber - Phone number to validate
- * @returns boolean - true if valid UK format
+ * Validates a UK mobile number in E.164 format (+447…)
  */
 export function isValidUKPhoneNumber(phoneNumber: string): boolean {
-  // UK phone numbers in E.164 format: +44 followed by 10 digits
-  // Accepts: +447xxx... (mobile) or +441xxx.../+442xxx... (landline)
-  return /^\+44[1-9]\d{9}$/.test(phoneNumber);
+  return /^\+447\d{9}$/.test(phoneNumber);
 }
 
 /**
- * Formats a UK phone number to E.164 format
- * Converts various UK number formats to +44 standard
- * @param phoneNumber - Phone number in various formats
- * @returns string - Phone number in E.164 format or original if cannot parse
+ * Formats a UK mobile number to E.164 (+447…)
+ * Accepts common national/international variants; returns original if unparseable.
  */
 export function formatUKPhoneNumber(phoneNumber: string): string {
-  // Remove all whitespace, dashes, parentheses
-  let cleaned = phoneNumber.replace(/[\s\-\(\)]/g, '');
-  
-  // Handle different UK formats:
-  // 07xxx... -> +447xxx...
-  if (cleaned.match(/^07\d{9}$/)) {
-    return '+44' + cleaned.substring(1);
+  let cleaned = phoneNumber.replace(/[\s\-\(\)\.]/g, '');
+
+  // 0044753… -> +44753…
+  if (cleaned.startsWith('0044')) {
+    cleaned = '+' + cleaned.slice(2);
   }
-  
-  // 447xxx... -> +447xxx...
-  if (cleaned.match(/^447\d{9}$/)) {
+
+  // 07xxxxxxxxx -> +447xxxxxxxxx
+  if (/^07\d{9}$/.test(cleaned)) {
+    return '+44' + cleaned.slice(1);
+  }
+
+  // 7xxxxxxxxx (missing leading 0) -> +447xxxxxxxxx
+  if (/^7\d{9}$/.test(cleaned)) {
+    return '+44' + cleaned;
+  }
+
+  // 447xxxxxxxxx -> +447xxxxxxxxx
+  if (/^447\d{9}$/.test(cleaned)) {
     return '+' + cleaned;
   }
-  
-  // +447xxx... (already correct)
-  if (cleaned.match(/^\+447\d{9}$/)) {
+
+  // +447xxxxxxxxx (already correct)
+  if (/^\+447\d{9}$/.test(cleaned)) {
     return cleaned;
   }
-  
-  // Return original if we can't parse it
-  return phoneNumber;
+
+  return phoneNumber.trim();
+}
+
+/** Last 4 digits for masked UI display (never expose full number publicly). */
+export function phoneLastFour(phoneNumber: string): string {
+  const formatted = formatUKPhoneNumber(phoneNumber);
+  const digits = formatted.replace(/\D/g, '');
+  return digits.slice(-4) || '****';
 }

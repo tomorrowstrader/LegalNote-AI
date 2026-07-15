@@ -20,15 +20,19 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
     enabled: !authLoading && !!user,
   });
 
-  // Start the tour when preferences load and onboarding is not complete
+  // Start the tour when preferences load and onboarding is not complete.
+  // Wait until display name is confirmed and the integrations wizard is finished
+  // so the flows don't overlap.
   useEffect(() => {
-    if (!isLoading && !authLoading && preferences && !hasStarted) {
-      if (!preferences.completedOnboarding) {
+    if (!isLoading && !authLoading && preferences && !hasStarted && user) {
+      if (!user.displayNameConfirmedAt) return;
+      const integrationsDone = preferences.completedIntegrationsOnboarding !== false;
+      if (!preferences.completedOnboarding && integrationsDone) {
         setRun(true);
         setHasStarted(true);
       }
     }
-  }, [isLoading, authLoading, preferences, hasStarted]);
+  }, [isLoading, authLoading, preferences, hasStarted, user]);
 
   // Restart tour when restartTrigger changes
   useEffect(() => {

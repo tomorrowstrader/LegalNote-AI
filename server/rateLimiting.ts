@@ -1,9 +1,17 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 /**
  * Rate limiting configuration for LegalNote
  * Protects against abuse and DoS attacks with proper IPv6 support
  */
+
+function userOrIpKey(req: any): string {
+  if (req.user?.claims?.sub) {
+    return String(req.user.claims.sub);
+  }
+  // ipKeyGenerator applies IPv6 subnet masking so users cannot bypass by rotating addresses
+  return ipKeyGenerator(req.ip ?? "unknown");
+}
 
 // General API rate limit — per-user when session exists, per-IP otherwise.
 // Dashboard + polling can exceed 100/15min on a single IP during normal use.
@@ -14,7 +22,7 @@ export const generalApiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: false,
-  keyGenerator: (req: any) => req.user?.claims?.sub || req.ip || "unknown",
+  keyGenerator: userOrIpKey,
 });
 
 // Case creation rate limit: 50 cases per hour per user

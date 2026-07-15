@@ -156,7 +156,11 @@ export default function Dashboard() {
   });
 
   const greeting = getTimeBasedGreeting();
-  const firstName = user?.firstName || user?.email?.split('@')[0] || 'there';
+  // Greeting shows first name only — never last name, even if OAuth stuffed a full name into firstName.
+  const firstName =
+    user?.firstName?.trim().split(/\s+/)[0] ||
+    user?.email?.split('@')[0] ||
+    'there';
 
   const productivityInsight = useMemo(() => {
     if (!productivityStats) return null;

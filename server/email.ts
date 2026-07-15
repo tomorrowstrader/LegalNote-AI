@@ -9,11 +9,11 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 interface SendCaseEmailParams {
   to: string;
-  caseTitle: string;
-  clientName: string;
-  matterReference?: string;
   shareLinkId: string;
+  /** Optional solicitor-written note. Must not include matter/client PII for data residency. */
   customMessage?: string;
+  /** Automated access notice (expiry / password / SMS). Must not include matter/client PII. */
+  systemMessage?: string;
   firmProfile?: {
     firmName: string;
     phone?: string;
@@ -26,16 +26,16 @@ interface SendCaseEmailParams {
 }
 
 /**
- * Sends a professional email to a client with secure share link for document access
+ * Sends a secure share-link email.
+ * GDPR / data residency: intentionally omits client name, case title, and matter reference
+ * from subject and body. Only a generic message, optional personal note, and the link are sent.
  */
 export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const {
     to,
-    caseTitle,
-    clientName,
-    matterReference,
     shareLinkId,
     customMessage,
+    systemMessage,
     firmProfile
   } = params;
 
@@ -43,7 +43,17 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
   const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
   const shareUrl = `${baseUrl}/share/${shareLinkId}`;
 
-  // Build email HTML content
+  const defaultMessage =
+    'You have been granted secure access to view confidential documents. Please use the button below to continue.';
+
+  const safePersonal = customMessage
+    ? customMessage.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+    : '';
+  const safeSystem = systemMessage
+    ? systemMessage.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+    : '';
+
+  // Build email HTML content — no case/client/matter identifiers
   const emailHtml = `
     <!DOCTYPE html>
     <html>
@@ -76,16 +86,6 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
         }
         .content {
           margin-bottom: 30px;
-        }
-        .case-details {
-          background-color: #f5f5f5;
-          padding: 15px;
-          border-radius: 5px;
-          margin: 20px 0;
-        }
-        .case-details strong {
-          display: block;
-          margin-bottom: 5px;
         }
         .cta-button {
           display: inline-block;
@@ -121,39 +121,30 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
       ` : ''}
 
       <div class="content">
-        <p>Dear ${clientName},</p>
+        <p>Hello,</p>
 
-        ${customMessage ? `<p>${customMessage.replace(/\n/g, '<br>')}</p>` : `
-          <p>We are pleased to provide you with access to your case documents.</p>
-        `}
+        ${safePersonal ? `<p>${safePersonal}</p>` : `<p>${defaultMessage}</p>`}
 
-        <div class="case-details">
-          <strong>Case Details:</strong>
-          <p style="margin: 5px 0;">
-            <strong>Case:</strong> ${caseTitle}<br>
-            <strong>Client:</strong> ${clientName}
-            ${matterReference ? `<br><strong>Matter Reference:</strong> ${matterReference}` : ''}
-          </p>
-        </div>
+        ${safeSystem ? `<p style="font-size: 14px; color: #555;">${safeSystem}</p>` : ''}
 
-        <p>You can view your case documents by clicking the button below:</p>
+        <p>You can view the documents by clicking the button below:</p>
 
-        <a href="${shareUrl}" class="cta-button">View Case Documents</a>
+        <a href="${shareUrl}" class="cta-button">View Documents</a>
 
         <p style="font-size: 12px; color: #666;">
           If the button above doesn't work, copy and paste this link into your browser:<br>
           <a href="${shareUrl}">${shareUrl}</a>
         </p>
 
-        <p>If you have any questions or require further assistance, please don't hesitate to contact us.</p>
+        <p>If you have any questions or require further assistance, please contact the person who shared this with you.</p>
 
         <p>Kind regards,<br>
         ${firmProfile?.firmName || 'Your Legal Team'}</p>
       </div>
 
       <div class="footer">
-        <p>This email contains confidential information intended only for ${clientName}. 
-        If you are not the intended recipient, please delete this email and notify us immediately.</p>
+        <p>This email contains a confidential link intended only for the recipient.
+        If you are not the intended recipient, please delete this email and notify the sender immediately.</p>
         ${firmProfile?.firmName ? `<p>&copy; ${new Date().getFullYear()} ${firmProfile.firmName}. All rights reserved.</p>` : ''}
       </div>
     </body>
@@ -164,7 +155,7 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
     const { data, error } = await resend.emails.send({
       from: 'LegalNote™ <support@legalnote.ai>', // Use verified domain in production
       to: [to],
-      subject: `Case Documents - ${clientName}${matterReference ? ` (${matterReference})` : ''}`,
+      subject: 'Secure document access',
       html: emailHtml,
     });
 
