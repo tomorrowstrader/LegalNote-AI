@@ -410,7 +410,27 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   }
 
   const userId = user.claims.sub as string;
-  const email = typeof user.claims?.email === "string" ? user.claims.email : null;
+  // Prefer session claim; fall back to DB email so allowlist-by-email works when
+  // claims.email is null (same source /api/auth/user uses for accessAllowed).
+  let email =
+    typeof user.claims?.email === "string" && user.claims.email.trim()
+      ? user.claims.email
+      : null;
+  if (
+    !email &&
+    !isAllowlistExemptPath(req.method, req.path) &&
+    isAccessAllowlistEnforced()
+  ) {
+    try {
+      const dbUser = await storage.getUser(userId);
+      email = dbUser?.email ?? null;
+      if (email && user.claims) {
+        user.claims.email = email;
+      }
+    } catch (err) {
+      console.error("[AUTH] Failed to resolve user email for allowlist check:", err);
+    }
+  }
   if (
     !isAllowlistExemptPath(req.method, req.path) &&
     !isUserAccessAllowed(userId, email)

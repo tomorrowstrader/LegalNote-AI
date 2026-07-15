@@ -12,7 +12,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile, DocumentComment } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import DownloadModal from "@/components/DownloadModal";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -1138,15 +1138,18 @@ export default function DocumentViewer({
       setProduceTarget(null);
       setProduceReason("");
       toast({
-        title: "Producing further version",
-        description: "The Meeting-to-Matter™ Engine is regenerating documents via the derivation pipeline. Progress appears above.",
-        duration: 7000,
+        title: "Producing new version",
+        description: "Progress will appear on this case page.",
+        duration: 5000,
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
-        title: "Could not produce further version",
-        description: error?.message || "Please try again.",
+        title: "Could not produce new version",
+        description: getApiErrorMessage(
+          error,
+          "Please try again. If the problem continues, contact support.",
+        ),
         variant: "destructive",
         duration: 8000,
       });
@@ -1626,7 +1629,7 @@ export default function DocumentViewer({
               </Button>
             </TooltipTrigger>
             <TooltipContent className="max-w-[240px]">
-              Re-run the derivation engine to produce a further version. The current version remains on record.
+              Produce a new version. The current version stays on record.
             </TooltipContent>
           </Tooltip>
         )}
@@ -2779,20 +2782,10 @@ export default function DocumentViewer({
         <DialogContent className="sm:max-w-md" data-testid="dialog-produce-new-version">
           <DialogHeader>
             <DialogTitle>Produce new version</DialogTitle>
-            <DialogDescription>
-              The Meeting-to-Matter™ Engine will re-run the derivation pipeline for this matter
-              (same document generation path as when the meeting ended). Progress appears on the
-              case page. The current version remains on record and stays visible in Compare
-              Versions and the audit trail.
-              {produceTarget?.status === "approved" && (
-                <span className="block mt-2 text-amber-700 dark:text-amber-400">
-                  The adopted version will be superseded on screen by a new draft for review.
-                </span>
-              )}
-            </DialogDescription>
+            <DialogDescription>Optionally add a reason for the file.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="produce-reason">Reason for file (optional)</Label>
+            <Label htmlFor="produce-reason">Reason (optional)</Label>
             <Input
               id="produce-reason"
               value={produceReason}

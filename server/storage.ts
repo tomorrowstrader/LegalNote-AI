@@ -1630,7 +1630,13 @@ export class MemStorage implements IStorage {
     if (!parent) return undefined;
 
     const caseRecord = this.cases.get(parent.caseId);
-    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    // Match getCase: creator or assignee may produce a further version
+    if (
+      !caseRecord ||
+      (caseRecord.createdBy !== userId && caseRecord.assignedToUserId !== userId)
+    ) {
+      return undefined;
+    }
 
     if (caseRecord.litigationHold) {
       console.warn(`[LITIGATION-HOLD] Blocked document version creation on ${parentDocumentId}`);
@@ -1680,7 +1686,12 @@ export class MemStorage implements IStorage {
 
   async getActiveDocumentsByCase(caseId: string, userId: string): Promise<Document[]> {
     const caseRecord = this.cases.get(caseId);
-    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    if (
+      !caseRecord ||
+      (caseRecord.createdBy !== userId && caseRecord.assignedToUserId !== userId)
+    ) {
+      return [];
+    }
     
     return Array.from(this.documents.values())
       .filter((doc) => doc.caseId === caseId && doc.isActive)
@@ -3666,14 +3677,10 @@ export class DbStorage implements IStorage {
     const parent = parentResult[0];
     if (!parent) return undefined;
 
-    const caseResult = await db
-      .select()
-      .from(cases)
-      .where(and(eq(cases.id, parent.caseId), eq(cases.createdBy, userId)))
-      .limit(1);
-    if (!caseResult[0]) return undefined;
+    const caseRecord = await this.getCase(parent.caseId, userId);
+    if (!caseRecord) return undefined;
 
-    if (caseResult[0].litigationHold) {
+    if (caseRecord.litigationHold) {
       console.warn(`[LITIGATION-HOLD] Blocked document version creation on ${parentDocumentId}`);
       return undefined;
     }
@@ -3728,8 +3735,8 @@ export class DbStorage implements IStorage {
   }
 
   async getActiveDocumentsByCase(caseId: string, userId: string): Promise<Document[]> {
-    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
-    if (!caseRecord[0]) return [];
+    const caseData = await this.getCase(caseId, userId);
+    if (!caseData) return [];
     
     return await db
       .select()
