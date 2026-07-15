@@ -171,7 +171,11 @@ export function PageView({ content }: PageViewProps) {
       }
     } catch (err) {
       console.error('[PageView] Content hydration failed, falling back to raw:', err);
-      measureEditor.commands.setContent(content, false);
+      try {
+        measureEditor.commands.setContent(content, false);
+      } catch (fallbackErr) {
+        console.error('[PageView] Fallback setContent also failed:', fallbackErr);
+      }
     }
   }, [measureEditor, content]);
 

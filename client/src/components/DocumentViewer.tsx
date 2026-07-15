@@ -312,7 +312,8 @@ interface DocumentViewerProps {
   litigationHold?: boolean;
 }
 
-function parseReasoningGaps(content: string): string[] {
+function parseReasoningGaps(content: string | null | undefined): string[] {
+  if (!content) return [];
   const regex = /<!--\s*REASONING_GAP:\s*(.+?)\s*-->/g;
   const gaps: string[] = [];
   let match;
@@ -322,52 +323,48 @@ function parseReasoningGaps(content: string): string[] {
   return gaps;
 }
 
-function escapeMarkdownInline(text: string): string {
-  return text.replace(/([*_`\[\]\\])/g, "\\$1");
-}
-
-/**
- * Replace REASONING_GAP comments with TipTap-safe markdown markers.
- * (Editor Markdown is configured with html:false, so raw HTML anchors would not survive.)
- */
-function injectReasoningGapAnchors(content: string): string {
-  let idx = 0;
-  return content.replace(/<!--\s*REASONING_GAP:\s*(.+?)\s*-->/g, (_match, name: string) => {
-    const i = idx++;
-    const label = escapeMarkdownInline(String(name).trim());
-    return ` **⟦REASONING-GAP-${i}⟧ Reasoning required — ${label}** `;
-  });
-}
-
-function prepareDocumentContentForView(content: string, showGapAnchors: boolean): string {
-  return showGapAnchors ? injectReasoningGapAnchors(content) : content.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '');
+/** Strip gap HTML comments for display — do not inject markdown (breaks TipTap in production). */
+function stripReasoningGapMarkers(content: string | null | undefined): string {
+  if (!content) return '';
+  return content.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '');
 }
 
 function findElementContainingText(root: ParentNode, text: string): HTMLElement | null {
+  if (!text) return null;
+  const needle = text.trim().toLowerCase();
+  if (!needle) return null;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let node: Node | null;
   while ((node = walker.nextNode())) {
-    if (node.textContent?.includes(text)) {
+    if (node.textContent?.toLowerCase().includes(needle)) {
       return (node.parentElement as HTMLElement | null);
     }
   }
   return null;
 }
 
-function scrollToReasoningGap(index: number) {
-  const needle = `⟦REASONING-GAP-${index}⟧`;
-  const roots = document.querySelectorAll(".ProseMirror, .page-view-content");
+function scrollToReasoningGap(sectionName: string) {
+  // Markers are stripped from the view, so jump to the related section heading / label text.
+  const primary = sectionName.split(':')[0]?.trim() || sectionName;
+  const candidates = [primary, sectionName].filter(Boolean);
+  const roots = document.querySelectorAll(".ProseMirror, .page-view-content, [data-testid='attendance-note-card']");
   let el: HTMLElement | null = null;
-  for (const root of Array.from(roots)) {
-    el = findElementContainingText(root, needle);
+  for (const candidate of candidates) {
+    for (const root of Array.from(roots)) {
+      el = findElementContainingText(root, candidate);
+      if (el) break;
+    }
     if (el) break;
   }
   if (!el) {
-    el = findElementContainingText(document.body, needle);
+    for (const candidate of candidates) {
+      el = findElementContainingText(document.body, candidate);
+      if (el) break;
+    }
   }
   if (!el) return;
 
-  const target = el.closest("p, li, h1, h2, h3, h4, blockquote, div") as HTMLElement | null ?? el;
+  const target = el.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null ?? el;
   target.scrollIntoView({ behavior: "smooth", block: "center" });
   target.classList.add(
     "ring-2",
@@ -658,10 +655,10 @@ function EditableDocumentContent({
 
       {/* Page View: accurate multi-page layout renderer */}
       {pageViewMode && !isEditing ? (
-        <PageView content={prepareDocumentContentForView(document.content, true)} legalContext={legalContext} />
+        <PageView content={stripReasoningGapMarkers(document.content)} legalContext={legalContext} />
       ) : (
         <RichTextEditor
-          content={isEditing ? editContent : prepareDocumentContentForView(document.content, true)}
+          content={isEditing ? editContent : stripReasoningGapMarkers(document.content)}
           onChange={onEditContentChange}
           disabled={!isEditing}
           placeholder="Document content..."
@@ -2067,7 +2064,7 @@ export default function DocumentViewer({
                     <div key={idx} className="space-y-2" data-testid={`gap-item-attendance-${idx}`}>
                       <button
                         type="button"
-                        onClick={() => scrollToReasoningGap(idx)}
+                        onClick={() => scrollToReasoningGap(sectionName)}
                         className="text-left text-xs font-semibold text-foreground hover:text-amber-800 dark:hover:text-amber-300 underline-offset-2 hover:underline w-full"
                         data-testid={`button-gap-heading-attendance-${idx}`}
                       >
@@ -2346,7 +2343,7 @@ export default function DocumentViewer({
                     <div key={idx} className="space-y-2" data-testid={`gap-item-summary-${idx}`}>
                       <button
                         type="button"
-                        onClick={() => scrollToReasoningGap(idx)}
+                        onClick={() => scrollToReasoningGap(sectionName)}
                         className="text-left text-xs font-semibold text-foreground hover:text-amber-800 dark:hover:text-amber-300 underline-offset-2 hover:underline w-full"
                         data-testid={`button-gap-heading-summary-${idx}`}
                       >

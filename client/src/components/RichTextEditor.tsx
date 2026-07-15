@@ -835,6 +835,9 @@ export function RichTextEditor({
     },
     onUpdate: ({ editor }) => {
       if (isUpdatingRef.current) return;
+      // Read-only view mode: never emit content changes (avoids render loops
+      // when display content is transformed before setContent).
+      if (!editor.isEditable) return;
       const hasTrackMarks = (() => {
         let found = false;
         editor.state.doc.descendants((node: any) => {
