@@ -68,6 +68,22 @@ export const authLimiter = rateLimit({
   // Use default IP-based keyGenerator (handles IPv6 correctly)
 });
 
+/**
+ * IP limiter for GET /api/auth/user — must run BEFORE isAuthenticated.
+ * /api/auth/user is exempt from generalApiLimiter (a 429 there logs the SPA out),
+ * so this is the throttle for unauthenticated floods against session/DB lookups.
+ * Ceiling is high: this route is cheap and the SPA only hits it a few times per
+ * session; shared office NATs must not trip it during normal use.
+ */
+export const authUserIpLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60/min/IP — ~1/sec sustained; far above legitimate SPA use
+  message: "Too many authentication identity checks, please try again later",
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false, // Count all hits including 401 probes
+});
+
 // Strict rate limit for expensive operations
 export const strictLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute

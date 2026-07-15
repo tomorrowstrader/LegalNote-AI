@@ -68,7 +68,7 @@ import {
   caseCreationLimiter,
   presignedUrlLimiter,
   audioUploadLimiter,
-  authLimiter,
+  authUserIpLimiter,
   pollingLimiter,
 } from "./rateLimiting";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
@@ -89,7 +89,6 @@ import {
 import { AssemblyAIService } from "./services/assemblyAIService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail } from "./email";
-import { generateSignedAuditPDF } from "./services/signedAuditExport";
 import { assembleSraReportData, buildSraReportPreview } from "./services/sraReportService";
 import { compileSraReportPdf } from "./services/sraReportPdf";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent } from "./calendar";
@@ -164,10 +163,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup Replit Auth
   await setupAuth(app);
 
-  // Apply general rate limiting to all API routes (except polling endpoints)
+  // Apply general rate limiting to all API routes (except polling + session identity)
   app.use('/api/', (req, res, next) => {
     // Skip general rate limiter for polling endpoints - they have their own lenient limits
     if (req.path.includes('/processing-status')) {
+      return next();
+    }
+    // Never rate-limit the session identity check — a 429 here makes the SPA
+    // treat the user as logged out and bounce them to the landing page.
+    if (req.path === '/auth/user' || req.path === '/api/auth/user') {
       return next();
     }
     generalApiLimiter(req, res, next);
@@ -1312,8 +1316,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
-  // Auth user route
-  app.get('/api/auth/user', isAuthenticated, authLimiter, async (req: any, res, next) => {
+  // Auth user route — IP limiter BEFORE auth so unauthenticated floods are throttled.
+  // Exempt from generalApiLimiter (see /api/ mount above); this is the dedicated throttle.
+  app.get('/api/auth/user', authUserIpLimiter, isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       let user = await storage.getUser(userId);
@@ -6419,22 +6424,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
-  // Firm compliance overview (COLP/partner/admin only)
-  app.get("/api/firm/compliance-overview", isAuthenticated, requireFeatureVisible("firmComplianceDashboard"), async (req: any, res, next) => {
-    try {
-      const userId = req.user.claims.sub;
-      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
-      const isAdminUser = userId === ADMIN_USER_ID;
-      const user = await storage.getUser(userId);
-      const allowedRoles = ['colp', 'partner', 'admin'];
-      if (!isAdminUser && !allowedRoles.includes(user?.role || '')) {
-        return res.status(403).json({ message: "Firm compliance overview requires COLP, partner, or admin role" });
-      }
-      const overview = await storage.getComplianceOverview();
-      res.json(overview);
-    } catch (error) {
-      next(error);
-    }
+  // Firm compliance overview — DISABLED pending firm-scoped isolation fix
+  app.get("/api/firm/compliance-overview", isAuthenticated, async (_req, res) => {
+    res.status(503).json({ message: "This endpoint is temporarily disabled" });
   });
 
   // Extract action items from transcript using AI
@@ -6665,58 +6657,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
-  app.post("/api/audit/export/signed-pdf", isAuthenticated, async (req: any, res, next) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { caseId, eventType, startDate, endDate, limit } = req.body;
-
-      const filters: any = {};
-      if (caseId) filters.caseId = caseId;
-      if (eventType) filters.eventType = eventType;
-      if (startDate) filters.startDate = new Date(startDate);
-      if (endDate) filters.endDate = new Date(endDate);
-      if (limit) filters.limit = limit;
-
-      const logs = await storage.getAuditLogs(filters);
-
-      if (logs.length === 0) {
-        return res.status(400).json({ message: "No audit logs found matching filters" });
-      }
-
-      const user = await storage.getUser(userId);
-      const firmProfile = await storage.getFirmProfile(userId);
-
-      const pdfBuffer = generateSignedAuditPDF(logs, {
-        generatedAt: new Date().toISOString(),
-        generatedBy: user?.email || userId,
-        filters: {
-          caseId: caseId || undefined,
-          eventType: eventType || undefined,
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
-        },
-        recordCount: logs.length,
-        firmName: firmProfile?.firmName || undefined,
-        sraNumber: firmProfile?.sraNumber || undefined,
-      });
-
-      await logAuditEvent(userId, "document_downloaded", {
-        metadata: {
-          action: "audit_exported_signed_pdf",
-          recordCount: logs.length,
-          filters: { caseId, eventType, limit },
-        },
-        severity: "warning",
-        req,
-      });
-
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="audit-trail-signed-${Date.now()}.pdf"`);
-      res.setHeader('Content-Length', pdfBuffer.length);
-      res.send(pdfBuffer);
-    } catch (error) {
-      next(error);
-    }
+  // Signed audit PDF export — DISABLED pending ownership/firm scoping fix
+  app.post("/api/audit/export/signed-pdf", isAuthenticated, async (_req, res) => {
+    res.status(503).json({ message: "This endpoint is temporarily disabled" });
   });
 
   // Admin middleware
@@ -6937,20 +6880,14 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
-  // Firm risk digest (managing partner weekly snapshot)
-  app.get("/api/firm/risk-digest", isAuthenticated, async (_req, res, next) => {
-    try {
-      const digest = await storage.getFirmRiskDigest();
-      res.json(digest);
-    } catch (error) { next(error); }
+  // Firm risk digest — DISABLED pending firm-scoped isolation fix
+  app.get("/api/firm/risk-digest", isAuthenticated, async (_req, res) => {
+    res.status(503).json({ message: "This endpoint is temporarily disabled" });
   });
 
-  // Compliance score
-  app.get("/api/firm/compliance-score", isAuthenticated, requireFeatureVisible("complianceScore"), async (_req, res, next) => {
-    try {
-      const score = await storage.getComplianceScore();
-      res.json(score);
-    } catch (error) { next(error); }
+  // Compliance score — DISABLED pending firm-scoped isolation fix
+  app.get("/api/firm/compliance-score", isAuthenticated, async (_req, res) => {
+    res.status(503).json({ message: "This endpoint is temporarily disabled" });
   });
 
   // Finance compliance overview — restricted to COFA, firm admin, and managing partner

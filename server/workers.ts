@@ -6,7 +6,6 @@ import { runGlobalDataRetentionCleanup } from './services/dataRetentionCleanup';
 import { cleanupSessionTracking } from './services/securityMonitor';
 import { meetingSchedulerService } from './services/meetingSchedulerService';
 import { checkLiveImports } from './services/recallProcessing';
-import { sendRiskDigestEmail } from './email';
 import { logAuditEvent } from './auditMiddleware';
 import { Resend } from 'resend';
 
@@ -173,27 +172,15 @@ function scheduleMaintenanceTasks() {
     timezone: 'Europe/London'
   });
 
-  // Weekly risk digest — Mondays at 7:00 AM London time
-  cron.schedule('0 7 * * 1', async () => {
-    try {
-      const profile = await storage.getFirmProfile();
-      if (!profile?.digestEnabled) return;
-      const emailTarget = profile.digestEmail || profile.email;
-      if (!emailTarget) return;
-      const digest = await storage.getFirmRiskDigest();
-      await sendRiskDigestEmail({ to: emailTarget, firmName: profile.firmName || 'Your Firm', digest });
-      console.log('[CRON] Weekly risk digest sent to', emailTarget);
-    } catch (err: any) {
-      console.error('[CRON] Risk digest failed:', err.message);
-    }
-  }, { scheduled: true, timezone: 'Europe/London' });
+  // Weekly risk digest cron — DISABLED pending firm-scoped isolation fix
+  // (was: Mondays 7:00 AM Europe/London → getFirmRiskDigest + sendRiskDigestEmail)
 
   console.log('[WORKERS] Scheduled maintenance tasks with cron:');
   console.log('  - Data retention cleanup: Daily at 2:00 AM (Europe/London)');
   console.log('  - Session tracking cleanup: Hourly at minute :00 (Europe/London)');
   console.log('  - Meeting scheduler: Every 5 minutes (Europe/London)');
   console.log('  - Live bot import check: Every 2 minutes (Europe/London)');
-  console.log('  - Weekly risk digest: Mondays at 7:00 AM (Europe/London)');
+  console.log('  - Weekly risk digest: DISABLED');
 }
 
 /**

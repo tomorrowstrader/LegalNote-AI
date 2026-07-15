@@ -19,9 +19,28 @@ export interface User {
 }
 
 export function useAuth() {
-  const { data: user, isLoading } = useQuery<User>({
+  const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
-    retry: false,
+    queryFn: async () => {
+      const res = await fetch("/api/auth/user", { credentials: "include" });
+      if (res.status === 401) return null;
+      if (res.status === 429) {
+        // Transient IP limit — keep prior session view by throwing with retry
+        throw new Error("429: Too many requests");
+      }
+      if (!res.ok) {
+        const text = (await res.text()) || res.statusText;
+        throw new Error(`${res.status}: ${text}`);
+      }
+      return res.json();
+    },
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message.startsWith("429:")) {
+        return failureCount < 3;
+      }
+      return false;
+    },
+    retryDelay: 2000,
   });
 
   const designations = user?.regulatoryDesignations ?? [];
