@@ -145,6 +145,8 @@ export interface OAuthStatePayload {
   popup: boolean;
   nonce: string;
   createdAt: number;
+  /** Canonical base URL used when the auth URL was generated (keeps redirect_uri stable). */
+  baseUrl?: string;
   // Optional sync context for auto-sync after OAuth
   syncContext?: {
     caseId: string; // UUID string
@@ -243,13 +245,40 @@ const MICROSOFT_SCOPES = [
 const getMicrosoftRedirectUri = (baseUrl: string) =>
   `${baseUrl}/api/calendar/callback/outlook`;
 
-export function getMicrosoftAuthUrl(baseUrl: string, state: string): string {
-  const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
+export function getMicrosoftCalendarCredentials(): {
+  clientId: string;
+  clientSecret: string;
+  tenantId: string;
+} {
+  const clientId =
+    process.env.MICROSOFT_CLIENT_ID || process.env.MICROSOFT_LOGIN_CLIENT_ID;
+  const clientSecret =
+    process.env.MICROSOFT_CLIENT_SECRET || process.env.MICROSOFT_LOGIN_CLIENT_SECRET;
+  const tenantId =
+    process.env.MICROSOFT_TENANT_ID ||
+    process.env.MICROSOFT_LOGIN_TENANT_ID ||
+    'common';
 
-  if (!clientId) {
-    throw new Error('Microsoft OAuth credentials not configured. Set MICROSOFT_CLIENT_ID');
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      'Microsoft OAuth credentials not configured. Set MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET (or MICROSOFT_LOGIN_* equivalents)',
+    );
   }
+
+  return { clientId, clientSecret, tenantId };
+}
+
+export function isMicrosoftCalendarConfigured(): boolean {
+  try {
+    getMicrosoftCalendarCredentials();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getMicrosoftAuthUrl(baseUrl: string, state: string): string {
+  const { clientId, tenantId } = getMicrosoftCalendarCredentials();
 
   const redirectUri = encodeURIComponent(getMicrosoftRedirectUri(baseUrl));
   const scope = encodeURIComponent(MICROSOFT_SCOPES.join(' '));
@@ -262,8 +291,7 @@ export function getMicrosoftAuthUrl(baseUrl: string, state: string): string {
     `&redirect_uri=${redirectUri}` +
     `&scope=${scope}` +
     `&state=${encodedState}` +
-    `&prompt=consent` +
-    `&access_type=offline`
+    `&prompt=consent`
   );
 }
 
@@ -276,13 +304,7 @@ export async function exchangeMicrosoftCode(
   expiresAt: Date | null;
   email: string | null;
 }> {
-  const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
-
-  if (!clientId || !clientSecret) {
-    throw new Error('Microsoft OAuth credentials not configured');
-  }
+  const { clientId, clientSecret, tenantId } = getMicrosoftCalendarCredentials();
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -290,7 +312,6 @@ export async function exchangeMicrosoftCode(
     code,
     redirect_uri: getMicrosoftRedirectUri(baseUrl),
     grant_type: 'authorization_code',
-    scope: MICROSOFT_SCOPES.join(' '),
   });
 
   const response = await fetch(
@@ -338,13 +359,7 @@ export async function refreshMicrosoftToken(
   refreshToken: string | null;
   expiresAt: Date | null;
 }> {
-  const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
-
-  if (!clientId || !clientSecret) {
-    throw new Error('Microsoft OAuth credentials not configured');
-  }
+  const { clientId, clientSecret, tenantId } = getMicrosoftCalendarCredentials();
 
   const params = new URLSearchParams({
     client_id: clientId,

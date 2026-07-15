@@ -456,12 +456,12 @@ export async function getConnectedProviders(
 
   return {
     google: {
-      connected: !!googleIntegration,
+      connected: !!(googleIntegration?.accessToken),
       email: googleIntegration?.email || undefined,
       connectedAt: googleIntegration?.connectedAt?.toISOString(),
     },
     outlook: {
-      connected: !!outlookIntegration,
+      connected: !!(outlookIntegration?.accessToken),
       email: outlookIntegration?.email || undefined,
       connectedAt: outlookIntegration?.connectedAt?.toISOString(),
     },

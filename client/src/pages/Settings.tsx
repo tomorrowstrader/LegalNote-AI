@@ -167,6 +167,27 @@ function FirmProfileForm() {
       return;
     }
 
+    const checkLowResolution = (width: number) => {
+      if (width > 0 && width < 300) {
+        toast({
+          title: "Logo may appear soft in PDF",
+          description: "For best print quality, use PNG or JPG at least 600px wide, or upload an SVG.",
+          duration: 6000,
+        });
+      }
+    };
+
+    if (file.type.startsWith('image/') && file.type !== 'image/svg+xml') {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        checkLowResolution(img.naturalWidth || img.width);
+        URL.revokeObjectURL(objectUrl);
+      };
+      img.onerror = () => URL.revokeObjectURL(objectUrl);
+      img.src = objectUrl;
+    }
+
     setLogoUploading(true);
     try {
       const formData = new FormData();
@@ -283,7 +304,7 @@ function FirmProfileForm() {
                 </div>
                 <div className="space-y-2 flex-1">
                   <p className="text-sm text-muted-foreground">
-                    Upload your firm logo. It will appear on all client-facing document letterheads. PNG, JPG, or SVG, max 2MB.
+                    Upload your firm logo. It will appear on all client-facing document letterheads. PNG or JPG at least 600px wide (SVG preferred), max 2MB.
                   </p>
                   <input
                     ref={logoInputRef}
@@ -646,13 +667,45 @@ function CalendarConnections() {
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
   const [copiedUri, setCopiedUri] = useState<string | null>(null);
   const [isConnectingOutlook, setIsConnectingOutlook] = useState(false);
+  const [searchParams] = useState(() => new URLSearchParams(window.location.search));
   
-  const { data: connections, isLoading } = useQuery<{
+  const { data: connections, isLoading, refetch } = useQuery<{
     google: { connected: boolean; email?: string; connectedAt?: string };
     outlook?: { connected: boolean; email?: string; connectedAt?: string };
   }>({
     queryKey: ['/api/oauth/connections'],
+    refetchOnMount: 'always',
   });
+
+  useEffect(() => {
+    const calendarConnected = searchParams.get('calendar_connected');
+    const calendarError = searchParams.get('calendar_error');
+
+    if (calendarConnected) {
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/oauth/connections'] });
+      toast({
+        title: "Calendar Connected",
+        description: `Successfully connected ${calendarConnected === 'google' ? 'Google Calendar' : 'Outlook Calendar'}. You can now sync case deadlines.`,
+        duration: 5000,
+      });
+      window.history.replaceState({}, '', '/settings?tab=integrations');
+    } else if (calendarError) {
+      const errorMessages: Record<string, string> = {
+        invalid_state: "Your session expired during sign-in. Please try connecting again.",
+        missing_code_or_state: "Microsoft did not return authorization data. Please try again.",
+        token_exchange_failed: "Could not complete Microsoft authorization. Check that the Outlook redirect URI in Azure matches the one shown below.",
+        provider_mismatch: "Calendar provider mismatch. Please try connecting again.",
+      };
+      toast({
+        title: "Calendar Connection Failed",
+        description: errorMessages[calendarError] || calendarError,
+        variant: "destructive",
+        duration: 8000,
+      });
+      window.history.replaceState({}, '', '/settings?tab=integrations');
+    }
+  }, [refetch, searchParams, toast]);
 
   const { data: oauthConfig } = useQuery<{
     baseUrl: string;
@@ -764,8 +817,10 @@ function CalendarConnections() {
               </div>
               <div>
                 <p className="font-medium">Google Calendar</p>
-                {connections?.google.connected && connections.google.email ? (
-                  <p className="text-sm text-muted-foreground">{connections.google.email}</p>
+                {connections?.google.connected ? (
+                  <p className="text-sm text-muted-foreground">
+                    {connections.google.email || 'Connected'}
+                  </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">Not connected</p>
                 )}
@@ -808,8 +863,10 @@ function CalendarConnections() {
               </div>
               <div>
                 <p className="font-medium">Outlook Calendar</p>
-                {connections?.outlook?.connected && connections.outlook.email ? (
-                  <p className="text-sm text-muted-foreground">{connections.outlook.email}</p>
+                {connections?.outlook?.connected ? (
+                  <p className="text-sm text-muted-foreground">
+                    {connections.outlook.email || 'Connected'}
+                  </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">Not connected</p>
                 )}

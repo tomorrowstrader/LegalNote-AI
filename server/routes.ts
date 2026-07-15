@@ -19,6 +19,19 @@ function getCanonicalBaseUrl(req: any): string {
   return `${req.protocol}://${req.get('host')}`;
 }
 
+/** Where to send the browser after calendar OAuth (popup vs Settings full-page flow). */
+function buildCalendarOAuthReturnUrl(
+  popup: boolean,
+  params: Record<string, string>,
+): string {
+  if (popup) {
+    const search = new URLSearchParams(params);
+    return `/oauth/callback?${search.toString()}`;
+  }
+  const search = new URLSearchParams({ tab: 'integrations', ...params });
+  return `/settings?${search.toString()}`;
+}
+
 function meetingAttendeeEmails(meeting: ScheduledMeeting): string[] {
   if (!Array.isArray(meeting.attendees)) return [];
   return meeting.attendees
@@ -102,6 +115,7 @@ import {
   getMicrosoftAuthUrl,
   exchangeGoogleCode,
   exchangeMicrosoftCode,
+  isMicrosoftCalendarConfigured,
   generateOAuthState,
   signOAuthState,
   verifyOAuthState,
@@ -7369,6 +7383,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         popup: false,
         nonce: generateSecureNonce(),
         createdAt: Date.now(),
+        baseUrl: getCanonicalBaseUrl(req),
       };
 
       const signedState = signOAuthState(statePayload);
@@ -7413,12 +7428,14 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
       if (provider === 'outlook') {
         try {
+          const baseUrl = getCanonicalBaseUrl(req);
           const statePayload: OAuthStatePayload = {
             userId,
             provider: 'outlook',
             popup,
             nonce: generateSecureNonce(),
             createdAt: Date.now(),
+            baseUrl,
             ...(caseId && deadline
               ? {
                   syncContext: {
@@ -7433,7 +7450,6 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           };
 
           const signedState = signOAuthState(statePayload);
-          const baseUrl = getCanonicalBaseUrl(req);
           const authUrl = getMicrosoftAuthUrl(baseUrl, signedState);
 
           return res.json({ authUrl });
@@ -7447,12 +7463,14 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
       // Google OAuth flow
       // Create signed OAuth state with sync context
+      const baseUrl = getCanonicalBaseUrl(req);
       const statePayload: OAuthStatePayload = {
         userId,
         provider: 'google',
         popup,
         nonce: generateSecureNonce(),
         createdAt: Date.now(),
+        baseUrl,
       };
 
       // Add sync context if provided
@@ -7468,9 +7486,6 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
       // Sign the state token
       const signedState = signOAuthState(statePayload);
-
-      // Get base URL from request
-      const baseUrl = getCanonicalBaseUrl(req);
 
       try {
         const client = createGoogleOAuthClient(baseUrl);
@@ -7499,16 +7514,21 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const provider = req.params.provider;
       const { code, state, error: oauthError } = req.query;
 
-      // Always redirect to /oauth/callback - it handles both popup and mobile flows
-      const redirectBase = '/oauth/callback';
-
-      // Check for OAuth errors
+      // Check for OAuth errors (popup unknown — default to Settings redirect)
       if (oauthError) {
-        return res.redirect(`${redirectBase}?calendar_error=${encodeURIComponent(oauthError)}`);
+        return res.redirect(
+          buildCalendarOAuthReturnUrl(false, {
+            calendar_error: String(oauthError),
+          }),
+        );
       }
 
       if (!code || !state) {
-        return res.redirect(`${redirectBase}?calendar_error=missing_code_or_state`);
+        return res.redirect(
+          buildCalendarOAuthReturnUrl(false, {
+            calendar_error: 'missing_code_or_state',
+          }),
+        );
       }
 
       // Verify and decode signed state token
@@ -7516,16 +7536,22 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       
       if (!stateData) {
         console.error('Invalid or expired OAuth state token');
-        return res.redirect(`${redirectBase}?calendar_error=invalid_state`);
+        return res.redirect(
+          buildCalendarOAuthReturnUrl(false, { calendar_error: 'invalid_state' }),
+        );
       }
 
       // Verify provider matches
       if (stateData.provider !== provider) {
-        return res.redirect(`${redirectBase}?calendar_error=provider_mismatch`);
+        return res.redirect(
+          buildCalendarOAuthReturnUrl(stateData.popup, {
+            calendar_error: 'provider_mismatch',
+          }),
+        );
       }
 
-      // Get base URL
-      const baseUrl = getCanonicalBaseUrl(req);
+      // Use the same base URL that was embedded in the auth request (avoids redirect_uri mismatch)
+      const baseUrl = stateData.baseUrl || getCanonicalBaseUrl(req);
 
       try {
         if (provider === 'outlook') {
@@ -7558,7 +7584,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             try {
               const caseData = await storage.getCase(caseId, stateData.userId);
               if (!caseData) {
-                return res.redirect(`${redirectBase}?calendar_connected=outlook&sync_error=case_not_found&case_id=${caseId}`);
+                return res.redirect(
+                  buildCalendarOAuthReturnUrl(stateData.popup, {
+                    calendar_connected: 'outlook',
+                    sync_error: 'case_not_found',
+                    case_id: caseId,
+                  }),
+                );
               }
 
               const { Client } = await import('@microsoft/microsoft-graph-client');
@@ -7622,18 +7654,38 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
                 severity: 'info',
               });
 
-              return res.redirect(`${redirectBase}?calendar_connected=outlook&sync_success=true&case_id=${caseId}`);
+              return res.redirect(
+                buildCalendarOAuthReturnUrl(stateData.popup, {
+                  calendar_connected: 'outlook',
+                  sync_success: 'true',
+                  case_id: caseId,
+                }),
+              );
             } catch (syncError: any) {
               console.error('[OAUTH] Outlook auto-sync failed:', syncError);
-              return res.redirect(`${redirectBase}?calendar_connected=outlook&sync_error=event_creation_failed&case_id=${caseId}`);
+              return res.redirect(
+                buildCalendarOAuthReturnUrl(stateData.popup, {
+                  calendar_connected: 'outlook',
+                  sync_error: 'event_creation_failed',
+                  case_id: caseId,
+                }),
+              );
             }
           }
 
-          return res.redirect(`${redirectBase}?calendar_connected=outlook`);
+          return res.redirect(
+            buildCalendarOAuthReturnUrl(stateData.popup, {
+              calendar_connected: 'outlook',
+            }),
+          );
         }
 
         if (provider !== 'google') {
-          return res.redirect(`${redirectBase}?calendar_error=invalid_provider`);
+          return res.redirect(
+            buildCalendarOAuthReturnUrl(stateData.popup, {
+              calendar_error: 'invalid_provider',
+            }),
+          );
         }
 
         const client = createGoogleOAuthClient(baseUrl);
@@ -7671,7 +7723,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             
             if (!caseData) {
               console.error(`Case ${caseId} not found for auto-sync`);
-              return res.redirect(`${redirectBase}?calendar_connected=${provider}&sync_error=case_not_found`);
+              return res.redirect(
+                buildCalendarOAuthReturnUrl(stateData.popup, {
+                  calendar_connected: provider,
+                  sync_error: 'case_not_found',
+                }),
+              );
             }
 
             // Create calendar event with retry logic
@@ -7731,7 +7788,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
                 });
 
                 // Success! Redirect to case page with success message
-                return res.redirect(`${redirectBase}?calendar_connected=${provider}&sync_success=true&case_id=${caseId}`);
+                return res.redirect(
+                  buildCalendarOAuthReturnUrl(stateData.popup, {
+                    calendar_connected: provider,
+                    sync_success: 'true',
+                    case_id: caseId,
+                  }),
+                );
               } catch (error: any) {
                 lastError = error;
                 console.error(`Calendar event creation attempt ${attempt}/${maxRetries} failed:`, error);
@@ -7745,18 +7808,39 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
             // All retries failed
             console.error(`Calendar event creation failed after ${maxRetries} attempts:`, lastError);
-            return res.redirect(`${redirectBase}?calendar_connected=${provider}&sync_error=event_creation_failed&case_id=${caseId}`);
+            return res.redirect(
+              buildCalendarOAuthReturnUrl(stateData.popup, {
+                calendar_connected: provider,
+                sync_error: 'event_creation_failed',
+                case_id: caseId,
+              }),
+            );
           } catch (error: any) {
             console.error('Auto-sync error:', error);
-            return res.redirect(`${redirectBase}?calendar_connected=${provider}&sync_error=unknown&case_id=${caseId}`);
+            return res.redirect(
+              buildCalendarOAuthReturnUrl(stateData.popup, {
+                calendar_connected: provider,
+                sync_error: 'unknown',
+                case_id: caseId,
+              }),
+            );
           }
         }
 
-        // No sync context - just redirect with connection success
-        res.redirect(`${redirectBase}?calendar_connected=${provider}`);
+        res.redirect(
+          buildCalendarOAuthReturnUrl(stateData.popup, {
+            calendar_connected: provider,
+          }),
+        );
       } catch (error: any) {
         console.error(`OAuth token exchange failed for ${provider}:`, error);
-        res.redirect(`${redirectBase}?calendar_error=token_exchange_failed`);
+        const errorDetail =
+          error instanceof Error ? error.message : 'token_exchange_failed';
+        res.redirect(
+          buildCalendarOAuthReturnUrl(stateData.popup, {
+            calendar_error: errorDetail.slice(0, 200),
+          }),
+        );
       }
     } catch (error) {
       next(error);
@@ -7838,7 +7922,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         },
         status: {
           googleConfigured: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-          outlookConfigured: !!(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET),
+          outlookConfigured: isMicrosoftCalendarConfigured(),
         },
       };
 
