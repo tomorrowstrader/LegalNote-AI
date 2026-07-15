@@ -44,6 +44,11 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   const [location, setLocation] = useLocation();
   const { user, isAdmin, isFirmAdmin, isPartner, isSupervisor, canAccessFirmCompliance } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const canOpenFirmSettings = isAdmin || isFirmAdmin;
+  const visibleMoreNavLinks = moreNavLinks.filter(
+    (link) => link.path !== "/settings" || canOpenFirmSettings,
+  );
+  const visibleAllNavLinks = [...primaryNavLinks, ...visibleMoreNavLinks];
 
   const handleNavClick = (path: string) => {
     setLocation(path);
@@ -82,7 +87,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
               <DropdownMenuTrigger asChild>
                 <button
                   className={`px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap flex items-center gap-1 ${
-                    moreNavLinks.some(l => location === l.path)
+                    visibleMoreNavLinks.some(l => location === l.path)
                       ? "text-primary-foreground border-b-2 border-accent"
                       : "text-primary-foreground/80 hover-elevate active-elevate-2"
                   }`}
@@ -93,7 +98,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-48">
-                {moreNavLinks.map((link) => {
+                {visibleMoreNavLinks.map((link) => {
                   const isActive = location === link.path;
                   const Icon = link.icon;
                   return (
@@ -144,10 +149,11 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 <DropdownMenuItem asChild data-testid="menu-item-profile">
                   <Link href="/profile">My Profile</Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild data-testid="menu-item-firm-settings">
-                  <Link href="/settings">Firm Settings</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild data-testid="menu-item-undertakings">
+                {(isAdmin || isFirmAdmin) && (
+                  <DropdownMenuItem asChild data-testid="menu-item-firm-settings">
+                    <Link href="/settings">Firm Settings</Link>
+                  </DropdownMenuItem>
+                )}                <DropdownMenuItem asChild data-testid="menu-item-undertakings">
                   <Link href="/undertakings">Undertakings Register</Link>
                 </DropdownMenuItem>
                 {canAccessFirmCompliance && firmComplianceDashboardVisible && (
@@ -218,7 +224,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                {allNavLinks.map((link) => {
+                {visibleAllNavLinks.map((link) => {
                   const isActive = location === link.path;
                   const Icon = link.icon;
                   return (

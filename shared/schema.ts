@@ -1003,7 +1003,12 @@ export const insertFirmProfileSchema = createInsertSchema(firmProfile).omit({
   updatedAt: true,
 }).extend({
   firmName: z.string().min(1).max(200).transform(sanitizeString),
-  logoUrl: z.string().url().max(500).optional().or(z.literal('')),
+  // Relative proxy URLs (e.g. /api/firm-profile/logo/serve?key=...) or absolute https URLs
+  logoUrl: z.union([
+    z.literal(''),
+    z.string().url().max(500),
+    z.string().max(500).regex(/^\/api\/firm-profile\/logo\/serve\?key=/),
+  ]).optional(),
   addressLine1: z.string().max(200).transform(sanitizeString).optional(),
   addressLine2: z.string().max(200).transform(sanitizeString).optional(),
   city: z.string().max(100).transform(sanitizeString).optional(),

@@ -263,7 +263,7 @@ function FirmProfileForm() {
           <CardTitle>Firm Details</CardTitle>
         </div>
         <CardDescription>
-          Manage your law firm information. These details will appear on all exported documents.
+          Manage your law firm information and logo. Firm name and logo appear on attendance notes and client care letters after processing (preview and PDF/Word export).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -2109,8 +2109,12 @@ function DemoDataControls() {
 }
 
 export default function Settings() {
-  const { user } = useAuth();
-  const isAdmin = (user as any)?.isAdmin === true;
+  const { user, isAdmin, isFirmAdmin } = useAuth();
+  const canManageFirmSettings =
+    isAdmin ||
+    isFirmAdmin ||
+    user?.primaryRole === "managing_partner" ||
+    user?.role === "admin";
   
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -2124,17 +2128,22 @@ export default function Settings() {
     const tab = params.get('tab');
     const validTabs = ['firm', 'notifications', 'usage', 'integrations', 'security', 'demo'];
     if (tab && validTabs.includes(tab)) {
-      setActiveTab(tab);
+      // Firm admins only get the Firm tab; keep them on firm if they deep-link elsewhere
+      if (!isAdmin && tab !== 'firm') {
+        setActiveTab('firm');
+      } else {
+        setActiveTab(tab);
+      }
     }
-  }, []);
+  }, [isAdmin]);
 
-  if (!isAdmin) {
+  if (!canManageFirmSettings) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-3xl mx-auto px-6 lg:px-8 py-8 text-center">
           <h1 className="text-2xl font-semibold mb-4">Access Restricted</h1>
           <p className="text-muted-foreground mb-6">
-            You need administrator privileges to access firm settings.
+            You need firm administrator privileges to access firm settings and upload the firm letterhead logo.
           </p>
           <p className="text-sm text-muted-foreground">
             Looking for your personal settings? Visit <a href="/profile" className="text-accent underline">My Profile</a>
@@ -2150,25 +2159,33 @@ export default function Settings() {
         <div className="mb-8">
           <h1 className="text-3xl font-semibold text-foreground">Firm Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage firm, team, and security settings (Admin only)
+            {isAdmin
+              ? "Manage firm letterhead, logo, team, and security settings"
+              : "Manage firm letterhead and logo for attendance notes and client care letters"}
           </p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="flex flex-wrap gap-1">
             <TabsTrigger value="firm" data-testid="tab-firm">Firm</TabsTrigger>
-            <TabsTrigger value="notifications" data-testid="tab-notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="usage" data-testid="tab-usage">Usage</TabsTrigger>
-            <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
-            <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
-            <TabsTrigger value="growth" data-testid="tab-growth">Growth</TabsTrigger>
-            <TabsTrigger value="demo" data-testid="tab-demo">Demo</TabsTrigger>
+            {isAdmin && (
+              <>
+                <TabsTrigger value="notifications" data-testid="tab-notifications">Notifications</TabsTrigger>
+                <TabsTrigger value="usage" data-testid="tab-usage">Usage</TabsTrigger>
+                <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
+                <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
+                <TabsTrigger value="growth" data-testid="tab-growth">Growth</TabsTrigger>
+                <TabsTrigger value="demo" data-testid="tab-demo">Demo</TabsTrigger>
+              </>
+            )}
           </TabsList>
 
           <TabsContent value="firm" className="space-y-6">
             <FirmProfileForm />
           </TabsContent>
 
+          {isAdmin && (
+            <>
           <TabsContent value="notifications" className="space-y-6">
             <NotificationSettings />
           </TabsContent>
@@ -2303,6 +2320,8 @@ export default function Settings() {
               </CardContent>
             </Card>
           </TabsContent>
+            </>
+          )}
         </Tabs>
       </div>
     </div>

@@ -6680,6 +6680,35 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     next();
   };
 
+  /** Platform admin or firm admin / managing partner — may edit letterhead and logo. */
+  const canManageFirmProfile = async (req: any, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+      if (userId === ADMIN_USER_ID) {
+        return next();
+      }
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+      const designations: string[] = user.regulatoryDesignations ?? [];
+      const allowed =
+        designations.includes("is_firm_admin") ||
+        user.primaryRole === "managing_partner" ||
+        user.role === "admin";
+      if (!allowed) {
+        return res.status(403).json({ message: "Firm administrator access required to update firm letterhead settings" });
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+
   // Update user role (admin only)
   app.patch("/api/admin/users/:id/role", isAuthenticated, isAdmin, async (req: any, res, next) => {
     try {
@@ -6846,8 +6875,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
-  // Update firm profile (admin only)
-  app.put("/api/firm-profile", isAuthenticated, isAdmin, async (req: any, res, next) => {
+  // Update firm profile (platform admin or firm admin)
+  app.put("/api/firm-profile", isAuthenticated, canManageFirmProfile, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const validatedData = insertFirmProfileSchema.parse({
@@ -6873,7 +6902,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
   // Patch only the logoUrl on firm profile — works even when other required fields are not yet set.
   // Used by the logo upload flow so upload always persists independently of profile completeness.
-  app.patch("/api/firm-profile/logo-url", isAuthenticated, isAdmin, async (req: any, res, next) => {
+  app.patch("/api/firm-profile/logo-url", isAuthenticated, canManageFirmProfile, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const { logoUrl } = req.body;
@@ -7076,8 +7105,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     } catch (error) { next(error); }
   });
 
-  // Upload firm logo (admin only) — stores as public object, returns URL
-  app.post("/api/firm-profile/logo", isAuthenticated, isAdmin, async (req: any, res, next) => {
+  // Upload firm logo (platform admin or firm admin) — stores as public object, returns URL
+  app.post("/api/firm-profile/logo", isAuthenticated, canManageFirmProfile, async (req: any, res, next) => {
     try {
       const multerMod = await import('multer');
       const logoUpload = multerMod.default({
