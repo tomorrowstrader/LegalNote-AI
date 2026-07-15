@@ -17,6 +17,7 @@ export interface User {
   regulatoryDesignations?: string[];
   inviteStatus?: string | null;
   role?: string;
+  accessAllowed?: boolean;
 }
 
 export function useAuth() {

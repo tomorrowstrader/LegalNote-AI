@@ -44,6 +44,7 @@ import AcknowledgePage from "@/pages/AcknowledgePage";
 import ComplianceBadge from "@/pages/ComplianceBadge";
 import InviteAccept from "@/pages/InviteAccept";
 import PendingApproval from "@/pages/PendingApproval";
+import AccessPending from "@/pages/AccessPending";
 import ScrollToTop from "@/components/ScrollToTop";
 import PublicDemo from "@/pages/PublicDemo";
 import DemoGenerator from "@/pages/DemoGenerator";
@@ -62,21 +63,30 @@ function RedirectTo({ to }: { to: string }) {
 function Router() {
   const { user, isAuthenticated, isLoading, isAdmin, isWaitlisted, isFirmAdmin, canAccessFirmCompliance } = useAuth();
   const isPendingApproval = user?.inviteStatus === "pending_approval";
+  const isAccessPending = user?.accessAllowed === false && !isAdmin;
 
   useEffect(() => {
     const route =
       isLoading ? "loading" :
       !isAuthenticated ? "unauthenticated" :
+      isAccessPending ? "access_pending" :
       isPendingApproval && !isAdmin ? "pending_approval" :
       isWaitlisted && !isAdmin ? "waitlisted" :
       "authenticated";
     debugSessionLog(
       "App.tsx:Router",
       "route branch",
-      { route, isLoading, isAuthenticated, inviteStatus: user?.inviteStatus, waitlistStatus: user?.waitlistStatus },
-      "H1",
+      {
+        route,
+        isLoading,
+        isAuthenticated,
+        accessAllowed: user?.accessAllowed,
+        inviteStatus: user?.inviteStatus,
+        waitlistStatus: user?.waitlistStatus,
+      },
+      isAccessPending ? "H2" : "H1",
     );
-  }, [isLoading, isAuthenticated, isPendingApproval, isAdmin, isWaitlisted, user?.inviteStatus, user?.waitlistStatus]);
+  }, [isLoading, isAuthenticated, isAccessPending, isPendingApproval, isAdmin, isWaitlisted, user?.accessAllowed, user?.inviteStatus, user?.waitlistStatus]);
 
   return (
     <Switch>
@@ -101,6 +111,11 @@ function Router() {
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
+      ) : isAccessPending ? (
+        <>
+          <Route path="/access-pending" component={AccessPending} />
+          <Route component={AccessPending} />
+        </>
       ) : isPendingApproval && !isAdmin ? (
         <>
           <Route path="/pending-approval" component={PendingApproval} />
@@ -139,24 +154,25 @@ function Router() {
 }
 
 function AuthenticatedAppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, isAdmin } = useAuth();
+  const hasAppAccess = isAuthenticated && (isAdmin || user?.accessAllowed !== false);
   const { isFocusMode } = useFocusMode();
   const [restartTourTrigger, setRestartTourTrigger] = useState(0);
   const [location] = useLocation();
   const { showRecoveryModal, setShowRecoveryModal } = useRecordingRecovery(
-    !isLoading && isAuthenticated,
+    !isLoading && hasAppAccess,
   );
 
   useNewNoteShortcut();
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
+    if (!isLoading && hasAppAccess) {
       document.body.classList.add('app-body');
     } else {
       document.body.classList.remove('app-body');
     }
     return () => document.body.classList.remove('app-body');
-  }, [isLoading, isAuthenticated]);
+  }, [isLoading, hasAppAccess]);
 
   const handleRestartTour = () => {
     setRestartTourTrigger(prev => prev + 1);
@@ -165,11 +181,11 @@ function AuthenticatedAppContent() {
   const isPublicDemoRoute = location.startsWith("/demo/");
 
   return (
-    <div className={`min-h-screen bg-background ${!isLoading && isAuthenticated && !isFocusMode && !isPublicDemoRoute ? 'pt-16' : ''}`}>
-      {!isLoading && isAuthenticated && !isFocusMode && !isPublicDemoRoute && <TopNavigation onRestartTour={handleRestartTour} />}
-      {!isLoading && isAuthenticated && !isFocusMode && !isPublicDemoRoute && <FirmSetupPrompt />}
-      {!isLoading && isAuthenticated && !isFocusMode && !isPublicDemoRoute && <OnboardingTour restartTrigger={restartTourTrigger} />}
-      {!isLoading && isAuthenticated && !isPublicDemoRoute && (
+    <div className={`min-h-screen bg-background ${!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute ? 'pt-16' : ''}`}>
+      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <TopNavigation onRestartTour={handleRestartTour} />}
+      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <FirmSetupPrompt />}
+      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <OnboardingTour restartTrigger={restartTourTrigger} />}
+      {!isLoading && hasAppAccess && !isPublicDemoRoute && (
         <RecordingRecoveryModal
           open={showRecoveryModal}
           onOpenChange={setShowRecoveryModal}
