@@ -412,10 +412,6 @@ function replaceMarkerAtIndex(content: string, targetIdx: number, replacement: s
   return content;
 }
 
-function stripReasoningGapMarkers(content: string): string {
-  return content.replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '');
-}
-
 function CommentsPanel({ 
   documentId,
   comments,

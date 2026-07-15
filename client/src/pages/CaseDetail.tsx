@@ -534,7 +534,6 @@ export default function CaseDetail() {
   const { data: sraReadiness, isLoading: readinessLoading } = useQuery<ReadinessData>({
     queryKey: [`/api/cases/${caseId}/sra-readiness`],
     enabled: !!caseId && sraReadinessVisible,
-    enabled: !!caseId,
   });
 
   const [showSraReportModal, setShowSraReportModal] = useState(false);
