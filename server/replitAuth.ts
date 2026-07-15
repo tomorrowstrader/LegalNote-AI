@@ -56,13 +56,17 @@ function startOAuthWithReturnTo(
   });
 }
 
-/** Comma-separated Google subject IDs (users.id). Empty list = admin only. */
+/**
+ * Comma-separated user IDs and/or emails.
+ * Empty / unset = all authenticated users are allowed (invite + waitlist still apply).
+ * Non-empty = only matching IDs/emails (plus ADMIN_USER_ID) are allowed.
+ */
 export function getAccessAllowlist(): Set<string> {
   const raw = process.env.ACCESS_ALLOWLIST || "";
   return new Set(
     raw
       .split(",")
-      .map((s) => s.trim())
+      .map((s) => s.trim().toLowerCase())
       .filter(Boolean),
   );
 }
@@ -71,9 +75,14 @@ export function getAdminUserId(): string {
   return process.env.ADMIN_USER_ID || "48381245";
 }
 
-export function isUserAccessAllowed(userId: string): boolean {
+export function isUserAccessAllowed(userId: string, email?: string | null): boolean {
   if (userId === getAdminUserId()) return true;
-  return getAccessAllowlist().has(userId);
+  const allowlist = getAccessAllowlist();
+  // No explicit allowlist configured → open to signed-in users.
+  if (allowlist.size === 0) return true;
+  if (allowlist.has(userId.toLowerCase())) return true;
+  const normalizedEmail = email?.trim().toLowerCase();
+  return !!normalizedEmail && allowlist.has(normalizedEmail);
 }
 
 /**
@@ -396,9 +405,10 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   }
 
   const userId = user.claims.sub as string;
+  const email = typeof user.claims?.email === "string" ? user.claims.email : null;
   if (
     !isAllowlistExemptPath(req.method, req.path) &&
-    !isUserAccessAllowed(userId)
+    !isUserAccessAllowed(userId, email)
   ) {
     return res.status(403).json({
       message: "Access denied",
