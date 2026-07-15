@@ -14,6 +14,7 @@ import { RecordingRecoveryModal, useRecordingRecovery } from "@/components/Recor
 import Dashboard from "@/pages/Dashboard";
 import NewNote from "@/pages/NewNote";
 import CaseDetail from "@/pages/CaseDetail";
+import { CasePageErrorBoundary } from "@/components/CasePageErrorBoundary";
 import SavedCases from "@/pages/SavedCases";
 import Settings from "@/pages/Settings";
 import MyProfile from "@/pages/MyProfile";
@@ -106,7 +107,11 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/new-note" component={NewNote} />
-          <Route path="/case/:id" component={CaseDetail} />
+          <Route path="/case/:id" component={() => (
+            <CasePageErrorBoundary>
+              <CaseDetail />
+            </CasePageErrorBoundary>
+          )} />
           <Route path="/cases" component={SavedCases} />
           <Route path="/settings" component={Settings} />
           <Route path="/profile" component={MyProfile} />

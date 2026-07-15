@@ -169,11 +169,20 @@ export function PageView({ content }: PageViewProps) {
       } else {
         measureEditor.commands.setContent(content, false);
       }
+      // #region agent log
+      fetch('http://127.0.0.1:7671/ingest/dfbc9758-293a-480b-a080-cbd261ef30c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'95f25d'},body:JSON.stringify({sessionId:'95f25d',location:'PageView.tsx:setContent',message:'PageView setContent ok',data:{contentLen:content.length,tracked:isTrackedChangesHtml(content)},timestamp:Date.now(),hypothesisId:'C',runId:'white-screen'})}).catch(()=>{});
+      // #endregion
     } catch (err) {
+      // #region agent log
+      fetch('http://127.0.0.1:7671/ingest/dfbc9758-293a-480b-a080-cbd261ef30c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'95f25d'},body:JSON.stringify({sessionId:'95f25d',location:'PageView.tsx:setContent-error',message:'PageView setContent failed',data:{err:String((err as any)?.message||err).slice(0,500),contentLen:content.length},timestamp:Date.now(),hypothesisId:'C',runId:'white-screen'})}).catch(()=>{});
+      // #endregion
       console.error('[PageView] Content hydration failed, falling back to raw:', err);
       try {
         measureEditor.commands.setContent(content, false);
       } catch (fallbackErr) {
+        // #region agent log
+        fetch('http://127.0.0.1:7671/ingest/dfbc9758-293a-480b-a080-cbd261ef30c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'95f25d'},body:JSON.stringify({sessionId:'95f25d',location:'PageView.tsx:fallback-error',message:'PageView fallback setContent failed',data:{err:String((fallbackErr as any)?.message||fallbackErr).slice(0,500)},timestamp:Date.now(),hypothesisId:'C',runId:'white-screen'})}).catch(()=>{});
+        // #endregion
         console.error('[PageView] Fallback setContent also failed:', fallbackErr);
       }
     }
