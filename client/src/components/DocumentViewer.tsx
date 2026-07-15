@@ -2346,6 +2346,11 @@ export default function DocumentViewer({
                   )}
                 </CardHeader>
                 <CardContent className="space-y-4 overflow-y-auto flex-1 min-h-0">
+                  {parseReasoningGaps(summary.content).length === 0 ? (
+                    <p className="text-xs text-muted-foreground" data-testid="text-no-gaps-summary">
+                      No open reasoning gaps in this version. Review the record in full, then adopt when you are satisfied.
+                    </p>
+                  ) : null}
                   {parseReasoningGaps(summary.content).map((sectionName, idx) => (
                     <div key={idx} className="space-y-2" data-testid={`gap-item-summary-${idx}`}>
                       <button
