@@ -2066,7 +2066,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
-  app.get("/api/cases/:id/handover-candidates", isAuthenticated, async (req: any, res, next) => {
+  app.get("/api/cases/:id/handover-candidates", isAuthenticated, requireFeatureVisible("caseHandover"), async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const caseRecord = await storage.getCaseById(req.params.id);
@@ -2080,14 +2080,17 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (!isCreator && !isAssignee && !isAdmin) {
         return res.status(403).json({ message: "Access denied" });
       }
+      if (!actingUser?.firmId) {
+        return res.json([]);
+      }
 
-      const userStats = await storage.getUserStatistics();
-      const candidates = userStats
-        .filter(stat => stat.userId !== userId && stat.userId !== SYSTEM_USER_ID)
-        .map(stat => ({
-          id: stat.userId,
-          firstName: stat.firstName,
-          lastName: stat.lastName,
+      const firmMembers = await storage.getFirmMembers(actingUser.firmId);
+      const candidates = firmMembers
+        .filter(member => member.id !== userId && member.id !== SYSTEM_USER_ID)
+        .map(member => ({
+          id: member.id,
+          firstName: member.firstName,
+          lastName: member.lastName,
         }));
       res.json(candidates);
     } catch (error: any) {
@@ -2095,7 +2098,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
-  app.post("/api/cases/:id/handover", isAuthenticated, async (req: any, res, next) => {
+  app.post("/api/cases/:id/handover", isAuthenticated, requireFeatureVisible("caseHandover"), async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const { newFeeEarnerId, handoverNote } = req.body;
@@ -2124,6 +2127,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const incomingUser = await storage.getUser(newFeeEarnerId);
       if (!incomingUser) {
         return res.status(404).json({ message: "Incoming solicitor not found" });
+      }
+      if (!actingUser?.firmId || incomingUser.firmId !== actingUser.firmId || incomingUser.removedAt) {
+        return res.status(400).json({ message: "Incoming solicitor must be an active member of your firm" });
       }
 
       const outgoingUserId = caseRecord.assignedToUserId || caseRecord.createdBy;
@@ -2171,7 +2177,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
-  app.get("/api/cases/:id/handover-history", isAuthenticated, async (req: any, res, next) => {
+  app.get("/api/cases/:id/handover-history", isAuthenticated, requireFeatureVisible("caseHandover"), async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const caseRecord = await storage.getCaseById(req.params.id);
@@ -7086,7 +7092,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   });
 
   // PI Defence Pack — PDF bundle of all matter documentation for one case
-  app.get("/api/cases/:id/pi-pack", isAuthenticated, async (req: any, res, next) => {
+  app.get("/api/cases/:id/pi-pack", isAuthenticated, requireFeatureVisible("piDefencePack"), async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const caseId = req.params.id;

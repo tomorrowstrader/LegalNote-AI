@@ -15,6 +15,10 @@ export const FEATURE_VISIBILITY = {
   profileDisplayNameEdit: false,
   /** Auto-record + cron bot deploy for scheduled meetings (Phase 3). */
   calendarAutoRecord: false,
+  /** Transfer a matter to another fee earner within the firm. */
+  caseHandover: false,
+  /** One-click PI defence PDF bundle from case documentation. */
+  piDefencePack: false,
 } as const;
 
 export type FeatureKey = keyof typeof FEATURE_VISIBILITY;

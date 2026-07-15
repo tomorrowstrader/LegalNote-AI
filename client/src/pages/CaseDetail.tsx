@@ -70,6 +70,8 @@ const amlComplianceVisible = isFeatureVisible("amlCompliance");
 const sraReadinessVisible = isFeatureVisible("sraReadiness");
 const supervisionVisible = isFeatureVisible("supervision");
 const externalReferencesVisible = isFeatureVisible("externalReferences");
+const caseHandoverVisible = isFeatureVisible("caseHandover");
+const piDefencePackVisible = isFeatureVisible("piDefencePack");
 
 interface SessionTranscript extends Omit<Transcript, 'utterances'> {
   utterances: Array<{ speaker: string; text: string; start: number; end: number }> | null;
@@ -1103,14 +1105,18 @@ export default function CaseDetail() {
             <Eye className="w-4 h-4 mr-2" />
             {caseData.reviewed ? "Unmark as Reviewed" : "Mark as Reviewed"}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handlePiPackDownload} disabled={piPackLoading} data-testid="action-pi-pack">
-            {piPackLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileCheck className="w-4 h-4 mr-2" />}
-            PI Defence Pack
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setShowHandoverModal(true)} data-testid="action-handover">
-            <ArrowRightLeft className="w-4 h-4 mr-2" />
-            Handover Case
-          </DropdownMenuItem>
+          {piDefencePackVisible && (
+            <DropdownMenuItem onClick={handlePiPackDownload} disabled={piPackLoading} data-testid="action-pi-pack">
+              {piPackLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileCheck className="w-4 h-4 mr-2" />}
+              PI Defence Pack
+            </DropdownMenuItem>
+          )}
+          {caseHandoverVisible && (
+            <DropdownMenuItem onClick={() => setShowHandoverModal(true)} data-testid="action-handover">
+              <ArrowRightLeft className="w-4 h-4 mr-2" />
+              Handover Case
+            </DropdownMenuItem>
+          )}
           {sraReadinessVisible && (
             <>
               <DropdownMenuSeparator />
@@ -2174,7 +2180,9 @@ export default function CaseDetail() {
       <ImportRecordingModal open={showImportModal} onOpenChange={setShowImportModal} caseId={caseId!} caseTitle={caseData.title} />
       <LiveBotModal open={showLiveBotModal} onOpenChange={setShowLiveBotModal} caseId={caseId!} caseTitle={caseData.title} />
       <LogCallModal open={showLogCallModal} onOpenChange={setShowLogCallModal} caseId={caseId!} caseTitle={caseData.title} clientName={caseData.clientName} clientId={caseData.clientId || undefined} matterReference={caseData.matterReference || undefined} />
-      <HandoverModal open={showHandoverModal} onOpenChange={setShowHandoverModal} caseId={caseId!} caseTitle={caseData.title} currentAssignee={caseData.assignedToUserId || undefined} />
+      {caseHandoverVisible && (
+        <HandoverModal open={showHandoverModal} onOpenChange={setShowHandoverModal} caseId={caseId!} caseTitle={caseData.title} currentAssignee={caseData.assignedToUserId || undefined} />
+      )}
       <TimeRecordingModal
         open={showTimeRecordingModal} onOpenChange={setShowTimeRecordingModal}
         caseId={caseId!} caseTitle={caseData.title}
