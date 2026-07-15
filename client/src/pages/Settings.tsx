@@ -2109,12 +2109,7 @@ function DemoDataControls() {
 }
 
 export default function Settings() {
-  const { user, isAdmin, isFirmAdmin } = useAuth();
-  const canManageFirmSettings =
-    isAdmin ||
-    isFirmAdmin ||
-    user?.primaryRole === "managing_partner" ||
-    user?.role === "admin";
+  const { user, isAdmin } = useAuth();
   
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -2128,7 +2123,7 @@ export default function Settings() {
     const tab = params.get('tab');
     const validTabs = ['firm', 'notifications', 'usage', 'integrations', 'security', 'demo'];
     if (tab && validTabs.includes(tab)) {
-      // Firm admins only get the Firm tab; keep them on firm if they deep-link elsewhere
+      // Non-platform-admins only get the Firm tab; keep them on firm if they deep-link elsewhere
       if (!isAdmin && tab !== 'firm') {
         setActiveTab('firm');
       } else {
@@ -2136,22 +2131,6 @@ export default function Settings() {
       }
     }
   }, [isAdmin]);
-
-  if (!canManageFirmSettings) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-3xl mx-auto px-6 lg:px-8 py-8 text-center">
-          <h1 className="text-2xl font-semibold mb-4">Access Restricted</h1>
-          <p className="text-muted-foreground mb-6">
-            You need firm administrator privileges to access firm settings and upload the firm letterhead logo.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Looking for your personal settings? Visit <a href="/profile" className="text-accent underline">My Profile</a>
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">

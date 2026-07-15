@@ -6680,28 +6680,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     next();
   };
 
-  /** Platform admin or firm admin / managing partner — may edit letterhead and logo. */
+  /** Any authenticated user may edit firm letterhead and logo (shared firm profile). */
   const canManageFirmProfile = async (req: any, res: Response, next: NextFunction) => {
     try {
       const userId = req.user?.claims?.sub;
       if (!userId) {
         return res.status(401).json({ message: "Not authenticated" });
-      }
-      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
-      if (userId === ADMIN_USER_ID) {
-        return next();
-      }
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(401).json({ message: "User not found" });
-      }
-      const designations: string[] = user.regulatoryDesignations ?? [];
-      const allowed =
-        designations.includes("is_firm_admin") ||
-        user.primaryRole === "managing_partner" ||
-        user.role === "admin";
-      if (!allowed) {
-        return res.status(403).json({ message: "Firm administrator access required to update firm letterhead settings" });
       }
       next();
     } catch (err) {

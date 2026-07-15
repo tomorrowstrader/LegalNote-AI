@@ -38,16 +38,11 @@ const moreNavLinks = [
   { path: "/settings", label: "Settings", mobileLabel: "Settings", icon: Settings },
 ];
 
-const allNavLinks = [...primaryNavLinks, ...moreNavLinks];
-
 export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   const [location, setLocation] = useLocation();
   const { user, isAdmin, isFirmAdmin, isPartner, isSupervisor, canAccessFirmCompliance } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const canOpenFirmSettings = isAdmin || isFirmAdmin;
-  const visibleMoreNavLinks = moreNavLinks.filter(
-    (link) => link.path !== "/settings" || canOpenFirmSettings,
-  );
+  const visibleMoreNavLinks = moreNavLinks;
   const visibleAllNavLinks = [...primaryNavLinks, ...visibleMoreNavLinks];
 
   const handleNavClick = (path: string) => {
@@ -149,11 +144,10 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 <DropdownMenuItem asChild data-testid="menu-item-profile">
                   <Link href="/profile">My Profile</Link>
                 </DropdownMenuItem>
-                {(isAdmin || isFirmAdmin) && (
-                  <DropdownMenuItem asChild data-testid="menu-item-firm-settings">
-                    <Link href="/settings">Firm Settings</Link>
-                  </DropdownMenuItem>
-                )}                <DropdownMenuItem asChild data-testid="menu-item-undertakings">
+                <DropdownMenuItem asChild data-testid="menu-item-firm-settings">
+                  <Link href="/settings">Firm Settings</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild data-testid="menu-item-undertakings">
                   <Link href="/undertakings">Undertakings Register</Link>
                 </DropdownMenuItem>
                 {canAccessFirmCompliance && firmComplianceDashboardVisible && (
