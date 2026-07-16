@@ -74,7 +74,7 @@ import { isFeatureVisible, type FeatureKey } from "@shared/featureVisibility";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
-import { setupAuth, isAuthenticated, isUserAccessAllowed, getAdminUserId } from "./replitAuth";
+import { setupAuth, isAuthenticated, resolveUserAccessAllowed, getAdminUserId } from "./replitAuth";
 import { MAX_AUDIO_SIZE_BYTES } from "./uploadSecurity";
 import {
   generalApiLimiter,
@@ -1379,7 +1379,10 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // Add admin flag to user object (MVP: configurable via env)
       const ADMIN_USER_ID = getAdminUserId();
       const isAdmin = userId === ADMIN_USER_ID;
-      const accessAllowed = isUserAccessAllowed(userId, user?.email ?? req.user.claims?.email);
+      const accessAllowed = await resolveUserAccessAllowed(
+        userId,
+        user?.email ?? req.user.claims?.email,
+      );
       
       // Check waitlist status for non-admin users
       let waitlistStatus: string | null = null;

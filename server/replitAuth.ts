@@ -56,38 +56,40 @@ function startOAuthWithReturnTo(
   });
 }
 
+export {
+  getAccessAllowlist,
+  getAdminUserId,
+  isAccessAllowlistEnforced,
+  isUserAccessAllowed,
+  isUserOnStaticAllowlist,
+} from "./accessAllowlist";
+
+import {
+  isAccessAllowlistEnforced,
+  isUserOnStaticAllowlist,
+} from "./accessAllowlist";
+
 /**
- * Comma-separated user IDs and/or emails.
- * Only enforced when ACCESS_ALLOWLIST_ENFORCE=true.
- * Otherwise all authenticated users are allowed (invite + waitlist still apply).
+ * Full invite-only check: static allowlist, waitlist-approved, or firm member.
+ * Firm membership covers team invites without editing Railway env for every hire.
  */
-export function getAccessAllowlist(): Set<string> {
-  const raw = process.env.ACCESS_ALLOWLIST || "";
-  return new Set(
-    raw
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
-export function isAccessAllowlistEnforced(): boolean {
-  return process.env.ACCESS_ALLOWLIST_ENFORCE === "true";
-}
-
-export function getAdminUserId(): string {
-  return process.env.ADMIN_USER_ID || "48381245";
-}
-
-export function isUserAccessAllowed(userId: string, email?: string | null): boolean {
-  if (userId === getAdminUserId()) return true;
-  // Allowlist is opt-in lockdown. Without ENFORCE, invite/waitlist are the gates.
+export async function resolveUserAccessAllowed(
+  userId: string,
+  email?: string | null,
+): Promise<boolean> {
   if (!isAccessAllowlistEnforced()) return true;
-  const allowlist = getAccessAllowlist();
-  if (allowlist.size === 0) return true;
-  if (allowlist.has(userId.toLowerCase())) return true;
-  const normalizedEmail = email?.trim().toLowerCase();
-  return !!normalizedEmail && allowlist.has(normalizedEmail);
+  if (isUserOnStaticAllowlist(userId, email)) return true;
+
+  const dbUser = await storage.getUser(userId);
+  if (dbUser?.firmId) return true;
+
+  const emailToCheck = (email ?? dbUser?.email)?.trim().toLowerCase();
+  if (emailToCheck) {
+    const waitlistEntry = await storage.getWaitlistEntryByEmail(emailToCheck);
+    if (waitlistEntry?.status === "approved") return true;
+  }
+
+  return false;
 }
 
 /**
@@ -417,28 +419,27 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
       ? user.claims.email
       : null;
   if (
-    !email &&
     !isAllowlistExemptPath(req.method, req.path) &&
     isAccessAllowlistEnforced()
   ) {
-    try {
-      const dbUser = await storage.getUser(userId);
-      email = dbUser?.email ?? null;
-      if (email && user.claims) {
-        user.claims.email = email;
+    if (!email) {
+      try {
+        const dbUser = await storage.getUser(userId);
+        email = dbUser?.email ?? null;
+        if (email && user.claims) {
+          user.claims.email = email;
+        }
+      } catch (err) {
+        console.error("[AUTH] Failed to resolve user email for allowlist check:", err);
       }
-    } catch (err) {
-      console.error("[AUTH] Failed to resolve user email for allowlist check:", err);
     }
-  }
-  if (
-    !isAllowlistExemptPath(req.method, req.path) &&
-    !isUserAccessAllowed(userId, email)
-  ) {
-    return res.status(403).json({
-      message: "Access denied",
-      code: "NOT_ALLOWLISTED",
-    });
+    const allowed = await resolveUserAccessAllowed(userId, email);
+    if (!allowed) {
+      return res.status(403).json({
+        message: "Access denied",
+        code: "NOT_ALLOWLISTED",
+      });
+    }
   }
 
   return next();
