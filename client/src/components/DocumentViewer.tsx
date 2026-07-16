@@ -2807,15 +2807,17 @@ export default function DocumentViewer({
         <DialogContent className="sm:max-w-md" data-testid="dialog-produce-new-version">
           <DialogHeader>
             <DialogTitle>Produce new version</DialogTitle>
-            <DialogDescription>Optionally add a reason for the file.</DialogDescription>
+            <DialogDescription>
+              The new version is recompiled from the transcript. Add a reason to guide what should change — it is also stored on the file.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="produce-reason">Reason (optional)</Label>
+            <Label htmlFor="produce-reason">What should change? (optional)</Label>
             <Input
               id="produce-reason"
               value={produceReason}
               onChange={(e) => setProduceReason(e.target.value)}
-              placeholder="e.g. Correct incomplete discussion of next steps"
+              placeholder="e.g. Expand next steps and include funding discussion"
               maxLength={500}
               data-testid="input-produce-reason"
             />

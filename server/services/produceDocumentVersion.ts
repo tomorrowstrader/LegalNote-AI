@@ -191,7 +191,9 @@ async function updateProduceProgress(
  * on file (inactive) with parentVersionId linkage.
  *
  * Uses the same generateDocumentByRecordingType + generateSummary path as the
- * meeting-end AIProcessingPipeline derivation engine.
+ * meeting-end AIProcessingPipeline derivation engine, with revision context
+ * (previous on-file content + optional fee-earner reason) so further versions
+ * are not identical re-runs at temperature 0.
  */
 export async function produceDocumentVersion(params: {
   storage: IStorage;
@@ -305,12 +307,18 @@ export async function produceDocumentVersion(params: {
 
       await setProgress(40, "Compiling attendance note via derivation engine...");
 
+      const attendanceRevision = {
+        previousContent: parent.content,
+        reason: reason?.trim() || undefined,
+      };
+
       const attendanceResult = await documentService.generateDocumentByRecordingType(
         recordingType,
         transcriptForDocGen,
         metadata,
         firmPreferences,
         utterances.length > 0 ? utterances : undefined,
+        attendanceRevision,
       );
 
       logDocumentGovernanceViolations(attendanceResult.content, recordingType, { caseId });
@@ -380,6 +388,10 @@ export async function produceDocumentVersion(params: {
         const letterResult = await documentService.generateSummary(
           attendanceResult.content,
           metadata,
+          {
+            previousContent: clientLetterParent.content,
+            reason: reason?.trim() || undefined,
+          },
         );
         logDocumentGovernanceViolations(letterResult.content, "client_letter", { caseId });
 
@@ -446,6 +458,10 @@ export async function produceDocumentVersion(params: {
       const letterResult = await documentService.generateSummary(
         attendanceNote.content,
         metadata,
+        {
+          previousContent: parent.content,
+          reason: reason?.trim() || undefined,
+        },
       );
 
       logDocumentGovernanceViolations(letterResult.content, "client_letter", { caseId });

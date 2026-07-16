@@ -478,6 +478,43 @@ export interface FirmPreferences {
   includeClientConfirmation?: boolean;
 }
 
+/**
+ * When producing a further version, pass the previous on-file content (and optional
+ * fee-earner reason) so generation revises rather than deterministically regenerating
+ * an identical note from the same transcript at temperature 0.
+ */
+export interface DocumentRevisionContext {
+  previousContent: string;
+  reason?: string;
+}
+
+/** Appended to the user prompt for further-version production. */
+export function formatRevisionInstructions(revision: DocumentRevisionContext): string {
+  const reason = revision.reason?.trim();
+  const reasonBlock = reason
+    ? `\n\nFee earner instruction for this further version (you MUST address this):\n${reason}`
+    : '';
+
+  const previous =
+    revision.previousContent.length > 60000
+      ? `${revision.previousContent.slice(0, 60000)}\n\n[Previous version truncated for length]`
+      : revision.previousContent;
+
+  return `
+FURTHER VERSION — MANDATORY:
+You are producing a further version for the client file. The previous version is on file and must not be reproduced unchanged.
+- Re-derive carefully from the source material in this prompt.
+- Improve completeness, clarity, structure, and accuracy relative to the previous version.
+- Fix omissions, incomplete discussion points, weak or missing reasoning, and unclear passages.
+- Keep facts that remain accurate; do not invent facts absent from the source material.
+- Your output MUST differ from the previous version wherever improvement is warranted.${reasonBlock}
+
+PREVIOUS VERSION ON FILE (reference only — improve upon it; do not copy it verbatim):
+---
+${previous}
+---`;
+}
+
 /** Harness / measurement only: optional chat completion override (inert when absent). */
 export interface DocumentChatCompletionRequest {
   systemPrompt: string;
@@ -514,7 +551,8 @@ export class DocumentService {
     transcript: string,
     metadata: CaseMetadata,
     firmPreferences?: FirmPreferences,
-    utterances?: Array<{ text: string; start: number; end: number }>
+    utterances?: Array<{ text: string; start: number; end: number }>,
+    revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
     // Apply firm preferences (default to true if not specified)
     const prefs = {
@@ -740,7 +778,7 @@ CRITICAL: Extract only what was actually discussed. Where an area was not covere
 **What was said at the meeting:**
 ${transcript}`;
 
-    const result = await this.generateDocument(systemPrompt, userPrompt);
+    const result = await this.generateDocument(systemPrompt, userPrompt, revision);
     return {
       ...result,
       content: assembleAttendanceNoteDocument(result.content, metadata, prefs),
@@ -752,7 +790,8 @@ ${transcript}`;
    */
   async generateSummary(
     attendanceNote: string,
-    metadata: CaseMetadata
+    metadata: CaseMetadata,
+    revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
     const systemPrompt = `You are a UK-qualified SRA-regulated solicitor writing a post-meeting confirmation letter to your client, under English and Welsh law.
 
@@ -800,7 +839,7 @@ FORMATTING GUIDELINES:
 **Attendance note:**
 ${attendanceNote}`;
 
-    const result = await this.generateDocument(systemPrompt, userPrompt);
+    const result = await this.generateDocument(systemPrompt, userPrompt, revision);
     return {
       ...result,
       content: assembleSummaryDocument(result.content, metadata),
@@ -942,17 +981,24 @@ List each distinct defect once. Never repeat a statement. Never restate the same
 
   private async generateDocument(
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
     try {
       const modelLabel = this.getGenerationModelLabel();
-      console.log(`Generating document with ${modelLabel}...`);
+      const fullUserPrompt = revision
+        ? `${userPrompt}\n${formatRevisionInstructions(revision)}`
+        : userPrompt;
+      const temperature = revision ? 0 : 0;
+      console.log(
+        `Generating document with ${modelLabel}${revision ? ' (further version)' : ''}...`,
+      );
 
       const completion = await this.callChatCompletion({
         systemPrompt,
-        userPrompt,
+        userPrompt: fullUserPrompt,
         maxTokens: 4000,
-        temperature: 0,
+        temperature,
       });
 
       const rawContent = completion.content;
@@ -979,7 +1025,8 @@ List each distinct defect once. Never repeat a statement. Never restate the same
   async generateTelephoneAttendanceNote(
     transcript: string,
     metadata: CaseMetadata,
-    firmPreferences?: FirmPreferences
+    firmPreferences?: FirmPreferences,
+    revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
     const prefs = {
       showFullSolicitorName: firmPreferences?.showFullSolicitorName ?? true,
@@ -1047,12 +1094,13 @@ FORMATTING: Use **bold** for headings. Keep the entire note to approximately hal
 **Transcript:**
 ${transcript}`;
 
-    return await this.generateDocument(systemPrompt, userPrompt);
+    return await this.generateDocument(systemPrompt, userPrompt, revision);
   }
 
   async generateFileNote(
     transcript: string,
-    metadata: CaseMetadata
+    metadata: CaseMetadata,
+    revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
     const systemPrompt = `You are a UK-qualified solicitor creating a brief file note.
 
@@ -1088,13 +1136,14 @@ This file note is subject to legal professional privilege.`;
 **Content:**
 ${transcript}`;
 
-    return await this.generateDocument(systemPrompt, userPrompt);
+    return await this.generateDocument(systemPrompt, userPrompt, revision);
   }
 
   async generateCourtAttendanceNote(
     transcript: string,
     metadata: CaseMetadata,
-    firmPreferences?: FirmPreferences
+    firmPreferences?: FirmPreferences,
+    revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
     const prefs = {
       showFullSolicitorName: firmPreferences?.showFullSolicitorName ?? true,
@@ -1181,13 +1230,14 @@ FORMATTING: Use **bold** for all section headings. Be thorough but concise.`;
 **Transcript:**
 ${transcript}`;
 
-    return await this.generateDocument(systemPrompt, userPrompt);
+    return await this.generateDocument(systemPrompt, userPrompt, revision);
   }
 
   async generatePoliceStationAttendanceNote(
     transcript: string,
     metadata: CaseMetadata,
-    firmPreferences?: FirmPreferences
+    firmPreferences?: FirmPreferences,
+    revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
     const prefs = {
       showFullSolicitorName: firmPreferences?.showFullSolicitorName ?? true,
@@ -1275,7 +1325,7 @@ FORMATTING: Use **bold** for all section headings. Be thorough and PACE-complian
 **Transcript:**
 ${transcript}`;
 
-    return await this.generateDocument(systemPrompt, userPrompt);
+    return await this.generateDocument(systemPrompt, userPrompt, revision);
   }
 
   async generateDocumentByRecordingType(
@@ -1283,24 +1333,46 @@ ${transcript}`;
     transcript: string,
     metadata: CaseMetadata,
     firmPreferences?: FirmPreferences,
-    utterances?: Array<{ text: string; start: number; end: number }>
+    utterances?: Array<{ text: string; start: number; end: number }>,
+    revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
     let result: DocumentGenerationResult;
     switch (recordingType) {
       case 'telephone_call':
-        result = await this.generateTelephoneAttendanceNote(transcript, metadata, firmPreferences);
+        result = await this.generateTelephoneAttendanceNote(
+          transcript,
+          metadata,
+          firmPreferences,
+          revision,
+        );
         break;
       case 'file_note':
-        result = await this.generateFileNote(transcript, metadata);
+        result = await this.generateFileNote(transcript, metadata, revision);
         break;
       case 'court_hearing':
-        result = await this.generateCourtAttendanceNote(transcript, metadata, firmPreferences);
+        result = await this.generateCourtAttendanceNote(
+          transcript,
+          metadata,
+          firmPreferences,
+          revision,
+        );
         break;
       case 'police_station':
-        result = await this.generatePoliceStationAttendanceNote(transcript, metadata, firmPreferences);
+        result = await this.generatePoliceStationAttendanceNote(
+          transcript,
+          metadata,
+          firmPreferences,
+          revision,
+        );
         break;
       case 'full_meeting':
-        result = await this.generateAttendanceNote(transcript, metadata, firmPreferences, utterances);
+        result = await this.generateAttendanceNote(
+          transcript,
+          metadata,
+          firmPreferences,
+          utterances,
+          revision,
+        );
         break;
       default:
         throw new Error(
