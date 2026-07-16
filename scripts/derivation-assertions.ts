@@ -44,7 +44,7 @@ interface DeriveAssertionSpec {
   contextPatterns: RegExp[];
   valuePatterns: RegExp[];
   wrongPatterns?: RegExp[];
-  valueShape: 'currency' | 'duration';
+  valueShape: 'currency' | 'duration' | 'must-not-invent-duration';
 }
 
 const DERIVE_ASSERTIONS: DeriveAssertionSpec[] = [
@@ -122,16 +122,18 @@ const DERIVE_ASSERTIONS: DeriveAssertionSpec[] = [
       /total relationship/i,
       /together since 2009/i,
       /met in 2009/i,
+      /could not be established/i,
     ],
-    // Strict rule: no stated cohabitation/household start → span cannot be established.
-    // PASS if the note records that; ABSENT (raw "met in 2009" without inventing years) is also acceptable.
-    // Inventing ~17 or marriage-years-as-span (~10) is WRONG.
-    valuePatterns: [/could not be established/i],
+    // Strict silence: no cohabitation start → do not state a total/relationship span in years,
+    // and do not announce that one could not be established. Silence = PASS; inventing years = WRONG.
+    valuePatterns: [],
     wrongPatterns: [
+      /could not be established/i,
       /\b(?:approximately|about|some|around|circa)\s*\d+\s*(?:years?|yrs?)\b/i,
       /\b\d+[- ]year/i,
+      /\b(?:approximately|about|some|around|circa)\s*(?:6|17)\s*(?:years?|yrs?)\b/i,
     ],
-    valueShape: 'duration',
+    valueShape: 'must-not-invent-duration',
   },
   {
     id: 'cohabitation-pre-marriage',
@@ -140,14 +142,18 @@ const DERIVE_ASSERTIONS: DeriveAssertionSpec[] = [
       /before the marriage/i,
       /prior to marriage/i,
       /pre-marital cohabitation/i,
+      /could not be established/i,
     ],
-    // Strict rule: "met / been together" is not cohabitation. Expect honesty, not ~6 years.
-    valuePatterns: [/could not be established/i],
+    // Strict silence: no stated household-sharing start → no cohabitation duration figure.
+    // Silence = PASS; inventing ~6 years (or any year count) or announcing absence = WRONG.
+    valuePatterns: [],
     wrongPatterns: [
+      /could not be established/i,
       /\b(?:approximately|about|some|around|circa)\s*\d+\s*(?:years?|yrs?)\b/i,
       /\b\d+[- ]year/i,
+      /\b(?:approximately|about|some|around|circa)\s*6\s*(?:years?|yrs?)\b/i,
     ],
-    valueShape: 'duration',
+    valueShape: 'must-not-invent-duration',
   },
   {
     id: 'total-assets',
@@ -252,6 +258,48 @@ function hasCompetingCurrencyAssertion(sentence: string, spec: DeriveAssertionSp
 }
 
 function assertDerivedWithContext(spec: DeriveAssertionSpec, doc: string): DerivationAssertionResult {
+  if (spec.valueShape === 'must-not-invent-duration') {
+    const isMarriageDurationSentence = (sentence: string) =>
+      /marriage has (?:therefore )?subsisted|duration of the marriage|marriage.{0,60}(?:lasted|subsist)/i.test(
+        sentence,
+      );
+
+    const contextSentences = findContextSentences(doc, spec.contextPatterns);
+    const sentencesToScan =
+      contextSentences.length > 0
+        ? contextSentences
+        : splitSentences(doc).filter((s) => spec.contextPatterns.some((p) => p.test(s)));
+
+    for (const sentence of sentencesToScan) {
+      if (isMarriageDurationSentence(sentence)) continue;
+      if (spec.wrongPatterns?.some((p) => p.test(sentence))) {
+        return { id: spec.id, status: 'WRONG', detail: `"${sentence}"` };
+      }
+      if (hasDurationValue(sentence)) {
+        return { id: spec.id, status: 'WRONG', detail: `"${sentence}"` };
+      }
+    }
+
+    // Catch inventing elsewhere via cohabitation / total-span language (not marriage duration).
+    for (const sentence of splitSentences(doc)) {
+      if (isMarriageDurationSentence(sentence)) continue;
+      const inScope =
+        /cohabit|pre-marital cohabitation|total relationship|relationship span/i.test(sentence) ||
+        (spec.id === 'relationship-duration' &&
+          /relationship.{0,40}(span|duration|lasted|together for)/i.test(sentence));
+      if (!inScope) continue;
+      if (spec.wrongPatterns?.some((p) => p.test(sentence)) || hasDurationValue(sentence)) {
+        return { id: spec.id, status: 'WRONG', detail: `"${sentence}"` };
+      }
+    }
+
+    return {
+      id: spec.id,
+      status: 'PASS',
+      detail: 'silent (no invented cohabitation/total-span duration)',
+    };
+  }
+
   const contextSentences = findContextSentences(doc, spec.contextPatterns);
   if (contextSentences.length === 0) {
     return { id: spec.id, status: 'ABSENT', detail: 'absent' };
