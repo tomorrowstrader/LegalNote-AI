@@ -66,7 +66,7 @@ describe('formatRevisionInstructions', () => {
 });
 
 describe('DocumentService further version revision', () => {
-  it('passes revision context into generation at non-zero temperature', async () => {
+  it('passes revision context into generation at temperature 0', async () => {
     const chatCompletion = vi.fn().mockResolvedValue({
       content: '**What we discussed**\n\nRevised letter body.',
       inputTokens: 10,
@@ -85,7 +85,7 @@ describe('DocumentService further version revision', () => {
       userPrompt: string;
       temperature: number;
     };
-    expect(request.temperature).toBe(0.35);
+    expect(request.temperature).toBe(0);
     expect(request.userPrompt).toContain('FURTHER VERSION — MANDATORY');
     expect(request.userPrompt).toContain('Old letter content');
     expect(request.userPrompt).toContain('Clarify advice on costs');
