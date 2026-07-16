@@ -115,10 +115,15 @@ export function computeRelationshipDurations(
       ? floorCompletedYears(input.cohabitationStartDate, input.separationDate)
       : null;
 
-  const totalStart = earlierStart(input.marriageDate, input.cohabitationStartDate);
+  // Total span requires a stated cohabitation/relationship-start date. Marriage
+  // alone is not a substitute — falling back to marriage years under a "total
+  // relationship span" label invents a figure the dates do not support.
   const totalYears =
-    totalStart && input.separationDate
-      ? floorCompletedYears(totalStart, input.separationDate)
+    input.cohabitationStartDate && input.separationDate
+      ? floorCompletedYears(
+          earlierStart(input.marriageDate, input.cohabitationStartDate)!,
+          input.separationDate,
+        )
       : null;
 
   return {

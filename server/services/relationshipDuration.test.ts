@@ -62,9 +62,26 @@ describe('computeRelationshipDurations', () => {
     expect(result.marriageDurationFact).toBe('approximately 10 years');
     expect(result.cohabitationYears).toBeNull();
     expect(result.cohabitationDurationFact).toBeNull();
-    expect(result.totalYears).toBe(10);
-    expect(result.totalDurationFact).toBe('approximately 10 years');
+    expect(result.totalYears).toBeNull();
+    expect(result.totalDurationFact).toBeNull();
     expect(durationFactOrUnset(result.cohabitationDurationFact)).toBe(
+      DURATION_COULD_NOT_BE_ESTABLISHED,
+    );
+    expect(durationFactOrUnset(result.totalDurationFact)).toBe(
+      DURATION_COULD_NOT_BE_ESTABLISHED,
+    );
+  });
+
+  it('does not set total span from marriage alone when cohabitation start is null', () => {
+    const result = computeRelationshipDurations({
+      marriageDate: ym(2015, 6),
+      separationDate: ym(2025, 11),
+      cohabitationStartDate: null,
+    });
+
+    expect(result.marriageDurationFact).toBe('approximately 10 years');
+    expect(result.totalDurationFact).toBeNull();
+    expect(durationFactOrUnset(result.totalDurationFact)).toBe(
       DURATION_COULD_NOT_BE_ESTABLISHED,
     );
   });
@@ -145,6 +162,8 @@ describe('formatRelationshipDurationFactsBlock', () => {
     expect(block).toContain('SYSTEM-COMPUTED RELATIONSHIP DURATION FACTS');
     expect(block).toContain('Marriage duration: approximately 10 years');
     expect(block).toContain(`Cohabitation duration: ${DURATION_COULD_NOT_BE_ESTABLISHED}`);
-    expect(block).toContain('Total relationship / cohabitation span: approximately 10 years');
+    expect(block).toContain(
+      `Total relationship / cohabitation span: ${DURATION_COULD_NOT_BE_ESTABLISHED}`,
+    );
   });
 });
