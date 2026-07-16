@@ -144,13 +144,32 @@ export function durationFactOrUnset(fact: string | null): string {
 
 /**
  * Authoritative block appended to note-generation (and verifier) prompts.
- * Always lists all three durations so nulls surface as "could not be established".
+ * Only emits durations the code actually computed. Null cohabitation/total are
+ * omitted — the note must stay silent on those, not announce their absence.
  */
 export function formatRelationshipDurationFactsBlock(
   result: RelationshipDurationResult,
 ): string {
-  return `SYSTEM-COMPUTED RELATIONSHIP DURATION FACTS (authoritative — use these figures; do not recalculate):
-- Marriage duration: ${durationFactOrUnset(result.marriageDurationFact)}
-- Cohabitation duration: ${durationFactOrUnset(result.cohabitationDurationFact)}
-- Total relationship / cohabitation span: ${durationFactOrUnset(result.totalDurationFact)}`;
+  const lines: string[] = [
+    'SYSTEM-COMPUTED RELATIONSHIP DURATION FACTS (authoritative — use these figures; do not recalculate):',
+  ];
+  if (result.marriageDurationFact) {
+    lines.push(`- Marriage duration: ${result.marriageDurationFact}`);
+  }
+  if (result.cohabitationDurationFact) {
+    lines.push(`- Cohabitation duration: ${result.cohabitationDurationFact}`);
+  }
+  if (result.totalDurationFact) {
+    lines.push(`- Total relationship / cohabitation span: ${result.totalDurationFact}`);
+  }
+  if (
+    result.marriageDurationFact &&
+    !result.cohabitationDurationFact &&
+    !result.totalDurationFact
+  ) {
+    lines.push(
+      '- Only the marriage duration above is authoritative. Do not state a cohabitation duration or total relationship span, and do not announce that either could not be established.',
+    );
+  }
+  return lines.join('\n');
 }
