@@ -152,7 +152,7 @@ describe('computeRelationshipDurations', () => {
 });
 
 describe('formatRelationshipDurationFactsBlock', () => {
-  it('lists all three facts and uses could not be established for nulls', () => {
+  it('omits null cohabitation/total lines and injects only-marriage guard', () => {
     const result = computeRelationshipDurations({
       marriageDate: ym(2015, 6),
       separationDate: ym(2025, 11),
@@ -161,9 +161,26 @@ describe('formatRelationshipDurationFactsBlock', () => {
     const block = formatRelationshipDurationFactsBlock(result);
     expect(block).toContain('SYSTEM-COMPUTED RELATIONSHIP DURATION FACTS');
     expect(block).toContain('Marriage duration: approximately 10 years');
-    expect(block).toContain(`Cohabitation duration: ${DURATION_COULD_NOT_BE_ESTABLISHED}`);
+    expect(block).not.toContain('Cohabitation duration:');
+    expect(block).not.toContain('Total relationship / cohabitation span:');
+    expect(block).not.toMatch(/Cohabitation duration:\s*could not be established/i);
+    expect(block).not.toMatch(/Total relationship \/ cohabitation span:\s*could not be established/i);
     expect(block).toContain(
-      `Total relationship / cohabitation span: ${DURATION_COULD_NOT_BE_ESTABLISHED}`,
+      'Only the marriage duration above is authoritative. Do not state a cohabitation duration or total relationship span, and do not announce that either could not be established.',
     );
+  });
+
+  it('emits marriage and cohabitation lines when both are computed', () => {
+    const result = computeRelationshipDurations({
+      marriageDate: ym(2013, 6),
+      separationDate: ym(2025, 11),
+      cohabitationStartDate: y(2010),
+    });
+    const block = formatRelationshipDurationFactsBlock(result);
+    expect(block).toContain('Marriage duration:');
+    expect(block).toContain('Cohabitation duration:');
+    expect(block).toContain('Total relationship / cohabitation span:');
+    expect(block).not.toContain('Only the marriage duration above is authoritative');
+    expect(block).not.toContain(DURATION_COULD_NOT_BE_ESTABLISHED);
   });
 });

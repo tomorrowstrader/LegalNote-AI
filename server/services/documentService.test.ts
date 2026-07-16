@@ -91,7 +91,10 @@ describe('DocumentService.generateAttendanceNote', () => {
     const userPrompt = generateDocumentSpy.mock.calls[0]?.[1] as string;
     expect(userPrompt).toContain('SYSTEM-COMPUTED RELATIONSHIP DURATION FACTS');
     expect(userPrompt).toContain('Marriage duration: approximately 10 years');
-    expect(userPrompt).toContain('Cohabitation duration: could not be established');
+    expect(userPrompt).not.toContain('Cohabitation duration:');
+    expect(userPrompt).toContain(
+      'Only the marriage duration above is authoritative. Do not state a cohabitation duration or total relationship span, and do not announce that either could not be established.',
+    );
   });
 });
 
