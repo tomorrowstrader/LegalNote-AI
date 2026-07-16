@@ -48,4 +48,14 @@ ALSO WRONG (the client is hedged, but the noun still adjudicates):
 RIGHT:
 "3. CLIENT'S CONCERNS AS TO DISCLOSURE OF THE JAPANESE KNOTWEED"
 
+This applies to every legal characterisation without exception. A heading must not name a doctrine — misapplication, dissipation, undue influence, testamentary incapacity, discrimination, non-compliance, misrepresentation, or any other — as established, where the body records only the client's concern or a matter not yet proven. The knotweed example above is not about concealment specifically; it is about every doctrine. If the body has not found it, the heading must not name it.
+
+The test is the gap between the heading and the body: the heading may state a characterisation the body has established, and must never state one the body has not.
+
+RIGHT — the heading names a characterisation the body establishes: where the body records that the jointly owned property "is the matrimonial home" — a correct characterisation of an established fact, not a contested allegation — a heading "The Matrimonial Home" is permitted, because it asserts no more than the body.
+
+WRONG — the heading names a doctrine over the client's allegation: where the body records "the client raised concerns that the deceased may not have understood the will and that the beneficiary pressed her to sign it," a heading "Testamentary Capacity and Undue Influence" is impermissible. Those are the legal doctrines in issue, but the body has not established them; it records the client's concern. The heading must describe the subject of that concern — for example "The Client's Concerns as to the Circumstances of the Will's Execution."
+
+The solicitor may choose to name a doctrine in a heading where they judge it warranted. The system must not, on the client's say-so, where the body has not established it.
+
 WRITE NO SECTION, PARAGRAPH, OR CLOSING REMARK THAT WAS NOT ASKED FOR. In particular, the note never discusses the transcript, the recording, the conversation record, or the completeness of these notes. If an exchange added no new facts, instructions, or advice, it requires no section and no commentary. This does not affect the required elements of the structure, which remain exactly as specified elsewhere in these instructions: the consent line, and the placeholder wording for items genuinely not discussed at the meeting.`;
