@@ -255,13 +255,13 @@ export class MeetingSchedulerService {
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
     const now = new Date();
-    const sevenDaysAhead = new Date();
-    sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
+    const thirtyDaysAhead = new Date();
+    thirtyDaysAhead.setDate(thirtyDaysAhead.getDate() + 30);
 
     const response = await calendar.events.list({
       calendarId: 'primary',
       timeMin: now.toISOString(),
-      timeMax: sevenDaysAhead.toISOString(),
+      timeMax: thirtyDaysAhead.toISOString(),
       singleEvents: true,
       orderBy: 'startTime',
       maxResults: 50,
@@ -321,15 +321,15 @@ export class MeetingSchedulerService {
     });
 
     const now = new Date();
-    const sevenDaysAhead = new Date();
-    sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
+    const thirtyDaysAhead = new Date();
+    thirtyDaysAhead.setDate(thirtyDaysAhead.getDate() + 30);
 
     const response = await graphClient
       .api('/me/calendarView')
       .query({
         startDateTime: now.toISOString(),
-        endDateTime: sevenDaysAhead.toISOString(),
-        $top: 50,
+        endDateTime: thirtyDaysAhead.toISOString(),
+        $top: 100,
         $orderby: 'start/dateTime',
       })
       .get();

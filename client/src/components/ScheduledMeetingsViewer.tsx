@@ -25,10 +25,12 @@ import {
   Ban,
   CalendarClock,
   Search,
-  X
+  X,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
-import { format, formatDistanceToNow, isToday, isTomorrow, isPast } from "date-fns";
-import { useState } from "react";
+import { format, formatDistanceToNow, isToday, isTomorrow, isPast, addDays, startOfDay } from "date-fns";
+import { useState, useMemo, useEffect } from "react";
 import type { ScheduledMeeting, Case } from "@shared/schema";
 import ConfigurationErrorModal from "@/components/ConfigurationErrorModal";
 import {
@@ -45,6 +47,53 @@ import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 import { LiveBotModal } from "@/components/LiveBotModal";
 
 type MeetingAttendee = { email: string; name?: string; responseStatus?: string };
+
+type MeetingTimeTab = "today" | "tomorrow" | "next7" | "later";
+
+const MEETING_TABS: { value: MeetingTimeTab; label: string }[] = [
+  { value: "today", label: "Today" },
+  { value: "tomorrow", label: "Tomorrow" },
+  { value: "next7", label: "Next 7 days" },
+  { value: "later", label: "Later" },
+];
+
+function categorizeMeeting(meeting: ScheduledMeeting): MeetingTimeTab {
+  const start = new Date(meeting.startTime);
+  if (isToday(start)) return "today";
+  if (isTomorrow(start)) return "tomorrow";
+  const endOfNext7 = startOfDay(addDays(new Date(), 7));
+  // Inclusive of day 7: anything after tomorrow through end of day +7
+  if (start <= endOfNext7) return "next7";
+  return "later";
+}
+
+function pickDefaultMeetingTab(meetings: ScheduledMeeting[]): MeetingTimeTab {
+  const counts = { today: 0, tomorrow: 0, next7: 0, later: 0 };
+  for (const m of meetings) {
+    counts[categorizeMeeting(m)] += 1;
+  }
+  if (counts.today > 0) return "today";
+  if (counts.tomorrow > 0) return "tomorrow";
+  if (counts.next7 > 0) return "next7";
+  if (counts.later > 0) return "later";
+  return "today";
+}
+
+function useIsDesktop(breakpointPx = 768) {
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(`(min-width: ${breakpointPx}px)`).matches : true,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${breakpointPx}px)`);
+    const onChange = () => setIsDesktop(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [breakpointPx]);
+
+  return isDesktop;
+}
 
 function getMeetingAttendees(meeting: ScheduledMeeting): MeetingAttendee[] {
   if (!Array.isArray(meeting.attendees)) return [];
@@ -748,13 +797,109 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   );
 }
 
+/** Compact overflow row for “See more” — time | title | platform | actions */
+function MeetingCompactRow({ meeting }: { meeting: ScheduledMeeting; onUpdate?: () => void }) {
+  const [showCaseDialog, setShowCaseDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const startTime = new Date(meeting.startTime);
+  const isActive = meeting.status === "scheduled";
+
+  return (
+    <>
+      <div
+        className="flex items-center gap-2 sm:gap-3 py-2.5 px-2 border-b last:border-b-0 min-w-0"
+        data-testid={`meeting-compact-${meeting.id}`}
+      >
+        <div className="w-14 sm:w-16 flex-shrink-0 text-xs text-muted-foreground tabular-nums">
+          {format(startTime, "h:mm a")}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{meeting.title}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {isToday(startTime)
+              ? "Today"
+              : isTomorrow(startTime)
+                ? "Tomorrow"
+                : format(startTime, "EEE, MMM d")}
+          </p>
+        </div>
+        <div className="hidden sm:flex flex-shrink-0">
+          {getPlatformIcon(meeting.meetingPlatform)}
+        </div>
+        {isActive && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2"
+              onClick={() => setShowCaseDialog(true)}
+              data-testid={`button-compact-link-case-${meeting.id}`}
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              <span className="sr-only sm:not-sr-only sm:ml-1 text-xs">Case</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2"
+              onClick={() => setShowRescheduleDialog(true)}
+              data-testid={`button-compact-reschedule-${meeting.id}`}
+            >
+              <CalendarClock className="w-3.5 h-3.5" />
+              <span className="sr-only sm:not-sr-only sm:ml-1 text-xs">Reschedule</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-destructive"
+              onClick={() => setShowCancelDialog(true)}
+              data-testid={`button-compact-cancel-${meeting.id}`}
+            >
+              <Ban className="w-3.5 h-3.5" />
+              <span className="sr-only sm:not-sr-only sm:ml-1 text-xs">Cancel</span>
+            </Button>
+          </div>
+        )}
+      </div>
+      <CasePickerDialog
+        meeting={meeting}
+        open={showCaseDialog}
+        onOpenChange={setShowCaseDialog}
+      />
+      <CancelMeetingDialog
+        meeting={meeting}
+        open={showCancelDialog}
+        onOpenChange={setShowCancelDialog}
+      />
+      <RescheduleMeetingDialog
+        meeting={meeting}
+        open={showRescheduleDialog}
+        onOpenChange={setShowRescheduleDialog}
+      />
+    </>
+  );
+}
+
 export function ScheduledMeetingsViewer() {
   const { toast } = useToast();
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
+  const [activeTab, setActiveTab] = useState<MeetingTimeTab>("today");
+  const [hasUserPickedTab, setHasUserPickedTab] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const isDesktop = useIsDesktop();
+
   const { data: meetings, isLoading, error, refetch } = useQuery<ScheduledMeeting[]>({
-    queryKey: ['/api/scheduled-meetings'],
+    queryKey: ["/api/scheduled-meetings", { daysAhead: 30 }],
+    queryFn: async () => {
+      const res = await fetch("/api/scheduled-meetings?daysAhead=30", { credentials: "include" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Failed to load meetings");
+      }
+      return res.json();
+    },
     refetchInterval: 30000,
   });
 
@@ -762,32 +907,64 @@ export function ScheduledMeetingsViewer() {
     google: { connected: boolean; email?: string };
     outlook?: { connected: boolean; email?: string };
   }>({
-    queryKey: ['/api/oauth/connections'],
+    queryKey: ["/api/oauth/connections"],
   });
 
   const calendarConnected =
     !!connections?.google?.connected || !!connections?.outlook?.connected;
-  
+
+  const tabCounts = useMemo(() => {
+    const counts: Record<MeetingTimeTab, number> = {
+      today: 0,
+      tomorrow: 0,
+      next7: 0,
+      later: 0,
+    };
+    for (const m of meetings || []) {
+      counts[categorizeMeeting(m)] += 1;
+    }
+    return counts;
+  }, [meetings]);
+
+  useEffect(() => {
+    if (!meetings || meetings.length === 0 || hasUserPickedTab) return;
+    setActiveTab(pickDefaultMeetingTab(meetings));
+  }, [meetings, hasUserPickedTab]);
+
+  useEffect(() => {
+    setShowMore(false);
+  }, [activeTab]);
+
+  const filteredMeetings = useMemo(
+    () => (meetings || []).filter((m) => categorizeMeeting(m) === activeTab),
+    [meetings, activeTab],
+  );
+
+  const visibleCap = isDesktop ? 4 : 1;
+  const visibleMeetings = filteredMeetings.slice(0, visibleCap);
+  const overflowMeetings = filteredMeetings.slice(visibleCap);
+  const hasOverflow = overflowMeetings.length > 0;
+
   const syncMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('POST', '/api/scheduled-meetings/sync');
+      return apiRequest("POST", "/api/scheduled-meetings/sync");
     },
     onSuccess: (data: any) => {
-      toast({ 
-        title: "Meetings refreshed", 
-        description: `Found ${data.meetings?.length || 0} upcoming meetings` 
+      toast({
+        title: "Meetings refreshed",
+        description: `Found ${data.meetings?.length || 0} upcoming meetings`,
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/scheduled-meetings'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduled-meetings"] });
     },
     onError: (error: any) => {
-      if (error.message?.includes('not connected') || error.needsCalendarConnection) {
-        queryClient.invalidateQueries({ queryKey: ['/api/oauth/connections'] });
+      if (error.message?.includes("not connected") || error.needsCalendarConnection) {
+        queryClient.invalidateQueries({ queryKey: ["/api/oauth/connections"] });
         setShowCalendarModal(true);
       } else {
-        toast({ 
-          title: "Refresh failed", 
+        toast({
+          title: "Refresh failed",
           description: error.message,
-          variant: "destructive"
+          variant: "destructive",
         });
       }
     },
@@ -800,7 +977,7 @@ export function ScheduledMeetingsViewer() {
     }
     syncMutation.mutate();
   };
-  
+
   const handleRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
@@ -810,7 +987,12 @@ export function ScheduledMeetingsViewer() {
       setIsRefreshing(false);
     }
   };
-  
+
+  const handleTabChange = (tab: MeetingTimeTab) => {
+    setHasUserPickedTab(true);
+    setActiveTab(tab);
+  };
+
   if (error) {
     return (
       <Card>
@@ -836,14 +1018,19 @@ export function ScheduledMeetingsViewer() {
       </Card>
     );
   }
-  
+
+  const totalCount = meetings?.length ?? 0;
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Calendar className="w-5 h-5" />
             Upcoming Meetings
+            {totalCount > 0 && (
+              <span className="text-sm font-normal text-muted-foreground">({totalCount})</span>
+            )}
           </CardTitle>
           <div className="flex items-center gap-2">
             {isConnectionsPending ? (
@@ -858,11 +1045,13 @@ export function ScheduledMeetingsViewer() {
                 Checking…
               </Button>
             ) : (
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 onClick={handleCalendarAction}
                 disabled={syncMutation.isPending}
-                data-testid={calendarConnected ? "button-refresh-calendar-meetings" : "button-sync-calendar"}
+                data-testid={
+                  calendarConnected ? "button-refresh-calendar-meetings" : "button-sync-calendar"
+                }
               >
                 {syncMutation.isPending ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -875,7 +1064,7 @@ export function ScheduledMeetingsViewer() {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -883,22 +1072,96 @@ export function ScheduledMeetingsViewer() {
         ) : !meetings || meetings.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Video className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>No upcoming meetings in the next 7 days</p>
+            <p>No upcoming meetings in the next 30 days</p>
             <p className="text-sm mt-2">Sync your calendar to see scheduled video calls</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {meetings.map((meeting) => (
-              <MeetingCard 
-                key={meeting.id} 
-                meeting={meeting} 
-                onUpdate={handleRefresh}
-              />
-            ))}
-          </div>
+          <>
+            <div
+              className="flex items-center gap-1 bg-muted/50 rounded-md p-0.5 border border-border/50 overflow-x-auto"
+              role="tablist"
+              aria-label="Filter meetings by time"
+            >
+              {MEETING_TABS.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.value}
+                  onClick={() => handleTabChange(tab.value)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded whitespace-nowrap transition-colors ${
+                    activeTab === tab.value
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground"
+                  }`}
+                  data-testid={`button-meetings-tab-${tab.value}`}
+                >
+                  {tab.label}
+                  {tabCounts[tab.value] > 0 && (
+                    <span className="ml-1 opacity-70">({tabCounts[tab.value]})</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {filteredMeetings.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Video className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">No meetings in this period</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {visibleMeetings.map((meeting) => (
+                    <MeetingCard
+                      key={meeting.id}
+                      meeting={meeting}
+                      onUpdate={handleRefresh}
+                    />
+                  ))}
+                </div>
+
+                {hasOverflow && (
+                  <div className="space-y-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowMore((v) => !v)}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-muted-foreground hover:text-foreground border border-dashed rounded-md transition-colors"
+                      data-testid="button-see-more-meetings"
+                    >
+                      {showMore ? (
+                        <>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                          Show less
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-3.5 h-3.5" />
+                          See more meetings ({overflowMeetings.length})
+                        </>
+                      )}
+                    </button>
+                    {showMore && (
+                      <div
+                        className="mt-2 rounded-md border bg-muted/20 divide-y-0"
+                        data-testid="meetings-overflow-list"
+                      >
+                        {overflowMeetings.map((meeting) => (
+                          <MeetingCompactRow
+                            key={meeting.id}
+                            meeting={meeting}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </>
         )}
       </CardContent>
-      
+
       <ConfigurationErrorModal
         open={showCalendarModal}
         onOpenChange={setShowCalendarModal}
