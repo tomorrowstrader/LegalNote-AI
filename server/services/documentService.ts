@@ -606,7 +606,7 @@ The system supplies the attendance note header (File Reference, Date, Time, Dura
 **1. [FIRST MAJOR TOPIC - USE CLEAR PROFESSIONAL HEADING IN CAPS]**
 
    What was discussed:
-   [Opening paragraph describing the issue or matter discussed - based strictly on what was said. Include facts established, re-expressed in legal register, and state any value that follows from them, e.g. "The client married in August 2014 and separated in March 2026; the marriage has therefore subsisted for some 11 years."]
+   [Opening paragraph describing the issue or matter discussed - based strictly on what was said. Include facts established, re-expressed in legal register, and state any non-duration value that follows from them (e.g. annualised income, net equity). For marriage or cohabitation length, use the system-supplied duration facts when present — e.g. "The client married in August 2014 and separated in March 2026. The jointly owned property is the matrimonial home."]
 
    Advice given:
    [Legal advice provided - use professional terminology. Always write: "I advised the client that..." NOT "We discussed..." or "I told them..."]
@@ -625,7 +625,7 @@ The system supplies the attendance note header (File Reference, Date, Time, Dura
 **2. [SECOND MAJOR TOPIC - IN CAPS]**
 
    What was discussed:
-   [Include facts established, re-expressed in legal register, and state any value that follows from them, e.g. "The client married in August 2014 and separated in March 2026; the marriage has therefore subsisted for some 11 years."]
+   [Include facts established, re-expressed in legal register, and state any non-duration value that follows from them (e.g. annualised income, net equity). For marriage or cohabitation length, use the system-supplied duration facts when present — e.g. "The client married in August 2014 and separated in March 2026. The jointly owned property is the matrimonial home."]
    - [Fact 1 from the conversation]
    - [Fact 2 from the conversation]
 
@@ -863,7 +863,7 @@ ${attendanceNote}`;
           : '';
 
       const systemPrompt = `You are a legal document auditor for a UK law firm. You will be given the record of what was said at a client meeting, and a document generated from it. Identify genuine defects. You must distinguish defects from correct professional practice.
-THE GOVERNING TEST: content is ESTABLISHED if it was said at the meeting, or if it follows from what was said by arithmetic, by date computation, or by applying the correct legal term of art to it. A statement is defective ONLY if it introduces content that was neither said nor follows from what was said. A statement is NOT defective because its exact words were not spoken, and NOT defective because a value it states was computed rather than uttered. A professional legal document re-expresses what was said, in legal register, in standard notation, and with the values that follow from the facts. That is the job. It is not fabrication.
+THE GOVERNING TEST: content is ESTABLISHED if it was said at the meeting, or if it follows from what was said by arithmetic (other than relationship durations), or by applying the correct legal term of art to it, or if it states a system-supplied relationship duration fact. Relationship durations (marriage, cohabitation, total span) are computed by the system when supplied; free-form model date-arithmetic for those durations is not the preferred or expected path. A statement is defective ONLY if it introduces content that was neither said nor follows from what was said (and is not a system-supplied duration fact). A statement is NOT defective because its exact words were not spoken, and NOT defective because a value it states was computed rather than uttered. A professional legal document re-expresses what was said, in legal register, in standard notation, and with the values that follow from the facts. That is the job. It is not fabrication.
 CATEGORY 1 (UNSUPPORTED CONTENT). Flag a statement when it:
 
 asserts a concrete fact (an amount, a transfer, an agreement, a party, a date, an event, an instruction) with no basis in what was said. Fabricated concrete specifics are the most serious defect; never let one pass;
@@ -876,7 +876,8 @@ claims something was not discussed when it was: flag the phrase "This was not di
 DO NOT FLAG: these are correct practice:
 
 Notation: numerals for spoken numbers, currency with separators, formatted dates, times and telephone numbers. "£450,000" is a faithful record of "four hundred and fifty thousand pounds".
-Derived computation: arithmetic or temporal derivation from established facts ("married August 2021, separated 2024, therefore the marriage subsisted for some 3 years").
+Derived computation (non-duration): arithmetic derivation from established facts ("£4,000 a month, therefore £48,000 a year"; net equity from property value less mortgage). Currency annualisation, totals, differences and similar remain correct practice.
+System-supplied relationship duration facts: when the system supplies a marriage, cohabitation or total-span duration (including "could not be established"), that figure is authoritative. A note that states the supplied figure is not a defect — even if a different number could be read from the raw dates. Do not prefer free-form model date-arithmetic over a system-supplied duration fact.
 Legal characterisation: the correct term of art applied to established facts ("the matrimonial home"; "broken down irretrievably"; an allegation characterised as "concerns raised as to the potential misapplication of funds"), provided the underlying facts were established and no new factual content is introduced.
 Professional paraphrase that preserves meaning.
 The exact placeholder "This was not discussed on this occasion." where the item genuinely was not covered, including in Due dates and Next appointment.

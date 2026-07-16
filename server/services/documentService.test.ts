@@ -48,8 +48,13 @@ describe('DocumentService.generateAttendanceNote', () => {
     expect(generateDocumentSpy).toHaveBeenCalledOnce();
     const systemPrompt = generateDocumentSpy.mock.calls[0]?.[0] as string;
     expect(systemPrompt).toContain('BOUNDARY OF DERIVATION');
+    expect(systemPrompt).toContain('RELATIONSHIP DURATIONS (SYSTEM-SUPPLIED)');
+    expect(systemPrompt).toContain('£48,000 a year');
     expect(systemPrompt).toContain('YOU ARE THE FEE EARNER');
     expect(systemPrompt).not.toContain('brief file note for a short recording');
+    expect(systemPrompt).not.toContain(
+      'the marriage has therefore subsisted for some 11 years',
+    );
   });
 });
 
