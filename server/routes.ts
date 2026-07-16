@@ -187,7 +187,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.path.includes('/processing-status') ||
       (req.method === 'GET' && (
         req.path === '/scheduled-meetings' ||
-        req.path.startsWith('/recall/imports/unassigned')
+        req.path.startsWith('/recall/imports/unassigned') ||
+        req.path.startsWith('/recall/imports/incomplete')
       ))
     ) {
       return next();
@@ -8740,6 +8741,60 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const userId = req.user.claims.sub;
       const imports = await storage.getUnassignedMeetingImports(userId);
       res.json(imports);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Incomplete video-bot imports for recovery-style prompt on app load
+  app.get("/api/recall/imports/incomplete", isAuthenticated, pollingLimiter, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const imports = await storage.getMeetingImportsByUser(userId);
+      const incompleteStatuses = new Set([
+        "live",
+        "pending",
+        "downloading",
+        "transcribing",
+        "awaiting_assignment",
+        "failed",
+      ]);
+      const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+      const incomplete = imports.filter(
+        (i) =>
+          incompleteStatuses.has(i.status) &&
+          i.recallBotId &&
+          new Date(i.createdAt).getTime() >= cutoff,
+      );
+
+      const caseIds = Array.from(
+        new Set(incomplete.map((i) => i.caseId).filter((id): id is string => !!id)),
+      );
+      const caseTitleById = new Map<string, string>();
+      await Promise.all(
+        caseIds.map(async (caseId) => {
+          const c = await storage.getCase(caseId, userId);
+          if (c?.title) caseTitleById.set(caseId, c.title);
+        }),
+      );
+
+      res.json(
+        incomplete.map((i) => ({
+          importId: i.id,
+          botId: i.recallBotId,
+          caseId: i.caseId,
+          caseTitle: i.caseId ? caseTitleById.get(i.caseId) || null : null,
+          status: i.status,
+          botStatus: i.botStatus,
+          meetingTitle: i.meetingTitle,
+          meetingPlatform: i.meetingPlatform,
+          meetingUrl: i.meetingUrl,
+          createdAt: i.createdAt,
+          consentMode: i.consentMode || "pre_confirmed",
+          consentConfirmed: i.consentConfirmed,
+          errorMessage: i.errorMessage,
+        })),
+      );
     } catch (error) {
       next(error);
     }

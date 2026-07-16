@@ -4,11 +4,16 @@ export type ProcessingStep = "saving" | "uploading" | "processing" | "complete";
 
 interface MeetingToMatterProcessingOverlayProps {
   processingStep: ProcessingStep;
+  /** Live video-bot path uses slightly different step labels. */
+  variant?: "default" | "live_bot";
 }
 
 export default function MeetingToMatterProcessingOverlay({
   processingStep,
+  variant = "default",
 }: MeetingToMatterProcessingOverlayProps) {
+  const isLiveBot = variant === "live_bot";
+
   return (
     <div className="py-8" data-testid="processing-overlay">
       <div className="flex flex-col items-center justify-center space-y-6">
@@ -32,8 +37,12 @@ export default function MeetingToMatterProcessingOverlay({
           </h3>
           <p className="text-sm text-muted-foreground" data-testid="text-processing-description">
             {processingStep === "complete"
-              ? "Your case is ready. Redirecting..."
-              : "Please wait while we save your case and prepare your documents."}
+              ? isLiveBot
+                ? "Your attendance note is ready."
+                : "Your case is ready. Redirecting..."
+              : isLiveBot
+                ? "Please wait while we collect the recording and prepare your attendance note."
+                : "Please wait while we save your case and prepare your documents."}
           </p>
         </div>
 
@@ -56,7 +65,7 @@ export default function MeetingToMatterProcessingOverlay({
                   processingStep === "saving" ? "text-foreground" : "text-muted-foreground"
                 }`}
               >
-                Saving case details
+                {isLiveBot ? "Call ended — collecting recording" : "Saving case details"}
               </p>
             </div>
           </div>
@@ -89,7 +98,7 @@ export default function MeetingToMatterProcessingOverlay({
                       : "text-muted-foreground"
                 }`}
               >
-                Uploading audio recording
+                {isLiveBot ? "Uploading meeting audio" : "Uploading audio recording"}
               </p>
             </div>
           </div>
@@ -122,7 +131,7 @@ export default function MeetingToMatterProcessingOverlay({
                       : "text-muted-foreground"
                 }`}
               >
-                Activating Engine
+                {isLiveBot ? "Producing attendance note" : "Activating Engine"}
               </p>
             </div>
           </div>

@@ -26,11 +26,22 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
       signal: AbortSignal.timeout(15000),
     });
     if (r.ok) {
-      const data = await r.json() as { results?: Array<{ id: string; duration?: number; media_shortcuts?: { audio_only?: { data?: { download_url?: string } }; video_mixed?: { data?: { download_url?: string } } } }> };
+      const data = await r.json() as {
+        results?: Array<{
+          id: string;
+          duration?: number;
+          media_shortcuts?: {
+            audio_only?: { data?: { download_url?: string } };
+            audio_mixed?: { data?: { download_url?: string } };
+          };
+        }>;
+      };
       const rec = data.results?.[0];
       if (rec) {
-        const url = rec.media_shortcuts?.audio_only?.data?.download_url
-          || rec.media_shortcuts?.video_mixed?.data?.download_url;
+        // Audio only — never fall back to video_mixed (data minimisation).
+        const url =
+          rec.media_shortcuts?.audio_only?.data?.download_url
+          || rec.media_shortcuts?.audio_mixed?.data?.download_url;
         if (url) {
           return { url, durationSeconds: rec.duration, recordingId: rec.id };
         }
@@ -43,11 +54,20 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
       signal: AbortSignal.timeout(15000),
     });
     if (botR.ok) {
-      const bot = await botR.json() as { recordings?: Array<{ id: string; media_shortcuts?: { audio_only?: { data?: { url?: string } }; video_mixed?: { data?: { url?: string } } } }> };
+      const bot = await botR.json() as {
+        recordings?: Array<{
+          id: string;
+          media_shortcuts?: {
+            audio_only?: { data?: { url?: string } };
+            audio_mixed?: { data?: { url?: string } };
+          };
+        }>;
+      };
       const rec = bot.recordings?.[0];
       if (rec) {
-        const url = rec.media_shortcuts?.audio_only?.data?.url
-          || rec.media_shortcuts?.video_mixed?.data?.url;
+        const url =
+          rec.media_shortcuts?.audio_only?.data?.url
+          || rec.media_shortcuts?.audio_mixed?.data?.url;
         if (url) return { url, recordingId: rec.id };
       }
     }
@@ -134,14 +154,12 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
       return;
     }
 
-    const isVideo = recording.url.includes('.mp4') || !recording.url.includes('.mp3');
-    const ext = isVideo ? 'mp4' : 'mp3';
-    const mimeType = isVideo ? 'video/mp4' : 'audio/mpeg';
-    const audioPath = `.private/imports/${importId}/recording.${ext}`;
+    const audioPath = `.private/imports/${importId}/recording.mp3`;
+    const mimeType = 'audio/mpeg';
     try {
       const storageService = new ObjectStorageService();
       await storageService.uploadFile(audioPath, audioBuffer, mimeType);
-      console.log(`[RecallProcessing] Uploaded recording to ${audioPath} (awaiting assignment)`);
+      console.log(`[RecallProcessing] Uploaded audio to ${audioPath} (awaiting assignment)`);
     } catch (err: any) {
       console.error(`[RecallProcessing] Upload failed for unlinked import ${importId}:`, err.message);
       await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Upload failed: ${err.message}` });
@@ -226,15 +244,13 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
       return;
     }
 
-    // Store in object storage
-    const isVideo = recording.url.includes('.mp4') || !recording.url.includes('.mp3');
-    const ext = isVideo ? 'mp4' : 'mp3';
-    mimeType = isVideo ? 'video/mp4' : 'audio/mpeg';
-    audioPath = `.private/imports/${importId}/recording.${ext}`;
+    // Store in object storage (audio-only)
+    mimeType = 'audio/mpeg';
+    audioPath = `.private/imports/${importId}/recording.mp3`;
     try {
       const storageService = new ObjectStorageService();
       await storageService.uploadFile(audioPath, audioBuffer, mimeType);
-      console.log(`[RecallProcessing] Uploaded recording to ${audioPath}`);
+      console.log(`[RecallProcessing] Uploaded audio to ${audioPath}`);
     } catch (err: any) {
       console.error(`[RecallProcessing] Upload failed for import ${importId}:`, err.message);
       await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Upload failed: ${err.message}` });

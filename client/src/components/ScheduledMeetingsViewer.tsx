@@ -732,6 +732,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
         caseId={meeting.caseId}
         caseTitle={linkedCase?.title || meeting.title}
         initialMeetingUrl={safeJoinUrl}
+        suggestedClientName={meeting.clientName || linkedCase?.clientName || undefined}
       />
       <CancelMeetingDialog
         meeting={meeting}

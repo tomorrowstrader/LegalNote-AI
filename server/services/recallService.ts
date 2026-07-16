@@ -176,6 +176,11 @@ export class RecallService {
       body: JSON.stringify({
         meeting_url: meetingUrl,
         bot_name: botName,
+        // Audio-only capture — LegalNote does not retain meeting video (GDPR / data-minimisation).
+        recording_config: {
+          video_mixed_layout: 'audio_only',
+          audio_mixed_mp3: {},
+        },
         automatic_leave: {
           waiting_room_timeout: 600,
           noone_joined_timeout: 300,
@@ -214,12 +219,18 @@ export class RecallService {
       const recordings = bot.recordings || [];
       if (recordings.length > 0) {
         const rec = recordings[0];
-        const audioUrl = rec.media_shortcuts?.audio_only?.data?.url;
-        const videoUrl = rec.media_shortcuts?.video_mixed?.data?.url;
+        const shortcuts = rec.media_shortcuts as {
+          audio_only?: { data?: { url?: string } };
+          audio_mixed?: { data?: { url?: string } };
+          video_mixed?: { data?: { url?: string } };
+        } | undefined;
+        const audioUrl =
+          shortcuts?.audio_only?.data?.url
+          || shortcuts?.audio_mixed?.data?.url;
         return {
           id: rec.id,
           bot_id: botId,
-          media: { audio_url: audioUrl, video_url: videoUrl },
+          media: { audio_url: audioUrl, video_url: undefined },
           created_at: new Date().toISOString(),
         };
       }
@@ -231,7 +242,7 @@ export class RecallService {
     }
   }
 
-  /** Get the media download URL for a completed bot — prefers audio, falls back to video */
+  /** Get the audio download URL for a completed bot (audio-only; no video fallback). */
   async getBotMediaUrl(botId: string): Promise<string | null> {
     try {
       const key = getRecallApiKey().replace(/^(Token|Bearer)\s+/i, '').replace(/[^\x21-\x7E]/g, '').trim();
@@ -241,12 +252,22 @@ export class RecallService {
         signal: AbortSignal.timeout(10000),
       });
       if (!r.ok) return null;
-      const data = await r.json() as { results?: Array<{ id: string; media_shortcuts?: { audio_only?: { data?: { download_url?: string } }; video_mixed?: { data?: { download_url?: string } } } }> };
+      const data = await r.json() as {
+        results?: Array<{
+          id: string;
+          media_shortcuts?: {
+            audio_only?: { data?: { download_url?: string } };
+            audio_mixed?: { data?: { download_url?: string } };
+          };
+        }>;
+      };
       const rec = data.results?.[0];
       if (!rec) return null;
-      return rec.media_shortcuts?.audio_only?.data?.download_url
-        || rec.media_shortcuts?.video_mixed?.data?.download_url
-        || null;
+      return (
+        rec.media_shortcuts?.audio_only?.data?.download_url
+        || rec.media_shortcuts?.audio_mixed?.data?.download_url
+        || null
+      );
     } catch {
       return null;
     }

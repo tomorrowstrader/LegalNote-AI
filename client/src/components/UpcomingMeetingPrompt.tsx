@@ -21,8 +21,9 @@ import { queryClient } from "@/lib/queryClient";
 type PromptOffset = 30 | 1;
 
 const DISMISS_PREFIX = "ln-meeting-prompt-dismissed:";
-const T30_MAX_MS = 30 * 60 * 1000;
-const T30_MIN_MS = 90 * 1000;
+/** Match server T-30 cron window (~25–35 min). Do not treat "anytime under 30 min" as T-30. */
+const T30_MAX_MS = 35 * 60 * 1000;
+const T30_MIN_MS = 25 * 60 * 1000;
 const T1_MAX_MS = 90 * 1000;
 
 function dismissKey(meetingId: string, offset: PromptOffset): string {
@@ -50,7 +51,11 @@ interface ActivePrompt {
   offset: PromptOffset;
 }
 
-function pickActivePrompt(meetings: ScheduledMeeting[] | undefined, now: number): ActivePrompt | null {
+/** Exported for unit tests. */
+export function pickActivePrompt(
+  meetings: ScheduledMeeting[] | undefined,
+  now: number,
+): ActivePrompt | null {
   if (!meetings?.length) return null;
 
   const scheduled = meetings.filter((m) => m.status === "scheduled");
@@ -64,7 +69,8 @@ function pickActivePrompt(meetings: ScheduledMeeting[] | undefined, now: number)
 
   for (const meeting of scheduled) {
     const msUntil = new Date(meeting.startTime).getTime() - now;
-    if (msUntil > T30_MIN_MS && msUntil <= T30_MAX_MS && !isDismissed(meeting.id, 30)) {
+    // Only the ~30-minute prepare window — late-synced meetings (e.g. 7 min out) skip T-30.
+    if (msUntil >= T30_MIN_MS && msUntil <= T30_MAX_MS && !isDismissed(meeting.id, 30)) {
       return { meeting, offset: 30 };
     }
   }
@@ -85,6 +91,7 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
     meetingUrl: string;
     caseId?: string;
     caseTitle?: string;
+    suggestedClientName?: string;
   } | null>(null);
 
   const { data: meetings } = useQuery<ScheduledMeeting[]>({
@@ -123,17 +130,11 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
     enabled: !!caseId && (open || liveBotOpen),
   });
 
-  const { data: transcript } = useQuery<{ content?: string } | null>({
-    queryKey: [`/api/cases/${caseId}/transcript`],
+  const { data: existingBrief } = useQuery<{ id: string } | null>({
+    queryKey: [`/api/cases/${caseId}/pre-meeting-briefing`],
     enabled: !!caseId && open && active?.offset === 30,
   });
 
-  const { data: existingBrief } = useQuery<{ id: string } | null>({
-    queryKey: [`/api/cases/${caseId}/pre-meeting-briefing`],
-    enabled: !!caseId && open && active?.offset === 30 && !!transcript?.content,
-  });
-
-  const hasTranscript = !!transcript?.content;
   const briefReady = !!existingBrief;
 
   const handleDismiss = useCallback(() => {
@@ -159,11 +160,12 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
       meetingUrl: url,
       caseId: active.meeting.caseId || undefined,
       caseTitle: linkedCase?.title || active.meeting.title || undefined,
+      suggestedClientName: active.meeting.clientName || linkedCase?.clientName || undefined,
     });
     markDismissed(active.meeting.id, active.offset);
     setSuppressed(true);
     setLiveBotOpen(true);
-  }, [active, linkedCase?.title]);
+  }, [active, linkedCase?.title, linkedCase?.clientName]);
 
   if (!active && !liveBotOpen) return null;
 
@@ -225,13 +227,13 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
                 Dismiss
               </AlertDialogCancel>
 
-              {active!.offset === 30 && hasTranscript && caseId && (
+              {active!.offset === 30 && caseId && (
                 <Button
                   onClick={handlePrepareBriefing}
                   data-testid="button-meeting-prompt-briefing"
                 >
                   <FileText className="w-4 h-4 mr-1" />
-                  Prepare briefing
+                  {briefReady ? "View briefing" : "Prepare briefing"}
                 </Button>
               )}
 
@@ -255,6 +257,7 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
         caseId={joinTarget?.caseId}
         caseTitle={joinTarget?.caseTitle}
         initialMeetingUrl={joinTarget?.meetingUrl}
+        suggestedClientName={joinTarget?.suggestedClientName}
       />
     </>
   );

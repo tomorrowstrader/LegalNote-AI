@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Dialog,
@@ -41,18 +41,45 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Case } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
+import { useLiveBotSessionOptional } from "@/contexts/LiveBotSessionContext";
 
 interface LiveBotModalProps {
   caseId?: string | null;
   caseTitle?: string;
   /** Prefill the meeting URL (e.g. from an upcoming scheduled meeting). */
   initialMeetingUrl?: string | null;
+  /** Client name from the calendar/meeting invite — used to suggest the likely matter. */
+  suggestedClientName?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 type Step = "select_case" | "url" | "consent" | "live" | "processing" | "done" | "error";
 type ConsentMode = "pre_confirmed" | "in_meeting";
+
+const SUGGEST_SCORE_THRESHOLD = 60;
+
+function normalizeName(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Score how well a case matches a meeting's client name (higher = better). */
+export function caseMatchScore(caseItem: Pick<Case, "clientName" | "title">, clientHint: string): number {
+  const hint = normalizeName(clientHint);
+  if (!hint) return 0;
+  const client = normalizeName(caseItem.clientName || "");
+  const title = normalizeName(caseItem.title || "");
+  if (!client && !title) return 0;
+  if (client === hint) return 100;
+  if (client.includes(hint) || hint.includes(client)) return 80;
+  const hintTokens = hint.split(" ").filter((t) => t.length > 1);
+  const clientTokens = new Set(client.split(" ").filter((t) => t.length > 1));
+  const overlap = hintTokens.filter((t) => clientTokens.has(t)).length;
+  if (overlap >= 2) return 60;
+  if (overlap === 1 && hintTokens.length <= 2) return 40;
+  if (title.includes(hint)) return 30;
+  return 0;
+}
 
 type BotStatus =
   | "joining_call"
@@ -109,12 +136,20 @@ const PLATFORM_LABELS: Record<string, string> = {
   meet: "Google Meet",
 };
 
-export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpenChange }: LiveBotModalProps) {
+export function LiveBotModal({
+  caseId,
+  caseTitle,
+  initialMeetingUrl,
+  suggestedClientName,
+  open,
+  onOpenChange,
+}: LiveBotModalProps) {
   const { toast } = useToast();
+  const liveBotSession = useLiveBotSessionOptional();
   const [step, setStep] = useState<Step>(caseId ? "url" : "select_case");
   const [meetingUrl, setMeetingUrl] = useState("");
   const [platform, setPlatform] = useState<string | null>(null);
-  const [consentMode, setConsentMode] = useState<ConsentMode>("pre_confirmed");
+  const [consentMode, setConsentMode] = useState<ConsentMode>("in_meeting");
   const [importId, setImportId] = useState<string | null>(null);
   const [botId, setBotId] = useState<string | null>(null);
   const [botPoll, setBotPoll] = useState<BotPollResponse | null>(null);
@@ -145,7 +180,9 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
   const [selectedCaseTitle, setSelectedCaseTitle] = useState<string>(caseTitle || "");
   const [isCreatingCase, setIsCreatingCase] = useState(false);
   const [newCaseTitle, setNewCaseTitle] = useState("");
-  const [newCaseClient, setNewCaseClient] = useState("");
+  const [newCaseClient, setNewCaseClient] = useState(suggestedClientName || "");
+  /** When true, show the full matter list instead of the suggested confirm card. */
+  const [browseAllCases, setBrowseAllCases] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -232,11 +269,35 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
     };
   }, [recordingStarted, step]);
 
-  // Cases for post-meeting assignment (only fetched when needed)
+  // Cases for post-meeting assignment / matter picker (only fetched when needed)
   const { data: cases } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
     enabled: (step === "done" && !caseId) || step === "select_case",
   });
+
+  const rankedCases = useMemo(() => {
+    if (!cases?.length) return [];
+    const hint = suggestedClientName || "";
+    return [...cases]
+      .map((c) => ({ caseItem: c, score: caseMatchScore(c, hint) }))
+      .sort((a, b) => b.score - a.score || a.caseItem.title.localeCompare(b.caseItem.title));
+  }, [cases, suggestedClientName]);
+
+  const suggestedCase = useMemo(() => {
+    const top = rankedCases[0];
+    if (!top || top.score < SUGGEST_SCORE_THRESHOLD) return null;
+    return top.caseItem;
+  }, [rankedCases]);
+
+  const showSuggestedConfirm =
+    step === "select_case" && !!suggestedCase && !browseAllCases && !isCreatingCase;
+
+  const continueAfterCaseSelect = (id: string, title: string) => {
+    setSelectedCaseId(id);
+    setSelectedCaseTitle(title);
+    const detected = detectPlatform(meetingUrl);
+    setStep(detected ? "consent" : "url");
+  };
 
   const postAssignMutation = useMutation({
     mutationFn: async ({ assignCaseId, recordingType, createCase: shouldCreate, caseData }: {
@@ -284,11 +345,9 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
     mutationFn: async (data: { title: string; clientName: string }) =>
       apiRequest("POST", "/api/cases", data),
     onSuccess: async (newCase: any) => {
-      setSelectedCaseId(newCase.id);
-      setSelectedCaseTitle(newCase.title);
       setIsCreatingCase(false);
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
-      setStep("url");
+      continueAfterCaseSelect(newCase.id, newCase.title);
     },
     onError: (error: any) => {
       toast({ title: "Could not create case", description: error.message, variant: "destructive" });
@@ -306,6 +365,15 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
     onSuccess: async (data) => {
       setImportId(data.importId);
       setBotId(data.botId);
+
+      liveBotSession?.startSession({
+        importId: data.importId,
+        botId: data.botId,
+        caseId: selectedCaseId ?? caseId,
+        caseTitle: caseTitle || selectedCaseTitle || null,
+        meetingUrl,
+        consentMode,
+      });
 
       // For pre_confirmed path, log consent immediately (only for client meetings)
       if (consentMode === "pre_confirmed" && (selectedCaseId ?? caseId)) {
@@ -436,7 +504,12 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
   useEffect(() => {
     if (!open) return;
     const url = (initialMeetingUrl || "").trim();
-    if (!url) return;
+    setBrowseAllCases(false);
+    setNewCaseClient(suggestedClientName || "");
+    if (!url) {
+      if (!(caseId || selectedCaseId)) setStep("select_case");
+      return;
+    }
     setMeetingUrl(url);
     const detected = detectPlatform(url);
     setPlatform(detected);
@@ -445,20 +518,41 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
     } else {
       setStep("select_case");
     }
-  }, [open, initialMeetingUrl, caseId]);
+  }, [open, initialMeetingUrl, caseId, suggestedClientName]);
 
   const handleClose = () => {
     // If in-meeting consent mode and consent not yet obtained, warn but don't block
     if (step === "live" && !consentDeclined) {
       toast({
         title: "Bot still running",
-        description: "LegalNote is still recording. This window will close but the bot will continue until the call ends.",
-        duration: 5000,
+        description: "LegalNote is still recording. Watch the status pill in the bottom-right — it will update when the call ends and notes are produced.",
+        duration: 6000,
       });
     }
     resetState();
     onOpenChange(false);
   };
+
+  // Tell the global indicator whether this modal is open (hides floating pill while visible)
+  useEffect(() => {
+    if (!liveBotSession) return;
+    liveBotSession.setLiveBotModalOpen(open);
+    if (!open && liveBotSession.session) {
+      const p = liveBotSession.phase;
+      if (
+        p === "ended" ||
+        p === "processing" ||
+        p === "complete" ||
+        p === "awaiting_assignment" ||
+        p === "error"
+      ) {
+        liveBotSession.setPanelOpen(true);
+      }
+    }
+    return () => liveBotSession.setLiveBotModalOpen(false);
+    // Intentionally only react to open — phase/session read at close time
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const resetState = () => {
     const url = (initialMeetingUrl || "").trim();
@@ -466,7 +560,7 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
     setStep(caseId ? (detected ? "consent" : "url") : "select_case");
     setMeetingUrl(url);
     setPlatform(detected);
-    setConsentMode("pre_confirmed");
+    setConsentMode("in_meeting");
     setImportId(null);
     setBotId(null);
     setBotPoll(null);
@@ -489,7 +583,8 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
     setSelectedCaseTitle(caseTitle || "");
     setIsCreatingCase(false);
     setNewCaseTitle("");
-    setNewCaseClient("");
+    setNewCaseClient(suggestedClientName || "");
+    setBrowseAllCases(false);
   };
 
   const formatElapsed = (s: number) => {
@@ -513,7 +608,11 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Video className="w-5 h-5" />
-            {step === "select_case" ? "Select matter" : "Join meeting with LegalNote"}
+            {step === "select_case"
+              ? showSuggestedConfirm
+                ? "Confirm matter"
+                : "Select matter"
+              : "Join meeting with LegalNote"}
           </DialogTitle>
           <DialogDescription>
             {caseTitle || selectedCaseTitle
@@ -524,39 +623,79 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
 
         {step === "select_case" && (
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
+            {!isCreatingCase && !showSuggestedConfirm && (
               <p className="text-sm text-muted-foreground">
-                Which matter is this meeting for?
+                {suggestedClientName
+                  ? `Which matter is this meeting for? Matters matching “${suggestedClientName}” are listed first.`
+                  : "Which matter is this meeting for?"}
               </p>
-            </div>
+            )}
 
-            {!isCreatingCase ? (
+            {showSuggestedConfirm && suggestedCase ? (
+              <div className="flex flex-col gap-4" data-testid="suggested-case-confirm">
+                <p className="text-sm text-muted-foreground">
+                  Based on the meeting invite, this looks like the right matter.
+                </p>
+                <div className="rounded-md border bg-muted/40 px-3 py-3 space-y-1">
+                  <p className="text-sm font-medium">{suggestedCase.title}</p>
+                  {suggestedCase.clientName && (
+                    <p className="text-xs text-muted-foreground">{suggestedCase.clientName}</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    className="w-full"
+                    onClick={() => continueAfterCaseSelect(suggestedCase.id, suggestedCase.title)}
+                    data-testid="button-confirm-suggested-case"
+                  >
+                    Confirm this matter
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setBrowseAllCases(true)}
+                    data-testid="button-choose-different-case"
+                  >
+                    Choose a different matter
+                  </Button>
+                </div>
+              </div>
+            ) : !isCreatingCase ? (
               <>
                 <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
-                  {cases?.map((c: any) => (
+                  {rankedCases.map(({ caseItem: c, score }) => (
                     <button
                       key={c.id}
-                      onClick={() => {
-                        setSelectedCaseId(c.id);
-                        setSelectedCaseTitle(c.title);
-                        setStep("url");
-                      }}
+                      onClick={() => continueAfterCaseSelect(c.id, c.title)}
                       className="flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-md border text-left hover:bg-muted/50 transition-colors"
+                      data-testid={`button-select-case-${c.id}`}
                     >
-                      <span className="text-sm font-medium">{c.title}</span>
+                      <span className="text-sm font-medium flex items-center gap-2">
+                        {c.title}
+                        {score >= SUGGEST_SCORE_THRESHOLD && (
+                          <Badge variant="secondary" className="text-[10px] font-normal">
+                            Likely match
+                          </Badge>
+                        )}
+                      </span>
                       {c.clientName && (
                         <span className="text-xs text-muted-foreground">{c.clientName}</span>
                       )}
                     </button>
                   ))}
-                  {!cases?.length && (
+                  {!rankedCases.length && (
                     <p className="text-sm text-muted-foreground text-center py-4">No cases found</p>
                   )}
                 </div>
                 <Button
                   variant="outline"
                   className="w-full gap-2"
-                  onClick={() => setIsCreatingCase(true)}
+                  onClick={() => {
+                    setIsCreatingCase(true);
+                    if (suggestedClientName && !newCaseClient) {
+                      setNewCaseClient(suggestedClientName);
+                    }
+                  }}
                 >
                   <PlusCircle className="w-4 h-4" />
                   Create new matter
@@ -649,14 +788,7 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
             <Alert>
               <Shield className="h-4 w-4" />
               <AlertDescription>
-                <strong>GDPR — Recording consent required.</strong> Choose how you will obtain consent from all participants.
-              </AlertDescription>
-            </Alert>
-
-            <Alert className="border-amber-500/40 bg-amber-500/5">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              <AlertDescription>
-                <strong>LegalNote is not in the call yet.</strong> Press <strong>Send LegalNote to Call</strong> below — then admit &quot;LegalNote&quot; if there is a waiting room. Opening the meeting without sending the bot means the call will not be recorded.
+                Recording consent is required. Confirm how you will obtain it so it is captured on the audit trail.
               </AlertDescription>
             </Alert>
 
@@ -667,29 +799,6 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
 
             <div className="space-y-3">
               <p className="text-sm font-medium">How will you obtain consent?</p>
-
-              <button
-                type="button"
-                onClick={() => setConsentMode("pre_confirmed")}
-                className={`w-full text-left p-4 rounded-md border-2 transition-colors duration-150 ${
-                  consentMode === "pre_confirmed"
-                    ? "border-accent bg-accent/5"
-                    : "border-border bg-muted/20 hover-elevate"
-                }`}
-                data-testid="option-consent-pre-confirmed"
-              >
-                <div className="flex items-start gap-3">
-                  <div className={`w-4 h-4 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
-                    consentMode === "pre_confirmed" ? "border-accent" : "border-muted-foreground"
-                  }`}>
-                    {consentMode === "pre_confirmed" && <div className="w-2 h-2 rounded-full bg-accent" />}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Consent already confirmed before this meeting</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">You have already obtained informed consent from all participants prior to this session.</p>
-                  </div>
-                </div>
-              </button>
 
               <button
                 type="button"
@@ -709,7 +818,30 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
                   </div>
                   <div>
                     <p className="text-sm font-medium">I will read the consent script at the start of the recording</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">The GDPR consent script will appear once recording begins. The client's verbal agreement will be captured on the recording.</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Recommended. The script appears once recording begins so the client&apos;s verbal agreement is captured on the recording and audit trail.</p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConsentMode("pre_confirmed")}
+                className={`w-full text-left p-4 rounded-md border-2 transition-colors duration-150 ${
+                  consentMode === "pre_confirmed"
+                    ? "border-accent bg-accent/5"
+                    : "border-border bg-muted/20 hover-elevate"
+                }`}
+                data-testid="option-consent-pre-confirmed"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-4 h-4 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
+                    consentMode === "pre_confirmed" ? "border-accent" : "border-muted-foreground"
+                  }`}>
+                    {consentMode === "pre_confirmed" && <div className="w-2 h-2 rounded-full bg-accent" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Consent already confirmed before this meeting</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Only use this if consent was obtained through LegalNote before the call (e.g. a consent email). Self-attestation alone is not a full audit trail.</p>
                   </div>
                 </div>
               </button>
@@ -752,9 +884,14 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
                 )}
               </div>
               {isWaiting && (
-                <p className="text-xs text-muted-foreground text-center max-w-xs">
-                  If your meeting has a waiting room, admit "LegalNote" to start recording.
-                </p>
+                <div className="space-y-2 max-w-sm mx-auto">
+                  <p className="text-xs text-muted-foreground text-center">
+                    If your meeting has a waiting room, admit &quot;LegalNote&quot; to start recording.
+                  </p>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Zoom, Teams, or Meet may label the participant as &quot;unverified&quot;. That is the meeting platform&apos;s default for third-party recording bots — not a LegalNote security warning. Removing it requires platform publisher verification (Zoom Marketplace / Microsoft / Google), not a setting in this app.
+                  </p>
+                </div>
               )}
             </div>
 
@@ -887,7 +1024,9 @@ export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpe
             {!consentDeclined && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground p-3 bg-muted/30 rounded-md">
                 <Clock className="w-3.5 h-3.5 shrink-0" />
-                <span>You can close this panel — LegalNote will continue recording and process the transcript automatically when the call ends.</span>
+                <span>
+                  You can close this panel — LegalNote keeps recording. A status pill stays in the bottom-right and will open Meeting-to-Matter when the call ends.
+                </span>
               </div>
             )}
 

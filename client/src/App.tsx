@@ -6,6 +6,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { FocusModeProvider, useFocusMode } from "@/contexts/FocusModeContext";
+import { LiveBotSessionProvider } from "@/contexts/LiveBotSessionContext";
+import { LiveBotSessionIndicator } from "@/components/LiveBotSessionIndicator";
 import { useNewNoteShortcut } from "@/hooks/useNewNoteShortcut";
 import { useQuickRecordShortcut } from "@/hooks/useQuickRecordShortcut";
 import TopNavigation from "@/components/TopNavigation";
@@ -15,6 +17,7 @@ import IntegrationsOnboarding from "@/components/IntegrationsOnboarding";
 import OnboardingTour from "@/components/OnboardingTour";
 import { UpcomingMeetingPrompt } from "@/components/UpcomingMeetingPrompt";
 import { RecordingRecoveryModal, useRecordingRecovery } from "@/components/RecordingRecoveryModal";
+import { VideoBotRecoveryModal, useVideoBotRecovery } from "@/components/VideoBotRecoveryModal";
 import Dashboard from "@/pages/Dashboard";
 import NewNote from "@/pages/NewNote";
 import CaseDetail from "@/pages/CaseDetail";
@@ -142,6 +145,9 @@ function AuthenticatedAppContent() {
   const { showRecoveryModal, setShowRecoveryModal } = useRecordingRecovery(
     !isLoading && hasAppAccess,
   );
+  const { showVideoBotRecovery, setShowVideoBotRecovery } = useVideoBotRecovery(
+    !isLoading && hasAppAccess && !showRecoveryModal,
+  );
 
   useNewNoteShortcut();
   useQuickRecordShortcut();
@@ -160,6 +166,7 @@ function AuthenticatedAppContent() {
   };
 
   const isPublicDemoRoute = location.startsWith("/demo/");
+  const recoveryBlocking = showRecoveryModal || showVideoBotRecovery;
 
   return (
     <div className={`min-h-screen bg-background ${!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute ? 'pt-16' : ''}`}>
@@ -169,7 +176,7 @@ function AuthenticatedAppContent() {
       {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <IntegrationsOnboarding />}
       {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <OnboardingTour restartTrigger={restartTourTrigger} />}
       {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && (
-        <UpcomingMeetingPrompt blocked={showRecoveryModal} />
+        <UpcomingMeetingPrompt blocked={recoveryBlocking} />
       )}
       {!isLoading && hasAppAccess && !isPublicDemoRoute && (
         <RecordingRecoveryModal
@@ -177,6 +184,13 @@ function AuthenticatedAppContent() {
           onOpenChange={setShowRecoveryModal}
         />
       )}
+      {!isLoading && hasAppAccess && !isPublicDemoRoute && (
+        <VideoBotRecoveryModal
+          open={showVideoBotRecovery}
+          onOpenChange={setShowVideoBotRecovery}
+        />
+      )}
+      {!isLoading && hasAppAccess && !isPublicDemoRoute && <LiveBotSessionIndicator />}
       <ScrollToTop />
       <Router />
     </div>
@@ -186,7 +200,9 @@ function AuthenticatedAppContent() {
 function AuthenticatedApp() {
   return (
     <FocusModeProvider>
-      <AuthenticatedAppContent />
+      <LiveBotSessionProvider>
+        <AuthenticatedAppContent />
+      </LiveBotSessionProvider>
     </FocusModeProvider>
   );
 }

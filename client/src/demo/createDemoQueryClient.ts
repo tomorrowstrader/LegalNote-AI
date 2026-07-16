@@ -2022,7 +2022,7 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
           const key = Array.isArray(queryKey) ? queryKey[0] : queryKey;
           if (typeof key === "string") {
             if (key.endsWith("/sessions") || key.endsWith("/documents") || key.endsWith("/time-entries") || key.endsWith("/undertakings") || key.endsWith("/action-items")) return [];
-            if (key === "/api/cases" || key === "/api/notifications" || key === "/api/calendar/events" || key === "/api/firm/members" || key === "/api/audit/logs" || key === "/api/recall/imports/unassigned") return [];
+            if (key === "/api/cases" || key === "/api/notifications" || key === "/api/calendar/events" || key === "/api/firm/members" || key === "/api/audit/logs" || key === "/api/recall/imports/unassigned" || key === "/api/recall/imports/incomplete") return [];
           }
           return null;
         },
@@ -2083,6 +2083,7 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
   setData(["/api/audit/case", DEMO_CASE_ID], demoAuditLogs);
   setData(["/api/calendar/events"], demoCalendarEvents);
   setData(["/api/recall/imports/unassigned"], [demoUnassignedRecording]);
+  setData(["/api/recall/imports/incomplete"], []);
   setData(["/api/notifications"], demoNotifications);
   setData(["/api/user/preferences"], demoUserPreferences);
   setData(["/api/firm/members"], demoFirmMembers);
