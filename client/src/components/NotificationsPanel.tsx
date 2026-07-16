@@ -63,6 +63,7 @@ export function NotificationsPanel() {
   });
 
   const unreadCount = notifications.filter(n => !n.readAt).length;
+  const hasScrollableList = notifications.length > 6;
 
   const markAllReadMutation = useMutation({
     mutationFn: async () => apiRequest('POST', '/api/notifications/mark-all-read'),
@@ -114,17 +115,24 @@ export function NotificationsPanel() {
       </Button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 z-50 rounded-md border border-border bg-popover shadow-lg"
+        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1rem)] max-w-96 z-50 overflow-hidden rounded-xl border border-[#e6ddd0] bg-[#fbf7ef] shadow-2xl dark:border-border dark:bg-popover"
           data-testid="panel-notifications">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold">Notifications</h3>
-              {unreadCount > 0 && (
-                <Badge variant="secondary" className="text-xs px-1.5 py-0">{unreadCount} new</Badge>
+          <div className="flex items-start justify-between gap-3 border-b border-[#e8dfd2] bg-[#fffaf2] px-4 py-3 dark:border-border dark:bg-popover">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold">Notifications</h3>
+                {unreadCount > 0 && (
+                  <Badge variant="secondary" className="text-xs px-1.5 py-0">{unreadCount} new</Badge>
+                )}
+              </div>
+              {hasScrollableList && (
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Showing latest notifications. Scroll for older updates.
+                </p>
               )}
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               {unreadCount > 0 && (
                 <Button size="sm" variant="ghost" className="h-7 text-xs px-2 gap-1"
                   onClick={() => markAllReadMutation.mutate()}
@@ -141,7 +149,7 @@ export function NotificationsPanel() {
           </div>
 
           {/* Notifications list */}
-          <ScrollArea className="max-h-[24rem] [&_[data-radix-scroll-area-scrollbar]]:opacity-100">
+          <ScrollArea className="max-h-[31rem] [&_[data-radix-scroll-area-scrollbar]]:opacity-100">
             {notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center px-4">
                 <Bell className="w-8 h-8 text-muted-foreground mb-2" />
@@ -149,7 +157,7 @@ export function NotificationsPanel() {
                 <p className="text-xs text-muted-foreground/70 mt-1">Updates on your cases will appear here</p>
               </div>
             ) : (
-              <div className="divide-y divide-border">
+              <div className="space-y-2 p-3">
                 {notifications.map(notification => {
                   const Icon = notificationIcon(notification.type);
                   const iconColor = notificationColor(notification.type);
@@ -158,15 +166,19 @@ export function NotificationsPanel() {
                   return (
                     <div
                       key={notification.id}
-                      className={`flex items-start gap-3 px-4 py-3 ${isUnread ? 'bg-accent/30' : ''} hover-elevate`}
+                      className={`flex min-h-20 items-start gap-3 rounded-lg border px-3 py-3 shadow-sm transition-colors hover:bg-white dark:hover:bg-accent/20 ${
+                        isUnread
+                          ? 'border-[#dec27b] bg-[#fff8e7] dark:border-amber-500/30 dark:bg-amber-500/10'
+                          : 'border-[#e8dfd2] bg-white/85 dark:border-border dark:bg-card'
+                      }`}
                       data-testid={`notification-${notification.id}`}
                     >
-                      <div className={`mt-0.5 shrink-0 ${iconColor}`}>
+                      <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4ede2] dark:bg-muted ${iconColor}`}>
                         <Icon className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-xs font-medium text-foreground leading-tight truncate flex-1 min-w-0">{notification.title}</p>
+                          <p className="text-xs font-semibold text-foreground leading-tight flex-1 min-w-0">{notification.title}</p>
                           {isUnread && (
                             <Button size="icon" variant="ghost" className="h-5 w-5 shrink-0 -mr-1 -mt-0.5"
                               onClick={() => markReadMutation.mutate(notification.id)}
@@ -175,7 +187,7 @@ export function NotificationsPanel() {
                             </Button>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{notification.message}</p>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{notification.message}</p>
                         <div className="flex items-center gap-3 mt-1.5">
                           <span className="text-[10px] text-muted-foreground/70">
                             {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
