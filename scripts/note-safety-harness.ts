@@ -30,6 +30,11 @@ import {
 } from './derivation-assertions';
 import { createBedrockChatCompletion } from './harness-bedrock-completion';
 import type { DocumentChatCompletionFn } from '../server/services/documentService';
+import {
+  extractAndComputeRelationshipDurations,
+  practiceAreaNeedsRelationshipDurations,
+} from '../server/services/relationshipDateExtraction';
+import type { RelationshipDurationResult } from '../server/services/relationshipDuration';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const NOT_DISCUSSED = 'This was not discussed on this occasion.';
@@ -131,6 +136,7 @@ function buildHarnessMetadata(spec: SyntheticTranscriptSpec) {
     clientName: spec.metadata.clientName,
     matterReference: spec.metadata.matterReference,
     recordingDate: isoToUkLong(spec.metadata.recordingDate),
+    recordingDateIso: spec.metadata.recordingDate,
     datePrepared: formatUkLongDate(new Date()),
     meetingStartTime: extras.meetingStartTime,
     durationDisplay,
@@ -1011,11 +1017,39 @@ async function runHarness(
   let familyWrongNameInject: TranscriptResult['wrongClientNameInjected'] = null;
 
   for (const spec of SYNTHETIC_TRANSCRIPTS) {
+    if (process.env.HARNESS_ONLY && process.env.HARNESS_ONLY !== spec.id) {
+      continue;
+    }
     console.log(`\n=== ${spec.label} ===`);
     const metadata = buildHarnessMetadata(spec);
     const transcript = spec.rawTranscript;
     let generationCost = 0;
     let verificationCost = 0;
+    let relationshipDurations: RelationshipDurationResult | undefined;
+
+    if (practiceAreaNeedsRelationshipDurations(spec.practiceArea)) {
+      console.log('  extractAndComputeRelationshipDurations...');
+      const durationResult = await timedApiCall(
+        callLog,
+        spec.id,
+        'extractRelationshipDates',
+        () =>
+          extractAndComputeRelationshipDurations(transcript, {
+            asOfIso: metadata.recordingDateIso,
+            clientName: metadata.clientName,
+            matterReference: metadata.matterReference,
+            title: metadata.title,
+          }),
+      );
+      relationshipDurations = durationResult.durations;
+      metadata.relationshipDurations = relationshipDurations;
+      generationCost += durationResult.cost;
+      console.log(
+        `    marriage=${relationshipDurations.marriageDurationFact ?? 'null'}; ` +
+          `cohabitation=${relationshipDurations.cohabitationDurationFact ?? 'null'}; ` +
+          `total=${relationshipDurations.totalDurationFact ?? 'null'}`,
+      );
+    }
 
     console.log('  generateAttendanceNote...');
     const attGen = await timedApiCall(callLog, spec.id, 'generateAttendanceNote', () =>
@@ -1033,7 +1067,11 @@ async function runHarness(
 
     console.log('  baseline verification (attendance)...');
     const attBaseline = await timedApiCall(callLog, spec.id, 'verify:attendance baseline', () =>
-      documentService.verifyDocumentAgainstTranscript(attendanceNote, transcript),
+      documentService.verifyDocumentAgainstTranscript(attendanceNote, transcript, {
+        clientName: metadata.clientName,
+        feeEarnerName: metadata.feeEarnerName,
+        relationshipDurations: metadata.relationshipDurations,
+      }),
     );
     verificationCost += attBaseline.cost;
     console.log(`    warnings: ${attBaseline.warnings.length}`);
