@@ -115,10 +115,10 @@ export function NotificationsPanel() {
       </Button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1rem)] max-w-96 z-50 overflow-hidden rounded-xl border border-[#e6ddd0] bg-[#fbf7ef] shadow-2xl dark:border-border dark:bg-popover"
+        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1rem)] max-w-96 z-50 overflow-hidden rounded-xl border border-[#e6ddd0] bg-white shadow-2xl dark:border-border dark:bg-popover"
           data-testid="panel-notifications">
           {/* Header */}
-          <div className="flex items-start justify-between gap-3 border-b border-[#e8dfd2] bg-[#fffaf2] px-4 py-3 dark:border-border dark:bg-popover">
+          <div className="flex items-start justify-between gap-3 border-b border-[#e8dfd2] bg-white px-4 py-3 dark:border-border dark:bg-popover">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold">Notifications</h3>
@@ -166,10 +166,10 @@ export function NotificationsPanel() {
                   return (
                     <div
                       key={notification.id}
-                      className={`flex min-h-20 items-start gap-3 rounded-lg border px-3 py-3 shadow-sm transition-colors hover:bg-white dark:hover:bg-accent/20 ${
+                      className={`flex min-h-20 items-start gap-3 rounded-lg border px-3 py-3 shadow-sm transition-colors dark:hover:bg-accent/20 ${
                         isUnread
-                          ? 'border-[#dec27b] bg-[#fff8e7] dark:border-amber-500/30 dark:bg-amber-500/10'
-                          : 'border-[#e8dfd2] bg-white/85 dark:border-border dark:bg-card'
+                          ? 'border-[#dec27b] bg-white hover:bg-[#fff8e7] dark:border-amber-500/30 dark:bg-card dark:hover:bg-amber-500/10'
+                          : 'border-[#e8dfd2] bg-white hover:bg-[#fbf7ef] dark:border-border dark:bg-card'
                       }`}
                       data-testid={`notification-${notification.id}`}
                     >
