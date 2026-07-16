@@ -41,6 +41,7 @@ import LogCallModal from "@/components/LogCallModal";
 import ComplianceThread from "@/components/ComplianceThread";
 import AmlTriggerBanner from "@/components/AmlTriggerBanner";
 import SharedHistoryViewer from "@/components/SharedHistoryViewer";
+import ActiveShareLinks from "@/components/ActiveShareLinks";
 import ActionItemsViewer from "@/components/ActionItemsViewer";
 import PreMeetingBriefing from "@/components/PreMeetingBriefing";
 import HandoverModal from "@/components/HandoverModal";
@@ -2118,7 +2119,8 @@ export default function CaseDetail() {
           )}
 
           {activeSection === 'sharing' && (
-            <div className="max-w-3xl">
+            <div className="max-w-3xl space-y-4">
+              <ActiveShareLinks caseId={caseId!} />
               <SharedHistoryViewer caseId={caseId!} />
             </div>
           )}
@@ -2264,7 +2266,19 @@ export default function CaseDetail() {
         currentDeadline={caseData.deadline || null}
         currentDeadlineIsAllDay={caseData.deadlineIsAllDay || false}
       />
-      <ShareLinkModal open={showShareModal} onOpenChange={setShowShareModal} caseId={caseId!} caseTitle={caseData.title} userRole="Partner" />
+      <ShareLinkModal
+        open={showShareModal}
+        onOpenChange={setShowShareModal}
+        caseId={caseId!}
+        caseTitle={caseData.title}
+        userRole="Partner"
+        availableDocuments={{
+          hasAttendanceNote: true,
+          hasSummary: true,
+          hasTranscript: true,
+          hasCareLetter: !!caseData.clientCareLetterId,
+        }}
+      />
       <ImportRecordingModal open={showImportModal} onOpenChange={setShowImportModal} caseId={caseId!} caseTitle={caseData.title} />
       <LiveBotModal open={showLiveBotModal} onOpenChange={setShowLiveBotModal} caseId={caseId!} caseTitle={caseData.title} />
       <LogCallModal open={showLogCallModal} onOpenChange={setShowLogCallModal} caseId={caseId!} caseTitle={caseData.title} clientName={caseData.clientName} clientId={caseData.clientId || undefined} matterReference={caseData.matterReference || undefined} />
@@ -2289,7 +2303,7 @@ export default function CaseDetail() {
               Send Client Care Letter
             </DialogTitle>
             <DialogDescription>
-              Send the client care letter to {caseData.clientName} via email.
+              Send a secure link to {caseData.clientName}. The email contains only the link — never the letter body or matter details.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -2301,6 +2315,9 @@ export default function CaseDetail() {
                 disabled={isSendingCareLetter} data-testid="input-send-ccl-email"
               />
             </div>
+            <p className="text-xs text-muted-foreground">
+              The recipient opens the letter on LegalNote via a view-only link that expires in 7 days.
+            </p>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowSendCareLetterDialog(false)} disabled={isSendingCareLetter}>Cancel</Button>
@@ -2316,9 +2333,12 @@ export default function CaseDetail() {
                     recipientEmail: sendEmail.trim(),
                     recipientName: caseData.clientName,
                   });
-                  toast({ title: "Letter sent", description: `Client care letter sent to ${sendEmail}` });
+                  toast({ title: "Secure link sent", description: `Client care letter link sent to ${sendEmail}` });
                   setShowSendCareLetterDialog(false);
                   setSendEmail("");
+                  queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+                  queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/share-links`] });
                 } catch (err: any) {
                   toast({ title: "Send failed", description: err.message || "Failed to send client care letter", variant: "destructive" });
                 } finally {
@@ -2328,7 +2348,7 @@ export default function CaseDetail() {
               disabled={isSendingCareLetter}
               data-testid="button-confirm-send-ccl"
             >
-              {isSendingCareLetter ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : "Send Letter"}
+              {isSendingCareLetter ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : "Send Secure Link"}
             </Button>
           </div>
         </DialogContent>

@@ -571,11 +571,12 @@ export default function ShareLinkView() {
 
   const sharedDocs = shareLink?.sharedDocuments || [];
   const careLetter = documents?.find(doc => doc.type === "client_care_letter");
+  const showCareLetter = !!careLetter && sharedDocs.includes("client_care_letter");
   const availableDocuments = {
     hasAttendanceNote: !!attendanceNote && sharedDocs.includes("attendance_note"),
     hasSummary: !!summary && sharedDocs.includes("summary"),
     hasTranscript: !!transcript && sharedDocs.includes("transcript"),
-    hasCareLetter: !!careLetter && sharedDocs.includes("client_care_letter"),
+    hasCareLetter: showCareLetter,
   };
 
   const canDownload = shareLink?.accessLevel === "download";
@@ -653,11 +654,13 @@ export default function ShareLinkView() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue={
+              showCareLetter && !attendanceNote && !summary ? "care-letter" :
               attendanceNote ? "attendance" : 
               summary ? "summary" : 
+              showCareLetter ? "care-letter" :
               "transcript"
             }>
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 gap-1">
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1">
                 {attendanceNote && (
                   <TabsTrigger 
                     value="attendance" 
@@ -672,6 +675,14 @@ export default function ShareLinkView() {
                     data-testid="tab-summary"
                   >
                     Summary
+                  </TabsTrigger>
+                )}
+                {showCareLetter && (
+                  <TabsTrigger
+                    value="care-letter"
+                    data-testid="tab-care-letter"
+                  >
+                    Client Care Letter
                   </TabsTrigger>
                 )}
                 {transcript && (
@@ -699,6 +710,16 @@ export default function ShareLinkView() {
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <div className="whitespace-pre-wrap" data-testid="content-summary">
                       {summary.content}
+                    </div>
+                  </div>
+                </TabsContent>
+              )}
+
+              {showCareLetter && careLetter && (
+                <TabsContent value="care-letter" className="mt-4">
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <div className="whitespace-pre-wrap" data-testid="content-care-letter">
+                      {careLetter.content}
                     </div>
                   </div>
                 </TabsContent>

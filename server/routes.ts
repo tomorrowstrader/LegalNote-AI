@@ -105,6 +105,7 @@ import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail } from "./email";
 import { assembleSraReportData, buildSraReportPreview } from "./services/sraReportService";
 import { compileSraReportPdf } from "./services/sraReportPdf";
+import { logPersonnelMatterAccess } from "./personnelAccessAudit";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent } from "./calendar";
 import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
 import { isReplitOutlookConnected, createReplitOutlookEvent, updateReplitOutlookEvent, deleteReplitOutlookEvent } from "./replitOutlook";
@@ -156,6 +157,18 @@ function requireFeatureVisible(key: FeatureKey) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const getUnadoptedSharedDocumentTypes = async (
+    caseId: string,
+    userId: string,
+    selectedTypes: readonly string[],
+  ): Promise<string[]> => {
+    const documents = await storage.getActiveDocumentsByCase(caseId, userId);
+    return selectedTypes.filter((type) => {
+      const selectedDocument = documents.find((document) => document.type === type);
+      return !selectedDocument || selectedDocument.status !== "approved";
+    });
+  };
+
   const sseClients = new Map<string, Set<Response>>();
 
   // S3: Centralised helper — strips sensitive fields from transcript before API response
@@ -962,6 +975,16 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // Get documents and filter based on sharedDocuments selection
       const allDocuments = await storage.getActiveDocumentsByCase(shareLink.caseId, shareLink.createdBy);
       const sharedDocs = shareLink.sharedDocuments || ["attendance_note"]; // Fallback for old links
+      const unadoptedTypes = await getUnadoptedSharedDocumentTypes(
+        shareLink.caseId,
+        shareLink.createdBy,
+        sharedDocs,
+      );
+      if (unadoptedTypes.length > 0) {
+        return res.status(403).json({
+          message: "This link is unavailable because one or more documents have not been adopted by a fee earner.",
+        });
+      }
       const documents = allDocuments.filter(doc => sharedDocs.includes(doc.type));
       
       // Get transcript only if explicitly shared
@@ -1940,6 +1963,13 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         caseId: req.params.id,
         metadata: { clientName: caseData.clientName, title: caseData.title },
         req,
+      });
+      await logPersonnelMatterAccess({
+        userId,
+        caseId: req.params.id,
+        resource: "case",
+        req,
+        metadata: { title: caseData.title },
       });
       
       res.json(caseData);
@@ -3300,6 +3330,19 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (!caseData) {
         return res.status(404).json({ message: "Case not found" });
       }
+
+      const sharedDocuments = ["client_letter"] as const;
+      const unadoptedTypes = await getUnadoptedSharedDocumentTypes(
+        req.params.id,
+        userId,
+        sharedDocuments,
+      );
+      if (unadoptedTypes.length > 0) {
+        return res.status(403).json({
+          message: "The selected document must be reviewed and adopted before it can be shared.",
+          unadoptedDocumentTypes: unadoptedTypes,
+        });
+      }
       
       // Create a secure share link for the client (7 days expiration, view-only)
       const expiresAt = new Date();
@@ -3315,6 +3358,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         expiresAt,
         clientConsent: true, // Email implies consent
         smsProtection: false, // Can be enhanced later
+        sharedDocuments: [...sharedDocuments],
       });
       
       // Get firm profile for email branding
@@ -3394,7 +3438,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         smsProtection: z.boolean().default(false),
         smsPhoneNumber: z.string().optional(),
         customMessage: z.string().optional(),
-        sharedDocuments: z.array(z.enum(["attendance_note", "summary", "transcript", "client_letter"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
+        sharedDocuments: z.array(z.enum(["attendance_note", "summary", "transcript", "client_letter", "client_care_letter"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
       });
       
       const validationResult = shareLinkRequestSchema.safeParse(req.body);
@@ -3433,6 +3477,27 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (caseData.litigationHold) {
         return res.status(403).json({
           message: "Share links cannot be created while a litigation hold is active on this case",
+        });
+      }
+
+      const unadoptedTypes = await getUnadoptedSharedDocumentTypes(
+        req.params.id,
+        userId,
+        sharedDocuments,
+      );
+      if (unadoptedTypes.length > 0) {
+        await logAuditEvent(userId, "case_updated", {
+          caseId: req.params.id,
+          metadata: {
+            action: "share_blocked_unadopted_document",
+            unadoptedDocumentTypes: unadoptedTypes,
+          },
+          severity: "warning",
+          req,
+        });
+        return res.status(403).json({
+          message: "Every selected document must be reviewed and adopted before it can be shared.",
+          unadoptedDocumentTypes: unadoptedTypes,
         });
       }
 
@@ -4297,6 +4362,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         }
       }
 
+      await logPersonnelMatterAccess({
+        userId,
+        caseId: audioRecording.caseId,
+        resource: "audio",
+        audioRecordingId: audioId,
+        req,
+      });
+
       await objectStorageService.downloadObject(audioRecording.filePath, res);
     } catch (error: any) {
       next(error);
@@ -4335,6 +4408,13 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           consentSegmentPath: audioRecording.consentSegmentPath,
         },
         severity: "info",
+        req,
+      });
+      await logPersonnelMatterAccess({
+        userId,
+        caseId: audioRecording.caseId,
+        resource: "consent",
+        audioRecordingId: audioId,
         req,
       });
 
@@ -4388,6 +4468,13 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const caseId = req.params.caseId;
       
       const consentLogs = await storage.getConsentLogsByCase(caseId, userId);
+      await logPersonnelMatterAccess({
+        userId,
+        caseId,
+        resource: "consent",
+        req,
+        metadata: { consentLogCount: consentLogs.length },
+      });
       res.json(consentLogs);
     } catch (error: any) {
       next(error);
@@ -4638,6 +4725,13 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         metadata: {
           viewedAt: new Date().toISOString(),
         },
+      });
+      await logPersonnelMatterAccess({
+        userId,
+        caseId: req.params.id,
+        resource: "transcript",
+        transcriptId: transcript.id,
+        req,
       });
       res.json(sanitizeTranscriptForResponse(finalTranscript));
     } catch (error: any) {
@@ -5171,6 +5265,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
       
       const documents = await storage.getActiveDocumentsByCase(caseId, userId);
+      await logPersonnelMatterAccess({
+        userId,
+        caseId,
+        resource: "document",
+        req,
+        metadata: { documentCount: documents.length },
+      });
       res.json(documents);
     } catch (error: any) {
       next(error);
@@ -5191,6 +5292,69 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       
       const history = await storage.getClientVersionTrackingByCase(caseId, userId);
       res.json(history);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/cases/:id/share-links", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseData = await storage.getCase(req.params.id, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const links = await storage.getShareLinksByCase(req.params.id, userId);
+      res.json(links.map((link) => ({
+        id: link.id,
+        recipientEmail: link.recipientEmail,
+        recipientName: link.recipientName,
+        accessLevel: link.accessLevel,
+        expiresAt: link.expiresAt,
+        createdAt: link.createdAt,
+        accessCount: link.accessCount,
+        lastAccessedAt: link.lastAccessedAt,
+        sharedDocuments: link.sharedDocuments,
+        passwordProtected: Boolean(link.password),
+        smsProtected: link.smsProtection,
+      })));
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/share-links/:id", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const shareLink = await storage.getShareLink(req.params.id);
+      if (!shareLink) {
+        return res.status(404).json({ message: "Share link not found" });
+      }
+
+      const caseData = await storage.getCase(shareLink.caseId, userId);
+      if (!caseData || shareLink.createdBy !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const revoked = await storage.deleteShareLink(shareLink.id, userId);
+      if (!revoked) {
+        return res.status(404).json({ message: "Share link not found" });
+      }
+
+      await logAuditEvent(userId, "share_link_revoked", {
+        caseId: shareLink.caseId,
+        metadata: {
+          shareLinkId: shareLink.id,
+          recipientEmail: shareLink.recipientEmail,
+          recipientName: shareLink.recipientName,
+          expiresAt: shareLink.expiresAt,
+          accessCount: shareLink.accessCount,
+        },
+        req,
+      });
+
+      res.json({ success: true });
     } catch (error: any) {
       next(error);
     }
@@ -5856,6 +6020,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         return res.status(400).json({ message: "No client care letter has been generated for this case" });
       }
 
+      // Block delivery while litigation hold is active (same gate as share-link)
+      if (caseData.litigationHold) {
+        return res.status(403).json({
+          message: "Client care letters cannot be shared while a litigation hold is active on this case",
+        });
+      }
+
       const sendSchema = z.object({
         recipientEmail: z.string().email(),
         recipientName: z.string().min(1).max(200).optional(),
@@ -5863,43 +6034,90 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const { recipientEmail, recipientName } = sendSchema.parse(req.body);
 
       const documents = await storage.getDocumentsByCase(caseId, userId);
-      const careLetter = documents.find(d => d.id === caseData.clientCareLetterId);
-      if (!careLetter) {
+      const careLetter = documents.find(d => d.id === caseData.clientCareLetterId && d.isActive !== false);
+      if (!careLetter || careLetter.type !== "client_care_letter") {
         return res.status(404).json({ message: "Client care letter document not found" });
       }
+      if (careLetter.status !== "approved") {
+        return res.status(403).json({
+          message: "The client care letter must be reviewed and adopted before it can be shared.",
+        });
+      }
 
-      const fp = await storage.getFirmProfile();
-      const firmName = fp?.firmName || "Your Solicitor";
+      // Same delivery model as share-link: notification email carries a link only —
+      // never the letter body, matter reference, or other privileged content (DPA 11.2).
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+      const sharedDocuments = ["client_care_letter"] as const;
 
-      const { sendClientCareLetterEmail } = await import("./email");
-      const emailResult = await sendClientCareLetterEmail({
-        to: recipientEmail,
-        clientName: recipientName || caseData.clientName,
-        firmName,
-        letterContent: careLetter.content,
-        matterReference: caseData.matterReference || undefined,
-        firmEmail: fp?.email || undefined,
-        firmPhone: fp?.phone || undefined,
+      const shareLink = await storage.createShareLink({
+        caseId,
+        createdBy: userId,
+        recipientEmail,
+        recipientName: recipientName || caseData.clientName,
+        isExternal: true,
+        accessLevel: "view",
+        expiresAt,
+        clientConsent: true,
+        smsProtection: false,
+        sharedDocuments: [...sharedDocuments],
       });
 
-      await logAuditEvent(userId, "document_generated", {
+      const firmProfile = await storage.getFirmProfile();
+      const emailResult = await sendCaseEmail({
+        to: recipientEmail,
+        shareLinkId: shareLink.id,
+        systemMessage:
+          "You have been granted view access to a secure document. This link will expire in 7 days.",
+        firmProfile: firmProfile
+          ? {
+              firmName: firmProfile.firmName,
+              phone: firmProfile.phone || undefined,
+              email: firmProfile.email || undefined,
+              addressLine1: firmProfile.addressLine1 || undefined,
+              addressLine2: firmProfile.addressLine2 || undefined,
+              city: firmProfile.city || undefined,
+              postcode: firmProfile.postcode || undefined,
+            }
+          : undefined,
+      });
+
+      await logAuditEvent(userId, "share_link_created", {
         caseId,
         documentId: caseData.clientCareLetterId ?? undefined,
         req,
         metadata: {
           action: "send_client_care_letter",
+          delivery: "secure_share_link",
           recipientEmail,
+          shareLinkId: shareLink.id,
+          sharedDocuments: [...sharedDocuments],
+          accessLevel: "view",
           success: emailResult.success,
           messageId: emailResult.messageId,
         },
       });
 
-      if (emailResult.success) {
-        await storage.updateCase(caseId, { clientCareLetterSentAt: new Date() }, userId);
-        res.json({ success: true, messageId: emailResult.messageId });
-      } else {
-        res.status(500).json({ message: emailResult.error || "Failed to send email" });
+      if (!emailResult.success) {
+        return res.status(500).json({ message: emailResult.error || "Failed to send secure link" });
       }
+
+      await storage.createClientVersionTracking({
+        documentId: careLetter.id,
+        sentToClient: true,
+        sentAt: new Date(),
+        sentBy: userId,
+        sentMethod: "email",
+        amendmentReason: undefined,
+        versionChangeWarned: false,
+      });
+
+      await storage.updateCase(caseId, { clientCareLetterSentAt: new Date() }, userId);
+      res.json({
+        success: true,
+        messageId: emailResult.messageId,
+        shareLinkId: shareLink.id,
+      });
     } catch (error: any) {
       if (error.name === "ZodError") {
         return res.status(400).json({ message: error.message });
@@ -6347,6 +6565,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       if (!caseData) return res.status(403).json({ message: "Not authorized" });
       const reportData = await assembleSraReportData(caseId, userId);
       const preview = buildSraReportPreview(reportData);
+      await logPersonnelMatterAccess({
+        userId,
+        caseId,
+        resource: "export",
+        req,
+        metadata: { exportType: "sra_report_preview" },
+      });
       res.json({
         ...preview,
         disclaimer: "This report is a complete extract of records held in LegalNote for this matter. Records held in external systems, paper files, or other practice management systems are not included. Compile only for the purpose of SRA regulatory review or file audit.",
@@ -6375,6 +6600,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         metadata: { reportTitle: `SRA Matter Report - ${caseData.title}` },
         req,
         severity: "critical",
+      });
+      await logPersonnelMatterAccess({
+        userId,
+        caseId,
+        resource: "export",
+        req,
+        metadata: { exportType: "sra_report_pdf" },
       });
 
       res.setHeader("Content-Type", "application/pdf");
@@ -7103,6 +7335,14 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         storage.getSessionsByCase(caseId, userId),
       ]);
       const firmProfile = await storage.getFirmProfile();
+
+      await logPersonnelMatterAccess({
+        userId,
+        caseId,
+        resource: "export",
+        req,
+        metadata: { exportType: "pi_defence_pack" },
+      });
 
       // Return structured JSON bundle for client-side PDF generation
       res.json({

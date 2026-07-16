@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { queryClient } from "@/lib/queryClient";
 
 interface ShareLinkModalProps {
   open: boolean;
@@ -34,6 +35,7 @@ interface ShareLinkModalProps {
     hasAttendanceNote: boolean;
     hasSummary: boolean;
     hasTranscript: boolean;
+    hasCareLetter?: boolean;
   };
 }
 
@@ -47,6 +49,7 @@ export default function ShareLinkModal({
     hasAttendanceNote: true,
     hasSummary: true,
     hasTranscript: true,
+    hasCareLetter: false,
   }
 }: ShareLinkModalProps) {
   const [recipientEmail, setRecipientEmail] = useState("");
@@ -118,6 +121,7 @@ export default function ShareLinkModal({
         description: `Secure link sent to ${recipientEmail}`,
         duration: 6000,
       });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/share-links`] });
       setCountdown(null);
       handleClose();
     } catch (error: any) {
@@ -393,6 +397,26 @@ export default function ShareLinkModal({
                     <p className="text-xs text-muted-foreground">
                       Raw conversation transcript. Consider sharing the Attendance Note instead for a professional matter record.
                     </p>
+                  </div>
+                </div>
+              )}
+              {availableDocuments.hasCareLetter && (
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="doc-care-letter"
+                    checked={sharedDocuments.includes("client_care_letter")}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSharedDocuments([...sharedDocuments, "client_care_letter"]);
+                      } else {
+                        setSharedDocuments(sharedDocuments.filter(d => d !== "client_care_letter"));
+                      }
+                    }}
+                    data-testid="checkbox-care-letter"
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="doc-care-letter" className="font-normal">Client Care Letter</Label>
+                    <p className="text-xs text-muted-foreground">Engagement terms and client care information</p>
                   </div>
                 </div>
               )}

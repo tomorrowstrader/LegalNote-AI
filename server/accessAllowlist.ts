@@ -22,6 +22,26 @@ export function getAdminUserId(): string {
   return process.env.ADMIN_USER_ID || "48381245";
 }
 
+/**
+ * LegalNote platform personnel (processor staff), distinct from firm-admin.
+ * ADMIN_USER_ID is always included. Optional LEGALNOTE_PERSONNEL_USER_IDS
+ * accepts a comma-separated list of additional staff user IDs.
+ */
+export function getLegalNotePersonnelUserIds(): Set<string> {
+  const ids = new Set<string>([getAdminUserId()]);
+  const raw = process.env.LEGALNOTE_PERSONNEL_USER_IDS || "";
+  for (const part of raw.split(",")) {
+    const id = part.trim();
+    if (id) ids.add(id);
+  }
+  return ids;
+}
+
+/** True only for LegalNote Technologies staff — not Controllers' firm-admins. */
+export function isLegalNotePersonnel(userId: string): boolean {
+  return getLegalNotePersonnelUserIds().has(userId);
+}
+
 /** Static allowlist / admin only — no DB lookups. */
 export function isUserOnStaticAllowlist(userId: string, email?: string | null): boolean {
   if (userId === getAdminUserId()) return true;

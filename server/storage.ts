@@ -641,8 +641,10 @@ export interface IStorage {
   // Share Link methods
   createShareLink(shareLinkData: InsertShareLink): Promise<ShareLink>;
   getShareLink(id: string): Promise<ShareLink | undefined>;
+  getShareLinks(userId: string): Promise<ShareLink[]>;
   getShareLinksByCase(caseId: string, userId: string): Promise<ShareLink[]>;
   updateShareLink(id: string, updates: Partial<ShareLink>): Promise<ShareLink | undefined>;
+  deleteShareLink(id: string, userId: string): Promise<boolean>;
   incrementShareLinkAccess(id: string): Promise<void>;
   updateShareLinkSmsCode(id: string, code: string, expiresAt: Date): Promise<ShareLink | undefined>;
   verifyShareLinkSmsCode(id: string, code: string): Promise<{ verified: boolean; expired?: boolean; invalid?: boolean }>;
@@ -2247,12 +2249,20 @@ export class MemStorage implements IStorage {
   async getShareLink(_id: string): Promise<ShareLink | undefined> {
     throw new Error("MemStorage does not support share links - use DbStorage");
   }
+
+  async getShareLinks(_userId: string): Promise<ShareLink[]> {
+    throw new Error("MemStorage does not support share links - use DbStorage");
+  }
   
   async getShareLinksByCase(_caseId: string, _userId: string): Promise<ShareLink[]> {
     throw new Error("MemStorage does not support share links - use DbStorage");
   }
   
   async updateShareLink(_id: string, _updates: Partial<ShareLink>): Promise<ShareLink | undefined> {
+    throw new Error("MemStorage does not support share links - use DbStorage");
+  }
+
+  async deleteShareLink(_id: string, _userId: string): Promise<boolean> {
     throw new Error("MemStorage does not support share links - use DbStorage");
   }
   
@@ -5171,6 +5181,14 @@ export class DbStorage implements IStorage {
       .where(eq(shareLinks.id, id));
     return result[0];
   }
+
+  async getShareLinks(userId: string): Promise<ShareLink[]> {
+    return await db
+      .select()
+      .from(shareLinks)
+      .where(eq(shareLinks.createdBy, userId))
+      .orderBy(desc(shareLinks.createdAt));
+  }
   
   async getShareLinksByCase(caseId: string, userId: string): Promise<ShareLink[]> {
     const result = await db
@@ -5193,6 +5211,19 @@ export class DbStorage implements IStorage {
       .where(eq(shareLinks.id, id))
       .returning();
     return result[0];
+  }
+
+  async deleteShareLink(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(shareLinks)
+      .where(
+        and(
+          eq(shareLinks.id, id),
+          eq(shareLinks.createdBy, userId),
+        )
+      )
+      .returning({ id: shareLinks.id });
+    return result.length > 0;
   }
   
   async incrementShareLinkAccess(id: string): Promise<void> {

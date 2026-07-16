@@ -58,6 +58,8 @@ const EVENT_ICONS: Record<string, any> = {
   quick_note_added: FileText,
   share_link_created: Send,
   share_link_accessed: Eye,
+  share_link_revoked: Shield,
+  personnel_matter_accessed: Shield,
   action_item_created: FileText,
   action_item_approved: Shield,
   action_item_updated: FileText,
@@ -123,6 +125,8 @@ const EVENT_LABELS: Record<string, string> = {
   quick_note_added: "Quick Note Added",
   share_link_created: "Share Link Created",
   share_link_accessed: "Share Link Accessed",
+  share_link_revoked: "Share Link Revoked",
+  personnel_matter_accessed: "LegalNote Personnel Access",
   action_item_created: "Obligation Created",
   action_item_approved: "Obligation Approved",
   action_item_updated: "Obligation Updated",
@@ -165,6 +169,17 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
   switch (eventType) {
     case "case_viewed":
       return metadata.source ? `Viewed from ${metadata.source}` : "Case accessed";
+
+    case "personnel_matter_accessed": {
+      const resource = typeof metadata.resource === "string" ? metadata.resource : "matter content";
+      const reason = typeof metadata.reason === "string" ? ` — ${metadata.reason}` : "";
+      return `LegalNote personnel accessed ${resource}${reason}`;
+    }
+
+    case "share_link_revoked":
+      return metadata.recipientEmail
+        ? `Revoked link for ${metadata.recipientEmail}`
+        : "Share link revoked";
     
     case "case_created":
       return metadata.clientName 
