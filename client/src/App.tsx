@@ -13,6 +13,7 @@ import FirmSetupPrompt from "@/components/FirmSetupPrompt";
 import DisplayNameOnboarding from "@/components/DisplayNameOnboarding";
 import IntegrationsOnboarding from "@/components/IntegrationsOnboarding";
 import OnboardingTour from "@/components/OnboardingTour";
+import { UpcomingMeetingPrompt } from "@/components/UpcomingMeetingPrompt";
 import { RecordingRecoveryModal, useRecordingRecovery } from "@/components/RecordingRecoveryModal";
 import Dashboard from "@/pages/Dashboard";
 import NewNote from "@/pages/NewNote";
@@ -167,6 +168,9 @@ function AuthenticatedAppContent() {
       {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <DisplayNameOnboarding />}
       {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <IntegrationsOnboarding />}
       {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <OnboardingTour restartTrigger={restartTourTrigger} />}
+      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && (
+        <UpcomingMeetingPrompt blocked={showRecoveryModal} />
+      )}
       {!isLoading && hasAppAccess && !isPublicDemoRoute && (
         <RecordingRecoveryModal
           open={showRecoveryModal}

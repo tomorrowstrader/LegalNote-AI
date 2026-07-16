@@ -41,20 +41,9 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { isFeatureVisible } from "@/lib/features";
+import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 
 type MeetingAttendee = { email: string; name?: string; responseStatus?: string };
-
-/** Returns a normalized https URL, or null if missing/malformed/non-https (calendar-sourced, user-controlled). */
-function getSafeHttpsMeetingUrl(raw: string | null | undefined): string | null {
-  if (!raw || typeof raw !== "string") return null;
-  try {
-    const parsed = new URL(raw.trim());
-    if (parsed.protocol !== "https:") return null;
-    return parsed.href;
-  } catch {
-    return null;
-  }
-}
 
 function getMeetingAttendees(meeting: ScheduledMeeting): MeetingAttendee[] {
   if (!Array.isArray(meeting.attendees)) return [];

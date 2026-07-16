@@ -11,7 +11,6 @@ import {
   Loader2, 
   Clock, 
   RefreshCw,
-  Download,
   Copy,
   Check,
   Maximize2
@@ -25,9 +24,15 @@ import type { PreMeetingBriefing as PreMeetingBriefingType } from "@shared/schem
 interface PreMeetingBriefingProps {
   caseId: string;
   hasTranscript: boolean;
+  /** When true, poll until a brief appears (T-30 pre-gen may still be running). */
+  expectPreparing?: boolean;
 }
 
-export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeetingBriefingProps) {
+export default function PreMeetingBriefing({
+  caseId,
+  hasTranscript,
+  expectPreparing = false,
+}: PreMeetingBriefingProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,7 +40,14 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
   
   const { data: briefing, isLoading } = useQuery<PreMeetingBriefingType | null>({
     queryKey: [`/api/cases/${caseId}/pre-meeting-briefing`],
+    refetchInterval: (query) => {
+      if (!expectPreparing) return false;
+      if (query.state.data) return false;
+      return 2000;
+    },
   });
+
+  const isWaitingForPreGen = expectPreparing && !briefing && hasTranscript && !isGenerating;
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -72,7 +84,7 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !isWaitingForPreGen) {
     return (
       <Card>
         <CardHeader className="pb-3">
@@ -133,10 +145,10 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
                 size="sm"
                 variant="outline"
                 onClick={() => generateMutation.mutate()}
-                disabled={isGenerating}
+                disabled={isGenerating || isWaitingForPreGen}
                 data-testid="button-generate-briefing"
               >
-                {isGenerating ? (
+                {isGenerating || isWaitingForPreGen ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-1 animate-spin" />
                     Preparing...
@@ -158,7 +170,13 @@ export default function PreMeetingBriefing({ caseId, hasTranscript }: PreMeeting
         </div>
       </CardHeader>
       <CardContent>
-        {!briefing ? (
+        {isWaitingForPreGen ? (
+          <div className="text-center py-6 text-muted-foreground" data-testid="briefing-preparing-state">
+            <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin opacity-70" />
+            <p className="text-sm">Preparing your briefing…</p>
+            <p className="text-xs mt-1">This usually takes less than a minute.</p>
+          </div>
+        ) : !briefing ? (
           <div className="text-center py-6 text-muted-foreground">
             <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No briefing generated yet.</p>

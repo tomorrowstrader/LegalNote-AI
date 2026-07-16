@@ -358,21 +358,37 @@ export default function CaseDetail() {
 
   const searchParams = new URLSearchParams(search);
   const urlTab = searchParams.get('tab') as 'attendance' | 'summary' | 'transcript' | 'compliance' | null;
+  const urlSection = searchParams.get('section') as CaseSection | null;
   const urlTimestamp = searchParams.get('timestamp');
   const urlSessionId = searchParams.get('sessionId');
+  const urlPreparingBrief = searchParams.get('preparing') === '1';
+
+  const validSections = new Set<string>(Object.keys(SECTION_LABELS));
 
   const [activeSection, setActiveSection] = useState<CaseSection>(() => {
+    if (urlSection && validSections.has(urlSection)) {
+      if (urlSection === 'compliance' && !amlComplianceVisible) return 'documents';
+      return urlSection;
+    }
     if (urlTab === 'compliance' && amlComplianceVisible) return 'compliance';
     return 'documents';
   });
 
   useEffect(() => {
+    if (urlSection && validSections.has(urlSection)) {
+      if (urlSection === 'compliance' && !amlComplianceVisible) {
+        setActiveSection('documents');
+      } else {
+        setActiveSection(urlSection);
+      }
+      return;
+    }
     if (urlTab === 'compliance' && amlComplianceVisible) {
       setActiveSection('compliance');
     } else if (urlTab === 'compliance' && !amlComplianceVisible) {
       setActiveSection('documents');
     }
-  }, [urlTab]);
+  }, [urlSection, urlTab]);
 
   const handleTranscriptTimestampClick = (timeMs: number) => {
     audioPlayerRef.current?.seekTo(timeMs);
@@ -1983,7 +1999,11 @@ export default function CaseDetail() {
 
           {activeSection === 'briefing' && (
             <div className="max-w-3xl">
-              <PreMeetingBriefing caseId={caseId!} hasTranscript={!!transcript?.content} />
+              <PreMeetingBriefing
+                caseId={caseId!}
+                hasTranscript={!!transcript?.content}
+                expectPreparing={urlPreparingBrief}
+              />
             </div>
           )}
 

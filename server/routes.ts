@@ -5681,133 +5681,20 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     try {
       const userId = req.user.claims.sub;
       const caseId = req.params.id;
-      
-      const caseData = await storage.getCase(caseId, userId);
-      if (!caseData) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      
-      const transcript = await storage.getTranscriptByCase(caseId, userId);
-      const documents = await storage.getActiveDocumentsByCase(caseId, userId);
-      
-      if (!transcript) {
-        return res.status(400).json({ message: "No transcript found for this case" });
-      }
-      
-      // Import document service
-      const { DocumentService } = await import("./services/documentService");
-      const documentService = new DocumentService();
-      
-      const metadata = {
-        title: caseData.title,
-        clientName: caseData.clientName,
-        matterReference: caseData.matterReference || undefined,
-        recordingDate: new Date().toISOString().split('T')[0],
-      };
-      
-      const attendanceNote = documents.find(d => d.type === 'attendance_note');
-      const summary = documents.find(d => d.type === 'summary');
-      
-      const meetings: Array<{ date: string; transcript: string; attendanceNote?: string; summary?: string }> = [];
-      
-      const priorImports = await storage.getMeetingImportsByCase(caseId, userId);
-      const completedImports = priorImports.filter(i => i.status === 'completed');
-      if (completedImports.length > 0) {
-        let priorSessionContext = 'PRIOR SESSION SUMMARIES:\n';
-        for (const imp of completedImports) {
-          const sessionDate = imp.meetingDate ? new Date(imp.meetingDate).toISOString().split('T')[0] : 'Prior session';
-          const platformLabel = imp.meetingPlatform ? ` (${imp.meetingPlatform})` : '';
-          priorSessionContext += `\n--- Session: ${sessionDate}${platformLabel} ---\n`;
-          priorSessionContext += `Title: ${imp.meetingTitle || 'Untitled'}\n`;
-          if (imp.participants && Array.isArray(imp.participants)) {
-            priorSessionContext += `Participants: ${(imp.participants as string[]).join(', ')}\n`;
-          }
-          if (imp.durationSeconds) {
-            priorSessionContext += `Duration: ${Math.round(imp.durationSeconds / 60)} minutes\n`;
-          }
-        }
-        meetings.push({
-          date: 'Prior sessions',
-          transcript: priorSessionContext,
-        });
-      }
-      
-      meetings.push({
-        date: caseData.createdAt ? new Date(caseData.createdAt).toISOString().split('T')[0] : 'Unknown',
-        transcript: transcript.content,
-        attendanceNote: attendanceNote?.content,
-        summary: summary?.content,
-      });
-      
-      // Gather linked case context for enhanced briefing
-      let caseContextSuffix = '';
-      
-      // Outstanding action items
-      const actionItems = await storage.getActionItemsByCase(caseId, userId);
-      const outstandingItems = actionItems.filter(item => !item.completed && item.status === 'approved');
-      if (outstandingItems.length > 0) {
-        caseContextSuffix += '\n\nOUTSTANDING ACTION ITEMS:\n';
-        outstandingItems.forEach(item => {
-          caseContextSuffix += `- ${item.description}${item.assignee ? ` (Assigned to: ${item.assignee})` : ''}${item.dueDate ? ` (Due: ${new Date(item.dueDate).toISOString().split('T')[0]})` : ''}\n`;
-        });
-      }
-      
-      // Client AML risk status
-      if (caseData.clientId) {
-        const client = await storage.getClient(caseData.clientId, userId);
-        if (client?.amlRiskLevel) {
-          caseContextSuffix += `\n\nCLIENT AML STATUS:\n- Risk Level: ${client.amlRiskLevel.toUpperCase()}`;
-          if (client.amlRiskLastReviewed) {
-            caseContextSuffix += ` (Last reviewed: ${new Date(client.amlRiskLastReviewed).toISOString().split('T')[0]})`;
-          }
-          caseContextSuffix += '\n';
-        }
-      }
-      
-      // Upcoming deadlines from the case
-      if (caseData.deadline) {
-        caseContextSuffix += `\n\nUPCOMING CASE DEADLINE:\n- ${new Date(caseData.deadline).toISOString().split('T')[0]}${caseData.deadlineIsAllDay ? ' (all day)' : ''}\n`;
-      }
-      
-      // Append context to the last meeting's transcript for the AI to consider
-      if (caseContextSuffix && meetings.length > 0) {
-        meetings[meetings.length - 1].transcript += caseContextSuffix;
-      }
 
-      // Get outstanding undertakings to include in the briefing
-      const caseUndertakings = await storage.getUndertakingsByCase(caseId);
-      const outstandingUndertakings = caseUndertakings.filter(u => u.status === 'outstanding');
-      
-      const result = await documentService.generatePreMeetingBriefing(meetings, metadata, outstandingUndertakings);
-      
-      // Store the briefing
-      const briefing = await storage.createPreMeetingBriefing({
-        caseId,
-        content: result.content,
-        generatedBy: userId,
-        sourceMeetingCount: meetings.length,
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        cost: result.cost.toString(),
-      });
-      
-      await logAuditEvent(userId, "pre_meeting_briefing_generated", {
-        caseId,
-        metadata: {
-          briefingId: briefing.id,
-          sourceMeetingCount: meetings.length,
-          cost: result.cost,
-          inputTokens: result.inputTokens,
-          outputTokens: result.outputTokens,
-        },
-        req,
-      });
-      
+      const {
+        generateAndPersistPreMeetingBriefing,
+      } = await import("./services/preMeetingBriefingService");
+
+      const result = await generateAndPersistPreMeetingBriefing(caseId, userId);
       res.json({
-        briefing,
-        generationCost: result.cost,
+        briefing: result.briefing,
+        generationCost: result.generationCost,
       });
     } catch (error: any) {
+      if (error?.name === "PreMeetingBriefingError") {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
       next(error);
     }
   });

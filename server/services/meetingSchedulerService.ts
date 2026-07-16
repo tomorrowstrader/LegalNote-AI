@@ -622,6 +622,7 @@ Your Legal Team
       console.warn(`[MEETING_SCHEDULER] No user email for reminder on meeting ${meeting.id}`);
       // Still mark sent so we don't retry forever without a recipient
       await this.markReminderSent(meeting.id, minutesBefore);
+      this.maybeScheduleBriefPreGen(meeting, minutesBefore);
       return;
     }
 
@@ -672,6 +673,24 @@ Your Legal Team
     console.log(
       `[MEETING_SCHEDULER] Sent ${minutesBefore}m reminder for meeting ${meeting.id} to ${user.email}`,
     );
+
+    this.maybeScheduleBriefPreGen(meeting, minutesBefore);
+  }
+
+  /** Fire-and-forget brief pre-gen after a successful T-30 mark (never blocks cron). */
+  private maybeScheduleBriefPreGen(
+    meeting: ScheduledMeeting,
+    minutesBefore: 30 | 10,
+  ): void {
+    if (minutesBefore !== 30 || !meeting.caseId) return;
+    void import("./preMeetingBriefingService").then(({ schedulePreMeetingBriefingPreGen }) => {
+      schedulePreMeetingBriefingPreGen(meeting.caseId!, meeting.userId, meeting.id);
+    }).catch((error) => {
+      console.error(
+        `[MEETING_SCHEDULER] Failed to start brief pre-gen for meeting ${meeting.id}:`,
+        error,
+      );
+    });
   }
 
   private async markReminderSent(meetingId: string, minutesBefore: 30 | 10): Promise<void> {
