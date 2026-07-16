@@ -56,6 +56,43 @@ describe('DocumentService.generateAttendanceNote', () => {
       'the marriage has therefore subsisted for some 11 years',
     );
   });
+
+  it('injects system-computed relationship duration facts into the user prompt', async () => {
+    const service = new DocumentService({
+      chatCompletion: vi.fn().mockResolvedValue({
+        content: '**MATTERS DISCUSSED**\n\nClient consent to audio recording obtained.',
+        inputTokens: 10,
+        outputTokens: 20,
+        cost: 0,
+      }),
+    });
+
+    const generateDocumentSpy = vi
+      .spyOn(service as unknown as { generateDocument: (...args: unknown[]) => Promise<unknown> }, 'generateDocument')
+      .mockResolvedValue({
+        content: '**MATTERS DISCUSSED**\n\nClient consent to audio recording obtained.',
+        inputTokens: 10,
+        outputTokens: 20,
+        cost: 0,
+      });
+
+    const { computeRelationshipDurations } = await import('./relationshipDuration');
+    const relationshipDurations = computeRelationshipDurations({
+      marriageDate: { precision: 'year-month', year: 2015, month: 6 },
+      separationDate: { precision: 'year-month', year: 2025, month: 11 },
+      cohabitationStartDate: null,
+    });
+
+    await service.generateAttendanceNote(
+      '[Speaker A]: We married in June 2015.\n[Speaker B]: I moved out in November 2025.',
+      { ...metadata, relationshipDurations },
+    );
+
+    const userPrompt = generateDocumentSpy.mock.calls[0]?.[1] as string;
+    expect(userPrompt).toContain('SYSTEM-COMPUTED RELATIONSHIP DURATION FACTS');
+    expect(userPrompt).toContain('Marriage duration: approximately 10 years');
+    expect(userPrompt).toContain('Cohabitation duration: could not be established');
+  });
 });
 
 describe('formatRevisionInstructions', () => {

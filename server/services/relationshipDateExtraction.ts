@@ -4,7 +4,12 @@
  */
 
 import { privilegedComplete } from './llm/privilegedComplete';
-import type { PartialDate, RelationshipDateInput } from './relationshipDuration';
+import {
+  computeRelationshipDurations,
+  type PartialDate,
+  type RelationshipDateInput,
+  type RelationshipDurationResult,
+} from './relationshipDuration';
 
 export interface RelationshipDateExtractionResult {
   dates: RelationshipDateInput;
@@ -188,4 +193,35 @@ Return the JSON object with marriageDate, separationDate, and cohabitationStartD
       cost: 0,
     };
   }
+}
+
+/** Family practice areas where relationship durations are material to the note. */
+export function practiceAreaNeedsRelationshipDurations(
+  practiceArea?: string | null,
+): boolean {
+  return (
+    practiceArea === 'family_divorce_financial' ||
+    practiceArea === 'family_children_arrangements'
+  );
+}
+
+/**
+ * Extract dates then compute durations. Safe on extraction failure (all unset facts).
+ */
+export async function extractAndComputeRelationshipDurations(
+  transcript: string,
+  context: RelationshipDateExtractionContext,
+): Promise<{
+  durations: RelationshipDurationResult;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+}> {
+  const extraction = await extractRelationshipDates(transcript, context);
+  return {
+    durations: computeRelationshipDurations(extraction.dates),
+    inputTokens: extraction.inputTokens,
+    outputTokens: extraction.outputTokens,
+    cost: extraction.cost,
+  };
 }

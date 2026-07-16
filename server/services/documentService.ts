@@ -3,6 +3,10 @@ import { privilegedComplete } from './llm/privilegedComplete';
 import { CLIENT_FACING_RECORDING_TYPES } from '@shared/recordingTypes';
 import { getPracticeAreaPromptContext } from './practiceAreaConfig';
 import { DERIVATION_ENGINE_RULES } from './derivationEngine';
+import {
+  formatRelationshipDurationFactsBlock,
+  type RelationshipDurationResult,
+} from './relationshipDuration';
 
 /**
  * Post-process document content to ensure known section headings are bold.
@@ -470,9 +474,19 @@ export interface CaseMetadata {
   firmName?: string;
   templateId?: string;
   practiceArea?: string;
+  /** Code-computed relationship durations — injected as authoritative facts when present */
+  relationshipDurations?: RelationshipDurationResult;
 }
 
 const NOT_DISCUSSED_PHRASE = 'This was not discussed on this occasion.';
+
+function appendRelationshipDurationFacts(
+  userPrompt: string,
+  metadata: CaseMetadata,
+): string {
+  if (!metadata.relationshipDurations) return userPrompt;
+  return `${userPrompt}\n\n${formatRelationshipDurationFactsBlock(metadata.relationshipDurations)}`;
+}
 
 export interface FirmPreferences {
   includeLocation?: boolean;
@@ -771,14 +785,17 @@ CRITICAL: Extract only what was actually discussed. Where an area was not covere
       } catch {}
     }
 
-    const userPrompt = `Generate a professional attendance note for the following meeting:
+    const userPrompt = appendRelationshipDurationFacts(
+      `Generate a professional attendance note for the following meeting:
 
 **Case Title:** ${metadata.title}
 **Client Name:** ${metadata.clientName}
 **Matter Reference:** ${metadata.matterReference || 'TBD'}
 
 **What was said at the meeting:**
-${transcript}`;
+${transcript}`,
+      metadata,
+    );
 
     const result = await this.generateDocument(systemPrompt, userPrompt, revision);
     return {
@@ -851,7 +868,7 @@ ${attendanceNote}`;
   async verifyDocumentAgainstTranscript(
     document: string,
     transcript: string,
-    metadata?: Pick<CaseMetadata, 'clientName' | 'feeEarnerName'>,
+    metadata?: Pick<CaseMetadata, 'clientName' | 'feeEarnerName' | 'relationshipDurations'>,
   ): Promise<{ warnings: string[]; inputTokens: number; outputTokens: number; cost: number }> {
     try {
       console.log('Running post-generation verification against transcript...');
@@ -863,6 +880,9 @@ ${attendanceNote}`;
               authoritativeNames.clientName ? `Client: ${authoritativeNames.clientName}\n` : ''
             }${authoritativeNames.feeEarnerName ? `Fee earner: ${authoritativeNames.feeEarnerName}\n` : ''}`
           : '';
+      const durationFactsBlock = metadata?.relationshipDurations
+        ? `\n${formatRelationshipDurationFactsBlock(metadata.relationshipDurations)}\n`
+        : '';
 
       const systemPrompt = `You are a legal document auditor for a UK law firm. You will be given the record of what was said at a client meeting, and a document generated from it. Identify genuine defects. You must distinguish defects from correct professional practice.
 THE GOVERNING TEST: content is ESTABLISHED if it was said at the meeting, or if it follows from what was said by arithmetic (other than relationship durations), or by applying the correct legal term of art to it, or if it states a system-supplied relationship duration fact. Relationship durations (marriage, cohabitation, total span) are computed by the system when supplied; free-form model date-arithmetic for those durations is not the preferred or expected path. A statement is defective ONLY if it introduces content that was neither said nor follows from what was said (and is not a system-supplied duration fact). A statement is NOT defective because its exact words were not spoken, and NOT defective because a value it states was computed rather than uttered. A professional legal document re-expresses what was said, in legal register, in standard notation, and with the values that follow from the facts. That is the job. It is not fabrication.
@@ -894,7 +914,7 @@ Before flagging any statement, first check whether it is a notation, derivation 
 CATEGORY 2 (ADVICE WITHOUT REASONING). The SRA expects the note to record the reasoning behind advice. Flag advice only when, within its own section, there is neither stated reasoning nor a <!-- REASONING_GAP: ... --> marker. A marker within the section satisfies the requirement for that section; do not flag advice whose section contains one, and never flag the marker itself.
 Return JSON only, in exactly this structure: {"unverifiable_statements": [...], "advice_without_reasoning": [...]}. Each array contains ONLY confirmed defects. Do NOT include statements you have considered and decided are not defects, do NOT include your reasoning about statements you are not flagging, and do NOT include entries whose text says a statement is correct, is not a defect, or is being withdrawn. If a statement is correct practice, it does not appear in the output at all. Empty arrays where there are no defects. Each entry must be a single string: the offending statement itself, optionally followed by a brief explanation. Do not return objects.
 
-List each distinct defect once. Never repeat a statement. Never restate the same defect in multiple entries.${authoritativeNamesBlock}`;
+List each distinct defect once. Never repeat a statement. Never restate the same defect in multiple entries.${authoritativeNamesBlock}${durationFactsBlock}`;
 
       const userPrompt = `MEETING RECORD:\n${transcript}\n\n---\n\nGENERATED DOCUMENT:\n${document}\n\nIdentify unsupported content and any advice recorded without reasoning. Return JSON only.`;
 
@@ -1088,14 +1108,17 @@ Date Prepared: ${metadata.recordingDate}
 
 FORMATTING: Use **bold** for headings. Keep the entire note to approximately half a page. Be factual and concise.`;
 
-    const userPrompt = `Generate a telephone attendance note for this call transcript:
+    const userPrompt = appendRelationshipDurationFacts(
+      `Generate a telephone attendance note for this call transcript:
 
 **Case Title:** ${metadata.title}
 **Client Name:** ${metadata.clientName}
 **Matter Reference:** ${metadata.matterReference || 'TBD'}
 
 **Transcript:**
-${transcript}`;
+${transcript}`,
+      metadata,
+    );
 
     return await this.generateDocument(systemPrompt, userPrompt, revision);
   }
@@ -1131,13 +1154,16 @@ Client: ${metadata.clientName}
 
 This file note is subject to legal professional privilege.`;
 
-    const userPrompt = `Generate a file note from the following:
+    const userPrompt = appendRelationshipDurationFacts(
+      `Generate a file note from the following:
 
 **Case Title:** ${metadata.title}
 **Client Name:** ${metadata.clientName}
 
 **Content:**
-${transcript}`;
+${transcript}`,
+      metadata,
+    );
 
     return await this.generateDocument(systemPrompt, userPrompt, revision);
   }
@@ -1224,14 +1250,17 @@ Date Prepared: ${metadata.recordingDate}
 
 FORMATTING: Use **bold** for all section headings. Be thorough but concise.`;
 
-    const userPrompt = `Generate a court attendance note from this hearing transcript:
+    const userPrompt = appendRelationshipDurationFacts(
+      `Generate a court attendance note from this hearing transcript:
 
 **Case Title:** ${metadata.title}
 **Client Name:** ${metadata.clientName}
 **Matter Reference:** ${metadata.matterReference || 'TBD'}
 
 **Transcript:**
-${transcript}`;
+${transcript}`,
+      metadata,
+    );
 
     return await this.generateDocument(systemPrompt, userPrompt, revision);
   }
@@ -1319,14 +1348,17 @@ Date Prepared: ${metadata.recordingDate}
 
 FORMATTING: Use **bold** for all section headings. Be thorough and PACE-compliant.`;
 
-    const userPrompt = `Generate a police station attendance record from this transcript:
+    const userPrompt = appendRelationshipDurationFacts(
+      `Generate a police station attendance record from this transcript:
 
 **Case Title:** ${metadata.title}
 **Client Name:** ${metadata.clientName}
 **Matter Reference:** ${metadata.matterReference || 'TBD'}
 
 **Transcript:**
-${transcript}`;
+${transcript}`,
+      metadata,
+    );
 
     return await this.generateDocument(systemPrompt, userPrompt, revision);
   }

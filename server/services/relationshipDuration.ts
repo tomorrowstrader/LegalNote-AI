@@ -136,3 +136,16 @@ export function computeRelationshipDurations(
 export function durationFactOrUnset(fact: string | null): string {
   return fact ?? DURATION_COULD_NOT_BE_ESTABLISHED;
 }
+
+/**
+ * Authoritative block appended to note-generation (and verifier) prompts.
+ * Always lists all three durations so nulls surface as "could not be established".
+ */
+export function formatRelationshipDurationFactsBlock(
+  result: RelationshipDurationResult,
+): string {
+  return `SYSTEM-COMPUTED RELATIONSHIP DURATION FACTS (authoritative — use these figures; do not recalculate):
+- Marriage duration: ${durationFactOrUnset(result.marriageDurationFact)}
+- Cohabitation duration: ${durationFactOrUnset(result.cohabitationDurationFact)}
+- Total relationship / cohabitation span: ${durationFactOrUnset(result.totalDurationFact)}`;
+}

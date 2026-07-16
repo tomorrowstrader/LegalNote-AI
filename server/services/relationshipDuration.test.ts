@@ -4,6 +4,7 @@ import {
   durationFactOrUnset,
   DURATION_COULD_NOT_BE_ESTABLISHED,
   floorCompletedYears,
+  formatRelationshipDurationFactsBlock,
   type PartialDate,
 } from './relationshipDuration';
 
@@ -130,5 +131,20 @@ describe('computeRelationshipDurations', () => {
 
     expect(result.marriageYears).toBe(1);
     expect(result.marriageDurationFact).toBe('approximately 1 year');
+  });
+});
+
+describe('formatRelationshipDurationFactsBlock', () => {
+  it('lists all three facts and uses could not be established for nulls', () => {
+    const result = computeRelationshipDurations({
+      marriageDate: ym(2015, 6),
+      separationDate: ym(2025, 11),
+      cohabitationStartDate: null,
+    });
+    const block = formatRelationshipDurationFactsBlock(result);
+    expect(block).toContain('SYSTEM-COMPUTED RELATIONSHIP DURATION FACTS');
+    expect(block).toContain('Marriage duration: approximately 10 years');
+    expect(block).toContain(`Cohabitation duration: ${DURATION_COULD_NOT_BE_ESTABLISHED}`);
+    expect(block).toContain('Total relationship / cohabitation span: approximately 10 years');
   });
 });

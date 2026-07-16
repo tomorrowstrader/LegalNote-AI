@@ -2,7 +2,11 @@ import { AssemblyAIService, formatDiarizedTranscript, type SpeakerUtterance } fr
 import { DocumentService, type CaseMetadata } from './documentService';
 import { logDocumentGovernanceViolations } from './documentGovernanceGate';
 import { TranscriptCorrectionService } from './transcriptCorrectionService';
-import { toIsoDate } from './relationshipDateExtraction';
+import {
+  extractAndComputeRelationshipDurations,
+  practiceAreaNeedsRelationshipDurations,
+  toIsoDate,
+} from './relationshipDateExtraction';
 import { IStorage } from '../storage';
 import { logAuditEvent } from '../auditMiddleware';
 import { buildKeytermsConfig } from './legalVocabulary';
@@ -396,6 +400,33 @@ export class AIProcessingPipeline {
       const docType = 'attendance_note';
       const logLabel = 'attendance note';
 
+      let relationshipDurationCost = 0;
+      if (practiceAreaNeedsRelationshipDurations(metadata.practiceArea)) {
+        await this.updateProcessingStatus(caseId, userId, {
+          status: 'generating_documents',
+          progress: 42,
+          currentStep: 'Extracting relationship dates...',
+        });
+        try {
+          const durationResult = await extractAndComputeRelationshipDurations(
+            transcriptForDocGen,
+            {
+              asOfIso: metadata.recordingDateIso ?? toIsoDate(new Date()),
+              clientName: metadata.clientName,
+              matterReference: metadata.matterReference,
+              title: metadata.title,
+            },
+          );
+          metadata.relationshipDurations = durationResult.durations;
+          relationshipDurationCost = durationResult.cost;
+        } catch (durationError) {
+          console.warn(
+            '[AI Pipeline] Relationship duration extraction failed; continuing without duration facts:',
+            durationError,
+          );
+        }
+      }
+
       // Step 2: Generate primary document (attendance note)
       console.log(`Producing ${logLabel} for case ${caseId} (recording type: ${recordingType}, session: ${sessionInfo.sessionId})...`);
       const attendanceResult = await this.documentService.generateDocumentByRecordingType(
@@ -416,7 +447,12 @@ export class AIProcessingPipeline {
 
       const attendanceVerification = await this.documentService.verifyDocumentAgainstTranscript(
         attendanceResult.content,
-        transcriptForDocGen
+        transcriptForDocGen,
+        {
+          clientName: metadata.clientName,
+          feeEarnerName: metadata.feeEarnerName,
+          relationshipDurations: metadata.relationshipDurations,
+        },
       );
 
       const attendanceDoc = await this.storage.createDocument({
@@ -501,7 +537,8 @@ export class AIProcessingPipeline {
       const totalCost = transcriptionCost + 
                        attendanceResult.cost +
                        (clientLetterResult?.cost ?? 0) +
-                       verificationCost;
+                       verificationCost +
+                       relationshipDurationCost;
 
       const totalTokens = {
         input: attendanceResult.inputTokens + (clientLetterResult?.inputTokens ?? 0) + attendanceVerification.inputTokens + (clientLetterVerification?.inputTokens ?? 0),
@@ -514,7 +551,7 @@ export class AIProcessingPipeline {
         progress: 100,
         currentStep: 'Processing complete',
         transcriptionCost: transcriptionCost,
-        documentGenerationCost: attendanceResult.cost + (clientLetterResult?.cost ?? 0) + verificationCost,
+        documentGenerationCost: attendanceResult.cost + (clientLetterResult?.cost ?? 0) + verificationCost + relationshipDurationCost,
         totalCost,
         totalTokens,
         completedAt: new Date().toISOString(),

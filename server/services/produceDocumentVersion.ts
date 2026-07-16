@@ -1,6 +1,11 @@
 import { DocumentService, type CaseMetadata } from "./documentService";
 import { formatDiarizedTranscript, type SpeakerUtterance } from "./assemblyAIService";
 import { logDocumentGovernanceViolations } from "./documentGovernanceGate";
+import {
+  extractAndComputeRelationshipDurations,
+  practiceAreaNeedsRelationshipDurations,
+  toIsoDate,
+} from "./relationshipDateExtraction";
 import { logAuditEvent } from "../auditMiddleware";
 import type { IStorage } from "../storage";
 import type { Document, Case, AudioRecording, MeetingSession, User } from "@shared/schema";
@@ -127,6 +132,7 @@ async function buildMetadata(
     recordingDate: meetingTimestamp
       ? formatUkLongDate(meetingTimestamp)
       : formatUkLongDate(new Date()),
+    recordingDateIso: toIsoDate(meetingTimestamp ?? new Date()),
     datePrepared: formatUkLongDate(new Date()),
     meetingStartTime: meetingTimestamp ? format24HourTime(meetingTimestamp) : undefined,
     durationDisplay,
@@ -307,6 +313,26 @@ export async function produceDocumentVersion(params: {
 
       await setProgress(40, "Compiling attendance note via derivation engine...");
 
+      if (practiceAreaNeedsRelationshipDurations(metadata.practiceArea)) {
+        try {
+          const durationResult = await extractAndComputeRelationshipDurations(
+            transcriptForDocGen,
+            {
+              asOfIso: metadata.recordingDateIso ?? toIsoDate(new Date()),
+              clientName: metadata.clientName,
+              matterReference: metadata.matterReference,
+              title: metadata.title,
+            },
+          );
+          metadata.relationshipDurations = durationResult.durations;
+        } catch (durationError) {
+          console.warn(
+            "[produceDocumentVersion] Relationship duration extraction failed; continuing without duration facts:",
+            durationError,
+          );
+        }
+      }
+
       const attendanceRevision = {
         previousContent: parent.content,
         reason: reason?.trim() || undefined,
@@ -328,7 +354,11 @@ export async function produceDocumentVersion(params: {
       const verification = await documentService.verifyDocumentAgainstTranscript(
         attendanceResult.content,
         transcriptForDocGen,
-        { clientName: metadata.clientName, feeEarnerName: metadata.feeEarnerName },
+        {
+          clientName: metadata.clientName,
+          feeEarnerName: metadata.feeEarnerName,
+          relationshipDurations: metadata.relationshipDurations,
+        },
       );
 
       const attendanceVersion = await storage.createDocumentVersion(
