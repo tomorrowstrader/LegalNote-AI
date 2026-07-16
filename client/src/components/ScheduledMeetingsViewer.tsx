@@ -747,6 +747,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
 export function ScheduledMeetingsViewer() {
   const { toast } = useToast();
   const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const { data: meetings, isLoading, error, refetch } = useQuery<ScheduledMeeting[]>({
     queryKey: ['/api/scheduled-meetings'],
@@ -777,8 +778,14 @@ export function ScheduledMeetingsViewer() {
     },
   });
   
-  const handleRefresh = () => {
-    refetch();
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
   };
   
   if (error) {
@@ -820,10 +827,12 @@ export function ScheduledMeetingsViewer() {
               variant="outline" 
               size="sm" 
               onClick={handleRefresh}
-              disabled={isLoading}
+              disabled={isRefreshing || isLoading}
+              aria-busy={isRefreshing}
+              aria-label={isRefreshing ? 'Refreshing meetings' : 'Refresh meetings'}
               data-testid="button-refresh-meetings"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
             <Button 
               size="sm" 
