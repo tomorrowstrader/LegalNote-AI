@@ -117,20 +117,35 @@ const DERIVE_ASSERTIONS: DeriveAssertionSpec[] = [
   },
   {
     id: 'relationship-duration',
-    contextPatterns: [/relationship.{0,40}(since|began|together)/i, /together since 2009/i, /met in 2009/i],
-    valuePatterns: [
-      /\b(?:approximately|about|some|around|circa)\s*17\s*(?:years?|yrs?)\b/i,
-      /\b17[- ]year/i,
+    contextPatterns: [
+      /relationship.{0,40}(since|began|together|span|duration)/i,
+      /total relationship/i,
+      /together since 2009/i,
+      /met in 2009/i,
     ],
-    wrongPatterns: [/\b(?:approximately|about)\s*1[0-6]\s*(?:years?|yrs?)\b/i],
+    // Strict rule: no stated cohabitation/household start → span cannot be established.
+    // PASS if the note records that; ABSENT (raw "met in 2009" without inventing years) is also acceptable.
+    // Inventing ~17 or marriage-years-as-span (~10) is WRONG.
+    valuePatterns: [/could not be established/i],
+    wrongPatterns: [
+      /\b(?:approximately|about|some|around|circa)\s*\d+\s*(?:years?|yrs?)\b/i,
+      /\b\d+[- ]year/i,
+    ],
     valueShape: 'duration',
   },
   {
     id: 'cohabitation-pre-marriage',
-    contextPatterns: [/cohabit/i, /before the marriage/i, /prior to marriage/i, /2009.{0,40}June 2015/i],
-    valuePatterns: [
-      /\b(?:approximately|about|some|around|circa)\s*6\s*(?:years?|yrs?)\b/i,
-      /\b6[- ]year/i,
+    contextPatterns: [
+      /cohabit/i,
+      /before the marriage/i,
+      /prior to marriage/i,
+      /pre-marital cohabitation/i,
+    ],
+    // Strict rule: "met / been together" is not cohabitation. Expect honesty, not ~6 years.
+    valuePatterns: [/could not be established/i],
+    wrongPatterns: [
+      /\b(?:approximately|about|some|around|circa)\s*\d+\s*(?:years?|yrs?)\b/i,
+      /\b\d+[- ]year/i,
     ],
     valueShape: 'duration',
   },
