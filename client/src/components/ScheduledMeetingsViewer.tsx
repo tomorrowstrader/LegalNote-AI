@@ -753,6 +753,16 @@ export function ScheduledMeetingsViewer() {
     queryKey: ['/api/scheduled-meetings'],
     refetchInterval: 30000,
   });
+
+  const { data: connections, isPending: isConnectionsPending } = useQuery<{
+    google: { connected: boolean; email?: string };
+    outlook?: { connected: boolean; email?: string };
+  }>({
+    queryKey: ['/api/oauth/connections'],
+  });
+
+  const calendarConnected =
+    !!connections?.google?.connected || !!connections?.outlook?.connected;
   
   const syncMutation = useMutation({
     mutationFn: async () => {
@@ -760,23 +770,32 @@ export function ScheduledMeetingsViewer() {
     },
     onSuccess: (data: any) => {
       toast({ 
-        title: "Calendar synced", 
+        title: "Meetings refreshed", 
         description: `Found ${data.meetings?.length || 0} upcoming meetings` 
       });
       queryClient.invalidateQueries({ queryKey: ['/api/scheduled-meetings'] });
     },
     onError: (error: any) => {
       if (error.message?.includes('not connected') || error.needsCalendarConnection) {
+        queryClient.invalidateQueries({ queryKey: ['/api/oauth/connections'] });
         setShowCalendarModal(true);
       } else {
         toast({ 
-          title: "Sync failed", 
+          title: "Refresh failed", 
           description: error.message,
           variant: "destructive"
         });
       }
     },
   });
+
+  const handleCalendarAction = () => {
+    if (!calendarConnected) {
+      setShowCalendarModal(true);
+      return;
+    }
+    syncMutation.mutate();
+  };
   
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -823,30 +842,32 @@ export function ScheduledMeetingsViewer() {
             Upcoming Meetings
           </CardTitle>
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleRefresh}
-              disabled={isRefreshing || isLoading}
-              aria-busy={isRefreshing}
-              aria-label={isRefreshing ? 'Refreshing meetings' : 'Refresh meetings'}
-              data-testid="button-refresh-meetings"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button 
-              size="sm" 
-              onClick={() => syncMutation.mutate()}
-              disabled={syncMutation.isPending}
-              data-testid="button-sync-calendar"
-            >
-              {syncMutation.isPending ? (
+            {isConnectionsPending ? (
+              <Button
+                size="sm"
+                disabled
+                aria-busy
+                aria-label="Checking calendar connection"
+                data-testid="button-calendar-connection-loading"
+              >
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4 mr-2" />
-              )}
-              Sync Calendar
-            </Button>
+                Checking…
+              </Button>
+            ) : (
+              <Button 
+                size="sm" 
+                onClick={handleCalendarAction}
+                disabled={syncMutation.isPending}
+                data-testid={calendarConnected ? "button-refresh-calendar-meetings" : "button-sync-calendar"}
+              >
+                {syncMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                {calendarConnected ? "Refresh Meetings" : "Sync Calendar"}
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
