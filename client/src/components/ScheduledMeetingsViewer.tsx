@@ -44,6 +44,18 @@ import { isFeatureVisible } from "@/lib/features";
 
 type MeetingAttendee = { email: string; name?: string; responseStatus?: string };
 
+/** Returns a normalized https URL, or null if missing/malformed/non-https (calendar-sourced, user-controlled). */
+function getSafeHttpsMeetingUrl(raw: string | null | undefined): string | null {
+  if (!raw || typeof raw !== "string") return null;
+  try {
+    const parsed = new URL(raw.trim());
+    if (parsed.protocol !== "https:") return null;
+    return parsed.href;
+  } catch {
+    return null;
+  }
+}
+
 function getMeetingAttendees(meeting: ScheduledMeeting): MeetingAttendee[] {
   if (!Array.isArray(meeting.attendees)) return [];
   return meeting.attendees.filter(
@@ -383,6 +395,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
 
   const attendees = getMeetingAttendees(meeting);
+  const safeJoinUrl = getSafeHttpsMeetingUrl(meeting.meetingUrl);
   
   const startTime = new Date(meeting.startTime);
   const isMeetingSoon = !isPast(startTime) && startTime.getTime() - Date.now() < 30 * 60 * 1000;
@@ -510,7 +523,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
               {getBotStatusBadge(meeting.botStatus)}
               {getPlatformIcon(meeting.meetingPlatform)}
               
-              {isActive && !meeting.meetingUrl && (
+              {isActive && !safeJoinUrl && (
                 <Badge variant="outline" className="text-orange-600 border-orange-300">
                   <AlertCircle className="w-3 h-3 mr-1" /> No URL
                 </Badge>
@@ -551,8 +564,18 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                   <Briefcase className="w-3 h-3 mr-1" />
                   {meeting.caseId ? 'Change Case' : 'Link Case'}
                 </Button>
-                
-                {!meeting.meetingUrl && (
+
+                {safeJoinUrl ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.open(safeJoinUrl, '_blank', 'noopener,noreferrer')}
+                    data-testid={`button-join-meeting-${meeting.id}`}
+                  >
+                    <Video className="w-3 h-3 mr-1" />
+                    Join meeting
+                  </Button>
+                ) : (
                   <Dialog open={showUrlDialog} onOpenChange={setShowUrlDialog}>
                     <DialogTrigger asChild>
                       <Button size="sm" variant="outline" data-testid={`button-set-url-${meeting.id}`}>
