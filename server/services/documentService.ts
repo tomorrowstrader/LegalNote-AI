@@ -457,6 +457,8 @@ export interface CaseMetadata {
   matterReference?: string;
   /** UK long-form meeting date, e.g. "8 April 2026" */
   recordingDate: string;
+  /** Meeting/recording date as YYYY-MM-DD — as-of anchor for relative date extraction */
+  recordingDateIso?: string;
   /** UK long-form date the note was prepared */
   datePrepared?: string;
   meetingStartTime?: string;

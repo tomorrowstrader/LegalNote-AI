@@ -2,6 +2,7 @@ import { AssemblyAIService, formatDiarizedTranscript, type SpeakerUtterance } fr
 import { DocumentService, type CaseMetadata } from './documentService';
 import { logDocumentGovernanceViolations } from './documentGovernanceGate';
 import { TranscriptCorrectionService } from './transcriptCorrectionService';
+import { toIsoDate } from './relationshipDateExtraction';
 import { IStorage } from '../storage';
 import { logAuditEvent } from '../auditMiddleware';
 import { buildKeytermsConfig } from './legalVocabulary';
@@ -131,6 +132,7 @@ async function buildDocumentGenerationMetadata(
     recordingDate: meetingTimestamp
       ? formatUkLongDate(meetingTimestamp)
       : formatUkLongDate(new Date()),
+    recordingDateIso: toIsoDate(meetingTimestamp ?? new Date()),
     datePrepared: formatUkLongDate(new Date()),
     meetingStartTime: meetingTimestamp ? format24HourTime(meetingTimestamp) : undefined,
     durationDisplay,
