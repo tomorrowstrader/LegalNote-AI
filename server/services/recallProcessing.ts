@@ -89,6 +89,14 @@ async function getBotStatusCode(botId: string): Promise<string | null> {
 export async function processBotRecording(importRecord: MeetingImport): Promise<void> {
   const { id: importId, recallBotId: botId, caseId, userId } = importRecord;
 
+  if (
+    importRecord.botStatus === 'left_consent_declined' ||
+    (typeof importRecord.errorMessage === 'string' && importRecord.errorMessage.includes('declined consent'))
+  ) {
+    console.log(`[RecallProcessing] Import ${importId} consent declined — skipping processing`);
+    return;
+  }
+
   if (!botId) {
     console.warn(`[RecallProcessing] Import ${importId} has no botId — skipping`);
     return;
@@ -162,6 +170,13 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
   const fresh = await storage.getMeetingImport(importId);
   if (!fresh || !['live', 'pending', 'failed'].includes(fresh.status)) {
     console.log(`[RecallProcessing] Import ${importId} already in status "${fresh?.status}" — skipping`);
+    return;
+  }
+  if (
+    fresh.botStatus === 'left_consent_declined' ||
+    (typeof fresh.errorMessage === 'string' && fresh.errorMessage.includes('declined consent'))
+  ) {
+    console.log(`[RecallProcessing] Import ${importId} consent declined — skipping processing`);
     return;
   }
 

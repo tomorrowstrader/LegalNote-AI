@@ -9056,20 +9056,44 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         elapsedLabel = m > 0 ? `${m}m ${s}s` : `${s}s`;
       }
 
+      // Eject the bot immediately — solicitor must not have to remove it manually
+      let botLeft = false;
+      let leaveError: string | undefined;
+      if (importData.recallBotId) {
+        try {
+          const { recallService } = await import("./services/recallService");
+          await recallService.leaveCall(importData.recallBotId);
+          botLeft = true;
+        } catch (err) {
+          leaveError = err instanceof Error ? err.message : String(err);
+          console.error(`[Recall] leaveCall failed on consent decline for bot ${importData.recallBotId}:`, leaveError);
+        }
+      }
+
+      await storage.updateMeetingImport(importData.id, {
+        status: 'failed',
+        botStatus: botLeft ? 'left_consent_declined' : (importData.botStatus || 'consent_declined'),
+        errorMessage: 'Client declined consent — bot removed from call',
+        consentConfirmed: false,
+      });
+
       await storage.createAuditLog({
         eventType: 'consent_declined',
         userId,
         caseId: importData.caseId || undefined,
         metadata: {
           importId: importData.id,
+          botId: importData.recallBotId,
           declinedAt: new Date().toISOString(),
           source: 'in_meeting_live_panel',
+          botLeft,
+          ...(leaveError ? { leaveError } : {}),
           ...(elapsedLabel ? { elapsedIntoRecording: elapsedLabel } : {}),
         },
-        severity: 'warn',
+        severity: 'warning',
       });
 
-      res.json({ success: true });
+      res.json({ success: true, botLeft, leaveError });
     } catch (error) {
       next(error);
     }
@@ -9359,14 +9383,34 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       };
 
       const statusCode = eventStatusMap[event] || event.replace('bot.', '');
-      await storage.updateMeetingImport(importRecord.id, { botStatus: statusCode });
+
+      // Don't clobber a consent-decline ejection with later lifecycle events
+      const alreadyDeclined =
+        importRecord.botStatus === 'left_consent_declined' ||
+        (typeof importRecord.errorMessage === 'string' && importRecord.errorMessage.includes('declined consent'));
+      if (!alreadyDeclined) {
+        await storage.updateMeetingImport(importRecord.id, { botStatus: statusCode });
+      }
 
       // bot.done = recording fully ready — trigger processing pipeline
+      // Skip if solicitor already ejected the bot after consent was declined
       if (event === 'bot.done' || statusCode === 'done') {
-        const { processBotRecording } = await import("./services/recallProcessing");
-        processBotRecording(importRecord).catch((err: Error) => {
-          console.error('[Recall webhook] processBotRecording error:', err.message);
-        });
+        if (alreadyDeclined) {
+          console.log(`[Recall webhook] Import ${importRecord.id} consent declined — skipping processing`);
+        } else {
+          const fresh = await storage.getMeetingImport(importRecord.id);
+          const declinedAfter =
+            fresh?.botStatus === 'left_consent_declined' ||
+            (typeof fresh?.errorMessage === 'string' && fresh.errorMessage.includes('declined consent'));
+          if (declinedAfter) {
+            console.log(`[Recall webhook] Import ${importRecord.id} consent declined — skipping processing`);
+          } else {
+            const { processBotRecording } = await import("./services/recallProcessing");
+            processBotRecording(fresh || importRecord).catch((err: Error) => {
+              console.error('[Recall webhook] processBotRecording error:', err.message);
+            });
+          }
+        }
       }
 
       // bot.fatal = unrecoverable error

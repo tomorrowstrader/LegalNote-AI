@@ -45,6 +45,8 @@ import { CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
 interface LiveBotModalProps {
   caseId?: string | null;
   caseTitle?: string;
+  /** Prefill the meeting URL (e.g. from an upcoming scheduled meeting). */
+  initialMeetingUrl?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -82,6 +84,7 @@ const STATUS_LABELS: Record<string, string> = {
   call_ended: "Call ended — collecting recording",
   done: "Recording complete",
   fatal: "Bot encountered an error",
+  left_consent_declined: "Left call — consent declined",
 };
 
 const ACTIVE_STATUSES = new Set([
@@ -106,7 +109,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   meet: "Google Meet",
 };
 
-export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotModalProps) {
+export function LiveBotModal({ caseId, caseTitle, initialMeetingUrl, open, onOpenChange }: LiveBotModalProps) {
   const { toast } = useToast();
   const [step, setStep] = useState<Step>(caseId ? "url" : "select_case");
   const [meetingUrl, setMeetingUrl] = useState("");
@@ -376,7 +379,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
         elapsedSeconds: recordingElapsed,
       });
     },
-    onSuccess: (_, consented) => {
+    onSuccess: (data, consented) => {
       if (consented) {
         consentObtainedRef.current = true;
         setConsentObtained(true);
@@ -385,6 +388,14 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
         if (cid) queryClient.invalidateQueries({ queryKey: [`/api/cases/${cid}/live-import`] });
       } else {
         setConsentDeclined(true);
+        const left = (data as { botLeft?: boolean } | undefined)?.botLeft === true;
+        toast({
+          title: left ? "LegalNote is leaving the call" : "Consent declined",
+          description: left
+            ? "Client declined consent. The bot is being removed from the meeting now — you don't need to eject it manually."
+            : "Consent decline was recorded. If the bot is still visible, remove it from the meeting or contact support.",
+          duration: 6000,
+        });
       }
     },
   });
@@ -421,9 +432,24 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
     deployMutation.mutate();
   };
 
+  // Prefill from upcoming-meeting / scheduled join so solicitor must still press Send to Call
+  useEffect(() => {
+    if (!open) return;
+    const url = (initialMeetingUrl || "").trim();
+    if (!url) return;
+    setMeetingUrl(url);
+    const detected = detectPlatform(url);
+    setPlatform(detected);
+    if (caseId || selectedCaseId) {
+      setStep(detected ? "consent" : "url");
+    } else {
+      setStep("select_case");
+    }
+  }, [open, initialMeetingUrl, caseId]);
+
   const handleClose = () => {
     // If in-meeting consent mode and consent not yet obtained, warn but don't block
-    if (step === "live") {
+    if (step === "live" && !consentDeclined) {
       toast({
         title: "Bot still running",
         description: "LegalNote is still recording. This window will close but the bot will continue until the call ends.",
@@ -435,9 +461,11 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
   };
 
   const resetState = () => {
-    setStep(caseId ? "url" : "select_case");
-    setMeetingUrl("");
-    setPlatform(null);
+    const url = (initialMeetingUrl || "").trim();
+    const detected = url ? detectPlatform(url) : null;
+    setStep(caseId ? (detected ? "consent" : "url") : "select_case");
+    setMeetingUrl(url);
+    setPlatform(detected);
     setConsentMode("pre_confirmed");
     setImportId(null);
     setBotId(null);
@@ -602,6 +630,7 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
             <div className="p-3 bg-muted/40 rounded-md text-xs text-muted-foreground space-y-1">
               <p className="font-medium text-foreground">How it works</p>
               <p>LegalNote will join the call as a participant named "LegalNote". When the call ends, the recording is transcribed and your attendance note is produced automatically.</p>
+              <p className="font-medium text-amber-700 dark:text-amber-400 pt-1">Nothing is recording until you press Send LegalNote to Call on the next step.</p>
             </div>
 
             <Button
@@ -621,6 +650,13 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
               <Shield className="h-4 w-4" />
               <AlertDescription>
                 <strong>GDPR — Recording consent required.</strong> Choose how you will obtain consent from all participants.
+              </AlertDescription>
+            </Alert>
+
+            <Alert className="border-amber-500/40 bg-amber-500/5">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription>
+                <strong>LegalNote is not in the call yet.</strong> Press <strong>Send LegalNote to Call</strong> below — then admit &quot;LegalNote&quot; if there is a waiting room. Opening the meeting without sending the bot means the call will not be recorded.
               </AlertDescription>
             </Alert>
 
@@ -690,9 +726,9 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
                 data-testid="button-send-bot"
               >
                 {deployMutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</>
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending LegalNote...</>
                 ) : (
-                  "Send to Call"
+                  "Send LegalNote to Call"
                 )}
               </Button>
             </div>
@@ -820,67 +856,22 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
               </div>
             )}
 
-            {/* Consent declined indicator + recovery send-link option */}
+            {/* Consent declined — bot is ejected automatically */}
             {consentDeclined && (
               <div className="space-y-2" data-testid="alert-consent-declined">
                 <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-md">
                   <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-destructive font-medium">Client declined consent</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">The client's refusal has been noted. You can still send a digital consent link for them to review.</p>
+                    <p className="text-sm text-destructive font-medium">Client declined consent — LegalNote is leaving</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      The refusal has been logged. The bot is being removed from the call automatically. No attendance note will be produced from this session.
+                    </p>
                   </div>
                 </div>
-                {!consentLinkSent && (
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => setShowSendConsentLink(s => !s)}
-                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      data-testid="button-toggle-send-consent-link-declined"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      Send a digital consent link
-                      {showSendConsentLink ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                    </button>
-                    {showSendConsentLink && (
-                      <div className="mt-2 space-y-2">
-                        <Input
-                          placeholder="Client email or mobile number"
-                          value={consentLinkContact}
-                          onChange={e => setConsentLinkContact(e.target.value)}
-                          data-testid="input-consent-link-contact-declined"
-                        />
-                        <Input
-                          placeholder="Client name (optional)"
-                          value={consentLinkName}
-                          onChange={e => setConsentLinkName(e.target.value)}
-                          data-testid="input-consent-link-name-declined"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full gap-2"
-                          disabled={!consentLinkContact.trim() || sendConsentLinkMutation.isPending}
-                          onClick={() => sendConsentLinkMutation.mutate()}
-                          data-testid="button-send-consent-link-declined"
-                        >
-                          {sendConsentLinkMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                          Send Consent Link
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {consentLinkSent && (
-                  <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Consent link sent to {consentLinkContact}
-                  </p>
-                )}
               </div>
             )}
 
-            {botPoll?.participants && botPoll.participants.length > 0 && (
+            {botPoll?.participants && botPoll.participants.length > 0 && !consentDeclined && (
               <div className="space-y-1.5">
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                   <Users className="w-3.5 h-3.5" /> Participants in call
@@ -893,13 +884,15 @@ export function LiveBotModal({ caseId, caseTitle, open, onOpenChange }: LiveBotM
               </div>
             )}
 
-            <div className="flex items-center gap-2 text-xs text-muted-foreground p-3 bg-muted/30 rounded-md">
-              <Clock className="w-3.5 h-3.5 shrink-0" />
-              <span>You can close this panel — LegalNote will continue recording and process the transcript automatically when the call ends.</span>
-            </div>
+            {!consentDeclined && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground p-3 bg-muted/30 rounded-md">
+                <Clock className="w-3.5 h-3.5 shrink-0" />
+                <span>You can close this panel — LegalNote will continue recording and process the transcript automatically when the call ends.</span>
+              </div>
+            )}
 
             <Button variant="outline" className="w-full" onClick={handleClose} data-testid="button-close-live">
-              Close panel (bot stays active)
+              {consentDeclined ? "Close" : "Close panel (bot stays active)"}
             </Button>
           </div>
         )}

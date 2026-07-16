@@ -188,6 +188,13 @@ export class RecallService {
   async getBot(botId: string): Promise<RecallBotResponse> {
     return this.apiRequest<RecallBotResponse>(`/bot/${botId}/`);
   }
+
+  /** Remove a live bot from the meeting immediately. Irreversible. */
+  async leaveCall(botId: string): Promise<RecallBotResponse> {
+    return this.apiRequest<RecallBotResponse>(`/bot/${botId}/leave_call/`, {
+      method: 'POST',
+    });
+  }
   
   async listBots(limit: number = 50): Promise<RecallBotListResponse> {
     return this.apiRequest<RecallBotListResponse>(`/bot/?limit=${limit}&ordering=-created_at`);

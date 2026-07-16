@@ -42,6 +42,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { isFeatureVisible } from "@/lib/features";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
+import { LiveBotModal } from "@/components/LiveBotModal";
 
 type MeetingAttendee = { email: string; name?: string; responseStatus?: string };
 
@@ -382,6 +383,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   const [showCaseDialog, setShowCaseDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [showLiveBotModal, setShowLiveBotModal] = useState(false);
 
   const attendees = getMeetingAttendees(meeting);
   const safeJoinUrl = getSafeHttpsMeetingUrl(meeting.meetingUrl);
@@ -557,12 +559,17 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                 {safeJoinUrl ? (
                   <Button
                     size="sm"
-                    variant="outline"
-                    onClick={() => window.open(safeJoinUrl, '_blank', 'noopener,noreferrer')}
-                    data-testid={`button-join-meeting-${meeting.id}`}
+                    onClick={() => {
+                      if (meeting.recallBotId) {
+                        window.open(safeJoinUrl, '_blank', 'noopener,noreferrer');
+                      } else {
+                        setShowLiveBotModal(true);
+                      }
+                    }}
+                    data-testid={`button-join-with-legalnote-${meeting.id}`}
                   >
                     <Video className="w-3 h-3 mr-1" />
-                    Join meeting
+                    {meeting.recallBotId ? 'Join meeting' : 'Join with LegalNote'}
                   </Button>
                 ) : (
                   <Dialog open={showUrlDialog} onOpenChange={setShowUrlDialog}>
@@ -718,6 +725,13 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
         meeting={meeting}
         open={showCaseDialog}
         onOpenChange={setShowCaseDialog}
+      />
+      <LiveBotModal
+        open={showLiveBotModal}
+        onOpenChange={setShowLiveBotModal}
+        caseId={meeting.caseId}
+        caseTitle={linkedCase?.title || meeting.title}
+        initialMeetingUrl={safeJoinUrl}
       />
       <CancelMeetingDialog
         meeting={meeting}
