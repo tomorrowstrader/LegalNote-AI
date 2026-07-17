@@ -139,19 +139,29 @@ async function getAccessToken(): Promise<string> {
       getPrivateKey(),
       expiresIn,
     );
-    const accessToken = results.body.access_token;
+    const accessToken = results?.body?.access_token as string | undefined;
+    if (!accessToken) {
+      throw new Error("DocuSign JWT auth succeeded but returned no access token");
+    }
     cachedToken = {
       accessToken,
       expiresAtMs: now + expiresIn * 1000,
     };
     return accessToken;
   } catch (error: unknown) {
-    const message =
-      error && typeof error === "object" && "response" in error
-        ? JSON.stringify((error as { response?: { body?: unknown } }).response?.body)
-        : error instanceof Error
-          ? error.message
-          : String(error);
+    let message = "";
+    if (error && typeof error === "object" && "response" in error) {
+      const body = (error as { response?: { body?: unknown; text?: string } }).response?.body;
+      const text = (error as { response?: { text?: string } }).response?.text;
+      if (body !== undefined) {
+        message = typeof body === "string" ? body : JSON.stringify(body);
+      } else if (typeof text === "string") {
+        message = text;
+      }
+    }
+    if (!message) {
+      message = error instanceof Error ? error.message : String(error);
+    }
     if (message.includes("consent_required")) {
       const oauthHost =
         process.env.DOCUSIGN_OAUTH_BASE_PATH || "account-d.docusign.com";
@@ -162,7 +172,11 @@ async function getAccessToken(): Promise<string> {
       (err as Error & { statusCode?: number }).statusCode = 503;
       throw err;
     }
-    throw error;
+    const err = new Error(
+      message || "DocuSign authentication failed. Check DOCUSIGN_* environment variables and JWT consent.",
+    );
+    (err as Error & { statusCode?: number }).statusCode = 502;
+    throw err;
   }
 }
 

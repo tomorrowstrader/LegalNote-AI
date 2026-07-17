@@ -193,7 +193,7 @@ export default function DpaPage() {
                   name="firmName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Firm legal name</FormLabel>
+                      <FormLabel>Company legal name</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -272,7 +272,7 @@ export default function DpaPage() {
                   name="signerName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Signer full name</FormLabel>
+                      <FormLabel>Company signatory name</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -290,7 +290,7 @@ export default function DpaPage() {
                   name="signerTitle"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Job title</FormLabel>
+                      <FormLabel>Company signatory title</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -309,7 +309,7 @@ export default function DpaPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>Company signatory email</FormLabel>
                       <FormControl>
                         <Input
                           {...field}

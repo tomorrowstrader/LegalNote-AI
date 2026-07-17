@@ -105,6 +105,9 @@ export async function buildDpaDocxBase64(
   }
 
   let xml = await docFile.async("string");
+  if (!xml) {
+    throw new Error("Invalid DPA master template: empty word/document.xml");
+  }
   const effectiveDate =
     input.effectiveDate || new Date().toISOString().slice(0, 10);
 
