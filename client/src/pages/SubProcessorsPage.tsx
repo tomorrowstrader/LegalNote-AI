@@ -49,18 +49,18 @@ export default function SubProcessorsPage() {
           className="prose prose-lg max-w-none"
         >
           <h1
-            className="text-4xl font-medium text-[hsl(25,30%,12%)] mb-2"
+            className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2"
             data-testid="heading-subprocessors"
           >
             Sub-processor List
           </h1>
-          <p className="text-[hsl(25,20%,45%)] mb-8">
+          <p className="text-[hsl(25,20%,45%)] dark:text-muted-foreground mb-8">
             Last updated: July 2026 · Version 3.0
           </p>
 
-          <div className="space-y-8 text-[hsl(25,20%,30%)]">
+          <div className="space-y-8 text-[hsl(25,20%,30%)] dark:text-foreground">
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
                 Overview
               </h2>
               <p className="leading-relaxed mb-4">
@@ -84,7 +84,7 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
                 Core privileged processing
               </h2>
               <LegalTable
@@ -124,7 +124,7 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
                 Infrastructure
               </h2>
               <LegalTable
@@ -158,7 +158,7 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
                 Identity, communications and payments
               </h2>
               <LegalTable
@@ -198,7 +198,7 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
                 Optional practice integrations
               </h2>
               <LegalTable
@@ -215,30 +215,7 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
-                Explicitly not used
-              </h2>
-              <LegalTable
-                headers={["Former item", "Current status"]}
-                rows={[
-                  [
-                    "OpenAI for privileged document generation",
-                    "Not used in production privileged paths. Production requires AWS Bedrock (EU). OpenAI appears only in non-production test tooling and is not a production sub-processor.",
-                  ],
-                  [
-                    "Resend for transactional email",
-                    "Removed. Transactional email now runs on AWS SES (eu-west-2, London).",
-                  ],
-                  [
-                    "Replit Auth as live authentication",
-                    "Not used. Live authentication is Google/Microsoft OAuth with connect.sid sessions; the filename replitAuth.ts is historical.",
-                  ],
-                ]}
-              />
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
                 Data residency summary
               </h2>
               <LegalTable
@@ -282,7 +259,7 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
                 International transfer safeguards
               </h2>
               <p className="leading-relaxed">
@@ -297,26 +274,6 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
-                Change log
-              </h2>
-              <LegalTable
-                headers={["Date", "Change"]}
-                rows={[
-                  [
-                    "July 2026",
-                    "Resend removed; AWS SES added for transactional email (eu-west-2).",
-                  ],
-                  [
-                    "July 2026",
-                    "Neon (Databricks) and Railway DPAs executed; regions confirmed (Neon London, Railway Amsterdam).",
-                  ],
-                  [
-                    "July 2026",
-                    "Recall.ai region confirmed EU (Frankfurt).",
-                  ],
-                ]}
-              />
               <p className="leading-relaxed mt-6 mb-4">
                 LegalNote Technologies Ltd (No. 16788981), 71–75 Shelton Street,
                 Covent Garden, London WC2H 9JQ, United Kingdom. Contact:{" "}

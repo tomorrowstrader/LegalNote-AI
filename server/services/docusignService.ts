@@ -165,9 +165,13 @@ async function getAccessToken(): Promise<string> {
         process.env.DOCUSIGN_OAUTH_BASE_PATH || "account-d.docusign.com";
       const consentUrl = `https://${oauthHost}/oauth/auth?response_type=code&scope=signature%20impersonation&client_id=${integrationKey}&redirect_uri=https://www.docusign.com`;
       const err = new Error(
-        `DocuSign JWT consent required. An admin must grant consent once: ${consentUrl}`,
+        "DocuSign JWT consent required. Open the consent link once, approve access, then retry signing.",
       );
-      (err as Error & { statusCode?: number }).statusCode = 503;
+      Object.assign(err, {
+        statusCode: 503,
+        code: "DOCUSIGN_CONSENT_REQUIRED",
+        consentUrl,
+      });
       throw err;
     }
     const err = new Error(

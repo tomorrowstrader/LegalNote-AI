@@ -23,6 +23,10 @@ import { apiRequest, getApiErrorMessage } from "@/lib/queryClient";
 const linkClass = "text-[hsl(18,65%,45%)] hover:underline";
 
 type DpaStatus = { enabled: boolean; available: boolean };
+type DpaFormError = {
+  message: string;
+  consentUrl?: string;
+};
 
 function getRefFromUrl(search: string): string {
   const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
@@ -32,7 +36,7 @@ function getRefFromUrl(search: string): string {
 export default function DpaPage() {
   const search = useSearch();
   const refFromUrl = getRefFromUrl(search);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<DpaFormError | null>(null);
 
   useEffect(() => {
     document.title = "Data Processing Agreement - LegalNote";
@@ -79,7 +83,27 @@ export default function DpaPage() {
       window.location.href = result.signingUrl;
     },
     onError: (error) => {
-      setFormError(getApiErrorMessage(error, "Unable to start signing. Please try again."));
+      const raw = error instanceof Error ? error.message : "";
+      const withoutStatus = raw.replace(/^\d{3}:\s*/, "").trim();
+      try {
+        const parsed = JSON.parse(withoutStatus);
+        if (
+          parsed?.code === "DOCUSIGN_CONSENT_REQUIRED" &&
+          typeof parsed?.consentUrl === "string"
+        ) {
+          setFormError({
+            message:
+              "DocuSign needs one-time JWT consent before embedded signing can start.",
+            consentUrl: parsed.consentUrl,
+          });
+          return;
+        }
+      } catch {
+        // Fall through to the shared user-facing parser.
+      }
+      setFormError({
+        message: getApiErrorMessage(error, "Unable to start signing. Please try again."),
+      });
     },
   });
 
@@ -293,13 +317,23 @@ export default function DpaPage() {
                 ) : null}
 
                 {formError && (
-                  <p
-                    className="text-sm text-red-700"
+                  <div
+                    className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
                     role="alert"
                     data-testid="text-dpa-error"
                   >
-                    {formError}
-                  </p>
+                    <p>{formError.message}</p>
+                    {formError.consentUrl && (
+                      <a
+                        href={formError.consentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-block underline"
+                      >
+                        Grant DocuSign JWT consent
+                      </a>
+                    )}
+                  </div>
                 )}
 
                 <Button

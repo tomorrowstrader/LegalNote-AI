@@ -64,7 +64,7 @@ export function LegalPageFooter() {
 }
 
 const tableClass =
-  "w-full text-left text-sm border-collapse my-4 [&_th]:border [&_td]:border [&_th]:border-[hsl(25,15%,85%)] [&_td]:border-[hsl(25,15%,85%)] [&_th]:bg-[hsl(30,20%,94%)] [&_th]:px-3 [&_th]:py-2 [&_td]:px-3 [&_td]:py-2 [&_th]:font-medium [&_th]:text-[hsl(25,30%,15%)]";
+  "w-full text-left text-sm border-collapse my-4 text-[hsl(25,20%,30%)] dark:text-foreground [&_th]:border [&_td]:border [&_th]:border-[hsl(25,15%,85%)] [&_td]:border-[hsl(25,15%,85%)] dark:[&_th]:border-border dark:[&_td]:border-border [&_th]:bg-[hsl(30,20%,94%)] dark:[&_th]:bg-card [&_th]:px-3 [&_th]:py-2 [&_td]:px-3 [&_td]:py-2 [&_th]:font-medium [&_th]:text-[hsl(25,30%,15%)] dark:[&_th]:text-foreground dark:[&_td]:bg-background/40";
 
 export function LegalTable({
   headers,

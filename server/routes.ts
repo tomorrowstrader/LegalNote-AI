@@ -913,8 +913,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           ? Number((error as { statusCode?: number }).statusCode)
           : undefined;
       if (statusCode === 503 || statusCode === 502) {
+        const typedError = error as {
+          code?: string;
+          consentUrl?: string;
+        };
         return res.status(statusCode).json({
           message: error instanceof Error ? error.message : "DPA signing unavailable",
+          code: typedError.code,
+          consentUrl: typedError.consentUrl,
         });
       }
       console.error("[DPA] start failed:", error);
