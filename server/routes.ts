@@ -868,13 +868,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const baseUrl = getCanonicalBaseUrl(req);
       const returnUrl = `${baseUrl}/dpa/complete`;
 
-      const address = `${parsed.data.addressLine1}, ${parsed.data.postcode}`;
-
       const session = await startDpaSigningSession(
         {
           firmName: parsed.data.firmName,
-          addressLine1: parsed.data.addressLine1,
-          postcode: parsed.data.postcode,
           sraNumber: parsed.data.sraNumber,
           signerName: parsed.data.signerName,
           signerTitle: parsed.data.signerTitle,
@@ -892,8 +888,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           signerName: parsed.data.signerName,
           signerTitle: parsed.data.signerTitle,
           companyNumber: null,
-          address,
-          sraNumber: parsed.data.sraNumber,
+          address: null,
+          sraNumber: parsed.data.sraNumber || null,
           ref: parsed.data.ref || null,
           status: "sent",
           clientUserId,

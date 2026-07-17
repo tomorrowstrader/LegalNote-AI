@@ -53,7 +53,7 @@ On each signing start the server replaces:
 | `[Date of signature]` | Start date (YYYY-MM-DD) |
 | Firm `Name:` / `Title:` | Signer name / job title |
 
-The Companies House `(No. [company number])` clause is removed from the party line when preparing the DocuSign document. Address line 1 + postcode are collected on the form for tracking and are not printed into the master Word party block.
+The Companies House `(No. [company number])` clause is removed from the party line when preparing the DocuSign document. Address is not collected on the public form.
 
 DocuSign anchor tabs (inserted into the Firm signature cells):
 

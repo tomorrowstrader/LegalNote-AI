@@ -54,12 +54,10 @@ export default function DpaPage() {
     resolver: zodResolver(dpaStartRequestSchema),
     defaultValues: {
       firmName: "",
-      addressLine1: "",
-      postcode: "",
-      sraNumber: "",
       signerName: "",
       signerTitle: "",
       email: "",
+      sraNumber: "",
       ref: refFromUrl || undefined,
     },
   });
@@ -188,12 +186,16 @@ export default function DpaPage() {
                 className="space-y-5 max-w-xl"
                 data-testid="form-dpa-start"
               >
+                <h3 className="text-lg font-medium text-[hsl(25,30%,15%)]">
+                  Company Information
+                </h3>
+
                 <FormField
                   control={form.control}
                   name="firmName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Company legal name</FormLabel>
+                      <FormLabel>Company Legal Name</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -209,70 +211,10 @@ export default function DpaPage() {
 
                 <FormField
                   control={form.control}
-                  name="addressLine1"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Address line 1</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="Street address"
-                          autoComplete="address-line1"
-                          disabled={formDisabled}
-                          data-testid="input-address-line1"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="postcode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Postcode</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="SW1A 1AA"
-                          autoComplete="postal-code"
-                          className="max-w-[12rem]"
-                          disabled={formDisabled}
-                          data-testid="input-postcode"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="sraNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>SRA No.</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="Solicitors Regulation Authority number"
-                          disabled={formDisabled}
-                          data-testid="input-sra-number"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
                   name="signerName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Company signatory name</FormLabel>
+                      <FormLabel>Company Signatory Name</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -290,7 +232,7 @@ export default function DpaPage() {
                   name="signerTitle"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Company signatory title</FormLabel>
+                      <FormLabel>Company Signatory Title</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -309,7 +251,7 @@ export default function DpaPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Company signatory email</FormLabel>
+                      <FormLabel>Company Signatory Email</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -317,6 +259,26 @@ export default function DpaPage() {
                           autoComplete="email"
                           disabled={formDisabled}
                           data-testid="input-email"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="sraNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SRA No.</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value ?? ""}
+                          placeholder="Solicitors Regulation Authority number"
+                          disabled={formDisabled}
+                          data-testid="input-sra-number"
                         />
                       </FormControl>
                       <FormMessage />

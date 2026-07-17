@@ -42,9 +42,7 @@ export const DPA_SIGNER_RECIPIENT_ID = "1";
 
 export interface DpaEnvelopeInput {
   firmName: string;
-  addressLine1: string;
-  postcode: string;
-  sraNumber: string;
+  sraNumber?: string;
   signerName: string;
   signerTitle: string;
   email: string;
@@ -217,7 +215,7 @@ export async function createDpaEnvelope(
 
   const { documentBase64, fileName } = await buildDpaDocxBase64({
     firmName: input.firmName,
-    sraNumber: input.sraNumber,
+    sraNumber: input.sraNumber || "—",
     signerName: input.signerName,
     signerTitle: input.signerTitle,
   });

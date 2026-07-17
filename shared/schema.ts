@@ -1863,12 +1863,14 @@ export type DpaSigningEnvelope = typeof dpaSigningEnvelopes.$inferSelect;
 /** Body for POST /api/dpa/start */
 export const dpaStartRequestSchema = z.object({
   firmName: z.string().min(1).max(300).transform((s) => s.trim()),
-  addressLine1: z.string().min(1).max(200).transform((s) => s.trim()),
-  postcode: z.string().min(1).max(20).transform((s) => s.trim().toUpperCase()),
-  sraNumber: z.string().min(1).max(50).transform((s) => s.trim()),
   signerName: z.string().min(1).max(200).transform((s) => s.trim()),
   signerTitle: z.string().min(1).max(200).transform((s) => s.trim()),
   email: z.string().email().max(255).transform((s) => s.trim().toLowerCase()),
+  sraNumber: z
+    .string()
+    .max(50)
+    .optional()
+    .transform((s) => (s?.trim() ? s.trim() : undefined)),
   ref: z
     .string()
     .max(100)
