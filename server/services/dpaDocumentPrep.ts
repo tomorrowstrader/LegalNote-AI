@@ -13,8 +13,7 @@ export const DPA_ANCHORS = {
 
 export interface DpaDocumentFillInput {
   firmName: string;
-  companyNumber?: string;
-  sraNumber?: string;
+  sraNumber: string;
   signerName: string;
   signerTitle: string;
   /** ISO date YYYY-MM-DD for the effective-date placeholder */
@@ -109,10 +108,13 @@ export async function buildDpaDocxBase64(
   const effectiveDate =
     input.effectiveDate || new Date().toISOString().slice(0, 10);
 
+  // Drop the optional Companies House clause from the controller party line.
+  xml = xml.split("(No. [company number]), ").join("");
+  xml = xml.split("(No. [company number])").join("");
+
   const replacements: Array<[string, string]> = [
     ["[Firm legal name]", input.firmName],
-    ["[company number]", input.companyNumber || "—"],
-    ["[SRA number]", input.sraNumber || "—"],
+    ["[SRA number]", input.sraNumber],
     ["[Date of signature]", effectiveDate],
   ];
 

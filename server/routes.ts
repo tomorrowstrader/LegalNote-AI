@@ -868,11 +868,13 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const baseUrl = getCanonicalBaseUrl(req);
       const returnUrl = `${baseUrl}/dpa/complete`;
 
+      const address = `${parsed.data.addressLine1}, ${parsed.data.postcode}`;
+
       const session = await startDpaSigningSession(
         {
           firmName: parsed.data.firmName,
-          address: parsed.data.address,
-          companyNumber: parsed.data.companyNumber,
+          addressLine1: parsed.data.addressLine1,
+          postcode: parsed.data.postcode,
           sraNumber: parsed.data.sraNumber,
           signerName: parsed.data.signerName,
           signerTitle: parsed.data.signerTitle,
@@ -889,8 +891,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           firmName: parsed.data.firmName,
           signerName: parsed.data.signerName,
           signerTitle: parsed.data.signerTitle,
-          companyNumber: parsed.data.companyNumber || null,
-          address: parsed.data.address,
+          companyNumber: null,
+          address,
+          sraNumber: parsed.data.sraNumber,
           ref: parsed.data.ref || null,
           status: "sent",
           clientUserId,
@@ -913,13 +916,18 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         error && typeof error === "object" && "statusCode" in error
           ? Number((error as { statusCode?: number }).statusCode)
           : undefined;
-      if (statusCode === 503) {
-        return res.status(503).json({
+      if (statusCode === 503 || statusCode === 502) {
+        return res.status(statusCode).json({
           message: error instanceof Error ? error.message : "DPA signing unavailable",
         });
       }
       console.error("[DPA] start failed:", error);
-      next(error);
+      return res.status(500).json({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to start DPA signing. Please try again.",
+      });
     }
   });
 

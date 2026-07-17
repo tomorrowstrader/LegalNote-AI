@@ -1844,6 +1844,7 @@ export const dpaSigningEnvelopes = pgTable("dpa_signing_envelopes", {
   signerTitle: text("signer_title"),
   companyNumber: text("company_number"),
   address: text("address"),
+  sraNumber: text("sra_number"),
   ref: text("ref"),
   status: text("status").notNull().default("sent"),
   clientUserId: text("client_user_id").notNull(),
@@ -1862,17 +1863,9 @@ export type DpaSigningEnvelope = typeof dpaSigningEnvelopes.$inferSelect;
 /** Body for POST /api/dpa/start */
 export const dpaStartRequestSchema = z.object({
   firmName: z.string().min(1).max(300).transform((s) => s.trim()),
-  address: z.string().min(1).max(1000).transform((s) => s.trim()),
-  companyNumber: z
-    .string()
-    .max(50)
-    .optional()
-    .transform((s) => (s?.trim() ? s.trim() : undefined)),
-  sraNumber: z
-    .string()
-    .max(50)
-    .optional()
-    .transform((s) => (s?.trim() ? s.trim() : undefined)),
+  addressLine1: z.string().min(1).max(200).transform((s) => s.trim()),
+  postcode: z.string().min(1).max(20).transform((s) => s.trim().toUpperCase()),
+  sraNumber: z.string().min(1).max(50).transform((s) => s.trim()),
   signerName: z.string().min(1).max(200).transform((s) => s.trim()),
   signerTitle: z.string().min(1).max(200).transform((s) => s.trim()),
   email: z.string().email().max(255).transform((s) => s.trim().toLowerCase()),

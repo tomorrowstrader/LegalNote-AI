@@ -10,7 +10,6 @@ import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
 import { LegalPageFooter } from "@/components/LegalPageFooter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
   FormControl,
@@ -55,8 +54,8 @@ export default function DpaPage() {
     resolver: zodResolver(dpaStartRequestSchema),
     defaultValues: {
       firmName: "",
-      address: "",
-      companyNumber: "",
+      addressLine1: "",
+      postcode: "",
       sraNumber: "",
       signerName: "",
       signerTitle: "",
@@ -184,8 +183,6 @@ export default function DpaPage() {
                   startMutation.mutate({
                     ...values,
                     ref: values.ref || refFromUrl || undefined,
-                    companyNumber: values.companyNumber || undefined,
-                    sraNumber: values.sraNumber || undefined,
                   });
                 })}
                 className="space-y-5 max-w-xl"
@@ -212,17 +209,17 @@ export default function DpaPage() {
 
                 <FormField
                   control={form.control}
-                  name="address"
+                  name="addressLine1"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Registered address</FormLabel>
+                      <FormLabel>Address line 1</FormLabel>
                       <FormControl>
-                        <Textarea
+                        <Input
                           {...field}
-                          rows={3}
-                          placeholder="Street, city, postcode, country"
+                          placeholder="Street address"
+                          autoComplete="address-line1"
                           disabled={formDisabled}
-                          data-testid="input-address"
+                          data-testid="input-address-line1"
                         />
                       </FormControl>
                       <FormMessage />
@@ -232,17 +229,18 @@ export default function DpaPage() {
 
                 <FormField
                   control={form.control}
-                  name="companyNumber"
+                  name="postcode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Company number (optional)</FormLabel>
+                      <FormLabel>Postcode</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          value={field.value ?? ""}
-                          placeholder="Companies House / equivalent"
+                          placeholder="SW1A 1AA"
+                          autoComplete="postal-code"
+                          className="max-w-[12rem]"
                           disabled={formDisabled}
-                          data-testid="input-company-number"
+                          data-testid="input-postcode"
                         />
                       </FormControl>
                       <FormMessage />
@@ -255,11 +253,10 @@ export default function DpaPage() {
                   name="sraNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>SRA number (optional)</FormLabel>
+                      <FormLabel>SRA No.</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          value={field.value ?? ""}
                           placeholder="Solicitors Regulation Authority number"
                           disabled={formDisabled}
                           data-testid="input-sra-number"

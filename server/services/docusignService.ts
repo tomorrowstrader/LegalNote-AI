@@ -42,9 +42,9 @@ export const DPA_SIGNER_RECIPIENT_ID = "1";
 
 export interface DpaEnvelopeInput {
   firmName: string;
-  address: string;
-  companyNumber?: string;
-  sraNumber?: string;
+  addressLine1: string;
+  postcode: string;
+  sraNumber: string;
   signerName: string;
   signerTitle: string;
   email: string;
@@ -100,7 +100,12 @@ function getPrivateKey(): Buffer {
   if (!key) {
     throw new Error("DOCUSIGN_RSA_PRIVATE_KEY or DOCUSIGN_RSA_PRIVATE_KEY_PATH is required");
   }
-  return Buffer.from(key.replace(/\\n/g, "\n"));
+  // Railway / env UIs often store either real newlines or literal \n; strip wrapping quotes.
+  const normalized = key
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/\\n/g, "\n");
+  return Buffer.from(normalized);
 }
 
 function getApiClient() {
@@ -168,6 +173,29 @@ async function getAuthenticatedApiClient() {
   return apiClient;
 }
 
+function extractDocuSignErrorMessage(error: unknown): string {
+  if (!error || typeof error !== "object") {
+    return error instanceof Error ? error.message : String(error);
+  }
+  const withResponse = error as {
+    response?: { body?: unknown; text?: string };
+    message?: string;
+  };
+  const body = withResponse.response?.body;
+  if (body && typeof body === "object") {
+    const b = body as { message?: string; errorCode?: string; error?: string };
+    if (b.message) {
+      return b.errorCode ? `${b.errorCode}: ${b.message}` : b.message;
+    }
+    if (b.error) return String(b.error);
+  }
+  if (typeof withResponse.response?.text === "string" && withResponse.response.text) {
+    return withResponse.response.text.slice(0, 500);
+  }
+  if (typeof withResponse.message === "string") return withResponse.message;
+  return "DocuSign request failed";
+}
+
 export async function createDpaEnvelope(
   input: DpaEnvelopeInput,
 ): Promise<{ envelopeId: string }> {
@@ -175,7 +203,6 @@ export async function createDpaEnvelope(
 
   const { documentBase64, fileName } = await buildDpaDocxBase64({
     firmName: input.firmName,
-    companyNumber: input.companyNumber,
     sraNumber: input.sraNumber,
     signerName: input.signerName,
     signerTitle: input.signerTitle,
@@ -229,15 +256,22 @@ export async function createDpaEnvelope(
     status: "sent",
   };
 
-  const result = await envelopesApi.createEnvelope(accountId, {
-    envelopeDefinition,
-  });
+  try {
+    const result = await envelopesApi.createEnvelope(accountId, {
+      envelopeDefinition,
+    });
 
-  if (!result.envelopeId) {
-    throw new Error("DocuSign did not return an envelope ID");
+    if (!result.envelopeId) {
+      throw new Error("DocuSign did not return an envelope ID");
+    }
+
+    return { envelopeId: result.envelopeId };
+  } catch (error: unknown) {
+    const message = extractDocuSignErrorMessage(error);
+    const err = new Error(message);
+    (err as Error & { statusCode?: number }).statusCode = 502;
+    throw err;
   }
-
-  return { envelopeId: result.envelopeId };
 }
 
 export async function createRecipientView(args: {
@@ -262,15 +296,22 @@ export async function createRecipientView(args: {
     email: args.email,
   };
 
-  const view = await envelopesApi.createRecipientView(accountId, args.envelopeId, {
-    recipientViewRequest: viewRequest,
-  });
+  try {
+    const view = await envelopesApi.createRecipientView(accountId, args.envelopeId, {
+      recipientViewRequest: viewRequest,
+    });
 
-  if (!view.url) {
-    throw new Error("DocuSign did not return a recipient view URL");
+    if (!view.url) {
+      throw new Error("DocuSign did not return a recipient view URL");
+    }
+
+    return view.url;
+  } catch (error: unknown) {
+    const message = extractDocuSignErrorMessage(error);
+    const err = new Error(message);
+    (err as Error & { statusCode?: number }).statusCode = 502;
+    throw err;
   }
-
-  return view.url;
 }
 
 export async function startDpaSigningSession(
