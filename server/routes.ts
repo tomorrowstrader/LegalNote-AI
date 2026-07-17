@@ -66,7 +66,7 @@ function resolveTemplatePath(filename: string): string {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaSigningEnvelopes, dpaStartRequestSchema } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { validateRecordingType } from "@shared/recordingTypes";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
@@ -84,6 +84,7 @@ import {
   audioChunkLimiter,
   authUserIpLimiter,
   pollingLimiter,
+  dpaSigningLimiter,
 } from "./rateLimiting";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { SYSTEM_USER_ID } from "./systemUser";
@@ -818,6 +819,110 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
   
+  // --- Public DPA signing (governed evaluation / B2B) ---
+  app.get("/api/dpa/status", generalApiLimiter, async (_req, res) => {
+    const enabled = process.env.DPA_SIGNING_ENABLED === "true";
+    const { masterDpaDocxExists } = await import("./services/dpaDocumentPrep");
+    const configured =
+      enabled &&
+      Boolean(process.env.DOCUSIGN_INTEGRATION_KEY) &&
+      Boolean(process.env.DOCUSIGN_USER_ID) &&
+      Boolean(process.env.DOCUSIGN_ACCOUNT_ID) &&
+      masterDpaDocxExists() &&
+      Boolean(
+        process.env.DOCUSIGN_RSA_PRIVATE_KEY ||
+          process.env.DOCUSIGN_RSA_PRIVATE_KEY_PATH,
+      );
+    res.json({ enabled, available: configured });
+  });
+
+  app.get("/api/dpa/document", generalApiLimiter, async (_req, res, next) => {
+    try {
+      const candidates = [
+        path.resolve(process.cwd(), "docs/legal/DATA_PROCESSING_AGREEMENT.md"),
+        path.resolve(process.cwd(), "docs", "legal", "DATA_PROCESSING_AGREEMENT.md"),
+      ];
+      const docPath = candidates.find((p) => fs.existsSync(p));
+      if (!docPath) {
+        return res.status(404).json({ message: "DPA document not found" });
+      }
+      const markdown = fs.readFileSync(docPath, "utf8");
+      res.type("text/markdown; charset=utf-8").send(markdown);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/dpa/start", dpaSigningLimiter, async (req, res, next) => {
+    try {
+      const parsed = dpaStartRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Invalid request",
+          errors: parsed.error.flatten().fieldErrors,
+        });
+      }
+
+      const { startDpaSigningSession } = await import("./services/docusignService");
+      const clientUserId = crypto.randomUUID();
+      const baseUrl = getCanonicalBaseUrl(req);
+      const returnUrl = `${baseUrl}/dpa/complete`;
+
+      const session = await startDpaSigningSession(
+        {
+          firmName: parsed.data.firmName,
+          address: parsed.data.address,
+          companyNumber: parsed.data.companyNumber,
+          sraNumber: parsed.data.sraNumber,
+          signerName: parsed.data.signerName,
+          signerTitle: parsed.data.signerTitle,
+          email: parsed.data.email,
+          clientUserId,
+        },
+        returnUrl,
+      );
+
+      try {
+        await db.insert(dpaSigningEnvelopes).values({
+          envelopeId: session.envelopeId,
+          email: parsed.data.email,
+          firmName: parsed.data.firmName,
+          signerName: parsed.data.signerName,
+          signerTitle: parsed.data.signerTitle,
+          companyNumber: parsed.data.companyNumber || null,
+          address: parsed.data.address,
+          ref: parsed.data.ref || null,
+          status: "sent",
+          clientUserId,
+        });
+      } catch (trackErr) {
+        console.error("[DPA] Failed to persist envelope tracking row:", trackErr);
+      }
+
+      console.log(
+        `[DPA] Envelope ${session.envelopeId} started for ${parsed.data.email}` +
+          (parsed.data.ref ? ` (ref=${parsed.data.ref})` : ""),
+      );
+
+      res.json({
+        signingUrl: session.signingUrl,
+        envelopeId: session.envelopeId,
+      });
+    } catch (error: unknown) {
+      const statusCode =
+        error && typeof error === "object" && "statusCode" in error
+          ? Number((error as { statusCode?: number }).statusCode)
+          : undefined;
+      if (statusCode === 503) {
+        return res.status(503).json({
+          message: error instanceof Error ? error.message : "DPA signing unavailable",
+        });
+      }
+      console.error("[DPA] start failed:", error);
+      next(error);
+    }
+  });
+
   // Referral/promo code validation endpoint (public)
   app.get('/api/waitlist/validate-code/:code', generalApiLimiter, async (req, res) => {
     const code = req.params.code?.toUpperCase();

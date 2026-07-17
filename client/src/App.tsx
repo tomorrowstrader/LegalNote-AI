@@ -39,6 +39,9 @@ import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
 import CookiePage from "@/pages/CookiePage";
 import SubProcessorsPage from "@/pages/SubProcessorsPage";
+import DpaPage from "@/pages/DpaPage";
+import DpaCompletePage from "@/pages/DpaCompletePage";
+import DpaPreviewPage from "@/pages/DpaPreviewPage";
 import Features from "@/pages/Features";
 import Calculator from "@/pages/Calculator";
 import MyActions from "@/pages/MyActions";
@@ -92,6 +95,9 @@ function Router() {
       <Route path="/terms" component={TermsPage} />
       <Route path="/cookies" component={CookiePage} />
       <Route path="/sub-processors" component={SubProcessorsPage} />
+      <Route path="/dpa/complete" component={DpaCompletePage} />
+      <Route path="/dpa/preview" component={DpaPreviewPage} />
+      <Route path="/dpa" component={DpaPage} />
       <Route path="/features" component={Features} />
       <Route path="/calculator" component={Calculator} />
       <Route path="/login" component={Login} />

@@ -41,6 +41,13 @@ export function LegalPageFooter() {
             >
               Sub-processors
             </Link>
+            <Link
+              href="/dpa"
+              className="text-white/50 hover:text-white transition-colors"
+              data-testid="link-footer-dpa"
+            >
+              Data Processing Agreement
+            </Link>
             <a
               href="mailto:support@legalnote.ai"
               className="flex items-center gap-2 text-white/50 hover:text-white transition-colors"

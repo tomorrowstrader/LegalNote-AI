@@ -1833,3 +1833,53 @@ export const demoLeads = pgTable("demo_leads", {
 export const insertDemoLeadSchema = createInsertSchema(demoLeads).omit({ id: true, createdAt: true });
 export type InsertDemoLead = z.infer<typeof insertDemoLeadSchema>;
 export type DemoLead = typeof demoLeads.$inferSelect;
+
+/** Tracks DocuSign DPA signing envelopes started from the public /dpa page */
+export const dpaSigningEnvelopes = pgTable("dpa_signing_envelopes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  envelopeId: text("envelope_id").notNull(),
+  email: text("email").notNull(),
+  firmName: text("firm_name").notNull(),
+  signerName: text("signer_name").notNull(),
+  signerTitle: text("signer_title"),
+  companyNumber: text("company_number"),
+  address: text("address"),
+  ref: text("ref"),
+  status: text("status").notNull().default("sent"),
+  clientUserId: text("client_user_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertDpaSigningEnvelopeSchema = createInsertSchema(dpaSigningEnvelopes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertDpaSigningEnvelope = z.infer<typeof insertDpaSigningEnvelopeSchema>;
+export type DpaSigningEnvelope = typeof dpaSigningEnvelopes.$inferSelect;
+
+/** Body for POST /api/dpa/start */
+export const dpaStartRequestSchema = z.object({
+  firmName: z.string().min(1).max(300).transform((s) => s.trim()),
+  address: z.string().min(1).max(1000).transform((s) => s.trim()),
+  companyNumber: z
+    .string()
+    .max(50)
+    .optional()
+    .transform((s) => (s?.trim() ? s.trim() : undefined)),
+  sraNumber: z
+    .string()
+    .max(50)
+    .optional()
+    .transform((s) => (s?.trim() ? s.trim() : undefined)),
+  signerName: z.string().min(1).max(200).transform((s) => s.trim()),
+  signerTitle: z.string().min(1).max(200).transform((s) => s.trim()),
+  email: z.string().email().max(255).transform((s) => s.trim().toLowerCase()),
+  ref: z
+    .string()
+    .max(100)
+    .optional()
+    .transform((s) => (s?.trim() ? s.trim() : undefined)),
+});
+export type DpaStartRequest = z.infer<typeof dpaStartRequestSchema>;

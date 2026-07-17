@@ -131,6 +131,15 @@ export const demoTtsLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Public DPA signing start: limit envelope creation abuse
+export const dpaSigningLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 signing starts per hour per IP
+  message: "Too many DPA signing attempts. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Polling endpoint rate limit: Very lenient for status checks
 export const pollingLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
