@@ -1,120 +1,82 @@
 # LegalNote Sub-processor List
 
-**Last Updated:** January 2026  
-**Version:** 1.0  
+**Last Updated:** July 2026  
+**Version:** 3.0  
+**Company:** LegalNote Technologies Ltd (registered in England and Wales, No. 16788981)  
+**Status:** Requires legal counsel review before publication  
 
 ---
 
 ## Overview
 
-This document lists all third-party sub-processors engaged by LegalNote Ltd to process personal data on behalf of our customers (law firms and legal professionals).
+This document lists the third-party sub-processors engaged by LegalNote Technologies Ltd to process personal data on behalf of customers (law firms and legal professionals), based on the integrations present in the production platform. In accordance with our Data Processing Agreement, we will notify customers at least 30 days before adding or replacing a material sub-processor, or as otherwise required by the DPA.
 
-In accordance with our Data Processing Agreement (DPA), we will notify customers at least 30 days before adding or replacing sub-processors.
+Each of the core sub-processors below is a United States company or has a United States parent. Client data is stored and processed in the region shown, but a residual exposure to United States law, including the CLOUD Act, remains that the choice of region does not remove. We address this through the transfer safeguards recorded below and the government-access terms in each sub-processor agreement.
 
----
+## Core privileged processing
 
-## Current Sub-processors
+| Sub-processor | Purpose | Region | Transfer position |
+|---------------|---------|--------|-------------------|
+| AssemblyAI Inc. | Audio transcription with speaker diarization | EU endpoint (Dublin), enforced in production | EU SCCs + UK Addendum; DPF / UK Extension certified. No model training via the EU endpoint. |
+| Amazon Web Services (Bedrock) | Privileged AI generation (attendance notes, letters, summaries) | UK/EU region and EU inference profile; global routing disabled | AWS GDPR DPA + UK Addendum (SCCs / UK IDTA); DPF certified. Inputs and outputs not used to train any model. |
+| Backblaze Inc. | Object storage for audio | EU Central (Amsterdam) | EEA/EU DPA and UK Residents DPA (SCCs). Support is US-based; support access is treated as a US transfer. |
+| Recall.ai (Hyperdoc Inc.) | Meeting-bot import (audio-only) | EU (Frankfurt), configured and monitored | EU and UK DPA (SCCs + UK Addendum). Customer data not used to train any model. |
 
-### Core Service Delivery
+## Infrastructure
 
-| Sub-processor | Purpose | Data Processed | Location | Transfer Mechanism |
-|---------------|---------|----------------|----------|-------------------|
-| **AssemblyAI Inc.** | Audio transcription with speaker diarization | Audio recordings, client names via word boost | EU (Dublin, Ireland) | EU data residency - no international transfer |
-| **OpenAI LLC** | AI document generation (attendance notes, summaries) | Transcript text, case context | US | EU-US DPF + SCCs |
-| **Recall.ai Inc.** | Video meeting recording (Zoom, Teams, Meet) | Meeting audio/video, participant names | EU (Frankfurt, Germany) | EU data residency - no international transfer |
+| Sub-processor | Purpose | Region | Transfer position |
+|---------------|---------|--------|-------------------|
+| Neon (Databricks) | PostgreSQL database | AWS eu-west-2 (London) | Databricks DPA executed; Neon covered by DPF / UK Extension; SCCs + UK IDTA. Contracting via the Neon Platform Services Product Specific Schedule. |
+| Railway Corporation | Application hosting | EU-West (Amsterdam), pinned and monitored | Railway DPA executed (SCCs Module 2/3, Clause 9 Option 1; UK Addendum). EU region is a paid-plan option. |
+| AWS SES | Transactional email (notification and link only) | AWS eu-west-2 (London) | Same AWS GDPR DPA and UK Addendum as Bedrock and Neon. No document content. |
 
-### Infrastructure
+## Identity, communications and payments
 
-| Sub-processor | Purpose | Data Processed | Location | Transfer Mechanism |
-|---------------|---------|----------------|----------|-------------------|
-| **Neon Inc.** | PostgreSQL database hosting | All application data (cases, transcripts, documents, user accounts) | EU | EU data residency - no international transfer |
-| **Replit Inc.** | Application hosting and compute | All application data in transit and processing | EU | DPA in place |
-| **Backblaze Inc.** | Object storage (audio files) | Audio recordings | EU | EU data residency - no international transfer |
+| Sub-processor | Purpose | Data | Transfer position |
+|---------------|---------|------|-------------------|
+| Google LLC | Sign-in (OAuth); optional Calendar | Identity fields; calendar events when connected | Adequacy / SCCs / IDTA as applicable |
+| Microsoft Corporation | Sign-in (OAuth); optional Outlook, SharePoint, OneDrive | Identity fields; calendar and files when connected | Adequacy / SCCs / IDTA; customer tenant |
+| Twilio Inc. | SMS one-time access codes for share links | Phone numbers; codes | EU SCCs + UK IDTA; DPF certified. IE1 (Ireland) SMS residency where enabled. |
+| Stripe Inc. | Payment processing | Billing contact and payment tokens (no full card number stored by LegalNote) | DPF / SCCs / UK IDTA. Billing data only; no matter content. |
 
-### Communications
+## Optional practice integrations
 
-| Sub-processor | Purpose | Data Processed | Location | Transfer Mechanism |
-|---------------|---------|----------------|----------|-------------------|
-| **Resend Inc.** | Transactional email delivery | Email addresses, email content | US | EU-US DPF + SCCs |
-| **Twilio Inc.** | SMS delivery (2FA for share links) | Phone numbers, verification codes | US | EU-US DPF + SCCs |
+| Sub-processor | Purpose | Region | Notes |
+|---------------|---------|--------|-------|
+| Clio | Optional practice-management sync | EU Clio API (eu.app.clio.com) | Only when the firm connects Clio |
 
-### Payments
+## Explicitly not used
 
-| Sub-processor | Purpose | Data Processed | Location | Transfer Mechanism |
-|---------------|---------|----------------|----------|-------------------|
-| **Stripe Inc.** | Payment processing | Billing contact details, payment method tokens (not card numbers) | US | EU-US DPF + SCCs |
+| Former item | Current status |
+|-------------|----------------|
+| OpenAI for privileged document generation | Not used in production privileged paths. Production requires AWS Bedrock (EU). OpenAI appears only in non-production test tooling and is not a production sub-processor. |
+| Resend for transactional email | Removed. Transactional email now runs on AWS SES (eu-west-2, London). |
+| Replit Auth as live authentication | Not used. Live authentication is Google/Microsoft OAuth with connect.sid sessions; the filename replitAuth.ts is historical. |
 
----
+## Data residency summary
 
-## Calendar & Integration Connectors
+| Processing activity | Posture |
+|---------------------|---------|
+| Audio transcription | EU (AssemblyAI Dublin endpoint) |
+| Privileged LLM / notes | EU (AWS Bedrock, EU inference profile) |
+| Object storage (audio) | EU (Backblaze Amsterdam) |
+| Database | UK (Neon, AWS eu-west-2 London) |
+| Application hosting | EU (Railway Amsterdam) |
+| Transactional email | UK (AWS SES eu-west-2 London) |
+| Meeting-bot import | EU (Recall.ai Frankfurt) |
+| Auth / billing / SMS | May be international (Google, Microsoft, Stripe, Twilio) |
+| Optional Clio | EU API |
 
-| Sub-processor | Purpose | Data Processed | Location | Transfer Mechanism |
-|---------------|---------|----------------|----------|-------------------|
-| **Google LLC** | Google Calendar sync | Calendar event details, meeting links | US | EU-US DPF + SCCs |
-| **Microsoft Corporation** | Outlook Calendar sync, SharePoint/OneDrive integration | Calendar event details, document files | US/EU | EU-US DPF + SCCs, EU data centers for M365 |
+## International transfer safeguards
 
----
+Where personal data is transferred outside the United Kingdom or the EEA, LegalNote relies on one or more of: an adequacy decision, including the EU-US Data Privacy Framework and its UK Extension where the recipient is certified; the UK IDTA or UK Addendum and/or EU Standard Contractual Clauses; and technical measures including encryption in transit, access controls and data minimisation.
 
-## Data Residency Summary
+## Change log
 
-| Processing Activity | Primary Location | Notes |
-|--------------------|------------------|-------|
-| Audio transcription | EU (Dublin) | AssemblyAI EU endpoint |
-| Meeting bot recording | EU (Frankfurt) | Recall.ai EU region |
-| Database storage | EU | Neon serverless PostgreSQL |
-| Object storage | EU | Backblaze B2 EU region |
-| Application hosting | EU | Replit infrastructure |
-| Document generation | US | OpenAI with SCCs/DPF |
-| Email/SMS | US | Resend/Twilio with SCCs/DPF |
+| Date | Change |
+|------|--------|
+| July 2026 | Resend removed; AWS SES added for transactional email (eu-west-2). |
+| July 2026 | Neon (Databricks) and Railway DPAs executed; regions confirmed (Neon London, Railway Amsterdam). |
+| July 2026 | Recall.ai region confirmed EU (Frankfurt). |
 
----
-
-## International Transfer Safeguards
-
-For sub-processors located in the United States, we rely on the following safeguards:
-
-### EU-US Data Privacy Framework (DPF)
-All US sub-processors are certified under the EU-US Data Privacy Framework, which provides an adequacy mechanism for data transfers following the July 2023 European Commission decision.
-
-### Standard Contractual Clauses (SCCs) / UK IDTA
-As a supplementary measure, we maintain Standard Contractual Clauses with all US sub-processors. For UK data, we use the UK International Data Transfer Agreement (IDTA) or UK Addendum to SCCs.
-
-### Technical Measures
-- All data encrypted in transit (TLS 1.3) and at rest (AES-256)
-- Minimization of data transferred to US processors
-- Access controls limiting who can access data
-
----
-
-## Changes to Sub-processors
-
-### Notification Process
-1. LegalNote will email all customers at least 30 days before adding or replacing a sub-processor
-2. Customers may object in writing within 14 days
-3. If objection cannot be resolved, the customer may terminate the service
-
-### Change Log
-
-| Date | Change | Details |
-|------|--------|---------|
-| January 2026 | Initial list | Document created |
-| January 2026 | AssemblyAI | Migrated to EU endpoint (api.eu.assemblyai.com) |
-| January 2026 | Recall.ai | Migrated to EU region (eu-central-1) |
-
----
-
-## Contact
-
-To receive sub-processor change notifications or to object to a proposed change:
-
-**Email:** privacy@legalnote.ai
-
-LegalNote Ltd  
-71-75 Shelton Street  
-Covent Garden, London  
-WC2H 9JQ  
-United Kingdom
-
----
-
-*This Sub-processor List is maintained in accordance with our Data Processing Agreement and UK GDPR Article 28 requirements.*
+*This Sub-processor List is governed by the laws of England and Wales and is not legal advice.*

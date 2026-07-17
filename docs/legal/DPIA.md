@@ -1,304 +1,120 @@
-# LegalNote Data Protection Impact Assessment (DPIA)
+# LegalNote Data Protection Impact Assessment
 
-**Document Version:** 1.0  
-**Last Updated:** January 2026  
-**Author:** LegalNote Ltd  
-**Status:** Active  
-**Next Review Date:** July 2026  
-
----
-
-## 1. Executive Summary
-
-This Data Protection Impact Assessment (DPIA) evaluates the data protection risks associated with the LegalNote platform, a compliance-first legal documentation tool for UK solicitors and law firms.
-
-**Key Findings:**
-- LegalNote processes high-risk personal data (audio recordings of legal consultations)
-- Primary processing occurs within UK/EU jurisdiction
-- Residual risk exists for international transfers to OpenAI (US) for document generation
-- Mitigations include EU-US DPF, SCCs, and encryption
-- Overall risk level: **MEDIUM** (acceptable with documented mitigations)
+**Document Version:** 3.0  
+**Last Updated:** July 2026  
+**Company:** LegalNote Technologies Ltd (registered in England and Wales, No. 16788981)  
+**Next Review:** January 2027  
+**Status:** Requires legal counsel review and sign-off  
 
 ---
 
-## 2. Processing Description
+## 1. Executive summary
 
-### 2.1 Nature of Processing
-LegalNote provides:
-- Recording of client meetings (in-person and video conferencing)
-- AI-powered transcription with speaker diarization
-- AI-generated legal documentation (attendance notes, summaries)
-- Consent management and audit trails
-- Secure document sharing with clients
+This DPIA evaluates the data protection risks associated with LegalNote, a compliance-first legal documentation platform for UK solicitors and law firms.
 
-### 2.2 Scope of Processing
+Key findings, aligned to the production configuration as of July 2026:
 
-| Data Category | Examples | Volume |
-|---------------|----------|--------|
-| Client personal data | Names, case details | Thousands of records |
-| Audio recordings | Client meeting recordings | Hours of audio per firm |
-| Transcripts | Full text of meetings | Derived from audio |
-| Legal documents | Attendance notes, summaries | Generated from transcripts |
-| Consent records | Timestamps, consent audio | One per meeting |
+- LegalNote processes high-risk personal data: audio of legal consultations, transcripts, and generated notes, which may include special category and criminal offence data.
+- Privileged transcription (AssemblyAI EU, Dublin), privileged note generation (AWS Bedrock EU) and audio object storage (Backblaze EU, Amsterdam) are confined to the UK or EEA in production.
+- The database (Neon, AWS eu-west-2 London) and application hosting (Railway EU-West, Amsterdam) are confirmed in the UK/EEA, with executed sub-processor DPAs.
+- Meeting-bot capture (Recall.ai) is confirmed configured to the EU (Frankfurt) region and monitored.
+- Each core sub-processor has a United States nexus, leaving a residual US CLOUD Act exposure addressed by transfer safeguards and government-access terms.
+- Overall risk level: **MEDIUM**, acceptable with the documented mitigations and accurate customer disclosure.
 
-### 2.3 Context of Processing
-- **Data Subjects:** Clients of law firms, meeting participants
-- **Relationship:** Indirect (LegalNote is processor, law firm is controller)
-- **Expectations:** Clients expect confidential treatment of legal consultations
-- **Sector:** Legal services (highly regulated, professional privilege applies)
+## 2. Processing description
 
-### 2.4 Purposes of Processing
-1. Create accurate records of client meetings for professional compliance
-2. Generate contemporaneous attendance notes (SRA best practice)
-3. Document client consent for regulatory audit trails
-4. Enable secure sharing of documents with clients
+LegalNote records client meetings (browser recording and optional meeting bots), transcribes them with speaker diarization (AssemblyAI EU), generates legal documentation (AWS Bedrock, Claude, EU inference profile), seals consent and maintains chained audit trails, shares documents securely with clients, and offers optional calendar, Clio (EU) and Microsoft file integrations.
 
----
+| Data category | Examples | Notes |
+|---------------|----------|-------|
+| Client personal data | Names, case details | Controller is the firm |
+| Audio recordings | Meeting audio | Session audio put beyond use within 7 days; consent evidence segment retained separately |
+| Transcripts | Full text of meetings | Stored until firm deletion |
+| Legal documents | Attendance notes, letters, summaries | Solicitor review and adoption required |
+| Consent and audit | Hashes, signatures, chain entries | Regulatory evidence |
 
-## 3. Necessity and Proportionality
+## 3. Necessity and proportionality
 
-### 3.1 Legal Basis for Processing
+Manual contemporaneous documentation at scale is impractical. AI-assisted drafting is proportionate when paired with mandatory solicitor review and short audio retention. For matter data the firm is the controller and determines the lawful basis; LegalNote processes on the firm's documented instructions under Article 28. Minimisation measures include the 7-day session-audio deletion, privileged AI confined to Bedrock EU, no foundation-model training on customer privileged content, and optional connectors that process data only when connected.
 
-| Processing Activity | Legal Basis | Justification |
-|--------------------|-------------|---------------|
-| Recording meetings | Legitimate interests (law firm) | Accurate documentation supports professional duties |
-| Transcription | Contract performance | Necessary to deliver subscribed service |
-| Document generation | Contract performance | Core service feature |
-| Consent logging | Legal obligation | GDPR Article 7 (demonstrating consent) |
-| Audit trail | Legitimate interests | Professional compliance, risk management |
+## 4. Data flow (primary privileged path)
 
-### 3.2 Necessity Assessment
-**Is the processing necessary for the stated purpose?**
-- Yes. Manual transcription is prohibitively expensive and slow
-- AI-assisted documentation is the only practical way to create contemporaneous records
-- Alternative (manual note-taking) is less accurate and more burdensome
+Client meeting → browser recorder or Recall EU bot → (TLS) LegalNote application → Backblaze B2 EU and AssemblyAI EU → Neon PostgreSQL (London) → AWS Bedrock EU (privileged generation) → generated document → solicitor review and adoption → optional client share link.
 
-### 3.3 Proportionality Assessment
-**Is the processing proportionate?**
-- Data minimization: Audio deleted 7 days after transcription
-- Purpose limitation: Data used only for documentation, never for AI training
-- Storage limitation: Firms control retention; defaults align with professional requirements
+| Service | Location posture | Risk note |
+|---------|------------------|-----------|
+| Backblaze B2 (audio) | EU (Amsterdam) | Strong control |
+| AssemblyAI (transcription) | EU (Dublin) | Strong control |
+| AWS Bedrock (generation) | EU region + EU profile | Strong control |
+| Neon (database) | UK (London), confirmed | Strong control; DPA executed |
+| Railway (hosting) | EU (Amsterdam), confirmed | Strong control; DPA executed |
+| AWS SES (email) | UK (London) | No document content |
+| Recall.ai (bot) | EU (Frankfurt), confirmed | Configured and monitored |
+| Google / Microsoft | International / tenant | Feature-dependent |
+| Stripe / Twilio | International | Limited, non-privileged data |
+| Clio | EU API | Optional |
 
----
-
-## 4. Data Flow Analysis
-
-### 4.1 Data Flow Diagram
-
-```
-[Client Meeting]
-       ↓
-[Recording Device / Browser]
-       ↓ (TLS 1.3)
-[LegalNote Server - EU]
-       ↓
-[Object Storage - EU] ←→ [AssemblyAI EU - Dublin]
-       ↓                        ↓
-[Database - EU]         [Transcript returned]
-       ↓
-[OpenAI - US] ←── Document generation request
-       ↓
-[Generated document]
-       ↓
-[Solicitor review/approval]
-       ↓
-[Client access via share link]
-```
-
-### 4.2 Data Residency by Service
-
-| Service | Data Processed | Location | Transfer Mechanism |
-|---------|----------------|----------|-------------------|
-| LegalNote Application | All data | EU | N/A (no transfer) |
-| Object Storage | Audio files | EU | N/A (no transfer) |
-| Database (Neon) | All structured data | EU | N/A (no transfer) |
-| AssemblyAI | Audio → Transcript | EU (Dublin) | N/A (no transfer) |
-| Recall.ai | Meeting recording | EU (Frankfurt) | N/A (no transfer) |
-| OpenAI | Transcript → Document | US | SCCs + DPF |
-| Resend | Email addresses | US | SCCs + DPF |
-| Twilio | Phone numbers (2FA) | US | SCCs + DPF |
-
----
-
-## 5. Risk Assessment
-
-### 5.1 Risk Matrix
+## 5. Risk assessment
 
 | Risk | Likelihood | Severity | Overall | Mitigation |
 |------|------------|----------|---------|------------|
-| Unauthorized access to recordings | Low | High | Medium | Encryption, access controls, audit logging |
-| Data breach during transfer | Low | High | Medium | TLS 1.3, encrypted at rest |
-| US government access (OpenAI) | Low | Medium | Low-Medium | DPF, SCCs, encryption, data minimization |
-| Transcription errors affecting legal accuracy | Medium | Medium | Medium | Solicitor review required before use |
-| Vendor security incident | Low | High | Medium | Vetted sub-processors, DPAs, incident response |
-| Client consent not properly obtained | Low | High | Medium | Consent workflow, timestamp logging |
-| Over-retention of audio | Low | Medium | Low | 7-day auto-deletion |
+| Unauthorised access to recordings or notes | Low | High | Medium | Access controls, sessions, audit chain, personnel-access logging |
+| Breach in transit or storage | Low | High | Medium | TLS; vendor encryption at rest |
+| Non-EU processing of bot audio | Low | High | Low–Medium | Recall region confirmed EU (Frankfurt) and monitored |
+| Hosting or database region not EU | Low | High | Low | Neon London and Railway EU-West confirmed; DPAs executed |
+| Transcription or generation errors | Medium | Medium | Medium | Mandatory solicitor review and adoption |
+| Vendor incident | Low | High | Medium | Vendor DPAs, incident response, breach notification |
+| Consent not obtained | Low–Med | High | Medium | Sealed consent gate before AI processing |
+| US CLOUD Act access | Low | High | Medium | Transfer safeguards; government-access terms; data minimisation |
 
-### 5.2 US Transfer Risk Assessment (OpenAI)
+**Former OpenAI US transfer risk:** superseded. Privileged document generation no longer uses OpenAI in production; production requires Bedrock with EU constraints. OpenAI remains only in non-production test tooling and is not a production privileged sub-processor.
 
-**Background:**
-OpenAI LLC is headquartered in the US and subject to US surveillance laws (FISA Section 702, EO 12333, Cloud Act).
+## 6. Data subject rights
 
-**Safeguards in Place:**
-
-1. **EU-US Data Privacy Framework (DPF)**
-   - OpenAI is certified under the DPF framework
-   - DPF received adequacy decision from European Commission (July 2023)
-   - UK government has recognized DPF as providing adequate protection
-
-2. **Standard Contractual Clauses (SCCs)**
-   - SCCs incorporated into OpenAI's Terms of Service
-   - UK IDTA addendum applied for UK data transfers
-
-3. **Technical Measures**
-   - Data encrypted in transit (TLS 1.3)
-   - Only transcript text sent to OpenAI (not audio)
-   - No persistent storage by OpenAI (API calls, not training data)
-   - Client names can be pseudonymized before sending
-
-4. **Data Minimization**
-   - Only the minimum data necessary for document generation is sent
-   - No audio files transferred to OpenAI
-   - Sensitive information can be redacted prior to processing
-
-**Residual Risk Assessment:**
-- Likelihood of US government access: Low (legal protections, encryption)
-- Impact if access occurred: Medium (legal privilege concerns)
-- Overall residual risk: **LOW-MEDIUM** (acceptable with documented mitigations)
-
-**Alternative Considered:**
-- Azure OpenAI (EU region) would eliminate transfer risk
-- Currently evaluating for future implementation
-- Documented in FUTURE_FEATURES.md roadmap
-
----
-
-## 6. Data Subject Rights
-
-### 6.1 Rights Facilitation
-
-| Right | How Facilitated |
-|-------|-----------------|
-| **Access** | Export functionality for all case data |
-| **Rectification** | Edit capabilities for transcripts and documents |
-| **Erasure** | Delete case, delete account functionality |
-| **Restriction** | Can pause processing by not generating documents |
-| **Portability** | PDF and Word export, JSON API |
-| **Object** | Can opt out of specific features |
-
-### 6.2 Client Rights (Third-Party Data Subjects)
-- Clients of law firms should contact their solicitor (controller)
-- LegalNote will assist controllers in responding to requests
-- Process documented in DPA
-
----
+Access is facilitated by export and firm tools; rectification by editing transcripts and documents in the product; erasure by case and account deletion flows, subject to retention exceptions for consent and audit evidence; restriction by disabling further processing; portability by document export; and objection is handled by the controller with LegalNote's assistance. Clients of law firms should contact their solicitor, who is the controller.
 
 ## 7. Consultation
 
-### 7.1 Internal Stakeholders
-- Product team: Confirmed technical mitigations
-- Legal counsel: Reviewed transfer mechanisms
-- Security: Validated encryption and access controls
+- Engineering: residency configuration and retention jobs verified against the production codebase (July 2026).
+- Legal counsel: review and sign-off required before publication.
+- Customer COLP and privacy reviews as part of onboarding where requested.
 
-### 7.2 External Consultation
-- Law firm customers: Informal feedback on consent workflow
-- ICO guidance: Reviewed published guidance on AI and international transfers
-
-### 7.3 Data Subject Views
-- Target users (solicitors) consulted on workflow design
-- Consent mechanisms designed to be clear and transparent
-- Client-facing share links include privacy information
-
----
-
-## 8. Mitigations and Controls
-
-### 8.1 Technical Controls
+## 8. Mitigations and controls
 
 | Control | Implementation |
 |---------|----------------|
-| Encryption in transit | TLS 1.3 for all connections |
-| Encryption at rest | AES-256 for database and object storage |
-| Access control | Role-based, user isolation enforced at storage layer |
-| Authentication | Replit Auth with session management |
-| Audit logging | HMAC-SHA256 signed logs, tamper-evident |
-| Session security | 4-hour timeout, activity extension |
-| Data minimization | Audio deleted after 7 days |
-
-### 8.2 Organizational Controls
-
-| Control | Implementation |
-|---------|----------------|
-| Sub-processor vetting | DPAs required, security assessment |
-| Staff training | Confidentiality obligations |
-| Incident response | 72-hour notification commitment |
-| Regular review | DPIA reviewed every 6 months |
-| Documentation | Privacy policy, DPA, sub-processor list maintained |
-
-### 8.3 Contractual Controls
-
-| Control | Implementation |
-|---------|----------------|
-| Data Processing Agreement | Provided to all customers |
-| Sub-processor DPAs | In place with all vendors |
-| SCCs / UK IDTA | Applied to US transfers |
-| Audit rights | Customer audit rights in DPA |
-
----
+| Encryption in transit | TLS; security headers and HSTS in production |
+| Encryption at rest | Provider-managed for database and object storage |
+| Access control | Firm and user scoping in storage and routes; personnel access logged |
+| Authentication | Google / Microsoft OAuth; connect.sid; 4-hour session lifetime |
+| Consent gate | Sealed consent required before AI processing |
+| Audit logging | HMAC-SHA256 chained audit; signing key required in production |
+| Privileged LLM residency | AWS Bedrock EU only in production |
+| Transcription residency | AssemblyAI EU (Dublin) endpoint |
+| Object storage residency | Backblaze EU (Amsterdam) endpoint |
+| Audio minimisation | Session audio put beyond use within 7 days; consent evidence segment retained separately |
+| Penetration testing | Independent test commissioned at least annually |
+| Breach notification | Within 24 hours to controllers |
 
 ## 9. Decision
 
-### 9.1 Risk Summary
-
-| Risk Category | Assessment |
+| Risk category | Assessment |
 |---------------|------------|
-| Overall processing risk | **MEDIUM** |
-| International transfer risk | **LOW-MEDIUM** |
-| Security risk | **LOW** |
-| Compliance risk | **LOW** |
+| Overall processing risk | MEDIUM |
+| Privileged AI / transcription residency | LOW (production gates and EU configuration) |
+| Bot / import residency (Recall) | LOW–MEDIUM (confirmed EU, monitored) |
+| International vendor risk (auth / billing / comms) | LOW–MEDIUM |
+| Security control risk | LOW–MEDIUM |
 
-### 9.2 Conclusion
-The processing described in this DPIA is **APPROVED** subject to the mitigations documented above.
+Processing is conditionally approved for continued operation, subject to: accurate public and customer disclosure (no "data never leaves the UK/EU" absolute claim); maintenance and monitoring of the confirmed EU/UK regions for Neon, Railway, Recall and the privileged path; legal counsel review of this DPIA and the related policies; and the continued solicitor-review-and-adoption requirement for AI outputs.
 
-The residual risks are acceptable because:
-1. Primary processing occurs within UK/EU
-2. US transfers are limited to document generation (no audio)
-3. Robust legal mechanisms (DPF, SCCs) are in place
-4. Technical encryption provides defense in depth
-5. Solicitors review all output before reliance
+Re-open this DPIA if: a sub-processor for privileged content changes; a hosting, database or bot region changes; a material legal development affects transfers; or analytics or tracking is introduced.
 
-### 9.3 Conditions
-- This DPIA must be reviewed if:
-  - New sub-processors are added
-  - Processing scope changes
-  - Relevant legal developments occur (e.g., DPF invalidation)
-- Azure OpenAI (EU region) should be evaluated for future implementation
-- OpenAI transfer risk should be disclosed to customers in the DPA
-
----
-
-## 10. Sign-Off
+## 10. Sign-off
 
 | Role | Name | Date |
 |------|------|------|
-| Data Protection Lead | [To be signed] | January 2026 |
-| Technical Lead | [To be signed] | January 2026 |
-| Managing Director | [To be signed] | January 2026 |
+| Data Protection Lead | [To be signed] | July 2026 |
+| Managing Director | [To be signed] | July 2026 |
 
----
-
-## Annex A: Sub-processor Details
-
-See separate document: `SUB_PROCESSOR_LIST.md`
-
-## Annex B: Technical Architecture
-
-See separate document: `TECHNICAL_ARCHITECTURE.md`
-
-## Annex C: Data Flow Diagrams
-
-See Section 4.1 above.
-
----
-
-*This DPIA was prepared in accordance with UK GDPR Article 35 and ICO guidance on conducting DPIAs.*
+*This DPIA was prepared to align with UK GDPR Article 35 and verified production behaviour as of July 2026. It is not legal advice.*

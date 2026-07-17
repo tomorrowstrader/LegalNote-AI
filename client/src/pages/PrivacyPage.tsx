@@ -1,35 +1,42 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
-import Logo from "@/components/Logo";
 import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
-import { ArrowLeft, Mail } from "lucide-react";
+import { LegalPageFooter, LegalTable } from "@/components/LegalPageFooter";
 import { useEffect } from "react";
+
+const linkClass = "text-[hsl(18,65%,45%)] hover:underline";
+const h3Class = "text-xl font-medium text-[hsl(25,30%,15%)] mb-3 mt-6";
 
 export default function PrivacyPage() {
   useEffect(() => {
     document.title = "Privacy Policy - LegalNote";
-    
+
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute('content', 'LegalNote Privacy Policy. Learn how we collect, use, and protect your personal data in compliance with GDPR and UK data protection law.');
+      metaDescription.setAttribute(
+        "content",
+        "LegalNote Privacy Policy. How we collect, use, and protect personal data under UK GDPR, including UK/EU privileged processing controls."
+      );
     }
-    
+
     const setOrCreateMeta = (property: string, content: string) => {
       let meta = document.querySelector(`meta[property="${property}"]`);
       if (!meta) {
-        meta = document.createElement('meta');
-        meta.setAttribute('property', property);
+        meta = document.createElement("meta");
+        meta.setAttribute("property", property);
         document.head.appendChild(meta);
       }
-      meta.setAttribute('content', content);
+      meta.setAttribute("content", content);
     };
-    
-    setOrCreateMeta('og:title', 'Privacy Policy - LegalNote');
-    setOrCreateMeta('og:description', 'How LegalNote collects, uses, and protects your personal data.');
-    setOrCreateMeta('og:type', 'website');
-    setOrCreateMeta('og:url', window.location.href);
-    setOrCreateMeta('og:site_name', 'LegalNote');
+
+    setOrCreateMeta("og:title", "Privacy Policy - LegalNote");
+    setOrCreateMeta(
+      "og:description",
+      "How LegalNote collects, uses, and protects personal data."
+    );
+    setOrCreateMeta("og:type", "website");
+    setOrCreateMeta("og:url", window.location.href);
+    setOrCreateMeta("og:site_name", "LegalNote");
   }, []);
 
   return (
@@ -43,181 +50,588 @@ export default function PrivacyPage() {
           transition={{ duration: 0.5 }}
           className="prose prose-lg max-w-none"
         >
-          <h1 className="text-4xl font-medium text-[hsl(25,30%,12%)] mb-2" data-testid="heading-privacy">
+          <h1
+            className="text-4xl font-medium text-[hsl(25,30%,12%)] mb-2"
+            data-testid="heading-privacy"
+          >
             Privacy Policy
           </h1>
-          <p className="text-[hsl(25,20%,45%)] mb-8">Last updated: January 2026</p>
+          <p className="text-[hsl(25,20%,45%)] mb-2">Last updated: July 2026</p>
+          <p className="text-sm text-[hsl(25,20%,45%)] mb-1">
+            LegalNote Technologies Ltd (registered in England and Wales, No.
+            16788981; ICO Reg. ZC176177)
+          </p>
+          <p className="text-sm text-[hsl(25,20%,45%)] mb-8">
+            Registered address: 71–75 Shelton Street, Covent Garden, London WC2H
+            9JQ
+          </p>
 
           <div className="space-y-8 text-[hsl(25,20%,30%)]">
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">1. Introduction</h2>
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+                1. Introduction
+              </h2>
               <p className="leading-relaxed mb-4">
-                LegalNote ("we", "our", "us") is committed to protecting and respecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our legal documentation platform.
+                LegalNote Technologies Ltd ("LegalNote", "we", "us", "our") is
+                committed to protecting the privacy of our users and their
+                clients. This Privacy Policy explains how we collect, use, store
+                and protect personal data when you use our legal documentation
+                platform at legalnote.ai.
               </p>
               <p className="leading-relaxed">
-                We are registered with the Information Commissioner's Office (ICO) and comply with the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018.
+                LegalNote is a compliance-first documentation tool designed for
+                UK solicitors and law firms. It records meetings with consent,
+                transcribes them, and generates attendance notes and related
+                documents for solicitor review. It does not provide legal advice.
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">2. Data Controller</h2>
-              <p className="leading-relaxed mb-4">
-                LegalNote is the data controller responsible for your personal data. For any questions about this policy or our data practices, contact us at <a href="mailto:support@legalnote.ai" className="text-[hsl(18,65%,45%)] hover:underline">support@legalnote.ai</a>.
-              </p>
-              <p className="leading-relaxed">
-                <strong>Registered Address:</strong><br />
-                71-75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">3. Information We Collect</h2>
-              <p className="leading-relaxed mb-4">We collect the following categories of personal data:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li><strong>Account Information:</strong> Name, email address, firm details, and professional credentials when you register.</li>
-                <li><strong>Usage Data:</strong> Information about how you use our platform, including access times, pages viewed, and features used.</li>
-                <li><strong>Audio Recordings:</strong> Meeting recordings you create using our platform, which are processed for transcription and then deleted within 7 days.</li>
-                <li><strong>Document Data:</strong> Transcripts, attendance notes, summaries, and other documents generated through the platform.</li>
-                <li><strong>Technical Data:</strong> IP address, browser type, device information, and cookies for platform functionality.</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">4. How We Use Your Information</h2>
-              <p className="leading-relaxed mb-4">We process your personal data for the following purposes:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>To provide and maintain our legal documentation services</li>
-                <li>To process audio recordings and generate transcripts and documents</li>
-                <li>To authenticate your identity and secure your account</li>
-                <li>To communicate with you about your account and our services</li>
-                <li>To comply with legal obligations, including maintaining audit trails</li>
-                <li>To improve our platform and develop new features</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">5. Legal Basis for Processing</h2>
-              <p className="leading-relaxed mb-4">We process your personal data under the following legal bases:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li><strong>Contract:</strong> Processing necessary to perform our contract with you.</li>
-                <li><strong>Legal Obligation:</strong> Processing required to comply with applicable laws.</li>
-                <li><strong>Legitimate Interests:</strong> Processing for our legitimate business interests, such as improving our services, provided these do not override your rights.</li>
-                <li><strong>Consent:</strong> Where you have given explicit consent for specific processing activities.</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">6. Data Retention</h2>
-              <p className="leading-relaxed mb-4">
-                We apply the principle of data minimisation and retain personal data only as long as necessary:
-              </p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li><strong>Audio Recordings:</strong> Automatically deleted within 7 days of creation.</li>
-                <li><strong>Documents and Transcripts:</strong> Retained for the duration of your subscription plus a reasonable period thereafter.</li>
-                <li><strong>Audit Logs:</strong> Retained for 7 years to support regulatory compliance.</li>
-                <li><strong>Account Information:</strong> Retained while your account is active and for a reasonable period after closure.</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">7. Data Location and Security</h2>
-              <p className="leading-relaxed mb-4">
-                All personal data is processed and stored exclusively within the UK/EU. Your data never leaves UK/EU jurisdiction, ensuring full GDPR compliance.
-              </p>
-              <p className="leading-relaxed">
-                We implement appropriate technical and organisational measures to protect your personal data, including encryption in transit (TLS 1.3) and at rest (AES-256), access controls, and regular security assessments.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">8. Third-Party Processors</h2>
-              <p className="leading-relaxed mb-4">
-                We use carefully selected third-party processors to provide our services. All processors are bound by data processing agreements that prohibit the use of your data for any purpose other than providing services to us:
-              </p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>Transcription services (with contractual guarantees against AI training)</li>
-                <li>Cloud infrastructure providers (UK/EU-based data centres)</li>
-                <li>Email communication services</li>
-                <li>Payment processors</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">9. Your Rights</h2>
-              <p className="leading-relaxed mb-4">Under UK GDPR, you have the following rights:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li><strong>Access:</strong> Request a copy of your personal data.</li>
-                <li><strong>Rectification:</strong> Request correction of inaccurate data.</li>
-                <li><strong>Erasure:</strong> Request deletion of your data in certain circumstances.</li>
-                <li><strong>Restriction:</strong> Request limitation of processing in certain circumstances.</li>
-                <li><strong>Portability:</strong> Request transfer of your data in a machine-readable format.</li>
-                <li><strong>Objection:</strong> Object to processing based on legitimate interests.</li>
-              </ul>
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+                2. Data controller and processor roles
+              </h2>
+              <LegalTable
+                headers={["Role", "Entity", "Responsibility"]}
+                rows={[
+                  [
+                    "Controller (account and billing data)",
+                    "LegalNote Technologies Ltd",
+                    "Determines the purposes and means of processing for user account, authentication, billing, and website and enquiry data.",
+                  ],
+                  [
+                    "Controller (client and matter data)",
+                    "Your law firm",
+                    "Determines the purposes and means of processing client and matter data.",
+                  ],
+                  [
+                    "Processor (client and matter data)",
+                    "LegalNote Technologies Ltd",
+                    "Processes recordings, transcripts, documents, consent and audit data on behalf of your firm under our Data Processing Agreement.",
+                  ],
+                  [
+                    "Sub-processors",
+                    <>
+                      See section 9 and the{" "}
+                      <Link href="/sub-processors" className={linkClass}>
+                        Sub-processor List
+                      </Link>
+                    </>,
+                    "Third parties we engage to deliver the service.",
+                  ],
+                ]}
+              />
               <p className="leading-relaxed mt-4">
-                To exercise these rights, contact us at <a href="mailto:support@legalnote.ai" className="text-[hsl(18,65%,45%)] hover:underline">support@legalnote.ai</a>.
+                If you are a client of a law firm using LegalNote, please contact
+                your solicitor for privacy requests about your matter data. Your
+                solicitor is the controller for that data; we act only as
+                processor on their instructions.
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">10. Cookies</h2>
-              <p className="leading-relaxed">
-                We use essential cookies required for platform functionality and authentication. We do not use advertising or tracking cookies. Session cookies expire when you close your browser; persistent cookies are used only for authentication purposes.
-              </p>
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+                3. Personal data we collect
+              </h2>
+              <h3 className={h3Class}>
+                3.1 Account data (solicitor and firm users) — LegalNote as
+                controller
+              </h3>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  Name, email address, firm name and branding preferences.
+                </li>
+                <li>
+                  Authentication identity from Google or Microsoft sign-in (we
+                  do not store your Google or Microsoft passwords).
+                </li>
+                <li>
+                  Session and usage data necessary to operate the service.
+                </li>
+                <li>
+                  Billing contact details and payment tokens processed via Stripe
+                  (we do not store full card numbers).
+                </li>
+              </ul>
+
+              <h3 className={h3Class}>
+                3.2 Client and matter data — LegalNote as processor
+              </h3>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  Audio recordings of meetings (browser recording and, where
+                  used, meeting-bot imports).
+                </li>
+                <li>Transcripts generated from recordings.</li>
+                <li>
+                  Client names, matter references, case details and related
+                  document content.
+                </li>
+                <li>
+                  Sealed consent records (content hash, signature, timestamps and
+                  related audit linkage).
+                </li>
+                <li>
+                  Generated documents, for example attendance notes, summaries
+                  and client-facing drafts.
+                </li>
+                <li>
+                  Optional integration data you connect, for example calendar
+                  events, Clio matters, or SharePoint and OneDrive files.
+                </li>
+              </ul>
+
+              <h3 className={h3Class}>3.3 Technical data</h3>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  IP address, browser and device information, and security logs.
+                </li>
+                <li>
+                  Cookies and similar technologies (see our{" "}
+                  <Link href="/cookies" className={linkClass}>
+                    Cookie Policy
+                  </Link>
+                  ).
+                </li>
+              </ul>
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">11. Changes to This Policy</h2>
-              <p className="leading-relaxed">
-                We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the new policy on this page and updating the "Last updated" date. We encourage you to review this policy periodically.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">12. Contact and Complaints</h2>
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+                4. How we use personal data, and the legal basis
+              </h2>
               <p className="leading-relaxed mb-4">
-                For any questions or concerns about this Privacy Policy or our data practices, please contact us at <a href="mailto:support@legalnote.ai" className="text-[hsl(18,65%,45%)] hover:underline">support@legalnote.ai</a>.
+                For the account, billing and website data for which LegalNote is
+                the controller, our legal bases under the UK GDPR are as follows:
+              </p>
+              <LegalTable
+                headers={[
+                  "Purpose",
+                  "Legal basis (LegalNote as controller)",
+                ]}
+                rows={[
+                  [
+                    "Provide and secure the service",
+                    "Contract performance, Art. 6(1)(b)",
+                  ],
+                  [
+                    "Authenticate users (Google or Microsoft OAuth and session)",
+                    "Contract performance, Art. 6(1)(b)",
+                  ],
+                  [
+                    "Billing and subscription administration",
+                    "Contract performance, Art. 6(1)(b)",
+                  ],
+                  [
+                    "Service communications (account, security, product notices)",
+                    "Legitimate interests, Art. 6(1)(f)",
+                  ],
+                  [
+                    "Marketing, where applicable",
+                    "Consent, Art. 6(1)(a)",
+                  ],
+                ]}
+              />
+              <p className="leading-relaxed mt-4 mb-4">
+                For client and matter data, LegalNote acts as processor. We
+                process that data only on the documented instructions of your
+                firm under Article 28 of the UK GDPR. Your firm, as controller,
+                determines the lawful basis under Article 6 (and, where special
+                category or criminal offence data is involved, the condition
+                under Articles 9 and 10 and the Data Protection Act 2018). We do
+                not determine the purposes of processing matter data, and we do
+                not rely on a legal basis of our own for it.
               </p>
               <p className="leading-relaxed">
-                You have the right to lodge a complaint with the Information Commissioner's Office (ICO) if you believe your data protection rights have been infringed. Visit <a href="https://ico.org.uk/make-a-complaint/" target="_blank" rel="noopener noreferrer" className="text-[hsl(18,65%,45%)] hover:underline">ico.org.uk</a> for more information.
+                We do not use client audio, transcripts, or case content to train
+                foundation models. Privileged client content is processed solely
+                to deliver the service you requested.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+                5. Data storage, processing locations and security
+              </h2>
+              <h3 className={h3Class}>
+                5.1 Processing locations (aligned with production controls)
+              </h3>
+              <p className="leading-relaxed mb-4">
+                Production configuration keeps the following privileged
+                processing within the United Kingdom or the European Economic
+                Area:
+              </p>
+              <LegalTable
+                headers={["Activity", "Provider", "Location in production"]}
+                rows={[
+                  [
+                    "Object storage (audio)",
+                    "Backblaze B2",
+                    "EU Central (Amsterdam); EU endpoint enforced",
+                  ],
+                  [
+                    "Speech to text",
+                    "AssemblyAI",
+                    "EU endpoint (api.eu.assemblyai.com), Dublin",
+                  ],
+                  [
+                    "Privileged document and note generation",
+                    "AWS Bedrock (Anthropic Claude, EU inference profile)",
+                    "UK/EU regions only; global cross-region routing disabled",
+                  ],
+                  [
+                    "Database",
+                    "Neon (PostgreSQL, on AWS)",
+                    "AWS eu-west-2 (London)",
+                  ],
+                  [
+                    "Application hosting",
+                    "Railway",
+                    "EU-West (Amsterdam)",
+                  ],
+                  [
+                    "Transactional email",
+                    "AWS SES",
+                    "AWS eu-west-2 (London)",
+                  ],
+                ]}
+              />
+
+              <h3 className={h3Class}>
+                5.2 Other processing that may involve transfers outside the UK
+                or EEA
+              </h3>
+              <LegalTable
+                headers={["Activity", "Provider", "Notes"]}
+                rows={[
+                  [
+                    "Meeting-bot import",
+                    "Recall.ai",
+                    "Configured to the EU (Frankfurt) region and monitored; retrieved audio is stored in EU object storage.",
+                  ],
+                  [
+                    "Authentication",
+                    "Google, Microsoft",
+                    "OAuth identity verification.",
+                  ],
+                  [
+                    "Optional calendar, email and file connectors",
+                    "Google, Microsoft Graph",
+                    "Only when you connect the integration.",
+                  ],
+                  [
+                    "Optional practice management",
+                    "Clio",
+                    "EU Clio endpoint (eu.app.clio.com); only when connected.",
+                  ],
+                  [
+                    "SMS access codes",
+                    "Twilio",
+                    "Phone numbers and one-time codes, where the feature is enabled.",
+                  ],
+                  [
+                    "Payments",
+                    "Stripe",
+                    "Billing data only; no matter content.",
+                  ],
+                ]}
+              />
+              <p className="leading-relaxed mt-4 mb-4">
+                Where personal data is transferred outside the United Kingdom or
+                the EEA, we rely on appropriate safeguards such as an adequacy
+                decision (including the EU-US Data Privacy Framework and its UK
+                Extension where applicable), the UK International Data Transfer
+                Agreement or Addendum, and/or Standard Contractual Clauses,
+                together with technical measures (encryption in transit, access
+                controls and data minimisation).
+              </p>
+              <p className="leading-relaxed">
+                We do not claim that all personal data never leaves the UK or EU.
+                Privileged audio transcription and privileged note generation are
+                engineered for UK and EU processing. Authentication, billing,
+                messaging, optional integrations and meeting-bot capture may
+                involve other locations as described above. Each of our core
+                sub-processors is a United States company or has a United States
+                parent, so a residual exposure to United States law, including
+                the CLOUD Act, remains that the choice of region does not remove;
+                we address this through the safeguards above and the
+                government-access terms in our sub-processor agreements.
+              </p>
+
+              <h3 className={h3Class}>5.3 Security measures</h3>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  TLS for data in transit; HSTS and security headers in
+                  production.
+                </li>
+                <li>
+                  Encryption at rest as provided by our infrastructure vendors
+                  (database and object storage).
+                </li>
+                <li>Firm-scoped and user-scoped access controls.</li>
+                <li>
+                  Sealed consent events (content hash and HMAC signature)
+                  required before AI processing.
+                </li>
+                <li>
+                  Chained audit logging with HMAC-SHA256 tamper detection.
+                </li>
+                <li>
+                  Session cookies set httpOnly, sameSite lax, and secure in
+                  production, with a four-hour session lifetime.
+                </li>
+                <li>
+                  Access to firm data by LegalNote personnel is restricted to the
+                  minimum necessary and is logged.
+                </li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+                6. Data retention
+              </h2>
+              <LegalTable
+                headers={["Data type", "Retention", "Notes"]}
+                rows={[
+                  [
+                    "Session audio (the substantive recording)",
+                    "Put beyond use within 7 days of processing",
+                    "Enforced in the application and by a storage-layer lifecycle rule",
+                  ],
+                  [
+                    "Consent evidence segment",
+                    "Retained as consent evidence only",
+                    "A short extract of the consent disclosure and acceptance, separate from the session audio; not used for transcription, generation or model improvement",
+                  ],
+                  [
+                    "Transcripts and generated documents",
+                    "Until deleted by the firm or on account termination",
+                    "No automatic short-cycle deletion",
+                  ],
+                  [
+                    "Share links",
+                    "Deleted 7 days after expiry",
+                    "Retention cleanup job",
+                  ],
+                  [
+                    "Consent and audit records",
+                    "Up to 6 years, for regulatory and defence purposes",
+                    "Firms should confirm operational retention with LegalNote",
+                  ],
+                  [
+                    "Account and billing data",
+                    "While the account is active, then as needed for legal and accounting obligations",
+                    "",
+                  ],
+                ]}
+              />
+              <p className="leading-relaxed mt-4">
+                Firms remain responsible for professional retention obligations
+                that exceed platform defaults.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+                7. Your rights under the UK GDPR
+              </h2>
+              <LegalTable
+                headers={["Right", "Description"]}
+                rows={[
+                  ["Access", "Request a copy of your personal data"],
+                  ["Rectification", "Correct inaccurate personal data"],
+                  [
+                    "Erasure",
+                    "Request deletion in applicable circumstances",
+                  ],
+                  [
+                    "Restriction",
+                    "Limit processing in applicable circumstances",
+                  ],
+                  [
+                    "Portability",
+                    "Receive data in a portable format where applicable",
+                  ],
+                  [
+                    "Object",
+                    "Object to processing based on legitimate interests",
+                  ],
+                  [
+                    "Withdraw consent",
+                    "Where processing is based on consent",
+                  ],
+                ]}
+              />
+              <p className="leading-relaxed mt-4">
+                Account or website data:{" "}
+                <a href="mailto:privacy@legalnote.ai" className={linkClass}>
+                  privacy@legalnote.ai
+                </a>
+                . Client or matter data: contact your solicitor, who is the
+                controller; LegalNote will assist them under the DPA. You may
+                also complain to the ICO at{" "}
+                <a
+                  href="https://ico.org.uk/make-a-complaint"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={linkClass}
+                >
+                  ico.org.uk/make-a-complaint
+                </a>
+                .
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+                8. Cookies
+              </h2>
+              <p className="leading-relaxed">
+                We use strictly necessary cookies for authentication and session
+                management, and a limited functional cookie for UI preferences.
+                We do not use analytics or advertising cookies. See our{" "}
+                <Link href="/cookies" className={linkClass}>
+                  Cookie Policy
+                </Link>{" "}
+                for details.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+                9. Sub-processors
+              </h2>
+              <p className="leading-relaxed mb-4">
+                The current sub-processors used to deliver the service are listed
+                below. The full list, with change log, is in our{" "}
+                <Link href="/sub-processors" className={linkClass}>
+                  Sub-processor List
+                </Link>
+                .
+              </p>
+              <LegalTable
+                headers={["Sub-processor", "Purpose", "Location posture"]}
+                rows={[
+                  [
+                    "AssemblyAI",
+                    "Transcription",
+                    "EU endpoint (Dublin)",
+                  ],
+                  [
+                    "AWS Bedrock",
+                    "Privileged AI document generation",
+                    "UK/EU region and EU inference profile",
+                  ],
+                  [
+                    "Backblaze B2",
+                    "Audio object storage",
+                    "EU Central (Amsterdam)",
+                  ],
+                  [
+                    "Neon (on AWS)",
+                    "PostgreSQL database",
+                    "AWS eu-west-2 (London)",
+                  ],
+                  [
+                    "Railway",
+                    "Application hosting",
+                    "EU-West (Amsterdam)",
+                  ],
+                  [
+                    "AWS SES",
+                    "Transactional email",
+                    "AWS eu-west-2 (London)",
+                  ],
+                  [
+                    "Recall.ai",
+                    "Meeting-bot import",
+                    "EU (Frankfurt)",
+                  ],
+                  [
+                    "Google LLC",
+                    "Sign-in; optional Calendar",
+                    "International",
+                  ],
+                  [
+                    "Microsoft Corporation",
+                    "Sign-in; optional Outlook and SharePoint",
+                    "International / customer tenant",
+                  ],
+                  [
+                    "Clio",
+                    "Optional practice management sync",
+                    "EU Clio endpoint",
+                  ],
+                  [
+                    "Twilio",
+                    "SMS access codes for share links",
+                    "International",
+                  ],
+                  [
+                    "Stripe",
+                    "Payments",
+                    "International (billing data only)",
+                  ],
+                ]}
+              />
+              <p className="leading-relaxed mt-4">
+                We will notify customers of material sub-processor changes as
+                described in the DPA.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+                10. Children's privacy
+              </h2>
+              <p className="leading-relaxed">
+                LegalNote is a business service for legal professionals. We do
+                not knowingly collect data from individuals under 18.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+                11. Changes to this policy
+              </h2>
+              <p className="leading-relaxed">
+                We may update this Privacy Policy from time to time. Material
+                changes will be notified to registered users, and the "last
+                updated" date will be revised.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+                12. Contact us
+              </h2>
+              <p className="leading-relaxed mb-4">
+                Data protection:{" "}
+                <a href="mailto:privacy@legalnote.ai" className={linkClass}>
+                  privacy@legalnote.ai
+                </a>
+                . Support:{" "}
+                <a href="mailto:support@legalnote.ai" className={linkClass}>
+                  support@legalnote.ai
+                </a>
+                .
+              </p>
+              <p className="leading-relaxed mb-4">
+                LegalNote Technologies Ltd (No. 16788981; ICO Reg. ZC176177),
+                71–75 Shelton Street, Covent Garden, London WC2H 9JQ, United
+                Kingdom.
+              </p>
+              <p className="leading-relaxed text-sm italic">
+                This Privacy Policy is governed by the laws of England and Wales.
+                It reflects verified production behaviour as of July 2026 and is
+                not legal advice.
               </p>
             </section>
           </div>
         </motion.article>
       </main>
 
-      <footer className="bg-[hsl(20,30%,10%)] border-t border-[hsl(20,25%,18%)]">
-        <div className="max-w-7xl mx-auto px-6 py-12">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="text-sm text-white/40">
-              © {new Date().getFullYear()} LegalNote. All rights reserved.
-            </div>
-            <div className="flex items-center gap-6 text-sm">
-              <Link 
-                href="/privacy"
-                className="text-white/50 hover:text-white transition-colors"
-                data-testid="link-footer-privacy"
-              >
-                Privacy Policy
-              </Link>
-              <Link 
-                href="/terms"
-                className="text-white/50 hover:text-white transition-colors"
-                data-testid="link-footer-terms"
-              >
-                Terms of Service
-              </Link>
-              <a 
-                href="mailto:support@legalnote.ai"
-                className="flex items-center gap-2 text-white/50 hover:text-white transition-colors"
-                data-testid="link-footer-contact"
-              >
-                <Mail className="w-4 h-4" />
-                Contact
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <LegalPageFooter />
     </div>
   );
 }

@@ -617,9 +617,9 @@ export default function SecurityPage() {
 
           <div className="border-t border-white/5 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="text-sm text-white/40">
-              © {new Date().getFullYear()} LegalNote. All rights reserved.
+              © {new Date().getFullYear()} LegalNote Technologies Ltd. All rights reserved.
             </div>
-            <div className="flex items-center gap-6 text-sm">
+            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
               <Link 
                 href="/privacy"
                 className="text-white/50 hover:text-white transition-colors"
@@ -633,6 +633,20 @@ export default function SecurityPage() {
                 data-testid="link-footer-terms"
               >
                 Terms of Service
+              </Link>
+              <Link 
+                href="/cookies"
+                className="text-white/50 hover:text-white transition-colors"
+                data-testid="link-footer-cookies"
+              >
+                Cookie Policy
+              </Link>
+              <Link 
+                href="/sub-processors"
+                className="text-white/50 hover:text-white transition-colors"
+                data-testid="link-footer-subprocessors"
+              >
+                Sub-processors
               </Link>
             </div>
           </div>

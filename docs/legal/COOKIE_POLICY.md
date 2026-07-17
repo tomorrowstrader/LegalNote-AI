@@ -1,102 +1,76 @@
 # LegalNote Cookie Policy
 
-**Last Updated:** January 2026  
-**Effective Date:** January 2026  
+**Last Updated:** July 2026  
+**Company:** LegalNote Technologies Ltd (registered in England and Wales, No. 16788981)  
+**Status:** Requires legal counsel review before publication  
 
 ---
 
 ## 1. Introduction
 
-This Cookie Policy explains how LegalNote Ltd ("LegalNote", "we", "us", "our") uses cookies and similar technologies when you use our legal documentation platform.
+This Cookie Policy explains how LegalNote Technologies Ltd ("LegalNote", "we", "us", "our") uses cookies and similar technologies on legalnote.ai and the LegalNote application.
 
----
+## 2. What are cookies?
 
-## 2. What Are Cookies?
+Cookies are small text files stored on your device when you visit a website. They help the Service authenticate you and remember limited interface preferences.
 
-Cookies are small text files stored on your device when you visit a website. They help websites remember your preferences and improve your experience.
+## 3. Cookies we use
 
----
+### 3.1 Strictly necessary cookies
 
-## 3. Cookies We Use
-
-### 3.1 Strictly Necessary Cookies
-
-These cookies are essential for the Service to function. They cannot be disabled.
+These cookies are required for the Service to function and cannot be disabled if you wish to use authenticated features.
 
 | Cookie | Purpose | Duration |
 |--------|---------|----------|
-| `session` | Authentication and session management | Session |
-| `connect.sid` | Server-side session identifier | Session |
-| `csrf_token` | Security (prevents cross-site request forgery) | Session |
+| `connect.sid` | Server-side session identifier (express-session with a Postgres session store). Authenticates your logged-in session after Google or Microsoft sign-in. | Approximately 4 hours (aligned to session lifetime) |
 
-### 3.2 Functional Cookies
+In production this cookie is set httpOnly, sameSite lax, and secure.
 
-These cookies remember your preferences and settings.
+### 3.2 Functional cookies
 
 | Cookie | Purpose | Duration |
 |--------|---------|----------|
-| `theme` | Remembers light/dark mode preference | 1 year |
-| `sidebar_collapsed` | Remembers sidebar state | 1 year |
+| `sidebar_state` | Remembers whether the in-app sidebar is open or collapsed. | Persistent (long max-age set by the client UI) |
 
-### 3.3 Analytics Cookies
+### 3.3 Cookies we do not use
 
-We currently do NOT use third-party analytics cookies. If this changes, we will update this policy and obtain consent where required.
+- We do not set analytics cookies (no Google Analytics, PostHog, Mixpanel or similar in the application).
+- We do not use marketing or advertising cookies.
+- We do not set a separate CSRF cookie in current code.
+- Theme and many UI preferences are stored in local or session storage, not cookies.
 
-### 3.4 Marketing Cookies
+### 3.4 Local storage (not cookies)
 
-We do NOT use marketing or advertising cookies.
+The application may store non-cookie data in browser storage, for example UI drafts or preferences. This is limited to operating the product and is not used for cross-site advertising.
 
----
+## 4. Third-party cookies and related technologies
 
-## 4. Third-Party Cookies
+When you use certain features, third parties may process data or set their own cookies on their domains:
 
-The following third-party services may set cookies when you use LegalNote:
+| Service | When it appears | More information |
+|---------|-----------------|------------------|
+| Google | Sign-in, and optional Google Calendar | [policies.google.com/privacy](https://policies.google.com/privacy) |
+| Microsoft | Sign-in, and optional Outlook or SharePoint | [privacy.microsoft.com](https://privacy.microsoft.com) |
+| Stripe | Checkout and billing | [stripe.com/privacy](https://stripe.com/privacy) |
 
-| Service | Purpose | More Information |
-|---------|---------|------------------|
-| Stripe | Payment processing | https://stripe.com/privacy |
-| Replit Auth | Authentication | https://replit.com/privacy |
+OAuth providers may set cookies on their own domains during sign-in. LegalNote does not control those cookies.
 
----
+## 5. Managing cookies
 
-## 5. Managing Cookies
-
-### 5.1 Browser Settings
-You can control cookies through your browser settings. Most browsers allow you to:
-- View cookies stored on your device
-- Delete individual or all cookies
-- Block cookies from specific sites
-- Block all cookies (note: this may break functionality)
-
-### 5.2 Impact of Disabling Cookies
-If you disable strictly necessary cookies, you will not be able to use LegalNote as these are required for authentication and security.
-
----
+You can view, delete or block cookies in your browser settings. Blocking `connect.sid` will prevent you from remaining signed in, and authenticated use of LegalNote will not work.
 
 ## 6. Do Not Track
 
-LegalNote does not currently respond to "Do Not Track" browser signals, as there is no industry standard for this feature. However, we do not track users across third-party websites.
+LegalNote does not currently alter its behaviour in response to "Do Not Track" signals. We do not operate third-party advertising trackers in the application.
 
----
+## 7. Changes to this policy
 
-## 7. Changes to This Policy
+We may update this Cookie Policy from time to time. Changes will be posted with an updated "last updated" date.
 
-We may update this Cookie Policy from time to time. Changes will be posted on this page with an updated "Last Updated" date.
+## 8. Contact us
 
----
+Email: privacy@legalnote.ai.
 
-## 8. Contact Us
+LegalNote Technologies Ltd, 71–75 Shelton Street, Covent Garden, London WC2H 9JQ, United Kingdom.
 
-If you have questions about our use of cookies:
-
-**Email:** privacy@legalnote.ai
-
-LegalNote Ltd  
-71-75 Shelton Street  
-Covent Garden, London  
-WC2H 9JQ  
-United Kingdom
-
----
-
-*This Cookie Policy is governed by the laws of England and Wales.*
+*This Cookie Policy is governed by the laws of England and Wales. It reflects cookies actually set by LegalNote application code as of July 2026 and is not legal advice.*

@@ -37,6 +37,8 @@ import NotFound from "@/pages/not-found";
 import SecurityPage from "@/pages/SecurityPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
+import CookiePage from "@/pages/CookiePage";
+import SubProcessorsPage from "@/pages/SubProcessorsPage";
 import Features from "@/pages/Features";
 import Calculator from "@/pages/Calculator";
 import MyActions from "@/pages/MyActions";
@@ -88,6 +90,8 @@ function Router() {
       <Route path="/security" component={SecurityPage} />
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/terms" component={TermsPage} />
+      <Route path="/cookies" component={CookiePage} />
+      <Route path="/sub-processors" component={SubProcessorsPage} />
       <Route path="/features" component={Features} />
       <Route path="/calculator" component={Calculator} />
       <Route path="/login" component={Login} />

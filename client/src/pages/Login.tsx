@@ -207,10 +207,14 @@ export default function Login() {
               By signing in, you agree to our{" "}
               <a href="/terms" className="underline" data-testid="link-terms">
                 Terms of Service
-              </a>{" "}
-              and{" "}
+              </a>
+              ,{" "}
               <a href="/privacy" className="underline" data-testid="link-privacy">
                 Privacy Policy
+              </a>
+              , and{" "}
+              <a href="/cookies" className="underline" data-testid="link-cookies">
+                Cookie Policy
               </a>
             </p>
             <div className="flex items-center justify-center gap-2">
