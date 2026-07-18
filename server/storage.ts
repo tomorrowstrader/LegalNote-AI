@@ -1511,23 +1511,23 @@ export class MemStorage implements IStorage {
     const item = this.actionItemsMap.get(id);
     if (!item) return undefined;
     
-    const caseRecord = this.cases.get(item.caseId);
-    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    const caseRecord = await this.getCase(item.caseId, userId);
+    if (!caseRecord) return undefined;
     
     return item;
   }
 
   async getActionItemsByCase(caseId: string, userId: string): Promise<ActionItem[]> {
-    const caseRecord = this.cases.get(caseId);
-    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    const caseRecord = await this.getCase(caseId, userId);
+    if (!caseRecord) return [];
     
     return Array.from(this.actionItemsMap.values())
       .filter(item => item.caseId === caseId)
       .sort((a, b) => {
         // Sort by priority (high > medium > low) then by dueDate
         const priorityOrder = { high: 0, medium: 1, low: 2 };
-        const aPriority = priorityOrder[item.priority as keyof typeof priorityOrder] ?? 1;
-        const bPriority = priorityOrder[item.priority as keyof typeof priorityOrder] ?? 1;
+        const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 1;
+        const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 1;
         if (aPriority !== bPriority) return aPriority - bPriority;
         if (a.dueDate && b.dueDate) return a.dueDate.getTime() - b.dueDate.getTime();
         if (a.dueDate) return -1;
@@ -1557,8 +1557,8 @@ export class MemStorage implements IStorage {
     const transcript = this.transcripts.get(transcriptId);
     if (!transcript) return [];
     
-    const caseRecord = this.cases.get(transcript.caseId);
-    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    const caseRecord = await this.getCase(transcript.caseId, userId);
+    if (!caseRecord) return [];
     
     return Array.from(this.actionItemsMap.values())
       .filter(item => item.transcriptId === transcriptId)
@@ -1569,8 +1569,8 @@ export class MemStorage implements IStorage {
     const existing = this.actionItemsMap.get(id);
     if (!existing) return undefined;
     
-    const caseRecord = this.cases.get(existing.caseId);
-    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    const caseRecord = await this.getCase(existing.caseId, userId);
+    if (!caseRecord) return undefined;
     
     const updated = { ...existing, ...updates };
     this.actionItemsMap.set(id, updated);
@@ -1581,8 +1581,8 @@ export class MemStorage implements IStorage {
     const existing = this.actionItemsMap.get(id);
     if (!existing) return false;
     
-    const caseRecord = this.cases.get(existing.caseId);
-    if (!caseRecord || caseRecord.createdBy !== userId) return false;
+    const caseRecord = await this.getCase(existing.caseId, userId);
+    if (!caseRecord) return false;
     
     return this.actionItemsMap.delete(id);
   }
@@ -3624,15 +3624,15 @@ export class DbStorage implements IStorage {
     const item = await db.select().from(actionItems).where(eq(actionItems.id, id));
     if (!item[0]) return undefined;
     
-    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, item[0].caseId), eq(cases.createdBy, userId)));
-    if (!caseRecord[0]) return undefined;
+    const caseRecord = await this.getCase(item[0].caseId, userId);
+    if (!caseRecord) return undefined;
     
     return item[0];
   }
 
   async getActionItemsByCase(caseId: string, userId: string): Promise<ActionItem[]> {
-    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
-    if (!caseRecord[0]) return [];
+    const caseRecord = await this.getCase(caseId, userId);
+    if (!caseRecord) return [];
     
     return await db
       .select()
@@ -3664,8 +3664,8 @@ export class DbStorage implements IStorage {
     const transcript = await db.select().from(transcripts).where(eq(transcripts.id, transcriptId));
     if (!transcript[0]) return [];
     
-    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, transcript[0].caseId), eq(cases.createdBy, userId)));
-    if (!caseRecord[0]) return [];
+    const caseRecord = await this.getCase(transcript[0].caseId, userId);
+    if (!caseRecord) return [];
     
     return await db
       .select()
@@ -3678,8 +3678,8 @@ export class DbStorage implements IStorage {
     const existing = await db.select().from(actionItems).where(eq(actionItems.id, id));
     if (!existing[0]) return undefined;
     
-    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, existing[0].caseId), eq(cases.createdBy, userId)));
-    if (!caseRecord[0]) return undefined;
+    const caseRecord = await this.getCase(existing[0].caseId, userId);
+    if (!caseRecord) return undefined;
     
     const result = await db
       .update(actionItems)
@@ -3693,8 +3693,8 @@ export class DbStorage implements IStorage {
     const existing = await db.select().from(actionItems).where(eq(actionItems.id, id));
     if (!existing[0]) return false;
     
-    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, existing[0].caseId), eq(cases.createdBy, userId)));
-    if (!caseRecord[0]) return false;
+    const caseRecord = await this.getCase(existing[0].caseId, userId);
+    if (!caseRecord) return false;
     
     await db.delete(actionItems).where(eq(actionItems.id, id));
     return true;

@@ -5875,29 +5875,33 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
       
       const items = await storage.getActionItemsByCase(caseId, userId);
-      const draftItems = items.filter(item => (item as any).status === 'draft');
+      // Match frontend: approve anything not already approved (draft or legacy null/other)
+      const pendingItems = items.filter(item => (item as any).status !== 'approved');
       
-      let approvedCount = 0;
-      for (const item of draftItems) {
-        await storage.updateActionItem(item.id, {
+      const approvedAt = new Date();
+      const approvedItems = [];
+      for (const item of pendingItems) {
+        const updated = await storage.updateActionItem(item.id, {
           status: 'approved',
           approvedBy: userId,
-          approvedAt: new Date(),
+          approvedAt,
         }, userId);
-        approvedCount++;
+        if (updated) {
+          approvedItems.push(updated);
+        }
       }
       
       await logAuditEvent(userId, "action_items_bulk_approved", {
         caseId,
         metadata: {
-          approvedCount,
+          approvedCount: approvedItems.length,
           totalItems: items.length,
         },
         severity: "info",
         req,
       });
       
-      res.json({ success: true, approvedCount });
+      res.json({ success: true, approvedCount: approvedItems.length, items: approvedItems });
     } catch (error: any) {
       next(error);
     }
