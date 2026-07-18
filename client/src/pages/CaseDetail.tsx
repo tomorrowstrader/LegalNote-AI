@@ -27,6 +27,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import {
+  estimateRemainingSeconds,
+  formatEtaLabel,
+  processingStartStorageKey,
+} from "@/lib/processingEta";
 import DocumentViewer from "@/components/DocumentViewer";
 import { AudioPlayer, type AudioPlayerHandle } from "@/components/AudioPlayer";
 import { AuditTrail } from "@/components/AuditTrail";
@@ -500,10 +505,14 @@ export default function CaseDetail() {
   });
 
   const realProcessingProgress = processingStatus?.processingMetadata?.progress ?? 0;
+  const processingCurrentStep = processingStatus?.processingMetadata?.currentStep;
   const [displayProgress, setDisplayProgress] = useState(INITIAL_PROGRESS);
+  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
   const realProgressRef = useRef(0);
   const displayProgressRef = useRef(INITIAL_PROGRESS);
   const rafIdRef = useRef<number | null>(null);
+  const processingStartedAtRef = useRef<number | null>(null);
+  const lastEtaProgressRef = useRef(0);
 
   useEffect(() => {
     realProgressRef.current = realProcessingProgress;
@@ -575,6 +584,75 @@ export default function CaseDetail() {
       }
     };
   }, [caseData?.status]);
+
+  // Live countdown ETA while documents are being produced
+  useEffect(() => {
+    if (!caseId || caseData?.status !== "processing") {
+      processingStartedAtRef.current = null;
+      lastEtaProgressRef.current = 0;
+      setEtaSeconds(null);
+      if (caseId) {
+        try {
+          sessionStorage.removeItem(processingStartStorageKey(caseId));
+        } catch {
+          /* ignore */
+        }
+      }
+      return;
+    }
+
+    const storageKey = processingStartStorageKey(caseId);
+    if (!processingStartedAtRef.current) {
+      let startedAt = Date.now();
+      try {
+        const stored = sessionStorage.getItem(storageKey);
+        if (stored) {
+          const parsed = parseInt(stored, 10);
+          if (Number.isFinite(parsed) && parsed > 0) startedAt = parsed;
+          else sessionStorage.setItem(storageKey, String(startedAt));
+        } else {
+          sessionStorage.setItem(storageKey, String(startedAt));
+        }
+      } catch {
+        /* ignore */
+      }
+      processingStartedAtRef.current = startedAt;
+      lastEtaProgressRef.current = realProcessingProgress;
+    }
+
+    const tick = () => {
+      const startedAt = processingStartedAtRef.current ?? Date.now();
+      const elapsedSec = Math.max(0, (Date.now() - startedAt) / 1000);
+      const progress = realProgressRef.current;
+      const target = estimateRemainingSeconds({
+        progress,
+        elapsedSec,
+        audioDurationSec: audioData?.duration,
+        currentStep: processingCurrentStep,
+      });
+
+      const progressAdvanced = progress > lastEtaProgressRef.current + 0.5;
+      if (progressAdvanced) lastEtaProgressRef.current = progress;
+
+      setEtaSeconds((prev) => {
+        if (progress >= 100) return 0;
+        if (prev == null) return target;
+        if (progressAdvanced) return Math.min(prev, target);
+        // Natural 1s countdown; hold a small floor so we never flash 0:00 early
+        return Math.max(5, prev - 1);
+      });
+    };
+
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [
+    caseId,
+    caseData?.status,
+    realProcessingProgress,
+    processingCurrentStep,
+    audioData?.duration,
+  ]);
 
   const { data: meetingSessions = [] } = useQuery<MeetingSession[]>({
     queryKey: [`/api/cases/${caseId}/sessions`],
@@ -735,6 +813,17 @@ export default function CaseDetail() {
     });
     displayProgressRef.current = INITIAL_PROGRESS;
     setDisplayProgress(INITIAL_PROGRESS);
+    const startedAt = Date.now();
+    processingStartedAtRef.current = startedAt;
+    lastEtaProgressRef.current = 0;
+    setEtaSeconds(null);
+    if (caseId) {
+      try {
+        sessionStorage.setItem(processingStartStorageKey(caseId), String(startedAt));
+      } catch {
+        /* ignore */
+      }
+    }
     void queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
     void queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/processing-status`] });
   };
@@ -1761,9 +1850,16 @@ export default function CaseDetail() {
               {processingStatus?.processingMetadata && (
                 <div className="space-y-1.5">
                   <Progress value={Math.round(displayProgress)} className="h-1.5" data-testid="progress-bar" />
-                  <p className="text-xs text-muted-foreground" data-testid="text-progress-percentage">
-                    {Math.round(displayProgress)}% complete
-                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-muted-foreground" data-testid="text-progress-percentage">
+                      {Math.round(displayProgress)}% complete
+                    </p>
+                    {etaSeconds != null && (
+                      <p className="text-xs text-muted-foreground tabular-nums" data-testid="text-progress-eta">
+                        {formatEtaLabel(etaSeconds)}
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
               {processingStatus?.processingMetadata?.error && (
