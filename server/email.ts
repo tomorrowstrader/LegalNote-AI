@@ -936,7 +936,9 @@ interface WaitlistAdminNotificationParams {
 export async function sendWaitlistAdminNotification(params: WaitlistAdminNotificationParams): Promise<{ success: boolean; error?: string }> {
   const { email, firstName, lastName, firmName, firmSize, role, source } = params;
   
-  const adminEmails = ['jazz.dennis@legalnote.ai', 'support@legalnote.ai'];
+  // support@ is a Google Workspace alias for the monitored Jazz Dennis inbox.
+  // Use the alias only so the same notification is not delivered twice.
+  const adminEmails = ['support@legalnote.ai'];
   
   const submittedAt = new Date().toLocaleString('en-GB', {
     weekday: 'long',
@@ -1564,8 +1566,9 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
 
   try {
     const result = await sendEmail({
-      from: 'LegalNote <noreply@legalnote.ai>',
+      from: 'LegalNote <invitations@legalnote.ai>',
       to,
+      replyTo: 'support@legalnote.ai',
       subject: `You have been invited to join ${firmName} on LegalNote`,
       html: emailHtml,
     });
