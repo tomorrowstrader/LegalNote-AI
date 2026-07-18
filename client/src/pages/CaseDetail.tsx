@@ -107,10 +107,16 @@ const SECTION_LABELS: Record<CaseSection, string> = {
   supervision: "Supervision",
 };
 
-const PROCESSING_PROGRESS_MILESTONES = [10, 20, 25, 35, 40, 50, 60, 75, 100];
-const INITIAL_PROGRESS = 3;
-const CREEP_EASE_FACTOR = 0.06;
-const CREEP_MIN_INCREMENT = 0.03;
+// Mirror the real progress values emitted by the server pipeline
+// (aiProcessingPipeline.ts) so the creep cap tracks the actual next step. The
+// heaviest phase (attendance-note generation) runs while the server reports 40,
+// so 40 -> 55 must span a wide range for the bar to keep visibly moving.
+const PROCESSING_PROGRESS_MILESTONES = [10, 20, 35, 40, 55, 70, 85, 100];
+const INITIAL_PROGRESS = 12;
+// Time-based creep: ease toward the cap but never fully stall, so long LLM
+// phases still show continuous motion instead of parking at one number.
+const CREEP_EASE_PER_SEC = 0.09; // close ~9% of the remaining gap each second
+const CREEP_MIN_RATE = 0.5; // ...but always advance at least 0.5%/sec until the cap
 
 function getNextProcessingMilestone(progress: number): number {
   for (const milestone of PROCESSING_PROGRESS_MILESTONES) {
@@ -525,7 +531,13 @@ export default function CaseDetail() {
     setDisplayProgress(INITIAL_PROGRESS);
     realProgressRef.current = realProcessingProgress;
 
-    const animate = () => {
+    let lastTs = performance.now();
+
+    const animate = (now: number) => {
+      // Clamp dt so a backgrounded tab doesn't produce a huge jump on return.
+      const dtSec = Math.min(Math.max((now - lastTs) / 1000, 0), 0.5);
+      lastTs = now;
+
       const real = realProgressRef.current;
       let display = displayProgressRef.current;
 
@@ -536,9 +548,10 @@ export default function CaseDetail() {
       } else {
         const cap = getProcessingCreepCap(real);
         if (display < cap) {
-          const delta = (cap - display) * CREEP_EASE_FACTOR;
-          display = display + Math.max(delta, CREEP_MIN_INCREMENT);
-          display = Math.min(display, cap);
+          const remaining = cap - display;
+          const easeStep = remaining * CREEP_EASE_PER_SEC * dtSec;
+          const floorStep = CREEP_MIN_RATE * dtSec;
+          display = Math.min(display + Math.max(easeStep, floorStep), cap);
         }
         display = Math.min(display, 99);
       }
