@@ -1,11 +1,88 @@
 import { Resend } from 'resend';
+import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import type { FirmRiskDigest } from './storage';
 
-if (!process.env.RESEND_API_KEY) {
-  throw new Error('RESEND_API_KEY environment variable is not set');
+type EmailProvider = 'resend' | 'ses';
+
+const EMAIL_PROVIDER: EmailProvider =
+  (process.env.EMAIL_PROVIDER || 'resend').toLowerCase() === 'ses' ? 'ses' : 'resend';
+
+console.log(`[EMAIL] Active provider: ${EMAIL_PROVIDER}`);
+
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
+
+const sesClient =
+  EMAIL_PROVIDER === 'ses'
+    ? new SESv2Client({ region: process.env.AWS_REGION || 'eu-west-2' })
+    : null;
+
+interface SendEmailParams {
+  from: string;
+  to: string | string[];
+  subject: string;
+  html: string;
+  replyTo?: string;
+  headers?: Record<string, string>;
 }
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+async function sendEmail(
+  params: SendEmailParams
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const to = Array.isArray(params.to) ? params.to : [params.to];
+  const { from, subject, html, replyTo, headers } = params;
+
+  try {
+    if (EMAIL_PROVIDER === 'ses') {
+      if (!sesClient) {
+        return { success: false, error: 'SES client not configured' };
+      }
+
+      const simpleHeaders = headers
+        ? Object.entries(headers).map(([Name, Value]) => ({ Name, Value }))
+        : undefined;
+
+      const result = await sesClient.send(
+        new SendEmailCommand({
+          FromEmailAddress: from,
+          Destination: { ToAddresses: to },
+          ReplyToAddresses: replyTo ? [replyTo] : undefined,
+          Content: {
+            Simple: {
+              Subject: { Data: subject, Charset: 'UTF-8' },
+              Body: { Html: { Data: html, Charset: 'UTF-8' } },
+              ...(simpleHeaders ? { Headers: simpleHeaders } : {}),
+            },
+          },
+        })
+      );
+
+      return { success: true, messageId: result.MessageId };
+    }
+
+    if (!resend) {
+      return { success: false, error: 'Email service not configured' };
+    }
+
+    const { data, error } = await resend.emails.send({
+      from,
+      to,
+      subject,
+      html,
+      ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(headers ? { headers } : {}),
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
 
 interface SendCaseEmailParams {
   to: string;
@@ -149,19 +226,18 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: 'LegalNote™ <support@legalnote.ai>', // Use verified domain in production
-      to: [to],
+    const result = await sendEmail({
+      from: 'LegalNote™ <support@legalnote.ai>',
+      to,
       subject: 'Secure document access',
       html: emailHtml,
     });
 
-    if (error) {
-      console.error('Error sending email via Resend:', error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('Error sending email:', result.error);
     }
 
-    return { success: true, messageId: data?.id };
+    return result;
   } catch (error: any) {
     console.error('Exception sending email:', error);
     return { success: false, error: error.message || 'Unknown error' };
@@ -421,20 +497,20 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const result = await sendEmail({
       from: 'LegalNote™ <support@legalnote.ai>',
-      to: [to],
+      to,
       subject: `Recording Saved - ${clientName}${matterReference ? ` (${matterReference})` : ''} - ${formattedDate}`,
       html: emailHtml,
     });
 
-    if (error) {
-      console.error('[EMAIL] Error sending recording confirmation via Resend:', error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('[EMAIL] Error sending recording confirmation:', result.error);
+    } else {
+      console.log('[EMAIL] Recording confirmation sent successfully:', result.messageId);
     }
 
-    console.log('[EMAIL] Recording confirmation sent successfully:', data?.id);
-    return { success: true, messageId: data?.id };
+    return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending recording confirmation:', error);
     return { success: false, error: error.message || 'Unknown error' };
@@ -549,20 +625,20 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const result = await sendEmail({
       from: 'LegalNote™ <support@legalnote.ai>',
-      to: [to],
+      to,
       subject,
       html: emailHtml,
     });
 
-    if (error) {
-      console.error('[EMAIL] Error sending pre-consent email via Resend:', error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('[EMAIL] Error sending pre-consent email:', result.error);
+    } else {
+      console.log('[EMAIL] Pre-consent email sent successfully:', result.messageId);
     }
 
-    console.log('[EMAIL] Pre-consent email sent successfully:', data?.id);
-    return { success: true, messageId: data?.id };
+    return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending pre-consent email:', error);
     return { success: false, error: error.message || 'Unknown error' };
@@ -656,20 +732,20 @@ export async function sendConsentResponseNotification(params: SendConsentRespons
     : `Reschedule Requested: ${clientName} has requested a new time`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const result = await sendEmail({
       from: 'LegalNote™ <support@legalnote.ai>',
-      to: [to],
+      to,
       subject,
       html: emailHtml,
     });
 
-    if (error) {
-      console.error('[EMAIL] Error sending consent response notification:', error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('[EMAIL] Error sending consent response notification:', result.error);
+    } else {
+      console.log('[EMAIL] Consent response notification sent successfully:', result.messageId);
     }
 
-    console.log('[EMAIL] Consent response notification sent successfully:', data?.id);
-    return { success: true, messageId: data?.id };
+    return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending consent response notification:', error);
     return { success: false, error: error.message || 'Unknown error' };
@@ -677,13 +753,6 @@ export async function sendConsentResponseNotification(params: SendConsentRespons
 }
 
 export async function sendWaitlistConfirmationEmail(to: string, firstName: string): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  if (!process.env.RESEND_API_KEY) {
-    console.warn('[EMAIL] RESEND_API_KEY not configured, skipping waitlist confirmation email');
-    return { success: false, error: 'Email service not configured' };
-  }
-
-  const resend = new Resend(process.env.RESEND_API_KEY);
-
   const emailBaseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
   const logoUrl = `${emailBaseUrl}/assets/email/legalnote-wordmark.png`;
   const logoHtml = `<img src="${logoUrl}" alt="LegalNote" style="height: 36px; width: auto;" />`;
@@ -826,10 +895,10 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const result = await sendEmail({
       from: 'LegalNote\u2122 <support@legalnote.ai>',
-      to: [to],
-      reply_to: 'support@legalnote.ai',
+      to,
+      replyTo: 'support@legalnote.ai',
       headers: {
         'Precedence': 'bulk',
         'X-Entity-Ref-ID': Date.now().toString(),
@@ -838,13 +907,13 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
       html: emailHtml,
     });
 
-    if (error) {
-      console.error('[EMAIL] Error sending waitlist confirmation via Resend:', error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('[EMAIL] Error sending waitlist confirmation:', result.error);
+    } else {
+      console.log('[EMAIL] Waitlist confirmation sent successfully:', result.messageId);
     }
 
-    console.log('[EMAIL] Waitlist confirmation sent successfully:', data?.id);
-    return { success: true, messageId: data?.id };
+    return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending waitlist confirmation:', error);
     return { success: false, error: error.message || 'Unknown error' };
@@ -996,19 +1065,19 @@ export async function sendWaitlistAdminNotification(params: WaitlistAdminNotific
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const result = await sendEmail({
       from: 'LegalNote Waitlist <support@legalnote.ai>',
       to: adminEmails,
       subject: `New Early Access Request: ${firmName || email}`,
       html: emailHtml,
     });
 
-    if (error) {
-      console.error('[EMAIL] Error sending admin notification via Resend:', error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('[EMAIL] Error sending admin notification:', result.error);
+      return { success: false, error: result.error };
     }
 
-    console.log('[EMAIL] Admin notification sent successfully:', data?.id);
+    console.log('[EMAIL] Admin notification sent successfully:', result.messageId);
     return { success: true };
   } catch (error: any) {
     console.error('[EMAIL] Exception sending admin notification to', adminEmails.join(', '), ':', error);
@@ -1155,35 +1224,25 @@ export async function sendLeadMagnetEmail(
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const result = await sendEmail({
       from: 'LegalNote™ <support@legalnote.ai>',
-      to: [to],
-      reply_to: 'support@legalnote.ai',
+      to,
+      replyTo: 'support@legalnote.ai',
       headers: {
         'Precedence': 'bulk',
         'X-Entity-Ref-ID': Date.now().toString(),
       },
       subject: 'Your Guide: The Defensible Record',
       html: emailHtml,
-      ...(hasPdf
-        ? {
-            attachments: [
-              {
-                filename: 'The-Defensible-Record-LegalNote.pdf',
-                content: pdfBuffer as Buffer,
-              },
-            ],
-          }
-        : {}),
     });
 
-    if (error) {
-      console.error('[EMAIL] Error sending lead magnet via Resend:', error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('[EMAIL] Error sending lead magnet:', result.error);
+    } else {
+      console.log('[EMAIL] Lead magnet sent successfully:', result.messageId);
     }
 
-    console.log('[EMAIL] Lead magnet sent successfully:', data?.id);
-    return { success: true, messageId: data?.id };
+    return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending lead magnet:', error);
     return { success: false, error: error.message || 'Unknown error' };
@@ -1290,20 +1349,20 @@ export async function sendAcknowledgementRequestEmail(
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: 'LegalNote <noreply@legalnote.app>',
+    const result = await sendEmail({
+      from: 'LegalNote <noreply@legalnote.ai>',
       to,
       subject: `Action required: Please acknowledge your Client Care Letter — ${caseTitle}`,
       html: emailHtml,
     });
 
-    if (error) {
-      console.error('[EMAIL] Error sending acknowledgement request:', error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('[EMAIL] Error sending acknowledgement request:', result.error);
+    } else {
+      console.log('[EMAIL] Acknowledgement request sent successfully:', result.messageId);
     }
 
-    console.log('[EMAIL] Acknowledgement request sent successfully:', data?.id);
-    return { success: true, messageId: data?.id };
+    return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending acknowledgement request:', error);
     return { success: false, error: error.message || 'Unknown error' };
@@ -1404,20 +1463,20 @@ export async function sendRiskDigestEmail(params: {
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: 'LegalNote Compliance <noreply@legalnote.app>',
+    const result = await sendEmail({
+      from: 'LegalNote Compliance <noreply@legalnote.ai>',
       to,
       subject: `Weekly Risk Digest — ${digest.totalIssues} item${digest.totalIssues !== 1 ? 's' : ''} — ${firmName}`,
       html: emailHtml,
     });
 
-    if (error) {
-      console.error('[EMAIL] Error sending risk digest:', error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('[EMAIL] Error sending risk digest:', result.error);
+    } else {
+      console.log('[EMAIL] Risk digest sent successfully:', result.messageId);
     }
 
-    console.log('[EMAIL] Risk digest sent successfully:', data?.id);
-    return { success: true, messageId: data?.id };
+    return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending risk digest:', error);
     return { success: false, error: error.message || 'Unknown error' };
@@ -1504,20 +1563,20 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: 'LegalNote <noreply@legalnote.app>',
+    const result = await sendEmail({
+      from: 'LegalNote <noreply@legalnote.ai>',
       to,
       subject: `You have been invited to join ${firmName} on LegalNote`,
       html: emailHtml,
     });
 
-    if (error) {
-      console.error('[EMAIL] Error sending invitation email:', error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('[EMAIL] Error sending invitation email:', result.error);
+    } else {
+      console.log('[EMAIL] Invitation email sent successfully:', result.messageId);
     }
 
-    console.log('[EMAIL] Invitation email sent successfully:', data?.id);
-    return { success: true, messageId: data?.id };
+    return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending invitation email:', error);
     return { success: false, error: error.message || 'Unknown error' };
@@ -1602,20 +1661,20 @@ export async function sendMeetingReminderEmail(
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: `LegalNote <noreply@${process.env.RESEND_DOMAIN || 'resend.dev'}>`,
-      to: [to],
+    const result = await sendEmail({
+      from: 'LegalNote <noreply@legalnote.ai>',
+      to,
       subject,
       html: emailHtml,
     });
 
-    if (error) {
-      console.error('[EMAIL] Failed to send meeting reminder:', error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('[EMAIL] Failed to send meeting reminder:', result.error);
+    } else {
+      console.log('[EMAIL] Meeting reminder sent:', result.messageId, `(${minutesBefore}m)`);
     }
 
-    console.log('[EMAIL] Meeting reminder sent:', data?.id, `(${minutesBefore}m)`);
-    return { success: true, messageId: data?.id };
+    return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending meeting reminder:', error);
     return { success: false, error: error.message || 'Unknown error' };
