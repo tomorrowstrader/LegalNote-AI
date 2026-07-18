@@ -190,29 +190,42 @@ export function PageView({ content, gapAnchorLabels }: PageViewProps) {
     const pmEl = container.querySelector('.ProseMirror') as HTMLElement | null;
     if (!pmEl) return;
 
-    const topLevelBlocks = Array.from(pmEl.children) as HTMLElement[];
+    const topLevelBlocks = Array.from(pmEl.children).filter(
+      (el): el is HTMLElement => el instanceof HTMLElement && !el.classList.contains('page-gutter-widget')
+    );
     if (topLevelBlocks.length === 0) return;
 
     const result: Page[] = [];
     let currentBlocks: string[] = [];
-    let currentHeight = 0;
+    // Y origin (in measure-doc coordinates) of the first block on the current page.
+    // Using offsetTop deltas respects CSS margin collapse; adding marginTop+marginBot
+    // per block double-counts collapsed gaps and triggers early breaks.
+    let pageStartY = 0;
     let pageNumber = 1;
+    let pageHasBlocks = false;
 
     for (const block of topLevelBlocks) {
-      const style      = getComputedStyle(block);
-      const marginTop  = parseFloat(style.marginTop)    || 0;
-      const marginBot  = parseFloat(style.marginBottom) || 0;
-      const blockHeight = block.getBoundingClientRect().height + marginTop + marginBot;
+      const style = getComputedStyle(block);
+      const marginTop = parseFloat(style.marginTop) || 0;
+      const marginBot = parseFloat(style.marginBottom) || 0;
+      const blockEndY = block.offsetTop + block.offsetHeight + marginBot;
+      const html = hydrateReasoningGapAnchorsInHtml(block.outerHTML, gapAnchorLabels);
 
-      // If this block would overflow the current page, start a new one
-      if (currentHeight + blockHeight > CONTENT_H && currentBlocks.length > 0) {
+      if (!pageHasBlocks) {
+        pageStartY = block.offsetTop - marginTop;
+        currentBlocks = [html];
+        pageHasBlocks = true;
+        continue;
+      }
+
+      const usedHeight = blockEndY - pageStartY;
+      if (usedHeight > CONTENT_H) {
         result.push({ blocks: [...currentBlocks], pageNumber });
         pageNumber++;
-        currentBlocks = [hydrateReasoningGapAnchorsInHtml(block.outerHTML, gapAnchorLabels)];
-        currentHeight = blockHeight;
+        pageStartY = block.offsetTop - marginTop;
+        currentBlocks = [html];
       } else {
-        currentBlocks.push(hydrateReasoningGapAnchorsInHtml(block.outerHTML, gapAnchorLabels));
-        currentHeight += blockHeight;
+        currentBlocks.push(html);
       }
     }
 
@@ -228,9 +241,17 @@ export function PageView({ content, gapAnchorLabels }: PageViewProps) {
   useEffect(() => {
     if (!measureEditor) return;
 
-    // Wait a tick after TipTap renders before measuring
-    const id = setTimeout(computePages, 120);
-    return () => clearTimeout(id);
+    // Wait for TipTap + measure-container CSS (ProseMirror reset) to lay out
+    let cancelled = false;
+    const id = window.setTimeout(() => {
+      requestAnimationFrame(() => {
+        if (!cancelled) computePages();
+      });
+    }, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
   }, [measureEditor, content, computePages]);
 
   // Once pages are painted, quote Advice given onto weak gap chips

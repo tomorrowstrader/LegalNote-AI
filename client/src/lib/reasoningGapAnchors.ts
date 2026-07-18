@@ -232,7 +232,7 @@ function citationKeywordScore(block: string, citation: string): number {
   const words = citation
     .toLowerCase()
     .split(/[^a-z0-9£$]+/i)
-    .filter((w) => w.length >= 4 && !/^(that|this|with|from|into|have|been|were|their|about|whether|specific|options|outlined|treatment|potential|further|steps|taken|respect)$/i.test(w));
+    .filter((w) => w.length >= 4 && !/^(that|this|with|from|into|have|been|were|their|about|whether|specific|options|outlined|treatment|potential|further|steps|taken|respect|advice|point|client|should|would|could|must|being|under|over|than|then|also|only|such|into|onto)$/i.test(w));
   if (words.length === 0) return 0;
   const text = block.toLowerCase();
   let hits = 0;
@@ -329,14 +329,36 @@ function extractQuotedAdviceSnippet(text: string, maxLen = 140): string {
   return out.length > maxLen ? `${out.slice(0, maxLen - 1).trim()}…` : out;
 }
 
+/** Split a block into scoreable advice units (sentences / clauses). */
+function adviceUnitsFromBlock(text: string): string[] {
+  const cleaned = text
+    .replace(/^(advice given|key points advised)\s*:?\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return [];
+  const units = cleaned
+    .split(/(?<=[.!?])\s+|(?<=;)\s+|\n+|(?<=\.)\s+(?=[A-Z“"])/)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 12);
+  return units.length > 0 ? units : [cleaned];
+}
+
+export type AdviceMatch = {
+  element: HTMLElement;
+  /** Best sentence/clause within the element for this citation. */
+  quote: string;
+  score: number;
+};
+
 /**
- * Find the best Advice-given block in a section for a gap citation.
- * Never prefers Client's instructions or bare headings.
+ * Find the advice text in a section that best matches this gap's citation label.
+ * Scores individual sentences/list items so multi-advice sections don't all
+ * collapse to the first "I advised…".
  */
-export function findAdviceTargetInSection(
+export function findBestAdviceMatchInSection(
   sectionBlocks: HTMLElement[],
   citation?: string,
-): HTMLElement | null {
+): AdviceMatch | null {
   if (sectionBlocks.length === 0) return null;
 
   const candidates = sectionBlocks.filter((b) => {
@@ -348,38 +370,85 @@ export function findAdviceTargetInSection(
   });
 
   const adviceBlocks = candidates.filter(isAdviceRegionBlock);
-  const pool = adviceBlocks.length > 0 ? adviceBlocks : candidates.filter((b) => !isReasoningLabelBlock(b));
+  const pool =
+    adviceBlocks.length > 0
+      ? adviceBlocks
+      : candidates.filter((b) => !isReasoningLabelBlock(b));
 
   if (pool.length === 0) return null;
 
   const cite = (citation || "").trim();
-  if (cite && !isWeakGapCitation(cite)) {
-    let best: HTMLElement | null = null;
-    let bestScore = 0;
-    for (const block of pool) {
-      const text = blockText(block);
-      // Strong path: verbatim / near-verbatim
-      if (text.toLowerCase().includes(cite.toLowerCase())) {
-        return block;
+  let best: AdviceMatch | null = null;
+
+  for (const block of pool) {
+    const full = blockText(block);
+    if (!full) continue;
+
+    // Verbatim / near-verbatim citation → strong hit on this block
+    if (cite && full.toLowerCase().includes(cite.toLowerCase())) {
+      const unit =
+        adviceUnitsFromBlock(full).find((u) =>
+          u.toLowerCase().includes(cite.toLowerCase()),
+        ) || cite;
+      const quote = unit.length > 160 ? `${unit.slice(0, 159).trim()}…` : unit;
+      return { element: block, quote: quote || cite, score: 1 };
+    }
+
+    for (const unit of adviceUnitsFromBlock(full)) {
+      let score = cite && !isWeakGapCitation(cite) ? citationKeywordScore(unit, cite) : 0;
+      // Prefer units that actually state advice when scores are close
+      if (/\bi advised\b/i.test(unit)) score += 0.08;
+      if (cite && unit.toLowerCase().includes(cite.toLowerCase().slice(0, Math.min(28, cite.length)))) {
+        score = Math.max(score, 0.95);
       }
-      const score = citationKeywordScore(text, cite);
-      if (score > bestScore) {
-        bestScore = score;
-        best = block;
+      if (!best || score > best.score) {
+        const quote =
+          unit.length > 160 ? `${unit.slice(0, 159).trim()}…` : unit;
+        best = { element: block, quote, score };
       }
     }
-    if (best && bestScore >= 0.34) return best;
   }
 
-  // Weak / unmatched label: land on the first real advice block in the section
+  if (best && !isWeakGapCitation(cite) && best.score >= 0.28) {
+    return best;
+  }
+
+  // Weak / low-confidence labels: prefer a real "I advised" block in the section
   const advised = pool.find((b) => /\bi advised\b/i.test(blockText(b)));
-  if (advised) return advised;
-  return pool[0] ?? null;
+  if (advised) {
+    const quote = extractQuotedAdviceSnippet(blockText(advised), 160);
+    if (quote) {
+      // Keep a higher-scoring sentence match when we already found one
+      if (best && best.score >= 0.28 && best.element === advised) return best;
+      if (best && best.score >= 0.45) return best;
+      return { element: advised, quote, score: best?.score ?? 0 };
+    }
+  }
+
+  if (best && best.score > 0) return best;
+
+  const fallback = advised ?? pool[0];
+  if (!fallback) return null;
+  const quote = extractQuotedAdviceSnippet(blockText(fallback), 160);
+  return quote
+    ? { element: fallback, quote, score: 0 }
+    : { element: fallback, quote: blockText(fallback).slice(0, 140), score: 0 };
+}
+
+/**
+ * Find the best Advice-given block in a section for a gap citation.
+ * Never prefers Client's instructions or bare headings.
+ */
+export function findAdviceTargetInSection(
+  sectionBlocks: HTMLElement[],
+  citation?: string,
+): HTMLElement | null {
+  return findBestAdviceMatchInSection(sectionBlocks, citation)?.element ?? null;
 }
 
 /**
  * After chips are in the DOM, replace weak/generic citations with a short quote
- * taken from that section's Advice given wording.
+ * taken from that section's best-matching Advice given wording for this gap.
  */
 export function enrichGapCitationChips(roots: ParentNode[]): void {
   const blocks = collectNoteBodyBlocks(roots);
@@ -405,24 +474,26 @@ export function enrichGapCitationChips(roots: ParentNode[]): void {
       section,
       anchor: chip,
     });
-    const adviceEl = findAdviceTargetInSection(sectionBlocks, current);
-    if (!adviceEl) continue;
+    const match = findBestAdviceMatchInSection(sectionBlocks, current);
+    if (!match?.quote || match.quote.length < 12) continue;
 
-    const quote = extractQuotedAdviceSnippet(blockText(adviceEl));
-    if (!quote || quote.length < 12) continue;
+    const overlap = citationKeywordScore(match.quote, current);
+    const alreadyGood =
+      !isWeakGapCitation(current) &&
+      overlap >= 0.4 &&
+      (match.quote.toLowerCase().includes(current.toLowerCase().slice(0, 24)) ||
+        current.toLowerCase().includes(match.quote.toLowerCase().slice(0, 24)));
+    if (alreadyGood) continue;
 
-    // Enrich when weak, or when current citation barely overlaps the advice text
-    const overlap = citationKeywordScore(blockText(adviceEl), current);
-    if (!isWeakGapCitation(current) && overlap >= 0.34 && blockText(adviceEl).toLowerCase().includes(current.toLowerCase().slice(0, 24))) {
-      continue;
-    }
+    // Only adopt enrichment when match is meaningful for this gap's label
+    if (!isWeakGapCitation(current) && match.score < 0.28) continue;
 
-    chip.setAttribute("data-gap-citation", quote);
-    chip.setAttribute("aria-label", `Reasoning needed — ${quote}`);
+    chip.setAttribute("data-gap-citation", match.quote);
+    chip.setAttribute("aria-label", `Reasoning needed — ${match.quote}`);
     const btn = chip.querySelector(".reasoning-gap-citation") as HTMLElement | null;
     if (btn) {
-      btn.setAttribute("data-gap-citation", quote);
-      btn.textContent = `“${quote}”`;
+      btn.setAttribute("data-gap-citation", match.quote);
+      btn.textContent = `“${match.quote}”`;
     }
   }
 }

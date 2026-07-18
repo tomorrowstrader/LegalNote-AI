@@ -137,10 +137,12 @@ function getProcessingCreepCap(realProgress: number): number {
     const docGenMilestone = PROCESSING_PROGRESS_MILESTONES.find((m) => m >= 40);
     if (docGenMilestone) return docGenMilestone - 1;
   }
-  let next = getNextProcessingMilestone(realProgress);
-  if (next - realProgress <= 5) {
-    const further = getNextProcessingMilestone(next);
-    if (further > next) next = further;
+  const next = getNextProcessingMilestone(realProgress);
+  const further = getNextProcessingMilestone(next);
+  // Doc-gen (server sits at 40 for a long time) must not park the bar at 54%.
+  // Creep toward the milestone after next so the UI keeps moving through LLM waits.
+  if (further > next && (realProgress >= 40 || next - realProgress <= 5)) {
+    return further - 1;
   }
   return next - 1;
 }
@@ -494,6 +496,7 @@ export default function CaseDetail() {
   }>>({
     queryKey: [`/api/cases/${caseId}/documents`],
     enabled: shouldLoadCaseContent,
+    refetchInterval: caseData?.status === "processing" ? 5000 : false,
   });
 
   const { data: processingStatus, error: processingStatusError } = useQuery<{
@@ -651,8 +654,10 @@ export default function CaseDetail() {
         if (progress >= 100) return 0;
         if (prev == null) return target;
         if (progressAdvanced) return Math.min(prev, target);
-        // Natural 1s countdown; hold a small floor so we never flash 0:00 early
-        return Math.max(5, prev - 1);
+        // Soft 1s countdown, but never invent an "almost done" floor mid-run.
+        // Before 90% real progress, stay at/above the latest estimate (min 8s).
+        const floor = progress >= 90 ? 3 : Math.max(8, target);
+        return Math.max(floor, prev - 1);
       });
     };
 
@@ -773,6 +778,22 @@ export default function CaseDetail() {
       });
     }
   }, [processingStatus?.status, caseData?.status, caseId]);
+
+  // When the matter leaves processing via case poll (not only processing-status),
+  // refresh documents/versions so a new further version appears immediately.
+  const prevCaseStatusRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevCaseStatusRef.current;
+    prevCaseStatusRef.current = caseData?.status;
+    if (prev === "processing" && caseData?.status && caseData.status !== "processing") {
+      void queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      void queryClient.invalidateQueries({
+        predicate: (q) =>
+          typeof q.queryKey[0] === "string" &&
+          (q.queryKey[0] as string).includes(`/api/cases/${caseId}/document-versions`),
+      });
+    }
+  }, [caseData?.status, caseId]);
 
   useEffect(() => {
     if (
@@ -1868,7 +1889,7 @@ export default function CaseDetail() {
                   </p>
                   {etaSeconds != null && (
                     <p className="text-xs text-muted-foreground tabular-nums" data-testid="text-progress-eta">
-                      {formatEtaLabel(etaSeconds)}
+                      {formatEtaLabel(etaSeconds, realProcessingProgress)}
                     </p>
                   )}
                 </div>

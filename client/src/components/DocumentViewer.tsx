@@ -29,7 +29,7 @@ import {
   isWeakGapCitation,
   collectNoteBodyBlocks,
   getSectionBlocksForGap,
-  findAdviceTargetInSection,
+  findBestAdviceMatchInSection,
   enrichGapCitationChips,
 } from "@/lib/reasoningGapAnchors";
 
@@ -606,6 +606,10 @@ function findElementContainingText(root: ParentNode, text: string): HTMLElement 
   const blocks = Array.from(
     scope.querySelectorAll("h1, h2, h3, h4, h5, p, li, td, th, blockquote"),
   ) as HTMLElement[];
+  // Include the scope itself when it is already a note block (common for li/p matches)
+  if (/^(H1|H2|H3|H4|H5|P|LI|TD|TH|BLOCKQUOTE)$/i.test(scope.tagName)) {
+    blocks.unshift(scope as HTMLElement);
+  }
 
   let best: HTMLElement | null = null;
   let bestLen = Infinity;
@@ -656,9 +660,16 @@ function scrollToGapCitation(citation: string, section?: string, gapIndex?: numb
     anchor,
   });
 
-  const adviceTarget = findAdviceTargetInSection(sectionBlocks, cite);
-  if (adviceTarget) {
-    highlightAndScrollToElement(adviceTarget);
+  const match = findBestAdviceMatchInSection(sectionBlocks, cite);
+  if (match) {
+    // Prefer the tightest element that still contains the matched quote/sentence
+    const quoteNeedle = (match.quote || cite).replace(/…$/, "").trim();
+    let target = match.element;
+    if (quoteNeedle.length >= 12) {
+      const nested = findElementContainingText(match.element, quoteNeedle);
+      if (nested) target = nested;
+    }
+    highlightAndScrollToElement(target);
     return;
   }
 
@@ -735,43 +746,11 @@ function highlightAndScrollToElement(target: HTMLElement) {
 }
 
 function scrollToReasoningGap(sectionName: string, gapIndex?: number) {
-  // Prefer visible note surfaces. Exclude PageView's hidden measure ProseMirror
-  // (aria-hidden / fixed off-screen) — matching that used to make jump-to appear broken.
-  const roots = getVisibleNoteRoots();
-
-  // Prefer the exact in-note anchor for this gap (where the marker sat).
-  if (gapIndex != null) {
-    for (const root of roots) {
-      const anchor = findReasoningGapAnchor(root, gapIndex);
-      if (!anchor || isOffscreenOrHidden(anchor)) continue;
-      const block =
-        (anchor.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null) ??
-        anchor;
-      highlightAndScrollToElement(block);
-      return;
-    }
-  }
-
-  // Fallback: jump to the related section heading / label text.
-  const { section: primary } = splitGapLabel(sectionName);
-  const candidates = [
-    primary,
-    primary.replace(/^\d+\.\s*/, ""),
-    sectionName,
-  ].filter((c, i, arr) => c && arr.indexOf(c) === i);
-
-  let el: HTMLElement | null = null;
-  for (const candidate of candidates) {
-    for (const root of roots) {
-      el = findElementContainingText(root, candidate);
-      if (el) break;
-    }
-    if (el) break;
-  }
-  if (!el) return;
-
-  const target = el.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null ?? el;
-  highlightAndScrollToElement(target);
+  // Jump to the advice point this gap refers to — not the REASONING_GAP marker
+  // (markers often sit under "Reasoning behind advice", which feels like the wrong place).
+  const { section, detail } = splitGapLabel(sectionName);
+  const citation = stripReasoningPrefix(detail) || section || sectionName;
+  scrollToGapCitation(citation, section || undefined, gapIndex);
 }
 
 function scrollToDocumentQuote(quote: string, cardTestId: "attendance-note-card" | "summary-note-card") {

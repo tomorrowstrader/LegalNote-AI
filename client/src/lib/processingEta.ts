@@ -111,9 +111,14 @@ export function formatEtaCountdown(seconds: number): string {
   return `${m}:${rem.toString().padStart(2, "0")}`;
 }
 
-export function formatEtaLabel(seconds: number): string {
-  if (seconds <= 5) return "Almost done…";
-  return `About ${formatEtaCountdown(seconds)} remaining`;
+/**
+ * Human ETA copy. "Almost done…" only when real server progress is near the end —
+ * never from a mid-run countdown floor while the bar is still creeping (e.g. 54%).
+ */
+export function formatEtaLabel(seconds: number, progress?: number): string {
+  const nearEnd = progress == null ? false : progress >= 90;
+  if (seconds <= 5 && nearEnd) return "Almost done…";
+  return `About ${formatEtaCountdown(Math.max(seconds, nearEnd ? 0 : 8))} remaining`;
 }
 
 export function processingStartStorageKey(caseId: string): string {
