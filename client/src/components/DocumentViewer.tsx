@@ -307,6 +307,68 @@ interface Document {
   reasoningGapsFilled?: number | null;
 }
 
+/** Tab review indicator: red = not started, amber = in progress, green = approved. */
+type DocumentReviewStatus = 'unreviewed' | 'in_review' | 'reviewed';
+
+function getDocumentReviewStatus(
+  document: Document | undefined,
+  opts: { isEditing?: boolean; isGapPanelOpen?: boolean } = {},
+): DocumentReviewStatus | null {
+  if (!document) return null;
+  if (document.status === 'approved') return 'reviewed';
+  const hasStartedReview =
+    !!opts.isEditing ||
+    !!opts.isGapPanelOpen ||
+    (document.version ?? 1) > 1 ||
+    (document.reasoningGapsFilled ?? 0) > 0;
+  return hasStartedReview ? 'in_review' : 'unreviewed';
+}
+
+const REVIEW_STATUS_META: Record<
+  DocumentReviewStatus,
+  { label: string; className: string }
+> = {
+  unreviewed: {
+    label: 'Awaiting review',
+    className: 'bg-red-500',
+  },
+  in_review: {
+    label: 'Review in progress',
+    className: 'bg-amber-500',
+  },
+  reviewed: {
+    label: 'Reviewed and approved',
+    className: 'bg-green-500',
+  },
+};
+
+function ReviewStatusDot({
+  status,
+  testId,
+}: {
+  status: DocumentReviewStatus | null;
+  testId: string;
+}) {
+  if (!status) return null;
+  const meta = REVIEW_STATUS_META[status];
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn(
+            'inline-block h-2 w-2 shrink-0 rounded-full',
+            meta.className,
+          )}
+          aria-label={meta.label}
+          data-testid={testId}
+          data-review-status={status}
+        />
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{meta.label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 interface SessionInfo {
   id: string;
   sessionTitle: string | null;
@@ -542,20 +604,10 @@ function highlightAndScrollToElement(target: HTMLElement) {
     target.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
-  const isEmptyGapBlock =
-    !!target.querySelector?.("[data-reasoning-gap-index]") &&
-    (target.textContent || "").replace(/\u200b/g, "").trim().length === 0;
-
-  let tempLabel: HTMLSpanElement | null = null;
-  if (isEmptyGapBlock) {
-    target.classList.add("px-2", "py-1.5", "border", "border-dashed", "border-amber-400");
-    tempLabel = document.createElement("span");
-    tempLabel.setAttribute("data-gap-temp-label", "1");
-    tempLabel.className =
-      "text-[11px] text-amber-800 dark:text-amber-300 italic pointer-events-none";
-    tempLabel.textContent = "Reasoning needed at this advice point";
-    target.appendChild(tempLabel);
-  }
+  // Briefly emphasise the marker chip inside the block, if present.
+  const chip = target.querySelector?.("[data-reasoning-gap-index]") as HTMLElement | null;
+  const pulseClasses = ["ring-2", "ring-amber-500", "ring-offset-1", "dark:ring-offset-background"];
+  chip?.classList.add(...pulseClasses);
 
   target.classList.add(
     "ring-2",
@@ -580,10 +632,7 @@ function highlightAndScrollToElement(target: HTMLElement) {
       "transition-shadow",
       "duration-300",
     );
-    if (isEmptyGapBlock) {
-      target.classList.remove("px-2", "py-1.5", "border", "border-dashed", "border-amber-400");
-      tempLabel?.remove();
-    }
+    chip?.classList.remove(...pulseClasses);
   }, 2200);
 }
 
@@ -1082,15 +1131,21 @@ function EditableDocumentContent({
       )}
 
       {/* Page View: accurate multi-page layout renderer.
-          Display uses indexed gap tokens so the panel can jump to the exact advice point. */}
+          Display uses indexed gap tokens so the panel can jump to the exact advice point,
+          and each marker chip shows the specific advice point that still needs reasoning. */}
       {pageViewMode && !isEditing ? (
-        <PageView content={withReasoningGapAnchors(document.content)} legalContext={legalContext} />
+        <PageView
+          content={withReasoningGapAnchors(document.content)}
+          gapAnchorLabels={parseReasoningGaps(document.content)}
+          legalContext={legalContext}
+        />
       ) : (
         <RichTextEditor
           content={isEditing ? editContent : withReasoningGapAnchors(document.content)}
           onChange={onEditContentChange}
           disabled={!isEditing}
           hydrateGapAnchors={!isEditing}
+          gapAnchorLabels={parseReasoningGaps(document.content)}
           placeholder="Document content..."
           zoom={zoom}
           focusMode={focusMode}
@@ -2504,7 +2559,14 @@ export default function DocumentViewer({
             )}
           </div>
           <TabsList className={`grid w-full h-auto ${clientCareLetter ? 'grid-cols-4' : 'grid-cols-3'}`}>
-            <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+            <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto">
+              <ReviewStatusDot
+                status={getDocumentReviewStatus(attendanceNote, {
+                  isEditing: !!attendanceNote && editingDocId === attendanceNote.id,
+                  isGapPanelOpen: !!attendanceNote && showGapPanel === attendanceNote.id,
+                })}
+                testId="tab-attendance-review-status"
+              />
               {isMeetingNotes ? (
                 <>
                   <span className="hidden sm:inline">Meeting Notes</span>
@@ -2517,7 +2579,14 @@ export default function DocumentViewer({
                 </>
               )}
             </TabsTrigger>
-            <TabsTrigger value="summary" data-testid="tab-summary" className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+            <TabsTrigger value="summary" data-testid="tab-summary" className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto">
+              <ReviewStatusDot
+                status={getDocumentReviewStatus(summary, {
+                  isEditing: !!summary && editingDocId === summary.id,
+                  isGapPanelOpen: !!summary && showGapPanel === summary.id,
+                })}
+                testId="tab-summary-review-status"
+              />
               Client Letter
             </TabsTrigger>
             <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto">

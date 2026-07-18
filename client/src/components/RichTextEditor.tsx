@@ -671,6 +671,8 @@ interface RichTextEditorProps {
   disabled?: boolean;
   /** When true (read-only review), turn @@RGAP:N@@ tokens into jump targets. */
   hydrateGapAnchors?: boolean;
+  /** Labels for @@RGAP:N@@ anchors, in document order, so chips show the specific gap. */
+  gapAnchorLabels?: string[];
   placeholder?: string;
   focusMode?: boolean;
   onFocusModeToggle?: () => void;
@@ -684,7 +686,7 @@ interface RichTextEditorProps {
 }
 
 export function RichTextEditor({ 
-  content, onChange, disabled, hydrateGapAnchors = false, placeholder, focusMode, onFocusModeToggle, zoom = 100,
+  content, onChange, disabled, hydrateGapAnchors = false, gapAnchorLabels, placeholder, focusMode, onFocusModeToggle, zoom = 100,
   trackChangesEnabled = false, onTrackChangesToggle, onTrackChangeAction, onAddComment,
   onRedact, legalContext,
 }: RichTextEditorProps) {
@@ -1098,7 +1100,7 @@ export function RichTextEditor({
         isUpdatingRef.current = false;
         if (hydrateGapAnchors && disabled && content?.includes("@@RGAP:")) {
           try {
-            hydrateReasoningGapAnchorsInDom(editor.view.dom);
+            hydrateReasoningGapAnchorsInDom(editor.view.dom, gapAnchorLabels);
           } catch (hydrateErr) {
             console.error("[RichTextEditor] Gap anchor hydration failed:", hydrateErr);
           }
@@ -1108,7 +1110,7 @@ export function RichTextEditor({
         }
       });
     }
-  }, [editor, content, disabled, hydrateGapAnchors, trackChangesEnabled, scanForTrackedChanges]);
+  }, [editor, content, disabled, hydrateGapAnchors, gapAnchorLabels, trackChangesEnabled, scanForTrackedChanges]);
 
   useEffect(() => {
     if (editor && disabled !== undefined) {

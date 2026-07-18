@@ -114,6 +114,8 @@ const LegalFieldNode = Node.create({
 
 interface PageViewProps {
   content: string;
+  /** Labels for @@RGAP:N@@ anchors, in document order, so chips show the specific gap. */
+  gapAnchorLabels?: string[];
   legalContext?: {
     clientName?: string;
     matterRef?: string;
@@ -127,7 +129,7 @@ interface Page {
   pageNumber: number;
 }
 
-export function PageView({ content }: PageViewProps) {
+export function PageView({ content, gapAnchorLabels }: PageViewProps) {
   const measureContainerRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<Page[]>([]);
   const [computing, setComputing] = useState(true);
@@ -206,10 +208,10 @@ export function PageView({ content }: PageViewProps) {
       if (currentHeight + blockHeight > CONTENT_H && currentBlocks.length > 0) {
         result.push({ blocks: [...currentBlocks], pageNumber });
         pageNumber++;
-        currentBlocks = [hydrateReasoningGapAnchorsInHtml(block.outerHTML)];
+        currentBlocks = [hydrateReasoningGapAnchorsInHtml(block.outerHTML, gapAnchorLabels)];
         currentHeight = blockHeight;
       } else {
-        currentBlocks.push(hydrateReasoningGapAnchorsInHtml(block.outerHTML));
+        currentBlocks.push(hydrateReasoningGapAnchorsInHtml(block.outerHTML, gapAnchorLabels));
         currentHeight += blockHeight;
       }
     }
@@ -218,9 +220,9 @@ export function PageView({ content }: PageViewProps) {
       result.push({ blocks: currentBlocks, pageNumber });
     }
 
-    setPages(result.length > 0 ? result : [{ blocks: topLevelBlocks.map(b => hydrateReasoningGapAnchorsInHtml(b.outerHTML)), pageNumber: 1 }]);
+    setPages(result.length > 0 ? result : [{ blocks: topLevelBlocks.map(b => hydrateReasoningGapAnchorsInHtml(b.outerHTML, gapAnchorLabels)), pageNumber: 1 }]);
     setComputing(false);
-  }, []);
+  }, [gapAnchorLabels]);
 
   // Re-compute whenever the editor content changes
   useEffect(() => {
