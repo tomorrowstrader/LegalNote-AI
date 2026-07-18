@@ -671,10 +671,24 @@ function scrollToGapCitation(citation: string, section?: string, gapIndex?: numb
   }
 }
 
+function findScrollableAncestor(el: HTMLElement): HTMLElement | null {
+  let node: HTMLElement | null = el.parentElement;
+  while (node && node !== document.body) {
+    const style = window.getComputedStyle(node);
+    const overflowY = style.overflowY;
+    const canScroll =
+      (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
+      node.scrollHeight > node.clientHeight + 4;
+    if (canScroll) return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
 function highlightAndScrollToElement(target: HTMLElement) {
-  const scrollParent =
-    (target.closest("main") as HTMLElement | null) ??
-    (document.querySelector("main") as HTMLElement | null);
+  // Use the nearest actually-scrollable ancestor. Page View has its own
+  // overflow-y-auto container nested inside <main>, so hardcoding <main> misses.
+  const scrollParent = findScrollableAncestor(target);
   if (scrollParent && scrollParent !== document.body) {
     const parentRect = scrollParent.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();

@@ -756,6 +756,9 @@ The SRA expects attendance notes to record not just what was discussed and what 
 2. For every decision recorded (next steps, referrals, further investigation, no action), you MUST record the thinking behind that decision where it is evident from the conversation.
 3. Where the conversation does not capture the reasoning, you MUST emit the exact marker on its own line. The label MUST be: [SECTION HEADING]: [specific advice point in words that appear in, or closely paraphrase, that section's "Advice given" / "I advised" text]. Example — if Advice given says "I advised the client that a clean break may be achievable on these facts", emit: <!-- REASONING_GAP: CLEAN BREAK AND THE RELEVANCE OF CONDUCT: whether a full clean break is achievable on these facts -->. NEVER emit a bare label such as "Reasoning behind advice" or "advice" with no specific advice point. If several advice points in the section lack reasoning, emit one marker per unreasoned point, each with its own specific label.
 4. You MUST NEVER invent reasoning that is not evident from the conversation. If reasoning was not discussed or evident, emit the section-specific marker (see rule 3) — do not fabricate it.
+5. CRITICAL — DO NOT emit a marker where reasoning is already present. Before emitting any REASONING_GAP marker, re-read the whole section for that advice point: the "Advice given" text, the "Key points advised" bullets, AND the "Reasoning behind advice and decisions" paragraph. If the reasoning for that advice point appears ANYWHERE in the section — as a "having regard to…" / "having considered…" explanation, or explained within the bullet itself (e.g. "…remaining in occupation protects her position…because…") — you MUST NOT emit a marker for it. Only emit a marker when the reasoning for that specific advice point is genuinely absent from the entire section.
+6. An introductory sentence that merely announces advice (e.g. "I advised the client on two immediate practical steps to be taken without delay") is NOT itself an unreasoned advice point when the individual steps and their reasons are set out in the bullets or in the "Reasoning behind advice and decisions" paragraph below it. Do NOT flag such an introductory sentence. Judge reasoning at the level of the actual advice points, not the sentence that introduces them.
+7. Emit markers SPARINGLY and only for true omissions. A false gap raised where reasoning already exists erodes the fee earner's trust and wastes their time reconciling sections. When in genuine doubt as to whether reasoning is present, do NOT emit a marker.
 
 SPEAKER-LABELED CONVERSATION RECORDS:
 - The conversation record may include speaker labels in the format "[Speaker A]: text" or "[Speaker B]: text"
@@ -791,7 +794,7 @@ The system supplies the attendance note header (File Reference, Date, Time, Dura
    - [Advice point 3]
 
    Reasoning behind advice and decisions:
-   [State the reasoning and thinking behind the advice given and any decisions made — as evident from the conversation. For example: "I advised the client to [action], having considered [factor 1], [factor 2], and [factor 3]." If the fee earner did not state the reasoning FOR THIS ADVICE, emit a marker whose detail quotes or closely paraphrases the specific unreasoned advice from Advice given above (a topic being discussed elsewhere in the meeting is not a reason having been given for this advice): <!-- REASONING_GAP: [FIRST MAJOR TOPIC]: [specific advice point from Advice given] --> — never bare "Reasoning behind advice"]
+   [State the reasoning and thinking behind the advice given and any decisions made — as evident from the conversation. For example: "I advised the client to [action], having considered [factor 1], [factor 2], and [factor 3]." Only if the fee earner did not state the reasoning FOR THIS ADVICE anywhere in this section (see rules 5–7 above), emit a marker whose detail quotes or closely paraphrases the specific unreasoned advice from Advice given above (a topic being discussed elsewhere in the meeting is not a reason having been given for this advice): <!-- REASONING_GAP: [FIRST MAJOR TOPIC]: [specific advice point from Advice given] --> — never bare "Reasoning behind advice", and never where you have already explained the advice here]
 
    Client's instructions and response:
    [The client confirmed understanding and instructed... / The client requested... / The client's response to the advice given]
@@ -809,7 +812,7 @@ The system supplies the attendance note header (File Reference, Date, Time, Dura
    - [Advice point 2]
 
    Reasoning behind advice and decisions:
-   [State the reasoning and thinking behind the advice — as evident from the conversation. If the fee earner did not state the reasoning FOR THIS ADVICE, emit: <!-- REASONING_GAP: [SECOND MAJOR TOPIC]: [specific advice point from Advice given] --> — never bare "Reasoning behind advice"]
+   [State the reasoning and thinking behind the advice — as evident from the conversation. Only if the fee earner did not state the reasoning FOR THIS ADVICE anywhere in this section (see rules 5–7 above), emit: <!-- REASONING_GAP: [SECOND MAJOR TOPIC]: [specific advice point from Advice given] --> — never bare "Reasoning behind advice", and never where you have already explained the advice here]
 
    Client's instructions and response:
    [Client's instructions and response to advice given]
@@ -1263,6 +1266,7 @@ The SRA expects attendance notes to record not just the advice given but the rea
 1. State the reasoning behind the advice as evident from the transcript — the factors weighed or circumstances that informed it. For example: "I advised the client to [action], having considered [the specific factors from the transcript]."
 2. Where the call did not capture the reasoning (common in brief telephone exchanges), emit the exact marker on its own line with a specific advice point (never bare "Reasoning behind advice"): <!-- REASONING_GAP: Call Summary: [specific advice point] -->
 3. Do NOT fabricate reasoning. If it is not evident from the transcript, emit the marker above.
+4. Do NOT emit a marker where reasoning for that advice is already stated in the note (including in the same paragraph as the advice). An introductory "I advised on X steps" sentence is not a gap when the steps are reasoned below. Emit markers sparingly; when in doubt, do not emit.
 
 Format:
 
@@ -1327,7 +1331,7 @@ CRITICAL INSTRUCTIONS:
 - Use UK legal terminology
 
 REASONING AND THINKING — MANDATORY REQUIREMENT:
-Where any advice or decision is recorded, you MUST include the reasoning behind it as evident from the transcript. If the reasoning was not captured, emit the exact marker on its own line with a specific advice point: <!-- REASONING_GAP: File Note: [specific advice point] --> Do NOT fabricate reasoning.
+Where any advice or decision is recorded, you MUST include the reasoning behind it as evident from the transcript. If the reasoning was not captured, emit the exact marker on its own line with a specific advice point: <!-- REASONING_GAP: File Note: [specific advice point] --> Do NOT fabricate reasoning. Do NOT emit a marker where the reasoning is already stated in the same note. Emit markers sparingly; when in doubt, do not emit.
 
 Format:
 
@@ -1385,6 +1389,7 @@ The SRA requires attendance notes to capture not only what submissions were made
 1. Record the reasoning as evident from the transcript — e.g. "I advised the client to accept the order, having considered the judge's indications regarding costs and the likely outcome at trial."
 2. Where reasoning was not captured in the hearing transcript, emit the exact marker on its own line using the relevant hearing section and a specific advice point: <!-- REASONING_GAP: [HEARING SECTION]: [specific advice point] --> (e.g. <!-- REASONING_GAP: Submissions on Costs: that costs should follow the event -->).
 3. Do NOT fabricate reasoning not evident from the transcript.
+4. Do NOT emit a marker where reasoning for that advice/decision is already stated in the note. Emit markers sparingly; when in doubt, do not emit.
 
 Format:
 
@@ -1482,6 +1487,7 @@ The SRA and the PI insurer need to see the reasoning behind advice given at the 
 1. Record the reasoning behind each piece of advice as evident from the transcript — e.g. "I advised the client to exercise the right to silence, having considered the adequacy of disclosure, the nature of the alleged offence, and the client's instructions."
 2. Where the reasoning was not captured on the recording, emit the exact marker on its own line with a specific advice point: <!-- REASONING_GAP: Advice Given: [specific advice point] -->
 3. Do NOT fabricate reasoning not evident from the transcript.
+4. Do NOT emit a marker where reasoning for that advice is already stated in the note. Emit markers sparingly; when in doubt, do not emit.
 
 Format:
 
