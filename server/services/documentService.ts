@@ -754,7 +754,7 @@ REASONING AND THINKING — MANDATORY REQUIREMENT:
 The SRA expects attendance notes to record not just what was discussed and what advice was given, but also the reasoning and thinking behind the advice and behind any decisions made. You MUST comply with this requirement in every section:
 1. For every piece of advice recorded, you MUST state the reasoning behind it — the factors you weighed, the legal position considered, or the client's circumstances that informed it. Do NOT write "I advised the client to proceed." Write "I advised the client to proceed, having considered [the specific factors the fee earner actually stated at the meeting]." Where the fee earner gave advice without stating any reasoning, do not supply reasoning from context. Emit the REASONING_GAP marker instead. An invented reason is worse than no reason.
 2. For every decision recorded (next steps, referrals, further investigation, no action), you MUST record the thinking behind that decision where it is evident from the conversation.
-3. Where the conversation does not capture the reasoning, you MUST emit the exact marker on its own line, using the current discussion section topic as the label (e.g. if the section is "MORTGAGE OPTIONS", emit: <!-- REASONING_GAP: MORTGAGE OPTIONS: Reasoning behind advice -->). Each marker label MUST reflect the specific section heading so gaps are independently identifiable.
+3. Where the conversation does not capture the reasoning, you MUST emit the exact marker on its own line. The label MUST be: [SECTION HEADING]: [specific advice point in words that appear in, or closely paraphrase, that section's "Advice given" / "I advised" text]. Example — if Advice given says "I advised the client that a clean break may be achievable on these facts", emit: <!-- REASONING_GAP: CLEAN BREAK AND THE RELEVANCE OF CONDUCT: whether a full clean break is achievable on these facts -->. NEVER emit a bare label such as "Reasoning behind advice" or "advice" with no specific advice point. If several advice points in the section lack reasoning, emit one marker per unreasoned point, each with its own specific label.
 4. You MUST NEVER invent reasoning that is not evident from the conversation. If reasoning was not discussed or evident, emit the section-specific marker (see rule 3) — do not fabricate it.
 
 SPEAKER-LABELED CONVERSATION RECORDS:
@@ -791,7 +791,7 @@ The system supplies the attendance note header (File Reference, Date, Time, Dura
    - [Advice point 3]
 
    Reasoning behind advice and decisions:
-   [State the reasoning and thinking behind the advice given and any decisions made — as evident from the conversation. For example: "I advised the client to [action], having considered [factor 1], [factor 2], and [factor 3]." If the fee earner did not state the reasoning FOR THIS ADVICE, emit the section-specific marker (a topic being discussed elsewhere in the meeting is not a reason having been given for this advice): <!-- REASONING_GAP: [FIRST MAJOR TOPIC]: Reasoning behind advice --> replacing [FIRST MAJOR TOPIC] with this section's actual heading]
+   [State the reasoning and thinking behind the advice given and any decisions made — as evident from the conversation. For example: "I advised the client to [action], having considered [factor 1], [factor 2], and [factor 3]." If the fee earner did not state the reasoning FOR THIS ADVICE, emit a marker whose detail quotes or closely paraphrases the specific unreasoned advice from Advice given above (a topic being discussed elsewhere in the meeting is not a reason having been given for this advice): <!-- REASONING_GAP: [FIRST MAJOR TOPIC]: [specific advice point from Advice given] --> — never bare "Reasoning behind advice"]
 
    Client's instructions and response:
    [The client confirmed understanding and instructed... / The client requested... / The client's response to the advice given]
@@ -809,7 +809,7 @@ The system supplies the attendance note header (File Reference, Date, Time, Dura
    - [Advice point 2]
 
    Reasoning behind advice and decisions:
-   [State the reasoning and thinking behind the advice — as evident from the conversation. If the fee earner did not state the reasoning FOR THIS ADVICE, emit the section-specific marker (a topic being discussed elsewhere in the meeting is not a reason having been given for this advice): <!-- REASONING_GAP: [SECOND MAJOR TOPIC]: Reasoning behind advice --> replacing [SECOND MAJOR TOPIC] with this section's actual heading]
+   [State the reasoning and thinking behind the advice — as evident from the conversation. If the fee earner did not state the reasoning FOR THIS ADVICE, emit: <!-- REASONING_GAP: [SECOND MAJOR TOPIC]: [specific advice point from Advice given] --> — never bare "Reasoning behind advice"]
 
    Client's instructions and response:
    [Client's instructions and response to advice given]
@@ -1261,7 +1261,7 @@ CRITICAL INSTRUCTIONS:
 REASONING AND THINKING — MANDATORY REQUIREMENT:
 The SRA expects attendance notes to record not just the advice given but the reasoning and thinking behind it. For any advice or decisions recorded in this telephone note:
 1. State the reasoning behind the advice as evident from the transcript — the factors weighed or circumstances that informed it. For example: "I advised the client to [action], having considered [the specific factors from the transcript]."
-2. Where the call did not capture the reasoning (common in brief telephone exchanges), emit the exact marker on its own line: <!-- REASONING_GAP: Call Summary: Reasoning behind advice -->
+2. Where the call did not capture the reasoning (common in brief telephone exchanges), emit the exact marker on its own line with a specific advice point (never bare "Reasoning behind advice"): <!-- REASONING_GAP: Call Summary: [specific advice point] -->
 3. Do NOT fabricate reasoning. If it is not evident from the transcript, emit the marker above.
 
 Format:
@@ -1279,7 +1279,7 @@ Solicitor:      ${solicitorFormat}
 
 **CALL SUMMARY**
 
-[Brief factual account of what was discussed, advice given, and instructions received. Use "I advised the client that..." phrasing. For each piece of advice, include the reasoning behind it as evident from the transcript, or emit the marker: <!-- REASONING_GAP: Call Summary: Reasoning behind advice --> Keep to 2-4 paragraphs maximum.]
+[Brief factual account of what was discussed, advice given, and instructions received. Use "I advised the client that..." phrasing. For each piece of advice, include the reasoning behind it as evident from the transcript, or emit the marker: <!-- REASONING_GAP: Call Summary: [specific advice point] --> Keep to 2-4 paragraphs maximum.]
 
 **ACTION POINTS**
 
@@ -1327,7 +1327,7 @@ CRITICAL INSTRUCTIONS:
 - Use UK legal terminology
 
 REASONING AND THINKING — MANDATORY REQUIREMENT:
-Where any advice or decision is recorded, you MUST include the reasoning behind it as evident from the transcript. If the reasoning was not captured, emit the exact marker on its own line: <!-- REASONING_GAP: File Note: Reasoning behind advice --> Do NOT fabricate reasoning.
+Where any advice or decision is recorded, you MUST include the reasoning behind it as evident from the transcript. If the reasoning was not captured, emit the exact marker on its own line with a specific advice point: <!-- REASONING_GAP: File Note: [specific advice point] --> Do NOT fabricate reasoning.
 
 Format:
 
@@ -1338,7 +1338,7 @@ Date: ${metadata.recordingDate}
 Matter: ${metadata.title}
 Client: ${metadata.clientName}
 
-[Single paragraph summarising the key point being recorded. This should be 3-6 sentences maximum, capturing the essential facts, any decision made, the reasoning behind that decision as evident from the transcript (or the marker <!-- REASONING_GAP: File Note: Reasoning behind advice --> if not captured), and any follow-up required.]
+[Single paragraph summarising the key point being recorded. This should be 3-6 sentences maximum, capturing the essential facts, any decision made, the reasoning behind that decision as evident from the transcript (or the marker <!-- REASONING_GAP: File Note: [specific advice point] --> if not captured), and any follow-up required.]
 
 This file note is subject to legal professional privilege.`;
 
@@ -1383,7 +1383,7 @@ CRITICAL INSTRUCTIONS:
 REASONING AND THINKING — MANDATORY REQUIREMENT:
 The SRA requires attendance notes to capture not only what submissions were made and what orders were obtained, but the reasoning and strategic thinking behind them. For any advice given to the client or any decision made (e.g. regarding submissions, appeal, or next steps):
 1. Record the reasoning as evident from the transcript — e.g. "I advised the client to accept the order, having considered the judge's indications regarding costs and the likely outcome at trial."
-2. Where reasoning was not captured in the hearing transcript, emit the exact marker on its own line using the relevant hearing section as the label: <!-- REASONING_GAP: [HEARING SECTION]: Reasoning behind advice --> (e.g. <!-- REASONING_GAP: Submissions on Costs: Reasoning behind advice -->).
+2. Where reasoning was not captured in the hearing transcript, emit the exact marker on its own line using the relevant hearing section and a specific advice point: <!-- REASONING_GAP: [HEARING SECTION]: [specific advice point] --> (e.g. <!-- REASONING_GAP: Submissions on Costs: that costs should follow the event -->).
 3. Do NOT fabricate reasoning not evident from the transcript.
 
 Format:
@@ -1480,7 +1480,7 @@ CRITICAL INSTRUCTIONS:
 REASONING AND THINKING — MANDATORY REQUIREMENT:
 The SRA and the PI insurer need to see the reasoning behind advice given at the police station, not just the conclusion. For the "ADVICE GIVEN" section and any decisions recorded:
 1. Record the reasoning behind each piece of advice as evident from the transcript — e.g. "I advised the client to exercise the right to silence, having considered the adequacy of disclosure, the nature of the alleged offence, and the client's instructions."
-2. Where the reasoning was not captured on the recording, emit the exact marker on its own line using the advice section as the label: <!-- REASONING_GAP: Advice Given: Reasoning behind advice -->
+2. Where the reasoning was not captured on the recording, emit the exact marker on its own line with a specific advice point: <!-- REASONING_GAP: Advice Given: [specific advice point] -->
 3. Do NOT fabricate reasoning not evident from the transcript.
 
 Format:

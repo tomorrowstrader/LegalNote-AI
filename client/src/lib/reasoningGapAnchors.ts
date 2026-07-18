@@ -1,8 +1,7 @@
 /**
  * Display-time anchors for REASONING_GAP markers.
- * Markers are replaced with @@RGAP:N@@ tokens (TipTap-safe plain text), then
- * hydrated into visible marker chips so the reviewer can see, at the exact spot,
- * which advice point still needs reasoning — and jump to that advice wording.
+ * Markers become @@RGAP:N@@ tokens, then labelled chips. Citation clicks jump to the
+ * Advice given wording in the same numbered section — not headings or Client instructions.
  */
 
 const MARKER_OR_TOKEN_RE =
@@ -44,6 +43,14 @@ export function stripReasoningPrefix(detail: string): string {
     .replace(/^reasoning\s+for\s+(?:the\s+)?/i, "")
     .replace(/^advice\s+as\s+to\s+/i, "")
     .trim();
+}
+
+/** True when the label carries no usable advice-specific wording. */
+export function isWeakGapCitation(citation: string | null | undefined): boolean {
+  const c = (citation || "").trim().toLowerCase();
+  if (!c) return true;
+  if (c.length < 12) return true;
+  return /^(the\s+|this\s+|any\s+)?advice(\s+point)?\.?$/.test(c);
 }
 
 export function splitGapLabelParts(rawLabel: string | undefined): {
@@ -117,6 +124,7 @@ function buildGapChipElement(
     btn.className = CITATION_BTN_CLASS;
     btn.setAttribute("data-gap-citation", citation);
     btn.setAttribute("data-gap-section", section);
+    btn.setAttribute("data-gap-index", String(index));
     btn.setAttribute("data-testid", `button-gap-citation-${index}`);
     btn.title = "Jump to this advice in the note";
     btn.textContent = `“${citation}”`;
@@ -134,7 +142,8 @@ function buildGapChipElement(
     ` — ` +
     `<button type="button" class="${CITATION_BTN_CLASS}" ` +
     `data-gap-citation="${escapeAttr(citation)}" data-gap-section="${escapeAttr(section)}" ` +
-    `data-testid="button-gap-citation-${index}" title="Jump to this advice in the note">` +
+    `data-gap-index="${index}" data-testid="button-gap-citation-${index}" ` +
+    `title="Jump to this advice in the note">` +
     `“${escapeHtml(citation)}”</button></span>`
   );
 }
@@ -188,4 +197,232 @@ export function hydrateReasoningGapAnchorsInDom(
 
 export function findReasoningGapAnchor(root: ParentNode, gapIndex: number): HTMLElement | null {
   return root.querySelector(`[data-reasoning-gap-index="${gapIndex}"]`);
+}
+
+function blockText(el: HTMLElement): string {
+  return (el.textContent || "").replace(/\u200b/g, "").trim();
+}
+
+function isSectionHeadingBlock(el: HTMLElement): boolean {
+  const t = blockText(el);
+  if (!t || t.length > 180) return false;
+  if (/^\d+\.\s+\S/.test(t)) return true;
+  // Professional ALL-CAPS section titles used in attendance notes
+  const letters = t.replace(/[^A-Za-z]/g, "");
+  if (letters.length >= 10 && letters === letters.toUpperCase() && /[A-Z]/.test(letters)) {
+    return true;
+  }
+  return false;
+}
+
+function isClientInstructionsBlock(el: HTMLElement): boolean {
+  return /^client'?s instructions/i.test(blockText(el));
+}
+
+function isReasoningLabelBlock(el: HTMLElement): boolean {
+  return /^reasoning behind advice/i.test(blockText(el));
+}
+
+function isAdviceRegionBlock(el: HTMLElement): boolean {
+  const t = blockText(el);
+  return /^(advice given|key points advised)\b/i.test(t) || /\bi advised\b/i.test(t);
+}
+
+function citationKeywordScore(block: string, citation: string): number {
+  const words = citation
+    .toLowerCase()
+    .split(/[^a-z0-9£$]+/i)
+    .filter((w) => w.length >= 4 && !/^(that|this|with|from|into|have|been|were|their|about|whether|specific|options|outlined|treatment|potential|further|steps|taken|respect)$/i.test(w));
+  if (words.length === 0) return 0;
+  const text = block.toLowerCase();
+  let hits = 0;
+  for (const w of words) {
+    if (text.includes(w)) hits++;
+  }
+  return hits / words.length;
+}
+
+/** Ordered note body blocks across all visible page surfaces. */
+export function collectNoteBodyBlocks(roots: ParentNode[]): HTMLElement[] {
+  const blocks: HTMLElement[] = [];
+  for (const root of roots) {
+    if (!(root instanceof Element)) continue;
+    if (root.closest?.("[data-page-view-measure]") || root.closest?.('[aria-hidden="true"]')) continue;
+    const found = Array.from(
+      root.querySelectorAll("h1, h2, h3, h4, h5, p, li, td, th, blockquote"),
+    ) as HTMLElement[];
+    for (const el of found) {
+      if (el.closest("[data-page-view-measure]") || el.closest('[aria-hidden="true"]')) continue;
+      if (el.closest("[data-testid^='panel-gap-review']")) continue;
+      blocks.push(el);
+    }
+  }
+  return blocks;
+}
+
+/** Blocks belonging to the numbered section that contains the gap anchor / section name. */
+export function getSectionBlocksForGap(
+  blocks: HTMLElement[],
+  opts: { gapIndex?: number; section?: string; anchor?: HTMLElement | null },
+): HTMLElement[] {
+  if (blocks.length === 0) return [];
+
+  let anchorIdx = -1;
+  if (opts.anchor) {
+    anchorIdx = blocks.findIndex((b) => b === opts.anchor || b.contains(opts.anchor!));
+  }
+  if (anchorIdx < 0 && opts.gapIndex != null) {
+    for (let i = 0; i < blocks.length; i++) {
+      if (blocks[i].querySelector?.(`[data-reasoning-gap-index="${opts.gapIndex}"]`)) {
+        anchorIdx = i;
+        break;
+      }
+    }
+  }
+  if (anchorIdx < 0 && opts.section) {
+    const needle = opts.section.replace(/^\d+\.\s*/, "").toLowerCase();
+    for (let i = 0; i < blocks.length; i++) {
+      const t = blockText(blocks[i]).toLowerCase();
+      if (t.includes(needle) && isSectionHeadingBlock(blocks[i])) {
+        anchorIdx = i;
+        break;
+      }
+    }
+  }
+  if (anchorIdx < 0) return blocks;
+
+  let start = anchorIdx;
+  for (let i = anchorIdx; i >= 0; i--) {
+    if (isSectionHeadingBlock(blocks[i])) {
+      start = i;
+      break;
+    }
+  }
+
+  let end = blocks.length;
+  for (let i = start + 1; i < blocks.length; i++) {
+    if (isSectionHeadingBlock(blocks[i])) {
+      end = i;
+      break;
+    }
+  }
+  return blocks.slice(start, end);
+}
+
+function extractQuotedAdviceSnippet(text: string, maxLen = 140): string {
+  const cleaned = text
+    .replace(/^(advice given|key points advised)\s*:?\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return "";
+
+  // Prefer an "I advised…" sentence
+  const advisedMatch = cleaned.match(/\bI advised[^.!?\n]{12,}[.!?]?/i);
+  if (advisedMatch) {
+    const s = advisedMatch[0].trim();
+    return s.length > maxLen ? `${s.slice(0, maxLen - 1).trim()}…` : s;
+  }
+
+  // Else first substantial sentence / bullet-like clause
+  const sentence = cleaned.split(/(?<=[.!?])\s+/)[0] || cleaned;
+  const out = sentence.trim();
+  return out.length > maxLen ? `${out.slice(0, maxLen - 1).trim()}…` : out;
+}
+
+/**
+ * Find the best Advice-given block in a section for a gap citation.
+ * Never prefers Client's instructions or bare headings.
+ */
+export function findAdviceTargetInSection(
+  sectionBlocks: HTMLElement[],
+  citation?: string,
+): HTMLElement | null {
+  if (sectionBlocks.length === 0) return null;
+
+  const candidates = sectionBlocks.filter((b) => {
+    if (b.closest(".reasoning-gap-anchor")) return false;
+    if (isSectionHeadingBlock(b)) return false;
+    if (isClientInstructionsBlock(b)) return false;
+    if (isReasoningLabelBlock(b) && !/\bi advised\b/i.test(blockText(b))) return false;
+    return true;
+  });
+
+  const adviceBlocks = candidates.filter(isAdviceRegionBlock);
+  const pool = adviceBlocks.length > 0 ? adviceBlocks : candidates.filter((b) => !isReasoningLabelBlock(b));
+
+  if (pool.length === 0) return null;
+
+  const cite = (citation || "").trim();
+  if (cite && !isWeakGapCitation(cite)) {
+    let best: HTMLElement | null = null;
+    let bestScore = 0;
+    for (const block of pool) {
+      const text = blockText(block);
+      // Strong path: verbatim / near-verbatim
+      if (text.toLowerCase().includes(cite.toLowerCase())) {
+        return block;
+      }
+      const score = citationKeywordScore(text, cite);
+      if (score > bestScore) {
+        bestScore = score;
+        best = block;
+      }
+    }
+    if (best && bestScore >= 0.34) return best;
+  }
+
+  // Weak / unmatched label: land on the first real advice block in the section
+  const advised = pool.find((b) => /\bi advised\b/i.test(blockText(b)));
+  if (advised) return advised;
+  return pool[0] ?? null;
+}
+
+/**
+ * After chips are in the DOM, replace weak/generic citations with a short quote
+ * taken from that section's Advice given wording.
+ */
+export function enrichGapCitationChips(roots: ParentNode[]): void {
+  const blocks = collectNoteBodyBlocks(roots);
+  if (blocks.length === 0) return;
+
+  const chips = roots.flatMap((root) =>
+    Array.from(
+      (root instanceof Element ? root : document).querySelectorAll?.("[data-reasoning-gap-index]") ?? [],
+    ),
+  ) as HTMLElement[];
+
+  // Deduplicate (same chip can appear if roots overlap)
+  const seen = new Set<string>();
+  for (const chip of chips) {
+    const idx = chip.getAttribute("data-reasoning-gap-index") || "";
+    if (!idx || seen.has(idx)) continue;
+    seen.add(idx);
+
+    const section = chip.getAttribute("data-gap-section") || undefined;
+    const current = chip.getAttribute("data-gap-citation") || "";
+    const sectionBlocks = getSectionBlocksForGap(blocks, {
+      gapIndex: Number(idx),
+      section,
+      anchor: chip,
+    });
+    const adviceEl = findAdviceTargetInSection(sectionBlocks, current);
+    if (!adviceEl) continue;
+
+    const quote = extractQuotedAdviceSnippet(blockText(adviceEl));
+    if (!quote || quote.length < 12) continue;
+
+    // Enrich when weak, or when current citation barely overlaps the advice text
+    const overlap = citationKeywordScore(blockText(adviceEl), current);
+    if (!isWeakGapCitation(current) && overlap >= 0.34 && blockText(adviceEl).toLowerCase().includes(current.toLowerCase().slice(0, 24))) {
+      continue;
+    }
+
+    chip.setAttribute("data-gap-citation", quote);
+    chip.setAttribute("aria-label", `Reasoning needed — ${quote}`);
+    const btn = chip.querySelector(".reasoning-gap-citation") as HTMLElement | null;
+    if (btn) {
+      btn.setAttribute("data-gap-citation", quote);
+      btn.textContent = `“${quote}”`;
+    }
+  }
 }

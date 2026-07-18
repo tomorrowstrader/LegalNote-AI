@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { hydrateReasoningGapAnchorsInDom } from "@/lib/reasoningGapAnchors";
+import { enrichGapCitationChips, hydrateReasoningGapAnchorsInDom } from "@/lib/reasoningGapAnchors";
 
 function ensureSectionSpacing(content: string): string {
   const lines = content.split('\n');
@@ -1101,6 +1101,7 @@ export function RichTextEditor({
         if (hydrateGapAnchors && disabled && content?.includes("@@RGAP:")) {
           try {
             hydrateReasoningGapAnchorsInDom(editor.view.dom, gapAnchorLabels);
+            enrichGapCitationChips([editor.view.dom]);
           } catch (hydrateErr) {
             console.error("[RichTextEditor] Gap anchor hydration failed:", hydrateErr);
           }

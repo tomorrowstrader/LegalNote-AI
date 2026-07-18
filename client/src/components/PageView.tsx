@@ -9,7 +9,7 @@ import Subscript from '@tiptap/extension-subscript';
 import { Mark, Node, mergeAttributes, generateJSON } from '@tiptap/core';
 import { Markdown } from 'tiptap-markdown';
 import { FileText } from "lucide-react";
-import { hydrateReasoningGapAnchorsInHtml } from "@/lib/reasoningGapAnchors";
+import { enrichGapCitationChips, hydrateReasoningGapAnchorsInHtml } from "@/lib/reasoningGapAnchors";
 
 // A4 layout constants matching the editor
 const PAGE_W    = 794;   // A4 width in px
@@ -232,6 +232,16 @@ export function PageView({ content, gapAnchorLabels }: PageViewProps) {
     const id = setTimeout(computePages, 120);
     return () => clearTimeout(id);
   }, [measureEditor, content, computePages]);
+
+  // Once pages are painted, quote Advice given onto weak gap chips
+  useEffect(() => {
+    if (computing || pages.length === 0) return;
+    const id = window.setTimeout(() => {
+      const roots = Array.from(document.querySelectorAll("[data-page-view-visible]"));
+      enrichGapCitationChips(roots);
+    }, 80);
+    return () => window.clearTimeout(id);
+  }, [computing, pages]);
 
   return (
     <div className="flex-1 overflow-y-auto">

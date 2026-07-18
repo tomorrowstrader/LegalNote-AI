@@ -26,6 +26,11 @@ import {
   withReasoningGapAnchors,
   findReasoningGapAnchor,
   stripReasoningPrefix,
+  isWeakGapCitation,
+  collectNoteBodyBlocks,
+  getSectionBlocksForGap,
+  findAdviceTargetInSection,
+  enrichGapCitationChips,
 } from "@/lib/reasoningGapAnchors";
 
 function markdownToPlainText(md: string): string {
@@ -501,20 +506,44 @@ function ExpandableGapDetail({
   text,
   testId,
   section,
+  gapIndex,
 }: {
   text: string;
   testId: string;
   section?: string;
+  gapIndex?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const display = stripReasoningPrefix(text) || text;
+  const [display, setDisplay] = useState(() => stripReasoningPrefix(text) || text);
+
+  // Prefer the enriched quote written onto the in-note chip (from Advice given).
+  useEffect(() => {
+    if (gapIndex == null) return;
+    const sync = () => {
+      const chip = document.querySelector(
+        `[data-reasoning-gap-index="${gapIndex}"]`,
+      ) as HTMLElement | null;
+      const enriched = chip?.getAttribute("data-gap-citation")?.trim();
+      if (enriched && !isWeakGapCitation(enriched)) {
+        setDisplay(enriched);
+      }
+    };
+    sync();
+    const t1 = window.setTimeout(sync, 200);
+    const t2 = window.setTimeout(sync, 600);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [gapIndex, text]);
+
   const needsToggle = display.length > 90;
 
   return (
     <div className="space-y-0.5">
       <button
         type="button"
-        onClick={() => scrollToGapCitation(display, section)}
+        onClick={() => scrollToGapCitation(display, section, gapIndex)}
         className={cn(
           "text-left text-[11px] text-amber-800 dark:text-amber-300 leading-snug underline underline-offset-2 decoration-amber-500/50 hover:decoration-amber-700 w-full",
           !expanded && needsToggle && "line-clamp-2",
@@ -566,11 +595,7 @@ function isOffscreenOrHidden(el: Element): boolean {
  * Find the tightest visible block that contains `text`.
  * Uses element textContent (not individual text nodes) so split formatting still matches.
  */
-function findElementContainingText(
-  root: ParentNode,
-  text: string,
-  opts?: { excludeGapAnchors?: boolean; preferAdvice?: boolean },
-): HTMLElement | null {
+function findElementContainingText(root: ParentNode, text: string): HTMLElement | null {
   if (!text) return null;
   const needle = text.trim().toLowerCase();
   if (!needle) return null;
@@ -584,38 +609,14 @@ function findElementContainingText(
 
   let best: HTMLElement | null = null;
   let bestLen = Infinity;
-  let bestScore = -Infinity;
-
   for (const block of blocks) {
     if (isOffscreenOrHidden(block)) continue;
-    // Skip gap-panel chrome — only jump within the note body
     if (block.closest("[data-testid^='panel-gap-review']")) continue;
-    // Skip the gap chip itself when seeking the solicitor's advice wording
-    if (opts?.excludeGapAnchors && block.closest(".reasoning-gap-anchor")) continue;
-    if (opts?.excludeGapAnchors && block.querySelector?.(".reasoning-gap-anchor")) {
-      // Only match this block if the needle appears outside the chip text
-      const withoutChip = (block.textContent || "")
-        .replace(/\u200b/g, "")
-        .replace(/⚠?\s*Reasoning needed[\s\S]*$/i, "")
-        .trim();
-      if (!withoutChip.toLowerCase().includes(needle)) continue;
-    }
     const content = block.textContent?.toLowerCase() ?? "";
     if (!content.includes(needle)) continue;
-
-    let score = 1000 - content.length;
-    if (opts?.preferAdvice) {
-      // Prefer advice / key-points blocks over reasoning / instructions
-      if (/advice given|key points advised|i advised/i.test(content)) score += 400;
-      if (/reasoning behind advice/i.test(content)) score -= 300;
-      if (/client'?s instructions/i.test(content)) score -= 200;
-      if (block.querySelector(".reasoning-gap-anchor")) score -= 500;
-    }
-
-    if (score > bestScore || (score === bestScore && content.length < bestLen)) {
+    if (content.length < bestLen) {
       best = block;
       bestLen = content.length;
-      bestScore = score;
     }
   }
   return best;
@@ -629,52 +630,45 @@ function getVisibleNoteRoots(): Element[] {
   ).filter((root) => !isOffscreenOrHidden(root));
 }
 
-/** Jump to the solicitor's own advice wording cited on a gap chip. */
-function scrollToGapCitation(citation: string, section?: string) {
-  const trimmed = citation.trim();
-  if (!trimmed) return;
-
+/** Jump to Advice given wording for this gap — scoped to its numbered section. */
+function scrollToGapCitation(citation: string, section?: string, gapIndex?: number) {
   const roots = getVisibleNoteRoots();
-  const candidates = [
-    trimmed,
-    trimmed.replace(/^["“]|["”]$/g, ""),
-    // Progressive shortenings for long meta-labels that aren't verbatim in the note
-    trimmed.slice(0, Math.min(trimmed.length, 60)),
-    trimmed.slice(0, Math.min(trimmed.length, 36)),
-    ...trimmed
-      .split(/\s+and\s+|\s*;\s*|\s*—\s*|\s+-\s+/i)
-      .map((p) => p.trim())
-      .filter((p) => p.length >= 12),
-  ].filter((c, i, arr) => c && c.length >= 8 && arr.indexOf(c) === i);
+  const blocks = collectNoteBodyBlocks(roots);
 
-  let el: HTMLElement | null = null;
-  for (const candidate of candidates) {
+  let anchor: HTMLElement | null = null;
+  if (gapIndex != null) {
     for (const root of roots) {
-      el = findElementContainingText(root, candidate, {
-        excludeGapAnchors: true,
-        preferAdvice: true,
-      });
-      if (el) break;
-    }
-    if (el) break;
-  }
-
-  // Fall back to the section heading so the solicitor still lands in context
-  if (!el && section) {
-    const sectionCandidates = [section, section.replace(/^\d+\.\s*/, "")].filter(Boolean);
-    for (const candidate of sectionCandidates) {
-      for (const root of roots) {
-        el = findElementContainingText(root, candidate, { excludeGapAnchors: true });
-        if (el) break;
-      }
-      if (el) break;
+      anchor = findReasoningGapAnchor(root, gapIndex);
+      if (anchor) break;
     }
   }
 
-  if (!el) return;
-  const target =
-    (el.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null) ?? el;
-  highlightAndScrollToElement(target);
+  // Prefer any quote already enriched onto the chip from Advice given
+  let cite = citation.trim();
+  if (anchor) {
+    const fromChip = anchor.getAttribute("data-gap-citation")?.trim();
+    if (fromChip) cite = fromChip;
+  }
+
+  const sectionBlocks = getSectionBlocksForGap(blocks, {
+    gapIndex,
+    section,
+    anchor,
+  });
+
+  const adviceTarget = findAdviceTargetInSection(sectionBlocks, cite);
+  if (adviceTarget) {
+    highlightAndScrollToElement(adviceTarget);
+    return;
+  }
+
+  // Last resort: reasoning marker location (never a bare heading-only fallback)
+  if (anchor) {
+    const block =
+      (anchor.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null) ??
+      anchor;
+    highlightAndScrollToElement(block);
+  }
 }
 
 function highlightAndScrollToElement(target: HTMLElement) {
@@ -945,6 +939,7 @@ function GapReviewPanel({
                       <ExpandableGapDetail
                         text={detail}
                         section={section}
+                        gapIndex={idx}
                         testId={`text-gap-detail-${testIdPrefix}-${idx}`}
                       />
                     ) : null}
@@ -1326,7 +1321,7 @@ export default function DocumentViewer({
     }
   }, [initialTab]);
 
-  // Gap chip citations (Page View HTML + TipTap DOM) — jump to the cited advice wording
+  // Gap chip citations (Page View HTML + TipTap DOM) — jump to Advice given in that section
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
@@ -1337,11 +1332,24 @@ export default function DocumentViewer({
       event.stopPropagation();
       const citation = btn.getAttribute("data-gap-citation") || "";
       const section = btn.getAttribute("data-gap-section") || undefined;
-      scrollToGapCitation(citation, section);
+      const idxRaw = btn.getAttribute("data-gap-index");
+      const gapIndex = idxRaw != null && idxRaw !== "" ? Number(idxRaw) : undefined;
+      scrollToGapCitation(citation, section, Number.isFinite(gapIndex) ? gapIndex : undefined);
     };
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
   }, []);
+
+  // After notes render, replace weak chip citations with quotes from Advice given
+  useEffect(() => {
+    const run = () => enrichGapCitationChips(getVisibleNoteRoots());
+    const t1 = window.setTimeout(run, 180);
+    const t2 = window.setTimeout(run, 500);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [activeTab, pageViewMode, showGapPanel, documents]);
 
   const { data: firmProfile } = useQuery<FirmProfile>({
     queryKey: ['/api/firm-profile'],
