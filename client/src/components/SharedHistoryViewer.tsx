@@ -77,7 +77,8 @@ function getDocumentTypeLabel(type: string): string {
     case 'attendance_note':
       return 'Attendance Note';
     case 'summary':
-      return 'Summary';
+    case 'client_letter':
+      return 'Client Letter';
     case 'transcript':
       return 'Transcript';
     default:

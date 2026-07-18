@@ -238,6 +238,7 @@ export default function CaseCard({
         caseId={id}
         caseTitle={title}
         userRole="Partner"
+        recipientName={clientName}
         availableDocuments={{
           hasAttendanceNote: !!documents.find((d: any) => d.isActive && (d.type === 'attendance_note' || d.type === 'meeting_notes')),
           hasSummary: !!documents.find((d: any) => d.isActive && (d.type === 'summary' || d.type === 'client_letter')) || !!caseData?.textNotes,

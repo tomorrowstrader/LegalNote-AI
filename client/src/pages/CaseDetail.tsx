@@ -2272,6 +2272,7 @@ export default function CaseDetail() {
         caseId={caseId!}
         caseTitle={caseData.title}
         userRole="Partner"
+        recipientName={caseData.clientName}
         availableDocuments={{
           hasAttendanceNote: documents.some(
             (d) =>

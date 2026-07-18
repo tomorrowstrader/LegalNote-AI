@@ -22,6 +22,7 @@ interface SendCaseEmailParams {
     addressLine2?: string;
     city?: string;
     postcode?: string;
+    logoUrl?: string;
   };
 }
 
@@ -44,109 +45,105 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
   const shareUrl = `${baseUrl}/share/${shareLinkId}`;
 
   const defaultMessage =
-    'You have been granted secure access to view confidential documents. Please use the button below to continue.';
+    'You have received a secure document. Use the button below to continue — SMS verification may be required before you can view it.';
+
+  const escapeHtml = (value: string) =>
+    value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   const safePersonal = customMessage
-    ? customMessage.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+    ? escapeHtml(customMessage).replace(/\n/g, '<br>')
     : '';
   const safeSystem = systemMessage
-    ? systemMessage.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+    ? escapeHtml(systemMessage).replace(/\n/g, '<br>')
     : '';
+  const safeFirmName = firmProfile?.firmName ? escapeHtml(firmProfile.firmName) : '';
+  const logoSrc = firmProfile?.logoUrl?.trim() || '';
 
-  // Build email HTML content — no case/client/matter identifiers
+  // YouSign-inspired layout: light/black split, firm branding only, white overlay card, black CTA
   const emailHtml = `
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-        body {
-          font-family: 'Helvetica Neue', Arial, sans-serif;
-          line-height: 1.6;
-          color: #333;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-        }
-        .header {
-          border-bottom: 3px solid #000;
-          padding-bottom: 20px;
-          margin-bottom: 30px;
-        }
-        .firm-name {
-          font-size: 20px;
-          font-weight: bold;
-          margin-bottom: 10px;
-        }
-        .firm-details {
-          font-size: 12px;
-          color: #666;
-          line-height: 1.4;
-        }
-        .content {
-          margin-bottom: 30px;
-        }
-        .cta-button {
-          display: inline-block;
-          background-color: #000;
-          color: #fff;
-          padding: 12px 30px;
-          text-decoration: none;
-          border-radius: 5px;
-          font-weight: bold;
-          margin: 20px 0;
-        }
-        .footer {
-          margin-top: 40px;
-          padding-top: 20px;
-          border-top: 1px solid #ddd;
-          font-size: 12px;
-          color: #666;
-        }
-      </style>
+      <title>Secure document access</title>
     </head>
-    <body>
-      ${firmProfile?.firmName ? `
-        <div class="header">
-          <div class="firm-name">${firmProfile.firmName}</div>
-          <div class="firm-details">
-            ${firmProfile.addressLine1 ? `${firmProfile.addressLine1}<br>` : ''}
-            ${firmProfile.addressLine2 ? `${firmProfile.addressLine2}<br>` : ''}
-            ${firmProfile.city || firmProfile.postcode ? `${firmProfile.city || ''} ${firmProfile.postcode || ''}<br>` : ''}
-            ${firmProfile.phone ? `Tel: ${firmProfile.phone}<br>` : ''}
-            ${firmProfile.email ? `Email: ${firmProfile.email}` : ''}
-          </div>
-        </div>
-      ` : ''}
+    <body style="margin:0;padding:0;background-color:#f3f3f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f3f3;">
+        <tr>
+          <td align="center" style="padding:0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;">
+              <!-- Light top band with firm branding only (no client / matter data) -->
+              <tr>
+                <td align="center" style="background-color:#f3f3f3;padding:40px 24px 56px;">
+                  ${logoSrc ? `
+                    <img src="${escapeHtml(logoSrc)}" alt="${safeFirmName || 'Firm'}" width="56" height="56" style="display:block;width:56px;height:56px;border-radius:50%;object-fit:cover;margin:0 auto 16px;" />
+                  ` : ''}
+                  ${safeFirmName ? `
+                    <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;line-height:1.3;color:#1a1a1a;text-align:center;">
+                      ${safeFirmName}
+                    </h1>
+                  ` : ''}
+                </td>
+              </tr>
 
-      <div class="content">
-        <p>Hello,</p>
+              <!-- Black lower band; white card overlaps via negative margin -->
+              <tr>
+                <td align="center" style="background-color:#000000;padding:0 20px 48px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;margin:-40px auto 0;background-color:#ffffff;border-radius:16px;">
+                    <tr>
+                      <td style="padding:40px 32px 36px;text-align:center;">
+                        <div style="width:56px;height:56px;margin:0 auto 24px;border-radius:50%;background:linear-gradient(145deg,#c8d4c4 0%,#9aab9a 55%,#b8e000 100%);line-height:56px;font-size:26px;color:#ffffff;">✓</div>
 
-        ${safePersonal ? `<p>${safePersonal}</p>` : `<p>${defaultMessage}</p>`}
+                        <h2 style="margin:0 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:400;line-height:1.25;color:#1a1a1a;">
+                          Secure document ready
+                        </h2>
 
-        ${safeSystem ? `<p style="font-size: 14px; color: #555;">${safeSystem}</p>` : ''}
+                        <p style="margin:0 0 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;line-height:1.5;color:#1a1a1a;">
+                          ${safePersonal || defaultMessage}
+                        </p>
 
-        <p>You can view the documents by clicking the button below:</p>
+                        ${safeSystem ? `
+                          <p style="margin:0 0 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:400;line-height:1.5;color:#555555;">
+                            ${safeSystem}
+                          </p>
+                        ` : `
+                          <p style="margin:0 0 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:400;line-height:1.5;color:#555555;">
+                            Continue to the secure portal to complete verification and view your documents.
+                          </p>
+                        `}
 
-        <a href="${shareUrl}" class="cta-button">View Documents</a>
+                        <!-- Black CTA with lime accent (email-safe table button) -->
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+                          <tr>
+                            <td align="center" style="background-color:#000000;border-radius:8px;">
+                              <a href="${shareUrl}" style="display:block;padding:16px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.06em;text-decoration:none;color:#ffffff;text-transform:uppercase;">
+                                View Secure Document
+                                <span style="display:inline-block;margin-left:12px;padding-left:12px;border-left:2px solid #b8e000;line-height:1;">↓</span>
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
 
-        <p style="font-size: 12px; color: #666;">
-          If the button above doesn't work, copy and paste this link into your browser:<br>
-          <a href="${shareUrl}">${shareUrl}</a>
-        </p>
+                        <p style="margin:24px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#888888;">
+                          If the button does not work, copy this link into your browser:<br>
+                          <a href="${shareUrl}" style="color:#555555;word-break:break-all;">${shareUrl}</a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
 
-        <p>If you have any questions or require further assistance, please contact the person who shared this with you.</p>
-
-        <p>Kind regards,<br>
-        ${firmProfile?.firmName || 'Your Legal Team'}</p>
-      </div>
-
-      <div class="footer">
-        <p>This email contains a confidential link intended only for the recipient.
-        If you are not the intended recipient, please delete this email and notify the sender immediately.</p>
-        ${firmProfile?.firmName ? `<p>&copy; ${new Date().getFullYear()} ${firmProfile.firmName}. All rights reserved.</p>` : ''}
-      </div>
+                  <p style="margin:28px 20px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#999999;text-align:center;">
+                    This email contains a confidential link intended only for the recipient.
+                    If you are not the intended recipient, please delete this email and notify the sender immediately.
+                    ${safeFirmName ? `<br><br>&copy; ${new Date().getFullYear()} ${safeFirmName}. All rights reserved.` : ''}
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
     </body>
     </html>
   `;
