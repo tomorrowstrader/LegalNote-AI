@@ -22,6 +22,10 @@ import remarkBreaks from 'remark-breaks';
 import { RichTextEditor, type TrackedChange, type TrackChangeAuditRecord } from "@/components/RichTextEditor";
 import { PageView } from "@/components/PageView";
 import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
+import {
+  withReasoningGapAnchors,
+  findReasoningGapAnchor,
+} from "@/lib/reasoningGapAnchors";
 
 function markdownToPlainText(md: string): string {
   if (!md) return '';
@@ -383,15 +387,6 @@ function fromEditorContent(content: string): string {
   return normalizeReasoningGapMarkers(content);
 }
 
-/** Strip gap markers for display — do not inject markdown (breaks TipTap in production). */
-function stripReasoningGapMarkers(content: string | null | undefined): string {
-  if (!content) return "";
-  return content
-    .replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, "")
-    .replace(/&lt;!--\s*REASONING_GAP:\s*.+?\s*--&gt;/g, "")
-    .replace(/\{\{RGAP:(?:\\.|[^}])+\}\}/g, "");
-}
-
 function resolveGapContent(activeContent: string | undefined, versions: DocumentVersion[]): string {
   if (!activeContent) return "";
   if (parseReasoningGaps(activeContent).length > 0) return activeContent;
@@ -547,6 +542,21 @@ function highlightAndScrollToElement(target: HTMLElement) {
     target.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
+  const isEmptyGapBlock =
+    !!target.querySelector?.("[data-reasoning-gap-index]") &&
+    (target.textContent || "").replace(/\u200b/g, "").trim().length === 0;
+
+  let tempLabel: HTMLSpanElement | null = null;
+  if (isEmptyGapBlock) {
+    target.classList.add("px-2", "py-1.5", "border", "border-dashed", "border-amber-400");
+    tempLabel = document.createElement("span");
+    tempLabel.setAttribute("data-gap-temp-label", "1");
+    tempLabel.className =
+      "text-[11px] text-amber-800 dark:text-amber-300 italic pointer-events-none";
+    tempLabel.textContent = "Reasoning needed at this advice point";
+    target.appendChild(tempLabel);
+  }
+
   target.classList.add(
     "ring-2",
     "ring-amber-500",
@@ -570,18 +580,14 @@ function highlightAndScrollToElement(target: HTMLElement) {
       "transition-shadow",
       "duration-300",
     );
+    if (isEmptyGapBlock) {
+      target.classList.remove("px-2", "py-1.5", "border", "border-dashed", "border-amber-400");
+      tempLabel?.remove();
+    }
   }, 2200);
 }
 
-function scrollToReasoningGap(sectionName: string) {
-  // Markers are stripped from the view, so jump to the related section heading / label text.
-  const { section: primary } = splitGapLabel(sectionName);
-  const candidates = [
-    primary,
-    primary.replace(/^\d+\.\s*/, ""),
-    sectionName,
-  ].filter((c, i, arr) => c && arr.indexOf(c) === i);
-
+function scrollToReasoningGap(sectionName: string, gapIndex?: number) {
   // Prefer visible note surfaces. Exclude PageView's hidden measure ProseMirror
   // (aria-hidden / fixed off-screen) — matching that used to make jump-to appear broken.
   const roots = Array.from(
@@ -589,6 +595,27 @@ function scrollToReasoningGap(sectionName: string) {
       "[data-page-view-visible], [data-testid='attendance-note-card'] .ProseMirror, [data-testid='summary-note-card'] .ProseMirror, [data-testid='attendance-note-card'], [data-testid='summary-note-card']",
     ),
   ).filter((root) => !isOffscreenOrHidden(root));
+
+  // Prefer the exact in-note anchor for this gap (where the marker sat).
+  if (gapIndex != null) {
+    for (const root of roots) {
+      const anchor = findReasoningGapAnchor(root, gapIndex);
+      if (!anchor || isOffscreenOrHidden(anchor)) continue;
+      const block =
+        (anchor.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null) ??
+        anchor;
+      highlightAndScrollToElement(block);
+      return;
+    }
+  }
+
+  // Fallback: jump to the related section heading / label text.
+  const { section: primary } = splitGapLabel(sectionName);
+  const candidates = [
+    primary,
+    primary.replace(/^\d+\.\s*/, ""),
+    sectionName,
+  ].filter((c, i, arr) => c && arr.indexOf(c) === i);
 
   let el: HTMLElement | null = null;
   for (const candidate of candidates) {
@@ -772,9 +799,9 @@ function GapReviewPanel({
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <button
                       type="button"
-                      onClick={() => scrollToReasoningGap(sectionName)}
+                      onClick={() => scrollToReasoningGap(sectionName, idx)}
                       className="text-left text-xs font-semibold text-foreground hover:text-amber-800 dark:hover:text-amber-300 underline-offset-2 hover:underline w-full leading-snug"
-                      title={`Jump to: ${section}`}
+                      title={`Jump to advice point: ${section}`}
                       data-testid={`button-gap-heading-${testIdPrefix}-${idx}`}
                     >
                       {section}
@@ -1054,14 +1081,16 @@ function EditableDocumentContent({
         </div>
       )}
 
-      {/* Page View: accurate multi-page layout renderer */}
+      {/* Page View: accurate multi-page layout renderer.
+          Display uses indexed gap tokens so the panel can jump to the exact advice point. */}
       {pageViewMode && !isEditing ? (
-        <PageView content={stripReasoningGapMarkers(document.content)} legalContext={legalContext} />
+        <PageView content={withReasoningGapAnchors(document.content)} legalContext={legalContext} />
       ) : (
         <RichTextEditor
-          content={isEditing ? editContent : stripReasoningGapMarkers(document.content)}
+          content={isEditing ? editContent : withReasoningGapAnchors(document.content)}
           onChange={onEditContentChange}
           disabled={!isEditing}
+          hydrateGapAnchors={!isEditing}
           placeholder="Document content..."
           zoom={zoom}
           focusMode={focusMode}

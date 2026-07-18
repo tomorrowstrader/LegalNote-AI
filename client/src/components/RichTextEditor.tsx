@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import { hydrateReasoningGapAnchorsInDom } from "@/lib/reasoningGapAnchors";
 
 function ensureSectionSpacing(content: string): string {
   const lines = content.split('\n');
@@ -668,6 +669,8 @@ interface RichTextEditorProps {
   content: string;
   onChange: (content: string) => void;
   disabled?: boolean;
+  /** When true (read-only review), turn @@RGAP:N@@ tokens into jump targets. */
+  hydrateGapAnchors?: boolean;
   placeholder?: string;
   focusMode?: boolean;
   onFocusModeToggle?: () => void;
@@ -681,7 +684,7 @@ interface RichTextEditorProps {
 }
 
 export function RichTextEditor({ 
-  content, onChange, disabled, placeholder, focusMode, onFocusModeToggle, zoom = 100,
+  content, onChange, disabled, hydrateGapAnchors = false, placeholder, focusMode, onFocusModeToggle, zoom = 100,
   trackChangesEnabled = false, onTrackChangesToggle, onTrackChangeAction, onAddComment,
   onRedact, legalContext,
 }: RichTextEditorProps) {
@@ -1093,12 +1096,19 @@ export function RichTextEditor({
     } finally {
       requestAnimationFrame(() => {
         isUpdatingRef.current = false;
+        if (hydrateGapAnchors && disabled && content?.includes("@@RGAP:")) {
+          try {
+            hydrateReasoningGapAnchorsInDom(editor.view.dom);
+          } catch (hydrateErr) {
+            console.error("[RichTextEditor] Gap anchor hydration failed:", hydrateErr);
+          }
+        }
         if (!disabled && trackChangesEnabled) {
           scanForTrackedChanges(editor);
         }
       });
     }
-  }, [editor, content, disabled, trackChangesEnabled, scanForTrackedChanges]);
+  }, [editor, content, disabled, hydrateGapAnchors, trackChangesEnabled, scanForTrackedChanges]);
 
   useEffect(() => {
     if (editor && disabled !== undefined) {

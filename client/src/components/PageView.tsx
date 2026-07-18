@@ -9,6 +9,7 @@ import Subscript from '@tiptap/extension-subscript';
 import { Mark, Node, mergeAttributes, generateJSON } from '@tiptap/core';
 import { Markdown } from 'tiptap-markdown';
 import { FileText } from "lucide-react";
+import { hydrateReasoningGapAnchorsInHtml } from "@/lib/reasoningGapAnchors";
 
 // A4 layout constants matching the editor
 const PAGE_W    = 794;   // A4 width in px
@@ -205,10 +206,10 @@ export function PageView({ content }: PageViewProps) {
       if (currentHeight + blockHeight > CONTENT_H && currentBlocks.length > 0) {
         result.push({ blocks: [...currentBlocks], pageNumber });
         pageNumber++;
-        currentBlocks = [block.outerHTML];
+        currentBlocks = [hydrateReasoningGapAnchorsInHtml(block.outerHTML)];
         currentHeight = blockHeight;
       } else {
-        currentBlocks.push(block.outerHTML);
+        currentBlocks.push(hydrateReasoningGapAnchorsInHtml(block.outerHTML));
         currentHeight += blockHeight;
       }
     }
@@ -217,7 +218,7 @@ export function PageView({ content }: PageViewProps) {
       result.push({ blocks: currentBlocks, pageNumber });
     }
 
-    setPages(result.length > 0 ? result : [{ blocks: topLevelBlocks.map(b => b.outerHTML), pageNumber: 1 }]);
+    setPages(result.length > 0 ? result : [{ blocks: topLevelBlocks.map(b => hydrateReasoningGapAnchorsInHtml(b.outerHTML)), pageNumber: 1 }]);
     setComputing(false);
   }, []);
 
