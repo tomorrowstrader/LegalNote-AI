@@ -995,27 +995,15 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         referralCode: validReferralCode?.code || null,
       });
       
-      // Send confirmation email (or lead magnet if that's the source)
+      // Send waitlist confirmation email (lead_magnet submissions use the same path)
       let emailSent = false;
       let emailError: string | null = null;
       try {
-        if (source === 'lead_magnet') {
-          console.log('[WAITLIST] Sending lead magnet email to:', email);
-          const { sendLeadMagnetEmail } = await import('./email');
-          const result = await sendLeadMagnetEmail(email, firstName || 'there');
-          console.log('[WAITLIST] Email result:', result);
-          emailSent = result.success;
-          if (!result.success) {
-            emailError = result.error || 'Email delivery failed';
-            console.error('[WAITLIST] Email failed:', emailError);
-          }
-        } else {
-          const { sendWaitlistConfirmationEmail } = await import('./email');
-          const result = await sendWaitlistConfirmationEmail(email, firstName || 'there');
-          emailSent = result.success;
-          if (!result.success) {
-            emailError = result.error || 'Email delivery failed';
-          }
+        const { sendWaitlistConfirmationEmail } = await import('./email');
+        const result = await sendWaitlistConfirmationEmail(email, firstName || 'there');
+        emailSent = result.success;
+        if (!result.success) {
+          emailError = result.error || 'Email delivery failed';
         }
       } catch (err: any) {
         console.error('[WAITLIST] Failed to send confirmation email:', err);

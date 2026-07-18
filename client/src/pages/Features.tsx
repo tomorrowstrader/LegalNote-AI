@@ -4,13 +4,13 @@ import { Badge } from "@/components/ui/badge";
 import { FileCheck, ClipboardCheck, Scale, Calendar, FileText, ShieldCheck, ArrowLeft, Mic, Brain, FileOutput, Users, Lock, Search, Bell, AlertTriangle, PoundSterling, Cloud, CalendarClock, Briefcase, Lightbulb, Focus, ListChecks, FolderOpen, CalendarCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
-import { LeadMagnetForm } from "@/components/LeadMagnetForm";
+import { EarlyAccessForm } from "@/components/EarlyAccessForm";
 import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
 import { useState, useRef, useEffect } from "react";
 
 export default function Features() {
   const [, setLocation] = useLocation();
-  const [showLeadMagnetForm, setShowLeadMagnetForm] = useState(false);
+  const [showEarlyAccessForm, setShowEarlyAccessForm] = useState(false);
   const [showFloatingCTA, setShowFloatingCTA] = useState(false);
   
   const coreCapabilitiesRef = useRef<HTMLElement>(null);
@@ -24,7 +24,7 @@ export default function Features() {
   };
 
   const handleRequestAccess = () => {
-    setShowLeadMagnetForm(true);
+    setShowEarlyAccessForm(true);
   };
 
   useEffect(() => {
@@ -595,9 +595,10 @@ export default function Features() {
         </Button>
       </motion.div>
 
-      <LeadMagnetForm
-        open={showLeadMagnetForm}
-        onOpenChange={setShowLeadMagnetForm}
+      <EarlyAccessForm
+        open={showEarlyAccessForm}
+        onOpenChange={setShowEarlyAccessForm}
+        source="features_page"
       />
     </div>
   );

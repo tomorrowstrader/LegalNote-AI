@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { EarlyAccessForm } from "@/components/EarlyAccessForm";
 import { useToast } from "@/hooks/use-toast";
-import { LeadMagnetForm } from "@/components/LeadMagnetForm";
 import { WorkflowInfographic } from "@/components/WorkflowInfographic";
 import { ExploreModal, useExploreModal } from "@/components/ExploreModal";
 import heroSolicitorImage from "@assets/openart-subject-female-professional-early-40s-british-exotic-l_1769257060192.jpg";
@@ -1636,7 +1635,6 @@ export default function Landing() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEarlyAccessForm, setShowEarlyAccessForm] = useState(false);
-  const [showLeadMagnetForm, setShowLeadMagnetForm] = useState(false);
   const [earlyAccessSource, setEarlyAccessSource] = useState("landing_page");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activePricingCard, setActivePricingCard] = useState(0);
@@ -1723,12 +1721,8 @@ export default function Landing() {
   };
 
   const handleRequestAccess = (source: string = "hero") => {
-    if (source === "lead_magnet") {
-      setShowLeadMagnetForm(true);
-    } else {
-      setEarlyAccessSource(source);
-      setShowEarlyAccessForm(true);
-    }
+    setEarlyAccessSource(source);
+    setShowEarlyAccessForm(true);
   };
 
   const { data: productsData } = useQuery<{ products: Product[] }>({
@@ -3358,11 +3352,6 @@ export default function Landing() {
         open={showEarlyAccessForm} 
         onOpenChange={setShowEarlyAccessForm}
         source={earlyAccessSource}
-      />
-
-      <LeadMagnetForm
-        open={showLeadMagnetForm}
-        onOpenChange={setShowLeadMagnetForm}
       />
 
       <ExploreModal

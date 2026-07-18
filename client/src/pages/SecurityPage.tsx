@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import Logo from "@/components/Logo";
+import { EarlyAccessForm } from "@/components/EarlyAccessForm";
 import { LeadMagnetForm } from "@/components/LeadMagnetForm";
 import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
 import { 
@@ -99,6 +100,7 @@ export default function SecurityPage() {
     }
   ];
 
+  const [showEarlyAccessForm, setShowEarlyAccessForm] = useState(false);
   const [showLeadMagnetForm, setShowLeadMagnetForm] = useState(false);
   const [showFloatingCTA, setShowFloatingCTA] = useState(false);
   
@@ -106,7 +108,7 @@ export default function SecurityPage() {
   const questionsRef = useRef<HTMLElement>(null);
 
   const handleRequestAccess = () => {
-    setShowLeadMagnetForm(true);
+    setShowEarlyAccessForm(true);
   };
 
   useEffect(() => {
@@ -533,7 +535,7 @@ export default function SecurityPage() {
                 size="lg"
                 className="bg-[hsl(18,70%,42%)] text-white font-medium"
                 data-testid="button-security-cta"
-                onClick={handleRequestAccess}
+                onClick={() => setShowLeadMagnetForm(true)}
               >
                 Request Access
               </Button>
@@ -672,6 +674,12 @@ export default function SecurityPage() {
           Request Early Access
         </Button>
       </motion.div>
+
+      <EarlyAccessForm
+        open={showEarlyAccessForm}
+        onOpenChange={setShowEarlyAccessForm}
+        source="security_page"
+      />
 
       <LeadMagnetForm
         open={showLeadMagnetForm}
