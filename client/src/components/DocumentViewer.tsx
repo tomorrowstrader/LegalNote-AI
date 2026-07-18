@@ -438,6 +438,52 @@ function splitGapLabel(sectionName: string): { section: string; detail: string }
   };
 }
 
+/** Clamp long gap detail copy with an inline see-more control. */
+function ExpandableGapDetail({
+  text,
+  testId,
+}: {
+  text: string;
+  testId: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const needsToggle = text.length > 90;
+
+  return (
+    <div className="space-y-0.5">
+      <p
+        className={cn(
+          "text-[11px] text-muted-foreground leading-snug",
+          !expanded && needsToggle && "line-clamp-2",
+        )}
+        data-testid={testId}
+      >
+        {text}
+      </p>
+      {needsToggle && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="inline-flex items-center gap-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-300 hover:underline"
+          data-testid={`${testId}-toggle`}
+        >
+          {expanded ? (
+            <>
+              See less
+              <ChevronUp className="w-3 h-3" />
+            </>
+          ) : (
+            <>
+              See more
+              <ChevronDown className="w-3 h-3" />
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function isOffscreenOrHidden(el: Element): boolean {
   if (el.closest('[aria-hidden="true"]') || el.closest("[data-page-view-measure]")) return true;
   const htmlEl = el as HTMLElement;
@@ -660,7 +706,12 @@ function GapReviewPanel({
 }) {
   return (
     <Card
-      className="lg:w-80 w-full flex-shrink-0 lg:sticky lg:top-16 lg:self-start lg:max-h-[calc(100vh-5.5rem)] flex flex-col overflow-hidden z-10"
+      className="lg:w-80 w-full flex-shrink-0 lg:sticky lg:self-start flex flex-col overflow-hidden z-20"
+      style={{
+        // Sit below the Documents sticky chrome (measured via --doc-header-height), not a fixed top-16
+        top: "var(--doc-header-height, 5rem)",
+        maxHeight: "calc(100vh - var(--doc-header-height, 5rem) - 1rem)",
+      }}
       data-testid={`panel-gap-review-${testIdPrefix}`}
     >
       {/* Sticky chrome: title + close stay visible while the gap list scrolls */}
@@ -722,16 +773,17 @@ function GapReviewPanel({
                     <button
                       type="button"
                       onClick={() => scrollToReasoningGap(sectionName)}
-                      className="text-left text-xs font-semibold text-foreground hover:text-amber-800 dark:hover:text-amber-300 underline-offset-2 hover:underline w-full leading-snug line-clamp-2"
+                      className="text-left text-xs font-semibold text-foreground hover:text-amber-800 dark:hover:text-amber-300 underline-offset-2 hover:underline w-full leading-snug"
                       title={`Jump to: ${section}`}
                       data-testid={`button-gap-heading-${testIdPrefix}-${idx}`}
                     >
                       {section}
                     </button>
                     {detail ? (
-                      <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2" title={detail}>
-                        {detail}
-                      </p>
+                      <ExpandableGapDetail
+                        text={detail}
+                        testId={`text-gap-detail-${testIdPrefix}-${idx}`}
+                      />
                     ) : null}
                   </div>
                 </div>
@@ -2404,8 +2456,8 @@ export default function DocumentViewer({
                       data-testid="button-secure-share"
                     >
                       <Share2 className="w-4 h-4" />
-                      <span className="hidden sm:inline">🔐 Secure Share</span>
-                      <span className="sm:hidden">🔐 Share</span>
+                      <span className="hidden sm:inline">Secure Share</span>
+                      <span className="sm:hidden">Share</span>
                     </Button>
                   )}
                   <Button
@@ -2942,7 +2994,7 @@ export default function DocumentViewer({
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="max-h-[600px] overflow-y-auto">
+            <CardContent className="pb-6" data-testid="tab-content-transcript">
               {transcriptUtterances && transcriptUtterances.length > 0 ? (
                 <>
                   {litigationHold && (
@@ -2981,7 +3033,9 @@ export default function DocumentViewer({
                   />
                 </>
               ) : transcriptContent ? (
-                <p className="text-foreground whitespace-pre-wrap">{transcriptContent}</p>
+                <p className="text-foreground whitespace-pre-wrap break-words" data-testid="text-transcript-fallback">
+                  {transcriptContent}
+                </p>
               ) : (
                 <p className="text-sm text-muted-foreground italic">
                   Transcript not yet available. Process this case to produce a transcript.

@@ -114,6 +114,14 @@ function formatConfidence(confidence: number): string {
   return `${Math.round(confidence * 100)}%`;
 }
 
+/** Strip speaker labels so we can compare utterance text vs stored full content. */
+function plainTranscriptLength(text: string): number {
+  return text
+    .replace(/\[Speaker [^\]]*\]:\s*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim().length;
+}
+
 export default function DiarizedTranscriptViewer({
   utterances,
   speakerCount,
@@ -126,7 +134,8 @@ export default function DiarizedTranscriptViewer({
   initialTimestamp,
 }: DiarizedTranscriptViewerProps) {
   const [showTimestamps, setShowTimestamps] = useState(true);
-  const [expandedView, setExpandedView] = useState(false);
+  // Always start expanded so the full capture is readable without an extra click
+  const [expandedView, setExpandedView] = useState(true);
   const [redactionMode, setRedactionMode] = useState(false);
   const [tick, setTick] = useState(0);
   const [highlightedTimestamp, setHighlightedTimestamp] = useState<number | null>(null);
@@ -179,7 +188,7 @@ export default function DiarizedTranscriptViewer({
     if (fallbackContent) {
       return (
         <div className="space-y-4">
-          <p className="text-foreground whitespace-pre-wrap" data-testid="text-transcript-fallback">
+          <p className="text-foreground whitespace-pre-wrap break-words" data-testid="text-transcript-fallback">
             {fallbackContent}
           </p>
         </div>
@@ -196,6 +205,30 @@ export default function DiarizedTranscriptViewer({
   const totalDuration = utterances.length > 0 
     ? utterances[utterances.length - 1].end 
     : 0;
+
+  // Prefer the stored full transcript when speaker segments are shorter / incomplete
+  const utteranceTextLen = plainTranscriptLength(utterances.map((u) => u.text).join(" "));
+  const fallbackTextLen = fallbackContent ? plainTranscriptLength(fallbackContent) : 0;
+  const preferFullContent =
+    !!fallbackContent &&
+    fallbackTextLen > Math.max(utteranceTextLen * 1.1, utteranceTextLen + 80);
+
+  if (preferFullContent) {
+    return (
+      <div className="space-y-3" data-testid="container-diarized-transcript">
+        <p className="text-xs text-muted-foreground" data-testid="text-transcript-full-source-note">
+          Showing the full transcript capture
+          {utterances.length === 1 ? " (speaker timing was not fully segmented)." : "."}
+        </p>
+        <p
+          className="text-foreground whitespace-pre-wrap break-words text-sm leading-relaxed"
+          data-testid="text-transcript-fallback"
+        >
+          {fallbackContent}
+        </p>
+      </div>
+    );
+  }
 
   const getRedactionsForUtterance = (start: number, end: number): Redaction[] => {
     return redactions.filter(r => r.start === start && r.end === end);
@@ -603,8 +636,8 @@ export default function DiarizedTranscriptViewer({
                       )}
                       <p 
                         className={cn(
-                          "text-foreground select-text",
-                          expandedView ? "text-sm leading-relaxed" : "text-xs",
+                          "text-foreground select-text whitespace-pre-wrap break-words",
+                          expandedView ? "text-sm leading-relaxed" : "text-xs leading-relaxed",
                           isLowConfidence(utterance.confidence) && "bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded border-l-2 border-amber-400"
                         )}
                       >
