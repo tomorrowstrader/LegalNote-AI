@@ -113,7 +113,17 @@ export default function ShareLinkModal({
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const text = await response.text();
+        let message = text || "Failed to send secure link";
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed?.message && typeof parsed.message === "string") {
+            message = parsed.message;
+          }
+        } catch {
+          // keep raw text
+        }
+        throw new Error(message);
       }
 
       toast({
@@ -370,8 +380,8 @@ export default function ShareLinkModal({
                     data-testid="checkbox-summary"
                   />
                   <div className="space-y-0.5">
-                    <Label htmlFor="doc-summary" className="font-normal">Summary</Label>
-                    <p className="text-xs text-muted-foreground">Brief overview of the case</p>
+                    <Label htmlFor="doc-summary" className="font-normal">Client Letter</Label>
+                    <p className="text-xs text-muted-foreground">Client-facing letter prepared from the attendance note</p>
                   </div>
                 </div>
               )}

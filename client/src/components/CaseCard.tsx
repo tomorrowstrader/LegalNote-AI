@@ -54,7 +54,7 @@ export default function CaseCard({
   const { toast } = useToast();
 
   const { markReviewedMutation, archiveMutation, assignMutation } = useCaseActions({ caseId: id });
-  const { documents, caseData, transcript, handleDownload } = useCaseExport({ caseId: id, enabled: showDownloadModal });
+  const { documents, caseData, transcript, handleDownload } = useCaseExport({ caseId: id, enabled: showDownloadModal || showShareModal });
 
   const statusConfig = {
     completed: { icon: CheckCircle2, label: "Completed", variant: "default" as const },
@@ -238,14 +238,19 @@ export default function CaseCard({
         caseId={id}
         caseTitle={title}
         userRole="Partner"
+        availableDocuments={{
+          hasAttendanceNote: !!documents.find((d: any) => d.isActive && (d.type === 'attendance_note' || d.type === 'meeting_notes')),
+          hasSummary: !!documents.find((d: any) => d.isActive && (d.type === 'summary' || d.type === 'client_letter')) || !!caseData?.textNotes,
+          hasTranscript: !!documents.find((d: any) => d.isActive && d.type === 'transcript') || !!transcript?.content,
+        }}
       />
 
       <DownloadModal
         open={showDownloadModal}
         onOpenChange={setShowDownloadModal}
         availableDocuments={{
-          hasAttendanceNote: !!documents.find((d: any) => d.isActive && d.type === 'attendance_note'),
-          hasSummary: !!documents.find((d: any) => d.isActive && d.type === 'summary') || !!caseData?.textNotes,
+          hasAttendanceNote: !!documents.find((d: any) => d.isActive && (d.type === 'attendance_note' || d.type === 'meeting_notes')),
+          hasSummary: !!documents.find((d: any) => d.isActive && (d.type === 'summary' || d.type === 'client_letter')) || !!caseData?.textNotes,
           hasTranscript: !!documents.find((d: any) => d.isActive && d.type === 'transcript') || !!transcript?.content,
         }}
         sharedDocuments={['attendance_note', 'summary', 'transcript']}

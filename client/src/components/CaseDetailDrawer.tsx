@@ -57,7 +57,7 @@ export default function CaseDetailDrawer({ caseItem, open, onOpenChange }: CaseD
   
   const { documents, caseData, transcript, handleDownload } = useCaseExport({ 
     caseId, 
-    enabled: showDownloadModal && hasCaseId
+    enabled: (showDownloadModal || showShareModal) && hasCaseId
   });
 
   if (!caseItem) return null;
@@ -336,14 +336,19 @@ export default function CaseDetailDrawer({ caseItem, open, onOpenChange }: CaseD
         caseId={caseItem.id}
         caseTitle={caseItem.title}
         userRole="Partner"
+        availableDocuments={{
+          hasAttendanceNote: !!documents?.find((d: any) => d.isActive && (d.type === 'attendance_note' || d.type === 'meeting_notes')),
+          hasSummary: !!documents?.find((d: any) => d.isActive && (d.type === 'summary' || d.type === 'client_letter')) || !!caseData?.textNotes,
+          hasTranscript: !!documents?.find((d: any) => d.isActive && d.type === 'transcript') || !!transcript?.content,
+        }}
       />
 
       <DownloadModal
         open={showDownloadModal}
         onOpenChange={setShowDownloadModal}
         availableDocuments={{
-          hasAttendanceNote: !!documents?.find((d: any) => d.isActive && d.type === 'attendance_note'),
-          hasSummary: !!documents?.find((d: any) => d.isActive && d.type === 'summary') || !!caseData?.textNotes,
+          hasAttendanceNote: !!documents?.find((d: any) => d.isActive && (d.type === 'attendance_note' || d.type === 'meeting_notes')),
+          hasSummary: !!documents?.find((d: any) => d.isActive && (d.type === 'summary' || d.type === 'client_letter')) || !!caseData?.textNotes,
           hasTranscript: !!documents?.find((d: any) => d.isActive && d.type === 'transcript') || !!transcript?.content,
         }}
         sharedDocuments={['attendance_note', 'summary', 'transcript']}

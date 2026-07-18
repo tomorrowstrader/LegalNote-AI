@@ -2273,9 +2273,17 @@ export default function CaseDetail() {
         caseTitle={caseData.title}
         userRole="Partner"
         availableDocuments={{
-          hasAttendanceNote: true,
-          hasSummary: true,
-          hasTranscript: true,
+          hasAttendanceNote: documents.some(
+            (d) =>
+              d.isActive !== false &&
+              (d.type === "attendance_note" || (d.type as string) === "meeting_notes"),
+          ),
+          hasSummary: documents.some(
+            (d) =>
+              d.isActive !== false &&
+              (d.type === "summary" || (d.type as string) === "client_letter"),
+          ),
+          hasTranscript: !!transcript?.content,
           hasCareLetter: !!caseData.clientCareLetterId,
         }}
       />

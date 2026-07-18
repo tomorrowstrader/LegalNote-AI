@@ -218,8 +218,14 @@ export default function ShareLinkView() {
     if (!data?.caseData || !data?.documents || !data?.shareLink) return;
 
     const sharedDocs = data.shareLink.sharedDocuments || [];
+    const isSharedDocType = (docType: string) =>
+      sharedDocs.includes(docType) ||
+      ((docType === "summary" || docType === "client_letter") &&
+        (sharedDocs.includes("summary") || sharedDocs.includes("client_letter"))) ||
+      ((docType === "attendance_note" || docType === "meeting_notes") &&
+        (sharedDocs.includes("attendance_note") || sharedDocs.includes("meeting_notes")));
     
-    const invalidDocs = selectedDocs.filter(doc => !sharedDocs.includes(doc));
+    const invalidDocs = selectedDocs.filter(doc => !isSharedDocType(doc));
     if (invalidDocs.length > 0) {
       toast({
         title: "Invalid Selection",
@@ -240,13 +246,13 @@ export default function ShareLinkView() {
         firmProfile: data.firmProfile,
       };
 
-      if (selectedDocs.includes('attendance_note') && sharedDocs.includes('attendance_note')) {
-        const doc = data.documents.find(d => d.type === 'attendance_note');
+      if (selectedDocs.includes('attendance_note') && (sharedDocs.includes('attendance_note') || sharedDocs.includes('meeting_notes'))) {
+        const doc = data.documents.find(d => d.type === 'attendance_note' || d.type === 'meeting_notes');
         if (doc) documentContent.attendanceNote = doc.content;
       }
 
-      if (selectedDocs.includes('summary') && sharedDocs.includes('summary')) {
-        const doc = data.documents.find(d => d.type === 'summary');
+      if (selectedDocs.includes('summary') && (sharedDocs.includes('summary') || sharedDocs.includes('client_letter'))) {
+        const doc = data.documents.find(d => d.type === 'summary' || d.type === 'client_letter');
         if (doc) documentContent.summary = doc.content;
       }
 
@@ -560,21 +566,23 @@ export default function ShareLinkView() {
       case "attendance_note":
         return "Attendance Note";
       case "summary":
-        return "Summary";
+      case "client_letter":
+        return "Client Letter";
       default:
         return type;
     }
   };
 
-  const attendanceNote = documents?.find(doc => doc.type === "attendance_note");
-  const summary = documents?.find(doc => doc.type === "summary");
+  const attendanceNote = documents?.find(doc => doc.type === "attendance_note" || doc.type === "meeting_notes");
+  const summary = documents?.find(doc => doc.type === "summary" || doc.type === "client_letter");
 
   const sharedDocs = shareLink?.sharedDocuments || [];
   const careLetter = documents?.find(doc => doc.type === "client_care_letter");
   const showCareLetter = !!careLetter && sharedDocs.includes("client_care_letter");
+  const summaryShared = sharedDocs.includes("summary") || sharedDocs.includes("client_letter");
   const availableDocuments = {
-    hasAttendanceNote: !!attendanceNote && sharedDocs.includes("attendance_note"),
-    hasSummary: !!summary && sharedDocs.includes("summary"),
+    hasAttendanceNote: !!attendanceNote && (sharedDocs.includes("attendance_note") || sharedDocs.includes("meeting_notes")),
+    hasSummary: !!summary && summaryShared,
     hasTranscript: !!transcript && sharedDocs.includes("transcript"),
     hasCareLetter: showCareLetter,
   };
@@ -674,7 +682,7 @@ export default function ShareLinkView() {
                     value="summary" 
                     data-testid="tab-summary"
                   >
-                    Summary
+                    Client Letter
                   </TabsTrigger>
                 )}
                 {showCareLetter && (

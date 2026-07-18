@@ -158,6 +158,18 @@ function requireFeatureVisible(key: FeatureKey) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Pipeline stores the client-facing letter as `client_letter`; older rows and share
+  // payloads may still use `summary`. Attendance notes may be `meeting_notes`.
+  const CLIENT_LETTER_SHARE_TYPES = new Set(["summary", "client_letter"]);
+  const ATTENDANCE_NOTE_SHARE_TYPES = new Set(["attendance_note", "meeting_notes"]);
+
+  const documentMatchesSharedType = (docType: string, sharedType: string): boolean => {
+    if (docType === sharedType) return true;
+    if (CLIENT_LETTER_SHARE_TYPES.has(docType) && CLIENT_LETTER_SHARE_TYPES.has(sharedType)) return true;
+    if (ATTENDANCE_NOTE_SHARE_TYPES.has(docType) && ATTENDANCE_NOTE_SHARE_TYPES.has(sharedType)) return true;
+    return false;
+  };
+
   const getUnadoptedSharedDocumentTypes = async (
     caseId: string,
     userId: string,
@@ -165,7 +177,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   ): Promise<string[]> => {
     const documents = await storage.getActiveDocumentsByCase(caseId, userId);
     return selectedTypes.filter((type) => {
-      const selectedDocument = documents.find((document) => document.type === type);
+      const selectedDocument = documents.find((document) =>
+        documentMatchesSharedType(document.type, type),
+      );
       return !selectedDocument || selectedDocument.status !== "approved";
     });
   };
@@ -1100,7 +1114,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           message: "This link is unavailable because one or more documents have not been adopted by a fee earner.",
         });
       }
-      const documents = allDocuments.filter(doc => sharedDocs.includes(doc.type));
+      const documents = allDocuments.filter((doc) =>
+        sharedDocs.some((sharedType: string) => documentMatchesSharedType(doc.type, sharedType)),
+      );
       
       // Get transcript only if explicitly shared
       const transcript = sharedDocs.includes("transcript") 
@@ -3759,7 +3775,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // Track document versions shared with client
       const allCaseDocuments = await storage.getActiveDocumentsByCase(req.params.id, userId);
       for (const doc of allCaseDocuments) {
-        if (sharedDocuments.includes(doc.type)) {
+        if (sharedDocuments.some((sharedType) => documentMatchesSharedType(doc.type, sharedType))) {
           await storage.createClientVersionTracking({
             documentId: doc.id,
             sentToClient: true,
