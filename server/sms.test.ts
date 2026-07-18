@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { formatUKPhoneNumber, isValidUKPhoneNumber, phoneLastFour } from "./sms";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  formatUKPhoneNumber,
+  isValidAlphaSenderId,
+  isValidUKPhoneNumber,
+  phoneLastFour,
+  resolveSmsFromAddress,
+} from "./sms";
 
 describe("formatUKPhoneNumber", () => {
   it("normalises common UK mobile formats to E.164", () => {
@@ -24,5 +30,53 @@ describe("phoneLastFour", () => {
   it("returns the last four digits", () => {
     expect(phoneLastFour("07539371964")).toBe("1964");
     expect(phoneLastFour("+447539371964")).toBe("1964");
+  });
+});
+
+describe("isValidAlphaSenderId", () => {
+  it("accepts Twilio alphanumeric rules", () => {
+    expect(isValidAlphaSenderId("LegalNote")).toBe(true);
+    expect(isValidAlphaSenderId("LegalNote AI")).toBe(false);
+    expect(isValidAlphaSenderId("")).toBe(false);
+    expect(isValidAlphaSenderId("ThisIsTooLong")).toBe(false);
+  });
+});
+
+describe("resolveSmsFromAddress", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("uses phone number by default even when TWILIO_SENDER_NAME is set", () => {
+    vi.stubEnv("TWILIO_PHONE_NUMBER", "+447700900000");
+    vi.stubEnv("TWILIO_SENDER_NAME", "LegalNote");
+    vi.stubEnv("TWILIO_USE_ALPHA_SENDER", "");
+
+    expect(resolveSmsFromAddress()).toEqual({
+      from: "+447700900000",
+      usedAlpha: false,
+    });
+  });
+
+  it("uses alpha sender only when explicitly opted in", () => {
+    vi.stubEnv("TWILIO_PHONE_NUMBER", "+447700900000");
+    vi.stubEnv("TWILIO_SENDER_NAME", "LegalNote");
+    vi.stubEnv("TWILIO_USE_ALPHA_SENDER", "true");
+
+    expect(resolveSmsFromAddress()).toEqual({
+      from: "LegalNote",
+      usedAlpha: true,
+    });
+  });
+
+  it("falls back to phone when opted-in alpha sender is invalid", () => {
+    vi.stubEnv("TWILIO_PHONE_NUMBER", "+447700900000");
+    vi.stubEnv("TWILIO_SENDER_NAME", "LegalNote AI");
+    vi.stubEnv("TWILIO_USE_ALPHA_SENDER", "true");
+
+    expect(resolveSmsFromAddress()).toEqual({
+      from: "+447700900000",
+      usedAlpha: false,
+    });
   });
 });

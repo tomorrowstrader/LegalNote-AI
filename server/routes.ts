@@ -1424,10 +1424,11 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const { linkId } = req.params;
       const { password } = req.body;
 
-      // Validate password is provided
-      if (!password || typeof password !== 'string') {
+      // Validate password is provided (trim — mobile keyboards often add trailing spaces)
+      if (!password || typeof password !== 'string' || !password.trim()) {
         return res.status(400).json({ message: "Password is required" });
       }
+      const submittedPassword = password.trim();
 
       // Get share link
       const shareLink = await storage.getShareLink(linkId);
@@ -1451,19 +1452,19 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const isLegacyPlaintext = !shareLink.password.startsWith('$2'); // bcrypt hashes start with $2
       
       if (isLegacyPlaintext) {
-        // Legacy plaintext password - do direct comparison
-        isPasswordValid = password === shareLink.password;
+        // Legacy plaintext password - compare trimmed values
+        isPasswordValid = submittedPassword === shareLink.password.trim();
         
         // Migrate to hashed password on successful login
         if (isPasswordValid) {
           const saltRounds = 10;
-          const hashedPassword = await bcrypt.hash(password, saltRounds);
+          const hashedPassword = await bcrypt.hash(submittedPassword, saltRounds);
           await storage.updateShareLink(linkId, { password: hashedPassword });
           console.log(`[SECURITY] Migrated legacy plaintext password to bcrypt hash for share link ${linkId}`);
         }
       } else {
         // Modern bcrypt hashed password
-        isPasswordValid = await bcrypt.compare(password, shareLink.password);
+        isPasswordValid = await bcrypt.compare(submittedPassword, shareLink.password);
       }
       
       if (!isPasswordValid) {
@@ -1501,6 +1502,11 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           shareLinkId: linkId,
         },
         severity: "info",
+      });
+
+      // Ensure the session cookie is written before responding (anonymous share visitors)
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => (err ? reject(err) : resolve()));
       });
 
       res.json({ 
@@ -3509,6 +3515,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           addressLine2: firmProfile.addressLine2 || undefined,
           city: firmProfile.city || undefined,
           postcode: firmProfile.postcode || undefined,
+          logoUrl: firmProfile.logoUrl || undefined,
         } : undefined,
       });
       
@@ -3677,11 +3684,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           expiresAt.setDate(expiresAt.getDate() + 7); // Default to 7 days
       }
       
-      // Hash password if provided
+      // Hash password if provided (trim so create/verify stay consistent on mobile)
       let hashedPassword: string | undefined;
-      if (password) {
+      const trimmedPassword = password?.trim();
+      if (trimmedPassword) {
         const saltRounds = 10;
-        hashedPassword = await bcrypt.hash(password, saltRounds);
+        hashedPassword = await bcrypt.hash(trimmedPassword, saltRounds);
       }
       
       // Create share link in database
@@ -3733,6 +3741,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           addressLine2: firmProfile.addressLine2 || undefined,
           city: firmProfile.city || undefined,
           postcode: firmProfile.postcode || undefined,
+          logoUrl: firmProfile.logoUrl || undefined,
         } : undefined,
       });
       
@@ -6209,6 +6218,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
               addressLine2: firmProfile.addressLine2 || undefined,
               city: firmProfile.city || undefined,
               postcode: firmProfile.postcode || undefined,
+              logoUrl: firmProfile.logoUrl || undefined,
             }
           : undefined,
       });
@@ -9593,26 +9603,18 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       } else if (contactMobile) {
         // Send via SMS
         try {
-          const { formatUKPhoneNumber } = await import("./sms");
+          const { formatUKPhoneNumber, sendSmsMessage } = await import("./sms");
           const formattedPhone = formatUKPhoneNumber(contactMobile);
           const smsBody = `${recipientName}, your solicitor requests consent to record this meeting. Tap to confirm: ${consentUrl}`;
 
-          // Use Twilio directly for custom message
-          const twilio = await import("twilio");
-          const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
-            ? twilio.default(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-            : null;
-
-          if (!twilioClient || !process.env.TWILIO_PHONE_NUMBER) {
+          const smsResult = await sendSmsMessage(formattedPhone, smsBody);
+          if (!smsResult.success) {
             await storage.updatePreConsentEmail(consentEmail.id, { emailStatus: 'failed' });
-            return res.status(503).json({ message: "SMS service is not configured. Please use email instead." });
+            const status = smsResult.error?.includes('not configured') ? 503 : 500;
+            return res.status(status).json({
+              message: smsResult.error || "Failed to send consent SMS",
+            });
           }
-
-          await twilioClient.messages.create({
-            body: smsBody,
-            from: process.env.TWILIO_SENDER_NAME || process.env.TWILIO_PHONE_NUMBER,
-            to: formattedPhone,
-          });
 
           await storage.updatePreConsentEmail(consentEmail.id, {
             emailStatus: 'sent',

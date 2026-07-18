@@ -179,7 +179,9 @@ export default function ShareLinkView() {
 
   const verifyPasswordMutation = useMutation({
     mutationFn: async (pwd: string) => {
-      const response = await apiRequest('POST', `/api/share/${linkId}/verify-password`, { password: pwd });
+      const response = await apiRequest('POST', `/api/share/${linkId}/verify-password`, {
+        password: pwd.trim(),
+      });
       return response;
     },
     onSuccess: () => {
@@ -191,10 +193,10 @@ export default function ShareLinkView() {
       // Refetch to get documents after password verification
       refetch();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Incorrect Password",
-        description: error.message || "Please try again",
+        description: getApiErrorMessage(error, "Please try again"),
         variant: "destructive",
         duration: 8000,
       });
@@ -211,7 +213,7 @@ export default function ShareLinkView() {
       });
       return;
     }
-    verifyPasswordMutation.mutate(password);
+    verifyPasswordMutation.mutate(password.trim());
   };
 
   const handleDownload = async (selectedDocs: string[], format: 'pdf' | 'word') => {
@@ -355,6 +357,7 @@ export default function ShareLinkView() {
               <Input
                 id="password"
                 type="password"
+                autoComplete="current-password"
                 placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

@@ -31,6 +31,8 @@ interface ShareLinkModalProps {
   caseId: string;
   caseTitle: string;
   userRole: "Partner" | "Senior Associate" | "Solicitor" | "Paralegal";
+  /** Full client name from the case file — first name is prefilled as recipient name. */
+  recipientName?: string;
   availableDocuments?: {
     hasAttendanceNote: boolean;
     hasSummary: boolean;
@@ -39,12 +41,32 @@ interface ShareLinkModalProps {
   };
 }
 
+function extractFirstName(fullName: string | undefined): string {
+  if (!fullName?.trim()) return "";
+  return fullName.trim().split(/\s+/)[0] || "";
+}
+
+function defaultSharedDocuments(availableDocuments: {
+  hasAttendanceNote: boolean;
+  hasSummary: boolean;
+  hasTranscript: boolean;
+  hasCareLetter?: boolean;
+}): string[] {
+  // Client Letter is the default share selection when available
+  if (availableDocuments.hasSummary) return ["summary"];
+  if (availableDocuments.hasAttendanceNote) return ["attendance_note"];
+  if (availableDocuments.hasCareLetter) return ["client_care_letter"];
+  if (availableDocuments.hasTranscript) return ["transcript"];
+  return [];
+}
+
 export default function ShareLinkModal({ 
   open, 
   onOpenChange, 
   caseId,
   caseTitle,
   userRole,
+  recipientName: defaultRecipientName,
   availableDocuments = {
     hasAttendanceNote: true,
     hasSummary: true,
@@ -53,33 +75,41 @@ export default function ShareLinkModal({
   }
 }: ShareLinkModalProps) {
   const [recipientEmail, setRecipientEmail] = useState("");
-  const [recipientName, setRecipientName] = useState("");
+  const [recipientName, setRecipientName] = useState(() => extractFirstName(defaultRecipientName));
   const [isExternal, setIsExternal] = useState(false);
   const [organization, setOrganization] = useState("");
   const [expiration, setExpiration] = useState("7days");
   const [accessLevel, setAccessLevel] = useState("view");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [clientConsent, setClientConsent] = useState(false);
   const [smsProtection, setSmsProtection] = useState(false);
   const [smsPhoneNumber, setSmsPhoneNumber] = useState("");
   const [customMessage, setCustomMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [sharedDocuments, setSharedDocuments] = useState<string[]>(() => {
-    // Default to attendance_note only if it exists
-    return availableDocuments.hasAttendanceNote ? ["attendance_note"] : [];
-  });
+  const [pendingSharePayload, setPendingSharePayload] = useState<Record<string, unknown> | null>(null);
+  const [sharedDocuments, setSharedDocuments] = useState<string[]>(() =>
+    defaultSharedDocuments(availableDocuments)
+  );
   const { toast } = useToast();
   const { user } = useAuth();
 
   const canShareExternal = userRole === "Partner" || userRole === "Senior Associate";
 
+  // Prefill first name and default docs whenever the modal opens
+  useEffect(() => {
+    if (!open) return;
+    setRecipientName(extractFirstName(defaultRecipientName));
+    setSharedDocuments(defaultSharedDocuments(availableDocuments));
+  }, [open, defaultRecipientName, availableDocuments.hasAttendanceNote, availableDocuments.hasSummary, availableDocuments.hasTranscript, availableDocuments.hasCareLetter]);
+
   useEffect(() => {
     if (countdown === null) return;
 
     if (countdown === 0) {
-      // Actually send the share link via API
-      sendShareLinkEmail();
+      // Send with the payload snapshotted when Share was clicked (avoids stale state)
+      void sendShareLinkEmail(pendingSharePayload);
       return;
     }
 
@@ -90,26 +120,24 @@ export default function ShareLinkModal({
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  const sendShareLinkEmail = async () => {
+  const sendShareLinkEmail = async (payload: Record<string, unknown> | null) => {
+    if (!payload) {
+      setCountdown(null);
+      setIsSending(false);
+      toast({
+        title: "Error",
+        description: "Share details were lost. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const response = await fetch(`/api/cases/${caseId}/share-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          recipientEmail,
-          recipientName,
-          isExternal,
-          organization,
-          expiration,
-          accessLevel,
-          password,
-          clientConsent,
-          smsProtection,
-          smsPhoneNumber: smsProtection ? smsPhoneNumber : undefined,
-          customMessage: customMessage.trim() || undefined,
-          sharedDocuments,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -128,11 +156,12 @@ export default function ShareLinkModal({
 
       toast({
         title: "Link Shared Successfully",
-        description: `Secure link sent to ${recipientEmail}`,
+        description: `Secure link sent to ${payload.recipientEmail}`,
         duration: 6000,
       });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/share-links`] });
       setCountdown(null);
+      setPendingSharePayload(null);
       handleClose();
     } catch (error: any) {
       toast({
@@ -141,6 +170,7 @@ export default function ShareLinkModal({
         variant: "destructive",
       });
       setCountdown(null);
+      setPendingSharePayload(null);
       setIsSending(false);
     }
   };
@@ -187,6 +217,44 @@ export default function ShareLinkModal({
       return;
     }
 
+    const trimmedPassword = password.trim();
+    if (trimmedPassword || confirmPassword.trim()) {
+      if (trimmedPassword.length < 4) {
+        toast({
+          title: "Password Too Short",
+          description: "Use at least 4 characters for the share password",
+          variant: "destructive",
+          duration: 8000,
+        });
+        return;
+      }
+      if (trimmedPassword !== confirmPassword.trim()) {
+        toast({
+          title: "Passwords Do Not Match",
+          description: "Re-enter the same password in both fields",
+          variant: "destructive",
+          duration: 8000,
+        });
+        return;
+      }
+    }
+
+    // Snapshot form values now so the countdown send cannot use stale/empty fields
+    setPendingSharePayload({
+      recipientEmail,
+      recipientName,
+      isExternal,
+      organization,
+      expiration,
+      accessLevel,
+      password: trimmedPassword || undefined,
+      clientConsent,
+      smsProtection,
+      smsPhoneNumber: smsProtection ? smsPhoneNumber : undefined,
+      customMessage: customMessage.trim() || undefined,
+      sharedDocuments,
+    });
+
     // Start 3-second countdown
     setIsSending(true);
     setCountdown(3);
@@ -208,19 +276,21 @@ export default function ShareLinkModal({
 
   const handleClose = () => {
     setRecipientEmail("");
-    setRecipientName("");
+    setRecipientName(extractFirstName(defaultRecipientName));
     setIsExternal(false);
     setOrganization("");
     setExpiration("7days");
     setAccessLevel("view");
     setPassword("");
+    setConfirmPassword("");
     setClientConsent(false);
     setSmsProtection(false);
     setSmsPhoneNumber("");
     setCustomMessage("");
     setIsSending(false);
     setCountdown(null);
-    setSharedDocuments(availableDocuments.hasAttendanceNote ? ["attendance_note"] : []);
+    setPendingSharePayload(null);
+    setSharedDocuments(defaultSharedDocuments(availableDocuments));
     onOpenChange(false);
   };
 
@@ -315,7 +385,7 @@ export default function ShareLinkModal({
               </Label>
               <Input
                 id="recipient-name"
-                placeholder="Full name"
+                placeholder="First name"
                 value={recipientName}
                 onChange={(e) => setRecipientName(e.target.value)}
                 data-testid="input-recipient-name"
@@ -345,6 +415,26 @@ export default function ShareLinkModal({
             <Label className="text-base font-medium">Select Documents to Share</Label>
             <p className="text-sm text-muted-foreground">Choose which documents the recipient can access</p>
             <div className="space-y-3">
+              {availableDocuments.hasSummary && (
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="doc-summary"
+                    checked={sharedDocuments.includes("summary")}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSharedDocuments([...sharedDocuments, "summary"]);
+                      } else {
+                        setSharedDocuments(sharedDocuments.filter(d => d !== "summary"));
+                      }
+                    }}
+                    data-testid="checkbox-client-letter"
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="doc-summary" className="font-normal">Client Letter</Label>
+                    <p className="text-xs text-muted-foreground">Client-facing letter prepared from the attendance note</p>
+                  </div>
+                </div>
+              )}
               {availableDocuments.hasAttendanceNote && (
                 <div className="flex items-start space-x-2">
                   <Checkbox
@@ -362,26 +452,6 @@ export default function ShareLinkModal({
                   <div className="space-y-0.5">
                     <Label htmlFor="doc-attendance-note" className="font-normal">Attendance Note</Label>
                     <p className="text-xs text-muted-foreground">Professional summary of the meeting</p>
-                  </div>
-                </div>
-              )}
-              {availableDocuments.hasSummary && (
-                <div className="flex items-start space-x-2">
-                  <Checkbox
-                    id="doc-summary"
-                    checked={sharedDocuments.includes("summary")}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSharedDocuments([...sharedDocuments, "summary"]);
-                      } else {
-                        setSharedDocuments(sharedDocuments.filter(d => d !== "summary"));
-                      }
-                    }}
-                    data-testid="checkbox-summary"
-                  />
-                  <div className="space-y-0.5">
-                    <Label htmlFor="doc-summary" className="font-normal">Client Letter</Label>
-                    <p className="text-xs text-muted-foreground">Client-facing letter prepared from the attendance note</p>
                   </div>
                 </div>
               )}
@@ -521,11 +591,26 @@ export default function ShareLinkModal({
             <Input
               id="password"
               type="password"
+              autoComplete="new-password"
               placeholder="Set a password for extra security"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               data-testid="input-password"
             />
+            {(password.trim().length > 0 || confirmPassword.trim().length > 0) && (
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Re-enter password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  data-testid="input-confirm-password"
+                />
+              </div>
+            )}
           </div>
 
           <div className="border-t pt-4" data-testid="secure-share-sms-section">
