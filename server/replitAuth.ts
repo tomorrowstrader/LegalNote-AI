@@ -120,6 +120,8 @@ export function getSession() {
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    // Keep active solicitors signed in while they work (e.g. long document production).
+    rolling: true,
     cookie: {
       httpOnly: true,
       secure: isProduction,
@@ -409,6 +411,23 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const now = Math.floor(Date.now() / 1000);
   if (user.expires_at && now > user.expires_at) {
     return res.status(401).json({ message: "Session expired" });
+  }
+
+  // Sliding expiry: authenticated activity extends the in-session TTL so long
+  // Meeting-to-Matter runs don't strand the SPA on a cached "processing" card.
+  // (Cookie rolling alone is not enough — this custom expires_at gate must move too.)
+  const slideThresholdSec = 5 * 60;
+  const sessionTtlSec = SESSION_TTL / 1000;
+  const remainingSec = typeof user.expires_at === "number" ? user.expires_at - now : 0;
+  if (!user.expires_at || remainingSec < sessionTtlSec - slideThresholdSec) {
+    user.expires_at = now + sessionTtlSec;
+    if (req.session) {
+      const session = req.session as any;
+      if (session.passport) session.passport.user = user;
+      // Top-level write marks the session dirty so connect-pg-simple persists it
+      session.lastAuthenticatedAt = now;
+      session.touch();
+    }
   }
 
   const userId = user.claims.sub as string;

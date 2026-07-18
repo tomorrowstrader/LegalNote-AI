@@ -165,6 +165,7 @@ async function updateProduceProgress(
     restoreStatusOnFailure === "completed" || restoreStatusOnFailure === "review_required"
       ? restoreStatusOnFailure
       : "review_required";
+  const nowIso = new Date().toISOString();
   await storage.updateCase(
     caseId,
     {
@@ -181,10 +182,25 @@ async function updateProduceProgress(
         status,
         progress,
         currentStep,
+        ...(status === "processing" ? { progressUpdatedAt: nowIso } : {}),
         ...(error ? { error } : { error: undefined }),
         ...(status === "failed"
-          ? { produceVersionFailed: true, produceVersionError: error }
-          : { produceVersionFailed: undefined, produceVersionError: undefined }),
+          ? {
+              produceVersionFailed: true,
+              produceVersionError: error,
+              statusBeforeProduce: undefined,
+              progressUpdatedAt: undefined,
+              produceStartedAt: undefined,
+            }
+          : status === "completed"
+            ? {
+                produceVersionFailed: undefined,
+                produceVersionError: undefined,
+                statusBeforeProduce: undefined,
+                progressUpdatedAt: undefined,
+                produceStartedAt: undefined,
+              }
+            : { produceVersionFailed: undefined, produceVersionError: undefined }),
       },
     },
     userId,
@@ -601,6 +617,9 @@ export async function enqueueProduceDocumentVersion(params: {
 }): Promise<void> {
   const { storage, caseId, documentId, userId, reason } = params;
 
+  const { recoverStuckProduceVersionCase } = await import("./stuckProduceVersionRecovery");
+  await recoverStuckProduceVersionCase(storage, caseId, userId);
+
   const caseData = await storage.getCase(caseId, userId);
   if (!caseData) {
     throw new ProduceDocumentVersionError("Case not found", 404, "case_not_found");
@@ -641,6 +660,7 @@ export async function enqueueProduceDocumentVersion(params: {
     );
   }
 
+  const nowIso = new Date().toISOString();
   await storage.updateCase(
     caseId,
     {
@@ -654,6 +674,8 @@ export async function enqueueProduceDocumentVersion(params: {
         produceVersionError: undefined,
         /** Restored if further-version production fails (keeps existing docs on file). */
         statusBeforeProduce: caseData.status,
+        produceStartedAt: nowIso,
+        progressUpdatedAt: nowIso,
       },
     },
     userId,

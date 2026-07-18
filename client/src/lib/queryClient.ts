@@ -84,8 +84,16 @@ export const getQueryFn: <T>(options: {
       credentials: "include",
     });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401) {
+      // Drop stale auth cache so the SPA leaves the "logged-in zombie" state
+      // (cached user + frozen processing UI after session expiry).
+      if (queryKey[0] !== "/api/auth/user") {
+        void queryClient.setQueryData(["/api/auth/user"], null);
+        void queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      }
+      if (unauthorizedBehavior === "returnNull") {
+        return null;
+      }
     }
 
     await throwIfResNotOk(res);

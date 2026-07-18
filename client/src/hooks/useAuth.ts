@@ -40,6 +40,10 @@ export function useAuth() {
       }
       return res.json();
     },
+    // Re-check session while the app is open so expiry can't leave a frozen UI
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: true,
     retry: (failureCount, error) => {
       if (error instanceof Error && error.message.startsWith("429:")) {
         return failureCount < 3;

@@ -421,6 +421,10 @@ export default function CaseDetail() {
   const { data: caseData, isLoading, error } = useQuery<Case>({
     queryKey: [`/api/cases/${caseId}`],
     enabled: !!caseId,
+    // Keep matter status fresh while Meeting-to-Matter is running so completion
+    // is visible even if the dedicated processing-status poll stalls.
+    refetchInterval: (query) =>
+      query.state.data?.status === "processing" ? 5000 : false,
   });
 
   const { data: audioData, isLoading: audioLoading } = useQuery<AudioRecording>({
@@ -492,20 +496,29 @@ export default function CaseDetail() {
     enabled: shouldLoadCaseContent,
   });
 
-  const { data: processingStatus } = useQuery<{
+  const { data: processingStatus, error: processingStatusError } = useQuery<{
     status: string;
     processingMetadata: {
       status: string; progress: number; currentStep: string;
       totalCost: number; totalTokens: number; error?: string; completedAt?: string;
+      produceVersionFailed?: boolean; produceVersionError?: string;
     };
   }>({
     queryKey: [`/api/cases/${caseId}/processing-status`],
     enabled: !!caseId && caseData?.status === 'processing',
     refetchInterval: 5000,
+    retry: false,
   });
 
-  const realProcessingProgress = processingStatus?.processingMetadata?.progress ?? 0;
-  const processingCurrentStep = processingStatus?.processingMetadata?.currentStep;
+  // Prefer live processing-status; fall back to case metadata so a failed poll
+  // doesn't freeze the bar on a stale optimistic snapshot.
+  const caseProcessingMeta = (caseData?.aiProcessingMetadata as {
+    progress?: number; currentStep?: string; status?: string; error?: string;
+  } | undefined) || undefined;
+  const realProcessingProgress =
+    processingStatus?.processingMetadata?.progress ?? caseProcessingMeta?.progress ?? 0;
+  const processingCurrentStep =
+    processingStatus?.processingMetadata?.currentStep || caseProcessingMeta?.currentStep;
   const [displayProgress, setDisplayProgress] = useState(INITIAL_PROGRESS);
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
   const realProgressRef = useRef(0);
@@ -1843,28 +1856,35 @@ export default function CaseDetail() {
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
                   </div>
                   <p className="text-xs text-muted-foreground" data-testid="text-current-step">
-                    {processingStatus?.processingMetadata?.currentStep || 'Preparing...'}
+                    {processingCurrentStep || 'Preparing...'}
                   </p>
                 </div>
               </div>
-              {processingStatus?.processingMetadata && (
-                <div className="space-y-1.5">
-                  <Progress value={Math.round(displayProgress)} className="h-1.5" data-testid="progress-bar" />
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs text-muted-foreground" data-testid="text-progress-percentage">
-                      {Math.round(displayProgress)}% complete
+              <div className="space-y-1.5">
+                <Progress value={Math.round(displayProgress)} className="h-1.5" data-testid="progress-bar" />
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground" data-testid="text-progress-percentage">
+                    {Math.round(displayProgress)}% complete
+                  </p>
+                  {etaSeconds != null && (
+                    <p className="text-xs text-muted-foreground tabular-nums" data-testid="text-progress-eta">
+                      {formatEtaLabel(etaSeconds)}
                     </p>
-                    {etaSeconds != null && (
-                      <p className="text-xs text-muted-foreground tabular-nums" data-testid="text-progress-eta">
-                        {formatEtaLabel(etaSeconds)}
-                      </p>
-                    )}
-                  </div>
+                  )}
                 </div>
-              )}
-              {processingStatus?.processingMetadata?.error && (
+              </div>
+              {(processingStatus?.processingMetadata?.error || caseProcessingMeta?.error) && (
                 <Alert variant="destructive" className="mt-3" data-testid="alert-processing-error">
-                  <AlertDescription>{processingStatus.processingMetadata.error}</AlertDescription>
+                  <AlertDescription>
+                    {processingStatus?.processingMetadata?.error || caseProcessingMeta?.error}
+                  </AlertDescription>
+                </Alert>
+              )}
+              {processingStatusError && (
+                <Alert variant="destructive" className="mt-3" data-testid="alert-processing-session">
+                  <AlertDescription>
+                    Your session expired while documents were being produced. Sign in again to see the latest status — your previous version remains on file.
+                  </AlertDescription>
                 </Alert>
               )}
             </div>

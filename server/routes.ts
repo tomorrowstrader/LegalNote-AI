@@ -2128,6 +2128,10 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     try {
       const userId = req.user.claims.sub;
       const caseId = req.params.id;
+
+      // Unstick further-version jobs orphaned by deploy/restart before reporting status
+      const { recoverStuckProduceVersionCase } = await import("./services/stuckProduceVersionRecovery");
+      await recoverStuckProduceVersionCase(storage, caseId, userId);
       
       const caseData = await storage.getCase(caseId, userId);
       if (!caseData) {
@@ -2148,6 +2152,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           completedAt: metadata.completedAt,
           undertakingCandidates: metadata.undertakingCandidates || [],
           dismissedUndertakingQuotes: metadata.dismissedUndertakingQuotes || [],
+          produceVersionFailed: metadata.produceVersionFailed === true,
+          produceVersionError: metadata.produceVersionError,
         }
       });
     } catch (error: any) {

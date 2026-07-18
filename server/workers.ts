@@ -155,6 +155,17 @@ export function initializeWorkers() {
   jobQueue.addJob('commit-expired-redactions', {});
   console.log('[REDACTION-JOB] Auto-commit job registered and scheduled (15-minute interval).');
 
+  // Recover further-version jobs orphaned when the in-memory queue is lost on restart
+  jobQueue.registerHandler('recover-stuck-produce-versions', async () => {
+    const { recoverStuckProduceVersionCases } = await import('./services/stuckProduceVersionRecovery');
+    await recoverStuckProduceVersionCases(storage);
+  });
+  setInterval(() => {
+    jobQueue.addJob('recover-stuck-produce-versions', {});
+  }, 5 * 60 * 1000);
+  jobQueue.addJob('recover-stuck-produce-versions', {});
+  console.log('[PRODUCE-VERSION-RECOVERY] Sweep registered (5-minute interval).');
+
   console.log('[WORKERS] Job queue workers initialized successfully');
 }
 
