@@ -25,6 +25,7 @@ import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from 
 import {
   withReasoningGapAnchors,
   findReasoningGapAnchor,
+  stripReasoningPrefix,
 } from "@/lib/reasoningGapAnchors";
 
 function markdownToPlainText(md: string): string {
@@ -499,24 +500,30 @@ function splitGapLabel(sectionName: string): { section: string; detail: string }
 function ExpandableGapDetail({
   text,
   testId,
+  section,
 }: {
   text: string;
   testId: string;
+  section?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const needsToggle = text.length > 90;
+  const display = stripReasoningPrefix(text) || text;
+  const needsToggle = display.length > 90;
 
   return (
     <div className="space-y-0.5">
-      <p
+      <button
+        type="button"
+        onClick={() => scrollToGapCitation(display, section)}
         className={cn(
-          "text-[11px] text-muted-foreground leading-snug",
+          "text-left text-[11px] text-amber-800 dark:text-amber-300 leading-snug underline underline-offset-2 decoration-amber-500/50 hover:decoration-amber-700 w-full",
           !expanded && needsToggle && "line-clamp-2",
         )}
+        title="Jump to this advice in the note"
         data-testid={testId}
       >
-        {text}
-      </p>
+        “{display}”
+      </button>
       {needsToggle && (
         <button
           type="button"
@@ -559,7 +566,11 @@ function isOffscreenOrHidden(el: Element): boolean {
  * Find the tightest visible block that contains `text`.
  * Uses element textContent (not individual text nodes) so split formatting still matches.
  */
-function findElementContainingText(root: ParentNode, text: string): HTMLElement | null {
+function findElementContainingText(
+  root: ParentNode,
+  text: string,
+  opts?: { excludeGapAnchors?: boolean; preferAdvice?: boolean },
+): HTMLElement | null {
   if (!text) return null;
   const needle = text.trim().toLowerCase();
   if (!needle) return null;
@@ -573,18 +584,97 @@ function findElementContainingText(root: ParentNode, text: string): HTMLElement 
 
   let best: HTMLElement | null = null;
   let bestLen = Infinity;
+  let bestScore = -Infinity;
+
   for (const block of blocks) {
     if (isOffscreenOrHidden(block)) continue;
     // Skip gap-panel chrome — only jump within the note body
     if (block.closest("[data-testid^='panel-gap-review']")) continue;
+    // Skip the gap chip itself when seeking the solicitor's advice wording
+    if (opts?.excludeGapAnchors && block.closest(".reasoning-gap-anchor")) continue;
+    if (opts?.excludeGapAnchors && block.querySelector?.(".reasoning-gap-anchor")) {
+      // Only match this block if the needle appears outside the chip text
+      const withoutChip = (block.textContent || "")
+        .replace(/\u200b/g, "")
+        .replace(/⚠?\s*Reasoning needed[\s\S]*$/i, "")
+        .trim();
+      if (!withoutChip.toLowerCase().includes(needle)) continue;
+    }
     const content = block.textContent?.toLowerCase() ?? "";
     if (!content.includes(needle)) continue;
-    if (content.length < bestLen) {
+
+    let score = 1000 - content.length;
+    if (opts?.preferAdvice) {
+      // Prefer advice / key-points blocks over reasoning / instructions
+      if (/advice given|key points advised|i advised/i.test(content)) score += 400;
+      if (/reasoning behind advice/i.test(content)) score -= 300;
+      if (/client'?s instructions/i.test(content)) score -= 200;
+      if (block.querySelector(".reasoning-gap-anchor")) score -= 500;
+    }
+
+    if (score > bestScore || (score === bestScore && content.length < bestLen)) {
       best = block;
       bestLen = content.length;
+      bestScore = score;
     }
   }
   return best;
+}
+
+function getVisibleNoteRoots(): Element[] {
+  return Array.from(
+    document.querySelectorAll(
+      "[data-page-view-visible], [data-testid='attendance-note-card'] .ProseMirror, [data-testid='summary-note-card'] .ProseMirror, [data-testid='attendance-note-card'], [data-testid='summary-note-card']",
+    ),
+  ).filter((root) => !isOffscreenOrHidden(root));
+}
+
+/** Jump to the solicitor's own advice wording cited on a gap chip. */
+function scrollToGapCitation(citation: string, section?: string) {
+  const trimmed = citation.trim();
+  if (!trimmed) return;
+
+  const roots = getVisibleNoteRoots();
+  const candidates = [
+    trimmed,
+    trimmed.replace(/^["“]|["”]$/g, ""),
+    // Progressive shortenings for long meta-labels that aren't verbatim in the note
+    trimmed.slice(0, Math.min(trimmed.length, 60)),
+    trimmed.slice(0, Math.min(trimmed.length, 36)),
+    ...trimmed
+      .split(/\s+and\s+|\s*;\s*|\s*—\s*|\s+-\s+/i)
+      .map((p) => p.trim())
+      .filter((p) => p.length >= 12),
+  ].filter((c, i, arr) => c && c.length >= 8 && arr.indexOf(c) === i);
+
+  let el: HTMLElement | null = null;
+  for (const candidate of candidates) {
+    for (const root of roots) {
+      el = findElementContainingText(root, candidate, {
+        excludeGapAnchors: true,
+        preferAdvice: true,
+      });
+      if (el) break;
+    }
+    if (el) break;
+  }
+
+  // Fall back to the section heading so the solicitor still lands in context
+  if (!el && section) {
+    const sectionCandidates = [section, section.replace(/^\d+\.\s*/, "")].filter(Boolean);
+    for (const candidate of sectionCandidates) {
+      for (const root of roots) {
+        el = findElementContainingText(root, candidate, { excludeGapAnchors: true });
+        if (el) break;
+      }
+      if (el) break;
+    }
+  }
+
+  if (!el) return;
+  const target =
+    (el.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null) ?? el;
+  highlightAndScrollToElement(target);
 }
 
 function highlightAndScrollToElement(target: HTMLElement) {
@@ -639,11 +729,7 @@ function highlightAndScrollToElement(target: HTMLElement) {
 function scrollToReasoningGap(sectionName: string, gapIndex?: number) {
   // Prefer visible note surfaces. Exclude PageView's hidden measure ProseMirror
   // (aria-hidden / fixed off-screen) — matching that used to make jump-to appear broken.
-  const roots = Array.from(
-    document.querySelectorAll(
-      "[data-page-view-visible], [data-testid='attendance-note-card'] .ProseMirror, [data-testid='summary-note-card'] .ProseMirror, [data-testid='attendance-note-card'], [data-testid='summary-note-card']",
-    ),
-  ).filter((root) => !isOffscreenOrHidden(root));
+  const roots = getVisibleNoteRoots();
 
   // Prefer the exact in-note anchor for this gap (where the marker sat).
   if (gapIndex != null) {
@@ -858,6 +944,7 @@ function GapReviewPanel({
                     {detail ? (
                       <ExpandableGapDetail
                         text={detail}
+                        section={section}
                         testId={`text-gap-detail-${testIdPrefix}-${idx}`}
                       />
                     ) : null}
@@ -1238,6 +1325,23 @@ export default function DocumentViewer({
       setActiveTab(initialTab);
     }
   }, [initialTab]);
+
+  // Gap chip citations (Page View HTML + TipTap DOM) — jump to the cited advice wording
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const btn = target.closest(".reasoning-gap-citation") as HTMLElement | null;
+      if (!btn) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const citation = btn.getAttribute("data-gap-citation") || "";
+      const section = btn.getAttribute("data-gap-section") || undefined;
+      scrollToGapCitation(citation, section);
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
 
   const { data: firmProfile } = useQuery<FirmProfile>({
     queryKey: ['/api/firm-profile'],
