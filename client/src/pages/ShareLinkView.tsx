@@ -15,6 +15,10 @@ import { apiRequest, getApiErrorMessage } from "@/lib/queryClient";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
 import type { FirmProfile } from "@shared/schema";
 import DownloadModal from "@/components/DownloadModal";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
 
 interface ShareLinkData {
   requiresSmsVerification: boolean;
@@ -47,6 +51,31 @@ interface ShareLinkData {
     sharedDocuments: string[];
   };
   firmProfile?: FirmProfile;
+}
+
+function SharedDocumentContent({
+  content,
+  testId,
+  transcript = false,
+}: {
+  content: string;
+  testId: string;
+  transcript?: boolean;
+}) {
+  return (
+    <ScrollArea type="always" className="h-full pr-3">
+      <div
+        className={`prose prose-sm sm:prose-base dark:prose-invert max-w-none pb-8 ${
+          transcript ? "font-mono text-xs sm:text-sm" : ""
+        }`}
+        data-testid={testId}
+      >
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+          {content}
+        </ReactMarkdown>
+      </div>
+    </ScrollArea>
+  );
 }
 
 export default function ShareLinkView() {
@@ -641,8 +670,8 @@ export default function ShareLinkView() {
         </Card>
 
         {/* Documents Tabs */}
-        <Card>
-          <CardHeader>
+        <Card className="sticky top-4 flex h-[calc(100dvh-2rem)] flex-col overflow-hidden">
+          <CardHeader className="relative z-20 shrink-0 border-b bg-card">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Case Documents</CardTitle>
@@ -663,15 +692,15 @@ export default function ShareLinkView() {
               )}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-h-0 flex-1 overflow-hidden p-4 sm:p-6">
             <Tabs defaultValue={
               showCareLetter && !attendanceNote && !summary ? "care-letter" :
               attendanceNote ? "attendance" : 
               summary ? "summary" : 
               showCareLetter ? "care-letter" :
               "transcript"
-            }>
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1">
+            } className="flex h-full min-h-0 flex-col">
+              <TabsList className="grid w-full shrink-0 grid-flow-col auto-cols-fr gap-1">
                 {attendanceNote && (
                   <TabsTrigger 
                     value="attendance" 
@@ -707,54 +736,44 @@ export default function ShareLinkView() {
               </TabsList>
 
               {attendanceNote && (
-                <TabsContent value="attendance" className="mt-4">
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <div className="whitespace-pre-wrap" data-testid="content-attendance-note">
-                      {attendanceNote.content}
-                    </div>
-                  </div>
+                <TabsContent value="attendance" className="mt-4 min-h-0 flex-1 overflow-hidden">
+                  <SharedDocumentContent
+                    content={attendanceNote.content}
+                    testId="content-attendance-note"
+                  />
                 </TabsContent>
               )}
 
               {summary && (
-                <TabsContent value="summary" className="mt-4">
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <div className="whitespace-pre-wrap" data-testid="content-summary">
-                      {summary.content}
-                    </div>
-                  </div>
+                <TabsContent value="summary" className="mt-4 min-h-0 flex-1 overflow-hidden">
+                  <SharedDocumentContent
+                    content={summary.content}
+                    testId="content-summary"
+                  />
                 </TabsContent>
               )}
 
               {showCareLetter && careLetter && (
-                <TabsContent value="care-letter" className="mt-4">
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <div className="whitespace-pre-wrap" data-testid="content-care-letter">
-                      {careLetter.content}
-                    </div>
-                  </div>
+                <TabsContent value="care-letter" className="mt-4 min-h-0 flex-1 overflow-hidden">
+                  <SharedDocumentContent
+                    content={careLetter.content}
+                    testId="content-care-letter"
+                  />
                 </TabsContent>
               )}
 
               {transcript && (
-                <TabsContent value="transcript" className="mt-4">
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <div className="whitespace-pre-wrap font-mono text-xs" data-testid="content-transcript">
-                      {transcript.content}
-                    </div>
-                  </div>
+                <TabsContent value="transcript" className="mt-4 min-h-0 flex-1 overflow-hidden">
+                  <SharedDocumentContent
+                    content={transcript.content}
+                    testId="content-transcript"
+                    transcript
+                  />
                 </TabsContent>
               )}
             </Tabs>
           </CardContent>
         </Card>
-
-        {/* Footer */}
-        <div className="mt-6 text-center text-sm text-muted-foreground">
-          <p>
-            If you have any questions about these documents, please contact your solicitor.
-          </p>
-        </div>
       </div>
 
       {/* Download Modal */}
