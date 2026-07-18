@@ -54,6 +54,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import DiffMatchPatch from 'diff-match-patch';
+import {
+  VerificationWarningPanel,
+} from "@/components/VerificationWarningPanel";
+import {
+  coerceVerificationWarnings,
+  type VerificationWarning,
+} from "@shared/verificationWarnings";
 
 interface DocumentVersion {
   id: string;
@@ -289,7 +296,7 @@ interface Document {
   approvedAt?: string | null;
   approvalComment?: string | null;
   meetingSessionId?: string | null;
-  verificationWarnings?: string[] | null;
+  verificationWarnings?: VerificationWarning[] | string[] | null;
   solicitorReasoningNote?: string | null;
   reasoningGapsReviewed?: boolean | null;
   reasoningGapsIdentified?: number | null;
@@ -477,37 +484,7 @@ function findElementContainingText(root: ParentNode, text: string): HTMLElement 
   return best;
 }
 
-function scrollToReasoningGap(sectionName: string) {
-  // Markers are stripped from the view, so jump to the related section heading / label text.
-  const { section: primary } = splitGapLabel(sectionName);
-  const candidates = [
-    primary,
-    primary.replace(/^\d+\.\s*/, ""),
-    sectionName,
-  ].filter((c, i, arr) => c && arr.indexOf(c) === i);
-
-  // Prefer visible note surfaces. Exclude PageView's hidden measure ProseMirror
-  // (aria-hidden / fixed off-screen) — matching that used to make jump-to appear broken.
-  const roots = Array.from(
-    document.querySelectorAll(
-      "[data-page-view-visible], [data-testid='attendance-note-card'] .ProseMirror, [data-testid='summary-note-card'] .ProseMirror, [data-testid='attendance-note-card'], [data-testid='summary-note-card']",
-    ),
-  ).filter((root) => !isOffscreenOrHidden(root));
-
-  let el: HTMLElement | null = null;
-  for (const candidate of candidates) {
-    for (const root of roots) {
-      el = findElementContainingText(root, candidate);
-      if (el) break;
-    }
-    if (el) break;
-  }
-  if (!el) return;
-
-  const target = el.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null ?? el;
-
-  // Scroll the case main pane (overflow-y-auto), not the window — scrollIntoView alone
-  // often no-ops or jumps the wrong container when nested scrollers exist.
+function highlightAndScrollToElement(target: HTMLElement) {
   const scrollParent =
     (target.closest("main") as HTMLElement | null) ??
     (document.querySelector("main") as HTMLElement | null);
@@ -548,6 +525,110 @@ function scrollToReasoningGap(sectionName: string) {
       "duration-300",
     );
   }, 2200);
+}
+
+function scrollToReasoningGap(sectionName: string) {
+  // Markers are stripped from the view, so jump to the related section heading / label text.
+  const { section: primary } = splitGapLabel(sectionName);
+  const candidates = [
+    primary,
+    primary.replace(/^\d+\.\s*/, ""),
+    sectionName,
+  ].filter((c, i, arr) => c && arr.indexOf(c) === i);
+
+  // Prefer visible note surfaces. Exclude PageView's hidden measure ProseMirror
+  // (aria-hidden / fixed off-screen) — matching that used to make jump-to appear broken.
+  const roots = Array.from(
+    document.querySelectorAll(
+      "[data-page-view-visible], [data-testid='attendance-note-card'] .ProseMirror, [data-testid='summary-note-card'] .ProseMirror, [data-testid='attendance-note-card'], [data-testid='summary-note-card']",
+    ),
+  ).filter((root) => !isOffscreenOrHidden(root));
+
+  let el: HTMLElement | null = null;
+  for (const candidate of candidates) {
+    for (const root of roots) {
+      el = findElementContainingText(root, candidate);
+      if (el) break;
+    }
+    if (el) break;
+  }
+  if (!el) return;
+
+  const target = el.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null ?? el;
+  highlightAndScrollToElement(target);
+}
+
+function scrollToDocumentQuote(quote: string, cardTestId: "attendance-note-card" | "summary-note-card") {
+  const trimmed = quote.trim();
+  if (!trimmed) return false;
+
+  const roots = Array.from(
+    document.querySelectorAll(
+      `[data-page-view-visible], [data-testid='${cardTestId}'] .ProseMirror, [data-testid='${cardTestId}']`,
+    ),
+  ).filter((root) => !isOffscreenOrHidden(root));
+
+  // Try progressively shorter needles so punctuation / truncation still lands nearby
+  const candidates = [
+    trimmed,
+    trimmed.replace(/^["“]|["”]$/g, ""),
+    trimmed.slice(0, Math.min(trimmed.length, 80)),
+    trimmed.slice(0, Math.min(trimmed.length, 40)),
+  ].filter((c, i, arr) => c && c.length >= 12 && arr.indexOf(c) === i);
+
+  let el: HTMLElement | null = null;
+  for (const candidate of candidates) {
+    for (const root of roots) {
+      el = findElementContainingText(root, candidate);
+      if (el) break;
+    }
+    if (el) break;
+  }
+  if (!el) return false;
+
+  const target = el.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null ?? el;
+  highlightAndScrollToElement(target);
+  return true;
+}
+
+function scrollToTranscriptQuote(quote: string) {
+  const trimmed = quote.trim();
+  if (!trimmed) return false;
+
+  const roots = Array.from(
+    document.querySelectorAll(
+      "[data-testid='container-diarized-transcript'], [data-testid='text-transcript-fallback'], [data-testid='tab-content-transcript']",
+    ),
+  ).filter((root) => !isOffscreenOrHidden(root));
+
+  // Fallback: any visible transcript-like container under the transcript tab
+  if (roots.length === 0) {
+    const tab = document.querySelector('[data-state="active"][data-orientation="horizontal"]')?.parentElement;
+    void tab;
+    const fallback = document.querySelector('[role="tabpanel"][data-state="active"]');
+    if (fallback && !isOffscreenOrHidden(fallback)) roots.push(fallback);
+  }
+
+  const candidates = [
+    trimmed,
+    trimmed.replace(/^["“]|["”]$/g, ""),
+    trimmed.slice(0, Math.min(trimmed.length, 80)),
+    trimmed.slice(0, Math.min(trimmed.length, 40)),
+  ].filter((c, i, arr) => c && c.length >= 8 && arr.indexOf(c) === i);
+
+  let el: HTMLElement | null = null;
+  for (const candidate of candidates) {
+    for (const root of roots) {
+      el = findElementContainingText(root, candidate);
+      if (el) break;
+    }
+    if (el) break;
+  }
+  if (!el) return false;
+
+  const target = el.closest("p, li, div, span") as HTMLElement | null ?? el;
+  highlightAndScrollToElement(target);
+  return true;
 }
 
 function GapReviewPanel({
@@ -1262,6 +1343,78 @@ export default function DocumentViewer({
     },
   });
 
+  const resolveVerificationWarningMutation = useMutation({
+    mutationFn: async ({
+      documentId,
+      warningId,
+      disposition,
+      reason,
+    }: {
+      documentId: string;
+      warningId: string;
+      disposition: "confirmed_professionally_derived" | "dismissed";
+      reason: string;
+    }) => {
+      return await apiRequest(
+        "POST",
+        `/api/documents/${documentId}/verification-warnings/${warningId}/resolve`,
+        { disposition, reason },
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      toast({
+        title: "Review recorded",
+        description: "Your decision has been saved to the document and audit trail",
+        duration: 4000,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Could not record decision",
+        description: "Failed to resolve the verification warning. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    },
+  });
+
+  const handleVerificationViewInNote = (
+    warning: VerificationWarning,
+    cardTestId: "attendance-note-card" | "summary-note-card",
+    tab: "attendance" | "summary",
+  ) => {
+    setActiveTab(tab);
+    window.setTimeout(() => {
+      const found = scrollToDocumentQuote(warning.documentQuote, cardTestId);
+      if (!found) {
+        toast({
+          title: "Could not locate statement",
+          description: "The flagged wording may have been edited. Try searching the note manually.",
+          duration: 4000,
+        });
+      }
+    }, 80);
+  };
+
+  const handleVerificationSearchTranscript = (warning: VerificationWarning) => {
+    setActiveTab("transcript");
+    const needle = warning.transcriptQuote || warning.documentQuote;
+    window.setTimeout(() => {
+      const found = needle ? scrollToTranscriptQuote(needle) : false;
+      if (!found) {
+        toast({
+          title: warning.transcriptQuote ? "Passage not highlighted" : "No matching passage",
+          description: warning.transcriptQuote
+            ? "Switched to the transcript — try Find in page if the highlight missed."
+            : "No related meeting-record quote was stored for this warning.",
+          duration: 4500,
+        });
+      }
+    }, 120);
+  };
+
   // Gap content update mutation (replaces gap markers with solicitor text, keyed by marker index)
   const saveGapMutation = useMutation({
     mutationFn: async ({ documentId, gaps, amlConfirmed }: { documentId: string; gaps: Record<string, string>; amlConfirmed?: boolean }) => {
@@ -1752,10 +1905,10 @@ export default function DocumentViewer({
   const summary = findDoc('summary') ?? findDoc('client_letter');
   const transcriptDoc = findDoc('transcript');
   const clientCareLetter = findDoc('client_care_letter');
+  // Show Secure Share once the attendance note and client letter are both adopted
   const canSecureShare =
     attendanceNote?.status === 'approved' &&
-    !!clientCareLetter &&
-    clientCareLetter.status === 'approved';
+    summary?.status === 'approved';
   const shareUserRole: "Partner" | "Senior Associate" | "Solicitor" | "Paralegal" =
     authRole === 'partner' || authRole === 'colp' || authRole === 'managing_partner' || authRole === 'admin'
       ? 'Partner'
@@ -1827,40 +1980,6 @@ export default function DocumentViewer({
   const summarySessionLabel = getSessionLabel(summary);
   
   const transcriptContent = transcriptDoc?.content ?? transcript;
-
-  // Collapsible verification warning panel — collapsed by default
-  const VerificationWarningPanel = ({ warnings, testIdPrefix }: { warnings: string[]; testIdPrefix: string }) => {
-    const [expanded, setExpanded] = useState(false);
-    const count = warnings.length;
-    return (
-      <div className="mx-6 mb-2 p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-md" data-testid={`panel-verification-warning-${testIdPrefix}`}>
-        <div className="flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Solicitor Review Required</p>
-            <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">
-              {count} statement{count !== 1 ? 's' : ''} could not be directly traced to the transcript.{' '}
-              <button
-                type="button"
-                onClick={() => setExpanded(e => !e)}
-                className="underline hover:no-underline"
-                data-testid={`button-toggle-verification-warnings-${testIdPrefix}`}
-              >
-                {expanded ? 'Hide details' : 'Show details'}
-              </button>
-            </p>
-            {expanded && (
-              <ul className="text-xs text-yellow-700 dark:text-yellow-400 mt-2 list-disc pl-4 space-y-0.5">
-                {warnings.map((w: string, i: number) => (
-                  <li key={i} data-testid={`text-verification-warning-${testIdPrefix}-${i}`}>{w}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   // Primary actions under document title: Produce new version (left) + Edit Document (right)
   const DocumentPrimaryActions = ({ document }: { document?: Document }) => {
@@ -2376,10 +2495,31 @@ export default function DocumentViewer({
                 </div>
               </CardHeader>
               <DocumentPrimaryActions document={attendanceNote} />
-              {attendanceNote?.verificationWarnings && attendanceNote.verificationWarnings.length > 0 && (
+              {coerceVerificationWarnings(attendanceNote?.verificationWarnings).length > 0 && attendanceNote && (
                 <VerificationWarningPanel
                   warnings={attendanceNote.verificationWarnings}
                   testIdPrefix="attendance"
+                  documentStatus={attendanceNote.status}
+                  isDemoMode={isDemoMode}
+                  onViewInNote={(w) => handleVerificationViewInNote(w, "attendance-note-card", "attendance")}
+                  onSearchTranscript={handleVerificationSearchTranscript}
+                  onEditStatement={(w) => {
+                    handleVerificationViewInNote(w, "attendance-note-card", "attendance");
+                    startEditing(attendanceNote);
+                  }}
+                  onProduceCorrectedVersion={() => {
+                    setProduceTarget(attendanceNote);
+                    setProduceReason("Address verification warning flagged for solicitor review");
+                  }}
+                  onResolve={({ warningId, disposition, reason }) =>
+                    resolveVerificationWarningMutation.mutate({
+                      documentId: attendanceNote.id,
+                      warningId,
+                      disposition,
+                      reason,
+                    })
+                  }
+                  isResolving={resolveVerificationWarningMutation.isPending}
                 />
               )}
               <CardContent className="p-0">
@@ -2586,10 +2726,31 @@ export default function DocumentViewer({
                 </div>
               </CardHeader>
               <DocumentPrimaryActions document={summary} />
-              {summary?.verificationWarnings && summary.verificationWarnings.length > 0 && (
+              {coerceVerificationWarnings(summary?.verificationWarnings).length > 0 && summary && (
                 <VerificationWarningPanel
                   warnings={summary.verificationWarnings}
                   testIdPrefix="summary"
+                  documentStatus={summary.status}
+                  isDemoMode={isDemoMode}
+                  onViewInNote={(w) => handleVerificationViewInNote(w, "summary-note-card", "summary")}
+                  onSearchTranscript={handleVerificationSearchTranscript}
+                  onEditStatement={(w) => {
+                    handleVerificationViewInNote(w, "summary-note-card", "summary");
+                    startEditing(summary);
+                  }}
+                  onProduceCorrectedVersion={() => {
+                    setProduceTarget(summary);
+                    setProduceReason("Address verification warning flagged for solicitor review");
+                  }}
+                  onResolve={({ warningId, disposition, reason }) =>
+                    resolveVerificationWarningMutation.mutate({
+                      documentId: summary.id,
+                      warningId,
+                      disposition,
+                      reason,
+                    })
+                  }
+                  isResolving={resolveVerificationWarningMutation.isPending}
                 />
               )}
               <CardContent className="p-0">

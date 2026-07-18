@@ -3048,6 +3048,40 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  // Resolve a structured verification warning (confirm professionally derived / dismiss with reason)
+  app.post("/api/documents/:id/verification-warnings/:warningId/resolve", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { resolveVerificationWarningBodySchema } = await import("@shared/verificationWarnings");
+      const validationResult = resolveVerificationWarningBodySchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          message: "Validation error",
+          errors: validationResult.error.format(),
+        });
+      }
+
+      const { disposition, reason } = validationResult.data;
+      const document = await storage.resolveVerificationWarning(
+        req.params.id,
+        req.params.warningId,
+        disposition,
+        reason,
+        userId,
+      );
+
+      if (!document) {
+        return res.status(404).json({
+          message: "Document or warning not found, or document is locked/approved",
+        });
+      }
+
+      res.json(document);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.post("/api/documents/:id/unlock", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;

@@ -95,6 +95,11 @@ import {
   computeAuditChainHash,
   getAuditSigningKey,
 } from "./services/auditChain";
+import {
+  coerceVerificationWarnings,
+  type VerificationResolveDisposition,
+  type VerificationWarning,
+} from "@shared/verificationWarnings";
 
 // Enhanced search result with granular match information
 export interface SearchMatch {
@@ -552,7 +557,7 @@ export interface IStorage {
     userId: string,
     options?: {
       approvalComment?: string;
-      verificationWarnings?: string[];
+      verificationWarnings?: VerificationWarning[];
     }
   ): Promise<Document | undefined>;
   getDocument(id: string): Promise<Document | undefined>;
@@ -563,6 +568,13 @@ export interface IStorage {
   approveDocument(id: string, userId: string, comment?: string, reasoningGapsReviewed?: boolean): Promise<Document | undefined>;
   unlockDocument(id: string, userId: string): Promise<Document | undefined>;
   updateReasoningNote(id: string, note: string | null, userId: string): Promise<Document | undefined>;
+  resolveVerificationWarning(
+    documentId: string,
+    warningId: string,
+    disposition: VerificationResolveDisposition,
+    reason: string,
+    userId: string,
+  ): Promise<Document | undefined>;
   getDocumentByAcknowledgeToken(token: string): Promise<Document | undefined>;
   recordDocumentAcknowledgement(id: string, acknowledgedAt: Date, acknowledgedByEmail: string, acknowledgedIp: string): Promise<void>;
   
@@ -1674,7 +1686,7 @@ export class MemStorage implements IStorage {
     newContent: string,
     versionType: string,
     userId: string,
-    options?: { approvalComment?: string; verificationWarnings?: string[] }
+    options?: { approvalComment?: string; verificationWarnings?: VerificationWarning[] }
   ): Promise<Document | undefined> {
     const parent = this.documents.get(parentDocumentId);
     if (!parent) return undefined;
@@ -1836,6 +1848,59 @@ export class MemStorage implements IStorage {
       documentId: id,
       ipAddress: 'server-process',
       metadata: { documentType: existing.type, hasNote: note !== null && note.trim().length > 0 },
+    });
+
+    return updated;
+  }
+
+  async resolveVerificationWarning(
+    documentId: string,
+    warningId: string,
+    disposition: VerificationResolveDisposition,
+    reason: string,
+    userId: string,
+  ): Promise<Document | undefined> {
+    const existing = this.documents.get(documentId);
+    if (!existing) return undefined;
+
+    const caseRecord = this.cases.get(existing.caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    if (caseRecord.litigationHold) return undefined;
+    if (existing.status === "approved") return undefined;
+
+    const warnings = coerceVerificationWarnings(existing.verificationWarnings);
+    const idx = warnings.findIndex((w) => w.id === warningId);
+    if (idx < 0) return undefined;
+
+    warnings[idx] = {
+      ...warnings[idx],
+      resolution: {
+        disposition,
+        reason: reason.trim(),
+        resolvedAt: new Date().toISOString(),
+        resolvedBy: userId,
+      },
+    };
+
+    const updated = {
+      ...existing,
+      verificationWarnings: warnings,
+    };
+    this.documents.set(documentId, updated);
+
+    await this.createAuditLog({
+      eventType: "document_verification_warning_resolved",
+      userId,
+      caseId: existing.caseId,
+      documentId,
+      ipAddress: "server-process",
+      metadata: {
+        action: "resolve_verification_warning",
+        warningId,
+        disposition,
+        category: warnings[idx].category,
+        documentQuote: warnings[idx].documentQuote.slice(0, 500),
+      },
     });
 
     return updated;
@@ -3785,7 +3850,7 @@ export class DbStorage implements IStorage {
     newContent: string,
     versionType: string,
     userId: string,
-    options?: { approvalComment?: string; verificationWarnings?: string[] }
+    options?: { approvalComment?: string; verificationWarnings?: VerificationWarning[] }
   ): Promise<Document | undefined> {
     const parentResult = await db
       .select()
@@ -3967,6 +4032,62 @@ export class DbStorage implements IStorage {
       documentId: id,
       ipAddress: 'server-process',
       metadata: { documentType: document[0].type, hasNote: note !== null && note.trim().length > 0 },
+    });
+
+    return result[0];
+  }
+
+  async resolveVerificationWarning(
+    documentId: string,
+    warningId: string,
+    disposition: VerificationResolveDisposition,
+    reason: string,
+    userId: string,
+  ): Promise<Document | undefined> {
+    const document = await db.select().from(documents).where(eq(documents.id, documentId));
+    if (!document[0]) return undefined;
+
+    const caseRecord = await db
+      .select()
+      .from(cases)
+      .where(and(eq(cases.id, document[0].caseId), eq(cases.createdBy, userId)));
+    if (!caseRecord[0]) return undefined;
+    if (caseRecord[0].litigationHold) return undefined;
+    if (document[0].status === "approved") return undefined;
+
+    const warnings = coerceVerificationWarnings(document[0].verificationWarnings);
+    const idx = warnings.findIndex((w) => w.id === warningId);
+    if (idx < 0) return undefined;
+
+    warnings[idx] = {
+      ...warnings[idx],
+      resolution: {
+        disposition,
+        reason: reason.trim(),
+        resolvedAt: new Date().toISOString(),
+        resolvedBy: userId,
+      },
+    };
+
+    const result = await db
+      .update(documents)
+      .set({ verificationWarnings: warnings })
+      .where(eq(documents.id, documentId))
+      .returning();
+
+    await this.createAuditLog({
+      eventType: "document_verification_warning_resolved",
+      userId,
+      caseId: document[0].caseId,
+      documentId,
+      ipAddress: "server-process",
+      metadata: {
+        action: "resolve_verification_warning",
+        warningId,
+        disposition,
+        category: warnings[idx].category,
+        documentQuote: warnings[idx].documentQuote.slice(0, 500),
+      },
     });
 
     return result[0];

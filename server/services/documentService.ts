@@ -7,6 +7,12 @@ import {
   formatRelationshipDurationFactsBlock,
   type RelationshipDurationResult,
 } from './relationshipDuration';
+import {
+  createVerificationWarning,
+  findQuoteLocation,
+  type VerificationWarning,
+  type VerificationWarningCategory,
+} from '@shared/verificationWarnings';
 
 /**
  * Post-process document content to ensure known section headings are bold.
@@ -124,6 +130,14 @@ function ensureSectionSpacing(content: string): string {
 const VERIFICATION_PARSE_FALLBACK =
   'Verification response could not be parsed — solicitor review is required before this document is added to the client file';
 
+function verificationFailureWarning(message: string): VerificationWarning {
+  return createVerificationWarning({
+    category: 'verification_failure',
+    documentQuote: '',
+    explanation: message,
+  });
+}
+
 const VERIFIER_NON_DEFECT_TRIGGERS = [
   'withdraw',
   'withdrawing',
@@ -190,7 +204,7 @@ function normalizeVerificationStatementItem(item: unknown): string | null {
       return assertNormalizedWarningString(offendingStatement);
     }
 
-    for (const key of ['statement', 'text', 'quote', 'description', 'content']) {
+    for (const key of ['document_quote', 'documentQuote', 'statement', 'text', 'quote', 'description', 'content']) {
       const value = record[key];
       if (typeof value === 'string') {
         const trimmed = value.trim();
@@ -200,7 +214,7 @@ function normalizeVerificationStatementItem(item: unknown): string | null {
       }
     }
 
-    for (const key of ['issue', 'reason']) {
+    for (const key of ['issue', 'reason', 'explanation']) {
       const value = record[key];
       if (typeof value === 'string') {
         const trimmed = value.trim();
@@ -241,18 +255,162 @@ function assertNormalizedWarningString(text: string): string {
   return trimmed;
 }
 
-function normalizeVerificationStatements(items: unknown): string[] {
+function pickStructuredDocumentQuote(record: Record<string, unknown>): string {
+  for (const key of [
+    'document_quote',
+    'documentQuote',
+    'offending_statement',
+    'statement',
+    'quote',
+    'text',
+  ]) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+function pickStructuredTranscriptQuote(record: Record<string, unknown>): string | null {
+  for (const key of ['transcript_quote', 'transcriptQuote', 'meeting_quote', 'source_quote']) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function inferStructuredCategory(
+  rawCategory: unknown,
+  documentQuote: string,
+  explanation: string,
+  defaultCategory: VerificationWarningCategory,
+): VerificationWarningCategory {
+  if (typeof rawCategory === 'string') {
+    const normalized = rawCategory.trim().toLowerCase().replace(/[\s-]+/g, '_');
+    if (normalized === 'unsupported_attribution' || normalized === 'attribution') {
+      return 'unsupported_attribution';
+    }
+    if (normalized === 'contradiction' || normalized === 'contradicts') return 'contradiction';
+    if (normalized === 'advice_without_reasoning' || normalized === 'missing_reasoning') {
+      return 'advice_without_reasoning';
+    }
+    if (normalized === 'unsupported_content' || normalized === 'unsupported') {
+      return 'unsupported_content';
+    }
+  }
+  const blob = `${documentQuote} ${explanation}`.toLowerCase();
+  if (
+    blob.includes('i noted') ||
+    blob.includes('attributes') ||
+    blob.includes('attribution') ||
+    blob.includes('as advice given')
+  ) {
+    return 'unsupported_attribution';
+  }
+  if (blob.includes('contradict')) return 'contradiction';
+  return defaultCategory;
+}
+
+function normalizeStructuredVerificationItem(
+  item: unknown,
+  defaultCategory: VerificationWarningCategory,
+  document: string,
+  transcript: string,
+): VerificationWarning | null {
+  if (typeof item === 'string') {
+    const trimmed = item.trim();
+    if (!trimmed || shouldDropVerifierNonDefectEntry(trimmed, 'string')) return null;
+    const sep = trimmed.includes(' — ') ? ' — ' : trimmed.includes(' – ') ? ' – ' : null;
+    const documentQuote = sep ? trimmed.slice(0, trimmed.indexOf(sep)).trim() : trimmed;
+    const explanation = sep
+      ? trimmed.slice(trimmed.indexOf(sep) + sep.length).trim()
+      : 'This statement could not be verified against the meeting record.';
+    if (shouldDropVerifierNonDefectEntry(`${documentQuote} ${explanation}`, 'string-structured')) {
+      return null;
+    }
+    return enrichWarningLocations(
+      createVerificationWarning({
+        category: inferStructuredCategory(null, documentQuote, explanation, defaultCategory),
+        documentQuote,
+        explanation,
+      }),
+      document,
+      transcript,
+    );
+  }
+
+  if (!item || typeof item !== 'object') {
+    const asString = item != null ? String(item).trim() : '';
+    if (!asString || shouldDropVerifierNonDefectEntry(asString, 'coerced')) return null;
+    return enrichWarningLocations(
+      createVerificationWarning({
+        category: defaultCategory,
+        documentQuote: asString,
+        explanation: 'This statement could not be verified against the meeting record.',
+      }),
+      document,
+      transcript,
+    );
+  }
+
+  const record = item as Record<string, unknown>;
+  const documentQuote = pickStructuredDocumentQuote(record);
+  const explanation =
+    pickVerificationExplanation(record) ||
+    (documentQuote
+      ? 'This statement could not be verified against the meeting record.'
+      : normalizeVerificationStatementItem(item) || '');
+  if (!documentQuote && !explanation) {
+    logVerifierShapeDrop(item);
+    return null;
+  }
+  const combined = `${documentQuote} ${explanation}`.trim();
+  if (shouldDropVerifierNonDefectEntry(combined, 'structured')) return null;
+
+  const transcriptQuote = pickStructuredTranscriptQuote(record);
+
+  return enrichWarningLocations(
+    createVerificationWarning({
+      category: inferStructuredCategory(record.category, documentQuote, explanation, defaultCategory),
+      documentQuote: documentQuote || explanation.slice(0, 200),
+      explanation: explanation || 'This statement could not be verified against the meeting record.',
+      transcriptQuote,
+    }),
+    document,
+    transcript,
+  );
+}
+
+function enrichWarningLocations(
+  warning: VerificationWarning,
+  document: string,
+  transcript: string,
+): VerificationWarning {
+  const documentLocation = warning.documentQuote
+    ? findQuoteLocation(document, warning.documentQuote)
+    : null;
+  const transcriptLocation =
+    warning.transcriptQuote ? findQuoteLocation(transcript, warning.transcriptQuote) : null;
+  return {
+    ...warning,
+    documentLocation: documentLocation ?? warning.documentLocation ?? null,
+    transcriptLocation: transcriptLocation ?? warning.transcriptLocation ?? null,
+  };
+}
+
+function normalizeStructuredVerificationStatements(
+  items: unknown,
+  defaultCategory: VerificationWarningCategory,
+  document: string,
+  transcript: string,
+): VerificationWarning[] {
   if (items == null) return [];
-  if (!Array.isArray(items)) {
-    const single = normalizeVerificationStatementItem(items);
-    return single ? [single] : [];
+  const list = Array.isArray(items) ? items : [items];
+  const out: VerificationWarning[] = [];
+  for (const item of list) {
+    const warning = normalizeStructuredVerificationItem(item, defaultCategory, document, transcript);
+    if (warning) out.push(warning);
   }
-  const normalized: string[] = [];
-  for (const item of items) {
-    const statement = normalizeVerificationStatementItem(item);
-    if (statement) normalized.push(statement);
-  }
-  return normalized;
+  return out;
 }
 
 /** Model prose starts here; header/metadata above may legitimately contain dashes. */
@@ -452,7 +610,7 @@ export interface DocumentGenerationResult {
   inputTokens: number;
   outputTokens: number;
   cost: number;
-  verificationWarnings?: string[];
+  verificationWarnings?: VerificationWarning[];
 }
 
 export interface CaseMetadata {
@@ -869,7 +1027,7 @@ ${attendanceNote}`;
     document: string,
     transcript: string,
     metadata?: Pick<CaseMetadata, 'clientName' | 'feeEarnerName' | 'relationshipDurations'>,
-  ): Promise<{ warnings: string[]; inputTokens: number; outputTokens: number; cost: number }> {
+  ): Promise<{ warnings: VerificationWarning[]; inputTokens: number; outputTokens: number; cost: number }> {
     try {
       console.log('Running post-generation verification against transcript...');
 
@@ -913,7 +1071,15 @@ The client's name and the fee earner's name are supplied to you by the system an
 Before flagging any statement, first check whether it is a notation, derivation or characterisation of something that was said; if it is, it must not be flagged.
 
 CATEGORY 2 (ADVICE WITHOUT REASONING). The SRA expects the note to record the reasoning behind advice. Flag advice only when, within its own section, there is neither stated reasoning nor a <!-- REASONING_GAP: ... --> marker. A marker within the section satisfies the requirement for that section; do not flag advice whose section contains one, and never flag the marker itself.
-Return JSON only, in exactly this structure: {"unverifiable_statements": [...], "advice_without_reasoning": [...]}. Each array contains ONLY confirmed defects. Do NOT include statements you have considered and decided are not defects, do NOT include your reasoning about statements you are not flagging, and do NOT include entries whose text says a statement is correct, is not a defect, or is being withdrawn. If a statement is correct practice, it does not appear in the output at all. Empty arrays where there are no defects. Each entry must be a single string: the offending statement itself, optionally followed by a brief explanation. Do not return objects.
+Return JSON only, in exactly this structure:
+{"unverifiable_statements":[{"document_quote":"...","explanation":"...","category":"unsupported_content|unsupported_attribution|contradiction","transcript_quote":null_or_string}],"advice_without_reasoning":[{"document_quote":"...","explanation":"...","transcript_quote":null}]}
+Each array contains ONLY confirmed defects. Do NOT include statements you have considered and decided are not defects, do NOT include your reasoning about statements you are not flagging, and do NOT include entries whose text says a statement is correct, is not a defect, or is being withdrawn. If a statement is correct practice, it does not appear in the output at all. Empty arrays where there are no defects.
+For each defect:
+- document_quote MUST be the exact or near-exact sentence from the GENERATED DOCUMENT (so a reviewer can find it in the note).
+- explanation MUST briefly state the risk in plain language for a solicitor (what is wrong and why it matters). Keep it to 1–2 sentences.
+- category for unverifiable_statements must be one of: unsupported_content, unsupported_attribution (when the note attributes advice or a label as having been given/said at the meeting when it was not), contradiction.
+- transcript_quote: when the meeting record contains a passage that supports or contradicts the finding, quote it; otherwise null. Prefer null over inventing a quote.
+Do not return plain strings. Do not return objects with only an "issue" field and no document_quote.
 
 List each distinct defect once. Never repeat a statement. Never restate the same defect in multiple entries.${authoritativeNamesBlock}${durationFactsBlock}`;
 
@@ -937,7 +1103,7 @@ List each distinct defect once. Never repeat a statement. Never restate the same
         console.log('[verify-raw]', JSON.stringify({ outputTokens, len: content.length, content }));
       }
 
-      let warnings: string[] = [];
+      let warnings: VerificationWarning[] = [];
       try {
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -949,19 +1115,31 @@ List each distinct defect once. Never repeat a statement. Never restate the same
               console.log('[verify-extra-keys]', JSON.stringify({ keys: extraKeys }));
             }
           }
-          const unverifiable = normalizeVerificationStatements(parsed.unverifiable_statements);
-          const missingReasoning = normalizeVerificationStatements(parsed.advice_without_reasoning).map(
-            (s) => `[Advice without reasoning] ${s}`,
+          const unverifiable = normalizeStructuredVerificationStatements(
+            parsed.unverifiable_statements,
+            'unsupported_content',
+            document,
+            transcript,
+          );
+          const missingReasoning = normalizeStructuredVerificationStatements(
+            parsed.advice_without_reasoning,
+            'advice_without_reasoning',
+            document,
+            transcript,
+          ).map((w) =>
+            w.category === 'advice_without_reasoning'
+              ? w
+              : { ...w, category: 'advice_without_reasoning' as const },
           );
           warnings = [...unverifiable, ...missingReasoning];
         } else {
           console.error('Verification response contained no JSON object. Raw response:', content);
-          warnings = [VERIFICATION_PARSE_FALLBACK];
+          warnings = [verificationFailureWarning(VERIFICATION_PARSE_FALLBACK)];
         }
       } catch (parseError) {
         console.error('Failed to parse verification response:', parseError);
         console.error('Raw verification response:', content);
-        warnings = [VERIFICATION_PARSE_FALLBACK];
+        warnings = [verificationFailureWarning(VERIFICATION_PARSE_FALLBACK)];
       }
 
       console.log(`Verification complete. Found ${warnings.length} unverifiable statement(s). Cost: $${cost.toFixed(4)}`);
@@ -969,7 +1147,16 @@ List each distinct defect once. Never repeat a statement. Never restate the same
       return { warnings, inputTokens, outputTokens, cost };
     } catch (error: any) {
       console.error('Verification pass failed:', error);
-      return { warnings: ['Automated verification failed — solicitor review is required before this document is added to the client file'], inputTokens: 0, outputTokens: 0, cost: 0 };
+      return {
+        warnings: [
+          verificationFailureWarning(
+            'Automated verification failed — solicitor review is required before this document is added to the client file',
+          ),
+        ],
+        inputTokens: 0,
+        outputTokens: 0,
+        cost: 0,
+      };
     }
   }
 

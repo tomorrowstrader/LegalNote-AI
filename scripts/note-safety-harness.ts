@@ -152,6 +152,12 @@ function normalizeWarning(w: unknown): string {
   if (typeof w === 'string') return w;
   if (w && typeof w === 'object') {
     const o = w as Record<string, unknown>;
+    if (typeof o.documentQuote === 'string' || typeof o.explanation === 'string') {
+      return [o.documentQuote, o.explanation].filter((v) => typeof v === 'string' && v).join(' — ');
+    }
+    if (typeof o.document_quote === 'string' || typeof o.explanation === 'string') {
+      return [o.document_quote, o.explanation].filter((v) => typeof v === 'string' && v).join(' — ');
+    }
     if (typeof o.statement === 'string') return o.statement;
     if (typeof o.text === 'string') return o.text;
     if (typeof o.description === 'string') return o.description;

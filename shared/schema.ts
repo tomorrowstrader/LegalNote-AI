@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { pgTable, pgEnum, text, varchar, timestamp, boolean, integer, jsonb, unique, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { verificationWarningSchema, type VerificationWarning } from "./verificationWarnings";
 
 // Firms table — one record per independent law firm
 export const firms = pgTable("firms", {
@@ -393,7 +394,8 @@ export const documents = pgTable("documents", {
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
   approvalComment: text("approval_comment"),
-  verificationWarnings: text("verification_warnings").array(),
+  /** Structured post-generation verifier findings (legacy plain strings are coerced on read). */
+  verificationWarnings: jsonb("verification_warnings").$type<VerificationWarning[] | null>(),
   isShortRecording: boolean("is_short_recording").default(false),
   acknowledgedAt: timestamp("acknowledged_at"),
   acknowledgedByEmail: text("acknowledged_by_email"),
@@ -937,7 +939,7 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   createdBy: z.string().uuid(),
   isActive: z.boolean().default(true),
   parentVersionId: z.string().uuid().optional(),
-  verificationWarnings: z.array(z.string()).optional(),
+  verificationWarnings: z.array(verificationWarningSchema).optional(),
   isShortRecording: z.boolean().optional().default(false),
 });
 
