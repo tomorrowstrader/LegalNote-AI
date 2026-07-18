@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, RefreshCw } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, RefreshCw, Share2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -12,8 +12,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile, DocumentComment } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import DownloadModal from "@/components/DownloadModal";
+import ShareLinkModal from "@/components/ShareLinkModal";
 import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -419,43 +421,109 @@ function injectMissingGapMarkers(target: string, source: string): string {
   return result;
 }
 
+/** Split "SECTION: detail" gap labels into a short heading + optional detail. */
+function splitGapLabel(sectionName: string): { section: string; detail: string } {
+  const colonIdx = sectionName.indexOf(":");
+  if (colonIdx === -1) return { section: sectionName.trim(), detail: "" };
+  return {
+    section: sectionName.slice(0, colonIdx).trim(),
+    detail: sectionName.slice(colonIdx + 1).trim(),
+  };
+}
+
+function isOffscreenOrHidden(el: Element): boolean {
+  if (el.closest('[aria-hidden="true"]') || el.closest("[data-page-view-measure]")) return true;
+  const htmlEl = el as HTMLElement;
+  const style = window.getComputedStyle(htmlEl);
+  if (style.visibility === "hidden" || style.display === "none") return true;
+  // PageView keeps a fixed measure editor at top/left ≈ -9999
+  if (style.position === "fixed") {
+    const top = parseFloat(style.top) || 0;
+    const left = parseFloat(style.left) || 0;
+    if (top < -500 || left < -500) return true;
+  }
+  return false;
+}
+
+/**
+ * Find the tightest visible block that contains `text`.
+ * Uses element textContent (not individual text nodes) so split formatting still matches.
+ */
 function findElementContainingText(root: ParentNode, text: string): HTMLElement | null {
   if (!text) return null;
   const needle = text.trim().toLowerCase();
   if (!needle) return null;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let node: Node | null;
-  while ((node = walker.nextNode())) {
-    if (node.textContent?.toLowerCase().includes(needle)) {
-      return (node.parentElement as HTMLElement | null);
+
+  const scope = root instanceof Element ? root : null;
+  if (!scope || isOffscreenOrHidden(scope)) return null;
+
+  const blocks = Array.from(
+    scope.querySelectorAll("h1, h2, h3, h4, h5, p, li, td, th, blockquote"),
+  ) as HTMLElement[];
+
+  let best: HTMLElement | null = null;
+  let bestLen = Infinity;
+  for (const block of blocks) {
+    if (isOffscreenOrHidden(block)) continue;
+    // Skip gap-panel chrome — only jump within the note body
+    if (block.closest("[data-testid^='panel-gap-review']")) continue;
+    const content = block.textContent?.toLowerCase() ?? "";
+    if (!content.includes(needle)) continue;
+    if (content.length < bestLen) {
+      best = block;
+      bestLen = content.length;
     }
   }
-  return null;
+  return best;
 }
 
 function scrollToReasoningGap(sectionName: string) {
   // Markers are stripped from the view, so jump to the related section heading / label text.
-  const primary = sectionName.split(':')[0]?.trim() || sectionName;
-  const candidates = [primary, sectionName].filter(Boolean);
-  const roots = document.querySelectorAll(".ProseMirror, .page-view-content, [data-testid='attendance-note-card']");
+  const { section: primary } = splitGapLabel(sectionName);
+  const candidates = [
+    primary,
+    primary.replace(/^\d+\.\s*/, ""),
+    sectionName,
+  ].filter((c, i, arr) => c && arr.indexOf(c) === i);
+
+  // Prefer visible note surfaces. Exclude PageView's hidden measure ProseMirror
+  // (aria-hidden / fixed off-screen) — matching that used to make jump-to appear broken.
+  const roots = Array.from(
+    document.querySelectorAll(
+      "[data-page-view-visible], [data-testid='attendance-note-card'] .ProseMirror, [data-testid='summary-note-card'] .ProseMirror, [data-testid='attendance-note-card'], [data-testid='summary-note-card']",
+    ),
+  ).filter((root) => !isOffscreenOrHidden(root));
+
   let el: HTMLElement | null = null;
   for (const candidate of candidates) {
-    for (const root of Array.from(roots)) {
+    for (const root of roots) {
       el = findElementContainingText(root, candidate);
       if (el) break;
     }
     if (el) break;
   }
-  if (!el) {
-    for (const candidate of candidates) {
-      el = findElementContainingText(document.body, candidate);
-      if (el) break;
-    }
-  }
   if (!el) return;
 
   const target = el.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null ?? el;
-  target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  // Scroll the case main pane (overflow-y-auto), not the window — scrollIntoView alone
+  // often no-ops or jumps the wrong container when nested scrollers exist.
+  const scrollParent =
+    (target.closest("main") as HTMLElement | null) ??
+    (document.querySelector("main") as HTMLElement | null);
+  if (scrollParent && scrollParent !== document.body) {
+    const parentRect = scrollParent.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const nextTop =
+      scrollParent.scrollTop +
+      (targetRect.top - parentRect.top) -
+      parentRect.height / 2 +
+      targetRect.height / 2;
+    scrollParent.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
+  } else {
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   target.classList.add(
     "ring-2",
     "ring-amber-500",
@@ -480,6 +548,170 @@ function scrollToReasoningGap(sectionName: string) {
       "duration-300",
     );
   }, 2200);
+}
+
+function GapReviewPanel({
+  documentId,
+  gaps,
+  gapInputs,
+  onGapInputChange,
+  onClose,
+  onSave,
+  isSaving,
+  hasAmlFlag,
+  amlAcknowledged,
+  onAmlChange,
+  testIdPrefix,
+  emptyHint,
+}: {
+  documentId: string;
+  gaps: string[];
+  gapInputs: Record<string, string>;
+  onGapInputChange: (idx: string, value: string) => void;
+  onClose: () => void;
+  onSave: () => void;
+  isSaving: boolean;
+  hasAmlFlag?: boolean;
+  amlAcknowledged: boolean;
+  onAmlChange: (checked: boolean) => void;
+  testIdPrefix: "attendance" | "summary";
+  emptyHint: string;
+}) {
+  return (
+    <Card
+      className="lg:w-80 w-full flex-shrink-0 lg:sticky lg:top-16 lg:self-start lg:max-h-[calc(100vh-5.5rem)] flex flex-col overflow-hidden z-10"
+      data-testid={`panel-gap-review-${testIdPrefix}`}
+    >
+      {/* Sticky chrome: title + close stay visible while the gap list scrolls */}
+      <div className="shrink-0 border-b border-border bg-card px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+            <h3 className="text-sm font-semibold truncate">Reasoning Gaps</h3>
+            {gaps.length > 0 && (
+              <Badge variant="outline" className="text-[10px] shrink-0 no-default-hover-elevate no-default-active-elevate">
+                {gaps.length}
+              </Badge>
+            )}
+          </div>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 shrink-0"
+            onClick={onClose}
+            data-testid={`button-close-gap-panel-${testIdPrefix}`}
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
+          Tap a section to jump in the note. Add reasoning below each gap.
+        </p>
+        {hasAmlFlag && (
+          <div
+            className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md"
+            data-testid={`banner-aml-gap-${testIdPrefix}`}
+          >
+            <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium leading-snug">
+              AML risk flag — document an AML decision record before saving.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="overflow-y-auto flex-1 min-h-0 px-4 py-3 space-y-3">
+        {gaps.length === 0 ? (
+          <p className="text-xs text-muted-foreground" data-testid={`text-no-gaps-${testIdPrefix}`}>
+            {emptyHint}
+          </p>
+        ) : (
+          gaps.map((sectionName, idx) => {
+            const { section, detail } = splitGapLabel(sectionName);
+            return (
+              <div
+                key={`${documentId}-gap-${idx}`}
+                className="rounded-lg border border-border/80 bg-muted/20 p-3 space-y-2"
+                data-testid={`gap-item-${testIdPrefix}-${idx}`}
+              >
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                    {idx + 1}
+                  </span>
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <button
+                      type="button"
+                      onClick={() => scrollToReasoningGap(sectionName)}
+                      className="text-left text-xs font-semibold text-foreground hover:text-amber-800 dark:hover:text-amber-300 underline-offset-2 hover:underline w-full leading-snug line-clamp-2"
+                      title={`Jump to: ${section}`}
+                      data-testid={`button-gap-heading-${testIdPrefix}-${idx}`}
+                    >
+                      {section}
+                    </button>
+                    {detail ? (
+                      <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2" title={detail}>
+                        {detail}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                <Textarea
+                  placeholder="Add your reasoning…"
+                  value={gapInputs[String(idx)] ?? ""}
+                  onChange={(e) => onGapInputChange(String(idx), e.target.value)}
+                  className="text-xs resize-none bg-background min-h-[4.5rem]"
+                  rows={3}
+                  data-testid={`input-gap-${testIdPrefix}-${idx}`}
+                />
+              </div>
+            );
+          })
+        )}
+
+        {hasAmlFlag && (
+          <div
+            className="flex items-start gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md"
+            data-testid={`container-aml-confirm-${testIdPrefix}`}
+          >
+            <input
+              type="checkbox"
+              id={`aml-confirm-${testIdPrefix}-${documentId}`}
+              checked={amlAcknowledged}
+              onChange={(e) => onAmlChange(e.target.checked)}
+              className="mt-0.5"
+              data-testid={`checkbox-aml-confirm-${testIdPrefix}`}
+            />
+            <label
+              htmlFor={`aml-confirm-${testIdPrefix}-${documentId}`}
+              className="text-[11px] text-amber-700 dark:text-amber-400 cursor-pointer leading-snug"
+            >
+              I confirm an AML decision record with documented reasoning has been filed for this matter
+            </label>
+          </div>
+        )}
+      </div>
+
+      <div className="shrink-0 border-t border-border bg-card px-4 py-3 space-y-1.5">
+        <Button
+          size="sm"
+          className="w-full"
+          onClick={onSave}
+          disabled={
+            isSaving ||
+            !Object.values(gapInputs).some((v) => v.trim()) ||
+            (hasAmlFlag === true && !amlAcknowledged)
+          }
+          data-testid={`button-save-gaps-${testIdPrefix}`}
+        >
+          {isSaving ? "Saving..." : "Fill Selected Gaps"}
+        </Button>
+        {hasAmlFlag && !amlAcknowledged && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-400" data-testid={`text-aml-required-${testIdPrefix}`}>
+            AML confirmation required before saving
+          </p>
+        )}
+      </div>
+    </Card>
+  );
 }
 
 // Replace the nth (0-indexed) occurrence of any REASONING_GAP marker with the given text.
@@ -735,7 +967,9 @@ export default function DocumentViewer({
   litigationHold,
 }: DocumentViewerProps) {
   const { toast } = useToast();
+  const { role: authRole } = useAuth();
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [pageViewMode, setPageViewMode] = useState(() =>
@@ -1518,6 +1752,18 @@ export default function DocumentViewer({
   const summary = findDoc('summary') ?? findDoc('client_letter');
   const transcriptDoc = findDoc('transcript');
   const clientCareLetter = findDoc('client_care_letter');
+  const canSecureShare =
+    attendanceNote?.status === 'approved' &&
+    !!clientCareLetter &&
+    clientCareLetter.status === 'approved';
+  const shareUserRole: "Partner" | "Senior Associate" | "Solicitor" | "Paralegal" =
+    authRole === 'partner' || authRole === 'colp' || authRole === 'managing_partner' || authRole === 'admin'
+      ? 'Partner'
+      : authRole === 'senior_associate'
+        ? 'Senior Associate'
+        : authRole === 'paralegal'
+          ? 'Paralegal'
+          : 'Solicitor';
 
   const attendanceDocType = isMeetingNotes ? 'meeting_notes' : 'attendance_note';
   const needsAttendanceGapRecovery =
@@ -2031,6 +2277,18 @@ export default function DocumentViewer({
                     </TooltipTrigger>
                     <TooltipContent>{focusMode ? 'Exit Focus Mode (Esc)' : 'Focus Mode'}</TooltipContent>
                   </Tooltip>
+                  {canSecureShare && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowShareModal(true)}
+                      className="gap-2 flex-1 sm:flex-initial"
+                      data-testid="button-secure-share"
+                    >
+                      <Share2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">🔐 Secure Share</span>
+                      <span className="sm:hidden">🔐 Share</span>
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={handleExport}
@@ -2075,7 +2333,7 @@ export default function DocumentViewer({
           </TabsList>
         </div>
 
-        <TabsContent value="attendance" className="mt-6 overflow-x-clip overscroll-x-none touch-pan-y">
+        <TabsContent value="attendance" className="mt-6">
           {attendanceNote?.status === 'draft' && !dismissedReviewBanners.has('attendance') && (
             <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-attendance">
               <div className="flex items-start gap-3">
@@ -2100,7 +2358,10 @@ export default function DocumentViewer({
             </div>
           )}
           <div className={`flex gap-4 items-start ${showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-col lg:flex-row' : ''}`}>
-            <Card className={showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-1 min-w-0' : 'w-full'} data-testid="attendance-note-card">
+            <Card className={cn(
+              showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-1 min-w-0' : 'w-full',
+              'overflow-x-clip overscroll-x-none touch-pan-y',
+            )} data-testid="attendance-note-card">
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -2251,101 +2512,38 @@ export default function DocumentViewer({
             )}
             {/* Gap review panel for attendance note */}
             {attendanceNote && showGapPanel === attendanceNote.id && !isDemoMode && (
-              <Card className="lg:w-80 w-full flex-shrink-0 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-6rem)] flex flex-col overflow-hidden" data-testid="panel-gap-review-attendance">
-                <CardHeader className="pb-2 shrink-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-500" />
-                      Reasoning Gaps
-                    </CardTitle>
-                    <Button size="icon" variant="ghost" onClick={() => setShowGapPanel(null)} data-testid="button-close-gap-panel-attendance">
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Tap a heading to jump to it in the note. Add your reasoning for each gap.
-                  </p>
-                  {hasAmlFlag && (
-                    <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-aml-gap-attendance">
-                      <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-                        AML risk flag active — an AML decision record with documented reasoning is required for this matter
-                      </p>
-                    </div>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-4 overflow-y-auto flex-1 min-h-0">
-                  {parseReasoningGaps(gapContentByDocId[attendanceNote.id] ?? attendanceNote.content).length === 0 ? (
-                    <p className="text-xs text-muted-foreground" data-testid="text-no-gaps-attendance">
-                      No open reasoning gaps in this version. Review the note in full, then adopt when you are satisfied.
-                    </p>
-                  ) : null}
-                  {parseReasoningGaps(gapContentByDocId[attendanceNote.id] ?? attendanceNote.content).map((sectionName, idx) => (
-                    <div key={idx} className="space-y-2" data-testid={`gap-item-attendance-${idx}`}>
-                      <button
-                        type="button"
-                        onClick={() => scrollToReasoningGap(sectionName)}
-                        className="text-left text-xs font-semibold text-foreground hover:text-amber-800 dark:hover:text-amber-300 underline-offset-2 hover:underline w-full"
-                        data-testid={`button-gap-heading-attendance-${idx}`}
-                      >
-                        {sectionName}
-                      </button>
-                      <Textarea
-                        placeholder={`Enter reasoning for "${sectionName}"...`}
-                        value={gapInputs[attendanceNote.id]?.[String(idx)] ?? ''}
-                        onChange={e => setGapInputs(prev => ({
-                          ...prev,
-                          [attendanceNote.id]: { ...(prev[attendanceNote.id] ?? {}), [String(idx)]: e.target.value }
-                        }))}
-                        className="text-xs resize-none"
-                        rows={3}
-                        data-testid={`input-gap-attendance-${idx}`}
-                      />
-                    </div>
-                  ))}
-                  {hasAmlFlag && (
-                    <div className="flex items-start gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md" data-testid="container-aml-confirm-attendance">
-                      <input
-                        type="checkbox"
-                        id={`aml-confirm-attendance-${attendanceNote.id}`}
-                        checked={amlAcknowledged[attendanceNote.id] ?? false}
-                        onChange={e => setAmlAcknowledged(prev => ({ ...prev, [attendanceNote.id]: e.target.checked }))}
-                        className="mt-0.5"
-                        data-testid="checkbox-aml-confirm-attendance"
-                      />
-                      <label htmlFor={`aml-confirm-attendance-${attendanceNote.id}`} className="text-xs text-amber-700 dark:text-amber-400 cursor-pointer">
-                        I confirm an AML decision record with documented reasoning has been filed for this matter
-                      </label>
-                    </div>
-                  )}
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    onClick={() => saveGapMutation.mutate({
-                      documentId: attendanceNote.id,
-                      gaps: gapInputs[attendanceNote.id] ?? {},
-                      amlConfirmed: hasAmlFlag ? (amlAcknowledged[attendanceNote.id] ?? false) : undefined,
-                    })}
-                    disabled={
-                      saveGapMutation.isPending ||
-                      !Object.values(gapInputs[attendanceNote.id] ?? {}).some(v => v.trim()) ||
-                      (hasAmlFlag === true && !(amlAcknowledged[attendanceNote.id]))
-                    }
-                    data-testid="button-save-gaps-attendance"
-                  >
-                    {saveGapMutation.isPending ? 'Saving...' : 'Fill Selected Gaps'}
-                  </Button>
-                  {hasAmlFlag && !amlAcknowledged[attendanceNote.id] && (
-                    <p className="text-[11px] text-amber-600 dark:text-amber-400" data-testid="text-aml-required-attendance">
-                      AML confirmation required before saving
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+              <GapReviewPanel
+                documentId={attendanceNote.id}
+                gaps={parseReasoningGaps(gapContentByDocId[attendanceNote.id] ?? attendanceNote.content)}
+                gapInputs={gapInputs[attendanceNote.id] ?? {}}
+                onGapInputChange={(idx, value) =>
+                  setGapInputs((prev) => ({
+                    ...prev,
+                    [attendanceNote.id]: { ...(prev[attendanceNote.id] ?? {}), [idx]: value },
+                  }))
+                }
+                onClose={() => setShowGapPanel(null)}
+                onSave={() =>
+                  saveGapMutation.mutate({
+                    documentId: attendanceNote.id,
+                    gaps: gapInputs[attendanceNote.id] ?? {},
+                    amlConfirmed: hasAmlFlag ? (amlAcknowledged[attendanceNote.id] ?? false) : undefined,
+                  })
+                }
+                isSaving={saveGapMutation.isPending}
+                hasAmlFlag={hasAmlFlag}
+                amlAcknowledged={amlAcknowledged[attendanceNote.id] ?? false}
+                onAmlChange={(checked) =>
+                  setAmlAcknowledged((prev) => ({ ...prev, [attendanceNote.id]: checked }))
+                }
+                testIdPrefix="attendance"
+                emptyHint="No open reasoning gaps in this version. Review the note in full, then adopt when you are satisfied."
+              />
             )}
           </div>
         </TabsContent>
 
-        <TabsContent value="summary" className="mt-6 overflow-x-clip">
+        <TabsContent value="summary" className="mt-6">
           {summary?.status === 'draft' && !dismissedReviewBanners.has('summary') && (
             <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-summary">
               <div className="flex items-start gap-3">
@@ -2370,7 +2568,10 @@ export default function DocumentViewer({
             </div>
           )}
           <div className={`flex gap-4 items-start ${showComments || (summary && showGapPanel === summary.id) ? 'flex-col lg:flex-row' : ''}`}>
-            <Card className={showComments || (summary && showGapPanel === summary.id) ? 'flex-1 min-w-0' : 'w-full'}>
+            <Card className={cn(
+              showComments || (summary && showGapPanel === summary.id) ? 'flex-1 min-w-0' : 'w-full',
+              'overflow-x-clip',
+            )} data-testid="summary-note-card">
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -2534,96 +2735,33 @@ export default function DocumentViewer({
             )}
             {/* Gap review panel for summary — hidden in demo mode */}
             {summary && showGapPanel === summary.id && !isDemoMode && (
-              <Card className="lg:w-80 w-full flex-shrink-0 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-6rem)] flex flex-col overflow-hidden" data-testid="panel-gap-review-summary">
-                <CardHeader className="pb-2 shrink-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-500" />
-                      Reasoning Gaps
-                    </CardTitle>
-                    <Button size="icon" variant="ghost" onClick={() => setShowGapPanel(null)} data-testid="button-close-gap-panel-summary">
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Tap a heading to jump to it in the document. Add your reasoning for each gap.
-                  </p>
-                  {hasAmlFlag && (
-                    <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-aml-gap-summary">
-                      <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-                        AML risk flag active — an AML decision record with documented reasoning is required for this matter
-                      </p>
-                    </div>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-4 overflow-y-auto flex-1 min-h-0">
-                  {parseReasoningGaps(gapContentByDocId[summary.id] ?? summary.content).length === 0 ? (
-                    <p className="text-xs text-muted-foreground" data-testid="text-no-gaps-summary">
-                      No open reasoning gaps in this version. Review the record in full, then adopt when you are satisfied.
-                    </p>
-                  ) : null}
-                  {parseReasoningGaps(gapContentByDocId[summary.id] ?? summary.content).map((sectionName, idx) => (
-                    <div key={idx} className="space-y-2" data-testid={`gap-item-summary-${idx}`}>
-                      <button
-                        type="button"
-                        onClick={() => scrollToReasoningGap(sectionName)}
-                        className="text-left text-xs font-semibold text-foreground hover:text-amber-800 dark:hover:text-amber-300 underline-offset-2 hover:underline w-full"
-                        data-testid={`button-gap-heading-summary-${idx}`}
-                      >
-                        {sectionName}
-                      </button>
-                      <Textarea
-                        placeholder={`Enter reasoning for "${sectionName}"...`}
-                        value={gapInputs[summary.id]?.[String(idx)] ?? ''}
-                        onChange={e => setGapInputs(prev => ({
-                          ...prev,
-                          [summary.id]: { ...(prev[summary.id] ?? {}), [String(idx)]: e.target.value }
-                        }))}
-                        className="text-xs resize-none"
-                        rows={3}
-                        data-testid={`input-gap-summary-${idx}`}
-                      />
-                    </div>
-                  ))}
-                  {hasAmlFlag && (
-                    <div className="flex items-start gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md" data-testid="container-aml-confirm-summary">
-                      <input
-                        type="checkbox"
-                        id={`aml-confirm-summary-${summary.id}`}
-                        checked={amlAcknowledged[summary.id] ?? false}
-                        onChange={e => setAmlAcknowledged(prev => ({ ...prev, [summary.id]: e.target.checked }))}
-                        className="mt-0.5"
-                        data-testid="checkbox-aml-confirm-summary"
-                      />
-                      <label htmlFor={`aml-confirm-summary-${summary.id}`} className="text-xs text-amber-700 dark:text-amber-400 cursor-pointer">
-                        I confirm an AML decision record with documented reasoning has been filed for this matter
-                      </label>
-                    </div>
-                  )}
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    onClick={() => saveGapMutation.mutate({
-                      documentId: summary.id,
-                      gaps: gapInputs[summary.id] ?? {},
-                      amlConfirmed: hasAmlFlag ? (amlAcknowledged[summary.id] ?? false) : undefined,
-                    })}
-                    disabled={
-                      saveGapMutation.isPending ||
-                      !Object.values(gapInputs[summary.id] ?? {}).some(v => v.trim()) ||
-                      (hasAmlFlag === true && !(amlAcknowledged[summary.id]))
-                    }
-                    data-testid="button-save-gaps-summary"
-                  >
-                    {saveGapMutation.isPending ? 'Saving...' : 'Fill Selected Gaps'}
-                  </Button>
-                  {hasAmlFlag && !amlAcknowledged[summary.id] && (
-                    <p className="text-[11px] text-amber-600 dark:text-amber-400" data-testid="text-aml-required-summary">
-                      AML confirmation required before saving
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+              <GapReviewPanel
+                documentId={summary.id}
+                gaps={parseReasoningGaps(gapContentByDocId[summary.id] ?? summary.content)}
+                gapInputs={gapInputs[summary.id] ?? {}}
+                onGapInputChange={(idx, value) =>
+                  setGapInputs((prev) => ({
+                    ...prev,
+                    [summary.id]: { ...(prev[summary.id] ?? {}), [idx]: value },
+                  }))
+                }
+                onClose={() => setShowGapPanel(null)}
+                onSave={() =>
+                  saveGapMutation.mutate({
+                    documentId: summary.id,
+                    gaps: gapInputs[summary.id] ?? {},
+                    amlConfirmed: hasAmlFlag ? (amlAcknowledged[summary.id] ?? false) : undefined,
+                  })
+                }
+                isSaving={saveGapMutation.isPending}
+                hasAmlFlag={hasAmlFlag}
+                amlAcknowledged={amlAcknowledged[summary.id] ?? false}
+                onAmlChange={(checked) =>
+                  setAmlAcknowledged((prev) => ({ ...prev, [summary.id]: checked }))
+                }
+                testIdPrefix="summary"
+                emptyHint="No open reasoning gaps in this version. Review the record in full, then adopt when you are satisfied."
+              />
             )}
           </div>
         </TabsContent>
@@ -2793,6 +2931,21 @@ export default function DocumentViewer({
         }}
         sharedDocuments={['attendance_note', 'summary', 'client_care_letter', 'transcript']}
         onDownload={handleDownload}
+      />
+
+      <ShareLinkModal
+        open={showShareModal}
+        onOpenChange={setShowShareModal}
+        caseId={caseId}
+        caseTitle={caseTitle}
+        userRole={shareUserRole}
+        recipientName={clientName}
+        availableDocuments={{
+          hasAttendanceNote: !!attendanceNote,
+          hasSummary: !!summary || !!textNotes,
+          hasTranscript: !!transcriptContent,
+          hasCareLetter: !!clientCareLetter,
+        }}
       />
 
       <Dialog

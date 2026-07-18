@@ -239,6 +239,7 @@ export function PageView({ content }: PageViewProps) {
           ---------------------------------------------------------------- */}
       <div
         ref={measureContainerRef}
+        data-page-view-measure=""
         style={{
           position: 'fixed',
           top: -9999,
@@ -308,6 +309,7 @@ export function PageView({ content }: PageViewProps) {
                       [&_.track-change-deletion]:bg-red-100 [&_.track-change-deletion]:dark:bg-red-900/40
                       [&_.track-change-deletion]:text-red-800 [&_.track-change-deletion]:dark:text-red-200
                       [&_.track-change-deletion]:line-through"
+                    data-page-view-visible=""
                     style={{ outline: 'none' }}
                     dangerouslySetInnerHTML={{
                       __html: page.blocks.join(''),
