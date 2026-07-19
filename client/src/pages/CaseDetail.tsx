@@ -336,7 +336,13 @@ export default function CaseDetail() {
   const [showCareLetterModal, setShowCareLetterModal] = useState(false);
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
-  const [focusSessionId, setFocusSessionId] = useState<string | null>(null);
+  const [focusSessionId, setFocusSessionId] = useState<string | null>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("sessionId");
+    } catch {
+      return null;
+    }
+  });
   const [showSendCareLetterDialog, setShowSendCareLetterDialog] = useState(false);
   const [sendEmail, setSendEmail] = useState("");
   const [isSendingCareLetter, setIsSendingCareLetter] = useState(false);
@@ -409,6 +415,12 @@ export default function CaseDetail() {
       setActiveSection('documents');
     }
   }, [urlSection, urlTab]);
+
+  useEffect(() => {
+    if (urlSessionId) {
+      setFocusSessionId(urlSessionId);
+    }
+  }, [urlSessionId]);
 
   const handleTranscriptTimestampClick = (timeMs: number) => {
     audioPlayerRef.current?.seekTo(timeMs);
@@ -1167,6 +1179,26 @@ export default function CaseDetail() {
     low: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
   };
 
+  // Chronological session order (oldest = 1) for orientation labels like "1/3"
+  const sessionsChronological = [...meetingSessions].sort(
+    (a, b) => new Date(a.startedAt ?? 0).getTime() - new Date(b.startedAt ?? 0).getTime(),
+  );
+  const sessionTotal = sessionsChronological.length;
+  const activeSessionId =
+    focusSessionId ||
+    urlSessionId ||
+    (sessionTotal === 1 ? sessionsChronological[0]?.id ?? null : null);
+  const activeSessionIndex = activeSessionId
+    ? sessionsChronological.findIndex((s) => s.id === activeSessionId) + 1
+    : 0;
+  const activeSession =
+    activeSessionIndex > 0 ? sessionsChronological[activeSessionIndex - 1] : null;
+  const activeSessionLabel = activeSession
+    ? activeSession.sessionTitle ||
+      RECORDING_TYPE_LABELS[activeSession.recordingType as RecordingType] ||
+      activeSession.recordingType
+    : null;
+
   const matterNavItems: { id: string; label: string; icon: any; badge?: React.ReactNode; show?: boolean }[] = [
     {
       id: 'documents', label: 'Documents', icon: FileText,
@@ -1182,8 +1214,16 @@ export default function CaseDetail() {
     },
     {
       id: 'sessions', label: 'Sessions', icon: History,
-      badge: meetingSessions.length > 0
-        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{meetingSessions.length}</Badge>
+      badge: sessionTotal > 0
+        ? (
+          <Badge
+            variant="secondary"
+            className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate"
+            data-testid="badge-session-position-nav"
+          >
+            {activeSessionIndex > 0 ? `${activeSessionIndex}/${sessionTotal}` : sessionTotal}
+          </Badge>
+        )
         : undefined,
     },
     {
@@ -1444,12 +1484,37 @@ export default function CaseDetail() {
             </Button>
           </div>
 
-          {/* Case identity */}
+          {/* Case / session identity */}
           {!sidebarCollapsed && (
           <div className="px-4 pb-4 border-b border-border">
+            {sessionTotal > 0 && (
+              <p
+                className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground mb-1"
+                data-testid="text-session-position-panel"
+              >
+                {activeSessionIndex > 0
+                  ? `Session ${activeSessionIndex} of ${sessionTotal}`
+                  : `${sessionTotal} session${sessionTotal === 1 ? '' : 's'}`}
+              </p>
+            )}
             <h1 className="font-semibold text-sm leading-snug text-foreground mb-1 line-clamp-2" data-testid="text-case-title-panel">
-              {caseData.title}
+              {activeSessionLabel || caseData.title}
             </h1>
+            {activeSession?.startedAt && (
+              <p className="text-xs text-muted-foreground mb-1" data-testid="text-session-date-panel">
+                {format(new Date(activeSession.startedAt), "d MMM yyyy")}
+                {activeSession.durationSeconds != null && (
+                  <span className="ml-1.5">
+                    · {Math.floor(activeSession.durationSeconds / 60)}m {activeSession.durationSeconds % 60}s
+                  </span>
+                )}
+              </p>
+            )}
+            {activeSessionLabel && activeSessionLabel !== caseData.title && (
+              <p className="text-[11px] text-muted-foreground/80 truncate mb-1" data-testid="text-matter-title-panel" title={caseData.title}>
+                {caseData.title}
+              </p>
+            )}
             {caseData.clientId ? (
               <button
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors duration-150 text-left truncate max-w-full block"
@@ -1472,13 +1537,29 @@ export default function CaseDetail() {
                   {(caseData.riskLevel as string).toUpperCase()} RISK
                 </Badge>
               )}
-              <Badge variant="secondary" className="text-[10px] no-default-hover-elevate no-default-active-elevate" data-testid="badge-status-panel">
-                {caseData.status === 'review_required' ? 'For Review'
-                  : caseData.status === 'completed' ? 'Completed'
-                  : caseData.status === 'processing' ? 'Processing'
-                  : caseData.status === 'failed' ? 'Failed'
-                  : 'Pending'}
-              </Badge>
+              {activeSession ? (
+                <Badge
+                  variant={
+                    activeSession.status === "completed"
+                      ? "default"
+                      : activeSession.status === "failed"
+                        ? "destructive"
+                        : "secondary"
+                  }
+                  className="text-[10px] no-default-hover-elevate no-default-active-elevate"
+                  data-testid="badge-status-panel"
+                >
+                  {toTitleCase(activeSession.status)}
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-[10px] no-default-hover-elevate no-default-active-elevate" data-testid="badge-status-panel">
+                  {caseData.status === 'review_required' ? 'For Review'
+                    : caseData.status === 'completed' ? 'Completed'
+                    : caseData.status === 'processing' ? 'Processing'
+                    : caseData.status === 'failed' ? 'Failed'
+                    : 'Pending'}
+                </Badge>
+              )}
               {sraReadinessVisible && !readinessLoading && sraReadiness && (
                 <button
                   onClick={() => setShowReadinessPanel(prev => !prev)}
@@ -1650,6 +1731,15 @@ export default function CaseDetail() {
             <h2 className="font-semibold text-sm text-foreground truncate">
               {SECTION_LABELS[activeSection]}
             </h2>
+            {activeSession && sessionTotal > 0 && (activeSection === 'documents' || activeSection === 'sessions' || activeSection === 'consent') && (
+              <span
+                className="text-xs text-muted-foreground font-normal truncate"
+                data-testid="text-section-session-context"
+              >
+                · Session {activeSessionIndex} of {sessionTotal}
+                {activeSessionLabel ? ` · ${activeSessionLabel}` : ''}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {sectionActions[activeSection]}
@@ -2020,7 +2110,14 @@ export default function CaseDetail() {
                 <DocumentViewer
                   caseId={caseId!}
                   documents={documents as any}
-                  sessions={meetingSessions.map(s => ({ id: s.id, sessionTitle: s.sessionTitle, recordingType: s.recordingType }))}
+                  sessions={meetingSessions.map(s => ({
+                    id: s.id,
+                    sessionTitle: s.sessionTitle,
+                    recordingType: s.recordingType,
+                    startedAt: s.startedAt ? new Date(s.startedAt).toISOString() : null,
+                    status: s.status,
+                    durationSeconds: s.durationSeconds,
+                  }))}
                   transcript={transcript?.content}
                   transcriptUtterances={transcript?.utterances}
                   speakerCount={transcript?.speakerCount}
@@ -2034,7 +2131,7 @@ export default function CaseDetail() {
                   onTranscriptTimestampClick={handleTranscriptTimestampClick}
                   initialTab={urlTab !== 'compliance' ? (urlTab || undefined) : undefined}
                   initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
-                  focusSessionId={focusSessionId || urlSessionId || undefined}
+                  focusSessionId={activeSessionId || undefined}
                   hasAmlFlag={amlComplianceVisible && !!caseData.riskLevel && ['high', 'medium'].includes(caseData.riskLevel as string)}
                   litigationHold={caseData.litigationHold}
                 />
@@ -2062,9 +2159,10 @@ export default function CaseDetail() {
                 </div>
               ) : (
                 <div className="space-y-3" data-testid="session-timeline-list">
-                  {[...meetingSessions].sort((a, b) => new Date(b.startedAt ?? 0).getTime() - new Date(a.startedAt ?? 0).getTime()).map((session, idx, sorted) => {
+                  {[...sessionsChronological].reverse().map((session) => {
                     const isExpanded = expandedSessionId === session.id;
-                    const sessionNumber = sorted.length - idx;
+                    const sessionNumber = sessionsChronological.findIndex((s) => s.id === session.id) + 1;
+                    const isFocused = activeSessionId === session.id;
                     const primaryLabel = session.sessionTitle || RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType;
                     const hasTitle = !!session.sessionTitle;
                     const navigateToSessionDocs = () => {
@@ -2072,10 +2170,23 @@ export default function CaseDetail() {
                       setActiveSection('documents');
                     };
                     return (
-                      <Card key={session.id} className="overflow-hidden" data-testid={`session-item-${session.id}`}>
+                      <Card
+                        key={session.id}
+                        className={cn(
+                          "overflow-hidden transition-colors",
+                          isFocused && "ring-1 ring-accent/40 border-accent/30 bg-accent/[0.03]",
+                        )}
+                        data-testid={`session-item-${session.id}`}
+                      >
                         <CardContent className="p-0">
                           <div className="w-full p-4 text-left flex items-start gap-4">
-                            <div className="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center text-xs font-semibold text-accent shrink-0 mt-0.5">
+                            <div
+                              className={cn(
+                                "w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5",
+                                isFocused ? "bg-accent text-accent-foreground" : "bg-accent/10 text-accent",
+                              )}
+                              title={`Session ${sessionNumber} of ${sessionTotal}`}
+                            >
                               {sessionNumber}
                             </div>
                             <button
@@ -2085,7 +2196,17 @@ export default function CaseDetail() {
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium text-foreground truncate" data-testid={`text-session-title-${session.id}`}>{primaryLabel}</p>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <p className="text-sm font-medium text-foreground truncate" data-testid={`text-session-title-${session.id}`}>{primaryLabel}</p>
+                                    {isFocused && (
+                                      <Badge variant="outline" className="text-[10px] shrink-0 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-viewing-session-${session.id}`}>
+                                        Viewing
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground mt-0.5" data-testid={`text-session-of-${session.id}`}>
+                                    Session {sessionNumber} of {sessionTotal}
+                                  </p>
                                   {hasTitle && (
                                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                                       <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`badge-recording-type-${session.id}`}>
@@ -2238,7 +2359,12 @@ export default function CaseDetail() {
           {activeSection === 'consent' && (
             <div className="max-w-3xl">
               {caseData.sourceType === 'audio' ? (
-                <ConsentEvidence caseId={caseId!} audioRecording={audioData} consentLogs={consentLogs} />
+                <ConsentEvidence
+                  caseId={caseId!}
+                  sessions={meetingSessions}
+                  consentLogs={consentLogs}
+                  focusSessionId={activeSessionId}
+                />
               ) : (
                 <div className="text-center py-16 space-y-3">
                   <Shield className="w-8 h-8 mx-auto text-muted-foreground/40" />
@@ -2295,7 +2421,7 @@ export default function CaseDetail() {
           )}
 
           {activeSection === 'sharing' && (
-            <div className="max-w-3xl space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
               <ActiveShareLinks caseId={caseId!} />
               <SharedHistoryViewer caseId={caseId!} />
             </div>

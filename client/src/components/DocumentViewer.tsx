@@ -464,6 +464,9 @@ interface SessionInfo {
   id: string;
   sessionTitle: string | null;
   recordingType: string;
+  startedAt?: string | null;
+  status?: string;
+  durationSeconds?: number | null;
 }
 
 interface DocumentViewerProps {
@@ -2309,6 +2312,30 @@ export default function DocumentViewer({
 
   const attendanceNoteSessionLabel = getSessionLabel(attendanceNote);
   const summarySessionLabel = getSessionLabel(summary);
+
+  const sessionsChronological = [...(sessions || [])].sort(
+    (a, b) => new Date(a.startedAt ?? 0).getTime() - new Date(b.startedAt ?? 0).getTime(),
+  );
+  const focusedSession = focusSessionId
+    ? sessionsChronological.find((s) => s.id === focusSessionId) ?? null
+    : sessionsChronological.length === 1
+      ? sessionsChronological[0]
+      : null;
+  const focusedSessionIndex = focusedSession
+    ? sessionsChronological.findIndex((s) => s.id === focusedSession.id) + 1
+    : 0;
+  const focusedSessionLabel = focusedSession
+    ? focusedSession.sessionTitle ||
+      RECORDING_TYPE_LABELS[focusedSession.recordingType as RecordingType] ||
+      focusedSession.recordingType
+    : null;
+  const focusedSessionDate = focusedSession?.startedAt
+    ? new Date(focusedSession.startedAt).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : null;
   
   const transcriptContent = transcriptDoc?.content ?? transcript;
 
@@ -2632,6 +2659,15 @@ export default function DocumentViewer({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl sm:text-2xl font-semibold">Documents</h2>
+                {focusedSession && sessionsChronological.length > 0 && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs no-default-hover-elevate no-default-active-elevate"
+                    data-testid="badge-documents-session-position"
+                  >
+                    Session {focusedSessionIndex}/{sessionsChronological.length}
+                  </Badge>
+                )}
                 {/* Master Record badge */}
                 {(attendanceNote?.status === 'approved' || summary?.status === 'approved') && (
                   <Tooltip>
@@ -2648,7 +2684,14 @@ export default function DocumentViewer({
                   </Tooltip>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-1 sm:hidden">Export documents below</p>
+              {focusedSessionLabel ? (
+                <p className="text-xs text-muted-foreground mt-1" data-testid="text-documents-session-context">
+                  {focusedSessionLabel}
+                  {focusedSessionDate ? ` · ${focusedSessionDate}` : ''}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1 sm:hidden">Export documents below</p>
+              )}
             </div>
             {hasAnyDocument && (
               <div className="flex flex-col gap-2">
