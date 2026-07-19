@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { toTitleCase } from "@/lib/utils";
 import {
   ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles,
-  FileText, Bot, MessageSquarePlus, Plus, MoreVertical, AlertCircle,
+  FileText, MessageSquarePlus, Plus, MoreVertical, AlertCircle,
   Share2, Eye, Archive, Video, ListChecks, History,
   ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send,
   ShieldCheck, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, Mic, FileCheck,
@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -27,12 +26,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import {
-  estimateRemainingSeconds,
-  formatEtaLabel,
-  processingStartStorageKey,
-} from "@/lib/processingEta";
+import { processingStartStorageKey } from "@/lib/processingEta";
 import DocumentViewer from "@/components/DocumentViewer";
+import MeetingToMatterProcessingStatusCard from "@/components/MeetingToMatterProcessingStatusCard";
 import { AudioPlayer, type AudioPlayerHandle } from "@/components/AudioPlayer";
 import { AuditTrail } from "@/components/AuditTrail";
 import { ConsentEvidence } from "@/components/ConsentEvidence";
@@ -112,45 +108,6 @@ const SECTION_LABELS: Record<CaseSection, string> = {
   audit: "Audit Trail",
   supervision: "Supervision",
 };
-
-// Mirror the real progress values emitted by the server pipeline
-// (aiProcessingPipeline.ts) so the creep cap tracks the actual next step. The
-// heaviest phase (attendance-note generation) runs while the server reports 40,
-// so 40 -> 55 must span a wide range for the bar to keep visibly moving.
-const PROCESSING_PROGRESS_MILESTONES = [10, 20, 35, 40, 55, 70, 85, 100];
-const INITIAL_PROGRESS = 12;
-// Time-based creep: ease toward the cap but never fully stall, so long LLM
-// phases still show continuous motion instead of parking at one number.
-const CREEP_EASE_PER_SEC = 0.09; // close ~9% of the remaining gap each second
-const CREEP_MIN_RATE = 0.5; // ...but always advance at least 0.5%/sec until the cap
-
-function getNextProcessingMilestone(progress: number): number {
-  for (const milestone of PROCESSING_PROGRESS_MILESTONES) {
-    if (milestone > progress) return milestone;
-  }
-  return 100;
-}
-
-function getProcessingCreepCap(realProgress: number): number {
-  if (realProgress >= 100) return 100;
-  // During transcription (below doc-gen at 40%), creep toward 39 for visible motion
-  if (realProgress < 40) {
-    const docGenMilestone = PROCESSING_PROGRESS_MILESTONES.find((m) => m >= 40);
-    if (docGenMilestone) return docGenMilestone - 1;
-  }
-  // Long attendance-note generation sits at server 40 — creep toward 69 so the
-  // bar doesn't park at 54%. Do NOT open the gate all the way to 99% here; later
-  // phases (client letter at 70) must keep a truthful gap to 100.
-  if (realProgress >= 40 && realProgress < 55) {
-    return 69;
-  }
-  let next = getNextProcessingMilestone(realProgress);
-  if (next - realProgress <= 5) {
-    const further = getNextProcessingMilestone(next);
-    if (further > next) next = further;
-  }
-  return next - 1;
-}
 
 function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHold, litigationHoldReason }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void; litigationHold?: boolean; litigationHoldReason?: string | null }) {
   const { toast } = useToast();
@@ -540,159 +497,18 @@ export default function CaseDetail() {
     processingStatus?.processingMetadata?.progress ?? caseProcessingMeta?.progress ?? 0;
   const processingCurrentStep =
     processingStatus?.processingMetadata?.currentStep || caseProcessingMeta?.currentStep;
-  const [displayProgress, setDisplayProgress] = useState(INITIAL_PROGRESS);
-  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
-  const realProgressRef = useRef(0);
-  const displayProgressRef = useRef(INITIAL_PROGRESS);
-  const rafIdRef = useRef<number | null>(null);
-  const processingStartedAtRef = useRef<number | null>(null);
-  const lastEtaProgressRef = useRef(0);
+  // Remount the isolated progress card when processing is re-queued so animation/ETA reset
+  // without driving CaseDetail re-renders on every creep frame.
+  const [processingEpoch, setProcessingEpoch] = useState(0);
 
   useEffect(() => {
-    realProgressRef.current = realProcessingProgress;
-    if (realProcessingProgress >= 100) {
-      displayProgressRef.current = 100;
-      setDisplayProgress(100);
-    } else if (realProcessingProgress > displayProgressRef.current) {
-      displayProgressRef.current = realProcessingProgress;
-      setDisplayProgress(realProcessingProgress);
+    if (!caseId || caseData?.status === "processing") return;
+    try {
+      sessionStorage.removeItem(processingStartStorageKey(caseId));
+    } catch {
+      /* ignore */
     }
-  }, [realProcessingProgress]);
-
-  useEffect(() => {
-    if (caseData?.status !== "processing") {
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
-      displayProgressRef.current = 0;
-      setDisplayProgress(0);
-      return;
-    }
-
-    displayProgressRef.current = INITIAL_PROGRESS;
-    setDisplayProgress(INITIAL_PROGRESS);
-    realProgressRef.current = realProcessingProgress;
-
-    let lastTs = performance.now();
-
-    const animate = (now: number) => {
-      // Clamp dt so a backgrounded tab doesn't produce a huge jump on return.
-      const dtSec = Math.min(Math.max((now - lastTs) / 1000, 0), 0.5);
-      lastTs = now;
-
-      const real = realProgressRef.current;
-      let display = displayProgressRef.current;
-
-      if (real >= 100) {
-        display = 100;
-      } else if (real > display) {
-        display = real;
-      } else {
-        const cap = getProcessingCreepCap(real);
-        if (display < cap) {
-          const remaining = cap - display;
-          const easeStep = remaining * CREEP_EASE_PER_SEC * dtSec;
-          const floorStep = CREEP_MIN_RATE * dtSec;
-          display = Math.min(display + Math.max(easeStep, floorStep), cap);
-        }
-        display = Math.min(display, 99);
-      }
-
-      display = Math.max(display, real);
-
-      if (display !== displayProgressRef.current) {
-        displayProgressRef.current = display;
-        setDisplayProgress(display);
-      }
-
-      rafIdRef.current = requestAnimationFrame(animate);
-    };
-
-    rafIdRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
-    };
-  }, [caseData?.status]);
-
-  // Live countdown ETA while documents are being produced
-  useEffect(() => {
-    if (!caseId || caseData?.status !== "processing") {
-      processingStartedAtRef.current = null;
-      lastEtaProgressRef.current = 0;
-      setEtaSeconds(null);
-      if (caseId) {
-        try {
-          sessionStorage.removeItem(processingStartStorageKey(caseId));
-        } catch {
-          /* ignore */
-        }
-      }
-      return;
-    }
-
-    const storageKey = processingStartStorageKey(caseId);
-    if (!processingStartedAtRef.current) {
-      let startedAt = Date.now();
-      try {
-        const stored = sessionStorage.getItem(storageKey);
-        if (stored) {
-          const parsed = parseInt(stored, 10);
-          if (Number.isFinite(parsed) && parsed > 0) startedAt = parsed;
-          else sessionStorage.setItem(storageKey, String(startedAt));
-        } else {
-          sessionStorage.setItem(storageKey, String(startedAt));
-        }
-      } catch {
-        /* ignore */
-      }
-      processingStartedAtRef.current = startedAt;
-      lastEtaProgressRef.current = realProcessingProgress;
-    }
-
-    const tick = () => {
-      const startedAt = processingStartedAtRef.current ?? Date.now();
-      const elapsedSec = Math.max(0, (Date.now() - startedAt) / 1000);
-      const progress = realProgressRef.current;
-      const target = estimateRemainingSeconds({
-        progress,
-        elapsedSec,
-        audioDurationSec: audioData?.duration,
-        currentStep: processingCurrentStep,
-      });
-
-      const progressAdvanced = progress > lastEtaProgressRef.current + 0.5;
-      if (progressAdvanced) lastEtaProgressRef.current = progress;
-
-      setEtaSeconds((prev) => {
-        if (progress >= 100) return 0;
-        if (prev == null) return target;
-        // When the estimate drops (e.g. entering client-letter phase), catch down
-        // immediately instead of holding a stale multi-minute countdown.
-        if (target < prev) {
-          return Math.max(progress >= 90 ? 3 : 8, target);
-        }
-        if (progressAdvanced) return target;
-        // Soft 1s countdown; never invent "almost done" before 90% real progress
-        const floor = progress >= 90 ? 3 : Math.max(8, target);
-        return Math.max(floor, prev - 1);
-      });
-    };
-
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [
-    caseId,
-    caseData?.status,
-    realProcessingProgress,
-    processingCurrentStep,
-    audioData?.duration,
-  ]);
+  }, [caseId, caseData?.status]);
 
   const { data: meetingSessions = [] } = useQuery<MeetingSession[]>({
     queryKey: [`/api/cases/${caseId}/sessions`],
@@ -867,12 +683,8 @@ export default function CaseDetail() {
         currentStep,
       },
     });
-    displayProgressRef.current = INITIAL_PROGRESS;
-    setDisplayProgress(INITIAL_PROGRESS);
+    setProcessingEpoch((e) => e + 1);
     const startedAt = Date.now();
-    processingStartedAtRef.current = startedAt;
-    lastEtaProgressRef.current = 0;
-    setEtaSeconds(null);
     if (caseId) {
       try {
         sessionStorage.setItem(processingStartStorageKey(caseId), String(startedAt));
@@ -1981,51 +1793,17 @@ export default function CaseDetail() {
             />
           )}
 
-          {/* Processing card */}
-          {caseData.status === 'processing' && (
-            <div className="p-5 bg-card rounded-md border border-accent/30" data-testid="processing-status-card">
-              <div className="flex items-start gap-3 mb-3">
-                <div className="p-1.5 bg-accent/20 rounded-md shrink-0">
-                  <Bot className="w-5 h-5 text-accent" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-semibold text-sm">Meeting-to-Matter™ Engine</p>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
-                  </div>
-                  <p className="text-xs text-muted-foreground" data-testid="text-current-step">
-                    {processingCurrentStep || 'Preparing...'}
-                  </p>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Progress value={Math.round(displayProgress)} className="h-1.5" data-testid="progress-bar" />
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs text-muted-foreground" data-testid="text-progress-percentage">
-                    {Math.round(displayProgress)}% complete
-                  </p>
-                  {etaSeconds != null && (
-                    <p className="text-xs text-muted-foreground tabular-nums" data-testid="text-progress-eta">
-                      {formatEtaLabel(etaSeconds, realProcessingProgress)}
-                    </p>
-                  )}
-                </div>
-              </div>
-              {(processingStatus?.processingMetadata?.error || caseProcessingMeta?.error) && (
-                <Alert variant="destructive" className="mt-3" data-testid="alert-processing-error">
-                  <AlertDescription>
-                    {processingStatus?.processingMetadata?.error || caseProcessingMeta?.error}
-                  </AlertDescription>
-                </Alert>
-              )}
-              {processingStatusError && (
-                <Alert variant="destructive" className="mt-3" data-testid="alert-processing-session">
-                  <AlertDescription>
-                    Your session expired while documents were being produced. Sign in again to see the latest status — your previous version remains on file.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
+          {/* Processing card — isolated so progress creep does not re-render CaseDetail/nav */}
+          {caseData.status === 'processing' && caseId && (
+            <MeetingToMatterProcessingStatusCard
+              key={processingEpoch}
+              caseId={caseId}
+              realProgress={realProcessingProgress}
+              currentStep={processingCurrentStep}
+              error={processingStatus?.processingMetadata?.error || caseProcessingMeta?.error}
+              sessionExpired={!!processingStatusError}
+              audioDurationSec={audioData?.duration}
+            />
           )}
 
           {/* Failed card — first-time AI processing only */}
