@@ -527,9 +527,10 @@ export default function CaseDetail() {
   const [showSraReportModal, setShowSraReportModal] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
-      return localStorage.getItem("legalnote-case-sidebar-collapsed") === "1";
+      // Default collapsed on first visit; only expand when user has explicitly chosen open.
+      return localStorage.getItem("legalnote-case-sidebar-collapsed") !== "0";
     } catch {
-      return false;
+      return true;
     }
   });
   const toggleSidebarCollapsed = () => {
