@@ -868,6 +868,7 @@ export function RichTextEditor({
           };
         },
       }),
+      // A4 @ 96dpi with Word/Google Docs default 1" (96px) margins on all sides.
       PaginationPlus.configure({
         pageHeight: 1122,
         pageWidth: 794,
@@ -875,8 +876,10 @@ export function RichTextEditor({
         pageGapBorderSize: 1,
         marginTop: 96,
         marginBottom: 96,
-        marginLeft: 120,
-        marginRight: 120,
+        marginLeft: 96,
+        marginRight: 96,
+        contentMarginTop: 0,
+        contentMarginBottom: 0,
       }),
     ],
     content: '',
@@ -1206,6 +1209,31 @@ export function RichTextEditor({
       editor.setEditable(!disabled);
     }
   }, [editor, disabled]);
+
+  // Keep Word/Docs 1" page margins applied even if pagination-plus onCreate
+  // races with TipTap remounts (Strict Mode) or drops inline geometry.
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom as HTMLElement;
+    const applyPageMargins = () => {
+      dom.classList.add('rm-with-pagination');
+      dom.style.setProperty('--rm-page-width', '794px');
+      dom.style.setProperty('--rm-page-height', '1122px');
+      dom.style.setProperty('--rm-margin-top', '96px');
+      dom.style.setProperty('--rm-margin-bottom', '96px');
+      dom.style.setProperty('--rm-margin-left', '96px');
+      dom.style.setProperty('--rm-margin-right', '96px');
+      dom.style.paddingLeft = 'var(--rm-margin-left)';
+      dom.style.paddingRight = 'var(--rm-margin-right)';
+      dom.style.width = 'var(--rm-page-width)';
+      if (typeof editor.commands.updateMargins === 'function') {
+        editor.commands.updateMargins({ top: 96, bottom: 96, left: 96, right: 96 });
+      }
+    };
+    applyPageMargins();
+    const raf = requestAnimationFrame(applyPageMargins);
+    return () => cancelAnimationFrame(raf);
+  }, [editor]);
 
   const applyAutocomplete = useCallback((phrase: string) => {
     if (!editor) return;

@@ -731,12 +731,39 @@ nav.sticky {
   color: hsl(var(--foreground));
 }
 
-/* When tiptap-pagination-plus is active it owns ALL page geometry:
-   left/right via inline styles, vertical via its injected page elements.
-   Our global vertical padding must not add unaccounted height. */
+/*
+ * Word / Google Docs page geometry (A4 @ 96dpi):
+ *   page 794×1122px, margins 1" (96px) on all sides.
+ * tiptap-pagination-plus sets left/right via inline CSS variables and vertical
+ * via header/footer widgets. We also pin the variables + padding here so text
+ * can never sit flush on the page border if the library styles lag or drop.
+ */
+.pagination-plus-host {
+  --rm-page-width: 794px;
+  --rm-page-height: 1122px;
+  --rm-margin-top: 96px;
+  --rm-margin-bottom: 96px;
+  --rm-margin-left: 96px;
+  --rm-margin-right: 96px;
+}
+
 .ProseMirror.rm-with-pagination {
-  padding-top: 0;
-  padding-bottom: 0;
+  --rm-page-width: 794px;
+  --rm-page-height: 1122px;
+  --rm-margin-top: 96px;
+  --rm-margin-bottom: 96px;
+  --rm-margin-left: 96px;
+  --rm-margin-right: 96px;
+  box-sizing: border-box;
+  width: var(--rm-page-width);
+  max-width: 100%;
+  /* Vertical padding must stay 0 — pagination widgets own top/bottom margins. */
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  /* Fixed 1" gutters so text never sits on the page border (Word/Docs default). */
+  padding-left: 96px !important;
+  padding-right: 96px !important;
+  background-color: hsl(var(--card));
 }
 
 /* Paginated (Word-like) editor: A4 page simulation */
@@ -750,7 +777,7 @@ nav.sticky {
 /* min-height = A4 (1122) - top padding (96) - bottom padding (96) = 930px.
    This ensures an empty/short document fills exactly one A4 page visually. */
 .paginated-page-card .ProseMirror {
-  padding: 96px 120px;
+  padding: 96px;
   min-height: 930px;
 }
 
@@ -765,6 +792,16 @@ nav.sticky {
     min-height: unset;
     overflow-wrap: break-word;
     word-break: break-word;
+  }
+
+  .ProseMirror.rm-with-pagination {
+    --rm-margin-left: 16px;
+    --rm-margin-right: 16px;
+    --rm-margin-top: 24px;
+    --rm-margin-bottom: 24px;
+    width: 100%;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
   }
 }
 
@@ -788,8 +825,8 @@ nav.sticky {
   );
   pointer-events: none;
   user-select: none;
-  margin-left: -120px;
-  margin-right: -120px;
+  margin-left: -96px;
+  margin-right: -96px;
   position: relative;
   z-index: 2;
 }
@@ -1085,6 +1122,5 @@ nav.sticky {
 
 /* Page side edges: theme-aware instead of hardcoded #e5e5e5 */
 .ProseMirror.rm-with-pagination {
-  border-left: 1px solid hsl(var(--border)) !important;
-  border-right: 1px solid hsl(var(--border)) !important;
+  border: 1px solid hsl(var(--border)) !important;
 }

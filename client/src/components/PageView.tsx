@@ -11,11 +11,11 @@ import { Markdown } from 'tiptap-markdown';
 import { FileText } from "lucide-react";
 import { enrichGapCitationChips, hydrateReasoningGapAnchorsInHtml } from "@/lib/reasoningGapAnchors";
 
-// A4 layout constants matching the editor
+// A4 layout constants matching the editor (Word/Docs 1" margins @ 96dpi)
 const PAGE_W    = 794;   // A4 width in px
-const MARGIN_H  = 120;   // left/right horizontal margin
-const MARGIN_V  = 96;    // top/bottom vertical margin per page
-const CONTENT_W = PAGE_W - 2 * MARGIN_H; // 554px – content column width
+const MARGIN_H  = 96;    // left/right horizontal margin (1 inch)
+const MARGIN_V  = 96;    // top/bottom vertical margin per page (1 inch)
+const CONTENT_W = PAGE_W - 2 * MARGIN_H; // 602px – content column width
 const CONTENT_H = 930;   // usable content height per page (1122 - 96 - 96)
 
 // ---------------------------------------------------------------------------
