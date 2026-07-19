@@ -9,6 +9,15 @@ describe("sanitizeTranscriptText", () => {
   it("strips BOM and normalizes newlines", () => {
     expect(sanitizeTranscriptText("\uFEFFhello\r\nworld\r")).toBe("hello\nworld");
   });
+
+  it("strips RTF markup from TextEdit-style exports", () => {
+    const rtf =
+      "{\\rtf1\\ansi\\ansicpg1252\\pard Solicitor: Good morning.\\par Client: Hello there, this is long enough.\\par}";
+    const plain = sanitizeTranscriptText(rtf);
+    expect(plain).toContain("Solicitor: Good morning.");
+    expect(plain).toContain("Client: Hello there");
+    expect(plain).not.toContain("\\rtf");
+  });
 });
 
 describe("parseSpeakerUtterances", () => {
@@ -36,5 +45,13 @@ describe("normalizeUploadedTranscript", () => {
 
   it("rejects short transcripts", () => {
     expect(() => normalizeUploadedTranscript("too short")).toThrow(/too short/i);
+  });
+
+  it("accepts RTF that expands to sufficient plain text", () => {
+    const rtf =
+      "{\\rtf1\\ansi\\pard We discussed the proposed settlement and the client confirmed they wished to proceed subject to costs advice.\\par}";
+    const result = normalizeUploadedTranscript(rtf);
+    expect(result.content).toContain("settlement");
+    expect(result.content).not.toContain("\\pard");
   });
 });

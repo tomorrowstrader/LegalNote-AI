@@ -169,10 +169,12 @@ export class AIProcessingPipeline {
             caseTitle: caseData.title,
           }
         );
-        
+
+        // Account for the correction pass even when it correctly determines
+        // that no changes are required.
+        correctionCost = correctionResult.cost;
         if (correctionResult.corrections.length > 0) {
           transcriptText = correctionResult.correctedText;
-          correctionCost = correctionResult.cost;
           console.log(`[AI Pipeline] Applied ${correctionResult.corrections.length} corrections`);
           // Note: We intentionally do NOT update transcriptUtterances with corrected text.
           // The utterances preserve original timing/speaker/confidence data from AssemblyAI.

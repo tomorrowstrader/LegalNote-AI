@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   DocumentService,
   formatRevisionInstructions,
+  looksLikeTruncatedDocumentBody,
+  joinDocumentContinuation,
   type CaseMetadata,
 } from './documentService';
 
@@ -12,6 +14,32 @@ const metadata: CaseMetadata = {
   recordingDate: '14 July 2026',
   feeEarnerName: 'Jane Smith',
 };
+
+describe('looksLikeTruncatedDocumentBody', () => {
+  it('detects mid-sentence cutoff', () => {
+    expect(
+      looksLikeTruncatedDocumentBody(
+        'In the absence of a will, the intestacy rules apply; given the client\'s current marital status, this may not produce',
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts complete sentences', () => {
+    expect(
+      looksLikeTruncatedDocumentBody(
+        'The client confirmed his understanding and thanked me.',
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('joinDocumentContinuation', () => {
+  it('joins mid-sentence with a space', () => {
+    expect(joinDocumentContinuation('this may not produce', 'the intended outcome.')).toBe(
+      'this may not produce the intended outcome.',
+    );
+  });
+});
 
 describe('DocumentService.generateAttendanceNote', () => {
   it('formats metadata on separate lines and bolds standard section labels', async () => {
@@ -57,6 +85,60 @@ The client agreed.`,
     expect(result.content).toContain('**What was discussed:**');
     expect(result.content).toContain('**Advice given:**');
     expect(result.content).toContain("**Client's instructions and response:**");
+  });
+
+  it('continues generation when the first pass is truncated mid-sentence', async () => {
+    const chatCompletion = vi
+      .fn()
+      .mockResolvedValueOnce({
+        content:
+          '**MATTERS DISCUSSED**\n\nIn the absence of a will, the intestacy rules apply; this may not produce',
+        inputTokens: 100,
+        outputTokens: 4000,
+        cost: 0.01,
+      })
+      .mockResolvedValueOnce({
+        content: 'the outcome the client intends under the intestacy rules.',
+        inputTokens: 50,
+        outputTokens: 40,
+        cost: 0.002,
+      });
+
+    const service = new DocumentService({ chatCompletion });
+    const result = await service.generateAttendanceNote('Long meeting transcript.', metadata);
+
+    expect(chatCompletion).toHaveBeenCalledTimes(2);
+    expect(chatCompletion.mock.calls[0][0].maxTokens).toBeGreaterThanOrEqual(8000);
+    expect(result.content).toContain('this may not produce the outcome the client intends');
+    expect(result.content).toContain('legal professional privilege');
+    expect(result.outputTokens).toBe(4040);
+  });
+
+  it('continues when Bedrock explicitly reports max_tokens despite sentence punctuation', async () => {
+    const chatCompletion = vi
+      .fn()
+      .mockResolvedValueOnce({
+        content: '**MATTERS DISCUSSED**\n\nThe first section is complete.',
+        inputTokens: 100,
+        outputTokens: 16384,
+        cost: 0.01,
+        stopReason: 'max_tokens',
+      })
+      .mockResolvedValueOnce({
+        content: '**2. NEXT SECTION**\n\nThe remaining section is complete.',
+        inputTokens: 50,
+        outputTokens: 100,
+        cost: 0.002,
+        stopReason: 'end_turn',
+      });
+
+    const result = await new DocumentService({ chatCompletion }).generateAttendanceNote(
+      'Long meeting transcript.',
+      metadata,
+    );
+
+    expect(chatCompletion).toHaveBeenCalledTimes(2);
+    expect(result.content).toContain('**2. NEXT SECTION**');
   });
 
   it('routes short transcripts through the governed attendance note prompt', async () => {
@@ -140,6 +222,27 @@ The client agreed.`,
     expect(userPrompt).toContain(
       'Only the marriage duration above is authoritative. Do not state a cohabitation duration or total relationship span, and do not announce that either could not be established.',
     );
+  });
+});
+
+describe('DocumentService verification capacity', () => {
+  it('uses the long-document output budget for structured verification', async () => {
+    const chatCompletion = vi.fn().mockResolvedValue({
+      content: '{"unverifiable_statements":[],"advice_without_reasoning":[]}',
+      inputTokens: 10_000,
+      outputTokens: 20,
+      cost: 0.03,
+      stopReason: 'end_turn',
+    });
+    const service = new DocumentService({ chatCompletion });
+
+    const result = await service.verifyDocumentAgainstTranscript(
+      'A long generated attendance note.',
+      'A long source transcript.',
+    );
+
+    expect(result.warnings).toEqual([]);
+    expect(chatCompletion.mock.calls[0][0].maxTokens).toBe(16384);
   });
 });
 

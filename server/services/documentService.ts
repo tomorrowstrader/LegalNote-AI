@@ -1,6 +1,7 @@
 import { getPrivilegedLLMProvider } from './llm/providerFactory';
 import { privilegedComplete } from './llm/privilegedComplete';
 import { CLIENT_FACING_RECORDING_TYPES } from '@shared/recordingTypes';
+import type { PracticeArea } from '@shared/schema';
 import { getPracticeAreaPromptContext } from './practiceAreaConfig';
 import { DERIVATION_ENGINE_RULES } from './derivationEngine';
 import {
@@ -589,6 +590,61 @@ function assembleAttendanceNoteDocument(
   return `${buildAttendanceNoteHeader(metadata, prefs)}${formattedBody}${buildAttendanceNoteFooter(metadata, prefs)}`;
 }
 
+/** Output budget for long full-meeting attendance notes (Claude Sonnet supports well above this). */
+const DOCUMENT_GENERATION_MAX_TOKENS = 16384;
+const DOCUMENT_CONTINUATION_MAX_PASSES = 2;
+
+/**
+ * Heuristic: model hit max_tokens mid-sentence / mid-section.
+ * Used before footer assembly so we can request a continuation rather than
+ * gluing the privilege footer onto a cut-off body.
+ */
+export function looksLikeTruncatedDocumentBody(content: string): boolean {
+  const trimmed = content.replace(/\s+$/, '').trim();
+  if (trimmed.length < 40) return false;
+
+  if (
+    /(?:What was discussed:|Advice given:|Key points advised:|Reasoning behind advice and decisions:|Client's instructions and response:)\s*$/i.test(
+      trimmed,
+    )
+  ) {
+    return true;
+  }
+
+  const last = trimmed.slice(-1);
+  if (/[.!?…]/.test(last)) return false;
+  if (last === '"' || last === ')' || last === ']') return false;
+  // Open bold / incomplete heading
+  if (last === '*' || last === ':') return true;
+  if (/[A-Za-z0-9,;]/.test(last)) return true;
+  if (
+    /\b(?:the|a|an|to|of|and|or|that|this|may|not|for|with|from|into|will|would|should|could|must|is|are|be|been|being|produce|regarding|including|without|under)\s*$/i.test(
+      trimmed,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** Join a continuation onto a truncated body without restarting the document. */
+export function joinDocumentContinuation(existing: string, continuation: string): string {
+  let cont = continuation.trim();
+  if (!cont) return existing.trimEnd();
+
+  cont = cont.replace(/^\*\*(?:ATTENDANCE NOTE|MATTERS DISCUSSED|MEETING SUMMARY)\*\*\s*/i, '');
+  // Mid-sentence cutoff: prefer a single space; paragraph break if continuation looks like a new block
+  const needsParagraph =
+    /^\*\*\d+\./.test(cont) ||
+    /^(?:What was discussed:|Advice given:|Key points advised:|Reasoning behind advice and decisions:|Client's instructions and response:)/i.test(
+      cont,
+    );
+  if (needsParagraph) {
+    return `${existing.trimEnd()}\n\n${cont}`;
+  }
+  return `${existing.trimEnd()} ${cont}`;
+}
+
 function buildSummaryHeader(metadata: CaseMetadata): string {
   return `**Client:** ${metadata.clientName}
 **Matter reference:** ${metadata.matterReference || 'TBD'}
@@ -711,6 +767,7 @@ export interface DocumentChatCompletionResult {
   inputTokens: number;
   outputTokens: number;
   cost: number;
+  stopReason?: string;
 }
 
 export type DocumentChatCompletionFn = (
@@ -946,7 +1003,7 @@ CRITICAL: Extract only what was actually discussed. Where an area was not covere
 
     if (metadata.practiceArea) {
       try {
-        const paContext = getPracticeAreaPromptContext(metadata.practiceArea);
+        const paContext = getPracticeAreaPromptContext(metadata.practiceArea as PracticeArea);
         if (paContext) {
           systemPrompt += `\n\n${paContext}`;
         }
@@ -1098,7 +1155,10 @@ List each distinct defect once. Never repeat a statement. Never restate the same
       const completion = await this.callChatCompletion({
         systemPrompt,
         userPrompt,
-        maxTokens: 4096,
+        // Long attendance notes can produce a substantial structured finding
+        // set. Keep this aligned with the document-generation ceiling so JSON
+        // is not cut off and discarded at the old 4k-token boundary.
+        maxTokens: DOCUMENT_GENERATION_MAX_TOKENS,
         temperature: 0,
         responseFormat: 'json_object',
         frequencyPenalty: 0.3,
@@ -1190,6 +1250,7 @@ List each distinct defect once. Never repeat a statement. Never restate the same
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
       cost: result.cost,
+      stopReason: result.stopReason,
     };
   }
 
@@ -1210,7 +1271,7 @@ List each distinct defect once. Never repeat a statement. Never restate the same
       const fullUserPrompt = revision
         ? `${userPrompt}\n${formatRevisionInstructions(revision)}`
         : userPrompt;
-      const temperature = revision ? 0 : 0;
+      const temperature = 0;
       console.log(
         `Generating document with ${modelLabel}${revision ? ' (further version)' : ''}...`,
       );
@@ -1218,18 +1279,59 @@ List each distinct defect once. Never repeat a statement. Never restate the same
       const completion = await this.callChatCompletion({
         systemPrompt,
         userPrompt: fullUserPrompt,
-        maxTokens: 4000,
+        maxTokens: DOCUMENT_GENERATION_MAX_TOKENS,
         temperature,
       });
 
-      const rawContent = completion.content;
-      const inputTokens = completion.inputTokens;
-      const outputTokens = completion.outputTokens;
-      const cost = completion.cost;
+      let content = sanitizeModelProseDashes(ensureBoldHeadings(completion.content));
+      let inputTokens = completion.inputTokens;
+      let outputTokens = completion.outputTokens;
+      let cost = completion.cost;
+      let stopReason = completion.stopReason;
 
-      const content = sanitizeModelProseDashes(ensureBoldHeadings(rawContent));
+      let continuationPass = 0;
+      while (
+        (stopReason === 'max_tokens' || looksLikeTruncatedDocumentBody(content)) &&
+        continuationPass < DOCUMENT_CONTINUATION_MAX_PASSES
+      ) {
+        continuationPass += 1;
+        console.warn(
+          `Document output appears truncated; requesting continuation (pass ${continuationPass})...`,
+        );
+        const tail = content.slice(Math.max(0, content.length - 2000));
+        const cont = await this.callChatCompletion({
+          systemPrompt: `${systemPrompt}
 
-      console.log(`Document generated with ${modelLabel}. Input tokens: ${inputTokens}, Output tokens: ${outputTokens}, Cost: $${cost.toFixed(4)}`);
+CONTINUATION MODE: The previous response was cut off mid-document because of the output length limit. Output ONLY the missing continuation from the exact cutoff point. Do not repeat text already written. Do not restart the document. Do not add system headers, privilege footers, or "Prepared by" lines.`,
+          userPrompt: `The document so far ends with:
+---
+${tail}
+---
+
+Original generation brief (context only — do not regenerate from scratch):
+${fullUserPrompt}
+
+Continue seamlessly from the cutoff.`,
+          maxTokens: DOCUMENT_GENERATION_MAX_TOKENS,
+          temperature: 0,
+        });
+        const next = sanitizeModelProseDashes(ensureBoldHeadings(cont.content));
+        content = joinDocumentContinuation(content, next);
+        inputTokens += cont.inputTokens;
+        outputTokens += cont.outputTokens;
+        cost += cont.cost;
+        stopReason = cont.stopReason;
+      }
+
+      if (stopReason === 'max_tokens' || looksLikeTruncatedDocumentBody(content)) {
+        console.warn(
+          'Document may still appear truncated after continuation passes — review before filing.',
+        );
+      }
+
+      console.log(
+        `Document generated with ${modelLabel}. Input tokens: ${inputTokens}, Output tokens: ${outputTokens}, Cost: $${cost.toFixed(4)}${continuationPass ? ` (${continuationPass} continuation pass(es))` : ''}`,
+      );
 
       return {
         content,

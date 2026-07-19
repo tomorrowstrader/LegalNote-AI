@@ -10,6 +10,8 @@ export interface PrivilegedLLMResult {
   usage: PrivilegedLLMUsage;
   latencyMs: number;
   cost: number;
+  /** Provider termination reason, e.g. "end_turn" or "max_tokens". */
+  stopReason?: string;
 }
 
 export interface PrivilegedLLMGenerateOptions {

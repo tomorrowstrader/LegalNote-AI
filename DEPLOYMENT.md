@@ -44,6 +44,7 @@ For production deployment, ensure these are set in Deployment secrets:
 ### Required for document production (Meeting-to-Matter™ / Bedrock):
 - `PRIVILEGED_LLM_PROVIDER` - Must be `bedrock` (privileged client data must not use other LLM providers)
 - `BEDROCK_PRIVILEGED_MODEL_ID` - EU inference profile ID, e.g. `eu.anthropic.claude-sonnet-4-6`
+- `BEDROCK_REQUEST_TIMEOUT_MS` - optional Bedrock request timeout; defaults to 900000 (15 minutes) for long legal-document generation
 - `AWS_REGION` - Must start with `eu-` (e.g. `eu-west-2`)
 - `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` - IAM credentials with Bedrock Converse access in that region
 

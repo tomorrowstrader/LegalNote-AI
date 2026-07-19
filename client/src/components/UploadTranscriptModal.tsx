@@ -25,6 +25,7 @@ import { FileText, Loader2, Upload } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
+import { stripRtfToPlainText } from "@shared/stripRtf";
 
 interface UploadTranscriptModalProps {
   open: boolean;
@@ -103,10 +104,15 @@ export default function UploadTranscriptModal({
   const handleFileChange = async (file: File | null) => {
     if (!file) return;
     const lower = file.name.toLowerCase();
-    if (!lower.endsWith(".txt") && file.type !== "text/plain") {
+    const isTxt = lower.endsWith(".txt") || file.type === "text/plain";
+    const isRtf =
+      lower.endsWith(".rtf") ||
+      file.type === "application/rtf" ||
+      file.type === "text/rtf";
+    if (!isTxt && !isRtf) {
       toast({
         title: "Unsupported file",
-        description: "Upload a .txt transcript for now. DOCX and PDF support comes next.",
+        description: "Upload a .txt or .rtf transcript. DOCX and PDF support comes next.",
         variant: "destructive",
       });
       return;
@@ -119,7 +125,16 @@ export default function UploadTranscriptModal({
       });
       return;
     }
-    const text = await file.text();
+    const raw = await file.text();
+    const text = stripRtfToPlainText(raw);
+    if (raw.replace(/^\uFEFF/, "").trimStart().startsWith("{\\rtf") && text.trim().length < 40) {
+      toast({
+        title: "Could not read RTF",
+        description: "The file looks like RTF but no readable text was extracted. Try exporting as plain text.",
+        variant: "destructive",
+      });
+      return;
+    }
     setContent(text);
     setSource("file");
     setOriginalFilename(file.name);
@@ -176,7 +191,7 @@ export default function UploadTranscriptModal({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".txt,text/plain"
+                  accept=".txt,.rtf,text/plain,application/rtf,text/rtf"
                   className="hidden"
                   onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
                   data-testid="input-transcript-file"
@@ -189,7 +204,7 @@ export default function UploadTranscriptModal({
                   data-testid="button-choose-transcript-file"
                 >
                   <Upload className="w-3.5 h-3.5 mr-1.5" />
-                  Choose .txt
+                  Choose file
                 </Button>
               </div>
             </div>

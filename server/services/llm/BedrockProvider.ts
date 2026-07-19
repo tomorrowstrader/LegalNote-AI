@@ -30,10 +30,21 @@ const JSON_ONLY_INSTRUCTION = `
 
 CRITICAL OUTPUT FORMAT: You MUST respond with ONLY a single valid JSON object. Do not include any prose, explanation, markdown code fences, or any text before or after the JSON. Escape special characters inside JSON strings correctly (including newlines in long string values).`;
 
-const DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
+// A 16k-token legal document can take several minutes to generate. The old
+// 120-second timeout aborted otherwise healthy long-document requests.
+const DEFAULT_REQUEST_TIMEOUT_MS = 900_000;
 const DEFAULT_MAX_ATTEMPTS = 5;
 const INITIAL_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 30_000;
+
+export function resolveBedrockRequestTimeoutMs(
+  explicitTimeout?: number,
+  configuredTimeout = process.env.BEDROCK_REQUEST_TIMEOUT_MS,
+): number {
+  if (explicitTimeout !== undefined) return explicitTimeout;
+  const parsed = Number(configuredTimeout);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_REQUEST_TIMEOUT_MS;
+}
 
 export type BedrockErrorCode =
   | 'configuration'
@@ -230,7 +241,7 @@ export class BedrockProvider implements PrivilegedLLMProvider {
     assertEuConfiguration(region, modelId);
 
     this.modelId = modelId;
-    this.requestTimeoutMs = options?.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    this.requestTimeoutMs = resolveBedrockRequestTimeoutMs(options?.requestTimeoutMs);
     this.maxAttempts = options?.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
     this.client = new BedrockRuntimeClient({ region });
   }
@@ -277,6 +288,7 @@ export class BedrockProvider implements PrivilegedLLMProvider {
       usage,
       latencyMs: Date.now() - start,
       cost: calculateBedrockSonnet46Cost(usage),
+      stopReason: response.stopReason,
     };
   }
 

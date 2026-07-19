@@ -14,6 +14,7 @@ export interface PrivilegedCompleteResult {
   inputTokens: number;
   outputTokens: number;
   cost: number;
+  stopReason?: string;
 }
 
 /** Single production entry point for privileged LLM calls outside the DocumentService seam. */
@@ -34,5 +35,6 @@ export async function privilegedComplete(
     inputTokens: result.usage.inputTokens,
     outputTokens: result.usage.outputTokens,
     cost: result.cost,
+    stopReason: result.stopReason,
   };
 }

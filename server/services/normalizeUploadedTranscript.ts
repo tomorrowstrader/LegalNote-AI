@@ -1,3 +1,5 @@
+import { stripRtfToPlainText } from "@shared/stripRtf";
+
 export interface ParsedUtterance {
   speaker: string;
   text: string;
@@ -9,9 +11,9 @@ export interface ParsedUtterance {
 const MAX_TRANSCRIPT_CHARS = 1_000_000;
 const MIN_TRANSCRIPT_CHARS = 40;
 
-/** Strip BOM, normalize newlines, collapse trailing whitespace per line. */
+/** Strip RTF if present, then BOM / newlines / trailing whitespace. */
 export function sanitizeTranscriptText(raw: string): string {
-  return raw
+  return stripRtfToPlainText(raw)
     .replace(/^\uFEFF/, "")
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
