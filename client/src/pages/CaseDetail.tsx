@@ -138,12 +138,16 @@ function getProcessingCreepCap(realProgress: number): number {
     const docGenMilestone = PROCESSING_PROGRESS_MILESTONES.find((m) => m >= 40);
     if (docGenMilestone) return docGenMilestone - 1;
   }
-  const next = getNextProcessingMilestone(realProgress);
-  const further = getNextProcessingMilestone(next);
-  // Doc-gen (server sits at 40 for a long time) must not park the bar at 54%.
-  // Creep toward the milestone after next so the UI keeps moving through LLM waits.
-  if (further > next && (realProgress >= 40 || next - realProgress <= 5)) {
-    return further - 1;
+  // Long attendance-note generation sits at server 40 — creep toward 69 so the
+  // bar doesn't park at 54%. Do NOT open the gate all the way to 99% here; later
+  // phases (client letter at 70) must keep a truthful gap to 100.
+  if (realProgress >= 40 && realProgress < 55) {
+    return 69;
+  }
+  let next = getNextProcessingMilestone(realProgress);
+  if (next - realProgress <= 5) {
+    const further = getNextProcessingMilestone(next);
+    if (further > next) next = further;
   }
   return next - 1;
 }
@@ -655,9 +659,13 @@ export default function CaseDetail() {
       setEtaSeconds((prev) => {
         if (progress >= 100) return 0;
         if (prev == null) return target;
-        if (progressAdvanced) return Math.min(prev, target);
-        // Soft 1s countdown, but never invent an "almost done" floor mid-run.
-        // Before 90% real progress, stay at/above the latest estimate (min 8s).
+        // When the estimate drops (e.g. entering client-letter phase), catch down
+        // immediately instead of holding a stale multi-minute countdown.
+        if (target < prev) {
+          return Math.max(progress >= 90 ? 3 : 8, target);
+        }
+        if (progressAdvanced) return target;
+        // Soft 1s countdown; never invent "almost done" before 90% real progress
         const floor = progress >= 90 ? 3 : Math.max(8, target);
         return Math.max(floor, prev - 1);
       });

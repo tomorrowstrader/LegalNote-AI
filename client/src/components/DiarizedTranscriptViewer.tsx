@@ -187,7 +187,13 @@ export default function DiarizedTranscriptViewer({
   if (!utterances || utterances.length === 0) {
     if (fallbackContent) {
       return (
-        <div className="space-y-4">
+        <div
+          className="space-y-4 max-h-[min(70vh,720px)] overflow-y-auto overscroll-contain pr-1"
+          data-testid="container-transcript-fallback"
+        >
+          <p className="text-xs text-muted-foreground sticky top-0 bg-card/95 backdrop-blur-sm py-1 z-10">
+            Full transcript · {plainTranscriptLength(fallbackContent).toLocaleString()} characters
+          </p>
           <p className="text-foreground whitespace-pre-wrap break-words" data-testid="text-transcript-fallback">
             {fallbackContent}
           </p>
@@ -206,19 +212,25 @@ export default function DiarizedTranscriptViewer({
     ? utterances[utterances.length - 1].end 
     : 0;
 
-  // Prefer the stored full transcript when speaker segments are shorter / incomplete
+  // Prefer the longer of stored full content vs speaker segments — incomplete
+  // diarization or a truncated correction must never hide the fuller capture.
   const utteranceTextLen = plainTranscriptLength(utterances.map((u) => u.text).join(" "));
   const fallbackTextLen = fallbackContent ? plainTranscriptLength(fallbackContent) : 0;
   const preferFullContent =
     !!fallbackContent &&
-    fallbackTextLen > Math.max(utteranceTextLen * 1.1, utteranceTextLen + 80);
+    (fallbackTextLen > utteranceTextLen + 20 ||
+      (utterances.length === 1 && fallbackTextLen >= utteranceTextLen));
 
   if (preferFullContent) {
     return (
-      <div className="space-y-3" data-testid="container-diarized-transcript">
-        <p className="text-xs text-muted-foreground" data-testid="text-transcript-full-source-note">
+      <div
+        className="space-y-3 max-h-[min(70vh,720px)] overflow-y-auto overscroll-contain pr-1"
+        data-testid="container-diarized-transcript"
+      >
+        <p className="text-xs text-muted-foreground sticky top-0 bg-card/95 backdrop-blur-sm py-1 z-10" data-testid="text-transcript-full-source-note">
           Showing the full transcript capture
           {utterances.length === 1 ? " (speaker timing was not fully segmented)." : "."}
+          {fallbackTextLen > 0 ? ` · ${fallbackTextLen.toLocaleString()} characters` : ""}
         </p>
         <p
           className="text-foreground whitespace-pre-wrap break-words text-sm leading-relaxed"
@@ -411,7 +423,10 @@ export default function DiarizedTranscriptViewer({
   };
 
   return (
-    <div className="space-y-4" data-testid="container-diarized-transcript">
+    <div
+      className="space-y-4 max-h-[min(70vh,720px)] overflow-y-auto overscroll-contain pr-1"
+      data-testid="container-diarized-transcript"
+    >
       {/* Sticky transcript controls header - sticks to top of its scroll container */}
       <div 
         className="sticky top-0 z-30 bg-card pb-3 pt-2 border-b"

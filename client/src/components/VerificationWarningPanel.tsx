@@ -1,5 +1,15 @@
-import { useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, Eye, FileSearch, Pencil, RefreshCw, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  FileSearch,
+  Pencil,
+  RefreshCw,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -36,6 +46,196 @@ export interface VerificationWarningPanelProps {
   isResolving?: boolean;
 }
 
+function ordinalLabel(n: number): string {
+  const abs = Math.abs(n);
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (abs % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
+interface WarningCardProps {
+  warning: VerificationWarning;
+  index: number;
+  testIdPrefix: string;
+  canAct: boolean;
+  onViewInNote: (warning: VerificationWarning) => void;
+  onSearchTranscript: (warning: VerificationWarning) => void;
+  onEditStatement: (warning: VerificationWarning) => void;
+  onProduceCorrectedVersion: (warning: VerificationWarning) => void;
+  onRequestResolve: (
+    warning: VerificationWarning,
+    disposition: VerificationResolveDisposition,
+  ) => void;
+}
+
+function WarningCard({
+  warning,
+  index,
+  testIdPrefix,
+  canAct,
+  onViewInNote,
+  onSearchTranscript,
+  onEditStatement,
+  onProduceCorrectedVersion,
+  onRequestResolve,
+}: WarningCardProps) {
+  const resolved = !!warning.resolution;
+
+  return (
+    <div
+      className={cn(
+        "rounded-md border border-yellow-200/80 dark:border-yellow-800/60 bg-background/40 p-3 space-y-2",
+        resolved && "opacity-70",
+      )}
+      data-testid={`text-verification-warning-${testIdPrefix}-${index}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-medium text-yellow-900 dark:text-yellow-200">
+          {verificationCategoryTitle(warning.category)}
+        </p>
+        {resolved && (
+          <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <CheckCircle2 className="w-3 h-3" />
+            Reviewed
+          </span>
+        )}
+      </div>
+
+      {warning.documentQuote ? (
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
+            Statement in the note
+          </p>
+          <p className="text-xs text-foreground leading-relaxed">
+            “{warning.documentQuote}”
+          </p>
+        </div>
+      ) : null}
+
+      <div>
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
+          Why this was flagged
+        </p>
+        <p className="text-xs text-yellow-800 dark:text-yellow-300 leading-relaxed">
+          {warning.explanation}
+        </p>
+      </div>
+
+      <div>
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
+          Meeting record
+        </p>
+        {warning.transcriptQuote ? (
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Related passage: “{warning.transcriptQuote}”
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            No matching passage found in the meeting record.
+          </p>
+        )}
+      </div>
+
+      {resolved && warning.resolution && (
+        <p className="text-xs text-muted-foreground">
+          {warning.resolution.disposition === "confirmed_professionally_derived"
+            ? "Confirmed as professionally derived"
+            : "Dismissed"}
+          : {warning.resolution.reason}
+        </p>
+      )}
+
+      {!resolved && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {warning.documentQuote ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1"
+              onClick={() => onViewInNote(warning)}
+              data-testid={`button-view-in-note-${testIdPrefix}-${index}`}
+            >
+              <Eye className="w-3 h-3" />
+              View in note
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1"
+            onClick={() => onSearchTranscript(warning)}
+            data-testid={`button-search-transcript-${testIdPrefix}-${index}`}
+          >
+            <FileSearch className="w-3 h-3" />
+            {warning.transcriptQuote ? "View in transcript" : "Search transcript"}
+          </Button>
+          {canAct && (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1"
+                onClick={() => onEditStatement(warning)}
+                data-testid={`button-edit-statement-${testIdPrefix}-${index}`}
+              >
+                <Pencil className="w-3 h-3" />
+                Edit statement
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1"
+                onClick={() => onProduceCorrectedVersion(warning)}
+                data-testid={`button-produce-from-warning-${testIdPrefix}-${index}`}
+              >
+                <RefreshCw className="w-3 h-3" />
+                Produce corrected version
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs gap-1"
+                onClick={() =>
+                  onRequestResolve(warning, "confirmed_professionally_derived")
+                }
+                data-testid={`button-confirm-derived-${testIdPrefix}-${index}`}
+              >
+                <CheckCircle2 className="w-3 h-3" />
+                Confirm as derived
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs gap-1"
+                onClick={() => onRequestResolve(warning, "dismissed")}
+                data-testid={`button-dismiss-warning-${testIdPrefix}-${index}`}
+              >
+                <X className="w-3 h-3" />
+                Dismiss with reason
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function VerificationWarningPanel({
   warnings: rawWarnings,
   testIdPrefix,
@@ -49,8 +249,11 @@ export function VerificationWarningPanel({
   isResolving,
 }: VerificationWarningPanelProps) {
   const warnings = useMemo(() => coerceVerificationWarnings(rawWarnings), [rawWarnings]);
-  const [expanded, setExpanded] = useState(true);
+  // Always start collapsed so multiple flags do not dominate the document viewport.
+  const [expanded, setExpanded] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [slideDirection, setSlideDirection] = useState<"left" | "right">("right");
   const [resolveTarget, setResolveTarget] = useState<{
     warning: VerificationWarning;
     disposition: VerificationResolveDisposition;
@@ -62,12 +265,37 @@ export function VerificationWarningPanel({
   const visible = showResolved ? warnings : openWarnings.length > 0 ? openWarnings : warnings;
   const summary = summarizeOpenVerificationWarnings(warnings);
   const canAct = documentStatus === "draft" && !isDemoMode;
+  const total = visible.length;
+  const safeIndex = total === 0 ? 0 : Math.min(activeIndex, total - 1);
+  const activeWarning = total > 0 ? visible[safeIndex] : null;
+  const hasCarousel = total > 1;
+  const canGoPrev = safeIndex > 0;
+  const canGoNext = safeIndex < total - 1;
+
+  useEffect(() => {
+    setActiveIndex((prev) => {
+      if (visible.length === 0) return 0;
+      return Math.min(prev, visible.length - 1);
+    });
+  }, [visible.length]);
 
   if (warnings.length === 0) return null;
 
   const closeResolve = () => {
     setResolveTarget(null);
     setResolveReason("");
+  };
+
+  const goPrev = () => {
+    if (!canGoPrev) return;
+    setSlideDirection("left");
+    setActiveIndex((i) => Math.max(0, i - 1));
+  };
+
+  const goNext = () => {
+    if (!canGoNext) return;
+    setSlideDirection("right");
+    setActiveIndex((i) => Math.min(total - 1, i + 1));
   };
 
   return (
@@ -111,165 +339,91 @@ export function VerificationWarningPanel({
               )}
             </p>
 
-            {expanded && (
-              <ul className="mt-3 space-y-3">
-                {visible.map((warning, i) => {
-                  const resolved = !!warning.resolution;
-                  return (
-                    <li
-                      key={warning.id}
+            {expanded && activeWarning && (
+              <div className="mt-3 space-y-2">
+                {hasCarousel && (
+                  <div
+                    className="flex items-center justify-between gap-2"
+                    data-testid={`carousel-verification-warnings-${testIdPrefix}`}
+                  >
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
                       className={cn(
-                        "rounded-md border border-yellow-200/80 dark:border-yellow-800/60 bg-background/40 p-3 space-y-2",
-                        resolved && "opacity-70",
+                        "h-8 px-2 gap-1 text-xs",
+                        !canGoPrev && "opacity-30 pointer-events-none",
                       )}
-                      data-testid={`text-verification-warning-${testIdPrefix}-${i}`}
+                      disabled={!canGoPrev}
+                      aria-disabled={!canGoPrev}
+                      onClick={goPrev}
+                      data-testid={`button-warning-prev-${testIdPrefix}`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-xs font-medium text-yellow-900 dark:text-yellow-200">
-                          {verificationCategoryTitle(warning.category)}
-                        </p>
-                        {resolved && (
-                          <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Reviewed
-                          </span>
-                        )}
-                      </div>
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </Button>
 
-                      {warning.documentQuote ? (
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
-                            Statement in the note
-                          </p>
-                          <p className="text-xs text-foreground leading-relaxed">
-                            “{warning.documentQuote}”
-                          </p>
-                        </div>
-                      ) : null}
-
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
-                          Why this was flagged
-                        </p>
-                        <p className="text-xs text-yellow-800 dark:text-yellow-300 leading-relaxed">
-                          {warning.explanation}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
-                          Meeting record
-                        </p>
-                        {warning.transcriptQuote ? (
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            Related passage: “{warning.transcriptQuote}”
-                          </p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            No matching passage found in the meeting record.
-                          </p>
-                        )}
-                      </div>
-
-                      {resolved && warning.resolution && (
-                        <p className="text-xs text-muted-foreground">
-                          {warning.resolution.disposition === "confirmed_professionally_derived"
-                            ? "Confirmed as professionally derived"
-                            : "Dismissed"}
-                          : {warning.resolution.reason}
-                        </p>
-                      )}
-
-                      {!resolved && (
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          {warning.documentQuote ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs gap-1"
-                              onClick={() => onViewInNote(warning)}
-                              data-testid={`button-view-in-note-${testIdPrefix}-${i}`}
-                            >
-                              <Eye className="w-3 h-3" />
-                              View in note
-                            </Button>
-                          ) : null}
-                          <Button
+                    <p className="text-xs text-yellow-800 dark:text-yellow-300 tabular-nums text-center">
+                      Flag {safeIndex + 1} of {total}
+                      {canGoNext ? (
+                        <span className="text-muted-foreground">
+                          {" · "}
+                          <button
                             type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs gap-1"
-                            onClick={() => onSearchTranscript(warning)}
-                            data-testid={`button-search-transcript-${testIdPrefix}-${i}`}
+                            onClick={goNext}
+                            className="underline hover:no-underline text-yellow-800 dark:text-yellow-300"
+                            data-testid={`button-warning-view-next-label-${testIdPrefix}`}
                           >
-                            <FileSearch className="w-3 h-3" />
-                            {warning.transcriptQuote ? "View in transcript" : "Search transcript"}
-                          </Button>
-                          {canAct && (
-                            <>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs gap-1"
-                                onClick={() => onEditStatement(warning)}
-                                data-testid={`button-edit-statement-${testIdPrefix}-${i}`}
-                              >
-                                <Pencil className="w-3 h-3" />
-                                Edit statement
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs gap-1"
-                                onClick={() => onProduceCorrectedVersion(warning)}
-                                data-testid={`button-produce-from-warning-${testIdPrefix}-${i}`}
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                                Produce corrected version
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="secondary"
-                                className="h-7 text-xs gap-1"
-                                onClick={() =>
-                                  setResolveTarget({
-                                    warning,
-                                    disposition: "confirmed_professionally_derived",
-                                  })
-                                }
-                                data-testid={`button-confirm-derived-${testIdPrefix}-${i}`}
-                              >
-                                <CheckCircle2 className="w-3 h-3" />
-                                Confirm as derived
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 text-xs gap-1"
-                                onClick={() =>
-                                  setResolveTarget({
-                                    warning,
-                                    disposition: "dismissed",
-                                  })
-                                }
-                                data-testid={`button-dismiss-warning-${testIdPrefix}-${i}`}
-                              >
-                                <X className="w-3 h-3" />
-                                Dismiss with reason
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                            View {ordinalLabel(safeIndex + 2)}
+                          </button>
+                        </span>
+                      ) : null}
+                    </p>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className={cn(
+                        "h-8 px-2 gap-1 text-xs",
+                        !canGoNext && "opacity-30 pointer-events-none",
                       )}
-                    </li>
-                  );
-                })}
-              </ul>
+                      disabled={!canGoNext}
+                      aria-disabled={!canGoNext}
+                      onClick={goNext}
+                      data-testid={`button-warning-next-${testIdPrefix}`}
+                    >
+                      {canGoNext ? `View ${ordinalLabel(safeIndex + 2)}` : "Next"}
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+
+                <div className="overflow-hidden" key={`${activeWarning.id}-${safeIndex}`}>
+                  <div
+                    className={cn(
+                      "animate-in fade-in duration-300",
+                      slideDirection === "right"
+                        ? "slide-in-from-right-4"
+                        : "slide-in-from-left-4",
+                    )}
+                  >
+                    <WarningCard
+                      warning={activeWarning}
+                      index={safeIndex}
+                      testIdPrefix={testIdPrefix}
+                      canAct={canAct}
+                      onViewInNote={onViewInNote}
+                      onSearchTranscript={onSearchTranscript}
+                      onEditStatement={onEditStatement}
+                      onProduceCorrectedVersion={onProduceCorrectedVersion}
+                      onRequestResolve={(warning, disposition) =>
+                        setResolveTarget({ warning, disposition })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>

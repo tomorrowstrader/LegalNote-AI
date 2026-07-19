@@ -17,8 +17,8 @@ const MILESTONE_REMAINING: Array<{ progress: number; remaining: number }> = [
   { progress: 40, remaining: 80 },
   { progress: 42, remaining: 75 },
   { progress: 55, remaining: 45 },
-  { progress: 70, remaining: 30 },
-  { progress: 85, remaining: 15 },
+  { progress: 70, remaining: 35 },
+  { progress: 85, remaining: 18 },
   { progress: 100, remaining: 0 },
 ];
 
@@ -30,6 +30,17 @@ export function isProduceVersionStep(currentStep?: string): boolean {
     s.includes("derivation engine") ||
     s.includes("compile a further") ||
     s.includes("further version production")
+  );
+}
+
+/** Late pipeline steps are short LLM calls — ETA must stay tight. */
+function isLatePipelineStep(currentStep?: string): boolean {
+  if (!currentStep) return false;
+  const s = currentStep.toLowerCase();
+  return (
+    s.includes("client letter") ||
+    s.includes("verifying") ||
+    s.includes("processing complete")
   );
 }
 
@@ -85,10 +96,18 @@ export function estimateRemainingSeconds(params: {
   if (progress >= 100) return 0;
 
   const produceVersion = isProduceVersionStep(currentStep);
+  const latePhase = isLatePipelineStep(currentStep) || progress >= 70;
   const milestone = milestoneRemainingSeconds(progress, {
     audioDurationSec,
     produceVersion,
   });
+
+  // Late phases (client letter / verify) are short — hard-cap so early elapsed
+  // time from transcription/doc-gen cannot invent a multi-minute ETA at 99%.
+  if (latePhase) {
+    const lateCap = progress >= 85 ? 25 : produceVersion ? 40 : 45;
+    return Math.max(progress >= 95 ? 3 : 8, Math.min(milestone, lateCap));
+  }
 
   if (progress < 8 || elapsedSec < 5) {
     return milestone;
@@ -96,11 +115,14 @@ export function estimateRemainingSeconds(params: {
 
   const projectedTotal = elapsedSec / (progress / 100);
   const velocityRemaining = projectedTotal - elapsedSec;
-  const velocityWeight = Math.min(0.75, progress / 50);
+  // Light velocity blend only — never let a stalled milestone inflate ETA
+  // past ~1.35× the baseline for this step.
+  const velocityWeight = Math.min(0.35, progress / 100);
   const blended =
     milestone * (1 - velocityWeight) + Math.max(0, velocityRemaining) * velocityWeight;
+  const capped = Math.min(blended, milestone * 1.35);
 
-  return Math.max(progress >= 95 ? 3 : 8, Math.round(blended));
+  return Math.max(progress >= 95 ? 3 : 8, Math.round(capped));
 }
 
 export function formatEtaCountdown(seconds: number): string {

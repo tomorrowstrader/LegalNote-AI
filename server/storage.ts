@@ -1425,12 +1425,18 @@ export class MemStorage implements IStorage {
   }
 
   async getTranscriptByCase(caseId: string, userId: string): Promise<Transcript | undefined> {
-    const caseRecord = this.cases.get(caseId);
-    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
-    
-    return Array.from(this.transcripts.values()).find(
-      (transcript) => transcript.caseId === caseId
-    );
+    const caseRecord = await this.getCase(caseId, userId);
+    if (!caseRecord) return undefined;
+
+    // Prefer the longest capture, then the most recent — arbitrary first-row
+    // selection was returning an incomplete earlier session transcript.
+    return Array.from(this.transcripts.values())
+      .filter((transcript) => transcript.caseId === caseId)
+      .sort((a, b) => {
+        const lenDiff = (b.content?.length ?? 0) - (a.content?.length ?? 0);
+        if (lenDiff !== 0) return lenDiff;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      })[0];
   }
 
   async getTranscriptBySession(meetingSessionId: string): Promise<Transcript | undefined> {
@@ -3485,11 +3491,21 @@ export class DbStorage implements IStorage {
   }
 
   async getTranscriptByCase(caseId: string, userId: string): Promise<Transcript | undefined> {
-    const caseRecord = await db.select().from(cases).where(and(eq(cases.id, caseId), eq(cases.createdBy, userId)));
-    if (!caseRecord[0]) return undefined;
-    
-    const result = await db.select().from(transcripts).where(eq(transcripts.caseId, caseId));
-    return result[0];
+    // Align with getCase firm/assignee access — createdBy-only hid transcripts from firm colleagues
+    // and returning an unordered first row could surface a short earlier session capture.
+    const caseRecord = await this.getCase(caseId, userId);
+    if (!caseRecord) return undefined;
+
+    const result = await db
+      .select()
+      .from(transcripts)
+      .where(eq(transcripts.caseId, caseId))
+      .orderBy(desc(transcripts.createdAt));
+
+    if (result.length === 0) return undefined;
+    return result.reduce((best, row) =>
+      (row.content?.length ?? 0) > (best.content?.length ?? 0) ? row : best,
+    );
   }
 
   async getTranscriptBySession(meetingSessionId: string): Promise<Transcript | undefined> {

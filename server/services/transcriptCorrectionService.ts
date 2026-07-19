@@ -101,8 +101,27 @@ Return a JSON object with the corrected text and list of corrections made.`;
 
       console.log(`[TranscriptCorrection] Made ${result.corrections?.length || 0} corrections. Cost: $${cost.toFixed(4)}`);
 
+      const correctedText = result.correctedText || transcript;
+      // Guard against model max-token truncation mid-transcript (would store a cut sentence).
+      if (
+        typeof correctedText === "string" &&
+        transcript.length > 500 &&
+        correctedText.length < transcript.length * 0.9
+      ) {
+        console.warn(
+          `[TranscriptCorrection] Discarding truncated correction (${correctedText.length} vs ${transcript.length} chars)`,
+        );
+        return {
+          correctedText: transcript,
+          corrections: [],
+          inputTokens,
+          outputTokens,
+          cost,
+        };
+      }
+
       return {
-        correctedText: result.correctedText || transcript,
+        correctedText,
         corrections: result.corrections || [],
         inputTokens,
         outputTokens,

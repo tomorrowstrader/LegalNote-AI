@@ -3326,9 +3326,14 @@ export default function DocumentViewer({
                   />
                 </>
               ) : transcriptContent ? (
-                <p className="text-foreground whitespace-pre-wrap break-words" data-testid="text-transcript-fallback">
-                  {transcriptContent}
-                </p>
+                <div className="max-h-[min(70vh,720px)] overflow-y-auto overscroll-contain pr-1">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Full transcript · {transcriptContent.replace(/\s+/g, " ").trim().length.toLocaleString()} characters
+                  </p>
+                  <p className="text-foreground whitespace-pre-wrap break-words" data-testid="text-transcript-fallback">
+                    {transcriptContent}
+                  </p>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground italic">
                   Transcript not yet available. Process this case to produce a transcript.
