@@ -2,11 +2,10 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, Check, Loader2, ExternalLink, Trash2 } from "lucide-react";
-import type { TimeEntry } from "@shared/schema";
+import { Clock, Loader2, Pencil, Trash2 } from "lucide-react";
+import type { MeetingSession, TimeEntry } from "@shared/schema";
 import TimeRecordingModal from "./TimeRecordingModal";
 
 interface TimeEntriesViewerProps {
@@ -24,22 +23,14 @@ export default function TimeEntriesViewer({
 }: TimeEntriesViewerProps) {
   const { toast } = useToast();
   const [showRecordModal, setShowRecordModal] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
 
   const { data: entries = [], isLoading } = useQuery<TimeEntry[]>({
     queryKey: ["/api/cases", caseId, "time-entries"],
   });
 
-  const confirmMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return await apiRequest("PATCH", `/api/time-entries/${id}`, { status: "confirmed" });
-    },
-    onSuccess: () => {
-      toast({ title: "Time entry confirmed" });
-      queryClient.invalidateQueries({ queryKey: ["/api/cases", caseId, "time-entries"] });
-    },
-    onError: () => {
-      toast({ title: "Failed to confirm", variant: "destructive" });
-    },
+  const { data: sessions = [] } = useQuery<MeetingSession[]>({
+    queryKey: [`/api/cases/${caseId}/sessions`],
   });
 
   const deleteMutation = useMutation({
@@ -49,27 +40,24 @@ export default function TimeEntriesViewer({
     onSuccess: () => {
       toast({ title: "Time entry deleted" });
       queryClient.invalidateQueries({ queryKey: ["/api/cases", caseId, "time-entries"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/time-entries`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/time-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit/case", caseId] });
     },
     onError: () => {
       toast({ title: "Failed to delete", variant: "destructive" });
     },
   });
 
-  const pushToClioMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return await apiRequest("POST", `/api/time-entries/${id}/push-to-clio`, {});
-    },
-    onSuccess: () => {
-      toast({ title: "Pushed to Clio" });
-      queryClient.invalidateQueries({ queryKey: ["/api/cases", caseId, "time-entries"] });
-    },
-    onError: (error: any) => {
-      toast({ title: "Clio push failed", description: error.message || "Could not push to Clio", variant: "destructive" });
-    },
-  });
-
   const totalMinutes = entries.reduce((sum, e) => sum + e.durationMinutes, 0);
-  const totalValue = entries.reduce((sum, e) => sum + (e.durationMinutes / 60) * (parseFloat(e.hourlyRate) || 0), 0);
+  const totalUnits = entries.reduce((sum, entry) => sum + Math.ceil(entry.durationMinutes / 6), 0);
+  const sessionById = new Map(sessions.map((session) => [session.id, session]));
+
+  const getSessionName = (entry: TimeEntry) => {
+    const session = entry.meetingSessionId ? sessionById.get(entry.meetingSessionId) : undefined;
+    if (!session) return "Unlinked legacy entry";
+    return session.sessionTitle || session.recordingType.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  };
 
   if (isLoading) {
     return (
@@ -86,7 +74,7 @@ export default function TimeEntriesViewer({
         <div className="text-sm text-muted-foreground">
           {entries.length > 0 && (
             <span>
-              {entries.length} {entries.length === 1 ? "entry" : "entries"} · {totalMinutes} mins · £{totalValue.toFixed(2)}
+              {entries.length} {entries.length === 1 ? "entry" : "entries"} · {Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m · {totalUnits} units
             </span>
           )}
         </div>
@@ -107,79 +95,59 @@ export default function TimeEntriesViewer({
           No time entries recorded for this matter yet. Click "Record Time" to add one.
         </p>
       ) : (
-        <div className="divide-y divide-border">
-          {entries.map((entry) => {
-            const entryTotal = ((entry.durationMinutes / 60) * parseFloat(entry.hourlyRate)).toFixed(2);
-            return (
-              <div key={entry.id} className="py-3 flex items-start justify-between gap-3" data-testid={`time-entry-${entry.id}`}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate" data-testid={`text-time-desc-${entry.id}`}>
-                    {entry.description}
-                  </p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                    <span>{new Date(entry.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
-                    <span>{entry.durationMinutes} mins</span>
-                    <span>£{entry.hourlyRate}/hr</span>
-                    <span className="font-medium text-foreground">£{entryTotal}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Badge
-                    variant={entry.status === "confirmed" ? "default" : "outline"}
-                    className={entry.status === "confirmed" ? "bg-accent" : ""}
-                    data-testid={`badge-status-${entry.id}`}
-                  >
-                    {entry.status === "confirmed" ? "Confirmed" : "Draft"}
-                  </Badge>
-                  {entry.status === "draft" && (
-                    <>
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr className="text-left">
+                <th className="px-3 py-2 font-medium text-muted-foreground">Session</th>
+                <th className="px-3 py-2 font-medium text-muted-foreground text-right">Hours</th>
+                <th className="px-3 py-2 font-medium text-muted-foreground text-right">Minutes</th>
+                <th className="px-3 py-2 font-medium text-muted-foreground text-right">Units</th>
+                <th className="px-3 py-2 font-medium text-muted-foreground text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {entries.map((entry) => (
+                <tr key={entry.id} data-testid={`time-entry-${entry.id}`}>
+                  <td className="px-3 py-3">
+                    <p className="font-medium text-foreground" data-testid={`text-time-session-${entry.id}`}>
+                      {getSessionName(entry)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(entry.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    </p>
+                  </td>
+                  <td className="px-3 py-3 text-right">{Math.floor(entry.durationMinutes / 60)}</td>
+                  <td className="px-3 py-3 text-right">{entry.durationMinutes % 60}</td>
+                  <td className="px-3 py-3 text-right">{Math.ceil(entry.durationMinutes / 6)}</td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center justify-end gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => confirmMutation.mutate(entry.id)}
-                        disabled={confirmMutation.isPending}
-                        data-testid={`button-confirm-entry-${entry.id}`}
+                        onClick={() => setEditingEntry(entry)}
+                        data-testid={`button-edit-entry-${entry.id}`}
                       >
-                        {confirmMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                        <Pencil className="w-3 h-3 mr-1" />
+                        Edit
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => deleteMutation.mutate(entry.id)}
-                        disabled={deleteMutation.isPending}
-                        data-testid={`button-delete-entry-${entry.id}`}
-                      >
-                        {deleteMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                      </Button>
-                    </>
-                  )}
-                  {entry.status === "confirmed" && !entry.clioTimeEntryId && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => pushToClioMutation.mutate(entry.id)}
-                      disabled={pushToClioMutation.isPending}
-                      data-testid={`button-push-clio-${entry.id}`}
-                    >
-                      {pushToClioMutation.isPending ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <>
-                          <ExternalLink className="w-3 h-3 mr-1" />
-                          Push to Clio
-                        </>
+                      {entry.status === "draft" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteMutation.mutate(entry.id)}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-entry-${entry.id}`}
+                        >
+                          {deleteMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                        </Button>
                       )}
-                    </Button>
-                  )}
-                  {entry.clioTimeEntryId && (
-                    <Badge variant="secondary" data-testid={`badge-clio-${entry.id}`}>
-                      In Clio
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -190,6 +158,17 @@ export default function TimeEntriesViewer({
         caseTitle={caseTitle}
         matterReference={matterReference}
         durationSeconds={durationSeconds}
+      />
+      <TimeRecordingModal
+        open={!!editingEntry}
+        onOpenChange={(open) => {
+          if (!open) setEditingEntry(null);
+        }}
+        caseId={caseId}
+        caseTitle={caseTitle}
+        matterReference={matterReference}
+        durationSeconds={durationSeconds}
+        entry={editingEntry}
       />
     </div>
   );

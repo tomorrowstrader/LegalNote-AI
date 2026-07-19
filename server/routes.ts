@@ -2115,6 +2115,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const recordings = await storage.getAudioRecordingsByCaseId(req.params.id);
       res.json(recordings.map((recording) => ({
         id: recording.id,
+        meetingSessionId: recording.meetingSessionId,
+        consentSegmentPath: recording.consentSegmentPath,
+        consentDurationSeconds: recording.consentDurationSeconds,
+        duration: recording.duration,
+        recordedAt: recording.recordedAt,
+        expiresAt: recording.expiresAt,
         holdReleaseGraceUntil: recording.holdReleaseGraceUntil,
         colpReviewStatus: recording.colpReviewStatus,
         deletedAt: recording.deletedAt,
@@ -2485,9 +2491,27 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (!caseRecord) {
         return res.status(404).json({ message: "Case not found" });
       }
+      const sessionIdSchema = z.string().uuid("A valid session reference is required");
+      const meetingSessionId = sessionIdSchema.parse(req.body.meetingSessionId);
+      const session = await storage.getMeetingSession(meetingSessionId);
+      if (!session || session.caseId !== req.params.id) {
+        return res.status(400).json({ message: "Session does not belong to this matter" });
+      }
       const body = { ...req.body, caseId: req.params.id, userId };
       const validated = insertTimeEntrySchema.parse(body);
       const entry = await storage.createTimeEntry(validated);
+      await logAuditEvent(userId, "time_entry_created", {
+        caseId: req.params.id,
+        metadata: {
+          timeEntryId: entry.id,
+          meetingSessionId: entry.meetingSessionId,
+          durationMinutes: entry.durationMinutes,
+          units: Math.ceil(entry.durationMinutes / 6),
+          sourceDurationSeconds: session.durationSeconds,
+          action: "create",
+        },
+        req,
+      });
       res.json(entry);
     } catch (error: any) {
       next(error);
@@ -2509,10 +2533,36 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         description: z.string().min(1).max(5000).optional(),
         hourlyRate: z.string().regex(/^\d+(\.\d{1,2})?$/, "Must be a valid decimal number").optional(),
         status: z.enum(["draft", "confirmed"]).optional(),
-        clioTimeEntryId: z.string().optional(),
+        meetingSessionId: z.string().uuid().optional(),
       });
       const validated = updateSchema.parse(req.body);
+      if (validated.meetingSessionId) {
+        const session = await storage.getMeetingSession(validated.meetingSessionId);
+        if (!session || session.caseId !== entry.caseId) {
+          return res.status(400).json({ message: "Session does not belong to this matter" });
+        }
+      }
       const updated = await storage.updateTimeEntry(req.params.id, validated);
+      if (!updated) {
+        return res.status(404).json({ message: "Time entry not found" });
+      }
+      const changedFields = Object.keys(validated).filter(
+        (field) => entry[field as keyof typeof entry] !== updated[field as keyof typeof updated],
+      );
+      await logAuditEvent(userId, "time_entry_updated", {
+        caseId: entry.caseId,
+        metadata: {
+          timeEntryId: entry.id,
+          meetingSessionId: updated.meetingSessionId,
+          changedFields,
+          before: Object.fromEntries(changedFields.map((field) => [field, entry[field as keyof typeof entry]])),
+          after: Object.fromEntries(changedFields.map((field) => [field, updated[field as keyof typeof updated]])),
+          durationMinutes: updated.durationMinutes,
+          units: Math.ceil(updated.durationMinutes / 6),
+          action: "update",
+        },
+        req,
+      });
       res.json(updated);
     } catch (error: any) {
       next(error);
@@ -2530,6 +2580,17 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(403).json({ message: "Not authorised" });
       }
       await storage.deleteTimeEntry(req.params.id);
+      await logAuditEvent(userId, "time_entry_deleted", {
+        caseId: entry.caseId,
+        metadata: {
+          timeEntryId: entry.id,
+          meetingSessionId: entry.meetingSessionId,
+          durationMinutes: entry.durationMinutes,
+          units: Math.ceil(entry.durationMinutes / 6),
+          action: "delete",
+        },
+        req,
+      });
       res.json({ success: true });
     } catch (error: any) {
       next(error);
@@ -2566,13 +2627,15 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         ? await storage.getAllTimeEntries(startDate, endDate)
         : await storage.getTimeEntriesByUser(userId, startDate, endDate);
 
-      const csvHeader = "Date,Fee Earner,Matter,Client,Description,Duration (mins),Hourly Rate,Total,Status\n";
+      const csvHeader = "Date,Fee Earner,Matter,Client,Session,Hours,Minutes,Units\n";
       const csvRows = entries.map(e => {
-        const rate = parseFloat(e.hourlyRate) || 0;
         const date = new Date(e.createdAt).toISOString().split('T')[0];
-        const total = ((e.durationMinutes / 60) * rate).toFixed(2);
         const escape = (s: string | undefined | null) => `"${(s || '').replace(/"/g, '""')}"`;
-        return `${date},${escape((e as any).userName)},${escape((e as any).caseTitle)},${escape((e as any).clientName)},${escape(e.description)},${e.durationMinutes},${e.hourlyRate},${total},${e.status}`;
+        const session = (e as any).sessionTitle
+          || ((e as any).sessionRecordingType
+            ? String((e as any).sessionRecordingType).replace(/_/g, " ")
+            : "Unlinked legacy entry");
+        return `${date},${escape((e as any).userName)},${escape((e as any).caseTitle)},${escape((e as any).clientName)},${escape(session)},${Math.floor(e.durationMinutes / 60)},${e.durationMinutes % 60},${Math.ceil(e.durationMinutes / 6)}`;
       }).join("\n");
 
       res.setHeader('Content-Type', 'text/csv');

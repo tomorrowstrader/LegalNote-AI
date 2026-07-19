@@ -78,6 +78,9 @@ const EVENT_ICONS: Record<string, any> = {
   litigation_hold_grace_window_cleared: Shield,
   calendar_synced: FileText,
   calendar_sync_failed: FileText,
+  time_entry_created: Clock,
+  time_entry_updated: Clock,
+  time_entry_deleted: Clock,
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -145,6 +148,9 @@ const EVENT_LABELS: Record<string, string> = {
   litigation_hold_grace_window_cleared: "Hold Release Grace Window Cleared",
   calendar_synced: "Calendar Synced",
   calendar_sync_failed: "Calendar Sync Failed",
+  time_entry_created: "Time Record Created",
+  time_entry_updated: "Time Record Updated",
+  time_entry_deleted: "Time Record Deleted",
 };
 
 // Helper function to format event type if not in labels
@@ -331,6 +337,19 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
       return metadata.duration 
         ? `Audio transcribed (${Math.round(metadata.duration / 60)} minutes)`
         : "Audio transcription completed";
+
+    case "time_entry_created":
+      return `Recorded ${metadata.durationMinutes ?? 0} minutes (${metadata.units ?? 0} units) against the session`;
+
+    case "time_entry_updated": {
+      const fields = Array.isArray(metadata.changedFields) && metadata.changedFields.length > 0
+        ? `; changed ${metadata.changedFields.join(", ")}`
+        : "";
+      return `Updated to ${metadata.durationMinutes ?? 0} minutes (${metadata.units ?? 0} units)${fields}`;
+    }
+
+    case "time_entry_deleted":
+      return `Deleted record of ${metadata.durationMinutes ?? 0} minutes (${metadata.units ?? 0} units)`;
     
     default:
       // Filter out technical fields that aren't meaningful to solicitors

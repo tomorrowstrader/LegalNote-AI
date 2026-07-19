@@ -2,24 +2,22 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { 
-  Send, 
-  FileText, 
-  Clock, 
-  AlertTriangle, 
-  Download, 
-  Mail, 
-  Link2, 
+import {
+  Send,
+  Clock,
+  AlertTriangle,
+  Download,
+  Mail,
+  Link2,
   History,
   ChevronDown,
   ChevronUp,
-  Maximize2
 } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+
+const INITIAL_VISIBLE = 4;
 
 interface SharedHistoryRecord {
   id: string;
@@ -47,11 +45,11 @@ interface SharedHistoryViewerProps {
 
 function getMethodIcon(method: string | null) {
   switch (method) {
-    case 'email':
+    case "email":
       return <Mail className="w-4 h-4" />;
-    case 'download':
+    case "download":
       return <Download className="w-4 h-4" />;
-    case 'share_link':
+    case "share_link":
     default:
       return <Link2 className="w-4 h-4" />;
   }
@@ -59,44 +57,115 @@ function getMethodIcon(method: string | null) {
 
 function getMethodLabel(method: string | null): string {
   switch (method) {
-    case 'email':
-      return 'Emailed';
-    case 'download':
-      return 'Downloaded';
-    case 'share_link':
-      return 'Share Link';
-    case 'sms_2fa':
-      return 'SMS 2FA Link';
+    case "email":
+      return "Emailed";
+    case "download":
+      return "Downloaded";
+    case "share_link":
+      return "Share Link";
+    case "sms_2fa":
+      return "SMS 2FA Link";
     default:
-      return method || 'Shared';
+      return method || "Shared";
   }
 }
 
 function getDocumentTypeLabel(type: string): string {
   switch (type) {
-    case 'attendance_note':
-      return 'Attendance Note';
-    case 'summary':
-    case 'client_letter':
-      return 'Client Letter';
-    case 'transcript':
-      return 'Transcript';
+    case "attendance_note":
+      return "Attendance Note";
+    case "summary":
+    case "client_letter":
+      return "Client Letter";
+    case "transcript":
+      return "Transcript";
     default:
       return type;
   }
 }
 
+function HistoryRecordCard({
+  record,
+  index,
+}: {
+  record: SharedHistoryRecord;
+  index: number;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-3 p-3 rounded-lg border bg-card",
+        record.versionChangeWarned &&
+          "border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20"
+      )}
+      data-testid={`shared-history-item-${index}`}
+    >
+      <div className="flex-shrink-0 mt-0.5">
+        <div
+          className={cn(
+            "w-8 h-8 rounded-full flex items-center justify-center",
+            record.versionChangeWarned
+              ? "bg-amber-100 dark:bg-amber-800 text-amber-600 dark:text-amber-300"
+              : "bg-primary/10 text-primary"
+          )}
+        >
+          {getMethodIcon(record.sentMethod)}
+        </div>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-sm">
+            {getDocumentTypeLabel(record.document.type)}
+          </span>
+          <Badge variant="outline" className="text-xs">
+            v{record.document.version}
+          </Badge>
+          <Badge
+            variant={record.document.status === "approved" ? "default" : "secondary"}
+            className="text-xs"
+          >
+            {record.document.status === "approved" ? "Approved" : "Draft"}
+          </Badge>
+        </div>
+
+        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+          <Clock className="w-3 h-3 shrink-0" />
+          {record.sentAt
+            ? format(new Date(record.sentAt), "dd MMM yyyy 'at' HH:mm")
+            : "Unknown date"}
+          <span className="text-muted-foreground/50">•</span>
+          <span>{getMethodLabel(record.sentMethod)}</span>
+        </div>
+
+        {record.versionChangeWarned && (
+          <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-700 dark:text-amber-300">
+            <AlertTriangle className="w-3 h-3" />
+            <span>Different version from previous share</span>
+          </div>
+        )}
+
+        {record.amendmentReason && (
+          <div className="mt-2 text-xs bg-muted p-2 rounded">
+            <span className="font-medium">Amendment reason: </span>
+            {record.amendmentReason}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SharedHistoryViewer({ caseId }: SharedHistoryViewerProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
   const { data: history, isLoading } = useQuery<SharedHistoryRecord[]>({
     queryKey: [`/api/cases/${caseId}/shared-history`],
   });
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="h-full">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <History className="w-4 h-4" />
@@ -114,7 +183,7 @@ export default function SharedHistoryViewer({ caseId }: SharedHistoryViewerProps
 
   if (!history || history.length === 0) {
     return (
-      <Card>
+      <Card className="h-full">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <History className="w-4 h-4" />
@@ -132,193 +201,51 @@ export default function SharedHistoryViewer({ caseId }: SharedHistoryViewerProps
     );
   }
 
-  const displayedHistory = isExpanded ? history : history.slice(0, 3);
-  const hasMoreRecords = history.length > 3;
+  const displayedHistory = isExpanded ? history : history.slice(0, INITIAL_VISIBLE);
+  const hasMoreRecords = history.length > INITIAL_VISIBLE;
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <History className="w-4 h-4" />
             Client Sharing History
           </CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" data-testid="badge-share-count">
-              {history.length} share{history.length !== 1 ? 's' : ''}
-            </Badge>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7"
-              onClick={() => setIsModalOpen(true)}
-              data-testid="button-expand-sharing-history"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </Button>
-          </div>
+          <Badge variant="secondary" data-testid="badge-share-count">
+            {history.length} share{history.length !== 1 ? "s" : ""}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[300px]">
-          <div className="space-y-3 pr-4 pb-2">
-        {displayedHistory.map((record, idx) => (
-          <div 
-            key={record.id}
-            className={cn(
-              "flex items-start gap-3 p-3 rounded-lg border bg-card",
-              record.versionChangeWarned && "border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20"
-            )}
-            data-testid={`shared-history-item-${idx}`}
-          >
-            <div className="flex-shrink-0 mt-0.5">
-              <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center",
-                record.versionChangeWarned 
-                  ? "bg-amber-100 dark:bg-amber-800 text-amber-600 dark:text-amber-300"
-                  : "bg-primary/10 text-primary"
-              )}>
-                {getMethodIcon(record.sentMethod)}
-              </div>
-            </div>
-            
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium text-sm">
-                  {getDocumentTypeLabel(record.document.type)}
-                </span>
-                <Badge variant="outline" className="text-xs">
-                  v{record.document.version}
-                </Badge>
-                <Badge 
-                  variant={record.document.status === 'approved' ? 'default' : 'secondary'}
-                  className="text-xs"
-                >
-                  {record.document.status === 'approved' ? 'Approved' : 'Draft'}
-                </Badge>
-              </div>
-              
-              <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                <Clock className="w-3 h-3" />
-                {record.sentAt ? format(new Date(record.sentAt), "dd MMM yyyy 'at' HH:mm") : 'Unknown date'}
-                <span className="text-muted-foreground/50">•</span>
-                <span>{getMethodLabel(record.sentMethod)}</span>
-              </div>
-              
-              {record.versionChangeWarned && (
-                <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-700 dark:text-amber-300">
-                  <AlertTriangle className="w-3 h-3" />
-                  <span>Different version from previous share</span>
-                </div>
-              )}
-              
-              {record.amendmentReason && (
-                <div className="mt-2 text-xs bg-muted p-2 rounded">
-                  <span className="font-medium">Amendment reason: </span>
-                  {record.amendmentReason}
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-        
-        {hasMoreRecords && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="w-full text-muted-foreground"
-            data-testid="button-toggle-history"
-          >
-            {isExpanded ? (
-              <>
-                <ChevronUp className="w-4 h-4 mr-1" />
-                Show Less
-              </>
-            ) : (
-              <>
-                <ChevronDown className="w-4 h-4 mr-1" />
-                Show {history.length - 3} More
-              </>
-            )}
-          </Button>
-        )}
-          </div>
-        </ScrollArea>
-      </CardContent>
+        <div className="space-y-3">
+          {displayedHistory.map((record, idx) => (
+            <HistoryRecordCard key={record.id} record={record} index={idx} />
+          ))}
 
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col" data-testid="modal-shared-history-expanded">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <History className="w-4 h-4" />
-              Client Sharing History
-            </DialogTitle>
-          </DialogHeader>
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-3 py-2">
-              {history.map((record, idx) => (
-                <div 
-                  key={record.id}
-                  className={cn(
-                    "flex items-start gap-3 p-3 rounded-lg border bg-card",
-                    record.versionChangeWarned && "border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20"
-                  )}
-                >
-                  <div className="flex-shrink-0 mt-0.5">
-                    <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center",
-                      record.versionChangeWarned 
-                        ? "bg-amber-100 dark:bg-amber-800 text-amber-600 dark:text-amber-300"
-                        : "bg-primary/10 text-primary"
-                    )}>
-                      {getMethodIcon(record.sentMethod)}
-                    </div>
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">
-                        {getDocumentTypeLabel(record.document.type)}
-                      </span>
-                      <Badge variant="outline" className="text-xs">
-                        v{record.document.version}
-                      </Badge>
-                      <Badge 
-                        variant={record.document.status === 'approved' ? 'default' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {record.document.status === 'approved' ? 'Approved' : 'Draft'}
-                      </Badge>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                      <Clock className="w-3 h-3" />
-                      {record.sentAt ? format(new Date(record.sentAt), "dd MMM yyyy 'at' HH:mm") : 'Unknown date'}
-                      <span className="text-muted-foreground/50">•</span>
-                      <span>{getMethodLabel(record.sentMethod)}</span>
-                    </div>
-                    
-                    {record.versionChangeWarned && (
-                      <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-700 dark:text-amber-300">
-                        <AlertTriangle className="w-3 h-3" />
-                        <span>Different version from previous share</span>
-                      </div>
-                    )}
-                    
-                    {record.amendmentReason && (
-                      <div className="mt-2 text-xs bg-muted p-2 rounded">
-                        <span className="font-medium">Amendment reason: </span>
-                        {record.amendmentReason}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
+          {hasMoreRecords && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="w-full text-muted-foreground"
+              data-testid="button-toggle-history"
+            >
+              {isExpanded ? (
+                <>
+                  <ChevronUp className="w-4 h-4 mr-1" />
+                  Show less
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-4 h-4 mr-1" />
+                  Show {history.length - INITIAL_VISIBLE} more
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+      </CardContent>
     </Card>
   );
 }

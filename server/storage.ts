@@ -766,8 +766,8 @@ export interface IStorage {
   createTimeEntry(data: InsertTimeEntry): Promise<TimeEntry>;
   getTimeEntry(id: string): Promise<TimeEntry | undefined>;
   getTimeEntriesByCase(caseId: string): Promise<TimeEntry[]>;
-  getTimeEntriesByUser(userId: string, startDate?: Date, endDate?: Date): Promise<TimeEntry[]>;
-  getAllTimeEntries(startDate?: Date, endDate?: Date): Promise<(TimeEntry & { caseTitle?: string; clientName?: string; userName?: string })[]>;
+  getTimeEntriesByUser(userId: string, startDate?: Date, endDate?: Date): Promise<(TimeEntry & { caseTitle?: string; clientName?: string; userName?: string; sessionTitle?: string; sessionRecordingType?: string })[]>;
+  getAllTimeEntries(startDate?: Date, endDate?: Date): Promise<(TimeEntry & { caseTitle?: string; clientName?: string; userName?: string; sessionTitle?: string; sessionRecordingType?: string })[]>;
   updateTimeEntry(id: string, updates: Partial<TimeEntry>): Promise<TimeEntry | undefined>;
   deleteTimeEntry(id: string): Promise<void>;
   updateUserHourlyRate(userId: string, hourlyRate: string): Promise<User | undefined>;
@@ -2668,10 +2668,10 @@ export class MemStorage implements IStorage {
   async getTimeEntriesByCase(_caseId: string): Promise<TimeEntry[]> {
     return [];
   }
-  async getTimeEntriesByUser(_userId: string, _startDate?: Date, _endDate?: Date): Promise<TimeEntry[]> {
+  async getTimeEntriesByUser(_userId: string, _startDate?: Date, _endDate?: Date): Promise<(TimeEntry & { caseTitle?: string; clientName?: string; userName?: string; sessionTitle?: string; sessionRecordingType?: string })[]> {
     return [];
   }
-  async getAllTimeEntries(_startDate?: Date, _endDate?: Date): Promise<(TimeEntry & { caseTitle?: string; clientName?: string; userName?: string })[]> {
+  async getAllTimeEntries(_startDate?: Date, _endDate?: Date): Promise<(TimeEntry & { caseTitle?: string; clientName?: string; userName?: string; sessionTitle?: string; sessionRecordingType?: string })[]> {
     return [];
   }
   async updateTimeEntry(_id: string, _updates: Partial<TimeEntry>): Promise<TimeEntry | undefined> {
@@ -6228,16 +6228,38 @@ export class DbStorage implements IStorage {
       .orderBy(desc(timeEntries.createdAt));
   }
 
-  async getTimeEntriesByUser(userId: string, startDate?: Date, endDate?: Date): Promise<TimeEntry[]> {
+  async getTimeEntriesByUser(userId: string, startDate?: Date, endDate?: Date): Promise<(TimeEntry & { caseTitle?: string; clientName?: string; userName?: string; sessionTitle?: string; sessionRecordingType?: string })[]> {
     const conditions = [eq(timeEntries.userId, userId)];
     if (startDate) conditions.push(gte(timeEntries.createdAt, startDate));
     if (endDate) conditions.push(lte(timeEntries.createdAt, endDate));
-    return await db.select().from(timeEntries)
+    const results = await db.select({
+      timeEntry: timeEntries,
+      caseTitle: cases.title,
+      clientName: cases.clientName,
+      userFirstName: users.firstName,
+      userLastName: users.lastName,
+      userEmail: users.email,
+      sessionTitle: meetingSessions.sessionTitle,
+      sessionRecordingType: meetingSessions.recordingType,
+    }).from(timeEntries)
+      .leftJoin(cases, eq(timeEntries.caseId, cases.id))
+      .leftJoin(users, eq(timeEntries.userId, users.id))
+      .leftJoin(meetingSessions, eq(timeEntries.meetingSessionId, meetingSessions.id))
       .where(and(...conditions))
       .orderBy(desc(timeEntries.createdAt));
+    return results.map(r => ({
+      ...r.timeEntry,
+      caseTitle: r.caseTitle ?? undefined,
+      clientName: r.clientName ?? undefined,
+      userName: r.userFirstName && r.userLastName
+        ? `${r.userFirstName} ${r.userLastName}`
+        : r.userEmail ?? undefined,
+      sessionTitle: r.sessionTitle ?? undefined,
+      sessionRecordingType: r.sessionRecordingType ?? undefined,
+    }));
   }
 
-  async getAllTimeEntries(startDate?: Date, endDate?: Date): Promise<(TimeEntry & { caseTitle?: string; clientName?: string; userName?: string })[]> {
+  async getAllTimeEntries(startDate?: Date, endDate?: Date): Promise<(TimeEntry & { caseTitle?: string; clientName?: string; userName?: string; sessionTitle?: string; sessionRecordingType?: string })[]> {
     const conditions: any[] = [];
     if (startDate) conditions.push(gte(timeEntries.createdAt, startDate));
     if (endDate) conditions.push(lte(timeEntries.createdAt, endDate));
@@ -6249,10 +6271,13 @@ export class DbStorage implements IStorage {
       userFirstName: users.firstName,
       userLastName: users.lastName,
       userEmail: users.email,
+      sessionTitle: meetingSessions.sessionTitle,
+      sessionRecordingType: meetingSessions.recordingType,
     })
       .from(timeEntries)
       .leftJoin(cases, eq(timeEntries.caseId, cases.id))
       .leftJoin(users, eq(timeEntries.userId, users.id))
+      .leftJoin(meetingSessions, eq(timeEntries.meetingSessionId, meetingSessions.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(timeEntries.createdAt));
 
@@ -6263,6 +6288,8 @@ export class DbStorage implements IStorage {
       userName: r.userFirstName && r.userLastName
         ? `${r.userFirstName} ${r.userLastName}`
         : r.userEmail ?? undefined,
+      sessionTitle: r.sessionTitle ?? undefined,
+      sessionRecordingType: r.sessionRecordingType ?? undefined,
     }));
   }
 

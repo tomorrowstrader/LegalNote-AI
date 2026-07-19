@@ -43,6 +43,26 @@ const DEMO_URL_REWRITES: DemoUrlRewrite[] = [
 let _originalFetch: typeof window.fetch | null = null;
 let _demoToastFn: ((msg: string) => void) | null = null;
 
+/** Tiny silent WAV (~0.3s) so demo consent play buttons have something to play. */
+const DEMO_SILENT_WAV_BASE64 =
+  "UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
+function demoSilentAudioResponse(method: string): Response {
+  if (method === "HEAD") {
+    return new Response(null, {
+      status: 200,
+      headers: { "Content-Type": "audio/wav", "Content-Length": "44" },
+    });
+  }
+  const binary = atob(DEMO_SILENT_WAV_BASE64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Response(bytes, {
+    status: 200,
+    headers: { "Content-Type": "audio/wav" },
+  });
+}
+
 export function installDemoFetchInterceptor(toastFn: (msg: string) => void) {
   if (_originalFetch) return;
   _originalFetch = window.fetch;
@@ -50,6 +70,12 @@ export function installDemoFetchInterceptor(toastFn: (msg: string) => void) {
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const method = (init?.method || "GET").toUpperCase();
+
+    // Consent snippet playback uses the Audio() constructor (GET) — serve silent demo audio
+    if (/\/api\/audio\/[^/]+\/consent-segment/.test(url) && (method === "GET" || method === "HEAD")) {
+      return demoSilentAudioResponse(method);
+    }
+
     const isWriteMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
 
     if (!isWriteMethod) return _originalFetch!(input, init);
@@ -602,44 +628,48 @@ ${firmName}`,
       id: "demo-te-001",
       caseId: DEMO_CASE_ID,
       userId: DEMO_USER_ID,
+      meetingSessionId: DEMO_SESSION_ID,
       description: "Initial consultation — 55 minutes",
-      duration: 55,
-      rate: rate,
-      amount: String(Math.round(rate * 55 / 60)),
-      date: relDate(-44),
+      durationMinutes: 55,
+      hourlyRate: String(rate),
+      status: "confirmed",
+      clioTimeEntryId: null,
       createdAt: relDateTime(-44, "14:00"),
     },
     {
       id: "demo-te-002",
       caseId: DEMO_CASE_ID,
       userId: DEMO_USER_ID,
+      meetingSessionId: DEMO_SESSION_ID,
       description: "Client care letter — preparation and issue",
-      duration: 30,
-      rate: rate,
-      amount: String(Math.round(rate * 30 / 60)),
-      date: relDate(-44),
+      durationMinutes: 30,
+      hourlyRate: String(rate),
+      status: "confirmed",
+      clioTimeEntryId: null,
       createdAt: relDateTime(-44, "16:00"),
     },
     {
       id: "demo-te-003",
       caseId: DEMO_CASE_ID,
       userId: DEMO_USER_ID,
+      meetingSessionId: DEMO_SESSION_ID_2,
       description: "Drafting C100 application form",
-      duration: 90,
-      rate: rate,
-      amount: String(Math.round(rate * 90 / 60)),
-      date: relDate(-38),
+      durationMinutes: 90,
+      hourlyRate: String(rate),
+      status: "confirmed",
+      clioTimeEntryId: null,
       createdAt: relDateTime(-38, "09:40"),
     },
     {
       id: "demo-te-004",
       caseId: DEMO_CASE_ID,
       userId: DEMO_USER_ID,
+      meetingSessionId: DEMO_SESSION_ID_3,
       description: "Strategy review meeting — 40 minutes",
-      duration: 40,
-      rate: rate,
-      amount: String(Math.round(rate * 40 / 60)),
-      date: relDate(-28),
+      durationMinutes: 40,
+      hourlyRate: String(rate),
+      status: "confirmed",
+      clioTimeEntryId: null,
       createdAt: relDateTime(-28, "12:30"),
     },
   ];
@@ -676,13 +706,44 @@ ${firmName}`,
     {
       id: "demo-consent-001",
       caseId: DEMO_CASE_ID,
-      sessionId: DEMO_SESSION_ID,
+      audioRecordingId: "demo-audio-001",
+      solicitorId: DEMO_USER_ID,
       consentGiven: true,
-      consentType: "verbal_recorded",
       consentTimestamp: relDateTime(-44, "10:02"),
-      consentText: "Client confirmed verbal consent to recording at 00:18 of session.",
-      consentedBy: clientName,
-      recordedBy: solicitorName,
+      disclaimerScriptVersion: "v2.1",
+      disclaimerWordingText: "I record meetings to produce accurate attendance notes. The recording is deleted after seven days and is confidential to your file. Do you both consent?",
+      consentModality: "verbal_recorded",
+      lawfulBasis: "consent",
+      consentWithdrawn: false,
+      sealingStatus: "sealed",
+    },
+    {
+      id: "demo-consent-002",
+      caseId: DEMO_CASE_ID,
+      audioRecordingId: "demo-audio-002",
+      solicitorId: DEMO_USER_ID,
+      consentGiven: true,
+      consentTimestamp: relDateTime(-28, "11:32"),
+      disclaimerScriptVersion: "v2.1",
+      disclaimerWordingText: "I am recording this call for note-taking purposes. Deleted after seven days. Do you consent?",
+      consentModality: "verbal_recorded",
+      lawfulBasis: "consent",
+      consentWithdrawn: false,
+      sealingStatus: "sealed",
+    },
+    {
+      id: "demo-consent-003",
+      caseId: DEMO_CASE_ID,
+      audioRecordingId: "demo-audio-003",
+      solicitorId: DEMO_USER_ID,
+      consentGiven: true,
+      consentTimestamp: relDateTime(-7, "16:02"),
+      disclaimerScriptVersion: "v2.1",
+      disclaimerWordingText: "I am recording this meeting to produce an accurate attendance note. Do you consent?",
+      consentModality: "verbal_recorded",
+      lawfulBasis: "consent",
+      consentWithdrawn: false,
+      sealingStatus: "sealed",
     },
   ];
 
@@ -1080,22 +1141,24 @@ ${firmName}`,
       id: "demo-te-001",
       caseId: DEMO_CASE_ID,
       userId: DEMO_USER_ID,
+      meetingSessionId: DEMO_SESSION_ID,
       description: "Initial consultation — 60 minutes",
-      duration: 60,
-      rate: rate,
-      amount: String(rate),
-      date: relDate(-44),
+      durationMinutes: 60,
+      hourlyRate: String(rate),
+      status: "confirmed",
+      clioTimeEntryId: null,
       createdAt: relDateTime(-44, "14:00"),
     },
     {
       id: "demo-te-002",
       caseId: DEMO_CASE_ID,
       userId: DEMO_USER_ID,
+      meetingSessionId: DEMO_SESSION_ID,
       description: "ACAS early conciliation submission and client care letter",
-      duration: 45,
-      rate: rate,
-      amount: String(Math.round(rate * 45 / 60)),
-      date: relDate(-44),
+      durationMinutes: 45,
+      hourlyRate: String(rate),
+      status: "confirmed",
+      clioTimeEntryId: null,
       createdAt: relDateTime(-44, "17:00"),
     },
   ];
@@ -1132,13 +1195,16 @@ ${firmName}`,
     {
       id: "demo-consent-001",
       caseId: DEMO_CASE_ID,
-      sessionId: DEMO_SESSION_ID,
+      audioRecordingId: "demo-audio-001",
+      solicitorId: DEMO_USER_ID,
       consentGiven: true,
-      consentType: "verbal_recorded",
       consentTimestamp: relDateTime(-44, "10:02"),
-      consentText: "Client confirmed verbal consent to recording at 00:18 of session.",
-      consentedBy: clientName,
-      recordedBy: solicitorName,
+      disclaimerScriptVersion: "v2.1",
+      disclaimerWordingText: "I record meetings to produce accurate attendance notes. Do you consent?",
+      consentModality: "verbal_recorded",
+      lawfulBasis: "consent",
+      consentWithdrawn: false,
+      sealingStatus: "sealed",
     },
   ];
 
@@ -1552,22 +1618,24 @@ ${firmName}`,
       id: "demo-te-001",
       caseId: DEMO_CASE_ID,
       userId: DEMO_USER_ID,
+      meetingSessionId: DEMO_SESSION_ID,
       description: "Initial conveyancing consultation — 55 minutes",
-      duration: 55,
-      rate: rate,
-      amount: String(Math.round(rate * 55 / 60)),
-      date: relDate(-44),
+      durationMinutes: 55,
+      hourlyRate: String(rate),
+      status: "confirmed",
+      clioTimeEntryId: null,
       createdAt: relDateTime(-44, "14:00"),
     },
     {
       id: "demo-te-002",
       caseId: DEMO_CASE_ID,
       userId: DEMO_USER_ID,
+      meetingSessionId: DEMO_SESSION_ID,
       description: "Client care letter and search pack instruction",
-      duration: 30,
-      rate: rate,
-      amount: String(Math.round(rate * 30 / 60)),
-      date: relDate(-44),
+      durationMinutes: 30,
+      hourlyRate: String(rate),
+      status: "confirmed",
+      clioTimeEntryId: null,
       createdAt: relDateTime(-44, "16:00"),
     },
   ];
@@ -1604,13 +1672,16 @@ ${firmName}`,
     {
       id: "demo-consent-001",
       caseId: DEMO_CASE_ID,
-      sessionId: DEMO_SESSION_ID,
+      audioRecordingId: "demo-audio-001",
+      solicitorId: DEMO_USER_ID,
       consentGiven: true,
-      consentType: "verbal_recorded",
       consentTimestamp: relDateTime(-44, "10:02"),
-      consentText: "Client confirmed verbal consent to recording at 00:18 of session.",
-      consentedBy: clientName,
-      recordedBy: solicitorName,
+      disclaimerScriptVersion: "v2.1",
+      disclaimerWordingText: "I record meetings to produce accurate attendance notes. Do you consent?",
+      consentModality: "verbal_recorded",
+      lawfulBasis: "consent",
+      consentWithdrawn: false,
+      sealingStatus: "sealed",
     },
   ];
 
@@ -2051,6 +2122,7 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
   setData([`/api/cases/${DEMO_CASE_ID}/documents`], demoDocuments);
   setData([`/api/cases/${DEMO_CASE_ID}/transcript`], transcript1);
   setData([`/api/cases/${DEMO_CASE_ID}/time-entries`], demoTimeEntries);
+  setData(["/api/cases", DEMO_CASE_ID, "time-entries"], demoTimeEntries);
   setData([`/api/cases/${DEMO_CASE_ID}/undertakings`], demoUndertakings);
   setData([`/api/cases/${DEMO_CASE_ID}/action-items`], []);
   setData([`/api/cases/${DEMO_CASE_ID}/processing-status`], null);
@@ -2059,25 +2131,29 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
   setData([`/api/cases/${DEMO_CASE_ID}/sra-report/preview`], null);
   setData([`/api/cases/${DEMO_CASE_ID}/compliance`], demoComplianceData);
   setData([`/api/consent/by-case/${DEMO_CASE_ID}`], demoConsentLogs);
-  setData([`/api/audio/by-case/${DEMO_CASE_ID}`], {
-    id: "demo-audio-001",
+  const demoAudioRecordings = demoSessions.map((session: { id: string; startedAt: string; durationSeconds?: number | null }, index: number) => ({
+    id: `demo-audio-00${index + 1}`,
     caseId: DEMO_CASE_ID,
-    meetingSessionId: null,
-    filePath: "demo/audio/initial-consultation.webm",
-    consentSegmentPath: null,
-    consentDurationSeconds: 18,
+    meetingSessionId: session.id,
+    filePath: null,
+    consentSegmentPath: `demo/consent/session-${index + 1}.webm`,
+    consentDurationSeconds: 18 + index * 4,
     mimeType: "audio/webm",
-    duration: 780,
-    recordedAt: relDateTime(-44),
+    duration: session.durationSeconds ?? 780,
+    recordedAt: session.startedAt,
     expiresAt: relDateTime(7),
-    deletedAt: null,
-  });
+    deletedAt: relDateTime(-1),
+    holdReleaseGraceUntil: null,
+    colpReviewStatus: null,
+  }));
+  setData([`/api/audio/by-case/${DEMO_CASE_ID}`], demoAudioRecordings[0] ?? null);
+  setData([`/api/cases/${DEMO_CASE_ID}/audio-recordings`], demoAudioRecordings);
   setData(["/api/sessions", DEMO_SESSION_ID], demoSessionWithDetails);
   if (demoSessionWithDetails2) setData(["/api/sessions", DEMO_SESSION_ID_2], demoSessionWithDetails2);
   if (demoSessionWithDetails3) setData(["/api/sessions", DEMO_SESSION_ID_3], demoSessionWithDetails3);
-  setData([`/api/audio/by-session/${DEMO_SESSION_ID}`], null);
-  setData([`/api/audio/by-session/${DEMO_SESSION_ID_2}`], null);
-  setData([`/api/audio/by-session/${DEMO_SESSION_ID_3}`], null);
+  setData([`/api/audio/by-session/${DEMO_SESSION_ID}`], demoAudioRecordings.find((r) => r.meetingSessionId === DEMO_SESSION_ID) ?? null);
+  setData([`/api/audio/by-session/${DEMO_SESSION_ID_2}`], demoAudioRecordings.find((r) => r.meetingSessionId === DEMO_SESSION_ID_2) ?? null);
+  setData([`/api/audio/by-session/${DEMO_SESSION_ID_3}`], demoAudioRecordings.find((r) => r.meetingSessionId === DEMO_SESSION_ID_3) ?? null);
   setData(["/api/audit/logs"], demoAuditLogs);
   setData(["/api/audit/logs", DEMO_CASE_ID], demoAuditLogs);
   setData(["/api/audit/case", DEMO_CASE_ID], demoAuditLogs);

@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { ArrowLeft, Download, Clock, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -14,6 +13,8 @@ type TimeEntryWithMeta = TimeEntry & {
   caseTitle?: string;
   clientName?: string;
   userName?: string;
+  sessionTitle?: string;
+  sessionRecordingType?: string;
 };
 
 export default function TimeSummary() {
@@ -39,10 +40,17 @@ export default function TimeSummary() {
   });
 
   const totalMinutes = entries.reduce((sum, e) => sum + e.durationMinutes, 0);
-  const totalValue = entries.reduce((sum, e) => sum + (e.durationMinutes / 60) * (parseFloat(e.hourlyRate) || 0), 0);
-  const confirmedEntries = entries.filter(e => e.status === "confirmed");
-  const draftEntries = entries.filter(e => e.status === "draft");
-  const totalHours = (totalMinutes / 60).toFixed(1);
+  const totalUnits = entries.reduce((sum, entry) => sum + Math.ceil(entry.durationMinutes / 6), 0);
+  const totalHours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+
+  const getSessionName = (entry: TimeEntryWithMeta) => {
+    if (entry.sessionTitle) return entry.sessionTitle;
+    if (entry.sessionRecordingType) {
+      return entry.sessionRecordingType.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+    }
+    return "Unlinked legacy entry";
+  };
 
   const handleExportCSV = () => {
     const params = new URLSearchParams();
@@ -71,7 +79,7 @@ export default function TimeSummary() {
               Time Summary
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              View and export billable time across all matters
+              View session-linked time across all matters
             </p>
           </div>
           <Button
@@ -110,7 +118,7 @@ export default function TimeSummary() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <Card>
             <CardContent className="pt-6 text-center">
               <p className="text-2xl font-semibold text-foreground" data-testid="text-total-entries">{entries.length}</p>
@@ -119,20 +127,14 @@ export default function TimeSummary() {
           </Card>
           <Card>
             <CardContent className="pt-6 text-center">
-              <p className="text-2xl font-semibold text-foreground" data-testid="text-total-hours">{totalHours}h</p>
-              <p className="text-xs text-muted-foreground">Total Hours</p>
+              <p className="text-2xl font-semibold text-foreground" data-testid="text-total-hours">{totalHours}h {remainingMinutes}m</p>
+              <p className="text-xs text-muted-foreground">Total Time</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6 text-center">
-              <p className="text-2xl font-semibold text-foreground" data-testid="text-total-value">£{totalValue.toFixed(2)}</p>
-              <p className="text-xs text-muted-foreground">Total Value</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <p className="text-2xl font-semibold text-green-600 dark:text-green-400" data-testid="text-confirmed-count">{confirmedEntries.length}</p>
-              <p className="text-xs text-muted-foreground">Confirmed</p>
+              <p className="text-2xl font-semibold text-foreground" data-testid="text-total-units">{totalUnits}</p>
+              <p className="text-xs text-muted-foreground">Six-Minute Units</p>
             </CardContent>
           </Card>
         </div>
@@ -140,9 +142,7 @@ export default function TimeSummary() {
         <Card>
           <CardHeader>
             <CardTitle>Time Entries</CardTitle>
-            <CardDescription>
-              {draftEntries.length > 0 && `${draftEntries.length} draft entries awaiting confirmation`}
-            </CardDescription>
+            <CardDescription>Session reference and recorded duration</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -164,16 +164,14 @@ export default function TimeSummary() {
                       <th className="pb-2 font-medium text-muted-foreground">Fee Earner</th>
                       <th className="pb-2 font-medium text-muted-foreground">Matter</th>
                       <th className="pb-2 font-medium text-muted-foreground">Client</th>
-                      <th className="pb-2 font-medium text-muted-foreground">Description</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">Duration</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">Rate</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">Total</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">Status</th>
+                      <th className="pb-2 font-medium text-muted-foreground">Session</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-right">Hours</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-right">Minutes</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-right">Units</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {entries.map((entry) => {
-                      const entryTotal = ((entry.durationMinutes / 60) * parseFloat(entry.hourlyRate)).toFixed(2);
                       return (
                         <tr key={entry.id} data-testid={`row-time-entry-${entry.id}`}>
                           <td className="py-2">
@@ -182,18 +180,10 @@ export default function TimeSummary() {
                           <td className="py-2">{entry.userName || "-"}</td>
                           <td className="py-2 max-w-[150px] truncate">{entry.caseTitle || "-"}</td>
                           <td className="py-2">{entry.clientName || "-"}</td>
-                          <td className="py-2 max-w-[200px] truncate">{entry.description}</td>
-                          <td className="py-2 text-right">{entry.durationMinutes}m</td>
-                          <td className="py-2 text-right">£{entry.hourlyRate}</td>
-                          <td className="py-2 text-right font-medium">£{entryTotal}</td>
-                          <td className="py-2 text-right">
-                            <Badge
-                              variant={entry.status === "confirmed" ? "default" : "outline"}
-                              className={entry.status === "confirmed" ? "bg-accent" : ""}
-                            >
-                              {entry.status === "confirmed" ? "Confirmed" : "Draft"}
-                            </Badge>
-                          </td>
+                          <td className="py-2 max-w-[200px] truncate">{getSessionName(entry)}</td>
+                          <td className="py-2 text-right">{Math.floor(entry.durationMinutes / 60)}</td>
+                          <td className="py-2 text-right">{entry.durationMinutes % 60}</td>
+                          <td className="py-2 text-right">{Math.ceil(entry.durationMinutes / 6)}</td>
                         </tr>
                       );
                     })}
@@ -201,10 +191,9 @@ export default function TimeSummary() {
                   <tfoot>
                     <tr className="border-t font-medium">
                       <td colSpan={5} className="py-2">Totals</td>
-                      <td className="py-2 text-right">{totalMinutes}m</td>
-                      <td className="py-2 text-right"></td>
-                      <td className="py-2 text-right">£{totalValue.toFixed(2)}</td>
-                      <td className="py-2 text-right"></td>
+                      <td className="py-2 text-right">{totalHours}</td>
+                      <td className="py-2 text-right">{remainingMinutes}</td>
+                      <td className="py-2 text-right">{totalUnits}</td>
                     </tr>
                   </tfoot>
                 </table>
