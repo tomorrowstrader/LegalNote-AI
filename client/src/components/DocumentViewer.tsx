@@ -2796,8 +2796,8 @@ export default function DocumentViewer({
               </div>
             )}
           </div>
-          <TabsList className={`grid w-full h-auto ${clientCareLetter ? 'grid-cols-4' : 'grid-cols-3'}`}>
-            <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto">
+          <TabsList className={`grid w-full h-auto rounded-xl ${clientCareLetter ? 'grid-cols-4' : 'grid-cols-3'}`}>
+            <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
               <ReviewStatusDot
                 status={getDocumentReviewStatus(attendanceNote, {
                   isEditing: !!attendanceNote && editingDocId === attendanceNote.id,
@@ -2817,7 +2817,7 @@ export default function DocumentViewer({
                 </>
               )}
             </TabsTrigger>
-            <TabsTrigger value="summary" data-testid="tab-summary" className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto">
+            <TabsTrigger value="summary" data-testid="tab-summary" className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
               <ReviewStatusDot
                 status={getDocumentReviewStatus(summary, {
                   isEditing: !!summary && editingDocId === summary.id,
@@ -2827,12 +2827,12 @@ export default function DocumentViewer({
               />
               Client Letter
             </TabsTrigger>
-            <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+            <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
               <span className="hidden sm:inline">Transcript</span>
               <span className="sm:hidden">Script</span>
             </TabsTrigger>
             {clientCareLetter && (
-              <TabsTrigger value="care_letter" data-testid="tab-care-letter" className="text-xs sm:text-sm px-2 py-2.5 h-auto">
+              <TabsTrigger value="care_letter" data-testid="tab-care-letter" className="text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
                 <span className="hidden sm:inline">Care Letter</span>
                 <span className="sm:hidden">Letter</span>
               </TabsTrigger>
