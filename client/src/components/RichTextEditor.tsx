@@ -160,45 +160,71 @@ function deletedInlineTextLength(step: any, docBefore: any): number {
   return length;
 }
 
-/** True when a step only merges textblocks (no complete block node removed). */
-function isTextblockJoin(step: any, docBefore: any): boolean {
-  if (deletedInlineTextLength(step, docBefore) !== 0) return false;
+/** Block types that must not be removed while Track Changes is on. */
+const STRUCTURALLY_PROTECTED_BLOCKS = new Set([
+  'table', 'tableRow', 'tableCell', 'tableHeader',
+  'listItem', 'bulletList', 'orderedList',
+]);
 
+/** True when a fully-removed block carries no deletable content (blank Enter lines). */
+function isRemovableEmptyBlock(node: any): boolean {
+  if (STRUCTURALLY_PROTECTED_BLOCKS.has(node.type.name)) return false;
+  if (node.isTextblock) return node.content.size === 0;
+  return node.textContent.length === 0;
+}
+
+/** Collect fully-removed block nodes for a replace step (including ReplaceAround gaps). */
+function fullyRemovedBlocks(step: any, docBefore: any): any[] {
   const from: number = step.from;
   const to: number = step.to;
   const gapFrom = step instanceof ReplaceAroundStep ? step.gapFrom : null;
   const gapTo = step instanceof ReplaceAroundStep ? step.gapTo : null;
+  const removed: any[] = [];
 
   const deletedRanges: [number, number][] = gapFrom != null && gapTo != null
     ? [[from, gapFrom], [gapTo, to]]
     : [[from, to]];
 
-  let hasRemovedBlock = false;
-
   for (const [rangeFrom, rangeTo] of deletedRanges) {
     if (rangeFrom >= rangeTo) continue;
     docBefore.nodesBetween(rangeFrom, rangeTo, (node: any, pos: number) => {
-      if (hasRemovedBlock || !node.isBlock) return;
+      if (!node.isBlock) return;
       if (pos >= rangeFrom && pos + node.nodeSize <= rangeTo) {
-        hasRemovedBlock = true;
+        removed.push(node);
       }
     });
-    if (hasRemovedBlock) return false;
   }
 
   // ReplaceAroundStep: a block spanning the outer range but not wholly in the
   // preserved gap is structurally removed (e.g. liftListItem on an empty bullet).
   if (gapFrom != null && gapTo != null) {
     docBefore.nodesBetween(from, to, (node: any, pos: number) => {
-      if (hasRemovedBlock || !node.isBlock) return;
+      if (!node.isBlock) return;
       const nodeEnd = pos + node.nodeSize;
       if (pos >= from && nodeEnd <= to && !(pos >= gapFrom && nodeEnd <= gapTo)) {
-        hasRemovedBlock = true;
+        if (!removed.includes(node)) removed.push(node);
       }
     });
   }
 
-  return !hasRemovedBlock;
+  return removed;
+}
+
+/** True when a step only merges textblocks (no complete block node removed). */
+function isTextblockJoin(step: any, docBefore: any): boolean {
+  if (deletedInlineTextLength(step, docBefore) !== 0) return false;
+  return fullyRemovedBlocks(step, docBefore).length === 0;
+}
+
+/**
+ * True when Backspace/Delete only removes blank block(s) created by Enter
+ * (empty paragraphs/headings). Solicitors expect this to "pull lines back up"
+ * even while Track Changes is on — unlike table/list structure deletions.
+ */
+function isEmptyBlockOnlyDeletion(step: any, docBefore: any): boolean {
+  if (deletedInlineTextLength(step, docBefore) !== 0) return false;
+  const removed = fullyRemovedBlocks(step, docBefore);
+  return removed.length > 0 && removed.every(isRemovableEmptyBlock);
 }
 
 function classifyStepDeletion(step: any, docBefore: any): DeletionClass {
@@ -217,6 +243,7 @@ function classifyStepDeletion(step: any, docBefore: any): DeletionClass {
   }
   if (deletedInlineTextLength(step, docBefore) > 0) return { kind: 'structural-destructive' };
   if (isTextblockJoin(step, docBefore)) return { kind: 'structural-preserving' };
+  if (isEmptyBlockOnlyDeletion(step, docBefore)) return { kind: 'structural-preserving' };
   return { kind: 'structural-destructive' };
 }
 
