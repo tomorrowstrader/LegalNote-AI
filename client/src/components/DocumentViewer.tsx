@@ -32,6 +32,7 @@ import {
   findBestAdviceMatchInSection,
   enrichGapCitationChips,
 } from "@/lib/reasoningGapAnchors";
+import { normalizeAttendanceSectionLabels } from "@shared/attendanceNoteFormat";
 
 function markdownToPlainText(md: string): string {
   if (!md) return '';
@@ -71,6 +72,7 @@ import {
   coerceVerificationWarnings,
   type VerificationWarning,
 } from "@shared/verificationWarnings";
+import { stripRtfToPlainText } from "@shared/stripRtf";
 
 interface DocumentVersion {
   id: string;
@@ -314,10 +316,12 @@ interface Document {
 }
 
 function usesJustifiedLegalLayout(type: Document['type']): boolean {
-  return type === 'attendance_note' ||
-    type === 'meeting_notes' ||
-    type === 'summary' ||
-    type === 'client_letter';
+  // Attendance notes stay left-aligned; client letters / summaries keep justify.
+  return type === 'summary' || type === 'client_letter';
+}
+
+function usesAttendanceNoteLayout(type: Document['type']): boolean {
+  return type === 'attendance_note' || type === 'meeting_notes';
 }
 
 function parseAttendanceHeaderFields(header: string): Record<string, string> {
@@ -390,12 +394,7 @@ function formatAttendanceNoteMarkdown(content: string, type: Document['type']): 
     );
   }
 
-  const body = rawBody.replace(
-    /^(\s*)(?:\*\*)?(What was discussed:|Advice given:|Client's instructions and response:)(?:\*\*)?\s*$/gim,
-    '$1**$2**',
-  );
-
-  return header + body;
+  return header + normalizeAttendanceSectionLabels(rawBody);
 }
 
 /** Tab review indicator: red = not started, amber = in progress, green = approved. */
@@ -476,6 +475,9 @@ interface DocumentViewerProps {
   transcriptUtterances?: SpeakerUtterance[];
   speakerCount?: number;
   transcriptRedactions?: Redaction[];
+  /** external_upload = pasted/file transcript; audio_transcription = AssemblyAI */
+  transcriptOrigin?: "external_upload" | "audio_transcription";
+  transcriptOriginalFilename?: string | null;
   textNotes?: string;
   status: string;
   caseTitle: string;
@@ -1247,14 +1249,20 @@ function EditableDocumentContent({
   legalContext?: { clientName?: string; matterRef?: string; solicitorName?: string; firmName?: string };
   pageViewMode?: boolean;
 }) {
-  const sourceContent = formatAttendanceNoteMarkdown(
-    isEditing ? editContent : document.content,
-    document.type,
-  );
+  // Do not re-normalize while editing — reformatting the prop after every
+  // keystroke/toolbar action forces TipTap setContent and jumps scroll to the bottom.
+  const sourceContent = isEditing
+    ? editContent
+    : formatAttendanceNoteMarkdown(document.content, document.type);
 
   return (
-    <div className={`space-y-4 ${usesJustifiedLegalLayout(document.type) ? 'legal-document-justified' : ''}`}>
-      {isEditing && (
+    <div
+      className={cn(
+        'space-y-4',
+        usesJustifiedLegalLayout(document.type) && 'legal-document-justified',
+        usesAttendanceNoteLayout(document.type) && 'legal-document-attendance',
+      )}
+    >      {isEditing && (
         <div className="flex items-center gap-2 flex-wrap px-6">
           <Button
             size="sm"
@@ -1337,6 +1345,8 @@ export default function DocumentViewer({
   transcriptUtterances,
   speakerCount,
   transcriptRedactions,
+  transcriptOrigin,
+  transcriptOriginalFilename,
   textNotes,
   status,
   caseTitle,
@@ -2075,7 +2085,10 @@ export default function DocumentViewer({
     const savedDraft = localStorage.getItem(`${DRAFT_STORAGE_KEY}${document.id}`);
     // Round-trip markers as TipTap-safe tokens so html:false does not escape/lose them.
     const rawContent = savedDraft ? JSON.parse(savedDraft).content : document.content;
-    const contentToLoad = toEditorContent(rawContent);
+    // Normalize once on enter-edit so section labels are clean without live reformat loops.
+    const contentToLoad = toEditorContent(
+      formatAttendanceNoteMarkdown(rawContent, document.type),
+    );
 
     setEditingDocId(document.id);
     editingDocIdRef.current = document.id;
@@ -2337,7 +2350,7 @@ export default function DocumentViewer({
       })
     : null;
   
-  const transcriptContent = transcriptDoc?.content ?? transcript;
+  const transcriptContent = stripRtfToPlainText(transcriptDoc?.content ?? transcript ?? "");
 
   // Primary actions under document title: Produce new version (left) + Edit Document (right)
   const DocumentPrimaryActions = ({ document }: { document?: Document }) => {
@@ -3320,15 +3333,33 @@ export default function DocumentViewer({
             <CardHeader>
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <CardTitle>Full Transcript</CardTitle>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  {transcriptOrigin === "external_upload" && (
+                    <Badge variant="secondary" data-testid="badge-external-transcript">
+                      External transcript
+                    </Badge>
+                  )}
                   {transcriptUtterances && transcriptUtterances.length > 0 && (
                     <Badge variant="default" data-testid="badge-diarized">
                       Speaker Diarization
                     </Badge>
                   )}
-                  <Badge variant="outline" data-testid="badge-ai-generated">Transcript</Badge>
+                  <Badge variant="outline" data-testid="badge-ai-generated">
+                    {transcriptOrigin === "external_upload" ? "Uploaded" : "Transcript"}
+                  </Badge>
                 </div>
               </div>
+              {transcriptOrigin === "external_upload" && (
+                <p
+                  className="text-xs text-muted-foreground mt-2 leading-relaxed"
+                  data-testid="text-external-transcript-notice"
+                >
+                  This transcript was uploaded externally
+                  {transcriptOriginalFilename ? ` (${transcriptOriginalFilename})` : ""} and was not
+                  produced by LegalNote from an audio recording. Speaker labels are shown where they
+                  appear in the file; timing is not available without audio.
+                </p>
+              )}
             </CardHeader>
             <CardContent className="pb-6" data-testid="tab-content-transcript">
               {transcriptUtterances && transcriptUtterances.length > 0 ? (
@@ -3360,18 +3391,27 @@ export default function DocumentViewer({
                     utterances={transcriptUtterances}
                     speakerCount={speakerCount}
                     fallbackContent={transcriptContent}
-                    onTimestampClick={onTranscriptTimestampClick}
+                    onTimestampClick={
+                      transcriptOrigin === "external_upload"
+                        ? undefined
+                        : onTranscriptTimestampClick
+                    }
                     redactions={transcriptRedactions}
                     onRedact={handleRedact}
                     onRemoveRedaction={handleRemoveRedaction}
                     canRedact={!litigationHold}
-                    initialTimestamp={initialTimestamp}
+                    initialTimestamp={
+                      transcriptOrigin === "external_upload" ? undefined : initialTimestamp
+                    }
+                    hideTimestamps={transcriptOrigin === "external_upload"}
+                    isExternalUpload={transcriptOrigin === "external_upload"}
                   />
                 </>
               ) : transcriptContent ? (
                 <div className="max-h-[min(70vh,720px)] overflow-y-auto overscroll-contain pr-1">
                   <p className="text-xs text-muted-foreground mb-2">
                     Full transcript · {transcriptContent.replace(/\s+/g, " ").trim().length.toLocaleString()} characters
+                    {transcriptOrigin === "external_upload" ? " · no speaker labels detected" : ""}
                   </p>
                   <p className="text-foreground whitespace-pre-wrap break-words" data-testid="text-transcript-fallback">
                     {transcriptContent}
