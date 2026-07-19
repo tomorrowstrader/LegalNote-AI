@@ -398,9 +398,9 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   if (!audioUrl || isPlaybackBlocked) {
     return (
       <div className="relative" data-testid="audio-player-expired">
-        <div className="bg-gradient-to-b from-card to-muted/20 border border-border/60 rounded-2xl px-5 py-4 opacity-40 pointer-events-none select-none">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
+        <div className="bg-gradient-to-b from-card to-muted/20 border border-border/60 rounded-2xl px-3 py-3 sm:px-5 sm:py-4 opacity-40 pointer-events-none select-none overflow-hidden">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex items-center justify-center gap-2 shrink-0">
               <div className="w-8 h-8 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
                 <SkipBack className="h-3 w-3 text-muted-foreground/50" />
               </div>
@@ -411,13 +411,13 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
                 <SkipForward className="h-3 w-3 text-muted-foreground/50" />
               </div>
             </div>
-            <div className="flex-1">
-              <div className="flex items-end gap-[2px] h-8">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-end gap-px sm:gap-[2px] h-8 w-full overflow-hidden">
                 {WAVEFORM_BARS.map((height, i) => (
                   <div
                     key={i}
-                    className="flex-1 rounded-full bg-muted-foreground/15"
-                    style={{ height: `${height * 100}%`, minWidth: '2px' }}
+                    className="flex-1 min-w-0 rounded-full bg-muted-foreground/15"
+                    style={{ height: `${height * 100}%` }}
                   />
                 ))}
               </div>
@@ -460,9 +460,9 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
       
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
       
-      <div className="bg-gradient-to-b from-card to-muted/20 border border-border/60 rounded-2xl px-5 py-4 shadow-sm" data-testid="audio-player">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 shrink-0">
+      <div className="bg-gradient-to-b from-card to-muted/20 border border-border/60 rounded-2xl px-3 py-3 sm:px-5 sm:py-4 shadow-sm overflow-hidden" data-testid="audio-player">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="flex items-center justify-center gap-2 shrink-0">
             <Button
               size="icon"
               variant="ghost"
@@ -475,7 +475,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
 
             <button
               onClick={togglePlayPause}
-              className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all active:scale-95 shadow-md hover:shadow-lg hover:brightness-105"
+              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all active:scale-95 shadow-md hover:shadow-lg hover:brightness-105"
               data-testid="button-play-pause"
             >
               {isPlaying ? (
@@ -499,7 +499,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
           <div className="flex-1 min-w-0 space-y-1">
             <div
               ref={waveformRef}
-              className="flex items-end gap-[2px] h-12 cursor-pointer select-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary touch-none"
+              className="flex items-end gap-px sm:gap-[2px] h-10 sm:h-12 w-full overflow-hidden cursor-pointer select-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary touch-none"
               onPointerDown={handleWaveformPointerDown}
               onPointerMove={handleWaveformPointerMove}
               onPointerUp={handleWaveformPointerUp}
@@ -522,10 +522,9 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
                   <div
                     key={i}
                     ref={el => { barRefsArray.current[i] = el; }}
-                    className="flex-1 rounded-full"
+                    className="flex-1 min-w-0 rounded-full"
                     style={{
                       height: `${height * 100}%`,
-                      minWidth: '2px',
                       backgroundColor: isPlayed
                         ? 'hsl(var(--primary))'
                         : 'hsl(var(--muted-foreground) / 0.25)',
@@ -541,11 +540,12 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 pl-2 border-l border-border/40">
+          <div className="flex items-center gap-2 shrink-0 sm:pl-2 sm:border-l sm:border-border/40">
             <Button
               size="icon"
               variant="ghost"
               onClick={toggleMute}
+              className="shrink-0"
               data-testid="button-mute"
             >
               {isMuted || volume === 0 ? (
@@ -559,7 +559,7 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
               max={1}
               step={0.01}
               onValueChange={handleVolumeChange}
-              className="w-16"
+              className="flex-1 sm:flex-none sm:w-16"
               data-testid="slider-volume"
             />
           </div>

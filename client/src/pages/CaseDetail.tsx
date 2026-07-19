@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { toTitleCase } from "@/lib/utils";
 import {
   ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles,
-  FileText, MessageSquarePlus, Plus, MoreVertical, AlertCircle,
+  FileText, MessageSquarePlus, Plus, MoreVertical, AlertCircle, Menu,
   Share2, Eye, Archive, Video, ListChecks, History,
   ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send,
   ShieldCheck, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, Mic, FileCheck,
@@ -525,6 +525,7 @@ export default function CaseDetail() {
   });
 
   const [showSraReportModal, setShowSraReportModal] = useState(false);
+  const [mobileSectionMenuOpen, setMobileSectionMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       // Default collapsed on first visit; only expand when user has explicitly chosen open.
@@ -1131,8 +1132,6 @@ export default function CaseDetail() {
     );
   };
 
-  const mobileNavItems = [...matterNavItems, ...complianceNavItems];
-
   const showAudioPlayer = caseData.sourceType === 'audio' && (audioData?.filePath || audioData?.deletedAt);
 
   const sharedCaseActionsGroup = (
@@ -1509,36 +1508,72 @@ export default function CaseDetail() {
       {/* ── Main Content ── */}
       <main className="flex-1 min-w-0 flex flex-col overflow-y-auto overflow-x-hidden">
 
-        {/* Mobile tab bar */}
-        <div className="lg:hidden sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border overflow-x-auto">
-          <div className="flex items-center gap-0.5 px-4 py-2 min-w-max">
-            {mobileNavItems.map(item => {
-              const Icon = item.icon;
-              const isActive = activeSection === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveSection(item.id as CaseSection);
-                    if (item.id === 'documents' && isDemoJustRevealed) {
-                      setIsDemoJustRevealed(false);
-                      setShowDemoJustProducedBadge(true);
-                      if (demoJustProducedTimerRef.current) clearTimeout(demoJustProducedTimerRef.current);
-                      demoJustProducedTimerRef.current = setTimeout(() => setShowDemoJustProducedBadge(false), 5000);
-                    }
-                  }}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs whitespace-nowrap transition-colors duration-150",
-                    isActive ? "bg-accent/10 text-accent font-medium" : "text-muted-foreground hover:text-foreground"
-                  )}
-                  data-testid={`mobile-nav-${item.id}`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
+        {/* Mobile section menu — full list; replaces hard-to-discover horizontal scroller */}
+        <div className="lg:hidden sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-2">
+          <DropdownMenu open={mobileSectionMenuOpen} onOpenChange={setMobileSectionMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-between gap-2"
+                data-testid="button-mobile-section-menu"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <Menu className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{SECTION_LABELS[activeSection]}</span>
+                </span>
+                <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[min(100vw-2rem,20rem)] max-h-[70vh] overflow-y-auto">
+              {matterNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeSection === item.id;
+                return (
+                  <DropdownMenuItem
+                    key={item.id}
+                    onClick={() => {
+                      setActiveSection(item.id as CaseSection);
+                      setMobileSectionMenuOpen(false);
+                      if (item.id === 'documents' && isDemoJustRevealed) {
+                        setIsDemoJustRevealed(false);
+                        setShowDemoJustProducedBadge(true);
+                        if (demoJustProducedTimerRef.current) clearTimeout(demoJustProducedTimerRef.current);
+                        demoJustProducedTimerRef.current = setTimeout(() => setShowDemoJustProducedBadge(false), 5000);
+                      }
+                    }}
+                    className={cn(isActive && "bg-accent/20")}
+                    data-testid={`mobile-nav-${item.id}`}
+                  >
+                    <Icon className="w-4 h-4 mr-2 shrink-0" />
+                    <span className="flex-1 truncate">{item.label}</span>
+                    {item.badge}
+                  </DropdownMenuItem>
+                );
+              })}
+              {complianceNavItems.length > 0 && <DropdownMenuSeparator />}
+              {complianceNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeSection === item.id;
+                return (
+                  <DropdownMenuItem
+                    key={item.id}
+                    onClick={() => {
+                      setActiveSection(item.id as CaseSection);
+                      setMobileSectionMenuOpen(false);
+                      if (item.id === 'compliance') setAutoOpenComplianceNote(0);
+                    }}
+                    className={cn(isActive && "bg-accent/20")}
+                    data-testid={`mobile-nav-${item.id}`}
+                  >
+                    <Icon className="w-4 h-4 mr-2 shrink-0" />
+                    <span className="flex-1 truncate">{item.label}</span>
+                    {item.badge}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Section top bar */}
