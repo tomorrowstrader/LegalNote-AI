@@ -265,7 +265,7 @@ export function PageView({ content, gapAnchorLabels }: PageViewProps) {
   }, [computing, pages]);
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto min-w-0 max-w-full">
       {/* ----------------------------------------------------------------
           Hidden measurement container.
           position: fixed keeps it out of layout while still allowing
@@ -295,19 +295,19 @@ export function PageView({ content, gapAnchorLabels }: PageViewProps) {
       {/* ----------------------------------------------------------------
           Visible page-view output
           ---------------------------------------------------------------- */}
-      <div className="bg-muted/30 dark:bg-muted/10 py-8 min-h-full">
+      <div className="bg-muted/30 dark:bg-muted/10 py-8 min-h-full min-w-0 max-w-full overflow-x-hidden">
         {computing ? (
           <div className="flex items-center justify-center py-24 text-muted-foreground">
             <FileText className="w-8 h-8 opacity-30 animate-pulse" />
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-0">
+          <div className="page-view-pages flex flex-col items-center gap-0 w-full max-w-full min-w-0">
             {pages.map((page, idx) => (
-              <div key={page.pageNumber}>
+              <div key={page.pageNumber} className="w-full max-w-full min-w-0 sm:w-auto">
                 {/* Grey separator band between pages */}
                 {idx > 0 && (
                   <div
-                    className="flex items-center justify-center"
+                    className="page-view-page-separator flex items-center justify-center"
                     style={{
                       width: PAGE_W,
                       height: 32,
@@ -327,9 +327,9 @@ export function PageView({ content, gapAnchorLabels }: PageViewProps) {
                   </div>
                 )}
 
-                {/* A4 page card */}
+                {/* A4 page card — fluid width on mobile via .page-view-page-card CSS */}
                 <div
-                  className="bg-card shadow-md"
+                  className="page-view-page-card bg-card shadow-md"
                   style={{
                     width: PAGE_W,
                     minHeight: 1122,

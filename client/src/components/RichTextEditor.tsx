@@ -1210,29 +1210,51 @@ export function RichTextEditor({
     }
   }, [editor, disabled]);
 
-  // Keep Word/Docs 1" page margins applied even if pagination-plus onCreate
-  // races with TipTap remounts (Strict Mode) or drops inline geometry.
+  // Keep page geometry applied even if pagination-plus onCreate races with
+  // TipTap remounts (Strict Mode) or drops inline styles. On narrow viewports
+  // use fluid width + tight gutters so A4 (794px) does not overflow the card.
   useEffect(() => {
     if (!editor) return;
     const dom = editor.view.dom as HTMLElement;
+    const mq = window.matchMedia('(max-width: 767px)');
+
     const applyPageMargins = () => {
+      const mobile = mq.matches;
+      const marginH = mobile ? 16 : 96;
+      const marginV = mobile ? 24 : 96;
+
       dom.classList.add('rm-with-pagination');
-      dom.style.setProperty('--rm-page-width', '794px');
+      dom.style.setProperty('--rm-page-width', mobile ? '100%' : '794px');
       dom.style.setProperty('--rm-page-height', '1122px');
-      dom.style.setProperty('--rm-margin-top', '96px');
-      dom.style.setProperty('--rm-margin-bottom', '96px');
-      dom.style.setProperty('--rm-margin-left', '96px');
-      dom.style.setProperty('--rm-margin-right', '96px');
+      dom.style.setProperty('--rm-margin-top', `${marginV}px`);
+      dom.style.setProperty('--rm-margin-bottom', `${marginV}px`);
+      dom.style.setProperty('--rm-margin-left', `${marginH}px`);
+      dom.style.setProperty('--rm-margin-right', `${marginH}px`);
       dom.style.paddingLeft = 'var(--rm-margin-left)';
       dom.style.paddingRight = 'var(--rm-margin-right)';
-      dom.style.width = 'var(--rm-page-width)';
+      dom.style.width = mobile ? '100%' : 'var(--rm-page-width)';
+      if (mobile) {
+        dom.style.maxWidth = '100%';
+      } else {
+        dom.style.removeProperty('max-width');
+      }
       if (typeof editor.commands.updateMargins === 'function') {
-        editor.commands.updateMargins({ top: 96, bottom: 96, left: 96, right: 96 });
+        editor.commands.updateMargins({
+          top: marginV,
+          bottom: marginV,
+          left: marginH,
+          right: marginH,
+        });
       }
     };
+
     applyPageMargins();
     const raf = requestAnimationFrame(applyPageMargins);
-    return () => cancelAnimationFrame(raf);
+    mq.addEventListener('change', applyPageMargins);
+    return () => {
+      cancelAnimationFrame(raf);
+      mq.removeEventListener('change', applyPageMargins);
+    };
   }, [editor]);
 
   const applyAutocomplete = useCallback((phrase: string) => {
@@ -1384,7 +1406,7 @@ export function RichTextEditor({
 
   return (
     <div 
-      className="rounded-md overflow-visible"
+      className="rounded-md overflow-visible min-w-0 max-w-full"
       style={{ fontSize: `${zoom}%` }}
     >
       {!disabled && (
@@ -1566,8 +1588,8 @@ export function RichTextEditor({
         </div>
       )}
 
-      <div className="flex">
-        <div className={`relative flex-1 ${trackChangesEnabled && changeCount > 0 && !disabled ? 'min-w-0' : ''}`} onKeyDown={handleKeyDown}>
+      <div className="flex min-w-0 max-w-full">
+        <div className="relative flex-1 min-w-0" onKeyDown={handleKeyDown}>
         {structuralNotice && (
           <div
             className="fixed top-20 left-1/2 -translate-x-1/2 z-50 rounded-md border border-amber-400 bg-amber-50 dark:bg-amber-900/40 px-3 py-1.5 text-xs text-amber-800 dark:text-amber-200 shadow-sm pointer-events-none"
@@ -1576,8 +1598,8 @@ export function RichTextEditor({
             Structural deletions are blocked while Track Changes is on. Turn Track Changes off to delete table rows, columns, or list items.
           </div>
         )}
-          <div className="bg-muted/30 dark:bg-muted/10 border-x border-border overflow-x-auto py-8">
-            <div className="pagination-plus-host mx-auto">
+          <div className="bg-muted/30 dark:bg-muted/10 border-x border-border overflow-x-auto max-w-full py-8">
+            <div className="pagination-plus-host mx-auto w-full max-w-full min-w-0">
               <EditorContent 
                 editor={editor} 
                 className="legal-document-editor

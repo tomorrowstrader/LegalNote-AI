@@ -1258,7 +1258,7 @@ function EditableDocumentContent({
   return (
     <div
       className={cn(
-        'space-y-4',
+        'space-y-4 min-w-0 max-w-full',
         usesJustifiedLegalLayout(document.type) && 'legal-document-justified',
         usesAttendanceNoteLayout(document.type) && 'legal-document-attendance',
       )}
@@ -2662,13 +2662,14 @@ export default function DocumentViewer({
 
   return (
     <div 
-      className={`space-y-6 ${focusMode ? 'fixed inset-0 z-[100] bg-background overflow-auto p-8 print:p-0' : ''}`}
+      className={`space-y-6 min-w-0 max-w-full overflow-x-hidden ${focusMode ? 'fixed inset-0 z-[100] bg-background overflow-auto p-8 print:p-0' : ''}`}
       data-testid="container-document-viewer"
       style={{ '--doc-header-height': `${headerHeight}px` } as CSSProperties}
     >
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div ref={stickyHeaderRef} className={`sticky top-0 z-40 bg-card/95 backdrop-blur-sm pt-4 pb-3 border-b ${focusMode ? 'print:hidden' : ''}`}>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 px-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full min-w-0 max-w-full">
+        <div ref={stickyHeaderRef} className={`sticky top-0 z-40 pt-1 pb-3 ${focusMode ? 'print:hidden' : ''}`}>
+          <div className="rounded-2xl border border-border/60 bg-card/95 backdrop-blur-sm shadow-sm px-4 pt-4 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl sm:text-2xl font-semibold">Documents</h2>
@@ -2851,6 +2852,7 @@ export default function DocumentViewer({
               </TabsTrigger>
             )}
           </TabsList>
+          </div>
         </div>
 
         <TabsContent value="attendance" className="mt-6">
@@ -2877,10 +2879,10 @@ export default function DocumentViewer({
               />
             </div>
           )}
-          <div className={`flex gap-4 items-start ${showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-col lg:flex-row' : ''}`}>
+          <div className={`flex gap-4 items-start min-w-0 max-w-full ${showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-col lg:flex-row' : ''}`}>
             <Card className={cn(
-              showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-1 min-w-0' : 'w-full',
-              'overflow-x-clip overscroll-x-none touch-pan-y',
+              showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-1' : 'w-full',
+              'min-w-0 max-w-full overflow-x-clip overscroll-x-none touch-pan-y',
             )} data-testid="attendance-note-card">
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -3108,10 +3110,10 @@ export default function DocumentViewer({
               />
             </div>
           )}
-          <div className={`flex gap-4 items-start ${showComments || (summary && showGapPanel === summary.id) ? 'flex-col lg:flex-row' : ''}`}>
+          <div className={`flex gap-4 items-start min-w-0 max-w-full ${showComments || (summary && showGapPanel === summary.id) ? 'flex-col lg:flex-row' : ''}`}>
             <Card className={cn(
-              showComments || (summary && showGapPanel === summary.id) ? 'flex-1 min-w-0' : 'w-full',
-              'overflow-x-clip',
+              showComments || (summary && showGapPanel === summary.id) ? 'flex-1' : 'w-full',
+              'min-w-0 max-w-full overflow-x-clip',
             )} data-testid="summary-note-card">
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -3442,7 +3444,7 @@ export default function DocumentViewer({
                 </div>
               </div>
             )}
-            <Card>
+            <Card className="min-w-0 max-w-full overflow-x-clip">
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <CardTitle>Client Care Letter</CardTitle>
