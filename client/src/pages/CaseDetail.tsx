@@ -1187,7 +1187,8 @@ export default function CaseDetail() {
   const activeSessionId =
     focusSessionId ||
     urlSessionId ||
-    (sessionTotal === 1 ? sessionsChronological[0]?.id ?? null : null);
+    sessionsChronological[sessionTotal - 1]?.id ||
+    null;
   const activeSessionIndex = activeSessionId
     ? sessionsChronological.findIndex((s) => s.id === activeSessionId) + 1
     : 0;
