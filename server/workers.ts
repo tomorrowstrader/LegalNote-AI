@@ -89,6 +89,73 @@ export function initializeWorkers() {
     },
   );
 
+  // Derive documents from an uploaded/pasted transcript (no audio / AssemblyAI)
+  jobQueue.registerHandler(
+    'derive-transcript',
+    async (data: {
+      caseId: string;
+      userId: string;
+      transcriptId: string;
+      sessionId: string;
+      importId: string;
+      recordingType?: string;
+      meetingTimestamp?: string;
+      durationSeconds?: number | null;
+      generateClientLetter?: boolean;
+    }) => {
+      console.log(
+        `[DERIVE-TRANSCRIPT-WORKER] Starting derivation for import ${data.importId} case ${data.caseId}`,
+      );
+      const { deriveDocumentsFromTranscript } = await import('./services/transcriptDerivationService');
+      const { updateTranscriptImportStatus } = await import('./services/transcriptImportService');
+
+      try {
+        const result = await deriveDocumentsFromTranscript({
+          storage,
+          caseId: data.caseId,
+          userId: data.userId,
+          transcriptId: data.transcriptId,
+          sessionId: data.sessionId,
+          recordingType: data.recordingType,
+          meetingTimestamp: data.meetingTimestamp ? new Date(data.meetingTimestamp) : undefined,
+          durationSeconds: data.durationSeconds,
+          generateClientLetter: data.generateClientLetter ?? true,
+          transcriptionCost: 0,
+        });
+
+        if (!result.success) {
+          await updateTranscriptImportStatus(data.importId, {
+            status: 'failed',
+            errorMessage: result.error || 'Derivation failed',
+            completedAt: new Date(),
+          });
+          throw new Error(result.error || 'Transcript derivation failed');
+        }
+
+        await updateTranscriptImportStatus(data.importId, {
+          status: 'completed',
+          errorMessage: null,
+          completedAt: new Date(),
+        });
+        console.log(
+          `[DERIVE-TRANSCRIPT-WORKER] Completed import ${data.importId}. Cost: $${result.totalCost.toFixed(4)}`,
+        );
+      } catch (error: any) {
+        console.error(`[DERIVE-TRANSCRIPT-WORKER] Error for case ${data.caseId}:`, error);
+        try {
+          await updateTranscriptImportStatus(data.importId, {
+            status: 'failed',
+            errorMessage: error.message || 'Derivation failed',
+            completedAt: new Date(),
+          });
+        } catch {
+          /* ignore */
+        }
+        throw error;
+      }
+    },
+  );
+
   // Schedule periodic security and maintenance tasks
   scheduleMaintenanceTasks();
 

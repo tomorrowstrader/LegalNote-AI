@@ -320,6 +320,30 @@ function usesJustifiedLegalLayout(type: Document['type']): boolean {
     type === 'client_letter';
 }
 
+function parseAttendanceHeaderFields(header: string): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const line of header.split('\n')) {
+    const match = line.match(
+      /^\s*(?:\*\*)?(File Ref|Advisor|Client Name|CLIENT|Client|Date|Time Spent \(Units\)|Duration|Time|MATTER|Matter):(?:\*\*)?\s*(.+?)\s*(?: {2})?$/i,
+    );
+    if (!match) continue;
+    const rawLabel = match[1];
+    const value = match[2].replace(/\*\*/g, '').trim();
+    if (!value) continue;
+
+    let label = rawLabel;
+    if (/^client(?:\s+name)?$/i.test(rawLabel) || rawLabel === 'CLIENT') {
+      label = 'Client Name';
+    } else if (/^matter$/i.test(rawLabel) || rawLabel === 'MATTER') {
+      label = 'Matter';
+    }
+
+    // Keep the first non-empty value for each normalized label
+    if (!fields[label]) fields[label] = value;
+  }
+  return fields;
+}
+
 /**
  * Applies the current attendance-note house style to older Markdown documents
  * without requiring a database migration. The transformation is idempotent, so
@@ -328,14 +352,45 @@ function usesJustifiedLegalLayout(type: Document['type']): boolean {
 function formatAttendanceNoteMarkdown(content: string, type: Document['type']): string {
   if (type !== 'attendance_note' && type !== 'meeting_notes') return content;
 
-  const matterIndex = content.search(/^\s*(?:\*\*)?MATTER:/m);
-  const headerEnd = matterIndex >= 0 ? matterIndex : content.length;
-  const header = content.slice(0, headerEnd).replace(
-    /^(\s*)(?:\*\*)?(File Ref|Date|Time|Duration|Time Spent \(Units\)|Advisor):(?:\*\*)?\s*(.*?)(?: {2})?$/gm,
-    (_match, indent: string, label: string, value: string) =>
-      `${indent}**${label}:** ${value.trimEnd()}  `,
-  );
-  const body = content.slice(headerEnd).replace(
+  const bodyIdx = content.search(/^\s*\*\*MATTERS DISCUSSED\*\*/m);
+  const headerEnd = bodyIdx >= 0 ? bodyIdx : content.length;
+  const rawHeader = content.slice(0, headerEnd);
+  const rawBody = content.slice(headerEnd);
+
+  const fields = parseAttendanceHeaderFields(rawHeader);
+  const fileRef = fields['File Ref'];
+  const advisor = fields['Advisor'];
+  const clientName = fields['Client Name'];
+  const date = fields['Date'];
+  const units = fields['Time Spent (Units)'];
+  const duration = fields['Duration'];
+
+  // Rebuild header only when we recognised at least one metadata field
+  let header = rawHeader;
+  if (fileRef || advisor || clientName || date || units || duration) {
+    const group1 = [
+      fileRef ? `**File Ref:** ${fileRef}` : null,
+      advisor ? `**Advisor:** ${advisor}` : null,
+    ].filter(Boolean).join('  \n');
+    const group2 = [
+      clientName ? `**Client Name:** ${clientName}` : null,
+      date ? `**Date:** ${date}` : null,
+    ].filter(Boolean).join('  \n');
+    const group3 = [
+      units ? `**Time Spent (Units):** ${units}` : null,
+      duration ? `**Duration:** ${duration}` : null,
+    ].filter(Boolean).join('  \n');
+
+    header = `**ATTENDANCE NOTE**\n\n${[group1, group2, group3].filter(Boolean).join('\n\n')}\n\n`;
+  } else {
+    header = rawHeader.replace(
+      /^(\s*)(?:\*\*)?(File Ref|Date|Time|Duration|Time Spent \(Units\)|Advisor|Client Name):(?:\*\*)?\s*(.*?)(?: {2})?$/gm,
+      (_match, indent: string, label: string, value: string) =>
+        `${indent}**${label}:** ${value.trimEnd()}  `,
+    );
+  }
+
+  const body = rawBody.replace(
     /^(\s*)(?:\*\*)?(What was discussed:|Advice given:|Client's instructions and response:)(?:\*\*)?\s*$/gim,
     '$1**$2**',
   );

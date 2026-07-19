@@ -4676,6 +4676,56 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  // Upload/paste a transcript and derive attendance note + client letter (no audio)
+  app.post("/api/cases/:id/transcript-imports", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+
+      const { createTranscriptImportRequestSchema } = await import("@shared/schema");
+      const parsed = createTranscriptImportRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Validation error",
+          errors: parsed.error.flatten().fieldErrors,
+        });
+      }
+
+      const { createTranscriptImport, TranscriptImportError } = await import(
+        "./services/transcriptImportService"
+      );
+
+      try {
+        const result = await createTranscriptImport({
+          storage,
+          caseId,
+          userId,
+          body: parsed.data,
+        });
+
+        res.status(202).json({
+          message: "Transcript accepted for derivation",
+          importId: result.importRecord.id,
+          jobId: result.jobId,
+          sessionId: result.importRecord.meetingSessionId,
+          transcriptId: result.importRecord.transcriptId,
+          status: "processing",
+        });
+      } catch (error: any) {
+        if (error instanceof TranscriptImportError) {
+          return res.status(error.statusCode).json({
+            message: error.message,
+            code: error.code,
+          });
+        }
+        throw error;
+      }
+    } catch (error: any) {
+      console.error("Transcript import error:", error);
+      next(error);
+    }
+  });
+
   // All-in-one processing: transcribe + generate documents using background jobs
   app.post("/api/cases/:id/process", isAuthenticated, async (req: any, res, next) => {
     try {

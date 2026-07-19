@@ -41,6 +41,7 @@ import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
 import ImportRecordingModal from "@/components/ImportRecordingModal";
+import UploadTranscriptModal from "@/components/UploadTranscriptModal";
 import { LiveBotModal } from "@/components/LiveBotModal";
 import LogCallModal from "@/components/LogCallModal";
 import ComplianceThread from "@/components/ComplianceThread";
@@ -323,6 +324,7 @@ export default function CaseDetail() {
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showUploadTranscriptModal, setShowUploadTranscriptModal] = useState(false);
   const [showLiveBotModal, setShowLiveBotModal] = useState(false);
   const [showLogCallModal, setShowLogCallModal] = useState(false);
   const [showHandoverModal, setShowHandoverModal] = useState(false);
@@ -1301,6 +1303,10 @@ export default function CaseDetail() {
             <Video className="w-4 h-4 mr-2" />
             Import Recording
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setShowUploadTranscriptModal(true)} data-testid="action-upload-transcript">
+            <FileText className="w-4 h-4 mr-2" />
+            Upload Transcript
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setShowShareModal(true)} data-testid="action-share">
             <Share2 className="w-4 h-4 mr-2" />
@@ -1356,10 +1362,22 @@ export default function CaseDetail() {
     undertakings: sharedCaseActionsGroup,
     "linked-calls": sharedCaseActionsGroup,
     sessions: (
-      <Button size="sm" onClick={() => setShowNewSessionModal(true)} className="gap-1.5" data-testid="button-record-new-session">
-        <Mic className="w-3.5 h-3.5" />
-        Record New Session
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setShowUploadTranscriptModal(true)}
+          className="gap-1.5"
+          data-testid="button-upload-transcript-session"
+        >
+          <FileText className="w-3.5 h-3.5" />
+          Upload Transcript
+        </Button>
+        <Button size="sm" onClick={() => setShowNewSessionModal(true)} className="gap-1.5" data-testid="button-record-new-session">
+          <Mic className="w-3.5 h-3.5" />
+          Record New Session
+        </Button>
+      </div>
     ),
     time: (
       <Button variant="outline" size="sm" onClick={() => setShowTimeRecordingModal(true)} className="gap-1.5" data-testid="button-record-time-top">
@@ -2439,6 +2457,7 @@ export default function CaseDetail() {
         }}
       />
       <ImportRecordingModal open={showImportModal} onOpenChange={setShowImportModal} caseId={caseId!} caseTitle={caseData.title} />
+      <UploadTranscriptModal open={showUploadTranscriptModal} onOpenChange={setShowUploadTranscriptModal} caseId={caseId!} caseTitle={caseData.title} />
       <LiveBotModal open={showLiveBotModal} onOpenChange={setShowLiveBotModal} caseId={caseId!} caseTitle={caseData.title} />
       <LogCallModal open={showLogCallModal} onOpenChange={setShowLogCallModal} caseId={caseId!} caseTitle={caseData.title} clientName={caseData.clientName} clientId={caseData.clientId || undefined} matterReference={caseData.matterReference || undefined} />
       {caseHandoverVisible && (

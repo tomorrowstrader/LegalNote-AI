@@ -630,6 +630,77 @@ export const meetingImports = pgTable("meeting_imports", {
   importedAt: timestamp("imported_at"), // When recording was successfully imported
 });
 
+/** Fee-earner uploaded/pasted transcripts for derivation (no audio / AssemblyAI). */
+export const transcriptImports = pgTable("transcript_imports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  meetingSessionId: varchar("meeting_session_id").references(() => meetingSessions.id),
+  transcriptId: varchar("transcript_id").references(() => transcripts.id),
+  source: text("source").notNull().default("paste"), // paste | file
+  originalFilename: text("original_filename"),
+  mimeType: text("mime_type"),
+  byteSize: integer("byte_size"),
+  sourceContentHash: text("source_content_hash"),
+  characterCount: integer("character_count"),
+  speakerCount: integer("speaker_count"),
+  recordingType: text("recording_type").notNull().default("full_meeting"),
+  sessionTitle: text("session_title"),
+  meetingAt: timestamp("meeting_at"),
+  durationSeconds: integer("duration_seconds"),
+  generateClientLetter: boolean("generate_client_letter").notNull().default(true),
+  authorityAttested: boolean("authority_attested").notNull().default(false),
+  authorityAttestedAt: timestamp("authority_attested_at"),
+  status: text("status").notNull().default("pending"), // pending, processing, completed, failed
+  errorMessage: text("error_message"),
+  jobId: text("job_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const insertTranscriptImportSchema = createInsertSchema(transcriptImports).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+}).extend({
+  caseId: z.string().uuid(),
+  meetingSessionId: z.string().uuid().optional(),
+  transcriptId: z.string().uuid().optional(),
+  source: z.enum(["paste", "file"]).default("paste"),
+  originalFilename: z.string().max(500).optional(),
+  mimeType: z.string().max(200).optional(),
+  byteSize: z.number().int().min(0).optional(),
+  sourceContentHash: z.string().max(128).optional(),
+  characterCount: z.number().int().min(0).optional(),
+  speakerCount: z.number().int().min(0).optional(),
+  recordingType: z.enum(["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station"]).default("full_meeting"),
+  sessionTitle: z.string().max(200).optional(),
+  meetingAt: z.coerce.date().optional(),
+  durationSeconds: z.number().int().min(0).max(43200).optional(),
+  generateClientLetter: z.boolean().default(true),
+  authorityAttested: z.boolean(),
+  status: z.enum(["pending", "processing", "completed", "failed"]).default("pending"),
+  errorMessage: z.string().max(2000).optional(),
+  jobId: z.string().max(200).optional(),
+});
+
+export type InsertTranscriptImport = z.infer<typeof insertTranscriptImportSchema>;
+export type TranscriptImport = typeof transcriptImports.$inferSelect;
+
+/** Body for POST /api/cases/:id/transcript-imports */
+export const createTranscriptImportRequestSchema = z.object({
+  content: z.string().min(40).max(1000000),
+  recordingType: z.enum(["full_meeting", "telephone_call", "file_note", "court_hearing", "police_station"]).default("full_meeting"),
+  sessionTitle: z.string().max(200).optional(),
+  meetingDate: z.string().min(1).max(40), // ISO date or datetime
+  durationMinutes: z.number().int().min(0).max(720).optional(),
+  generateClientLetter: z.boolean().default(true),
+  authorityAttested: z.literal(true),
+  source: z.enum(["paste", "file"]).default("paste"),
+  originalFilename: z.string().max(500).optional(),
+});
+export type CreateTranscriptImportRequest = z.infer<typeof createTranscriptImportRequestSchema>;
+
 // Scheduled meetings from calendar integration (for auto-recording)
 export const scheduledMeetings = pgTable("scheduled_meetings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

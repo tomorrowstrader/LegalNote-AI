@@ -13,6 +13,7 @@ import { backfillSessions } from "./sessionMigration";
 import { migrateReasoningGapPlaceholders } from "./reasoningGapMigration";
 import { migrateVerificationWarningsToJsonb } from "./verificationWarningsMigration";
 import { clearScheduledMeetingGuessedRecipients } from "./clearScheduledMeetingRecipientsMigration";
+import { ensureTranscriptImportsTable } from "./transcriptImportsMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
@@ -251,6 +252,9 @@ app.use((req, res, next) => {
   // Replace any legacy visible placeholder text with HTML comment markers (idempotent)
   await migrateReasoningGapPlaceholders();
   await migrateVerificationWarningsToJsonb();
+
+  // Ensure transcript upload/import table exists (idempotent)
+  await ensureTranscriptImportsTable();
 
   // Remove calendar-scraped consent recipients (solicitor must choose explicitly)
   await clearScheduledMeetingGuessedRecipients();

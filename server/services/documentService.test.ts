@@ -43,14 +43,17 @@ The client agreed.`,
       feeEarnerDisplayName: 'Jane Smith, Solicitor',
     });
 
+    expect(result.content).toContain('**ATTENDANCE NOTE**');
     expect(result.content).toContain(
       '**File Ref:** TEST/001  \n' +
-      '**Date:** 14 July 2026  \n' +
-      '**Time:** 10:37  \n' +
-      '**Duration:** 10 minutes  \n' +
+      '**Advisor:** Jane Smith, Solicitor\n\n' +
+      '**Client Name:** Test Client  \n' +
+      '**Date:** 14 July 2026\n\n' +
       '**Time Spent (Units):** 2  \n' +
-      '**Advisor:** Jane Smith, Solicitor',
+      '**Duration:** 10 minutes',
     );
+    expect(result.content).not.toContain('**MATTER:**');
+    expect(result.content).not.toContain('**CLIENT:**');
     expect(result.content).toContain('**What was discussed:**');
     expect(result.content).toContain('**Advice given:**');
     expect(result.content).toContain("**Client's instructions and response:**");

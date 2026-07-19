@@ -1,153 +1,9 @@
 import { AssemblyAIService, formatDiarizedTranscript, type SpeakerUtterance } from './assemblyAIService';
-import { DocumentService, type CaseMetadata } from './documentService';
-import { logDocumentGovernanceViolations } from './documentGovernanceGate';
 import { TranscriptCorrectionService } from './transcriptCorrectionService';
-import {
-  extractAndComputeRelationshipDurations,
-  practiceAreaNeedsRelationshipDurations,
-  toIsoDate,
-} from './relationshipDateExtraction';
 import { IStorage } from '../storage';
 import { logAuditEvent } from '../auditMiddleware';
 import { buildKeytermsConfig } from './legalVocabulary';
-import {
-  PRIMARY_ROLE_LABELS,
-  type PrimaryRole,
-  type User,
-} from '@shared/schema';
-import { isFeatureVisible } from '@shared/featureVisibility';
-
-function formatUkLongDate(date: Date): string {
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-function format24HourTime(date: Date): string {
-  return date.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Europe/London',
-  });
-}
-
-function formatDurationMinutes(totalMinutes: number): string {
-  if (totalMinutes < 60) {
-    return `${totalMinutes} minute${totalMinutes === 1 ? '' : 's'}`;
-  }
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
-  if (mins === 0) {
-    return `${hours} hour${hours === 1 ? '' : 's'}`;
-  }
-  return `${hours} hour${hours === 1 ? '' : 's'} ${mins} minutes`;
-}
-
-function resolveFeeEarnerTitle(user: User): string {
-  if (user.primaryRole === 'custom' && user.customRoleLabel?.trim()) {
-    return user.customRoleLabel.trim();
-  }
-  if (user.primaryRole && user.primaryRole in PRIMARY_ROLE_LABELS) {
-    return PRIMARY_ROLE_LABELS[user.primaryRole as PrimaryRole];
-  }
-  if (user.role?.trim()) {
-    const r = user.role.trim();
-    return r.charAt(0).toUpperCase() + r.slice(1);
-  }
-  return 'Solicitor';
-}
-
-function buildFeeEarnerInitials(user: User): string {
-  const parts: string[] = [];
-  if (user.firstName?.trim()) parts.push(user.firstName.trim().charAt(0).toUpperCase());
-  if (user.lastName?.trim()) parts.push(user.lastName.trim().charAt(0).toUpperCase());
-  if (parts.length > 0) return parts.join('.') + '.';
-  if (user.email) return user.email.split('@')[0].slice(0, 2).toUpperCase();
-  return 'S';
-}
-
-function buildFeeEarnerDisplayName(user: User, showFullSolicitorName: boolean): string {
-  const title = resolveFeeEarnerTitle(user);
-  if (showFullSolicitorName) {
-    const name =
-      [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
-      user.email ||
-      'Solicitor';
-    return `${name}, ${title}`;
-  }
-  return `${buildFeeEarnerInitials(user)}, ${title}`;
-}
-
-function buildFeeEarnerPlainName(user: User): string {
-  return (
-    [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
-    user.email ||
-    'Solicitor'
-  );
-}
-
-async function buildDocumentGenerationMetadata(
-  storage: IStorage,
-  params: {
-    caseData: {
-      title: string;
-      clientName: string;
-      matterReference?: string | null;
-      templateId?: string | null;
-      practiceArea?: string | null;
-      assignedToUserId?: string | null;
-      createdBy: string;
-    };
-    audio: { duration?: number | null; recordedAt?: Date | string | null };
-    meetingSession: { createdBy: string; startedAt?: Date | string | null } | null | undefined;
-    showFullSolicitorName: boolean;
-    firmName?: string;
-  },
-): Promise<CaseMetadata> {
-  const feeEarnerUserId =
-    params.meetingSession?.createdBy ??
-    params.caseData.assignedToUserId ??
-    params.caseData.createdBy;
-
-  const feeEarnerUser = await storage.getUser(feeEarnerUserId);
-  const feeEarnerDisplayName = feeEarnerUser
-    ? buildFeeEarnerDisplayName(feeEarnerUser, params.showFullSolicitorName)
-    : undefined;
-  const feeEarnerName = feeEarnerUser ? buildFeeEarnerPlainName(feeEarnerUser) : undefined;
-
-  const meetingTimestamp = params.audio.recordedAt
-    ? new Date(params.audio.recordedAt)
-    : params.meetingSession?.startedAt
-      ? new Date(params.meetingSession.startedAt)
-      : undefined;
-
-  let durationMinutes: number | undefined;
-  let units: number | undefined;
-  let durationDisplay: string | undefined;
-  if (params.audio.duration != null && params.audio.duration > 0) {
-    durationMinutes = Math.ceil(params.audio.duration / 60);
-    units = Math.ceil(durationMinutes / 6);
-    durationDisplay = formatDurationMinutes(durationMinutes);
-  }
-
-  return {
-    title: params.caseData.title,
-    clientName: params.caseData.clientName,
-    matterReference: params.caseData.matterReference || undefined,
-    recordingDate: meetingTimestamp
-      ? formatUkLongDate(meetingTimestamp)
-      : formatUkLongDate(new Date()),
-    recordingDateIso: toIsoDate(meetingTimestamp ?? new Date()),
-    datePrepared: formatUkLongDate(new Date()),
-    meetingStartTime: meetingTimestamp ? format24HourTime(meetingTimestamp) : undefined,
-    durationDisplay,
-    units,
-    feeEarnerDisplayName,
-    feeEarnerName,
-    firmName: params.firmName,
-    templateId: params.caseData.templateId || undefined,
-    practiceArea: params.caseData.practiceArea || undefined,
-  };
-}
+import { deriveDocumentsFromTranscript } from './transcriptDerivationService';
 
 export interface AIProcessingResult {
   success: boolean;
@@ -178,13 +34,11 @@ export interface ProcessingMetadata {
 
 export class AIProcessingPipeline {
   private assemblyAIService: AssemblyAIService;
-  private documentService: DocumentService;
   private correctionService: TranscriptCorrectionService;
   private storage: IStorage;
 
   constructor(storage: IStorage) {
     this.assemblyAIService = new AssemblyAIService();
-    this.documentService = new DocumentService();
     this.correctionService = new TranscriptCorrectionService();
     this.storage = storage;
     console.log('[AI Pipeline] AssemblyAI service initialized — speaker diarization enabled');
@@ -363,305 +217,35 @@ export class AIProcessingPipeline {
         },
       });
 
-      await this.updateProcessingStatus(caseId, userId, {
-        status: 'generating_documents',
-        progress: 40,
-        currentStep: 'Producing attendance note...',
-        transcriptionCost: transcriptionCost,
-      });
-
-      // For document generation, use formatted diarized transcript if available
-      const transcriptForDocGen = transcriptUtterances.length > 0
-        ? formatDiarizedTranscript(transcriptUtterances)
-        : transcriptText;
-
-      const firmProfile = await this.storage.getFirmProfile();
-      const showFullSolicitorName = firmProfile?.showFullSolicitorName ?? true;
-
-      const meetingSession = sessionInfo.sessionId
-        ? await this.storage.getMeetingSession(sessionInfo.sessionId)
-        : undefined;
-
-      const metadata = await buildDocumentGenerationMetadata(this.storage, {
-        caseData,
-        audio,
-        meetingSession,
-        showFullSolicitorName,
-        firmName: firmProfile?.firmName ?? undefined,
-      });
-
-      const firmPreferences = {
-        includeLocation: firmProfile?.includeLocation ?? true,
-        showFullSolicitorName,
-        includeClientConfirmation: firmProfile?.includeClientConfirmation ?? false,
-      };
-
-      const recordingType = sessionInfo.recordingType;
-      const docType = 'attendance_note';
-      const logLabel = 'attendance note';
-
-      let relationshipDurationCost = 0;
-      if (practiceAreaNeedsRelationshipDurations(metadata.practiceArea)) {
-        await this.updateProcessingStatus(caseId, userId, {
-          status: 'generating_documents',
-          progress: 42,
-          currentStep: 'Extracting relationship dates...',
-        });
-        try {
-          const durationResult = await extractAndComputeRelationshipDurations(
-            transcriptForDocGen,
-            {
-              asOfIso: metadata.recordingDateIso ?? toIsoDate(new Date()),
-              clientName: metadata.clientName,
-              matterReference: metadata.matterReference,
-              title: metadata.title,
-            },
-          );
-          metadata.relationshipDurations = durationResult.durations;
-          relationshipDurationCost = durationResult.cost;
-        } catch (durationError) {
-          console.warn(
-            '[AI Pipeline] Relationship duration extraction failed; continuing without duration facts:',
-            durationError,
-          );
-        }
-      }
-
-      // Step 2: Generate primary document (attendance note)
-      console.log(`Producing ${logLabel} for case ${caseId} (recording type: ${recordingType}, session: ${sessionInfo.sessionId})...`);
-      const attendanceResult = await this.documentService.generateDocumentByRecordingType(
-        recordingType,
-        transcriptForDocGen,
-        metadata,
-        firmPreferences,
-        transcriptUtterances.length > 0 ? transcriptUtterances : undefined
-      );
-
-      logDocumentGovernanceViolations(attendanceResult.content, recordingType, { caseId });
-
-      await this.updateProcessingStatus(caseId, userId, {
-        status: 'generating_documents',
-        progress: 55,
-        currentStep: `Verifying ${logLabel} against transcript...`,
-      });
-
-      const attendanceVerification = await this.documentService.verifyDocumentAgainstTranscript(
-        attendanceResult.content,
-        transcriptForDocGen,
-        {
-          clientName: metadata.clientName,
-          feeEarnerName: metadata.feeEarnerName,
-          relationshipDurations: metadata.relationshipDurations,
-        },
-      );
-
-      const attendanceDoc = await this.storage.createDocument({
+      // Step 2+: Derive attendance note + client letter via shared derivation engine
+      const deriveResult = await deriveDocumentsFromTranscript({
+        storage: this.storage,
         caseId,
-        transcriptSnapshotId: transcript.id,
-        type: docType,
-        content: attendanceResult.content,
-        version: 1,
-        versionType: 'system_generated',
-        createdBy: userId,
-        isActive: true,
-        verificationWarnings: attendanceVerification.warnings.length > 0 ? attendanceVerification.warnings : undefined,
-        meetingSessionId: sessionInfo.sessionId ?? undefined,
+        userId,
+        transcriptId: transcript.id,
+        sessionId: sessionInfo.sessionId,
+        recordingType: sessionInfo.recordingType,
+        meetingTimestamp: audio.recordedAt ? new Date(audio.recordedAt) : undefined,
+        durationSeconds: audio.duration ?? null,
+        generateClientLetter: true,
+        transcriptionCost,
       });
 
-      await logAuditEvent(userId, "document_generated", {
-        caseId,
-        documentId: attendanceDoc.id,
-        metadata: {
-          documentType: docType,
-          inputTokens: attendanceResult.inputTokens,
-          outputTokens: attendanceResult.outputTokens,
-          cost: attendanceResult.cost,
-        },
-      });
-
-      let clientLetterResult: typeof attendanceResult | undefined;
-      let clientLetterVerification: Awaited<ReturnType<DocumentService['verifyDocumentAgainstTranscript']>> | undefined;
-      let clientLetterDoc: typeof attendanceDoc | undefined;
-
-      await this.updateProcessingStatus(caseId, userId, {
-        status: 'generating_documents',
-        progress: 70,
-        currentStep: 'Producing client letter...',
-      });
-
-      console.log(`Producing client letter for case ${caseId}...`);
-      clientLetterResult = await this.documentService.generateSummary(
-        attendanceResult.content,
-        metadata
-      );
-
-      logDocumentGovernanceViolations(clientLetterResult.content, 'client_letter', { caseId });
-
-      await this.updateProcessingStatus(caseId, userId, {
-        status: 'generating_documents',
-        progress: 85,
-        currentStep: 'Verifying client letter against attendance note...',
-      });
-
-      clientLetterVerification = await this.documentService.verifyDocumentAgainstTranscript(
-        clientLetterResult.content,
-        attendanceResult.content
-      );
-
-      clientLetterDoc = await this.storage.createDocument({
-        caseId,
-        transcriptSnapshotId: transcript.id,
-        type: 'client_letter',
-        content: clientLetterResult.content,
-        version: 1,
-        versionType: 'system_generated',
-        createdBy: userId,
-        isActive: true,
-        verificationWarnings: clientLetterVerification.warnings.length > 0 ? clientLetterVerification.warnings : undefined,
-        meetingSessionId: sessionInfo.sessionId ?? undefined,
-      });
-
-      await logAuditEvent(userId, "document_generated", {
-        caseId,
-        documentId: clientLetterDoc.id,
-        metadata: {
-          documentType: "client_letter",
-          inputTokens: clientLetterResult.inputTokens,
-          outputTokens: clientLetterResult.outputTokens,
-          cost: clientLetterResult.cost,
-        },
-      });
-
-      const verificationCost = attendanceVerification.cost + (clientLetterVerification?.cost ?? 0);
-
-      const totalCost = transcriptionCost + 
-                       attendanceResult.cost +
-                       (clientLetterResult?.cost ?? 0) +
-                       verificationCost +
-                       relationshipDurationCost;
-
-      const totalTokens = {
-        input: attendanceResult.inputTokens + (clientLetterResult?.inputTokens ?? 0) + attendanceVerification.inputTokens + (clientLetterVerification?.inputTokens ?? 0),
-        output: attendanceResult.outputTokens + (clientLetterResult?.outputTokens ?? 0) + attendanceVerification.outputTokens + (clientLetterVerification?.outputTokens ?? 0),
-      };
-
-      // Update final status
-      await this.updateProcessingStatus(caseId, userId, {
-        status: 'completed',
-        progress: 100,
-        currentStep: 'Processing complete',
-        transcriptionCost: transcriptionCost,
-        documentGenerationCost: attendanceResult.cost + (clientLetterResult?.cost ?? 0) + verificationCost + relationshipDurationCost,
-        totalCost,
-        totalTokens,
-        completedAt: new Date().toISOString(),
-      });
-
-      // Update case status to review_required
-      await this.storage.updateCase(caseId, { status: 'review_required' }, userId);
-
-      if (sessionInfo.sessionId) {
-        try {
-          await this.storage.updateMeetingSession(sessionInfo.sessionId, {
-            status: 'completed',
-            durationSeconds: audio.duration ? Math.round(audio.duration) : undefined,
-          });
-        } catch (e) {
-          console.warn('[AI Pipeline] Failed to update session status:', e);
-        }
+      if (!deriveResult.success) {
+        throw new Error(deriveResult.error || 'Document derivation failed');
       }
 
-      // Undertaking Detection: scan transcript for undertaking language
-      try {
-        console.log(`[UNDERTAKINGS] Scanning for undertakings in case ${caseId}...`);
-        const undertakingResult = await this.documentService.extractUndertakings(
-          transcriptForDocGen,
-          metadata
-        );
-        if (undertakingResult.items.length > 0) {
-          await this.updateProcessingStatus(caseId, userId, {
-            undertakingCandidates: undertakingResult.items.map(item => ({
-              wording: item.wording,
-              speaker: item.speaker,
-              sourceQuote: item.sourceQuote,
-              deadline: item.deadline,
-              meetingSessionId: sessionInfo.sessionId ?? undefined,
-            })),
-          });
-          console.log(`[UNDERTAKINGS] Detected ${undertakingResult.items.length} candidate(s) in case ${caseId}`);
-        }
-      } catch (undertakingError) {
-        console.error('[UNDERTAKINGS] Detection failed (non-blocking):', undertakingError);
-      }
-
-      // AML Trigger Detection: scan transcript for compliance-relevant language (only for entitled users)
-      if (isFeatureVisible("amlCompliance")) {
-        try {
-          const pipelineUser = await this.storage.getUser(userId);
-          if (!pipelineUser?.complianceThread) {
-            console.log(`[AML] Skipping trigger detection - user ${userId} does not have compliance thread enabled`);
-          } else {
-            const { detectAmlTriggersAI, getAmlRiskSuggestion } = await import('./amlTriggerService');
-            const triggers = await detectAmlTriggersAI(transcriptText);
-            if (triggers.length > 0) {
-              const suggestedRisk = getAmlRiskSuggestion(triggers);
-              const currentCase = await this.storage.getCase(caseId, userId);
-              if (!currentCase?.riskLevel && suggestedRisk) {
-                await this.storage.updateCase(caseId, { riskLevel: suggestedRisk }, userId);
-              }
-              await this.updateProcessingStatus(caseId, userId, {
-                amlTriggers: triggers,
-              });
-              console.log(`[AML] Detected ${triggers.length} trigger(s) in case ${caseId}, suggested risk: ${suggestedRisk}`);
-            }
-          }
-        } catch (amlError) {
-          console.error('[AML] Trigger detection failed (non-blocking):', amlError);
-        }
-      }
-
-      // Obligations Auto-Extraction: extract obligations from transcript after processing
-      try {
-        const existingItems = await this.storage.getActionItemsByCase(caseId, userId);
-        if (existingItems.length === 0) {
-          const obligationMetadata = {
-            title: caseData.title,
-            clientName: caseData.clientName,
-            matterReference: caseData.matterReference || undefined,
-            recordingDate: new Date().toISOString().split('T')[0],
-          };
-          const obligationResult = await this.documentService.extractActionItems(transcriptForDocGen, obligationMetadata);
-          for (const item of obligationResult.items) {
-            await this.storage.createActionItem({
-              caseId,
-              transcriptId: transcript.id,
-              description: item.description,
-              originalDescription: item.description,
-              assignee: item.assignee || null,
-              dueDate: item.dueDate ? new Date(item.dueDate) : undefined,
-              priority: item.priority || "medium",
-              status: 'draft',
-            });
-          }
-          console.log(`[OBLIGATIONS] Auto-extracted ${obligationResult.items.length} obligation(s) for case ${caseId}`);
-        } else {
-          console.log(`[OBLIGATIONS] Skipping extraction - ${existingItems.length} obligation(s) already exist for case ${caseId}`);
-        }
-      } catch (obligationError) {
-        console.error('[OBLIGATIONS] Auto-extraction failed (non-blocking):', obligationError);
-      }
-
-      console.log(`AI processing completed for case ${caseId}. Total cost: $${totalCost.toFixed(4)}`);
+      console.log(`AI processing completed for case ${caseId}. Total cost: $${deriveResult.totalCost.toFixed(4)}`);
 
       return {
         success: true,
         caseId,
         transcriptId: transcript.id,
         documentIds: {
-          summary: clientLetterDoc?.id ?? '',
-          attendanceNote: attendanceDoc.id,
+          summary: deriveResult.documentIds.clientLetter ?? '',
+          attendanceNote: deriveResult.documentIds.attendanceNote,
         },
-        totalCost,
+        totalCost: deriveResult.totalCost,
       };
     } catch (error: any) {
       console.error(`AI processing failed for case ${caseId}:`, error);
@@ -713,3 +297,4 @@ export class AIProcessingPipeline {
     await this.storage.updateCase(caseId, caseUpdate, userId);
   }
 }
+

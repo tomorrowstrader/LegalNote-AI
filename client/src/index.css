@@ -873,6 +873,12 @@ nav.sticky {
   text-align: justify;
 }
 
+/* Title line: bold + centred (overrides justify for the first paragraph). */
+.legal-document-justified :is(.page-view-content, .ProseMirror) > p:first-child {
+  text-align: center;
+  font-weight: 700;
+}
+
 .page-view-content h1 {
   font-size: 1.25rem; font-weight: 700;
   margin-top: 1.5rem; margin-bottom: 1rem;

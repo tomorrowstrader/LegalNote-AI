@@ -459,7 +459,9 @@ function extractAuthoritativeNamesFromDocument(document: string): {
   feeEarnerName?: string;
 } {
   const clientMatch =
-    document.match(/^\*\*CLIENT:\*\*\s+(.+)$/m) ?? document.match(/^\*\*Client:\*\*\s+(.+)$/m);
+    document.match(/^\*\*Client Name:\*\*\s+(.+)$/m) ??
+    document.match(/^\*\*CLIENT:\*\*\s+(.+)$/m) ??
+    document.match(/^\*\*Client:\*\*\s+(.+)$/m);
   const preparedMatch = document.match(/^Prepared by:\s*(.+)$/m);
   return {
     clientName: clientMatch?.[1]?.trim(),
@@ -485,32 +487,31 @@ function sanitizeModelProseDashes(document: string): string {
 }
 
 function buildAttendanceNoteHeader(metadata: CaseMetadata, prefs: Required<FirmPreferences>): string {
-  const metadataFields = [
+  // Grouped metadata block (blank line between pairs). Title is centred in the viewer via CSS.
+  const group1 = [
     `**File Ref:** ${metadata.matterReference || 'TBD'}`,
+    `**Advisor:** ${metadata.feeEarnerDisplayName ?? 'Not specified'}`,
+  ].join('  \n');
+
+  const group2 = [
+    `**Client Name:** ${metadata.clientName}`,
     `**Date:** ${metadata.recordingDate}`,
-  ];
+  ].join('  \n');
 
-  if (metadata.meetingStartTime) {
-    metadataFields.push(`**Time:** ${metadata.meetingStartTime}`);
-  }
-
-  if (metadata.durationDisplay) {
-    metadataFields.push(`**Duration:** ${metadata.durationDisplay}`);
-  }
-
+  const group3Lines: string[] = [];
   if (metadata.units != null && metadata.units > 0) {
-    metadataFields.push(`**Time Spent (Units):** ${metadata.units}`);
+    group3Lines.push(`**Time Spent (Units):** ${metadata.units}`);
   }
+  if (metadata.durationDisplay) {
+    group3Lines.push(`**Duration:** ${metadata.durationDisplay}`);
+  }
+  const group3 = group3Lines.join('  \n');
 
-  metadataFields.push(`**Advisor:** ${metadata.feeEarnerDisplayName ?? 'Not specified'}`);
+  const metadataBlock = [group1, group2, group3].filter(Boolean).join('\n\n');
 
   return `**ATTENDANCE NOTE**
 
-${metadataFields.join('  \n')}
-
-**MATTER:** ${metadata.title}
-
-**CLIENT:** ${metadata.clientName}
+${metadataBlock}
 
 `;
 }
@@ -782,7 +783,7 @@ CONSENT RECORDING HANDLING:
 
 Your attendance note MUST follow this professional UK legal practice format.
 
-The system supplies the attendance note header (File Reference, Date, Time, Duration, Time Spent (Units), Solicitor), MATTER, CLIENT, and footer (Time Engaged, privilege wording, Prepared by, Date Prepared) from known metadata. Generate ONLY the meeting-content portion below. Do NOT include those header or footer blocks. Start your output with **MATTERS DISCUSSED**.
+The system supplies the attendance note header (centred title ATTENDANCE NOTE, then File Ref, Advisor, Client Name, Date, Time Spent (Units), Duration) and footer (Time Engaged, privilege wording, Prepared by, Date Prepared) from known metadata. Generate ONLY the meeting-content portion below. Do NOT include those header or footer blocks. Start your output with **MATTERS DISCUSSED**.
 
 **MATTERS DISCUSSED**
 
