@@ -25,7 +25,7 @@ import { FileText, Loader2, Upload } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
-import { stripRtfToPlainText } from "@shared/stripRtf";
+import { stripRtfToPlainText, looksLikeRtf } from "@shared/stripRtf";
 
 interface UploadTranscriptModalProps {
   open: boolean;
@@ -67,8 +67,14 @@ export default function UploadTranscriptModal({
 
   const importMutation = useMutation({
     mutationFn: async () => {
+      const plain = looksLikeRtf(content) ? stripRtfToPlainText(content) : content;
+      if (looksLikeRtf(content) && plain.trim().length < 40) {
+        throw new Error(
+          "The transcript looks like RTF but no readable text was extracted. Try exporting as plain text from TextEdit (Format → Make Plain Text).",
+        );
+      }
       return apiRequest("POST", `/api/cases/${caseId}/transcript-imports`, {
-        content,
+        content: plain,
         recordingType,
         sessionTitle: sessionTitle.trim() || undefined,
         meetingDate,
@@ -140,8 +146,9 @@ export default function UploadTranscriptModal({
     setOriginalFilename(file.name);
   };
 
+  const displayContent = looksLikeRtf(content) ? stripRtfToPlainText(content) : content;
   const canSubmit =
-    content.trim().length >= 40 &&
+    displayContent.trim().length >= 40 &&
     authorityAttested &&
     !!meetingDate &&
     !importMutation.isPending;
@@ -174,7 +181,14 @@ export default function UploadTranscriptModal({
               id="transcript-content"
               value={content}
               onChange={(e) => {
-                setContent(e.target.value);
+                const next = e.target.value;
+                // Auto-strip when the user pastes a full RTF document into the box
+                if (looksLikeRtf(next)) {
+                  const plain = stripRtfToPlainText(next);
+                  setContent(plain);
+                } else {
+                  setContent(next);
+                }
                 setSource("paste");
                 setOriginalFilename(undefined);
               }}
@@ -184,7 +198,7 @@ export default function UploadTranscriptModal({
             />
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <p className="text-xs text-muted-foreground">
-                {content.trim().length.toLocaleString()} characters
+                {displayContent.trim().length.toLocaleString()} characters
                 {originalFilename ? ` · ${originalFilename}` : ""}
               </p>
               <div className="flex items-center gap-2">

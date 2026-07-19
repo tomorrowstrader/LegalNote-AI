@@ -112,6 +112,28 @@ function ensureBoldHeadings(content: string): string {
   return result;
 }
 
+/** Nearest scrollable ancestor of the editor (page scroller or outer panel). */
+function findEditorScrollParent(node: HTMLElement | null): HTMLElement | null {
+  let current: HTMLElement | null = node;
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const overflowY = style.overflowY;
+    if (
+      (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
+      current.scrollHeight > current.clientHeight + 4
+    ) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
+}
+
+/** Focus without scrolling — toolbar clicks blur the editor; default focus jumps the page. */
+function editorFocusChain(editor: { chain: () => any }) {
+  return editor.chain().focus(undefined, { scrollIntoView: false });
+}
+
 const LEGAL_AUTOCOMPLETE_PHRASES = [
   'without prejudice',
   'without prejudice save as to costs',
@@ -864,6 +886,26 @@ export function RichTextEditor({
         class: 'prose prose-sm max-w-none focus:outline-none min-h-[400px] text-foreground',
         spellcheck: 'true',
       },
+      // Pagination widgets skew ProseMirror's default scroll-into-view math and
+      // can fling the viewport to the document end on bold/Enter/Backspace.
+      handleScrollToSelection: (view) => {
+        const scrollParent = findEditorScrollParent(view.dom);
+        if (!scrollParent) return false;
+        try {
+          const { from } = view.state.selection;
+          const coords = view.coordsAtPos(from);
+          const parentRect = scrollParent.getBoundingClientRect();
+          const pad = 32;
+          if (coords.top < parentRect.top + pad) {
+            scrollParent.scrollTop -= parentRect.top + pad - coords.top;
+          } else if (coords.bottom > parentRect.bottom - pad) {
+            scrollParent.scrollTop += coords.bottom - (parentRect.bottom - pad);
+          }
+        } catch {
+          // coordsAtPos can throw while pagination is mid-reflow
+        }
+        return true;
+      },
     },
     onUpdate: ({ editor }) => {
       if (isUpdatingRef.current) return;
@@ -1110,6 +1152,13 @@ export function RichTextEditor({
     setChangeCount(0);
     lastEmittedContentRef.current = content;
     isUpdatingRef.current = true;
+
+    // Preserve scroll — setContent remounts the pagination layout and otherwise
+    // jumps the viewport to the bottom of the document.
+    const scrollParent = findEditorScrollParent(editor.view.dom);
+    const savedScrollTop = scrollParent?.scrollTop ?? null;
+    const { from, to } = editor.state.selection;
+
     try {
       if (isTrackedChangesHtml(content)) {
         // Bypass tiptap-markdown's setContent (which always runs markdown-it) by passing JSON.
@@ -1119,11 +1168,23 @@ export function RichTextEditor({
         const processedContent = ensureBoldHeadings(content ?? '');
         editor.commands.setContent(processedContent, false);
       }
+      // Restore selection when the prior range is still valid
+      try {
+        const size = editor.state.doc.content.size;
+        if (from <= size && to <= size) {
+          editor.commands.setTextSelection({ from, to });
+        }
+      } catch {
+        // selection may be invalid after a full content replace
+      }
     } catch (err) {
       console.error('[RichTextEditor] Content hydration failed, falling back to raw:', err);
       editor.commands.setContent(content ?? '', false);
     } finally {
       requestAnimationFrame(() => {
+        if (scrollParent != null && savedScrollTop != null) {
+          scrollParent.scrollTop = savedScrollTop;
+        }
         isUpdatingRef.current = false;
         if (hydrateGapAnchors && disabled && content?.includes("@@RGAP:")) {
           try {
@@ -1151,7 +1212,7 @@ export function RichTextEditor({
     const { from } = editor.state.selection;
     const text = editor.state.doc.textBetween(Math.max(0, from - 30), from);
     const lastWord = text.split(/\s/).pop() || '';
-    editor.chain().focus()
+    editorFocusChain(editor)
       .deleteRange({ from: from - lastWord.length, to: from })
       .insertContent(phrase + ' ')
       .run();
@@ -1204,13 +1265,13 @@ export function RichTextEditor({
   }, [editor, searchTerm, replaceTerm]);
 
   const insertTable = useCallback(() => {
-    editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+    editorFocusChain(editor!).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
   }, [editor]);
 
   const scrollToChange = useCallback((change: TrackedChange) => {
     if (!editor) return;
     try {
-      editor.chain().focus().setTextSelection({ from: change.from, to: change.to }).run();
+      editorFocusChain(editor).setTextSelection({ from: change.from, to: change.to }).run();
     } catch {
       // position may have shifted
     }
@@ -1228,7 +1289,7 @@ export function RichTextEditor({
     if (from === to) return;
     const selectedText = editor.state.doc.textBetween(from, to, ' ');
     if (!selectedText.trim()) return;
-    editor.chain().focus()
+    editorFocusChain(editor)
       .setMark('redaction', {
         redactedBy: userNameRef.current,
         redactedAt: new Date().toISOString(),
@@ -1248,7 +1309,7 @@ export function RichTextEditor({
   const insertLegalField = (fieldType: LegalFieldType) => {
     const field = LEGAL_FIELDS.find(f => f.type === fieldType);
     if (!editor || !field) return;
-    editor.chain().focus().insertContent({
+    editorFocusChain(editor).insertContent({
       type: 'legalField',
       attrs: { fieldType, fieldLabel: field.display },
     }).run();
@@ -1302,24 +1363,24 @@ export function RichTextEditor({
         <div className="border border-border rounded-t-md bg-muted/40 backdrop-blur-sm sticky z-30" style={{ top: 'var(--doc-header-height, 0px)' }}>
           <div className="flex items-start gap-0 p-1.5 flex-wrap">
             <RibbonGroup label="Font">
-              <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} icon={Bold} tooltip="Bold (Ctrl+B)" />
-              <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} icon={Italic} tooltip="Italic (Ctrl+I)" />
-              <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} icon={UnderlineIcon} tooltip="Underline (Ctrl+U)" />
-              <ToolbarButton onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} icon={Highlighter} tooltip="Highlight" />
-              <ToolbarButton onClick={() => editor.chain().focus().toggleSuperscript().run()} active={editor.isActive('superscript')} icon={SuperscriptIcon} tooltip="Superscript" />
-              <ToolbarButton onClick={() => editor.chain().focus().toggleSubscript().run()} active={editor.isActive('subscript')} icon={SubscriptIcon} tooltip="Subscript" />
-              <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} icon={Heading1} tooltip="Heading 1" />
-              <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} icon={Heading2} tooltip="Heading 2" />
-              <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} icon={Heading3} tooltip="Heading 3" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).toggleBold().run()} active={editor.isActive('bold')} icon={Bold} tooltip="Bold (Ctrl+B)" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).toggleItalic().run()} active={editor.isActive('italic')} icon={Italic} tooltip="Italic (Ctrl+I)" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).toggleUnderline().run()} active={editor.isActive('underline')} icon={UnderlineIcon} tooltip="Underline (Ctrl+U)" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).toggleHighlight().run()} active={editor.isActive('highlight')} icon={Highlighter} tooltip="Highlight" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).toggleSuperscript().run()} active={editor.isActive('superscript')} icon={SuperscriptIcon} tooltip="Superscript" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).toggleSubscript().run()} active={editor.isActive('subscript')} icon={SubscriptIcon} tooltip="Subscript" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} icon={Heading1} tooltip="Heading 1" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} icon={Heading2} tooltip="Heading 2" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} icon={Heading3} tooltip="Heading 3" />
             </RibbonGroup>
 
             <RibbonGroup label="Paragraph">
-              <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} icon={List} tooltip="Bullet List" />
-              <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} icon={ListOrdered} tooltip="Numbered List" />
-              <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} icon={AlignLeft} tooltip="Align Left" />
-              <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} icon={AlignCenter} tooltip="Align Centre" />
-              <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} icon={AlignRight} tooltip="Align Right" />
-              <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' })} icon={AlignJustify} tooltip="Justify" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).toggleBulletList().run()} active={editor.isActive('bulletList')} icon={List} tooltip="Bullet List" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).toggleOrderedList().run()} active={editor.isActive('orderedList')} icon={ListOrdered} tooltip="Numbered List" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} icon={AlignLeft} tooltip="Align Left" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} icon={AlignCenter} tooltip="Align Centre" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} icon={AlignRight} tooltip="Align Right" />
+              <ToolbarButton onClick={() => editorFocusChain(editor).setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' })} icon={AlignJustify} tooltip="Justify" />
             </RibbonGroup>
 
             <RibbonGroup label="Insert">

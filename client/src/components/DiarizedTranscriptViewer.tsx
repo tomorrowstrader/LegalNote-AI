@@ -42,6 +42,10 @@ interface DiarizedTranscriptViewerProps {
   onRemoveRedaction?: (start: number, end: number, textStart?: number, textEnd?: number) => void;
   canRedact?: boolean;
   initialTimestamp?: number;
+  /** Hide clock times — used for uploaded/external transcripts with no audio timeline */
+  hideTimestamps?: boolean;
+  /** Fee-earner uploaded/pasted transcript (not AssemblyAI from LegalNote audio) */
+  isExternalUpload?: boolean;
 }
 
 const SPEAKER_COLORS = [
@@ -132,8 +136,10 @@ export default function DiarizedTranscriptViewer({
   onRemoveRedaction,
   canRedact = false,
   initialTimestamp,
+  hideTimestamps = false,
+  isExternalUpload = false,
 }: DiarizedTranscriptViewerProps) {
-  const [showTimestamps, setShowTimestamps] = useState(true);
+  const [showTimestamps, setShowTimestamps] = useState(!hideTimestamps);
   // Always start expanded so the full capture is readable without an extra click
   const [expandedView, setExpandedView] = useState(true);
   const [redactionMode, setRedactionMode] = useState(false);
@@ -208,8 +214,12 @@ export default function DiarizedTranscriptViewer({
   }
 
   const uniqueSpeakers = [...new Set(utterances.map(u => u.speaker))];
-  const totalDuration = utterances.length > 0 
-    ? utterances[utterances.length - 1].end 
+  const hasAudioTiming =
+    !hideTimestamps &&
+    !isExternalUpload &&
+    utterances.some((u) => (u.end ?? 0) > 1 || (u.start ?? 0) > 0);
+  const totalDuration = hasAudioTiming && utterances.length > 0
+    ? Math.max(...utterances.map((u) => u.end || 0))
     : 0;
 
   // Prefer the longer of stored full content vs speaker segments — incomplete
@@ -437,10 +447,21 @@ export default function DiarizedTranscriptViewer({
             <Users className="w-4 h-4" />
             <span>{speakerCount || uniqueSpeakers.length} speaker{(speakerCount || uniqueSpeakers.length) !== 1 ? 's' : ''}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Clock className="w-4 h-4" />
-            <span>{formatTimestamp(totalDuration)}</span>
-          </div>
+          {hasAudioTiming && (
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-4 h-4" />
+              <span>{formatTimestamp(totalDuration)}</span>
+            </div>
+          )}
+          {isExternalUpload && (
+            <Badge
+              variant="outline"
+              className="text-xs font-normal gap-1"
+              data-testid="badge-external-transcript-inline"
+            >
+              External transcript
+            </Badge>
+          )}
           {redactions.length > 0 && (
             <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
               <EyeOff className="w-4 h-4" />
@@ -463,16 +484,18 @@ export default function DiarizedTranscriptViewer({
               {redactionMode ? 'Exit Redact' : 'Redact'}
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowTimestamps(!showTimestamps)}
-            className="gap-1"
-            data-testid="button-toggle-timestamps"
-          >
-            <Clock className="w-3 h-3" />
-            {showTimestamps ? 'Hide Times' : 'Show Times'}
-          </Button>
+          {hasAudioTiming && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowTimestamps(!showTimestamps)}
+              className="gap-1"
+              data-testid="button-toggle-timestamps"
+            >
+              <Clock className="w-3 h-3" />
+              {showTimestamps ? 'Hide Times' : 'Show Times'}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -664,7 +687,7 @@ export default function DiarizedTranscriptViewer({
                     </div>
                   )}
                 </div>
-                {showTimestamps && (
+                {hasAudioTiming && showTimestamps && (
                   <button
                     type="button"
                     onClick={(e) => {

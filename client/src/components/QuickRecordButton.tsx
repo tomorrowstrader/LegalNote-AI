@@ -46,6 +46,7 @@ import { useLocation } from "wouter";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { useChunkedRecording } from "@/hooks/useChunkedRecording";
 import { QUICK_RECORD_SHORTCUT_EVENT } from "@/hooks/useQuickRecordShortcut";
+import { appendConsentSegmentToFormData, snapshotConsentSegment } from "@/lib/consentSegmentCapture";
 
 // Recording session state management for crash recovery detection
 const RECORDING_SESSION_KEY = 'legalnote_recording_session';
@@ -131,6 +132,8 @@ export default function QuickRecordButton() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioBlobRef = useRef<Blob | null>(null);
+  const consentBlobRef = useRef<Blob | null>(null);
+  const consentDurationSecondsRef = useRef<number | null>(null);
   const audioFormatRef = useRef(getSupportedMimeType());
 
   const chunkedRecording = useChunkedRecording({
@@ -382,10 +385,12 @@ export default function QuickRecordButton() {
           stream.getTracks().forEach(track => track.stop());
         };
         
-        mediaRecorder.start();
+        mediaRecorder.start(1000);
         setShowConsentModal(true);
         setIsRecordingLocal(true);
         setRecordingDuration(0);
+        consentBlobRef.current = null;
+        consentDurationSecondsRef.current = null;
       }
 
       // Dispatch event for session auto-extension during recording
@@ -478,6 +483,14 @@ export default function QuickRecordButton() {
       if (consentResult) {
         console.log(`Consent segment will preserve ${consentResult.elapsedSeconds}s of recording`);
       }
+    } else {
+      const consentBlob = await snapshotConsentSegment({
+        mediaRecorder: mediaRecorderRef.current,
+        audioChunks: audioChunksRef.current,
+        mimeType: audioFormatRef.current.mimeType,
+      });
+      consentBlobRef.current = consentBlob;
+      consentDurationSecondsRef.current = Math.max(1, recordingDuration);
     }
     
     // Consent is sealed server-side via POST /api/consent — no duplicate client audit entry.
@@ -676,6 +689,11 @@ export default function QuickRecordButton() {
           const { extension } = audioFormatRef.current;
           formData.append('audioFile', audioBlobRef.current, `recording${extension}`);
           formData.append('duration', recordingDuration.toString());
+          appendConsentSegmentToFormData(
+            formData,
+            consentBlobRef.current,
+            consentDurationSecondsRef.current,
+          );
           
           const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
             method: 'POST',

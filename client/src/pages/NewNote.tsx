@@ -47,6 +47,7 @@ import type { Case, Client } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
+import { appendConsentSegmentToFormData, snapshotConsentSegment } from "@/lib/consentSegmentCapture";
 
 interface CaseResponse {
   id: string;
@@ -174,6 +175,8 @@ export default function NewNote() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioBlobRef = useRef<Blob | null>(null);
+  const consentBlobRef = useRef<Blob | null>(null);
+  const consentDurationSecondsRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (countdown === null) return;
@@ -197,6 +200,8 @@ export default function NewNote() {
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
+      consentBlobRef.current = null;
+      consentDurationSecondsRef.current = null;
       
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -210,7 +215,8 @@ export default function NewNote() {
         stream.getTracks().forEach(track => track.stop());
       };
       
-      mediaRecorder.start();
+      // 1s timeslices so we can snapshot a consent prefix mid-recording
+      mediaRecorder.start(1000);
       setShowConsentModal(true);
       setIsRecording(true);
       setRecordingDuration(0);
@@ -289,6 +295,14 @@ export default function NewNote() {
     console.log('Client consent given - recording continues');
     setConsentGiven(true);
     setShowConsentModal(false);
+
+    const consentBlob = await snapshotConsentSegment({
+      mediaRecorder: mediaRecorderRef.current,
+      audioChunks: audioChunksRef.current,
+      mimeType: mediaRecorderRef.current?.mimeType || "audio/webm",
+    });
+    consentBlobRef.current = consentBlob;
+    consentDurationSecondsRef.current = Math.max(1, recordingDuration);
     
     // Consent is sealed server-side via POST /api/consent — no duplicate client audit entry.
   };
@@ -516,6 +530,11 @@ export default function NewNote() {
         const formData = new FormData();
         formData.append('audioFile', audioBlobRef.current, 'recording.webm');
         formData.append('duration', recordingDuration.toString());
+        appendConsentSegmentToFormData(
+          formData,
+          consentBlobRef.current,
+          consentDurationSecondsRef.current,
+        );
         
         const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
           method: 'POST',

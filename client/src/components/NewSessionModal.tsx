@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
+import { appendConsentSegmentToFormData, snapshotConsentSegment } from "@/lib/consentSegmentCapture";
 
 interface NewSessionModalProps {
   open: boolean;
@@ -34,6 +35,8 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioBlobRef = useRef<Blob | null>(null);
+  const consentBlobRef = useRef<Blob | null>(null);
+  const consentDurationSecondsRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -44,6 +47,8 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
       setSessionLabel("");
       setConsentGiven(null);
       audioBlobRef.current = null;
+      consentBlobRef.current = null;
+      consentDurationSecondsRef.current = null;
     }
   }, [open]);
 
@@ -78,6 +83,8 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
+      consentBlobRef.current = null;
+      consentDurationSecondsRef.current = null;
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) audioChunksRef.current.push(event.data);
       };
@@ -86,7 +93,7 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
         audioBlobRef.current = audioBlob;
         stream.getTracks().forEach(track => track.stop());
       };
-      mediaRecorder.start();
+      mediaRecorder.start(1000);
       setShowConsentModal(true);
       setIsRecording(true);
       setRecordingDuration(0);
@@ -109,6 +116,13 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
   const handleConsentGiven = async () => {
     setConsentGiven(true);
     setShowConsentModal(false);
+    const consentBlob = await snapshotConsentSegment({
+      mediaRecorder: mediaRecorderRef.current,
+      audioChunks: audioChunksRef.current,
+      mimeType: mediaRecorderRef.current?.mimeType || "audio/webm",
+    });
+    consentBlobRef.current = consentBlob;
+    consentDurationSecondsRef.current = Math.max(1, recordingDuration);
     // Consent is sealed server-side via POST /api/consent — no duplicate client audit entry.
   };
 
@@ -156,6 +170,11 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
         const formData = new FormData();
         formData.append("audioFile", audioBlobRef.current, "recording.webm");
         formData.append("duration", recordingDuration.toString());
+        appendConsentSegmentToFormData(
+          formData,
+          consentBlobRef.current,
+          consentDurationSecondsRef.current,
+        );
         const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
           method: "POST",
           credentials: "include",

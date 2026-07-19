@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { ObjectStorageService } from "../objectStorage";
 import { storage } from "../storage";
 import { applyObjectLegalHoldForNewRecording } from "./litigationHoldObjectLockService";
+import { preserveConsentSegmentFromBuffer } from "./consentSegmentService";
 import { db } from "../db";
 import { recordingSessions } from "@shared/schema";
 import { eq, and, lt, or } from "drizzle-orm";
@@ -277,12 +278,14 @@ export class ChunkedUploadService {
         
         if (consentChunks.length > 0) {
           const consentAudio = Buffer.concat(consentChunks);
-          const consentObjectInfo = this.objectStorage.createPrivateObjectId();
-          const consentFileKey = `consent/${consentObjectInfo.key}_consent${extension}`;
-          
-          await this.objectStorage.uploadFile(consentFileKey, consentAudio, session.mimeType);
-          consentSegmentPath = consentFileKey;
           consentDurationSeconds = session.consentElapsedSeconds ?? chunksToPreserve * CHUNK_INTERVAL_SECONDS;
+          const preserved = await preserveConsentSegmentFromBuffer({
+            audioBuffer: consentAudio,
+            mimeType: session.mimeType,
+            consentDurationSeconds,
+          });
+          consentSegmentPath = preserved.consentSegmentPath;
+          consentDurationSeconds = preserved.consentDurationSeconds;
           session.consentSegmentPreserved = true;
           
           const source = session.consentElapsedSeconds ? 'timestamp-based' : 'fallback';
@@ -594,7 +597,7 @@ export class ChunkedUploadService {
       const combinedAudio = Buffer.concat(chunks);
       const totalBytes = combinedAudio.length;
       const durationSeconds = chunks.length * CHUNK_INTERVAL_SECONDS;
-      const hasConsent = sessionMeta.consentChunkNumber !== null;
+      const hasConsent = sessionMeta.consentChunkNumber !== null || sessionMeta.consentElapsedSeconds != null;
 
       console.log(`[ChunkedUpload] Recovering session ${sessionId}: ${chunks.length} chunks, ${totalBytes} bytes, ~${durationSeconds}s`);
 
@@ -608,6 +611,27 @@ export class ChunkedUploadService {
       const fileKey = `${objectInfo.key}${extension}`;
       await this.objectStorage.uploadFile(fileKey, combinedAudio, sessionMeta.mimeType);
       const dbPath = `${objectInfo.dbPath}${extension}`;
+
+      let consentSegmentPath: string | undefined;
+      let consentDurationSeconds: number | undefined;
+      if (hasConsent && chunks.length > 0) {
+        try {
+          const consentChunkCount = sessionMeta.consentChunkNumber ?? FALLBACK_CONSENT_CHUNKS;
+          const chunksToPreserve = Math.min(consentChunkCount + 1, chunks.length);
+          const consentAudio = Buffer.concat(chunks.slice(0, chunksToPreserve));
+          const preserved = await preserveConsentSegmentFromBuffer({
+            audioBuffer: consentAudio,
+            mimeType: sessionMeta.mimeType,
+            consentDurationSeconds:
+              sessionMeta.consentElapsedSeconds ?? chunksToPreserve * CHUNK_INTERVAL_SECONDS,
+          });
+          consentSegmentPath = preserved.consentSegmentPath;
+          consentDurationSeconds = preserved.consentDurationSeconds;
+          console.log(`[ChunkedUpload] Recovered consent segment preserved: ${consentSegmentPath}`);
+        } catch (error) {
+          console.error(`[ChunkedUpload] Failed to preserve recovered consent segment:`, error);
+        }
+      }
 
       // Create a draft case for this recovered recording
       const caseData = await storage.createCase({
@@ -631,10 +655,18 @@ export class ChunkedUploadService {
         expiresAt: expiryDate,
       });
 
+      if (consentSegmentPath) {
+        await storage.updateAudioRecording(audioRecord.id, {
+          consentSegmentPath,
+          consentDurationSeconds,
+        });
+      }
+
       await applyObjectLegalHoldForNewRecording({
         caseId: caseData.id,
         audioRecordingId: audioRecord.id,
         filePath: dbPath,
+        consentSegmentPath,
         userId,
       });
 

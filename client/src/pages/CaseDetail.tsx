@@ -459,6 +459,8 @@ export default function CaseDetail() {
     id: string; caseId: string; content: string;
     utterances?: SpeakerUtterance[]; speakerCount?: number;
     redactions?: Redaction[]; createdAt: string;
+    origin?: "external_upload" | "audio_transcription";
+    originalFilename?: string | null;
   }>({
     queryKey: [`/api/cases/${caseId}/transcript`],
     enabled: shouldLoadCaseContent,
@@ -1901,6 +1903,8 @@ export default function CaseDetail() {
                   transcriptUtterances={transcript?.utterances}
                   speakerCount={transcript?.speakerCount}
                   transcriptRedactions={transcript?.redactions}
+                  transcriptOrigin={transcript?.origin}
+                  transcriptOriginalFilename={transcript?.originalFilename}
                   textNotes={caseData.textNotes}
                   status={caseData.status}
                   caseTitle={caseData.title}

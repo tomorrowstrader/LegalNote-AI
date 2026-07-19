@@ -88,6 +88,7 @@ import crypto, { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, or, gte, lte, lt, desc, isNull, isNotNull, not, sql, count, inArray } from "drizzle-orm";
 import { generateDocumentHash } from "./utils/documentHash";
+import { looksLikeRtf, stripRtfToPlainText } from "@shared/stripRtf";
 import { expandSearchWithSynonyms } from "./services/legalSynonyms";
 import {
   AUDIT_PAYLOAD_V2,
@@ -824,6 +825,12 @@ function generateContentSignature(contentHash: string): string {
   return crypto.createHmac('sha256', signingKey).update(contentHash).digest('hex');
 }
 
+/** Prefer plain-text length so raw RTF markup does not outrank a real transcript. */
+function transcriptPlainLength(content: string | null | undefined): number {
+  if (!content) return 0;
+  return looksLikeRtf(content) ? stripRtfToPlainText(content).length : content.length;
+}
+
 // colpReviewStatus = 'awaiting_review' is the internal grace-window marker. There is deliberately
 // NO COLP review workflow (Option 2a); it simply marks audio as being in the 30-day post-release
 // grace buffer before auto-deletion. The colp* field/function names are retained for forward-compatibility.
@@ -1430,10 +1437,11 @@ export class MemStorage implements IStorage {
 
     // Prefer the longest capture, then the most recent — arbitrary first-row
     // selection was returning an incomplete earlier session transcript.
+    // Use plain-text length so TextEdit RTF markup does not win on size alone.
     return Array.from(this.transcripts.values())
       .filter((transcript) => transcript.caseId === caseId)
       .sort((a, b) => {
-        const lenDiff = (b.content?.length ?? 0) - (a.content?.length ?? 0);
+        const lenDiff = transcriptPlainLength(b.content) - transcriptPlainLength(a.content);
         if (lenDiff !== 0) return lenDiff;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       })[0];
@@ -3504,7 +3512,7 @@ export class DbStorage implements IStorage {
 
     if (result.length === 0) return undefined;
     return result.reduce((best, row) =>
-      (row.content?.length ?? 0) > (best.content?.length ?? 0) ? row : best,
+      transcriptPlainLength(row.content) > transcriptPlainLength(best.content) ? row : best,
     );
   }
 

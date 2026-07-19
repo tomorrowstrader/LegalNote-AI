@@ -66,13 +66,16 @@ function SessionConsentRow({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const blobUrlRef = useRef<string | null>(null);
 
-  const hasConsentSegment = !!recording?.consentSegmentPath;
   const consentSegmentUrl = recording?.id
     ? `/api/audio/${recording.id}/consent-segment`
     : null;
   const consentGiven = consentLog?.consentGiven === true && !consentLog.consentWithdrawn;
   const consentDeclined = consentLog?.consentGiven === false;
   const consentWithdrawn = consentLog?.consentWithdrawn === true;
+  const canPlayRecordedConsent =
+    !!recording?.consentSegmentPath &&
+    consentGiven &&
+    consentLog?.consentModality === "verbal_recorded";
 
   useEffect(() => {
     return () => {
@@ -229,7 +232,7 @@ function SessionConsentRow({
         )}
       </div>
 
-      {hasConsentSegment && (
+      {canPlayRecordedConsent && (
         <Button
           variant="outline"
           size="icon"
@@ -420,7 +423,10 @@ export function ConsentEvidence({ caseId, sessions, consentLogs, focusSessionId 
                     {modalityLabel(log.consentModality)}
                   </p>
                 </div>
-                {recording?.consentSegmentPath && (
+                {recording?.consentSegmentPath &&
+                  log.consentGiven === true &&
+                  !log.consentWithdrawn &&
+                  log.consentModality === "verbal_recorded" && (
                   <LegacyConsentPlayButton audioId={recording.id} />
                 )}
               </div>

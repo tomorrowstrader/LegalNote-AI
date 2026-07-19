@@ -15,8 +15,12 @@ import {
   type MeetingSession,
   type InsertDocument,
   type InsertActionItem,
+  type Transcript,
 } from "@shared/schema";
 import { isFeatureVisible } from "@shared/featureVisibility";
+import { repairRtfTranscriptContent } from "./normalizeUploadedTranscript";
+import { generateDocumentHash } from "../utils/documentHash";
+import { looksLikeRtf } from "@shared/stripRtf";
 
 export interface ProcessingMetadata {
   status: "idle" | "transcribing" | "generating_documents" | "completed" | "failed" | "processing";
@@ -240,9 +244,50 @@ export async function deriveDocumentsFromTranscript(
       throw new Error("Case not found");
     }
 
-    const transcript = await storage.getTranscript(transcriptId);
+    let transcript = await storage.getTranscript(transcriptId);
     if (!transcript || transcript.caseId !== caseId) {
       throw new Error("Transcript not found for this case");
+    }
+
+    // Repair TextEdit / Word RTF that was stored before stripping (or pasted raw)
+    if (looksLikeRtf(transcript.content)) {
+      try {
+        const repaired = repairRtfTranscriptContent(transcript.content);
+        if (repaired) {
+          const contentHash = generateDocumentHash(repaired.content);
+          const updated = await storage.updateTranscript(
+            transcript.id,
+            {
+              content: repaired.content,
+              utterances: repaired.utterances ?? [],
+              speakerCount: repaired.speakerCount ?? null,
+              contentHash,
+            } as Partial<Transcript>,
+            userId,
+          );
+          transcript = updated ?? {
+            ...transcript,
+            content: repaired.content,
+            utterances: repaired.utterances ?? [],
+            speakerCount: repaired.speakerCount ?? null,
+            contentHash,
+          };
+          console.log(
+            `[DeriveTranscript] Stripped RTF markup from transcript ${transcript.id} (${repaired.characterCount} chars plain text)`,
+          );
+        }
+      } catch (rtfErr: any) {
+        // Still strip for generation even if below min-length / other normalize errors
+        const { stripRtfToPlainText } = await import("@shared/stripRtf");
+        const plain = stripRtfToPlainText(transcript.content);
+        console.warn(
+          `[DeriveTranscript] Could not fully repair RTF transcript ${transcript.id}:`,
+          rtfErr?.message || rtfErr,
+        );
+        if (plain && plain !== transcript.content) {
+          transcript = { ...transcript, content: plain, utterances: [] };
+        }
+      }
     }
 
     const effectiveSessionId = sessionId ?? transcript.meetingSessionId ?? null;

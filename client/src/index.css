@@ -864,17 +864,21 @@ nav.sticky {
   color: hsl(var(--foreground));
 }
 
-/* Attendance notes and client letters use justified body copy by default.
+/* Client letters / summaries use justified body copy by default.
    An explicit alignment applied in the editor remains authoritative via its
-   inline text-align style. */
+   inline text-align style. Attendance notes are left-aligned. */
 .legal-document-justified :is(.page-view-content, .ProseMirror) p,
 .legal-document-justified :is(.page-view-content, .ProseMirror) li,
 .legal-document-justified :is(.page-view-content, .ProseMirror) blockquote {
   text-align: justify;
 }
 
-/* Title line: bold + centred (overrides justify for the first paragraph). */
-.legal-document-justified :is(.page-view-content, .ProseMirror) > p:first-child {
+/* Title line: bold + centred — only the first page / document start,
+   not the first paragraph of every paginated page. */
+.legal-document-justified .ProseMirror > p:first-child,
+.legal-document-justified [data-page-view-visible][data-page="1"] > p:first-child,
+.legal-document-attendance .ProseMirror > p:first-child,
+.legal-document-attendance [data-page-view-visible][data-page="1"] > p:first-child {
   text-align: center;
   font-weight: 700;
 }

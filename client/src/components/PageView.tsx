@@ -344,6 +344,7 @@ export function PageView({ content, gapAnchorLabels }: PageViewProps) {
                       [&_.track-change-deletion]:text-red-800 [&_.track-change-deletion]:dark:text-red-200
                       [&_.track-change-deletion]:line-through"
                     data-page-view-visible=""
+                    data-page={page.pageNumber}
                     style={{ outline: 'none' }}
                     dangerouslySetInnerHTML={{
                       __html: page.blocks.join(''),

@@ -1,4 +1,4 @@
-import { stripRtfToPlainText } from "@shared/stripRtf";
+import { looksLikeRtf, stripRtfToPlainText } from "@shared/stripRtf";
 
 export interface ParsedUtterance {
   speaker: string;
@@ -37,8 +37,9 @@ export function parseSpeakerUtterances(content: string): ParsedUtterance[] {
 
   // [Speaker A]: text  |  Speaker A: text  |  A: text (single letter/digit label)
   // Optional leading timestamp: 00:01:02 or [00:01]
+  // Allow empty text after the label so "Priya:" on its own line still starts a turn.
   const labelled =
-    /^(?:\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s+)?(?:\[([^\]]+)\]|([A-Za-z][A-Za-z0-9 _.-]{0,40})):\s*(.+)$/;
+    /^(?:\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s+)?(?:\[([^\]]+)\]|([A-Za-z][A-Za-z0-9 _.-]{0,40})):\s*(.*)$/;
 
   let current: { speaker: string; text: string } | null = null;
 
@@ -46,11 +47,14 @@ export function parseSpeakerUtterances(content: string): ParsedUtterance[] {
     if (!current) return;
     const text = current.text.trim();
     if (text) {
+      // Ordinal indices for identity/redaction only — not wall-clock ms.
+      // Uploaded transcripts have no audio timeline; UI must not show these as times.
+      const ordinal = utterances.length;
       utterances.push({
         speaker: current.speaker,
         text,
-        start: 0,
-        end: 0,
+        start: ordinal,
+        end: ordinal + 1,
         confidence: 1,
       });
     }
@@ -125,6 +129,15 @@ export function normalizeUploadedTranscript(raw: string): NormalizedTranscript {
     speakerCount: undefined,
     characterCount: sanitized.length,
   };
+}
+
+/**
+ * If stored content is still raw RTF (e.g. uploaded before stripping, or pasted),
+ * normalise to plain text. Returns null when no repair is needed.
+ */
+export function repairRtfTranscriptContent(raw: string): NormalizedTranscript | null {
+  if (!looksLikeRtf(raw)) return null;
+  return normalizeUploadedTranscript(raw);
 }
 
 export { MAX_TRANSCRIPT_CHARS, MIN_TRANSCRIPT_CHARS };

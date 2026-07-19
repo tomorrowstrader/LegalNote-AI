@@ -87,6 +87,33 @@ The client agreed.`,
     expect(result.content).toContain("**Client's instructions and response:**");
   });
 
+  it('splits glued section labels so body text is not bolded with the label', async () => {
+    const service = new DocumentService({
+      chatCompletion: vi.fn().mockResolvedValue({
+        content: `**MATTERS DISCUSSED**
+
+**1. TEST TOPIC**
+
+The client described the nature of his work on the railway.Advice given:I advised the client on the legal framework.
+
+Key points advised:
+- Instruct counsel
+
+Reasoning behind advice and decisions:Because the facts support that course.`,
+        inputTokens: 10,
+        outputTokens: 20,
+        cost: 0,
+      }),
+    });
+
+    const result = await service.generateAttendanceNote('Meeting text', metadata);
+
+    expect(result.content).toContain('railway.\n\n**Advice given:**\nI advised the client');
+    expect(result.content).toContain('**Key points advised:**');
+    expect(result.content).toContain('**Reasoning behind advice and decisions:**\nBecause the facts');
+    expect(result.content).not.toMatch(/\*\*Advice given:\*\*[^\n]/);
+  });
+
   it('continues generation when the first pass is truncated mid-sentence', async () => {
     const chatCompletion = vi
       .fn()

@@ -27,6 +27,18 @@ describe("parseSpeakerUtterances", () => {
     expect(utterances).toHaveLength(2);
     expect(utterances[0].speaker).toBe("Solicitor");
     expect(utterances[1].text).toBe("Hello.");
+    expect(utterances[0].start).toBe(0);
+    expect(utterances[1].start).toBe(1);
+  });
+
+  it("parses TextEdit-style speaker-only lines", () => {
+    const text = `Priya:\nAdam, can you hear me?\nAdam:\nYes, sorry — is that better?`;
+    const utterances = parseSpeakerUtterances(text);
+    expect(utterances).toHaveLength(2);
+    expect(utterances[0].speaker).toBe("Priya");
+    expect(utterances[0].text).toContain("Adam, can you hear me?");
+    expect(utterances[1].speaker).toBe("Adam");
+    expect(utterances[1].text).toContain("Yes, sorry");
   });
 
   it("returns empty when only one speaker", () => {

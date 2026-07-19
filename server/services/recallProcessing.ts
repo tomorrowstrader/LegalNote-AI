@@ -5,6 +5,7 @@
 import { storage } from '../storage';
 import { ObjectStorageService } from '../objectStorage';
 import { applyObjectLegalHoldForNewRecording } from './litigationHoldObjectLockService';
+import { preserveConsentSegmentFromFullAudio } from './consentSegmentService';
 import type { MeetingImport } from '@shared/schema';
 
 /**
@@ -203,6 +204,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
 
   let audioPath: string;
   let mimeType: string;
+  let audioBufferForConsent: Buffer | null = null;
 
   // If the recording was previously stored (e.g. was awaiting_assignment), use that file
   // rather than trying to re-fetch from Recall (the URL may have expired)
@@ -210,6 +212,14 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     console.log(`[RecallProcessing] Using pre-stored recording at ${fresh.audioStoragePath} for import ${importId}`);
     audioPath = fresh.audioStoragePath;
     mimeType = audioPath.endsWith('.mp4') ? 'video/mp4' : 'audio/mpeg';
+    if (fresh.consentConfirmed && fresh.consentElapsedSeconds != null && fresh.consentElapsedSeconds >= 0) {
+      try {
+        const storageService = new ObjectStorageService();
+        audioBufferForConsent = await storageService.getFile(audioPath);
+      } catch (err: any) {
+        console.warn(`[RecallProcessing] Could not load stored audio for consent segment:`, err.message);
+      }
+    }
   } else {
     // Fresh import — download from Recall
     const recording = await getRecordingUrl(botId);
@@ -258,6 +268,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     }
 
     await storage.updateMeetingImport(importId, { audioStoragePath: audioPath });
+    audioBufferForConsent = audioBuffer;
   }
 
   // Create audio recording linked to the case
@@ -271,10 +282,39 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     expiresAt,
   });
 
+  let consentSegmentPath: string | undefined;
+  let consentDurationSeconds: number | undefined;
+  if (
+    fresh.consentConfirmed &&
+    fresh.consentElapsedSeconds != null &&
+    fresh.consentElapsedSeconds >= 0 &&
+    audioBufferForConsent
+  ) {
+    try {
+      const preserved = await preserveConsentSegmentFromFullAudio({
+        audioBuffer: audioBufferForConsent,
+        mimeType,
+        consentDurationSeconds: fresh.consentElapsedSeconds,
+      });
+      if (preserved) {
+        consentSegmentPath = preserved.consentSegmentPath;
+        consentDurationSeconds = preserved.consentDurationSeconds;
+        await storage.updateAudioRecording(audioRecord.id, {
+          consentSegmentPath,
+          consentDurationSeconds,
+        });
+        console.log(`[RecallProcessing] Preserved consent segment for import ${importId}: ${consentSegmentPath}`);
+      }
+    } catch (err: any) {
+      console.error(`[RecallProcessing] Failed to preserve consent segment for import ${importId}:`, err.message);
+    }
+  }
+
   await applyObjectLegalHoldForNewRecording({
     caseId,
     audioRecordingId: audioRecord.id,
     filePath: audioPath,
+    consentSegmentPath,
     userId,
   });
 

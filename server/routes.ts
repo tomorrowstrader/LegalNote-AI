@@ -199,6 +199,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
   }
 
+  /** Persist plain-text repair when a transcript was stored as raw RTF (TextEdit etc.). */
+  async function repairStoredRtfTranscript(transcript: any, userId: string) {
+    const { looksLikeRtf } = await import("@shared/stripRtf");
+    if (!transcript?.content || !looksLikeRtf(transcript.content)) return transcript;
+    try {
+      const { repairRtfTranscriptContent } = await import(
+        "./services/normalizeUploadedTranscript"
+      );
+      const { generateDocumentHash } = await import("./utils/documentHash");
+      const repaired = repairRtfTranscriptContent(transcript.content);
+      if (!repaired) return transcript;
+      const contentHash = generateDocumentHash(repaired.content);
+      const updated = await storage.updateTranscript(
+        transcript.id,
+        {
+          content: repaired.content,
+          utterances: repaired.utterances ?? [],
+          speakerCount: repaired.speakerCount ?? null,
+          contentHash,
+        },
+        userId,
+      );
+      return updated ?? {
+        ...transcript,
+        content: repaired.content,
+        utterances: repaired.utterances ?? [],
+        speakerCount: repaired.speakerCount ?? null,
+        contentHash,
+      };
+    } catch (err: any) {
+      console.warn(
+        `[Transcript] RTF repair failed for ${transcript.id}:`,
+        err?.message || err,
+      );
+      const { stripRtfToPlainText } = await import("@shared/stripRtf");
+      return { ...transcript, content: stripRtfToPlainText(transcript.content) };
+    }
+  }
+
   // Health check endpoint for deployment platform
   // Must be before auth middleware and CORS is configured to allow requests without origin
   app.get('/health', (req, res) => {
@@ -3983,15 +4022,21 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   app.post("/api/audio/:id/upload", 
     isAuthenticated, 
     audioUploadLimiter,
-    upload.single('audioFile'),
+    upload.fields([
+      { name: "audioFile", maxCount: 1 },
+      { name: "consentSegment", maxCount: 1 },
+    ]),
     handleMulterError,
     async (req: any, res: Response, next: NextFunction) => {
       try {
         const userId = req.user.claims.sub;
         const audioId = req.params.id;
+        const files = req.files as { audioFile?: Express.Multer.File[]; consentSegment?: Express.Multer.File[] } | undefined;
+        const audioFile = files?.audioFile?.[0];
+        const consentSegmentFile = files?.consentSegment?.[0];
         
         // Validate multipart upload
-        if (!req.file) {
+        if (!audioFile) {
           return res.status(400).json({ message: "Audio file is required" });
         }
 
@@ -4011,9 +4056,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         }
 
         // File is already in memory as Buffer (req.file.buffer)
-        const audioBuffer = req.file.buffer;
+        const audioBuffer = audioFile.buffer;
         
-        console.log(`Received audio file: size: ${audioBuffer.length} bytes, type: ${req.file.mimetype}`);
+        console.log(`Received audio file: size: ${audioBuffer.length} bytes, type: ${audioFile.mimetype}`);
 
         // Upload to Backblaze B2 using S3 SDK
         const objectStorageService = new ObjectStorageService();
@@ -4024,31 +4069,76 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         console.log(`Uploading audio to Backblaze B2: ${key} (DB path: ${dbPath})`);
         
         // Upload to S3-compatible storage (Backblaze B2)
-        await objectStorageService.uploadFile(key, audioBuffer, req.file.mimetype);
+        await objectStorageService.uploadFile(key, audioBuffer, audioFile.mimetype);
         
         console.log(`Audio uploaded successfully to ${key}`);
         
         // Store the object path for database (standardized format: /objects/{uuid})
         const objectPath = dbPath;
 
+        let consentSegmentPath: string | undefined;
+        let consentDurationSeconds: number | undefined;
+        const parsedConsentDuration = req.body.consentDurationSeconds
+          ? parseFloat(req.body.consentDurationSeconds)
+          : NaN;
+
+        if (consentSegmentFile?.buffer?.length) {
+          try {
+            const { preserveConsentSegmentFromBuffer } = await import("./services/consentSegmentService");
+            const preserved = await preserveConsentSegmentFromBuffer({
+              audioBuffer: consentSegmentFile.buffer,
+              mimeType: consentSegmentFile.mimetype || audioFile.mimetype,
+              consentDurationSeconds: Number.isFinite(parsedConsentDuration)
+                ? parsedConsentDuration
+                : Math.min(parseFloat(req.body.duration) || 30, 120),
+            });
+            consentSegmentPath = preserved.consentSegmentPath;
+            consentDurationSeconds = preserved.consentDurationSeconds;
+          } catch (consentError) {
+            console.error("Failed to preserve uploaded consent segment:", consentError);
+          }
+        } else if (Number.isFinite(parsedConsentDuration) && parsedConsentDuration > 0) {
+          try {
+            const { preserveConsentSegmentFromFullAudio } = await import("./services/consentSegmentService");
+            const preserved = await preserveConsentSegmentFromFullAudio({
+              audioBuffer,
+              mimeType: audioFile.mimetype,
+              consentDurationSeconds: parsedConsentDuration,
+            });
+            if (preserved) {
+              consentSegmentPath = preserved.consentSegmentPath;
+              consentDurationSeconds = preserved.consentDurationSeconds;
+            }
+          } catch (consentError) {
+            console.error("Failed to extract consent segment from uploaded audio:", consentError);
+          }
+        }
+
         // Update audio record with file path, duration, and MIME type
         const updated = await storage.updateAudioRecording(audioId, {
           filePath: objectPath,
-          mimeType: req.file.mimetype,
+          mimeType: audioFile.mimetype,
           duration: parseFloat(req.body.duration),
+          ...(consentSegmentPath
+            ? { consentSegmentPath, consentDurationSeconds }
+            : {}),
         });
 
         await logAuditEvent(userId, "audio_uploaded", {
           caseId: audioRecording.caseId,
           audioRecordingId: audioId,
           req,
-          metadata: { action: "upload" },
+          metadata: {
+            action: "upload",
+            consentSegmentPreserved: !!consentSegmentPath,
+          },
         });
 
         const holdResult = await applyObjectLegalHoldForNewRecording({
           caseId: audioRecording.caseId,
           audioRecordingId: audioId,
           filePath: objectPath,
+          consentSegmentPath,
           userId,
           req,
         });
@@ -4983,10 +5073,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(403).json({ message: "Not authorized" });
       }
       
-      const transcript = await storage.getTranscriptByCase(caseId, userId);
+      let transcript = await storage.getTranscriptByCase(caseId, userId);
       if (!transcript) {
         return res.status(404).json({ message: "No transcript found" });
       }
+
+      transcript = await repairStoredRtfTranscript(transcript, userId);
 
       // Lazy commit: auto-commit any pending redactions whose 30-minute window has expired
       const pendingRedactions = ((transcript.redactions || []) as any[]);
@@ -5014,7 +5106,53 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         transcriptId: transcript.id,
         req,
       });
-      res.json(sanitizeTranscriptForResponse(finalTranscript));
+
+      // Mark externally uploaded transcripts (paste/file) vs AssemblyAI audio transcription
+      let origin: "external_upload" | "audio_transcription" = "audio_transcription";
+      let importMeta: { source?: string; originalFilename?: string | null } | undefined;
+      try {
+        const { transcriptImports } = await import("@shared/schema");
+        const { eq } = await import("drizzle-orm");
+        const rows = await db
+          .select({
+            source: transcriptImports.source,
+            originalFilename: transcriptImports.originalFilename,
+          })
+          .from(transcriptImports)
+          .where(eq(transcriptImports.transcriptId, finalTranscript.id))
+          .limit(1);
+        if (rows[0]) {
+          origin = "external_upload";
+          importMeta = {
+            source: rows[0].source,
+            originalFilename: rows[0].originalFilename,
+          };
+        } else if (finalTranscript.meetingSessionId) {
+          const bySession = await db
+            .select({
+              source: transcriptImports.source,
+              originalFilename: transcriptImports.originalFilename,
+            })
+            .from(transcriptImports)
+            .where(eq(transcriptImports.meetingSessionId, finalTranscript.meetingSessionId))
+            .limit(1);
+          if (bySession[0]) {
+            origin = "external_upload";
+            importMeta = {
+              source: bySession[0].source,
+              originalFilename: bySession[0].originalFilename,
+            };
+          }
+        }
+      } catch (originErr) {
+        console.warn("[Transcript] Could not resolve transcript origin:", originErr);
+      }
+
+      res.json({
+        ...sanitizeTranscriptForResponse(finalTranscript),
+        origin,
+        ...(importMeta ? { importSource: importMeta.source, originalFilename: importMeta.originalFilename } : {}),
+      });
     } catch (error: any) {
       next(error);
     }
@@ -9562,6 +9700,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         // Align API response source with audit source for consistency
         consentSource = auditSource;
 
+        // In-meeting live confirmation with a timestamp is captured on the recording itself.
+        // Post-meeting attestation remains verbal_attested (no playable consent snippet expected).
+        const consentModality =
+          auditSource === "in_meeting_live_panel" && typeof elapsedSeconds === "number" && elapsedSeconds >= 0
+            ? "verbal_recorded"
+            : "verbal_attested";
+
         if (importData.caseId) {
           const { recordConsentEvent } = await import("./services/recordConsentEvent");
           await recordConsentEvent({
@@ -9570,7 +9715,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             consentGiven: true,
             disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
             disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
-            consentModality: "verbal_attested",
+            consentModality,
             lawfulBasis: "consent",
             recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
             source: auditSource,
@@ -9580,6 +9725,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
               importId: importData.id,
               meetingPlatform: importData.meetingPlatform,
               ...(elapsedLabel ? { elapsedIntoRecording: elapsedLabel } : {}),
+              ...(typeof elapsedSeconds === "number" ? { audioSecondsAtConsent: elapsedSeconds } : {}),
             },
           });
         } else {
@@ -9593,9 +9739,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
               attestedAt: new Date().toISOString(),
               meetingPlatform: importData.meetingPlatform,
               source: auditSource,
+              consentModality,
               disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
               disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
               ...(elapsedLabel ? { elapsedIntoRecording: elapsedLabel } : {}),
+              ...(typeof elapsedSeconds === "number" ? { audioSecondsAtConsent: elapsedSeconds } : {}),
             },
             severity: "info",
           });
@@ -9611,6 +9759,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       await storage.updateMeetingImport(importData.id, { 
         consentConfirmed: true,
         preConsentEmailId: preConsentEmailId || undefined,
+        ...(typeof elapsedSeconds === "number" && elapsedSeconds >= 0
+          ? { consentElapsedSeconds: Math.round(elapsedSeconds) }
+          : {}),
       });
       
       res.json({ success: true, consentSource });

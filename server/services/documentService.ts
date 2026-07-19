@@ -14,6 +14,7 @@ import {
   type VerificationWarning,
   type VerificationWarningCategory,
 } from '@shared/verificationWarnings';
+import { normalizeAttendanceSectionLabels } from '@shared/attendanceNoteFormat';
 
 /**
  * Post-process document content to ensure known section headings are bold.
@@ -583,10 +584,7 @@ function assembleAttendanceNoteDocument(
   const mattersBody = body.startsWith('**MATTERS DISCUSSED**')
     ? body
     : `**MATTERS DISCUSSED**\n\n${body}`;
-  const formattedBody = mattersBody.replace(
-    /^(\s*)(What was discussed:|Advice given:|Client's instructions and response:)\s*$/gim,
-    '$1**$2**',
-  );
+  const formattedBody = normalizeAttendanceSectionLabels(mattersBody);
   return `${buildAttendanceNoteHeader(metadata, prefs)}${formattedBody}${buildAttendanceNoteFooter(metadata, prefs)}`;
 }
 
