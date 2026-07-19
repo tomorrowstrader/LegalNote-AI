@@ -84,6 +84,9 @@ const EVENT_LABELS: Record<string, string> = {
   document_deleted: "Document Deleted",
   document_downloaded: "Document Downloaded",
   document_sent: "Document Sent",
+  document_edited: "Document Edited",
+  document_generated: "Document Produced",
+  document_regenerated: "Further Version Produced",
   transcript_viewed: "Transcript Viewed",
   transcript_redacted: "Transcript Redacted",
   audit_exported_csv: "Audit Exported (CSV)",
@@ -92,6 +95,14 @@ const EVENT_LABELS: Record<string, string> = {
   calendar_disconnected: "Calendar Disconnected",
   calendar_synced: "Calendar Synced",
 };
+
+function formatEventType(eventType: string): string {
+  return EVENT_LABELS[eventType] ?? eventType
+    .split('_')
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
 
 export function generateSignedAuditPDF(
   auditLogs: AuditTrail[],
@@ -249,7 +260,7 @@ export function generateSignedAuditPDF(
 
     const row = [
       format(new Date(log.timestamp), 'dd/MM/yy HH:mm:ss'),
-      EVENT_LABELS[log.eventType] || log.eventType,
+      formatEventType(log.eventType),
       log.userId.substring(0, 10) + '...',
       log.severity,
       log.caseId ? log.caseId.substring(0, 12) + '...' : 'N/A',

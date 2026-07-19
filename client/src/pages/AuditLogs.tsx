@@ -31,6 +31,9 @@ const EVENT_ICONS: Record<string, any> = {
   document_deleted: FileText,
   document_downloaded: Download,
   document_sent: Send,
+  document_edited: FileText,
+  document_generated: FileText,
+  document_regenerated: FileText,
   transcript_viewed: Eye,
   transcript_redacted: Shield,
   audit_exported_csv: Download,
@@ -62,6 +65,9 @@ const EVENT_LABELS: Record<string, string> = {
   document_deleted: "Document Deleted",
   document_downloaded: "Document Downloaded",
   document_sent: "Document Sent",
+  document_edited: "Document Edited",
+  document_generated: "Document Produced",
+  document_regenerated: "Further Version Produced",
   transcript_viewed: "Transcript Viewed",
   transcript_redacted: "Transcript Redacted",
   audit_exported_csv: "Audit Exported (CSV)",
@@ -74,6 +80,14 @@ const EVENT_LABELS: Record<string, string> = {
   case_handover_received: "Case Handover Received",
   external_document_referenced: "External Document Referenced",
 };
+
+function formatEventType(eventType: string): string {
+  return EVENT_LABELS[eventType] ?? eventType
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
 
 const SEVERITY_COLORS: Record<string, string> = {
   info: "bg-blue-500/10 text-blue-500 border-blue-500/20",
@@ -394,7 +408,7 @@ export default function AuditLogs() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-sm font-medium">
-                              {EVENT_LABELS[log.eventType] || log.eventType}
+                              {formatEventType(log.eventType)}
                             </span>
                             <Badge
                               variant="outline"
