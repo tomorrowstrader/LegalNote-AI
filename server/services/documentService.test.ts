@@ -14,6 +14,48 @@ const metadata: CaseMetadata = {
 };
 
 describe('DocumentService.generateAttendanceNote', () => {
+  it('formats metadata on separate lines and bolds standard section labels', async () => {
+    const service = new DocumentService({
+      chatCompletion: vi.fn().mockResolvedValue({
+        content: `**MATTERS DISCUSSED**
+
+**1. TEST TOPIC**
+
+What was discussed:
+The facts.
+
+Advice given:
+I advised the client.
+
+Client's instructions and response:
+The client agreed.`,
+        inputTokens: 10,
+        outputTokens: 20,
+        cost: 0,
+      }),
+    });
+
+    const result = await service.generateAttendanceNote('Meeting text', {
+      ...metadata,
+      meetingStartTime: '10:37',
+      durationDisplay: '10 minutes',
+      units: 2,
+      feeEarnerDisplayName: 'Jane Smith, Solicitor',
+    });
+
+    expect(result.content).toContain(
+      '**File Ref:** TEST/001  \n' +
+      '**Date:** 14 July 2026  \n' +
+      '**Time:** 10:37  \n' +
+      '**Duration:** 10 minutes  \n' +
+      '**Time Spent (Units):** 2  \n' +
+      '**Advisor:** Jane Smith, Solicitor',
+    );
+    expect(result.content).toContain('**What was discussed:**');
+    expect(result.content).toContain('**Advice given:**');
+    expect(result.content).toContain("**Client's instructions and response:**");
+  });
+
   it('routes short transcripts through the governed attendance note prompt', async () => {
     const service = new DocumentService({
       chatCompletion: vi.fn().mockResolvedValue({

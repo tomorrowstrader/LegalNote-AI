@@ -863,6 +863,16 @@ nav.sticky {
   line-height: 1.7;
   color: hsl(var(--foreground));
 }
+
+/* Attendance notes and client letters use justified body copy by default.
+   An explicit alignment applied in the editor remains authoritative via its
+   inline text-align style. */
+.legal-document-justified :is(.page-view-content, .ProseMirror) p,
+.legal-document-justified :is(.page-view-content, .ProseMirror) li,
+.legal-document-justified :is(.page-view-content, .ProseMirror) blockquote {
+  text-align: justify;
+}
+
 .page-view-content h1 {
   font-size: 1.25rem; font-weight: 700;
   margin-top: 1.5rem; margin-bottom: 1rem;

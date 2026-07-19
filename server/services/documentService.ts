@@ -485,26 +485,28 @@ function sanitizeModelProseDashes(document: string): string {
 }
 
 function buildAttendanceNoteHeader(metadata: CaseMetadata, prefs: Required<FirmPreferences>): string {
-  let metadataFields = `File Ref: ${metadata.matterReference || 'TBD'}
-Date: ${metadata.recordingDate}`;
+  const metadataFields = [
+    `**File Ref:** ${metadata.matterReference || 'TBD'}`,
+    `**Date:** ${metadata.recordingDate}`,
+  ];
 
   if (metadata.meetingStartTime) {
-    metadataFields += `\nTime: ${metadata.meetingStartTime}`;
+    metadataFields.push(`**Time:** ${metadata.meetingStartTime}`);
   }
 
   if (metadata.durationDisplay) {
-    metadataFields += `\nDuration: ${metadata.durationDisplay}`;
+    metadataFields.push(`**Duration:** ${metadata.durationDisplay}`);
   }
 
   if (metadata.units != null && metadata.units > 0) {
-    metadataFields += `\nTime Spent (Units): ${metadata.units}`;
+    metadataFields.push(`**Time Spent (Units):** ${metadata.units}`);
   }
 
-  metadataFields += `\nAdvisor: ${metadata.feeEarnerDisplayName ?? 'Not specified'}`;
+  metadataFields.push(`**Advisor:** ${metadata.feeEarnerDisplayName ?? 'Not specified'}`);
 
   return `**ATTENDANCE NOTE**
 
-${metadataFields}
+${metadataFields.join('  \n')}
 
 **MATTER:** ${metadata.title}
 
@@ -579,7 +581,11 @@ function assembleAttendanceNoteDocument(
   const mattersBody = body.startsWith('**MATTERS DISCUSSED**')
     ? body
     : `**MATTERS DISCUSSED**\n\n${body}`;
-  return `${buildAttendanceNoteHeader(metadata, prefs)}${mattersBody}${buildAttendanceNoteFooter(metadata, prefs)}`;
+  const formattedBody = mattersBody.replace(
+    /^(\s*)(What was discussed:|Advice given:|Client's instructions and response:)\s*$/gim,
+    '$1**$2**',
+  );
+  return `${buildAttendanceNoteHeader(metadata, prefs)}${formattedBody}${buildAttendanceNoteFooter(metadata, prefs)}`;
 }
 
 function buildSummaryHeader(metadata: CaseMetadata): string {
@@ -782,10 +788,10 @@ The system supplies the attendance note header (File Reference, Date, Time, Dura
 
 **1. [FIRST MAJOR TOPIC - USE CLEAR PROFESSIONAL HEADING IN CAPS]**
 
-   What was discussed:
+   **What was discussed:**
    [Opening paragraph describing the issue or matter discussed - based strictly on what was said. Include facts established, re-expressed in legal register, and state any non-duration value that follows from them (e.g. annualised income, net equity). For marriage or cohabitation length, use the system-supplied duration facts when present — e.g. "The client married in August 2014 and separated in March 2026. The jointly owned property is the matrimonial home."]
 
-   Advice given:
+   **Advice given:**
    [Legal advice provided - use professional terminology. Always write: "I advised the client that..." NOT "We discussed..." or "I told them..."]
    
    Key points advised:
@@ -796,17 +802,17 @@ The system supplies the attendance note header (File Reference, Date, Time, Dura
    Reasoning behind advice and decisions:
    [State the reasoning and thinking behind the advice given and any decisions made — as evident from the conversation. For example: "I advised the client to [action], having considered [factor 1], [factor 2], and [factor 3]." Only if the fee earner did not state the reasoning FOR THIS ADVICE anywhere in this section (see rules 5–7 above), emit a marker whose detail quotes or closely paraphrases the specific unreasoned advice from Advice given above (a topic being discussed elsewhere in the meeting is not a reason having been given for this advice): <!-- REASONING_GAP: [FIRST MAJOR TOPIC]: [specific advice point from Advice given] --> — never bare "Reasoning behind advice", and never where you have already explained the advice here]
 
-   Client's instructions and response:
+   **Client's instructions and response:**
    [The client confirmed understanding and instructed... / The client requested... / The client's response to the advice given]
 
 **2. [SECOND MAJOR TOPIC - IN CAPS]**
 
-   What was discussed:
+   **What was discussed:**
    [Include facts established, re-expressed in legal register, and state any non-duration value that follows from them (e.g. annualised income, net equity). For marriage or cohabitation length, use the system-supplied duration facts when present — e.g. "The client married in August 2014 and separated in March 2026. The jointly owned property is the matrimonial home."]
    - [Fact 1 from the conversation]
    - [Fact 2 from the conversation]
 
-   Advice given:
+   **Advice given:**
    I advised the client that [legal principle or position]. Specifically:
    - [Advice point 1]
    - [Advice point 2]
@@ -814,7 +820,7 @@ The system supplies the attendance note header (File Reference, Date, Time, Dura
    Reasoning behind advice and decisions:
    [State the reasoning and thinking behind the advice — as evident from the conversation. Only if the fee earner did not state the reasoning FOR THIS ADVICE anywhere in this section (see rules 5–7 above), emit: <!-- REASONING_GAP: [SECOND MAJOR TOPIC]: [specific advice point from Advice given] --> — never bare "Reasoning behind advice", and never where you have already explained the advice here]
 
-   Client's instructions and response:
+   **Client's instructions and response:**
    [Client's instructions and response to advice given]
 
 **3. [ADDITIONAL TOPICS AS NEEDED]**

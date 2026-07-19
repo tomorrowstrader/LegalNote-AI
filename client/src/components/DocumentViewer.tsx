@@ -313,6 +313,36 @@ interface Document {
   reasoningGapsFilled?: number | null;
 }
 
+function usesJustifiedLegalLayout(type: Document['type']): boolean {
+  return type === 'attendance_note' ||
+    type === 'meeting_notes' ||
+    type === 'summary' ||
+    type === 'client_letter';
+}
+
+/**
+ * Applies the current attendance-note house style to older Markdown documents
+ * without requiring a database migration. The transformation is idempotent, so
+ * edited content can safely pass through it on every render.
+ */
+function formatAttendanceNoteMarkdown(content: string, type: Document['type']): string {
+  if (type !== 'attendance_note' && type !== 'meeting_notes') return content;
+
+  const matterIndex = content.search(/^\s*(?:\*\*)?MATTER:/m);
+  const headerEnd = matterIndex >= 0 ? matterIndex : content.length;
+  const header = content.slice(0, headerEnd).replace(
+    /^(\s*)(?:\*\*)?(File Ref|Date|Time|Duration|Time Spent \(Units\)|Advisor):(?:\*\*)?\s*(.*?)(?: {2})?$/gm,
+    (_match, indent: string, label: string, value: string) =>
+      `${indent}**${label}:** ${value.trimEnd()}  `,
+  );
+  const body = content.slice(headerEnd).replace(
+    /^(\s*)(?:\*\*)?(What was discussed:|Advice given:|Client's instructions and response:)(?:\*\*)?\s*$/gim,
+    '$1**$2**',
+  );
+
+  return header + body;
+}
+
 /** Tab review indicator: red = not started, amber = in progress, green = approved. */
 type DocumentReviewStatus = 'unreviewed' | 'in_review' | 'reviewed';
 
@@ -1159,8 +1189,13 @@ function EditableDocumentContent({
   legalContext?: { clientName?: string; matterRef?: string; solicitorName?: string; firmName?: string };
   pageViewMode?: boolean;
 }) {
+  const sourceContent = formatAttendanceNoteMarkdown(
+    isEditing ? editContent : document.content,
+    document.type,
+  );
+
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${usesJustifiedLegalLayout(document.type) ? 'legal-document-justified' : ''}`}>
       {isEditing && (
         <div className="flex items-center gap-2 flex-wrap px-6">
           <Button
@@ -1210,13 +1245,13 @@ function EditableDocumentContent({
           and each marker chip shows the specific advice point that still needs reasoning. */}
       {pageViewMode && !isEditing ? (
         <PageView
-          content={withReasoningGapAnchors(document.content)}
+          content={withReasoningGapAnchors(sourceContent)}
           gapAnchorLabels={parseReasoningGaps(document.content)}
           legalContext={legalContext}
         />
       ) : (
         <RichTextEditor
-          content={isEditing ? editContent : withReasoningGapAnchors(document.content)}
+          content={isEditing ? sourceContent : withReasoningGapAnchors(sourceContent)}
           onChange={onEditContentChange}
           disabled={!isEditing}
           hydrateGapAnchors={!isEditing}
