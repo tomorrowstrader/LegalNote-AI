@@ -18,7 +18,7 @@ export function LegalAgreementMarkdown({
     <div
       className={
         className ??
-        "border border-[hsl(25,15%,85%)] dark:border-border bg-white/60 dark:bg-card rounded-md p-6 max-h-[50vh] overflow-y-auto mb-6 text-sm leading-relaxed text-[hsl(25,20%,30%)] dark:text-foreground"
+        "border border-[hsl(25,15%,85%)] dark:border-border bg-white/60 dark:bg-card rounded-md p-4 sm:p-6 max-h-[50vh] overflow-y-auto overflow-x-auto mb-0 text-sm leading-relaxed text-[hsl(25,20%,30%)] dark:text-foreground"
       }
       data-testid={testId}
     >

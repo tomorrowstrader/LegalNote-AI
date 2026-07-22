@@ -77,11 +77,12 @@ export default function DpaConfirmPage() {
     <div className="min-h-screen bg-[hsl(30,25%,97%)] dark:bg-background">
       <SecondaryPageHeader />
 
-      <main className="max-w-4xl mx-auto px-6 py-16">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16 overflow-x-hidden">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
+          className="min-w-0"
         >
           <h1
             className="text-3xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2"
@@ -113,7 +114,7 @@ export default function DpaConfirmPage() {
 
           {data && (
             <>
-              <div className="mb-6 rounded-md border border-[hsl(25,15%,85%)] dark:border-border bg-white/70 dark:bg-card px-4 py-3 text-sm text-[hsl(25,20%,30%)] dark:text-foreground">
+              <div className="mb-6 rounded-md border border-[hsl(25,15%,85%)] dark:border-border bg-white/70 dark:bg-card px-4 py-3 text-sm text-[hsl(25,20%,30%)] dark:text-foreground break-words">
                 <p>
                   <strong>{data.firmName}</strong> — {data.signerName},{" "}
                   {data.signerTitle} ({data.email})
@@ -130,60 +131,77 @@ export default function DpaConfirmPage() {
                 </p>
               </div>
 
-              <div className="flex gap-2 mb-3">
+              <div
+                className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3"
+                role="tablist"
+                aria-label="Agreement documents"
+              >
                 <Button
                   type="button"
+                  role="tab"
+                  aria-selected={tab === "dpa"}
                   variant={tab === "dpa" ? "default" : "outline"}
                   onClick={() => setTab("dpa")}
+                  className="w-full h-auto min-h-10 whitespace-normal text-center px-3 py-2 leading-snug"
                   data-testid="tab-dpa"
                 >
                   Data Processing Agreement
                 </Button>
                 <Button
                   type="button"
+                  role="tab"
+                  aria-selected={tab === "evaluation"}
                   variant={tab === "evaluation" ? "default" : "outline"}
                   onClick={() => setTab("evaluation")}
+                  className="w-full h-auto min-h-10 whitespace-normal text-center px-3 py-2 leading-snug"
                   data-testid="tab-evaluation"
                 >
                   Governed Evaluation Agreement
                 </Button>
               </div>
 
-              <LegalAgreementMarkdown
-                text={tab === "dpa" ? data.dpa.text : data.evaluation.text}
-                data-testid="confirm-document-body"
-              />
+              <div className="min-w-0 overflow-x-auto mb-6">
+                <LegalAgreementMarkdown
+                  text={tab === "dpa" ? data.dpa.text : data.evaluation.text}
+                  data-testid="confirm-document-body"
+                />
+              </div>
 
               <div className="space-y-4 mb-8">
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 min-w-0">
                   <Checkbox
                     id="accept-dpa"
                     checked={dpaAccepted}
                     onCheckedChange={(v) => setDpaAccepted(v === true)}
+                    className="mt-0.5 shrink-0"
                     data-testid="checkbox-accept-dpa"
                   />
                   <Label
                     htmlFor="accept-dpa"
-                    className="text-sm leading-relaxed cursor-pointer text-foreground"
+                    className="text-sm leading-relaxed cursor-pointer text-foreground min-w-0 flex-1 break-words"
                   >
                     I have read and accept the Data Processing Agreement (hash{" "}
-                    <code className="text-xs">{data.dpa.contentHash.slice(0, 12)}…</code>)
+                    <code className="text-xs break-all">
+                      {data.dpa.contentHash.slice(0, 12)}…
+                    </code>
+                    )
                   </Label>
                 </div>
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 min-w-0">
                   <Checkbox
                     id="accept-evaluation"
                     checked={evaluationAccepted}
                     onCheckedChange={(v) => setEvaluationAccepted(v === true)}
+                    className="mt-0.5 shrink-0"
                     data-testid="checkbox-accept-evaluation"
                   />
                   <Label
                     htmlFor="accept-evaluation"
-                    className="text-sm leading-relaxed cursor-pointer text-foreground"
+                    className="text-sm leading-relaxed cursor-pointer text-foreground min-w-0 flex-1 break-words"
                   >
                     I have read and accept the Governed Evaluation Agreement
                     (hash{" "}
-                    <code className="text-xs">
+                    <code className="text-xs break-all">
                       {data.evaluation.contentHash.slice(0, 12)}…
                     </code>
                     )
@@ -207,7 +225,7 @@ export default function DpaConfirmPage() {
                   setFormError(null);
                   confirmMutation.mutate();
                 }}
-                className="bg-[hsl(18,65%,45%)] hover:bg-[hsl(18,65%,38%)] text-white"
+                className="w-full sm:w-auto bg-[hsl(18,65%,45%)] hover:bg-[hsl(18,65%,38%)] text-white"
                 data-testid="button-confirm-accept"
               >
                 {confirmMutation.isPending ? (
