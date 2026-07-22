@@ -3559,19 +3559,26 @@ export default function DocumentViewer({
           <DialogHeader>
             <DialogTitle>Produce new version</DialogTitle>
             <DialogDescription>
-              The new version is recompiled from the transcript. Add a reason to guide what should change — it is also stored on the file.
+              The new version is recompiled from the transcript using your instruction. That instruction is required and is recorded on the file.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="produce-reason">What should change? (optional)</Label>
+            <Label htmlFor="produce-reason">What should change?</Label>
             <Input
               id="produce-reason"
               value={produceReason}
               onChange={(e) => setProduceReason(e.target.value)}
               placeholder="e.g. Expand next steps and include funding discussion"
               maxLength={500}
+              required
+              aria-required="true"
               data-testid="input-produce-reason"
             />
+            {produceReason.trim().length > 0 && produceReason.trim().length < 10 && (
+              <p className="text-xs text-muted-foreground">
+                Enter at least 10 characters so the change is clear enough to apply.
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -3588,12 +3595,16 @@ export default function DocumentViewer({
             <Button
               onClick={() => {
                 if (!produceTarget) return;
+                const trimmed = produceReason.trim();
+                if (trimmed.length < 10) return;
                 produceVersionMutation.mutate({
                   documentId: produceTarget.id,
-                  reason: produceReason,
+                  reason: trimmed,
                 });
               }}
-              disabled={produceVersionMutation.isPending}
+              disabled={
+                produceVersionMutation.isPending || produceReason.trim().length < 10
+              }
               data-testid="button-confirm-produce-version"
             >
               {produceVersionMutation.isPending ? "Producing…" : "Produce new version"}

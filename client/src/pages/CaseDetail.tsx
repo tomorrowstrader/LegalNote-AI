@@ -482,6 +482,7 @@ export default function CaseDetail() {
       status: string; progress: number; currentStep: string;
       totalCost: number; totalTokens: number; error?: string; completedAt?: string;
       produceVersionFailed?: boolean; produceVersionError?: string;
+      produceVersionUnchanged?: boolean;
     };
   }>({
     queryKey: [`/api/cases/${caseId}/processing-status`],
@@ -634,8 +635,19 @@ export default function CaseDetail() {
           typeof q.queryKey[0] === "string" &&
           (q.queryKey[0] as string).includes(`/api/cases/${caseId}/document-versions`),
       });
+      const meta = caseData.aiProcessingMetadata as
+        | { produceVersionUnchanged?: boolean }
+        | undefined;
+      if (meta?.produceVersionUnchanged) {
+        toast({
+          title: "Document unchanged",
+          description:
+            "This version is identical to the previous one. Your instruction did not result in any change to the document.",
+          duration: 8000,
+        });
+      }
     }
-  }, [caseData?.status, caseId]);
+  }, [caseData?.status, caseData?.aiProcessingMetadata, caseId, toast]);
 
   useEffect(() => {
     if (
@@ -1871,6 +1883,22 @@ export default function CaseDetail() {
                     {(caseData.aiProcessingMetadata as any)?.produceVersionError
                       || (caseData.aiProcessingMetadata as any)?.error
                       || 'The previous version is still on file. You can try Produce new version again.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Further version identical to parent — version still created and audited */}
+          {caseData.status !== 'failed' &&
+            !(caseData.aiProcessingMetadata as any)?.produceVersionFailed &&
+            (caseData.aiProcessingMetadata as any)?.produceVersionUnchanged && (
+            <div className="p-5 bg-muted/40 rounded-md border border-border" data-testid="produce-version-unchanged-card">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <p className="font-semibold text-sm mb-1">Document unchanged</p>
+                  <p className="text-sm text-muted-foreground">
+                    This version is identical to the previous one. Your instruction did not result in any change to the document. The version remains on file.
                   </p>
                 </div>
               </div>

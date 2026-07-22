@@ -279,9 +279,11 @@ describe('formatRevisionInstructions', () => {
       previousContent: 'Previous note body',
       reason: 'Expand next steps',
     });
-    expect(block).toContain('FURTHER VERSION — MANDATORY');
+    expect(block).toContain('FURTHER VERSION');
+    expect(block).toContain('FEE EARNER INSTRUCTION FOR THIS FURTHER VERSION:');
     expect(block).toContain('Previous note body');
     expect(block).toContain('Expand next steps');
+    expect(block).not.toContain('Improve completeness');
   });
 });
 
@@ -306,9 +308,11 @@ describe('DocumentService further version revision', () => {
       temperature: number;
     };
     expect(request.temperature).toBe(0);
-    expect(request.userPrompt).toContain('FURTHER VERSION — MANDATORY');
+    expect(request.userPrompt).toContain('FURTHER VERSION');
+    expect(request.userPrompt).toContain('FEE EARNER INSTRUCTION FOR THIS FURTHER VERSION:');
     expect(request.userPrompt).toContain('Old letter content');
     expect(request.userPrompt).toContain('Clarify advice on costs');
+    expect(request.userPrompt).not.toContain('Improve completeness');
   });
 
   it('keeps temperature 0 when no revision context is provided', async () => {
@@ -325,6 +329,6 @@ describe('DocumentService further version revision', () => {
     expect(chatCompletion).toHaveBeenCalledOnce();
     const request = chatCompletion.mock.calls[0]?.[0] as { temperature: number; userPrompt: string };
     expect(request.temperature).toBe(0);
-    expect(request.userPrompt).not.toContain('FURTHER VERSION — MANDATORY');
+    expect(request.userPrompt).not.toContain('FEE EARNER INSTRUCTION FOR THIS FURTHER VERSION:');
   });
 });

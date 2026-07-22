@@ -157,6 +157,8 @@ async function updateProduceProgress(
   error?: string,
   /** On failure, restore this case status so existing docs stay on the matter file. */
   restoreStatusOnFailure?: string,
+  /** When completed, surface that the primary further version matched its parent. */
+  produceVersionUnchanged?: boolean,
 ): Promise<void> {
   const caseData = await storage.getCase(caseId, userId);
   if (!caseData) return;
@@ -188,6 +190,7 @@ async function updateProduceProgress(
           ? {
               produceVersionFailed: true,
               produceVersionError: error,
+              produceVersionUnchanged: undefined,
               statusBeforeProduce: undefined,
               progressUpdatedAt: undefined,
               produceStartedAt: undefined,
@@ -196,11 +199,16 @@ async function updateProduceProgress(
             ? {
                 produceVersionFailed: undefined,
                 produceVersionError: undefined,
+                produceVersionUnchanged: produceVersionUnchanged === true ? true : undefined,
                 statusBeforeProduce: undefined,
                 progressUpdatedAt: undefined,
                 produceStartedAt: undefined,
               }
-            : { produceVersionFailed: undefined, produceVersionError: undefined }),
+            : {
+                produceVersionFailed: undefined,
+                produceVersionError: undefined,
+                produceVersionUnchanged: undefined,
+              }),
       },
     },
     userId,
@@ -229,6 +237,8 @@ export async function produceDocumentVersion(params: {
   const { storage, caseId, documentId, userId, reason, trackProgress = false } = params;
   const documentService = new DocumentService();
   let statusBeforeProduce: string | undefined;
+  let primaryContentUnchanged = false;
+  const trimmedReason = reason?.trim() || undefined;
 
   const setProgress = async (progress: number, currentStep: string) => {
     if (!trackProgress) return;
@@ -351,7 +361,7 @@ export async function produceDocumentVersion(params: {
 
       const attendanceRevision = {
         previousContent: parent.content,
-        reason: reason?.trim() || undefined,
+        reason: trimmedReason,
       };
 
       const attendanceResult = await documentService.generateDocumentByRecordingType(
@@ -376,6 +386,9 @@ export async function produceDocumentVersion(params: {
           relationshipDurations: metadata.relationshipDurations,
         },
       );
+
+      const attendanceUnchanged = attendanceResult.content === parent.content;
+      primaryContentUnchanged = attendanceUnchanged;
 
       const attendanceVersion = await storage.createDocumentVersion(
         documentId,
@@ -406,12 +419,19 @@ export async function produceDocumentVersion(params: {
           parentVersion: parent.version,
           newVersion: attendanceVersion.version,
           versionType: "further_produced",
-          reason: reason?.trim() || undefined,
+          reason: trimmedReason,
           wasApproved: parent.status === "approved",
           recordingType,
           inputTokens: attendanceResult.inputTokens,
           outputTokens: attendanceResult.outputTokens,
           cost: attendanceResult.cost,
+          contentUnchanged: attendanceUnchanged,
+          ...(attendanceUnchanged
+            ? {
+                unchangedNote:
+                  "Further version identical to parent; fee-earner instruction produced no change to the document.",
+              }
+            : {}),
         },
       });
 
@@ -436,7 +456,7 @@ export async function produceDocumentVersion(params: {
           metadata,
           {
             previousContent: clientLetterParent.content,
-            reason: reason?.trim() || undefined,
+            reason: trimmedReason,
           },
         );
         logDocumentGovernanceViolations(letterResult.content, "client_letter", { caseId });
@@ -447,6 +467,8 @@ export async function produceDocumentVersion(params: {
           attendanceResult.content,
           { clientName: metadata.clientName, feeEarnerName: metadata.feeEarnerName },
         );
+
+        const letterUnchanged = letterResult.content === clientLetterParent.content;
 
         const letterVersion = await storage.createDocumentVersion(
           clientLetterParent.id,
@@ -470,11 +492,18 @@ export async function produceDocumentVersion(params: {
               parentVersion: clientLetterParent.version,
               newVersion: letterVersion.version,
               versionType: "further_produced",
-              reason: reason?.trim() || undefined,
+              reason: trimmedReason,
               pairedWithAttendanceVersion: attendanceVersion.id,
               inputTokens: letterResult.inputTokens,
               outputTokens: letterResult.outputTokens,
               cost: letterResult.cost,
+              contentUnchanged: letterUnchanged,
+              ...(letterUnchanged
+                ? {
+                    unchangedNote:
+                      "Further version identical to parent; fee-earner instruction produced no change to the document.",
+                  }
+                : {}),
             },
           });
         }
@@ -506,7 +535,7 @@ export async function produceDocumentVersion(params: {
         metadata,
         {
           previousContent: parent.content,
-          reason: reason?.trim() || undefined,
+          reason: trimmedReason,
         },
       );
 
@@ -519,6 +548,9 @@ export async function produceDocumentVersion(params: {
         attendanceNote.content,
         { clientName: metadata.clientName, feeEarnerName: metadata.feeEarnerName },
       );
+
+      const letterUnchanged = letterResult.content === parent.content;
+      primaryContentUnchanged = letterUnchanged;
 
       const newVersion = await storage.createDocumentVersion(
         documentId,
@@ -549,11 +581,18 @@ export async function produceDocumentVersion(params: {
           parentVersion: parent.version,
           newVersion: newVersion.version,
           versionType: "further_produced",
-          reason: reason?.trim() || undefined,
+          reason: trimmedReason,
           wasApproved: parent.status === "approved",
           inputTokens: letterResult.inputTokens,
           outputTokens: letterResult.outputTokens,
           cost: letterResult.cost,
+          contentUnchanged: letterUnchanged,
+          ...(letterUnchanged
+            ? {
+                unchangedNote:
+                  "Further version identical to parent; fee-earner instruction produced no change to the document.",
+              }
+            : {}),
         },
       });
 
@@ -574,6 +613,9 @@ export async function produceDocumentVersion(params: {
         100,
         "Processing complete",
         "completed",
+        undefined,
+        undefined,
+        primaryContentUnchanged,
       );
     }
 
@@ -672,6 +714,7 @@ export async function enqueueProduceDocumentVersion(params: {
         error: undefined,
         produceVersionFailed: undefined,
         produceVersionError: undefined,
+        produceVersionUnchanged: undefined,
         /** Restored if further-version production fails (keeps existing docs on file). */
         statusBeforeProduce: caseData.status,
         produceStartedAt: nowIso,

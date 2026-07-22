@@ -3427,7 +3427,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const userId = req.user.claims.sub;
       const { caseId, documentId } = req.params;
       const reason =
-        typeof req.body?.reason === "string" ? req.body.reason.slice(0, 500) : undefined;
+        typeof req.body?.reason === "string" ? req.body.reason.slice(0, 500).trim() : "";
+      if (!reason || reason.length < 10) {
+        return res.status(400).json({
+          message:
+            "A reason of at least 10 characters is required to produce a further version. Describe the change that should be applied.",
+          code: "reason_required",
+        });
+      }
 
       const { enqueueProduceDocumentVersion, ProduceDocumentVersionError } = await import(
         "./services/produceDocumentVersion"

@@ -725,10 +725,7 @@ export interface DocumentRevisionContext {
 
 /** Appended to the user prompt for further-version production. */
 export function formatRevisionInstructions(revision: DocumentRevisionContext): string {
-  const reason = revision.reason?.trim();
-  const reasonBlock = reason
-    ? `\n\nFee earner instruction for this further version (you MUST address this):\n${reason}`
-    : '';
+  const reason = revision.reason?.trim() ?? '';
 
   const previous =
     revision.previousContent.length > 60000
@@ -736,15 +733,30 @@ export function formatRevisionInstructions(revision: DocumentRevisionContext): s
       : revision.previousContent;
 
   return `
-FURTHER VERSION — MANDATORY:
-You are producing a further version for the client file. The previous version is on file and must not be reproduced unchanged.
-- Re-derive carefully from the source material in this prompt.
-- Improve completeness, clarity, structure, and accuracy relative to the previous version.
-- Fix omissions, incomplete discussion points, weak or missing reasoning, and unclear passages.
-- Keep facts that remain accurate; do not invent facts absent from the source material.
-- Your output MUST differ from the previous version wherever improvement is warranted.${reasonBlock}
+FURTHER VERSION
 
-PREVIOUS VERSION ON FILE (reference only — improve upon it; do not copy it verbatim):
+You are producing a further version of a document already on the client file.
+
+A further version applies the change that has been requested. It is not an
+opportunity to improve, expand, restyle or complete the document.
+
+- Apply only the change described below.
+- Reproduce every section not affected by that change exactly as it appears in
+  the previous version, word for word.
+- Do not add reasoning, purposes, or connective explanatory text that was not
+  in the previous version.
+- Where the previous version records that reasoning was not stated, that is a
+  finding about the meeting and not an omission in the document. Preserve it
+  exactly, including any REASONING_GAP marker. Do not supply the missing
+  reasoning.
+- If the requested change affects no section, reproduce the previous version
+  unchanged.
+- Length is not a measure of quality. A shorter further version is not a worse one.
+
+FEE EARNER INSTRUCTION FOR THIS FURTHER VERSION:
+${reason}
+
+PREVIOUS VERSION ON FILE:
 ---
 ${previous}
 ---`;
