@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Copy, Check, Link2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,11 @@ export default function AdminDpaMintPage() {
   const [ref, setRef] = useState("");
   const [result, setResult] = useState<MintResult | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Same pattern as AdminDashboard: probe an admin GET; 403 → Access Denied, not the form.
+  const { isLoading: accessLoading, error: accessError } = useQuery({
+    queryKey: ["/api/admin/dpa/acceptances"],
+  });
 
   const mintMutation = useMutation({
     mutationFn: async () => {
@@ -71,6 +76,35 @@ export default function AdminDpaMintPage() {
       });
     }
   };
+
+  if (accessLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-muted rounded w-64" />
+          <div className="h-48 bg-muted rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  if (accessError) {
+    return (
+      <div className="container mx-auto p-6" data-testid="admin-dpa-mint-denied">
+        <Card>
+          <CardHeader>
+            <CardTitle>Access Denied</CardTitle>
+            <CardDescription>Admin access required to view this page</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Failed to load mint tools. Please ensure you have admin privileges.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6" data-testid="admin-dpa-mint">

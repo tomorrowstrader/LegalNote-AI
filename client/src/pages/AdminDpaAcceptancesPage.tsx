@@ -93,13 +93,24 @@ export default function AdminDpaAcceptancesPage() {
     }
   };
 
-  if (error) {
+  if (isLoading) {
     return (
       <div className="container mx-auto p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-muted rounded w-64" />
+          <div className="h-48 bg-muted rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto p-6" data-testid="admin-dpa-acceptances-denied">
         <Card>
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
-            <CardDescription>Admin access required to view acceptances</CardDescription>
+            <CardDescription>Admin access required to view this page</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
@@ -149,13 +160,7 @@ export default function AdminDpaAcceptancesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="animate-pulse space-y-2 py-4">
-              <div className="h-4 bg-muted rounded w-full" />
-              <div className="h-4 bg-muted rounded w-5/6" />
-              <div className="h-4 bg-muted rounded w-4/6" />
-            </div>
-          ) : data && data.length > 0 ? (
+          {data && data.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
