@@ -20,7 +20,8 @@ import {
 } from "@/components/ui/form";
 import { apiRequest, getApiErrorMessage } from "@/lib/queryClient";
 
-const linkClass = "text-[hsl(18,65%,45%)] hover:underline";
+const linkClass =
+  "text-[hsl(18,65%,45%)] dark:text-[hsl(18,70%,62%)] hover:underline";
 
 const firmFormSchema = z.object({
   firmName: z.string().min(1, "Required").max(300),
@@ -128,17 +129,17 @@ export default function DpaPage() {
           transition={{ duration: 0.5 }}
         >
           <h1
-            className="text-4xl font-medium text-[hsl(25,30%,12%)] mb-2"
+            className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2"
             data-testid="heading-dpa"
           >
             Data Processing Agreement
           </h1>
-          <p className="text-[hsl(25,20%,45%)] mb-8">
+          <p className="text-[hsl(25,20%,45%)] dark:text-muted-foreground mb-8">
             Accept the DPA and Governed Evaluation Agreement for governed
             evaluation of LegalNote
           </p>
 
-          <div className="space-y-6 text-[hsl(25,20%,30%)] mb-12">
+          <div className="space-y-6 text-[hsl(25,20%,30%)] dark:text-foreground mb-12">
             <p className="leading-relaxed">
               An authorised representative of your firm may accept LegalNote&apos;s
               Data Processing Agreement and Governed Evaluation Agreement below.
@@ -147,7 +148,7 @@ export default function DpaPage() {
             </p>
             <p>
               <Link href="/dpa/preview" className={linkClass} data-testid="link-dpa-preview">
-                Preview the current DPA text
+                Data Processing Agreement
               </Link>
               {" · "}
               <Link href="/sub-processors" className={linkClass}>
@@ -161,19 +162,19 @@ export default function DpaPage() {
           </div>
 
           <section
-            className="border-t border-[hsl(25,15%,85%)] pt-10"
+            className="border-t border-[hsl(25,15%,85%)] dark:border-border pt-10"
             aria-labelledby="dpa-accept-heading"
           >
             <h2
               id="dpa-accept-heading"
-              className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-2"
+              className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-2"
             >
               Accept the agreements
             </h2>
 
             {!keyTerms.validShape && (
               <div
-                className="mb-8 rounded-md border border-[hsl(25,15%,85%)] bg-[hsl(30,20%,94%)] px-4 py-3 text-sm text-[hsl(25,20%,35%)]"
+                className="mb-8 rounded-md border border-[hsl(25,15%,85%)] dark:border-border bg-[hsl(30,20%,94%)] dark:bg-muted px-4 py-3 text-sm text-[hsl(25,20%,35%)] dark:text-muted-foreground"
                 data-testid="dpa-missing-key-terms"
               >
                 This page requires a signed acceptance link from LegalNote that
@@ -187,7 +188,7 @@ export default function DpaPage() {
 
             {keyTerms.validShape && offerExpired && (
               <div
-                className="mb-8 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                className="mb-8 rounded-md border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-800 dark:text-red-200"
                 data-testid="dpa-offer-expired"
               >
                 This acceptance offer has expired. Please request a new link from
@@ -197,10 +198,12 @@ export default function DpaPage() {
 
             {keyTerms.validShape && !offerExpired && (
               <div
-                className="mb-8 rounded-md border border-[hsl(25,15%,85%)] bg-white/70 px-4 py-4 text-sm text-[hsl(25,20%,30%)]"
+                className="mb-8 rounded-md border border-[hsl(25,15%,85%)] dark:border-border bg-white/70 dark:bg-card px-4 py-4 text-sm text-[hsl(25,20%,30%)] dark:text-foreground"
                 data-testid="dpa-key-terms"
               >
-                <h3 className="font-medium text-[hsl(25,30%,15%)] mb-2">Key Terms</h3>
+                <h3 className="font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-2">
+                  Key Terms
+                </h3>
                 <p className="mb-1">
                   Evaluation Period:{" "}
                   <strong>{keyTerms.evaluationPeriodDays} days</strong>
@@ -208,16 +211,16 @@ export default function DpaPage() {
                 <p>
                   Fee Earner Count: <strong>{keyTerms.feeEarnerCount}</strong>
                 </p>
-                <p className="mt-3 text-xs text-[hsl(25,20%,50%)]">
-                  These terms are set by LegalNote and cannot be changed on this
-                  form. By proceeding you accept them as stated.
+                <p className="mt-3 text-xs text-[hsl(25,20%,50%)] dark:text-muted-foreground">
+                  These terms are set by LegalNote. By proceeding you accept them
+                  as stated.
                 </p>
               </div>
             )}
 
             {submitted ? (
               <div
-                className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900"
+                className="rounded-md border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-4 text-sm text-emerald-900 dark:text-emerald-100"
                 data-testid="dpa-request-sent"
               >
                 <p className="font-medium mb-1">Check your email</p>
@@ -236,7 +239,7 @@ export default function DpaPage() {
                   className="space-y-5 max-w-xl"
                   data-testid="form-dpa-request"
                 >
-                  <h3 className="text-lg font-medium text-[hsl(25,30%,15%)]">
+                  <h3 className="text-lg font-medium text-[hsl(25,30%,15%)] dark:text-foreground">
                     Company Information
                   </h3>
 
@@ -338,7 +341,7 @@ export default function DpaPage() {
 
                   {formError && (
                     <div
-                      className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                      className="rounded-md border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-800 dark:text-red-200"
                       role="alert"
                       data-testid="text-dpa-error"
                     >

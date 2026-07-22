@@ -84,6 +84,40 @@ async function sendEmail(
   }
 }
 
+/** Canonical outbound email brand mark — text only (no remote images). */
+export function legalNoteTextLogoHtml(): string {
+  return `
+    <div style="margin:0 auto;text-align:center;line-height:1;">
+      <span style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;letter-spacing:-0.03em;color:#3d3028;">
+        Legal<span style="color:#c97d4d;">Note</span>
+      </span>
+      <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#8a7d72;display:block;margin-top:6px;">
+        Meeting to Matter
+      </span>
+    </div>
+  `;
+}
+
+/** Full-width brand header for div-based email layouts. */
+export function legalNoteBrandHeaderHtml(): string {
+  return `
+    <div style="text-align:center;padding:28px 24px 24px;background-color:#faf9f7;border-bottom:1px solid #e8e4df;">
+      ${legalNoteTextLogoHtml()}
+    </div>
+  `;
+}
+
+/** Brand header as a table row for table-based layouts (e.g. secure share). */
+export function legalNoteBrandHeaderTableRow(): string {
+  return `
+    <tr>
+      <td align="center" style="background-color:#faf9f7;padding:28px 24px 24px;border-bottom:1px solid #e8e4df;">
+        ${legalNoteTextLogoHtml()}
+      </td>
+    </tr>
+  `;
+}
+
 interface SendCaseEmailParams {
   to: string;
   shareLinkId: string;
@@ -150,6 +184,7 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
         <tr>
           <td align="center" style="padding:0;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;">
+              ${legalNoteBrandHeaderTableRow()}
               <!-- Light top band with firm branding only (no client / matter data) -->
               <tr>
                 <td align="center" style="background-color:#f3f3f3;padding:40px 24px 56px;">
@@ -311,14 +346,15 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
         }
         .container {
           background-color: #fff;
-          padding: 30px;
+          padding: 0;
+          overflow: hidden;
           border-radius: 8px;
           box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         .header {
           text-align: center;
-          padding-bottom: 20px;
-          margin-bottom: 25px;
+          padding: 24px 30px 20px;
+          margin-bottom: 0;
           border-bottom: 2px solid #22c55e;
         }
         .success-icon {
@@ -422,13 +458,15 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
     </head>
     <body>
       <div class="container">
-        <div class="header">
+        ${legalNoteBrandHeaderHtml()}
+        <div class="header" style="border-bottom:2px solid #22c55e;">
           <div class="success-icon">
             <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
           </div>
           <h1>Recording Successfully Saved</h1>
         </div>
 
+        <div style="padding: 0 30px 30px;">
         <p>Dear ${solicitorName},</p>
 
         <p>Your client meeting recording has been successfully processed and saved to LegalNote. All protection layers were active during recording.</p>
@@ -491,6 +529,7 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
           ${firmProfile?.firmName ? `<p>${firmProfile.firmName}</p>` : ''}
           <p>This is an automated message. Please do not reply to this email.</p>
         </div>
+        </div>
       </div>
     </body>
     </html>
@@ -547,13 +586,14 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
         .container {
           background: white;
           border-radius: 8px;
-          padding: 32px;
+          padding: 0;
+          overflow: hidden;
           box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
         .header {
           border-bottom: 2px solid #000;
-          padding-bottom: 16px;
-          margin-bottom: 24px;
+          padding: 24px 32px 16px;
+          margin-bottom: 0;
         }
         .header h1 {
           margin: 0;
@@ -595,9 +635,11 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
     </head>
     <body>
       <div class="container">
+        ${legalNoteBrandHeaderHtml()}
         <div class="header">
           <h1>Recording Consent Request</h1>
         </div>
+        <div style="padding: 24px 32px 32px;">
         
         <div class="content">${body.replace(/\n/g, '<br>')}</div>
         
@@ -618,6 +660,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
         <div class="footer">
           <p>This email was sent by LegalNote on behalf of your legal representative.</p>
           <p>If you did not expect this email, please contact your legal representative.</p>
+        </div>
         </div>
       </div>
     </body>
@@ -703,7 +746,9 @@ export async function sendConsentResponseNotification(params: SendConsentRespons
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
-      <div style="background: white; border-radius: 8px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+      <div style="background: white; border-radius: 8px; padding: 0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+        ${legalNoteBrandHeaderHtml()}
+        <div style="padding: 32px;">
         <div style="border-bottom: 2px solid ${statusColor}; padding-bottom: 16px; margin-bottom: 24px;">
           <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Client Consent Response</h1>
         </div>
@@ -720,6 +765,7 @@ export async function sendConsentResponseNotification(params: SendConsentRespons
         ${caseLink ? `<p style="margin-top: 24px;">${caseLink}</p>` : ''}
         <hr style="margin: 24px 0; border: none; border-top: 1px solid #e5e5e5;" />
         <p style="font-size: 12px; color: #666;">This is an automated notification from LegalNote. Please do not reply to this email.</p>
+        </div>
       </div>
     </body>
     </html>
@@ -753,10 +799,6 @@ export async function sendConsentResponseNotification(params: SendConsentRespons
 }
 
 export async function sendWaitlistConfirmationEmail(to: string, firstName: string): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const emailBaseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
-  const logoUrl = `${emailBaseUrl}/assets/email/legalnote-wordmark.png`;
-  const logoHtml = `<img src="${logoUrl}" alt="LegalNote" style="height: 36px; width: auto;" />`;
-
   const emailHtml = `
     <!DOCTYPE html>
     <html>
@@ -776,17 +818,13 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
         .container {
           background: white;
           border-radius: 8px;
-          padding: 32px;
+          padding: 0;
+          overflow: hidden;
           box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        }
-        .header {
-          text-align: center;
-          padding-bottom: 20px;
-          margin-bottom: 24px;
-          border-bottom: 1px solid #e8e4df;
         }
         .content {
           margin-bottom: 24px;
+          padding: 0 32px 32px;
         }
         .highlight {
           background: linear-gradient(135deg, #3d3028 0%, #5a4a3a 100%);
@@ -855,11 +893,8 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
     </head>
     <body>
       <div class="container">
-        <div class="header">
-          ${logoHtml}
-        </div>
-        
-        <div class="content">
+        ${legalNoteBrandHeaderHtml()}
+        <div class="content" style="padding-top:28px;">
           <p>Dear ${firstName},</p>
           
           <p>Thank you for registering your interest in LegalNote. You're now on our early access waitlist.</p>
@@ -882,12 +917,12 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
           <p class="reply-note">Have a question on how to make your firm's meetings defensible and compliant? Simply reply to this email.</p>
           
           <p>Kind regards,<br><strong>LegalNote Client Support</strong></p>
-        </div>
         
-        <div class="footer">
-          <p>You received this email because you registered for early access to LegalNote.</p>
-          <p>LegalNote\u2122 \u2014 Compliance-first legal documentation</p>
-          <p>Registered Office: 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ</p>
+          <div class="footer">
+            <p>You received this email because you registered for early access to LegalNote.</p>
+            <p>LegalNote\u2122 \u2014 Compliance-first legal documentation</p>
+            <p>Registered Office: 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ</p>
+          </div>
         </div>
       </div>
     </body>
@@ -1013,9 +1048,11 @@ export async function sendWaitlistAdminNotification(params: WaitlistAdminNotific
       </style>
     </head>
     <body>
-      <div class="container">
-        <div class="header">
-          <h1>New Early Access Request</h1>
+      <div class="container" style="padding:0;overflow:hidden;">
+        ${legalNoteBrandHeaderHtml()}
+        <div style="padding:24px;">
+        <div style="margin-bottom:20px;">
+          <h1 style="margin:0;font-size:18px;font-weight:600;color:#3d3028;">New Early Access Request</h1>
         </div>
         
         <div class="detail-row">
@@ -1060,6 +1097,7 @@ export async function sendWaitlistAdminNotification(params: WaitlistAdminNotific
         
         <div class="timestamp">
           Submitted: ${submittedAt} (UK time)
+        </div>
         </div>
       </div>
     </body>
@@ -1186,12 +1224,8 @@ export async function sendLeadMagnetEmail(
       </style>
     </head>
     <body>
-      <div class="header">
-        <h1>LegalNote</h1>
-        <p>Professional Legal Documentation</p>
-      </div>
-      
-      <div class="content">
+      ${legalNoteBrandHeaderHtml()}
+      <div class="content" style="margin-top:0;border-radius:0 0 8px 8px;">
         <h2>Hello ${firstName},</h2>
         
         <p>Thank you for your interest in creating better legal documentation.${hasPdf ? ' Your guide is attached to this email.' : ''}</p>
@@ -1325,11 +1359,9 @@ export async function sendAcknowledgementRequestEmail(
       </style>
     </head>
     <body>
-      <div class="header">
-        <h1>${firmName}</h1>
-        <p>Secure Document Portal</p>
-      </div>
-      <div class="content">
+      ${legalNoteBrandHeaderHtml()}
+      <div class="content" style="padding:36px 40px;background:#fff;">
+        <p style="margin:0 0 8px;font-size:13px;color:#8a7d72;text-transform:uppercase;letter-spacing:0.06em;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">${firmName} · Secure Document Portal</p>
         <h2>Your Client Care Letter is ready</h2>
         <p>Dear ${clientName},</p>
         <p>We have prepared your Client Care Letter in connection with the matter: <strong>${caseTitle}</strong>.${matterReference ? ` (Ref: ${matterReference})` : ''}</p>
@@ -1438,7 +1470,8 @@ export async function sendRiskDigestEmail(params: {
     <html>
     <head><meta charset="utf-8"><title>Weekly Risk Digest</title></head>
     <body style="font-family: Georgia, serif; max-width: 680px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a; background: #fafaf8;">
-      <div style="border-bottom: 3px solid #8b4513; padding-bottom: 20px; margin-bottom: 28px;">
+      ${legalNoteBrandHeaderHtml()}
+      <div style="border-bottom: 3px solid #8b4513; padding: 20px 0; margin-bottom: 28px;">
         <p style="color:#8b4513; font-size:12px; text-transform:uppercase; letter-spacing:1px; margin:0 0 6px;">Weekly Risk Digest</p>
         <h1 style="margin:0; font-size:22px; font-weight:700;">${firmName}</h1>
         <p style="margin:6px 0 0; color:#666; font-size:13px;">Week ending ${new Date(digest.generatedAt).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
@@ -1527,21 +1560,18 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5; }
         .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .header { background: #1e3a5f; color: #fff; padding: 32px; text-align: center; }
-        .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
-        .header p { margin: 8px 0 0; opacity: 0.85; font-size: 14px; }
         .body { padding: 32px; }
-        .cta-btn { display: inline-block; background: #1e3a5f; color: #fff !important; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 600; font-size: 15px; margin: 24px 0; }
-        .notice { background: #f0f4f8; border-radius: 6px; padding: 16px; margin-top: 24px; font-size: 13px; color: #555; }
+        .cta-btn { display: inline-block; background: #c97d4d; color: #fff !important; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 600; font-size: 15px; margin: 24px 0; }
+        .notice { background: #faf8f5; border-radius: 6px; padding: 16px; margin-top: 24px; font-size: 13px; color: #555; }
         .url-fallback { font-size: 12px; color: #888; word-break: break-all; margin-top: 16px; }
         .footer { padding: 20px 32px; background: #f8f8f8; border-top: 1px solid #eee; font-size: 12px; color: #999; text-align: center; }
       </style>
     </head>
     <body>
       <div class="container">
-        <div class="header">
-          <h1>LegalNote</h1>
-          <p>Team Invitation</p>
+        ${legalNoteBrandHeaderHtml()}
+        <div style="padding: 24px 32px; border-bottom: 1px solid #e8e4df; text-align: center;">
+          <p style="margin: 0; font-size: 14px; color: #8a7d72; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">Team Invitation</p>
         </div>
         <div class="body">
           <p>Hello,</p>
@@ -1640,9 +1670,10 @@ export async function sendMeetingReminderEmail(
     <head><meta charset="utf-8"></head>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5;">
       <div style="max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden;">
-        <div style="background: #1e3a5f; color: #fff; padding: 28px 32px;">
-          <h1 style="margin: 0; font-size: 22px;">Meeting reminder</h1>
-          <p style="margin: 8px 0 0; opacity: 0.9; font-size: 14px;">Starts in ${minutesBefore} minutes</p>
+        ${legalNoteBrandHeaderHtml()}
+        <div style="padding: 28px 32px; border-bottom: 1px solid #e8e4df;">
+          <h1 style="margin: 0; font-size: 22px; color: #3d3028;">Meeting reminder</h1>
+          <p style="margin: 8px 0 0; color: #8a7d72; font-size: 14px;">Starts in ${minutesBefore} minutes</p>
         </div>
         <div style="padding: 32px;">
           <p>Hi ${safeName},</p>
@@ -1693,6 +1724,142 @@ function escapeHtmlEmail(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
+function getLegalNoteEmailBaseUrl(): string {
+  return process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
+}
+
+/**
+ * Shared LegalNote platform shell — text wordmark header, warm brand palette, registered-office footer.
+ * Used for DPA / legal agreement emails (and aligned with waitlist branding).
+ */
+function wrapLegalNoteBrandedEmail(opts: {
+  eyebrow: string;
+  bodyHtml: string;
+  footerNote: string;
+}): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body {
+          font-family: Georgia, 'Times New Roman', serif;
+          line-height: 1.7;
+          color: #2d2520;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background-color: #faf9f7;
+        }
+        .container {
+          background: #ffffff;
+          border-radius: 8px;
+          padding: 0;
+          overflow: hidden;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .eyebrow {
+          margin: 16px 0 0;
+          text-align: center;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          color: #8a7d72;
+        }
+        .content {
+          padding: 8px 32px 32px;
+        }
+        .content h2 {
+          font-size: 20px;
+          margin: 0 0 16px;
+          color: #3d3028;
+          font-weight: 600;
+        }
+        .content p {
+          margin: 0 0 16px;
+          color: #4a3f35;
+          font-size: 15px;
+        }
+        .cta-btn {
+          display: inline-block;
+          background: #c97d4d;
+          color: #ffffff !important;
+          padding: 12px 24px;
+          border-radius: 6px;
+          text-decoration: none;
+          font-weight: 600;
+          font-size: 15px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          margin: 8px 8px 8px 0;
+        }
+        .cta-btn-secondary {
+          background: #3d3028;
+        }
+        .notice {
+          background: #faf8f5;
+          border-left: 3px solid #c97d4d;
+          padding: 14px 18px;
+          margin: 24px 0 0;
+          font-size: 13px;
+          color: #4a3f35;
+        }
+        .meta {
+          background: #faf8f5;
+          border: 1px solid #e8e4df;
+          padding: 16px 18px;
+          border-radius: 8px;
+          font-size: 13px;
+          color: #4a3f35;
+          margin: 16px 0 24px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .meta code {
+          font-size: 11px;
+          word-break: break-all;
+          color: #3d3028;
+        }
+        .url-fallback {
+          word-break: break-all;
+          color: #8a7d72;
+          font-size: 12px;
+          margin-top: 16px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .footer {
+          margin-top: 32px;
+          padding-top: 16px;
+          border-top: 1px solid #e8e4df;
+          font-size: 12px;
+          color: #8a7d72;
+          text-align: center;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .footer p { margin: 0 0 6px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        ${legalNoteBrandHeaderHtml()}
+        <p class="eyebrow">${opts.eyebrow}</p>
+        <div class="content">
+          ${opts.bodyHtml}
+        </div>
+        <div class="footer" style="padding:0 32px 32px;">
+          <p>${opts.footerNote}</p>
+          <p>LegalNote\u2122 \u2014 Compliance-first legal documentation</p>
+          <p>LegalNote Technologies Ltd &bull; <a href="https://legalnote.ai" style="color:#8a7d72;">legalnote.ai</a></p>
+          <p>Registered Office: 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
 /**
  * Step 1 → Step 2: email confirmation link so the signatory proves inbox control.
  */
@@ -1704,60 +1871,36 @@ export async function sendDpaConfirmationEmail(params: {
   evaluationPeriodDays: number;
   feeEarnerCount: number;
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
+  const baseUrl = getLegalNoteEmailBaseUrl();
   const confirmUrl = `${baseUrl}/dpa/confirm/${params.confirmationToken}`;
   const safeFirm = escapeHtmlEmail(params.firmName);
   const safeName = escapeHtmlEmail(params.signerName);
+  const safeTo = escapeHtmlEmail(params.to);
 
-  const emailHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; }
-        .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 32px 40px; }
-        .header h1 { color: #fff; margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
-        .header p { color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: 13px; }
-        .content { padding: 36px 40px; background: #fff; }
-        .content h2 { font-size: 18px; margin: 0 0 8px; color: #1a1a2e; }
-        .content p { margin: 0 0 16px; color: #555; font-size: 14px; }
-        .cta-btn { display: inline-block; background: #c0552a; color: #fff !important; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 8px 0 24px; }
-        .notice { background: #f8f6f3; border-left: 3px solid #c0552a; padding: 14px 18px; border-radius: 0 6px 6px 0; font-size: 13px; color: #555; margin: 24px 0 0; }
-        .footer { padding: 20px 40px; background: #f5f5f5; font-size: 12px; color: #888; border-top: 1px solid #e8e8e8; }
-        .url-fallback { word-break: break-all; color: #888; font-size: 12px; margin-top: 12px; }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>LegalNote</h1>
-        <p>Agreement confirmation</p>
-      </div>
-      <div class="content">
-        <h2>Confirm your email to accept</h2>
-        <p>Dear ${safeName},</p>
-        <p>You requested to accept LegalNote&apos;s Data Processing Agreement and Governed Evaluation Agreement on behalf of <strong>${safeFirm}</strong>.</p>
-        <p>Key Terms offered: Evaluation Period of <strong>${params.evaluationPeriodDays} days</strong>; Fee Earner Count of <strong>${params.feeEarnerCount}</strong>.</p>
-        <p>Click below to review both agreements and complete acceptance. This confirms you control this email address.</p>
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: 'Agreement confirmation',
+    footerNote: `This email was sent to ${safeTo}.`,
+    bodyHtml: `
+      <h2>Confirm your email to accept</h2>
+      <p>Dear ${safeName},</p>
+      <p>You requested to accept LegalNote&apos;s Data Processing Agreement and Governed Evaluation Agreement on behalf of <strong>${safeFirm}</strong>.</p>
+      <p>Key Terms offered: Evaluation Period of <strong>${params.evaluationPeriodDays} days</strong>; Fee Earner Count of <strong>${params.feeEarnerCount}</strong>.</p>
+      <p>Click below to review both agreements and complete acceptance. This confirms you control this email address.</p>
+      <p style="text-align:center;margin:28px 0;">
         <a href="${confirmUrl}" class="cta-btn">Review &amp; Accept Agreements</a>
-        <div class="notice">
-          <strong>This link expires in 72 hours.</strong><br>
-          If you did not request this, you can ignore this email. No agreement is formed until you affirmatively accept on the confirmation page.
-        </div>
-        <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${confirmUrl}</p>
+      </p>
+      <div class="notice">
+        <strong>This link expires in 72 hours.</strong><br>
+        If you did not request this, you can ignore this email. No agreement is formed until you affirmatively accept on the confirmation page.
       </div>
-      <div class="footer">
-        <p>LegalNote Technologies Ltd &bull; legalnote.ai</p>
-        <p>This email was sent to ${escapeHtmlEmail(params.to)}.</p>
-      </div>
-    </body>
-    </html>
-  `;
+      <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${confirmUrl}</p>
+      <p style="margin-top:28px;">Kind regards,<br><strong>LegalNote</strong></p>
+    `,
+  });
 
   try {
     const result = await sendEmail({
-      from: 'LegalNote <noreply@legalnote.ai>',
+      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
       to: params.to,
       replyTo: 'legal@legalnote.ai',
       subject: 'Confirm your email to accept the LegalNote DPA and Evaluation Agreement',
@@ -1791,64 +1934,40 @@ export async function sendLegalAgreementAcceptedEmail(params: {
   evaluationContentHash: string;
   verifyToken: string;
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
+  const baseUrl = getLegalNoteEmailBaseUrl();
   const certificateUrl = `${baseUrl}/legal/acceptance/${params.acceptanceId}?token=${encodeURIComponent(params.verifyToken)}`;
   const verifyUrl = `${baseUrl}/api/legal-acceptances/${params.acceptanceId}/verify?token=${encodeURIComponent(params.verifyToken)}`;
   const acceptedUtc = params.acceptedAt.toISOString();
+  const safeTo = escapeHtmlEmail(params.to);
 
-  const emailHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; }
-        .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 32px 40px; }
-        .header h1 { color: #fff; margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
-        .header p { color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: 13px; }
-        .content { padding: 36px 40px; background: #fff; }
-        .content h2 { font-size: 18px; margin: 0 0 8px; color: #1a1a2e; }
-        .content p { margin: 0 0 16px; color: #555; font-size: 14px; }
-        .meta { background: #f8f6f3; padding: 16px 18px; border-radius: 6px; font-size: 13px; color: #444; margin: 16px 0; }
-        .meta code { font-size: 11px; word-break: break-all; }
-        .cta-btn { display: inline-block; background: #c0552a; color: #fff !important; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 8px 8px 8px 0; }
-        .footer { padding: 20px 40px; background: #f5f5f5; font-size: 12px; color: #888; border-top: 1px solid #e8e8e8; }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>LegalNote</h1>
-        <p>Executed acceptance certificate</p>
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: 'Executed acceptance certificate',
+    footerNote: `This email was sent to ${safeTo}. Contact legal@legalnote.ai with questions.`,
+    bodyHtml: `
+      <h2>Agreements accepted</h2>
+      <p>Dear ${escapeHtmlEmail(params.signerName)},</p>
+      <p>This email confirms that <strong>${escapeHtmlEmail(params.firmName)}</strong> has accepted LegalNote&apos;s Data Processing Agreement and Governed Evaluation Agreement.</p>
+      <div class="meta">
+        <p style="margin:0 0 8px"><strong>Signatory:</strong> ${escapeHtmlEmail(params.signerName)}, ${escapeHtmlEmail(params.signerTitle)}</p>
+        <p style="margin:0 0 8px"><strong>Accepted at (UTC):</strong> ${acceptedUtc}</p>
+        <p style="margin:0 0 8px"><strong>Evaluation Period:</strong> ${params.evaluationPeriodDays} days</p>
+        <p style="margin:0 0 8px"><strong>Fee Earner Count:</strong> ${params.feeEarnerCount}</p>
+        <p style="margin:0 0 8px"><strong>Acceptance ID:</strong> <code>${escapeHtmlEmail(params.acceptanceId)}</code></p>
+        <p style="margin:0 0 8px"><strong>DPA content hash:</strong> <code>${escapeHtmlEmail(params.dpaContentHash)}</code></p>
+        <p style="margin:0"><strong>Evaluation content hash:</strong> <code>${escapeHtmlEmail(params.evaluationContentHash)}</code></p>
       </div>
-      <div class="content">
-        <h2>Agreements accepted</h2>
-        <p>Dear ${escapeHtmlEmail(params.signerName)},</p>
-        <p>This email confirms that <strong>${escapeHtmlEmail(params.firmName)}</strong> has accepted LegalNote&apos;s Data Processing Agreement and Governed Evaluation Agreement.</p>
-        <div class="meta">
-          <p style="margin:0 0 8px"><strong>Signatory:</strong> ${escapeHtmlEmail(params.signerName)}, ${escapeHtmlEmail(params.signerTitle)}</p>
-          <p style="margin:0 0 8px"><strong>Accepted at (UTC):</strong> ${acceptedUtc}</p>
-          <p style="margin:0 0 8px"><strong>Evaluation Period:</strong> ${params.evaluationPeriodDays} days</p>
-          <p style="margin:0 0 8px"><strong>Fee Earner Count:</strong> ${params.feeEarnerCount}</p>
-          <p style="margin:0 0 8px"><strong>Acceptance ID:</strong> <code>${escapeHtmlEmail(params.acceptanceId)}</code></p>
-          <p style="margin:0 0 8px"><strong>DPA content hash:</strong> <code>${escapeHtmlEmail(params.dpaContentHash)}</code></p>
-          <p style="margin:0"><strong>Evaluation content hash:</strong> <code>${escapeHtmlEmail(params.evaluationContentHash)}</code></p>
-        </div>
-        <p>LegalNote retains the exact text corresponding to each hash so the accepted version can be reproduced.</p>
+      <p>LegalNote retains the exact text corresponding to each hash so the accepted version can be reproduced.</p>
+      <p style="text-align:center;margin:28px 0;">
         <a href="${certificateUrl}" class="cta-btn">View certificate</a>
-        <a href="${verifyUrl}" class="cta-btn" style="background:#1a1a2e">Verify record</a>
-      </div>
-      <div class="footer">
-        <p>LegalNote Technologies Ltd &bull; legalnote.ai</p>
-        <p>This email was sent to ${escapeHtmlEmail(params.to)}. Contact legal@legalnote.ai with questions.</p>
-      </div>
-    </body>
-    </html>
-  `;
+        <a href="${verifyUrl}" class="cta-btn cta-btn-secondary">Verify record</a>
+      </p>
+      <p style="margin-top:28px;">Kind regards,<br><strong>LegalNote</strong></p>
+    `,
+  });
 
   try {
     const result = await sendEmail({
-      from: 'LegalNote <noreply@legalnote.ai>',
+      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
       to: params.to,
       replyTo: 'legal@legalnote.ai',
       subject: 'LegalNote — Executed DPA and Evaluation Agreement acceptance',
@@ -1862,6 +1981,118 @@ export async function sendLegalAgreementAcceptedEmail(params: {
     return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending acceptance certificate:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+/**
+ * After acceptance: ask the firm to complete evaluation configuration details.
+ */
+export async function sendEvaluationSetupEmail(params: {
+  to: string;
+  firmName: string;
+  signerName: string;
+  setupToken: string;
+  feeEarnerCount: number;
+  evaluationPeriodDays: number;
+  expiresAt: Date;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const baseUrl = getLegalNoteEmailBaseUrl();
+  const setupUrl = `${baseUrl}/evaluation/setup/${params.setupToken}`;
+  const expiresDisplay = params.expiresAt.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: 'Evaluation setup',
+    footerNote: `This email was sent to ${escapeHtmlEmail(params.to)}. Contact jazz.dennis@legalnote.ai if you are not the right person.`,
+    bodyHtml: `
+      <h2>Next step: configure your evaluation</h2>
+      <p>Dear ${escapeHtmlEmail(params.signerName)},</p>
+      <p>Thank you — <strong>${escapeHtmlEmail(params.firmName)}</strong> has accepted LegalNote&apos;s Data Processing Agreement and Governed Evaluation Agreement.</p>
+      <p>The evaluation period (<strong>${params.evaluationPeriodDays} days</strong>, up to <strong>${params.feeEarnerCount} fee earner${params.feeEarnerCount === 1 ? '' : 's'}</strong>) starts on the <strong>configuration date</strong>, not the acceptance date. We need a few operational details before we can configure the account and book your guided first-use session.</p>
+      <p style="text-align:center;margin:28px 0;">
+        <a href="${setupUrl}" class="cta-btn">Complete evaluation setup</a>
+      </p>
+      <div class="notice">
+        <strong>Please complete within 5 working days where possible.</strong><br>
+        This link expires on ${expiresDisplay}. If you are not responsible for onboarding, forward this email to the right person or reply and we will reissue the link.
+      </div>
+      <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${setupUrl}</p>
+      <p style="margin-top:28px;">Kind regards,<br><strong>LegalNote</strong></p>
+    `,
+  });
+
+  try {
+    const result = await sendEmail({
+      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
+      to: params.to,
+      replyTo: 'jazz.dennis@legalnote.ai',
+      subject: 'LegalNote evaluation — setup details needed',
+      html: emailHtml,
+    });
+    if (!result.success) {
+      console.error('[EMAIL] Error sending evaluation setup:', result.error);
+    } else {
+      console.log('[EMAIL] Evaluation setup sent:', result.messageId);
+    }
+    return result;
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending evaluation setup:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+/**
+ * Notify LegalNote when a firm submits evaluation setup answers.
+ */
+export async function sendEvaluationSetupSubmittedAdminEmail(params: {
+  firmName: string;
+  signerEmail: string;
+  setupId: string;
+  acceptanceId: string;
+  onboardingOwnerName: string;
+  onboardingOwnerEmail: string;
+  primaryAdminEmail: string;
+  feeEarnerCount: number;
+  feeEarnersNominated: number;
+  preferredGoLive: string;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: 'Admin — evaluation setup received',
+    footerNote: 'Internal notification.',
+    bodyHtml: `
+      <h2>Setup submitted</h2>
+      <p><strong>${escapeHtmlEmail(params.firmName)}</strong> has completed the evaluation configuration form.</p>
+      <div class="meta">
+        <p style="margin:0 0 8px"><strong>Onboarding owner:</strong> ${escapeHtmlEmail(params.onboardingOwnerName)} &lt;${escapeHtmlEmail(params.onboardingOwnerEmail)}&gt;</p>
+        <p style="margin:0 0 8px"><strong>Primary admin:</strong> ${escapeHtmlEmail(params.primaryAdminEmail)}</p>
+        <p style="margin:0 0 8px"><strong>Fee earners nominated:</strong> ${params.feeEarnersNominated} / ${params.feeEarnerCount}</p>
+        <p style="margin:0 0 8px"><strong>Preferred go-live:</strong> ${escapeHtmlEmail(params.preferredGoLive)}</p>
+        <p style="margin:0 0 8px"><strong>Signer email:</strong> ${escapeHtmlEmail(params.signerEmail)}</p>
+        <p style="margin:0 0 8px"><strong>Acceptance ID:</strong> <code>${escapeHtmlEmail(params.acceptanceId)}</code></p>
+        <p style="margin:0"><strong>Setup ID:</strong> <code>${escapeHtmlEmail(params.setupId)}</code></p>
+      </div>
+      <p>Configure the tenant, then confirm the configuration date to the firm in writing.</p>
+    `,
+  });
+
+  try {
+    const result = await sendEmail({
+      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
+      to: 'support@legalnote.ai',
+      replyTo: params.onboardingOwnerEmail,
+      subject: `Evaluation setup received — ${params.firmName}`,
+      html: emailHtml,
+    });
+    if (!result.success) {
+      console.error('[EMAIL] Error sending setup admin notify:', result.error);
+    }
+    return result;
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending setup admin notify:', error);
     return { success: false, error: error.message || 'Unknown error' };
   }
 }

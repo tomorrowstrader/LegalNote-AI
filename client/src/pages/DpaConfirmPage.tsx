@@ -5,12 +5,14 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
 import { LegalPageFooter } from "@/components/LegalPageFooter";
+import { LegalAgreementMarkdown } from "@/components/LegalAgreementMarkdown";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { apiRequest, getApiErrorMessage } from "@/lib/queryClient";
 
-const linkClass = "text-[hsl(18,65%,45%)] hover:underline";
+const linkClass =
+  "text-[hsl(18,65%,45%)] dark:text-[hsl(18,70%,62%)] hover:underline";
 
 type ConfirmPayload = {
   firmName: string;
@@ -82,24 +84,24 @@ export default function DpaConfirmPage() {
           transition={{ duration: 0.5 }}
         >
           <h1
-            className="text-3xl font-medium text-[hsl(25,30%,12%)] mb-2"
+            className="text-3xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2"
             data-testid="heading-dpa-confirm"
           >
             Review and accept
           </h1>
-          <p className="text-sm text-[hsl(25,20%,45%)] mb-8">
+          <p className="text-sm text-[hsl(25,20%,45%)] dark:text-muted-foreground mb-8">
             Read both agreements below, then tick each checkbox to accept.
           </p>
 
           {isLoading && (
-            <div className="flex items-center gap-2 text-[hsl(25,20%,45%)]">
+            <div className="flex items-center gap-2 text-[hsl(25,20%,45%)] dark:text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading agreements…
             </div>
           )}
 
           {isError && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <div className="rounded-md border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-800 dark:text-red-200">
               {error instanceof Error ? error.message : "Invalid link"}
               <p className="mt-2">
                 <Link href="/dpa" className={linkClass}>
@@ -111,15 +113,20 @@ export default function DpaConfirmPage() {
 
           {data && (
             <>
-              <div className="mb-6 rounded-md border border-[hsl(25,15%,85%)] bg-white/70 px-4 py-3 text-sm">
+              <div className="mb-6 rounded-md border border-[hsl(25,15%,85%)] dark:border-border bg-white/70 dark:bg-card px-4 py-3 text-sm text-[hsl(25,20%,30%)] dark:text-foreground">
                 <p>
                   <strong>{data.firmName}</strong> — {data.signerName},{" "}
                   {data.signerTitle} ({data.email})
                 </p>
-                <p className="mt-1 text-[hsl(25,20%,45%)]">
+                <p className="mt-1 text-[hsl(25,20%,45%)] dark:text-muted-foreground">
                   Key Terms: Evaluation Period of{" "}
-                  <strong>{data.evaluationPeriodDays} days</strong>; Fee Earner
-                  Count of <strong>{data.feeEarnerCount}</strong>
+                  <strong className="text-[hsl(25,30%,15%)] dark:text-foreground">
+                    {data.evaluationPeriodDays} days
+                  </strong>
+                  ; Fee Earner Count of{" "}
+                  <strong className="text-[hsl(25,30%,15%)] dark:text-foreground">
+                    {data.feeEarnerCount}
+                  </strong>
                 </p>
               </div>
 
@@ -142,12 +149,10 @@ export default function DpaConfirmPage() {
                 </Button>
               </div>
 
-              <pre
-                className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-[hsl(25,20%,30%)] border border-[hsl(25,15%,85%)] bg-white/60 rounded-md p-6 max-h-[50vh] overflow-y-auto mb-6"
+              <LegalAgreementMarkdown
+                text={tab === "dpa" ? data.dpa.text : data.evaluation.text}
                 data-testid="confirm-document-body"
-              >
-                {tab === "dpa" ? data.dpa.text : data.evaluation.text}
-              </pre>
+              />
 
               <div className="space-y-4 mb-8">
                 <div className="flex items-start gap-3">
@@ -157,7 +162,10 @@ export default function DpaConfirmPage() {
                     onCheckedChange={(v) => setDpaAccepted(v === true)}
                     data-testid="checkbox-accept-dpa"
                   />
-                  <Label htmlFor="accept-dpa" className="text-sm leading-relaxed cursor-pointer">
+                  <Label
+                    htmlFor="accept-dpa"
+                    className="text-sm leading-relaxed cursor-pointer text-foreground"
+                  >
                     I have read and accept the Data Processing Agreement (hash{" "}
                     <code className="text-xs">{data.dpa.contentHash.slice(0, 12)}…</code>)
                   </Label>
@@ -171,7 +179,7 @@ export default function DpaConfirmPage() {
                   />
                   <Label
                     htmlFor="accept-evaluation"
-                    className="text-sm leading-relaxed cursor-pointer"
+                    className="text-sm leading-relaxed cursor-pointer text-foreground"
                   >
                     I have read and accept the Governed Evaluation Agreement
                     (hash{" "}
@@ -185,7 +193,7 @@ export default function DpaConfirmPage() {
 
               {formError && (
                 <div
-                  className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                  className="mb-4 rounded-md border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-800 dark:text-red-200"
                   role="alert"
                 >
                   {formError}

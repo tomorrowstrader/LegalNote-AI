@@ -5,8 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
 import { LegalPageFooter } from "@/components/LegalPageFooter";
+import { LegalAgreementMarkdown } from "@/components/LegalAgreementMarkdown";
 
-const linkClass = "text-[hsl(18,65%,45%)] hover:underline";
+const linkClass =
+  "text-[hsl(18,65%,45%)] dark:text-[hsl(18,70%,62%)] hover:underline";
 
 type CertificatePayload = {
   id: string;
@@ -87,14 +89,14 @@ export default function AcceptanceCertificatePage() {
           transition={{ duration: 0.5 }}
         >
           {isLoading && (
-            <div className="flex items-center gap-2 text-[hsl(25,20%,45%)]">
+            <div className="flex items-center gap-2 text-[hsl(25,20%,45%)] dark:text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading certificate…
             </div>
           )}
 
           {isError && (
-            <p className="text-sm text-red-700">
+            <p className="text-sm text-red-700 dark:text-red-300">
               {error instanceof Error ? error.message : "Unable to load certificate"}
             </p>
           )}
@@ -102,15 +104,18 @@ export default function AcceptanceCertificatePage() {
           {data && (
             <>
               <div className="flex items-center gap-3 mb-6">
-                <CheckCircle2 className="h-10 w-10 text-emerald-700" aria-hidden />
+                <CheckCircle2
+                  className="h-10 w-10 text-emerald-700 dark:text-emerald-400"
+                  aria-hidden
+                />
                 <div>
                   <h1
-                    className="text-3xl font-medium text-[hsl(25,30%,12%)]"
+                    className="text-3xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground"
                     data-testid="heading-certificate"
                   >
                     Acceptance certificate
                   </h1>
-                  <p className="text-sm text-[hsl(25,20%,45%)]">
+                  <p className="text-sm text-[hsl(25,20%,45%)] dark:text-muted-foreground">
                     {verify?.valid
                       ? "Record seal and document hashes verified"
                       : "Certificate details"}
@@ -118,7 +123,7 @@ export default function AcceptanceCertificatePage() {
                 </div>
               </div>
 
-              <div className="space-y-3 text-sm text-[hsl(25,20%,30%)] mb-10 border border-[hsl(25,15%,85%)] rounded-md bg-white/70 p-6">
+              <div className="space-y-3 text-sm text-[hsl(25,20%,30%)] dark:text-foreground mb-10 border border-[hsl(25,15%,85%)] dark:border-border rounded-md bg-white/70 dark:bg-card p-6">
                 <p>
                   <strong>Firm:</strong> {data.firmName}
                 </p>
@@ -169,23 +174,25 @@ export default function AcceptanceCertificatePage() {
 
               {data.documents.dpa && (
                 <section className="mb-10">
-                  <h2 className="text-xl font-medium mb-3">
+                  <h2 className="text-xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-3">
                     Accepted DPA text
                   </h2>
-                  <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed border border-[hsl(25,15%,85%)] bg-white/60 rounded-md p-6 max-h-[40vh] overflow-y-auto">
-                    {data.documents.dpa.text}
-                  </pre>
+                  <LegalAgreementMarkdown
+                    text={data.documents.dpa.text}
+                    className="border border-[hsl(25,15%,85%)] dark:border-border bg-white/60 dark:bg-card rounded-md p-6 max-h-[40vh] overflow-y-auto text-sm leading-relaxed text-[hsl(25,20%,30%)] dark:text-foreground"
+                  />
                 </section>
               )}
 
               {data.documents.evaluation && (
                 <section className="mb-10">
-                  <h2 className="text-xl font-medium mb-3">
+                  <h2 className="text-xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-3">
                     Accepted Evaluation Agreement text
                   </h2>
-                  <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed border border-[hsl(25,15%,85%)] bg-white/60 rounded-md p-6 max-h-[40vh] overflow-y-auto">
-                    {data.documents.evaluation.text}
-                  </pre>
+                  <LegalAgreementMarkdown
+                    text={data.documents.evaluation.text}
+                    className="border border-[hsl(25,15%,85%)] dark:border-border bg-white/60 dark:bg-card rounded-md p-6 max-h-[40vh] overflow-y-auto text-sm leading-relaxed text-[hsl(25,20%,30%)] dark:text-foreground"
+                  />
                 </section>
               )}
 

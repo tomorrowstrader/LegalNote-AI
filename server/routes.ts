@@ -66,7 +66,7 @@ function resolveTemplatePath(filename: string): string {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { validateRecordingType } from "@shared/recordingTypes";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
@@ -103,7 +103,7 @@ import {
 } from "./services/litigationHoldGraceWindowService";
 import { AssemblyAIService } from "./services/assemblyAIService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, legalNoteBrandHeaderHtml } from "./email";
 import { assembleSraReportData, buildSraReportPreview } from "./services/sraReportService";
 import { compileSraReportPdf } from "./services/sraReportPdf";
 import { logPersonnelMatterAccess } from "./personnelAccessAudit";
@@ -1036,6 +1036,27 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         });
       }
 
+      // Step 3: evaluation configuration questionnaire (tokenised)
+      try {
+        const { createEvaluationOnboardingSetup } = await import(
+          "./services/evaluationOnboardingService"
+        );
+        const setup = await createEvaluationOnboardingSetup(sealed);
+        if (setup.status === "pending") {
+          await sendEvaluationSetupEmail({
+            to: sealed.email,
+            firmName: sealed.firmName,
+            signerName: sealed.signerName,
+            setupToken: setup.setupToken,
+            feeEarnerCount: sealed.feeEarnerCount,
+            evaluationPeriodDays: sealed.evaluationPeriodDays,
+            expiresAt: setup.expiresAt,
+          });
+        }
+      } catch (setupErr) {
+        console.error("[EVAL_ONBOARDING] Failed to create/send setup after acceptance:", setupErr);
+      }
+
       res.json({
         ok: true,
         acceptanceId: sealed.id,
@@ -1044,6 +1065,76 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         evaluationContentHash: sealed.evaluationContentHash,
         verifyToken: sealed.verifyToken,
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/evaluation/setup/:token", generalApiLimiter, async (req, res, next) => {
+    try {
+      const {
+        getSetupByToken,
+        toPublicSetupPayload,
+        EvaluationOnboardingError,
+      } = await import("./services/evaluationOnboardingService");
+      try {
+        const row = await getSetupByToken(req.params.token);
+        return res.json(toPublicSetupPayload(row));
+      } catch (err) {
+        if (err instanceof EvaluationOnboardingError) {
+          return res.status(err.statusCode).json({ message: err.message, code: err.code });
+        }
+        throw err;
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/evaluation/setup/:token", dpaSigningLimiter, async (req, res, next) => {
+    try {
+      const parsed = evaluationOnboardingSubmitSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Please check the form and try again.",
+          code: "VALIDATION_ERROR",
+          errors: parsed.error.flatten().fieldErrors,
+        });
+      }
+
+      const {
+        submitEvaluationOnboardingSetup,
+        EvaluationOnboardingError,
+      } = await import("./services/evaluationOnboardingService");
+
+      let updated;
+      try {
+        updated = await submitEvaluationOnboardingSetup({
+          token: req.params.token,
+          body: parsed.data,
+          req,
+        });
+      } catch (err) {
+        if (err instanceof EvaluationOnboardingError) {
+          return res.status(err.statusCode).json({ message: err.message, code: err.code });
+        }
+        throw err;
+      }
+
+      await sendEvaluationSetupSubmittedAdminEmail({
+        firmName: updated.firmName,
+        signerEmail: updated.signerEmail,
+        setupId: updated.id,
+        acceptanceId: updated.acceptanceId,
+        onboardingOwnerName: updated.onboardingOwnerName || "",
+        onboardingOwnerEmail: updated.onboardingOwnerEmail || "",
+        primaryAdminEmail: updated.primaryAdminEmail || "",
+        feeEarnerCount: updated.feeEarnerCount,
+        feeEarnersNominated: Array.isArray(updated.feeEarners) ? updated.feeEarners.length : 0,
+        preferredGoLive: updated.preferredGoLive || "",
+      });
+
+      res.json({ ok: true, submittedAt: updated.submittedAt?.toISOString() });
     } catch (error) {
       next(error);
     }
@@ -12158,7 +12249,7 @@ ${firmName}`;
             from: "LegalNote <noreply@legalnote.app>",
             to: recipientEmail,
             subject: `${senderName} shared a matter record with you`,
-            html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#222;max-width:600px;margin:0 auto;padding:24px"><p>Hello,</p><p><strong>${senderName}</strong> at <strong>${firmName}</strong> has shared access to a matter record via LegalNote.</p><p>This record includes a session transcript, attendance note, and audit trail.</p>${demoUrl ? `<p style="margin:28px 0"><a href="${demoUrl}" style="background:#c0714f;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">View Matter Record</a></p>` : ""}<hr style="margin:32px 0;border:none;border-top:1px solid #e0e0e0"><p style="font-size:12px;color:#888">Sent via LegalNote Compliance Documentation Platform.</p></body></html>`,
+            html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#222;max-width:600px;margin:0 auto;padding:0;background:#faf9f7">${legalNoteBrandHeaderHtml()}<div style="padding:24px;background:#fff"><p>Hello,</p><p><strong>${senderName}</strong> at <strong>${firmName}</strong> has shared access to a matter record via LegalNote.</p><p>This record includes a session transcript, attendance note, and audit trail.</p>${demoUrl ? `<p style="margin:28px 0"><a href="${demoUrl}" style="background:#c97d4d;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">View Matter Record</a></p>` : ""}<hr style="margin:32px 0;border:none;border-top:1px solid #e8e4df"><p style="font-size:12px;color:#8a7d72">Sent via LegalNote — Meeting to Matter.</p></div></body></html>`,
           });
         } catch (emailErr) {
           console.error("[DEMO] Email send failed:", emailErr);
@@ -12209,7 +12300,7 @@ ${firmName}`;
             from: "LegalNote <noreply@legalnote.app>",
             to: email,
             subject: `${senderName} thought you should see this`,
-            html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#222;max-width:600px;margin:0 auto;padding:24px"><p>Hello,</p><p><strong>${senderName}</strong> from <strong>${firmName}</strong> sent you this because they believe LegalNote is relevant to your firm's compliance obligations.</p>${demoUrl ? `<p style="margin:28px 0"><a href="${demoUrl}" style="background:#c0714f;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">See the interactive walkthrough</a></p>` : ""}<hr style="margin:32px 0;border:none;border-top:1px solid #e0e0e0"><p style="font-size:12px;color:#888">Sent via LegalNote Compliance Documentation Platform.</p></body></html>`,
+            html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#222;max-width:600px;margin:0 auto;padding:0;background:#faf9f7">${legalNoteBrandHeaderHtml()}<div style="padding:24px;background:#fff"><p>Hello,</p><p><strong>${senderName}</strong> from <strong>${firmName}</strong> sent you this because they believe LegalNote is relevant to your firm's compliance obligations.</p>${demoUrl ? `<p style="margin:28px 0"><a href="${demoUrl}" style="background:#c97d4d;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">See the interactive walkthrough</a></p>` : ""}<hr style="margin:32px 0;border:none;border-top:1px solid #e8e4df"><p style="font-size:12px;color:#8a7d72">Sent via LegalNote — Meeting to Matter.</p></div></body></html>`,
           });
         } catch (emailErr) {
           console.error("[DEMO] Colleague link email failed:", emailErr);

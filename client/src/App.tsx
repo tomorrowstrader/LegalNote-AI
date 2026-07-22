@@ -46,6 +46,7 @@ import DpaCompletePage from "@/pages/DpaCompletePage";
 import DpaPreviewPage from "@/pages/DpaPreviewPage";
 import DpaConfirmPage from "@/pages/DpaConfirmPage";
 import AcceptanceCertificatePage from "@/pages/AcceptanceCertificatePage";
+import EvaluationSetupPage from "@/pages/EvaluationSetupPage";
 import Features from "@/pages/Features";
 import Calculator from "@/pages/Calculator";
 import MyActions from "@/pages/MyActions";
@@ -104,6 +105,7 @@ function Router() {
       <Route path="/dpa/confirm/:token" component={DpaConfirmPage} />
       <Route path="/dpa" component={DpaPage} />
       <Route path="/legal/acceptance/:id" component={AcceptanceCertificatePage} />
+      <Route path="/evaluation/setup/:token" component={EvaluationSetupPage} />
       <Route path="/features" component={Features} />
       <Route path="/calculator" component={Calculator} />
       <Route path="/login" component={Login} />

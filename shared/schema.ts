@@ -2020,6 +2020,136 @@ export const insertLegalAgreementAcceptanceSchema = createInsertSchema(legalAgre
 export type InsertLegalAgreementAcceptance = z.infer<typeof insertLegalAgreementAcceptanceSchema>;
 export type LegalAgreementAcceptance = typeof legalAgreementAcceptances.$inferSelect;
 
+/**
+ * Post-acceptance evaluation configuration questionnaire.
+ * Tokenised link emailed after DPA + Evaluation Agreement are sealed.
+ */
+export const evaluationOnboardingSetups = pgTable("evaluation_onboarding_setups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  acceptanceId: varchar("acceptance_id")
+    .notNull()
+    .references(() => legalAgreementAcceptances.id),
+  setupToken: text("setup_token").notNull().unique(),
+  status: text("status").notNull().default("pending"), // pending | submitted | expired
+  expiresAt: timestamp("expires_at").notNull(),
+  /** Snapshot of acceptance context for the form. */
+  firmName: text("firm_name").notNull(),
+  signerName: text("signer_name").notNull(),
+  signerEmail: text("signer_email").notNull(),
+  feeEarnerCount: integer("fee_earner_count").notNull(),
+  evaluationPeriodDays: integer("evaluation_period_days").notNull(),
+  sraNumberFromAcceptance: text("sra_number_from_acceptance"),
+  /** Submitted answers (null until submitted). */
+  onboardingOwnerName: text("onboarding_owner_name"),
+  onboardingOwnerEmail: text("onboarding_owner_email"),
+  onboardingOwnerPhone: text("onboarding_owner_phone"),
+  operationalSameAsOwner: boolean("operational_same_as_owner"),
+  operationalContactName: text("operational_contact_name"),
+  operationalContactEmail: text("operational_contact_email"),
+  dpContactName: text("dp_contact_name"),
+  dpContactEmail: text("dp_contact_email"),
+  dpContactRole: text("dp_contact_role"),
+  firmLegalName: text("firm_legal_name"),
+  companiesHouseNumber: text("companies_house_number"),
+  sraNumber: text("sra_number"),
+  /** [{ name, email }] — up to feeEarnerCount */
+  feeEarners: jsonb("fee_earners").$type<Array<{ name: string; email: string }>>(),
+  primaryAdminName: text("primary_admin_name"),
+  primaryAdminEmail: text("primary_admin_email"),
+  preferredGoLive: text("preferred_go_live"),
+  authGoogle: boolean("auth_google"),
+  authMicrosoft: boolean("auth_microsoft"),
+  practiceAreas: text("practice_areas"),
+  meetingTypes: jsonb("meeting_types").$type<string[]>(),
+  letterheadPhone: text("letterhead_phone"),
+  letterheadEmail: text("letterhead_email"),
+  letterheadAddress: text("letterhead_address"),
+  firstUseAttendeeName: text("first_use_attendee_name"),
+  firstUseCalendarPreference: text("first_use_calendar_preference"),
+  internalChecksConfirmed: boolean("internal_checks_confirmed"),
+  submittedAt: timestamp("submitted_at"),
+  submitIpAddress: text("submit_ip_address"),
+  submitUserAgent: text("submit_user_agent"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type EvaluationOnboardingSetup = typeof evaluationOnboardingSetups.$inferSelect;
+
+export const evaluationOnboardingSubmitSchema = z.object({
+  onboardingOwnerName: z.string().min(1).max(200).transform((s) => s.trim()),
+  onboardingOwnerEmail: z.string().email().max(255).transform((s) => s.trim().toLowerCase()),
+  onboardingOwnerPhone: z.string().min(1).max(50).transform((s) => s.trim()),
+  operationalSameAsOwner: z.boolean(),
+  operationalContactName: z.string().max(200).optional().transform((s) => s?.trim() || undefined),
+  operationalContactEmail: z
+    .string()
+    .email()
+    .max(255)
+    .optional()
+    .or(z.literal(""))
+    .transform((s) => (s && s.length > 0 ? s.trim().toLowerCase() : undefined)),
+  dpContactName: z.string().min(1).max(200).transform((s) => s.trim()),
+  dpContactEmail: z.string().email().max(255).transform((s) => s.trim().toLowerCase()),
+  dpContactRole: z.string().min(1).max(100).transform((s) => s.trim()),
+  firmLegalName: z.string().min(1).max(300).transform((s) => s.trim()),
+  companiesHouseNumber: z.string().min(1).max(20).transform((s) => s.trim()),
+  sraNumber: z.string().min(1).max(50).transform((s) => s.trim()),
+  feeEarners: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(200).transform((s) => s.trim()),
+        email: z.string().email().max(255).transform((s) => s.trim().toLowerCase()),
+      }),
+    )
+    .min(1)
+    .max(100),
+  primaryAdminName: z.string().min(1).max(200).transform((s) => s.trim()),
+  primaryAdminEmail: z.string().email().max(255).transform((s) => s.trim().toLowerCase()),
+  preferredGoLive: z.string().min(1).max(500).transform((s) => s.trim()),
+  authGoogle: z.boolean(),
+  authMicrosoft: z.boolean(),
+  practiceAreas: z.string().max(500).optional().transform((s) => s?.trim() || undefined),
+  meetingTypes: z.array(z.string().max(50)).max(10).default([]),
+  letterheadPhone: z.string().max(50).optional().transform((s) => s?.trim() || undefined),
+  letterheadEmail: z
+    .string()
+    .email()
+    .max(255)
+    .optional()
+    .or(z.literal(""))
+    .transform((s) => (s && s.length > 0 ? s.trim().toLowerCase() : undefined)),
+  letterheadAddress: z.string().max(500).optional().transform((s) => s?.trim() || undefined),
+  firstUseAttendeeName: z.string().max(200).optional().transform((s) => s?.trim() || undefined),
+  firstUseCalendarPreference: z.string().max(200).optional().transform((s) => s?.trim() || undefined),
+  internalChecksConfirmed: z.literal(true),
+}).superRefine((data, ctx) => {
+  if (!data.authGoogle && !data.authMicrosoft) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Select at least one sign-in method (Google or Microsoft).",
+      path: ["authGoogle"],
+    });
+  }
+  if (!data.operationalSameAsOwner) {
+    if (!data.operationalContactName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Required",
+        path: ["operationalContactName"],
+      });
+    }
+    if (!data.operationalContactEmail) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Required",
+        path: ["operationalContactEmail"],
+      });
+    }
+  }
+});
+
+export type EvaluationOnboardingSubmit = z.infer<typeof evaluationOnboardingSubmitSchema>;
+
 /** Body for POST /api/dpa/request (Key Terms from signed link — not free-form). */
 export const dpaRequestSchema = z.object({
   firmName: z.string().min(1).max(300).transform((s) => s.trim()),

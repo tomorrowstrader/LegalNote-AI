@@ -14,6 +14,7 @@ import { migrateReasoningGapPlaceholders } from "./reasoningGapMigration";
 import { migrateVerificationWarningsToJsonb } from "./verificationWarningsMigration";
 import { clearScheduledMeetingGuessedRecipients } from "./clearScheduledMeetingRecipientsMigration";
 import { ensureTranscriptImportsTable } from "./transcriptImportsMigration";
+import { ensureEvaluationOnboardingSetupsTable } from "./evaluationOnboardingMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
@@ -259,6 +260,9 @@ app.use((req, res, next) => {
 
   // Ensure transcript upload/import table exists (idempotent)
   await ensureTranscriptImportsTable();
+
+  // Ensure evaluation onboarding setup table exists (idempotent)
+  await ensureEvaluationOnboardingSetupsTable();
 
   // Remove calendar-scraped consent recipients (solicitor must choose explicitly)
   await clearScheduledMeetingGuessedRecipients();
