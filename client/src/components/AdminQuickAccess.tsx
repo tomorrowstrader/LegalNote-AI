@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { ShieldCheck, RotateCcw, FileDown, Settings, Users, Loader2, CheckSquare, ClipboardList } from "lucide-react";
+import { ShieldCheck, RotateCcw, FileDown, Settings, Users, Loader2, CheckSquare, ClipboardList, Link2, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -196,6 +196,20 @@ export default function AdminQuickAccess() {
           <Link href="/admin">
             <Users className="w-4 h-4 mr-2" />
             User Management
+          </Link>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem asChild data-testid="menu-item-admin-dpa-mint">
+          <Link href="/admin/dpa-mint">
+            <Link2 className="w-4 h-4 mr-2" />
+            Mint DPA Link
+          </Link>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem asChild data-testid="menu-item-admin-dpa-acceptances">
+          <Link href="/admin/dpa-acceptances">
+            <FileCheck className="w-4 h-4 mr-2" />
+            DPA Acceptances
           </Link>
         </DropdownMenuItem>
 

@@ -26,6 +26,8 @@ import Settings from "@/pages/Settings";
 import MyProfile from "@/pages/MyProfile";
 import AuditLogs from "@/pages/AuditLogs";
 import AdminDashboard from "@/pages/AdminDashboard";
+import AdminDpaMintPage from "@/pages/AdminDpaMintPage";
+import AdminDpaAcceptancesPage from "@/pages/AdminDpaAcceptancesPage";
 import SecurityFeatures from "@/pages/SecurityFeatures";
 import Landing from "@/pages/Landing";
 import Pricing from "@/pages/Pricing";
@@ -132,6 +134,8 @@ function Router() {
           <Route path="/settings" component={Settings} />
           <Route path="/profile" component={MyProfile} />
           <Route path="/audit-logs" component={AuditLogs} />
+          <Route path="/admin/dpa-mint" component={AdminDpaMintPage} />
+          <Route path="/admin/dpa-acceptances" component={AdminDpaAcceptancesPage} />
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/app/security" component={SecurityFeatures} />
           <Route path="/my-actions" component={MyActions} />

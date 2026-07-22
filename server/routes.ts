@@ -7642,6 +7642,86 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
+  // Mint signed DPA acceptance links (admin only — signing key never leaves the server)
+  app.post("/api/admin/dpa/mint", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const schema = z.object({
+        evaluationPeriodDays: z.coerce.number().int().min(1).max(3650),
+        feeEarnerCount: z.coerce.number().int().min(1).max(100000),
+        validForDays: z.coerce.number().int().min(1).max(365),
+        ref: z
+          .string()
+          .max(100)
+          .optional()
+          .transform((s) => (s?.trim() ? s.trim() : undefined)),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Invalid mint request",
+          errors: parsed.error.flatten().fieldErrors,
+        });
+      }
+
+      const { evaluationPeriodDays, feeEarnerCount, validForDays, ref } = parsed.data;
+      const expiresAtUnix = Math.floor(Date.now() / 1000) + validForDays * 24 * 60 * 60;
+      const expiresAt = new Date(expiresAtUnix * 1000);
+
+      const { buildSignedKeyTermsQuery } = await import("./services/keyTermsSign");
+      const query = buildSignedKeyTermsQuery(
+        { evaluationPeriodDays, feeEarnerCount, expiresAtUnix },
+        ref ? { ref } : undefined,
+      );
+      const baseUrl = getCanonicalBaseUrl(req);
+      const url = `${baseUrl}/dpa?${query}`;
+
+      res.json({
+        url,
+        evaluationPeriodDays,
+        feeEarnerCount,
+        ktExp: expiresAtUnix,
+        validForDays,
+        expiresAt: expiresAt.toISOString(),
+        expiresAtDisplay: expiresAt.toUTCString(),
+        ref: ref ?? null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // List all DPA / evaluation acceptances (admin only)
+  app.get("/api/admin/dpa/acceptances", isAuthenticated, isAdmin, async (_req, res, next) => {
+    try {
+      const { legalAgreementAcceptances } = await import("@shared/schema");
+      const { desc } = await import("drizzle-orm");
+      const rows = await db
+        .select({
+          id: legalAgreementAcceptances.id,
+          status: legalAgreementAcceptances.status,
+          firmName: legalAgreementAcceptances.firmName,
+          signerName: legalAgreementAcceptances.signerName,
+          signerTitle: legalAgreementAcceptances.signerTitle,
+          email: legalAgreementAcceptances.email,
+          sraNumber: legalAgreementAcceptances.sraNumber,
+          ref: legalAgreementAcceptances.ref,
+          evaluationPeriodDays: legalAgreementAcceptances.evaluationPeriodDays,
+          feeEarnerCount: legalAgreementAcceptances.feeEarnerCount,
+          acceptedAt: legalAgreementAcceptances.acceptedAt,
+          createdAt: legalAgreementAcceptances.createdAt,
+          verifyToken: legalAgreementAcceptances.verifyToken,
+        })
+        .from(legalAgreementAcceptances)
+        .orderBy(desc(legalAgreementAcceptances.createdAt));
+
+      // verifyToken is returned only so the admin UI can build tokenised certificate
+      // links; the page must not display the raw token.
+      res.json(rows);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Strategy documents API (admin only)
   app.get("/api/admin/docs", isAuthenticated, isAdmin, async (req: any, res, next) => {
     try {
