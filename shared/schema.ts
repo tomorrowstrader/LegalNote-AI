@@ -1934,8 +1934,94 @@ export const insertDpaSigningEnvelopeSchema = createInsertSchema(dpaSigningEnvel
 export type InsertDpaSigningEnvelope = z.infer<typeof insertDpaSigningEnvelopeSchema>;
 export type DpaSigningEnvelope = typeof dpaSigningEnvelopes.$inferSelect;
 
-/** Body for POST /api/dpa/start */
-export const dpaStartRequestSchema = z.object({
+/**
+ * Content-addressed retention of accepted legal master text.
+ * PK is SHA-256 of exact bytes; ON CONFLICT DO NOTHING at insert.
+ * Immutable — never update or delete once written (clause 18.4 / 12.4 retrieval).
+ */
+export const legalDocumentSnapshots = pgTable("legal_document_snapshots", {
+  contentHash: text("content_hash").primaryKey(),
+  documentSlug: text("document_slug").notNull(), // dpa | evaluation
+  text: text("text").notNull(),
+  byteLength: integer("byte_length").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type LegalDocumentSnapshot = typeof legalDocumentSnapshots.$inferSelect;
+
+/**
+ * Click-to-accept records for DPA + Governed Evaluation Agreement.
+ * Sole evidence of each agreement (DPA 18.4 / Evaluation 12.4).
+ */
+export const legalAgreementAcceptances = pgTable("legal_agreement_acceptances", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  status: text("status").notNull().default("pending_email"), // pending_email | accepted | expired | superseded
+  confirmationToken: text("confirmation_token").notNull().unique(),
+  confirmationExpiresAt: timestamp("confirmation_expires_at").notNull(),
+  confirmedAt: timestamp("confirmed_at"),
+  acceptedAt: timestamp("accepted_at"),
+  firmName: text("firm_name").notNull(),
+  signerName: text("signer_name").notNull(),
+  signerTitle: text("signer_title").notNull(),
+  email: text("email").notNull(),
+  sraNumber: text("sra_number"),
+  ref: text("ref"),
+  evaluationPeriodDays: integer("evaluation_period_days").notNull(),
+  feeEarnerCount: integer("fee_earner_count").notNull(),
+  identityMethod: text("identity_method").notNull().default("email_confirmed"),
+  requestIpAddress: text("request_ip_address"),
+  requestUserAgent: text("request_user_agent"),
+  confirmIpAddress: text("confirm_ip_address"),
+  confirmUserAgent: text("confirm_user_agent"),
+  acceptedByUserId: varchar("accepted_by_user_id").references(() => users.id),
+  affirmativeAssent: boolean("affirmative_assent").notNull().default(false),
+  dpaAccepted: boolean("dpa_accepted").notNull().default(false),
+  evaluationAccepted: boolean("evaluation_accepted").notNull().default(false),
+  dpaContentHash: text("dpa_content_hash"),
+  evaluationContentHash: text("evaluation_content_hash"),
+  acceptancePayloadHash: text("acceptance_payload_hash"),
+  acceptanceContentSignature: text("acceptance_content_signature"),
+  /** Opaque token for verify/certificate access without a user account. */
+  verifyToken: text("verify_token").unique(),
+  auditTrailEntryId: varchar("audit_trail_entry_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertLegalAgreementAcceptanceSchema = createInsertSchema(legalAgreementAcceptances).omit({
+  id: true,
+  createdAt: true,
+  confirmedAt: true,
+  acceptedAt: true,
+  affirmativeAssent: true,
+  dpaAccepted: true,
+  evaluationAccepted: true,
+  dpaContentHash: true,
+  evaluationContentHash: true,
+  acceptancePayloadHash: true,
+  acceptanceContentSignature: true,
+  verifyToken: true,
+  auditTrailEntryId: true,
+  acceptedByUserId: true,
+}).extend({
+  firmName: z.string().min(1).max(300),
+  signerName: z.string().min(1).max(200),
+  signerTitle: z.string().min(1).max(200),
+  email: z.string().email().max(255),
+  sraNumber: z.string().max(50).optional().nullable(),
+  ref: z.string().max(100).optional().nullable(),
+  evaluationPeriodDays: z.number().int().min(1).max(3650),
+  feeEarnerCount: z.number().int().min(1).max(100000),
+  identityMethod: z.enum(["email_confirmed"]).default("email_confirmed"),
+  status: z.enum(["pending_email", "accepted", "expired", "superseded"]).default("pending_email"),
+  confirmationToken: z.string().min(1),
+  confirmationExpiresAt: z.date(),
+});
+
+export type InsertLegalAgreementAcceptance = z.infer<typeof insertLegalAgreementAcceptanceSchema>;
+export type LegalAgreementAcceptance = typeof legalAgreementAcceptances.$inferSelect;
+
+/** Body for POST /api/dpa/request (Key Terms from signed link — not free-form). */
+export const dpaRequestSchema = z.object({
   firmName: z.string().min(1).max(300).transform((s) => s.trim()),
   signerName: z.string().min(1).max(200).transform((s) => s.trim()),
   signerTitle: z.string().min(1).max(200).transform((s) => s.trim()),
@@ -1950,5 +2036,17 @@ export const dpaStartRequestSchema = z.object({
     .max(100)
     .optional()
     .transform((s) => (s?.trim() ? s.trim() : undefined)),
+  evaluationPeriodDays: z.coerce.number().int().min(1).max(3650),
+  feeEarnerCount: z.coerce.number().int().min(1).max(100000),
+  /** Unix seconds — mandatory expiry on every minted link. */
+  ktExp: z.coerce.number().int().positive(),
+  /** HMAC-SHA256(AUDIT_SIGNING_KEY, `${days}|${count}|${ktExp}`) */
+  keyTermsSig: z.string().min(1).max(128),
 });
-export type DpaStartRequest = z.infer<typeof dpaStartRequestSchema>;
+export type DpaRequest = z.infer<typeof dpaRequestSchema>;
+
+export const dpaConfirmBodySchema = z.object({
+  dpaAccepted: z.literal(true),
+  evaluationAccepted: z.literal(true),
+});
+export type DpaConfirmBody = z.infer<typeof dpaConfirmBodySchema>;

@@ -66,7 +66,7 @@ function resolveTemplatePath(filename: string): string {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaSigningEnvelopes, dpaStartRequestSchema } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { validateRecordingType } from "@shared/recordingTypes";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
@@ -103,7 +103,7 @@ import {
 } from "./services/litigationHoldGraceWindowService";
 import { AssemblyAIService } from "./services/assemblyAIService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail } from "./email";
 import { assembleSraReportData, buildSraReportPreview } from "./services/sraReportService";
 import { compileSraReportPdf } from "./services/sraReportPdf";
 import { logPersonnelMatterAccess } from "./personnelAccessAudit";
@@ -872,43 +872,35 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
   
-  // --- Public DPA signing (governed evaluation / B2B) ---
+  // --- Public DPA click-to-accept (governed evaluation / B2B) ---
   app.get("/api/dpa/status", generalApiLimiter, async (_req, res) => {
-    const enabled = process.env.DPA_SIGNING_ENABLED === "true";
-    const { masterDpaDocxExists } = await import("./services/dpaDocumentPrep");
-    const configured =
-      enabled &&
-      Boolean(process.env.DOCUSIGN_INTEGRATION_KEY) &&
-      Boolean(process.env.DOCUSIGN_USER_ID) &&
-      Boolean(process.env.DOCUSIGN_ACCOUNT_ID) &&
-      masterDpaDocxExists() &&
-      Boolean(
-        process.env.DOCUSIGN_RSA_PRIVATE_KEY ||
-          process.env.DOCUSIGN_RSA_PRIVATE_KEY_PATH,
-      );
-    res.json({ enabled, available: configured });
+    // Click-to-accept is always available when masters pass boot hash check.
+    res.json({ enabled: true, available: true, mode: "click_to_accept" });
   });
 
   app.get("/api/dpa/document", generalApiLimiter, async (_req, res, next) => {
     try {
-      const candidates = [
-        path.resolve(process.cwd(), "docs/legal/DATA_PROCESSING_AGREEMENT.md"),
-        path.resolve(process.cwd(), "docs", "legal", "DATA_PROCESSING_AGREEMENT.md"),
-      ];
-      const docPath = candidates.find((p) => fs.existsSync(p));
-      if (!docPath) {
-        return res.status(404).json({ message: "DPA document not found" });
-      }
-      const markdown = fs.readFileSync(docPath, "utf8");
-      res.type("text/markdown; charset=utf-8").send(markdown);
+      const { loadLegalDocument } = await import("./services/legalDocumentLoader");
+      const doc = loadLegalDocument("dpa");
+      res.type("text/markdown; charset=utf-8").send(doc.text);
     } catch (error) {
       next(error);
     }
   });
 
-  app.post("/api/dpa/start", dpaSigningLimiter, async (req, res, next) => {
+  app.get("/api/dpa/evaluation-document", generalApiLimiter, async (_req, res, next) => {
     try {
-      const parsed = dpaStartRequestSchema.safeParse(req.body);
+      const { loadLegalDocument } = await import("./services/legalDocumentLoader");
+      const doc = loadLegalDocument("evaluation");
+      res.type("text/markdown; charset=utf-8").send(doc.text);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/dpa/request", dpaSigningLimiter, async (req, res, next) => {
+    try {
+      const parsed = dpaRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({
           message: "Invalid request",
@@ -916,73 +908,278 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         });
       }
 
-      const { startDpaSigningSession } = await import("./services/docusignService");
-      const clientUserId = crypto.randomUUID();
-      const baseUrl = getCanonicalBaseUrl(req);
-      const returnUrl = `${baseUrl}/dpa/complete`;
+      const {
+        createPendingAcceptance,
+        LegalAcceptanceError,
+      } = await import("./services/legalAcceptanceService");
 
-      const session = await startDpaSigningSession(
-        {
-          firmName: parsed.data.firmName,
-          sraNumber: parsed.data.sraNumber,
-          signerName: parsed.data.signerName,
-          signerTitle: parsed.data.signerTitle,
-          email: parsed.data.email,
-          clientUserId,
-        },
-        returnUrl,
-      );
-
+      let result;
       try {
-        await db.insert(dpaSigningEnvelopes).values({
-          envelopeId: session.envelopeId,
-          email: parsed.data.email,
-          firmName: parsed.data.firmName,
-          signerName: parsed.data.signerName,
-          signerTitle: parsed.data.signerTitle,
-          companyNumber: null,
-          address: null,
-          sraNumber: parsed.data.sraNumber || null,
-          ref: parsed.data.ref || null,
-          status: "sent",
-          clientUserId,
-        });
-      } catch (trackErr) {
-        console.error("[DPA] Failed to persist envelope tracking row:", trackErr);
+        result = await createPendingAcceptance({ ...parsed.data, req });
+      } catch (err) {
+        if (err instanceof LegalAcceptanceError) {
+          return res.status(err.statusCode).json({ message: err.message, code: err.code });
+        }
+        throw err;
       }
 
-      console.log(
-        `[DPA] Envelope ${session.envelopeId} started for ${parsed.data.email}` +
-          (parsed.data.ref ? ` (ref=${parsed.data.ref})` : ""),
-      );
+      await sendDpaConfirmationEmail({
+        to: result.acceptance.email,
+        firmName: result.acceptance.firmName,
+        signerName: result.acceptance.signerName,
+        confirmationToken: result.confirmationToken,
+        evaluationPeriodDays: result.acceptance.evaluationPeriodDays,
+        feeEarnerCount: result.acceptance.feeEarnerCount,
+      });
 
       res.json({
-        signingUrl: session.signingUrl,
-        envelopeId: session.envelopeId,
+        ok: true,
+        message: "Check your email for a confirmation link to complete acceptance.",
+        acceptanceId: result.acceptance.id,
       });
-    } catch (error: unknown) {
-      const statusCode =
-        error && typeof error === "object" && "statusCode" in error
-          ? Number((error as { statusCode?: number }).statusCode)
-          : undefined;
-      if (statusCode === 503 || statusCode === 502) {
-        const typedError = error as {
-          code?: string;
-          consentUrl?: string;
-        };
-        return res.status(statusCode).json({
-          message: error instanceof Error ? error.message : "DPA signing unavailable",
-          code: typedError.code,
-          consentUrl: typedError.consentUrl,
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/dpa/confirm/:token", generalApiLimiter, async (req, res, next) => {
+    try {
+      const {
+        getPendingAcceptanceByToken,
+        LegalAcceptanceError,
+      } = await import("./services/legalAcceptanceService");
+      const { loadLegalDocument } = await import("./services/legalDocumentLoader");
+
+      let pending;
+      try {
+        pending = await getPendingAcceptanceByToken(req.params.token);
+      } catch (err) {
+        if (err instanceof LegalAcceptanceError) {
+          return res.status(err.statusCode).json({ message: err.message, code: err.code });
+        }
+        throw err;
+      }
+
+      const dpa = loadLegalDocument("dpa");
+      const evaluation = loadLegalDocument("evaluation");
+
+      res.json({
+        firmName: pending.firmName,
+        signerName: pending.signerName,
+        signerTitle: pending.signerTitle,
+        email: pending.email,
+        evaluationPeriodDays: pending.evaluationPeriodDays,
+        feeEarnerCount: pending.feeEarnerCount,
+        dpa: { text: dpa.text, contentHash: dpa.contentHash },
+        evaluation: { text: evaluation.text, contentHash: evaluation.contentHash },
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/dpa/confirm/:token", dpaSigningLimiter, async (req, res, next) => {
+    try {
+      const parsed = dpaConfirmBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Both agreements must be accepted. Tick both checkboxes to continue.",
+          code: "ASSENT_REQUIRED",
+          errors: parsed.error.flatten().fieldErrors,
         });
       }
-      console.error("[DPA] start failed:", error);
-      return res.status(500).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unable to start DPA signing. Please try again.",
+
+      const {
+        confirmAcceptance,
+        LegalAcceptanceError,
+      } = await import("./services/legalAcceptanceService");
+
+      let authenticatedUserId: string | null = null;
+      let authenticatedUserEmail: string | null = null;
+      const user = req.user as any;
+      if (req.isAuthenticated?.() && user?.claims?.sub) {
+        authenticatedUserId = user.claims.sub;
+        const authUser = await storage.getUser(authenticatedUserId);
+        authenticatedUserEmail = authUser?.email ?? null;
+      }
+
+      let sealed;
+      try {
+        sealed = await confirmAcceptance({
+          token: req.params.token,
+          dpaAccepted: parsed.data.dpaAccepted,
+          evaluationAccepted: parsed.data.evaluationAccepted,
+          req,
+          authenticatedUserId,
+          authenticatedUserEmail,
+        });
+      } catch (err) {
+        if (err instanceof LegalAcceptanceError) {
+          return res.status(err.statusCode).json({ message: err.message, code: err.code });
+        }
+        throw err;
+      }
+
+      if (sealed.verifyToken && sealed.dpaContentHash && sealed.evaluationContentHash && sealed.acceptedAt) {
+        await sendLegalAgreementAcceptedEmail({
+          to: sealed.email,
+          firmName: sealed.firmName,
+          signerName: sealed.signerName,
+          signerTitle: sealed.signerTitle,
+          evaluationPeriodDays: sealed.evaluationPeriodDays,
+          feeEarnerCount: sealed.feeEarnerCount,
+          acceptedAt: sealed.acceptedAt,
+          acceptanceId: sealed.id,
+          dpaContentHash: sealed.dpaContentHash,
+          evaluationContentHash: sealed.evaluationContentHash,
+          verifyToken: sealed.verifyToken,
+        });
+      }
+
+      res.json({
+        ok: true,
+        acceptanceId: sealed.id,
+        acceptedAt: sealed.acceptedAt?.toISOString(),
+        dpaContentHash: sealed.dpaContentHash,
+        evaluationContentHash: sealed.evaluationContentHash,
+        verifyToken: sealed.verifyToken,
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/legal-acceptances/:id/verify", generalApiLimiter, async (req, res, next) => {
+    try {
+      const {
+        verifyAcceptanceAccess,
+        buildVerifyResponse,
+        LegalAcceptanceError,
+      } = await import("./services/legalAcceptanceService");
+
+      const isAuth = Boolean(req.isAuthenticated?.() && (req.user as any)?.claims?.sub);
+      const token = typeof req.query.token === "string" ? req.query.token : null;
+
+      let row;
+      try {
+        row = await verifyAcceptanceAccess(req.params.id, {
+          isAuthenticated: isAuth,
+          verifyToken: token,
+        });
+      } catch (err) {
+        if (err instanceof LegalAcceptanceError) {
+          return res.status(err.statusCode).json({ message: err.message, code: err.code });
+        }
+        throw err;
+      }
+
+      const result = await buildVerifyResponse(row);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/legal-acceptances/:id", generalApiLimiter, async (req, res, next) => {
+    try {
+      const {
+        verifyAcceptanceAccess,
+        getDocumentsForAcceptance,
+        LegalAcceptanceError,
+      } = await import("./services/legalAcceptanceService");
+
+      const isAuth = Boolean(req.isAuthenticated?.() && (req.user as any)?.claims?.sub);
+      const token = typeof req.query.token === "string" ? req.query.token : null;
+
+      let row;
+      try {
+        row = await verifyAcceptanceAccess(req.params.id, {
+          isAuthenticated: isAuth,
+          verifyToken: token,
+        });
+      } catch (err) {
+        if (err instanceof LegalAcceptanceError) {
+          return res.status(err.statusCode).json({ message: err.message, code: err.code });
+        }
+        throw err;
+      }
+
+      const docs = await getDocumentsForAcceptance(row);
+      res.json({
+        id: row.id,
+        status: row.status,
+        firmName: row.firmName,
+        signerName: row.signerName,
+        signerTitle: row.signerTitle,
+        email: row.email,
+        sraNumber: row.sraNumber,
+        evaluationPeriodDays: row.evaluationPeriodDays,
+        feeEarnerCount: row.feeEarnerCount,
+        acceptedAt: row.acceptedAt?.toISOString() ?? null,
+        dpaContentHash: row.dpaContentHash,
+        evaluationContentHash: row.evaluationContentHash,
+        acceptancePayloadHash: row.acceptancePayloadHash,
+        documents: docs,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/legal-documents/by-hash/:contentHash", generalApiLimiter, async (req, res, next) => {
+    try {
+      const { getLegalDocumentSnapshotByHash } = await import("./services/legalAcceptanceService");
+      const snap = await getLegalDocumentSnapshotByHash(req.params.contentHash);
+      if (!snap) {
+        return res.status(404).json({ message: "Document snapshot not found for this hash." });
+      }
+      res.json({
+        text: snap.text,
+        documentSlug: snap.documentSlug,
+        contentHash: snap.contentHash,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/legal-acceptances/:id/documents/:slug", generalApiLimiter, async (req, res, next) => {
+    try {
+      const slug = req.params.slug;
+      if (slug !== "dpa" && slug !== "evaluation") {
+        return res.status(400).json({ message: "slug must be dpa or evaluation" });
+      }
+
+      const {
+        verifyAcceptanceAccess,
+        getDocumentsForAcceptance,
+        LegalAcceptanceError,
+      } = await import("./services/legalAcceptanceService");
+
+      const isAuth = Boolean(req.isAuthenticated?.() && (req.user as any)?.claims?.sub);
+      const token = typeof req.query.token === "string" ? req.query.token : null;
+
+      let row;
+      try {
+        row = await verifyAcceptanceAccess(req.params.id, {
+          isAuthenticated: isAuth,
+          verifyToken: token,
+        });
+      } catch (err) {
+        if (err instanceof LegalAcceptanceError) {
+          return res.status(err.statusCode).json({ message: err.message, code: err.code });
+        }
+        throw err;
+      }
+
+      const docs = await getDocumentsForAcceptance(row);
+      const doc = slug === "dpa" ? docs.dpa : docs.evaluation;
+      if (!doc) {
+        return res.status(404).json({ message: "Accepted document snapshot not found." });
+      }
+      res.json(doc);
+    } catch (error) {
+      next(error);
     }
   });
 

@@ -45,8 +45,8 @@ export default function DpaPreviewPage() {
             DPA preview
           </h1>
           <p className="text-sm text-[hsl(25,20%,45%)] mb-8">
-            Sample text of the current Data Processing Agreement. The version
-            presented in DocuSign for signature is authoritative.
+            Current text of the Data Processing Agreement. Acceptance binds to
+            the exact bytes hashed at the moment you confirm.
           </p>
 
           {isLoading && (
@@ -78,7 +78,7 @@ export default function DpaPreviewPage() {
           <div className="mt-10">
             <Button asChild className="bg-[hsl(18,65%,45%)] hover:bg-[hsl(18,65%,38%)] text-white">
               <Link href="/dpa" data-testid="link-sign-dpa">
-                Continue to sign
+                Continue to accept
               </Link>
             </Button>
           </div>

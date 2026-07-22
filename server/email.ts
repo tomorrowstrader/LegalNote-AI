@@ -1683,3 +1683,186 @@ export async function sendMeetingReminderEmail(
     return { success: false, error: error.message || 'Unknown error' };
   }
 }
+
+function escapeHtmlEmail(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Step 1 → Step 2: email confirmation link so the signatory proves inbox control.
+ */
+export async function sendDpaConfirmationEmail(params: {
+  to: string;
+  firmName: string;
+  signerName: string;
+  confirmationToken: string;
+  evaluationPeriodDays: number;
+  feeEarnerCount: number;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
+  const confirmUrl = `${baseUrl}/dpa/confirm/${params.confirmationToken}`;
+  const safeFirm = escapeHtmlEmail(params.firmName);
+  const safeName = escapeHtmlEmail(params.signerName);
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; }
+        .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 32px 40px; }
+        .header h1 { color: #fff; margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+        .header p { color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: 13px; }
+        .content { padding: 36px 40px; background: #fff; }
+        .content h2 { font-size: 18px; margin: 0 0 8px; color: #1a1a2e; }
+        .content p { margin: 0 0 16px; color: #555; font-size: 14px; }
+        .cta-btn { display: inline-block; background: #c0552a; color: #fff !important; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 8px 0 24px; }
+        .notice { background: #f8f6f3; border-left: 3px solid #c0552a; padding: 14px 18px; border-radius: 0 6px 6px 0; font-size: 13px; color: #555; margin: 24px 0 0; }
+        .footer { padding: 20px 40px; background: #f5f5f5; font-size: 12px; color: #888; border-top: 1px solid #e8e8e8; }
+        .url-fallback { word-break: break-all; color: #888; font-size: 12px; margin-top: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>LegalNote</h1>
+        <p>Agreement confirmation</p>
+      </div>
+      <div class="content">
+        <h2>Confirm your email to accept</h2>
+        <p>Dear ${safeName},</p>
+        <p>You requested to accept LegalNote&apos;s Data Processing Agreement and Governed Evaluation Agreement on behalf of <strong>${safeFirm}</strong>.</p>
+        <p>Key Terms offered: Evaluation Period of <strong>${params.evaluationPeriodDays} days</strong>; Fee Earner Count of <strong>${params.feeEarnerCount}</strong>.</p>
+        <p>Click below to review both agreements and complete acceptance. This confirms you control this email address.</p>
+        <a href="${confirmUrl}" class="cta-btn">Review &amp; Accept Agreements</a>
+        <div class="notice">
+          <strong>This link expires in 72 hours.</strong><br>
+          If you did not request this, you can ignore this email. No agreement is formed until you affirmatively accept on the confirmation page.
+        </div>
+        <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${confirmUrl}</p>
+      </div>
+      <div class="footer">
+        <p>LegalNote Technologies Ltd &bull; legalnote.ai</p>
+        <p>This email was sent to ${escapeHtmlEmail(params.to)}.</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const result = await sendEmail({
+      from: 'LegalNote <noreply@legalnote.ai>',
+      to: params.to,
+      replyTo: 'legal@legalnote.ai',
+      subject: 'Confirm your email to accept the LegalNote DPA and Evaluation Agreement',
+      html: emailHtml,
+    });
+    if (!result.success) {
+      console.error('[EMAIL] Error sending DPA confirmation:', result.error);
+    } else {
+      console.log('[EMAIL] DPA confirmation sent:', result.messageId);
+    }
+    return result;
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending DPA confirmation:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+/**
+ * Executed copy after acceptance — HTML certificate links (no attachment).
+ */
+export async function sendLegalAgreementAcceptedEmail(params: {
+  to: string;
+  firmName: string;
+  signerName: string;
+  signerTitle: string;
+  evaluationPeriodDays: number;
+  feeEarnerCount: number;
+  acceptedAt: Date;
+  acceptanceId: string;
+  dpaContentHash: string;
+  evaluationContentHash: string;
+  verifyToken: string;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
+  const certificateUrl = `${baseUrl}/legal/acceptance/${params.acceptanceId}?token=${encodeURIComponent(params.verifyToken)}`;
+  const verifyUrl = `${baseUrl}/api/legal-acceptances/${params.acceptanceId}/verify?token=${encodeURIComponent(params.verifyToken)}`;
+  const acceptedUtc = params.acceptedAt.toISOString();
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; }
+        .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 32px 40px; }
+        .header h1 { color: #fff; margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+        .header p { color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: 13px; }
+        .content { padding: 36px 40px; background: #fff; }
+        .content h2 { font-size: 18px; margin: 0 0 8px; color: #1a1a2e; }
+        .content p { margin: 0 0 16px; color: #555; font-size: 14px; }
+        .meta { background: #f8f6f3; padding: 16px 18px; border-radius: 6px; font-size: 13px; color: #444; margin: 16px 0; }
+        .meta code { font-size: 11px; word-break: break-all; }
+        .cta-btn { display: inline-block; background: #c0552a; color: #fff !important; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 8px 8px 8px 0; }
+        .footer { padding: 20px 40px; background: #f5f5f5; font-size: 12px; color: #888; border-top: 1px solid #e8e8e8; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>LegalNote</h1>
+        <p>Executed acceptance certificate</p>
+      </div>
+      <div class="content">
+        <h2>Agreements accepted</h2>
+        <p>Dear ${escapeHtmlEmail(params.signerName)},</p>
+        <p>This email confirms that <strong>${escapeHtmlEmail(params.firmName)}</strong> has accepted LegalNote&apos;s Data Processing Agreement and Governed Evaluation Agreement.</p>
+        <div class="meta">
+          <p style="margin:0 0 8px"><strong>Signatory:</strong> ${escapeHtmlEmail(params.signerName)}, ${escapeHtmlEmail(params.signerTitle)}</p>
+          <p style="margin:0 0 8px"><strong>Accepted at (UTC):</strong> ${acceptedUtc}</p>
+          <p style="margin:0 0 8px"><strong>Evaluation Period:</strong> ${params.evaluationPeriodDays} days</p>
+          <p style="margin:0 0 8px"><strong>Fee Earner Count:</strong> ${params.feeEarnerCount}</p>
+          <p style="margin:0 0 8px"><strong>Acceptance ID:</strong> <code>${escapeHtmlEmail(params.acceptanceId)}</code></p>
+          <p style="margin:0 0 8px"><strong>DPA content hash:</strong> <code>${escapeHtmlEmail(params.dpaContentHash)}</code></p>
+          <p style="margin:0"><strong>Evaluation content hash:</strong> <code>${escapeHtmlEmail(params.evaluationContentHash)}</code></p>
+        </div>
+        <p>LegalNote retains the exact text corresponding to each hash so the accepted version can be reproduced.</p>
+        <a href="${certificateUrl}" class="cta-btn">View certificate</a>
+        <a href="${verifyUrl}" class="cta-btn" style="background:#1a1a2e">Verify record</a>
+      </div>
+      <div class="footer">
+        <p>LegalNote Technologies Ltd &bull; legalnote.ai</p>
+        <p>This email was sent to ${escapeHtmlEmail(params.to)}. Contact legal@legalnote.ai with questions.</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const result = await sendEmail({
+      from: 'LegalNote <noreply@legalnote.ai>',
+      to: params.to,
+      replyTo: 'legal@legalnote.ai',
+      subject: 'LegalNote — Executed DPA and Evaluation Agreement acceptance',
+      html: emailHtml,
+    });
+    if (!result.success) {
+      console.error('[EMAIL] Error sending acceptance certificate:', result.error);
+    } else {
+      console.log('[EMAIL] Acceptance certificate sent:', result.messageId);
+    }
+    return result;
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending acceptance certificate:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+

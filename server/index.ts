@@ -18,6 +18,7 @@ import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
 import { assertSealTriggersInstalled } from "./sealTriggerAssertion";
+import { assertLegalMasterHashes } from "./services/legalDocumentLoader";
 
 // Development-only fallback when AUDIT_SIGNING_KEY is unset (production gate is in envValidation).
 if (!process.env.AUDIT_SIGNING_KEY && process.env.NODE_ENV !== "production") {
@@ -235,6 +236,9 @@ app.use((req, res, next) => {
 
 (async () => {
   await assertSealTriggersInstalled();
+  // Same boot-gate pattern as seal triggers: refuse to start if masters diverge
+  // from the hashes acceptance will bind to (clause 18.4 / 12.4).
+  assertLegalMasterHashes();
 
   const server = await registerRoutes(app);
 

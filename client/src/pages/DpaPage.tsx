@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Link, useSearch } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { dpaStartRequestSchema, type DpaStartRequest } from "@shared/schema";
+import { z } from "zod";
 import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
 import { LegalPageFooter } from "@/components/LegalPageFooter";
 import { Button } from "@/components/ui/button";
@@ -22,94 +22,100 @@ import { apiRequest, getApiErrorMessage } from "@/lib/queryClient";
 
 const linkClass = "text-[hsl(18,65%,45%)] hover:underline";
 
-type DpaStatus = { enabled: boolean; available: boolean };
-type DpaFormError = {
-  message: string;
-  consentUrl?: string;
-};
+const firmFormSchema = z.object({
+  firmName: z.string().min(1, "Required").max(300),
+  signerName: z.string().min(1, "Required").max(200),
+  signerTitle: z.string().min(1, "Required").max(200),
+  email: z.string().email().max(255),
+  sraNumber: z.string().max(50).optional(),
+});
 
-function getRefFromUrl(search: string): string {
+type FirmFormValues = z.infer<typeof firmFormSchema>;
+
+function parseSignedKeyTerms(search: string): {
+  evaluationPeriodDays: number | null;
+  feeEarnerCount: number | null;
+  ktExp: number | null;
+  keyTermsSig: string | null;
+  ref: string | null;
+  validShape: boolean;
+} {
   const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
-  return params.get("ref") || "";
+  const days = params.get("evaluationPeriodDays");
+  const count = params.get("feeEarnerCount");
+  const ktExp = params.get("ktExp");
+  const keyTermsSig = params.get("keyTermsSig");
+  const ref = params.get("ref");
+
+  const evaluationPeriodDays = days != null && /^\d+$/.test(days) ? Number(days) : null;
+  const feeEarnerCount = count != null && /^\d+$/.test(count) ? Number(count) : null;
+  const expires = ktExp != null && /^\d+$/.test(ktExp) ? Number(ktExp) : null;
+
+  return {
+    evaluationPeriodDays,
+    feeEarnerCount,
+    ktExp: expires,
+    keyTermsSig,
+    ref,
+    validShape:
+      evaluationPeriodDays != null &&
+      feeEarnerCount != null &&
+      expires != null &&
+      typeof keyTermsSig === "string" &&
+      keyTermsSig.length > 0,
+  };
 }
 
 export default function DpaPage() {
   const search = useSearch();
-  const refFromUrl = getRefFromUrl(search);
-  const [formError, setFormError] = useState<DpaFormError | null>(null);
+  const keyTerms = useMemo(() => parseSignedKeyTerms(search), [search]);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     document.title = "Data Processing Agreement - LegalNote";
-
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
       metaDescription.setAttribute(
         "content",
-        "Sign the LegalNote Data Processing Agreement (DPA) for governed evaluation and B2B use of the LegalNote platform.",
+        "Accept the LegalNote Data Processing Agreement and Governed Evaluation Agreement.",
       );
     }
   }, []);
 
-  const { data: status } = useQuery<DpaStatus>({
-    queryKey: ["/api/dpa/status"],
-  });
-
-  const form = useForm<DpaStartRequest>({
-    resolver: zodResolver(dpaStartRequestSchema),
+  const form = useForm<FirmFormValues>({
+    resolver: zodResolver(firmFormSchema),
     defaultValues: {
       firmName: "",
       signerName: "",
       signerTitle: "",
       email: "",
       sraNumber: "",
-      ref: refFromUrl || undefined,
     },
   });
 
-  useEffect(() => {
-    if (refFromUrl) {
-      form.setValue("ref", refFromUrl);
-    }
-  }, [refFromUrl, form]);
+  const offerExpired =
+    keyTerms.ktExp != null && Math.floor(Date.now() / 1000) > keyTerms.ktExp;
 
-  const startMutation = useMutation({
-    mutationFn: (data: DpaStartRequest) =>
-      apiRequest<{ signingUrl: string; envelopeId: string }>(
-        "POST",
-        "/api/dpa/start",
-        data,
-      ),
-    onSuccess: (result) => {
-      window.location.href = result.signingUrl;
+  const requestMutation = useMutation({
+    mutationFn: (data: FirmFormValues) =>
+      apiRequest<{ ok: boolean; message: string }>("POST", "/api/dpa/request", {
+        ...data,
+        sraNumber: data.sraNumber || undefined,
+        ref: keyTerms.ref || undefined,
+        evaluationPeriodDays: keyTerms.evaluationPeriodDays,
+        feeEarnerCount: keyTerms.feeEarnerCount,
+        ktExp: keyTerms.ktExp,
+        keyTermsSig: keyTerms.keyTermsSig,
+      }),
+    onSuccess: () => {
+      setSubmitted(true);
+      setFormError(null);
     },
     onError: (error) => {
-      const raw = error instanceof Error ? error.message : "";
-      const withoutStatus = raw.replace(/^\d{3}:\s*/, "").trim();
-      try {
-        const parsed = JSON.parse(withoutStatus);
-        if (
-          parsed?.code === "DOCUSIGN_CONSENT_REQUIRED" &&
-          typeof parsed?.consentUrl === "string"
-        ) {
-          setFormError({
-            message:
-              "DocuSign needs one-time JWT consent before embedded signing can start.",
-            consentUrl: parsed.consentUrl,
-          });
-          return;
-        }
-      } catch {
-        // Fall through to the shared user-facing parser.
-      }
-      setFormError({
-        message: getApiErrorMessage(error, "Unable to start signing. Please try again."),
-      });
+      setFormError(getApiErrorMessage(error, "Unable to start acceptance. Please try again."));
     },
   });
-
-  const statusLoaded = status !== undefined;
-  const signingAvailable = status?.available === true;
-  const formDisabled = (statusLoaded && !signingAvailable) || startMutation.isPending;
 
   return (
     <div className="min-h-screen bg-[hsl(30,25%,97%)] dark:bg-background">
@@ -128,32 +134,20 @@ export default function DpaPage() {
             Data Processing Agreement
           </h1>
           <p className="text-[hsl(25,20%,45%)] mb-8">
-            For governed evaluation clients and law firms using LegalNote as a
-            processor
+            Accept the DPA and Governed Evaluation Agreement for governed
+            evaluation of LegalNote
           </p>
 
           <div className="space-y-6 text-[hsl(25,20%,30%)] mb-12">
             <p className="leading-relaxed">
-              Firms that require a Data Processing Agreement (DPA) under UK GDPR
-              may review and electronically sign LegalNote&apos;s DPA below.
-              Upon completion, DocuSign emails a copy of the executed agreement
-              to the address you provide.
-            </p>
-            <p className="leading-relaxed text-sm text-[hsl(25,20%,45%)]">
-              Entering into a new DPA replaces any prior LegalNote DPA in its
-              entirety. This DPA supplements the{" "}
-              <Link href="/terms" className={linkClass}>
-                Terms of Service
-              </Link>
-              .
+              An authorised representative of your firm may accept LegalNote&apos;s
+              Data Processing Agreement and Governed Evaluation Agreement below.
+              Acceptance is recorded in a tamper-evident audit trail bound to the
+              exact text in force, and a certificate is emailed to you.
             </p>
             <p>
-              <Link
-                href="/dpa/preview"
-                className={linkClass}
-                data-testid="link-dpa-preview"
-              >
-                Review the current DPA text
+              <Link href="/dpa/preview" className={linkClass} data-testid="link-dpa-preview">
+                Preview the current DPA text
               </Link>
               {" · "}
               <Link href="/sub-processors" className={linkClass}>
@@ -168,196 +162,212 @@ export default function DpaPage() {
 
           <section
             className="border-t border-[hsl(25,15%,85%)] pt-10"
-            aria-labelledby="dpa-sign-heading"
+            aria-labelledby="dpa-accept-heading"
           >
             <h2
-              id="dpa-sign-heading"
+              id="dpa-accept-heading"
               className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-2"
             >
-              Sign the DPA
+              Accept the agreements
             </h2>
-            <p className="text-sm text-[hsl(25,20%,45%)] mb-8">
-              Complete your firm and signer details to open a secure DocuSign
-              signing session. You will be redirected back here when finished.
-            </p>
 
-            {statusLoaded && !signingAvailable && (
+            {!keyTerms.validShape && (
               <div
                 className="mb-8 rounded-md border border-[hsl(25,15%,85%)] bg-[hsl(30,20%,94%)] px-4 py-3 text-sm text-[hsl(25,20%,35%)]"
-                data-testid="dpa-signing-unavailable"
+                data-testid="dpa-missing-key-terms"
               >
-                Electronic signing is not available yet. You can still{" "}
-                <Link href="/dpa/preview" className={linkClass}>
-                  review the DPA text
-                </Link>
-                , or contact{" "}
+                This page requires a signed acceptance link from LegalNote that
+                states the Evaluation Period and Fee Earner Count. Contact{" "}
                 <a href="mailto:legal@legalnote.ai" className={linkClass}>
                   legal@legalnote.ai
                 </a>{" "}
-                to arrange execution.
+                if you need a link.
               </div>
             )}
 
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit((values) => {
-                  setFormError(null);
-                  startMutation.mutate({
-                    ...values,
-                    ref: values.ref || refFromUrl || undefined,
-                  });
-                })}
-                className="space-y-5 max-w-xl"
-                data-testid="form-dpa-start"
+            {keyTerms.validShape && offerExpired && (
+              <div
+                className="mb-8 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                data-testid="dpa-offer-expired"
               >
-                <h3 className="text-lg font-medium text-[hsl(25,30%,15%)]">
-                  Company Information
-                </h3>
+                This acceptance offer has expired. Please request a new link from
+                LegalNote.
+              </div>
+            )}
 
-                <FormField
-                  control={form.control}
-                  name="firmName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Company Legal Name</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="Example LLP"
-                          disabled={formDisabled}
-                          data-testid="input-firm-name"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            {keyTerms.validShape && !offerExpired && (
+              <div
+                className="mb-8 rounded-md border border-[hsl(25,15%,85%)] bg-white/70 px-4 py-4 text-sm text-[hsl(25,20%,30%)]"
+                data-testid="dpa-key-terms"
+              >
+                <h3 className="font-medium text-[hsl(25,30%,15%)] mb-2">Key Terms</h3>
+                <p className="mb-1">
+                  Evaluation Period:{" "}
+                  <strong>{keyTerms.evaluationPeriodDays} days</strong>
+                </p>
+                <p>
+                  Fee Earner Count: <strong>{keyTerms.feeEarnerCount}</strong>
+                </p>
+                <p className="mt-3 text-xs text-[hsl(25,20%,50%)]">
+                  These terms are set by LegalNote and cannot be changed on this
+                  form. By proceeding you accept them as stated.
+                </p>
+              </div>
+            )}
 
-                <FormField
-                  control={form.control}
-                  name="signerName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Company Signatory Name</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          disabled={formDisabled}
-                          data-testid="input-signer-name"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="signerTitle"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Company Signatory Title</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="Partner, COLP, Managing Director…"
-                          disabled={formDisabled}
-                          data-testid="input-signer-title"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Company Signatory Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type="email"
-                          autoComplete="email"
-                          disabled={formDisabled}
-                          data-testid="input-email"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="sraNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>SRA No.</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          value={field.value ?? ""}
-                          placeholder="Solicitors Regulation Authority number"
-                          disabled={formDisabled}
-                          data-testid="input-sra-number"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {refFromUrl ? (
-                  <p className="text-xs text-[hsl(25,20%,50%)]">
-                    Evaluation reference: <code>{refFromUrl}</code>
-                  </p>
-                ) : null}
-
-                {formError && (
-                  <div
-                    className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
-                    role="alert"
-                    data-testid="text-dpa-error"
-                  >
-                    <p>{formError.message}</p>
-                    {formError.consentUrl && (
-                      <a
-                        href={formError.consentUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-2 inline-block underline"
-                      >
-                        Grant DocuSign JWT consent
-                      </a>
-                    )}
-                  </div>
-                )}
-
-                <Button
-                  type="submit"
-                  disabled={!signingAvailable || startMutation.isPending}
-                  className="bg-[hsl(18,65%,45%)] hover:bg-[hsl(18,65%,38%)] text-white"
-                  data-testid="button-start-dpa-signing"
+            {submitted ? (
+              <div
+                className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900"
+                data-testid="dpa-request-sent"
+              >
+                <p className="font-medium mb-1">Check your email</p>
+                <p>
+                  We sent a confirmation link to complete acceptance. Open that
+                  link to review both agreements and affirmatively accept.
+                </p>
+              </div>
+            ) : (
+              <Form {...form}>
+                <form
+                  onSubmit={form.handleSubmit((values) => {
+                    setFormError(null);
+                    requestMutation.mutate(values);
+                  })}
+                  className="space-y-5 max-w-xl"
+                  data-testid="form-dpa-request"
                 >
-                  {startMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Opening DocuSign…
-                    </>
-                  ) : !statusLoaded ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Checking availability…
-                    </>
-                  ) : (
-                    "Continue to sign"
+                  <h3 className="text-lg font-medium text-[hsl(25,30%,15%)]">
+                    Company Information
+                  </h3>
+
+                  <FormField
+                    control={form.control}
+                    name="firmName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company Legal Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="Example LLP"
+                            disabled={!keyTerms.validShape || offerExpired || requestMutation.isPending}
+                            data-testid="input-firm-name"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="signerName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company Signatory Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            disabled={!keyTerms.validShape || offerExpired || requestMutation.isPending}
+                            data-testid="input-signer-name"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="signerTitle"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company Signatory Title</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="Partner, COLP, Managing Director…"
+                            disabled={!keyTerms.validShape || offerExpired || requestMutation.isPending}
+                            data-testid="input-signer-title"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company Signatory Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="email"
+                            autoComplete="email"
+                            disabled={!keyTerms.validShape || offerExpired || requestMutation.isPending}
+                            data-testid="input-email"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="sraNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>SRA No.</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value ?? ""}
+                            placeholder="Solicitors Regulation Authority number"
+                            disabled={!keyTerms.validShape || offerExpired || requestMutation.isPending}
+                            data-testid="input-sra-number"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {formError && (
+                    <div
+                      className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                      role="alert"
+                      data-testid="text-dpa-error"
+                    >
+                      {formError}
+                    </div>
                   )}
-                </Button>
-              </form>
-            </Form>
+
+                  <Button
+                    type="submit"
+                    disabled={
+                      !keyTerms.validShape ||
+                      offerExpired ||
+                      requestMutation.isPending
+                    }
+                    className="bg-[hsl(18,65%,45%)] hover:bg-[hsl(18,65%,38%)] text-white"
+                    data-testid="button-dpa-request"
+                  >
+                    {requestMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending confirmation…
+                      </>
+                    ) : (
+                      "Email me a confirmation link"
+                    )}
+                  </Button>
+                </form>
+              </Form>
+            )}
           </section>
         </motion.div>
       </main>

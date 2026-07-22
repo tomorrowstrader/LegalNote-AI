@@ -42,6 +42,8 @@ import SubProcessorsPage from "@/pages/SubProcessorsPage";
 import DpaPage from "@/pages/DpaPage";
 import DpaCompletePage from "@/pages/DpaCompletePage";
 import DpaPreviewPage from "@/pages/DpaPreviewPage";
+import DpaConfirmPage from "@/pages/DpaConfirmPage";
+import AcceptanceCertificatePage from "@/pages/AcceptanceCertificatePage";
 import Features from "@/pages/Features";
 import Calculator from "@/pages/Calculator";
 import MyActions from "@/pages/MyActions";
@@ -97,7 +99,9 @@ function Router() {
       <Route path="/sub-processors" component={SubProcessorsPage} />
       <Route path="/dpa/complete" component={DpaCompletePage} />
       <Route path="/dpa/preview" component={DpaPreviewPage} />
+      <Route path="/dpa/confirm/:token" component={DpaConfirmPage} />
       <Route path="/dpa" component={DpaPage} />
+      <Route path="/legal/acceptance/:id" component={AcceptanceCertificatePage} />
       <Route path="/features" component={Features} />
       <Route path="/calculator" component={Calculator} />
       <Route path="/login" component={Login} />
