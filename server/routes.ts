@@ -109,7 +109,7 @@ import { compileSraReportPdf } from "./services/sraReportPdf";
 import { logPersonnelMatterAccess } from "./personnelAccessAudit";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent } from "./calendar";
 import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
-import { isReplitOutlookConnected, createReplitOutlookEvent, updateReplitOutlookEvent, deleteReplitOutlookEvent } from "./replitOutlook";
+import { isReplitOutlookConnected, createReplitOutlookEvent, createReplitOutlookMeetingEvent, updateReplitOutlookEvent, deleteReplitOutlookEvent } from "./replitOutlook";
 import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber, isValidUKPhoneNumber, phoneLastFour } from "./sms";
 import {
   createGoogleOAuthClient,
@@ -11072,6 +11072,204 @@ ${firmName}`;
         });
       }
       
+      next(error);
+    }
+  });
+
+  // Create a new meeting and push it to the user's connected calendar
+  app.post("/api/scheduled-meetings", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+
+      const createSchema = z.object({
+        title: z.string().trim().min(1).max(500),
+        description: z.string().trim().max(5000).optional().nullable(),
+        startTime: z.string().min(1),
+        endTime: z.string().min(1).optional().nullable(),
+        meetingUrl: z.union([z.string().url().max(1000), z.literal(""), z.null()]).optional(),
+        caseId: z.string().min(1).optional().nullable(),
+        provider: z.enum(["google", "outlook"]).optional(),
+        attendees: z
+          .array(
+            z.object({
+              email: z.string().email().max(255),
+              name: z.string().trim().max(200).optional(),
+            }),
+          )
+          .max(50)
+          .optional()
+          .default([]),
+        clientEmail: z.union([z.string().email().max(255), z.literal(""), z.null()]).optional(),
+        clientName: z.union([z.string().trim().max(200), z.literal(""), z.null()]).optional(),
+      });
+
+      const parsed = createSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Invalid meeting details",
+          errors: parsed.error.flatten(),
+        });
+      }
+
+      const data = parsed.data;
+      const startTime = new Date(data.startTime);
+      if (isNaN(startTime.getTime()) || startTime <= new Date()) {
+        return res.status(400).json({ message: "Start time must be a valid future date" });
+      }
+
+      let endTime: Date | undefined;
+      if (data.endTime) {
+        endTime = new Date(data.endTime);
+        if (isNaN(endTime.getTime()) || endTime <= startTime) {
+          return res.status(400).json({ message: "End time must be after start time" });
+        }
+      } else {
+        endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+      }
+
+      if (data.caseId) {
+        const caseData = await storage.getCase(data.caseId, userId);
+        if (!caseData) {
+          return res.status(403).json({ message: "Case not found or not authorized" });
+        }
+      }
+
+      const connections = await getConnectedProviders(userId, storage);
+      const outlookConnected = connections.outlook.connected || (await isReplitOutlookConnected());
+      const googleConnected = connections.google.connected;
+
+      if (!googleConnected && !outlookConnected) {
+        return res.status(400).json({
+          message: "Calendar not connected. Please connect Google Calendar or Outlook in Settings.",
+          needsCalendarConnection: true,
+        });
+      }
+
+      let provider: "google" | "outlook" =
+        data.provider ||
+        (googleConnected ? "google" : "outlook");
+
+      if (provider === "google" && !googleConnected) {
+        if (!outlookConnected) {
+          return res.status(400).json({
+            message: "Google Calendar is not connected.",
+            needsCalendarConnection: true,
+          });
+        }
+        provider = "outlook";
+      }
+      if (provider === "outlook" && !outlookConnected) {
+        if (!googleConnected) {
+          return res.status(400).json({
+            message: "Outlook Calendar is not connected.",
+            needsCalendarConnection: true,
+          });
+        }
+        provider = "google";
+      }
+
+      const meetingUrl =
+        data.meetingUrl && data.meetingUrl.trim().length > 0
+          ? data.meetingUrl.trim()
+          : undefined;
+      const attendees = (data.attendees || []).filter((a) => a.email);
+      const description = data.description?.trim() || undefined;
+
+      let calendarEventId: string | undefined;
+
+      if (provider === "outlook") {
+        const outlookResult = await createReplitOutlookMeetingEvent({
+          title: data.title,
+          description,
+          startTime,
+          endTime,
+          meetingUrl,
+          attendees,
+        });
+        if (!outlookResult.success || !outlookResult.eventId) {
+          return res.status(502).json({
+            message: `Failed to create Outlook calendar event: ${outlookResult.error || "Unknown error"}`,
+          });
+        }
+        calendarEventId = outlookResult.eventId;
+      } else {
+        const googleResult = await createMeetingCalendarEvent(
+          userId,
+          {
+            title: data.title,
+            description,
+            startTime,
+            endTime,
+            meetingUrl,
+            attendees,
+          },
+          storage,
+        );
+        if (!googleResult.success || !googleResult.eventId) {
+          return res.status(502).json({
+            message: `Failed to create Google calendar event: ${googleResult.error || "Unknown error"}`,
+          });
+        }
+        calendarEventId = googleResult.eventId;
+      }
+
+      let meetingPlatform: "zoom" | "teams" | "meet" | "webex" | undefined;
+      if (meetingUrl) {
+        const urlLower = meetingUrl.toLowerCase();
+        if (urlLower.includes("zoom.us")) meetingPlatform = "zoom";
+        else if (urlLower.includes("teams.microsoft.com") || urlLower.includes("teams.live.com")) {
+          meetingPlatform = "teams";
+        } else if (urlLower.includes("meet.google.com")) meetingPlatform = "meet";
+        else if (urlLower.includes("webex.com")) meetingPlatform = "webex";
+      }
+
+      const clientEmail =
+        data.clientEmail && data.clientEmail.trim().length > 0
+          ? data.clientEmail.trim()
+          : attendees[0]?.email;
+      const clientName =
+        data.clientName && data.clientName.trim().length > 0
+          ? data.clientName.trim()
+          : attendees[0]?.name;
+
+      const meeting = await storage.createScheduledMeeting({
+        userId,
+        caseId: data.caseId || undefined,
+        calendarEventId,
+        calendarProvider: provider,
+        title: data.title,
+        description,
+        meetingUrl,
+        meetingPlatform,
+        startTime,
+        endTime,
+        attendees,
+        clientEmail: clientEmail || undefined,
+        clientName: clientName || undefined,
+        autoRecordEnabled: false,
+        consentStatus: "pending",
+        status: "scheduled",
+      });
+
+      await storage.createAuditLog({
+        eventType: "meeting_scheduled",
+        userId,
+        caseId: data.caseId || undefined,
+        ipAddress: req.ip || req.socket?.remoteAddress,
+        metadata: {
+          meetingId: meeting.id,
+          meetingTitle: meeting.title,
+          startTime: meeting.startTime,
+          calendarProvider: provider,
+          calendarEventId,
+          attendeeCount: attendees.length,
+        },
+        severity: "info",
+      });
+
+      res.status(201).json(meeting);
+    } catch (error) {
+      console.error("[SCHEDULED_MEETINGS] Error creating meeting:", error);
       next(error);
     }
   });

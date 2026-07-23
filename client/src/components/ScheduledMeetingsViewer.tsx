@@ -28,11 +28,13 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  CalendarPlus,
 } from "lucide-react";
 import { format, formatDistanceToNow, isToday, isTomorrow, isPast, addDays, startOfDay } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
 import type { ScheduledMeeting, Case } from "@shared/schema";
 import ConfigurationErrorModal from "@/components/ConfigurationErrorModal";
+import ScheduleMeetingModal from "@/components/ScheduleMeetingModal";
 import {
   Dialog,
   DialogContent,
@@ -884,6 +886,7 @@ function MeetingCompactRow({ meeting }: { meeting: ScheduledMeeting; onUpdate?: 
 export function ScheduledMeetingsViewer() {
   const { toast } = useToast();
   const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<MeetingTimeTab>("today");
   const [hasUserPickedTab, setHasUserPickedTab] = useState(false);
@@ -978,6 +981,14 @@ export function ScheduledMeetingsViewer() {
     syncMutation.mutate();
   };
 
+  const handleScheduleClick = () => {
+    if (!calendarConnected) {
+      setShowCalendarModal(true);
+      return;
+    }
+    setShowScheduleModal(true);
+  };
+
   const handleRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
@@ -1045,21 +1056,32 @@ export function ScheduledMeetingsViewer() {
                 Checking…
               </Button>
             ) : (
-              <Button
-                size="sm"
-                onClick={handleCalendarAction}
-                disabled={syncMutation.isPending}
-                data-testid={
-                  calendarConnected ? "button-refresh-calendar-meetings" : "button-sync-calendar"
-                }
-              >
-                {syncMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                )}
-                {calendarConnected ? "Refresh Meetings" : "Sync Calendar"}
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleScheduleClick}
+                  data-testid="button-schedule-meeting"
+                >
+                  <CalendarPlus className="w-4 h-4 mr-2" />
+                  Schedule
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleCalendarAction}
+                  disabled={syncMutation.isPending}
+                  data-testid={
+                    calendarConnected ? "button-refresh-calendar-meetings" : "button-sync-calendar"
+                  }
+                >
+                  {syncMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  {calendarConnected ? "Refresh Meetings" : "Sync Calendar"}
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -1073,7 +1095,19 @@ export function ScheduledMeetingsViewer() {
           <div className="text-center py-8 text-muted-foreground">
             <Video className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No upcoming meetings in the next 30 days</p>
-            <p className="text-sm mt-2">Sync your calendar to see scheduled video calls</p>
+            <p className="text-sm mt-2">
+              Schedule a meeting or sync your calendar to see upcoming video calls
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-4"
+              onClick={handleScheduleClick}
+              data-testid="button-schedule-meeting-empty"
+            >
+              <CalendarPlus className="w-4 h-4 mr-2" />
+              Schedule meeting
+            </Button>
           </div>
         ) : (
           <>
@@ -1166,6 +1200,14 @@ export function ScheduledMeetingsViewer() {
         open={showCalendarModal}
         onOpenChange={setShowCalendarModal}
         errorType="calendar_not_connected"
+      />
+
+      <ScheduleMeetingModal
+        open={showScheduleModal}
+        onOpenChange={setShowScheduleModal}
+        googleConnected={!!connections?.google?.connected}
+        outlookConnected={!!connections?.outlook?.connected}
+        onNeedsCalendarConnection={() => setShowCalendarModal(true)}
       />
     </Card>
   );

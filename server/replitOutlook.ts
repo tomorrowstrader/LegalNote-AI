@@ -172,6 +172,72 @@ export async function createReplitOutlookEvent(eventData: {
   }
 }
 
+/** Create a video/client meeting event (not a case deadline). */
+export async function createReplitOutlookMeetingEvent(eventData: {
+  title: string;
+  description?: string;
+  startTime: Date;
+  endTime?: Date;
+  meetingUrl?: string;
+  attendees?: Array<{ email: string; name?: string }>;
+}): Promise<{ success: boolean; eventId?: string; error?: string }> {
+  try {
+    const client = await getUncachableOutlookClient();
+    const endTime = eventData.endTime || new Date(eventData.startTime.getTime() + 60 * 60 * 1000);
+
+    const description =
+      eventData.description ||
+      `Meeting: ${eventData.title}\n\nCreated by LegalNote`;
+
+    const event: Record<string, unknown> = {
+      subject: eventData.title,
+      body: {
+        contentType: 'Text',
+        content: description,
+      },
+      start: {
+        dateTime: eventData.startTime.toISOString(),
+        timeZone: 'Europe/London',
+      },
+      end: {
+        dateTime: endTime.toISOString(),
+        timeZone: 'Europe/London',
+      },
+      isReminderOn: true,
+      reminderMinutesBeforeStart: 15,
+    };
+
+    if (eventData.meetingUrl) {
+      event.location = { displayName: eventData.meetingUrl };
+    }
+
+    if (eventData.attendees && eventData.attendees.length > 0) {
+      event.attendees = eventData.attendees.map((a) => ({
+        emailAddress: {
+          address: a.email,
+          name: a.name || a.email,
+        },
+        type: 'required',
+      }));
+    }
+
+    const response = await client.api('/me/events').post(event);
+    console.log('[OUTLOOK] Meeting event created:', response.id);
+
+    return {
+      success: true,
+      eventId: response.id || undefined,
+    };
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('[OUTLOOK] Failed to create meeting event:', err.message);
+    return {
+      success: false,
+      error: err.message || 'Failed to create Outlook meeting event',
+    };
+  }
+}
+
 // Update an existing Outlook calendar event
 export async function updateReplitOutlookEvent(eventId: string, eventData: {
   title: string;
