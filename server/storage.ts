@@ -5753,6 +5753,9 @@ export class DbStorage implements IStorage {
   
   async getUpcomingScheduledMeetings(userId: string, daysAhead: number = 7): Promise<ScheduledMeeting[]> {
     const now = new Date();
+    // Keep meetings visible for 15 minutes after start so late-joining solicitors can still open them.
+    const LATE_JOIN_GRACE_MS = 15 * 60 * 1000;
+    const windowStart = new Date(now.getTime() - LATE_JOIN_GRACE_MS);
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + daysAhead);
     
@@ -5763,7 +5766,7 @@ export class DbStorage implements IStorage {
         and(
           eq(scheduledMeetings.userId, userId),
           eq(scheduledMeetings.status, 'scheduled'),
-          gte(scheduledMeetings.startTime, now),
+          gte(scheduledMeetings.startTime, windowStart),
           lte(scheduledMeetings.startTime, futureDate)
         )
       )

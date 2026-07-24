@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronUp,
   CalendarPlus,
+  Radio,
 } from "lucide-react";
 import { format, formatDistanceToNow, isToday, isTomorrow, isPast, addDays, startOfDay } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
@@ -48,6 +49,9 @@ import { isFeatureVisible } from "@/lib/features";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 import { LiveBotModal } from "@/components/LiveBotModal";
 
+/** Keep meetings visible this long after start for late logins (must match server). */
+const LATE_JOIN_GRACE_MS = 15 * 60 * 1000;
+
 type MeetingAttendee = { email: string; name?: string; responseStatus?: string };
 
 type MeetingTimeTab = "today" | "tomorrow" | "next7" | "later";
@@ -58,6 +62,12 @@ const MEETING_TABS: { value: MeetingTimeTab; label: string }[] = [
   { value: "next7", label: "Next 7 days" },
   { value: "later", label: "Later" },
 ];
+
+function isMeetingInProgress(meeting: ScheduledMeeting, now = Date.now()): boolean {
+  if (meeting.status !== "scheduled") return false;
+  const start = new Date(meeting.startTime).getTime();
+  return start <= now && now < start + LATE_JOIN_GRACE_MS;
+}
 
 function categorizeMeeting(meeting: ScheduledMeeting): MeetingTimeTab {
   const start = new Date(meeting.startTime);
@@ -440,7 +450,9 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   const safeJoinUrl = getSafeHttpsMeetingUrl(meeting.meetingUrl);
   
   const startTime = new Date(meeting.startTime);
-  const isMeetingSoon = !isPast(startTime) && startTime.getTime() - Date.now() < 30 * 60 * 1000;
+  const inProgress = isMeetingInProgress(meeting);
+  const isMeetingSoon =
+    !inProgress && !isPast(startTime) && startTime.getTime() - Date.now() < 30 * 60 * 1000;
   const isActive = meeting.status === 'scheduled';
   
   const updateMutation = useMutation({
@@ -527,22 +539,35 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   
   return (
     <>
-      <Card className={`${isMeetingSoon && isActive ? 'border-primary' : ''} ${!isActive ? 'opacity-75' : ''}`} data-testid={`meeting-card-${meeting.id}`}>
+      <Card
+        className={`${
+          inProgress && isActive
+            ? "border-emerald-500/70 shadow-sm ring-1 ring-emerald-500/20"
+            : isMeetingSoon && isActive
+              ? "border-primary"
+              : ""
+        } ${!isActive ? "opacity-75" : ""}`}
+        data-testid={`meeting-card-${meeting.id}`}
+      >
         <CardContent className="p-4">
           <div className="flex flex-col gap-3">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium truncate" data-testid={`meeting-title-${meeting.id}`}>{meeting.title}</h3>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1 flex-wrap">
                   <Calendar className="w-4 h-4 flex-shrink-0" />
                   <span>
                     {isToday(startTime) ? 'Today' : isTomorrow(startTime) ? 'Tomorrow' : format(startTime, 'EEE, MMM d')}
                     {' at '}
                     {format(startTime, 'h:mm a')}
                   </span>
-                  {!isPast(startTime) && isActive && (
+                  {inProgress && isActive ? (
+                    <span className="text-xs text-emerald-700 dark:text-emerald-400">
+                      (scheduled start {formatDistanceToNow(startTime, { addSuffix: true })})
+                    </span>
+                  ) : !isPast(startTime) && isActive ? (
                     <span className="text-xs">({formatDistanceToNow(startTime, { addSuffix: true })})</span>
-                  )}
+                  ) : null}
                 </div>
               </div>
               
@@ -560,6 +585,15 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
             </div>
             
             <div className="flex flex-wrap items-center gap-2">
+              {inProgress && isActive && (
+                <Badge
+                  className="bg-emerald-600 hover:bg-emerald-600 text-white"
+                  data-testid={`badge-in-progress-${meeting.id}`}
+                >
+                  <Radio className="w-3 h-3 mr-1 animate-pulse" />
+                  In progress — join now
+                </Badge>
+              )}
               {getMeetingStatusBadge(meeting.status)}
               {isActive && getConsentStatusBadge(meeting.consentStatus)}
               {getBotStatusBadge(meeting.botStatus)}
@@ -597,19 +631,10 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
             
             {isActive && (
               <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowCaseDialog(true)}
-                  data-testid={`button-link-case-${meeting.id}`}
-                >
-                  <Briefcase className="w-3 h-3 mr-1" />
-                  {meeting.caseId ? 'Change Case' : 'Link Case'}
-                </Button>
-
                 {safeJoinUrl ? (
                   <Button
                     size="sm"
+                    className={inProgress ? "bg-emerald-600 hover:bg-emerald-700 text-white" : undefined}
                     onClick={() => {
                       if (meeting.recallBotId) {
                         window.open(safeJoinUrl, '_blank', 'noopener,noreferrer');
@@ -620,9 +645,23 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                     data-testid={`button-join-with-legalnote-${meeting.id}`}
                   >
                     <Video className="w-3 h-3 mr-1" />
-                    {meeting.recallBotId ? 'Join meeting' : 'Join with LegalNote'}
+                    {inProgress
+                      ? (meeting.recallBotId ? "Join now" : "Join now with LegalNote")
+                      : (meeting.recallBotId ? "Join meeting" : "Join with LegalNote")}
                   </Button>
-                ) : (
+                ) : null}
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowCaseDialog(true)}
+                  data-testid={`button-link-case-${meeting.id}`}
+                >
+                  <Briefcase className="w-3 h-3 mr-1" />
+                  {meeting.caseId ? 'Change Case' : 'Link Case'}
+                </Button>
+
+                {!safeJoinUrl ? (
                   <Dialog open={showUrlDialog} onOpenChange={setShowUrlDialog}>
                     <DialogTrigger asChild>
                       <Button size="sm" variant="outline" data-testid={`button-set-url-${meeting.id}`}>
@@ -653,7 +692,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                       </div>
                     </DialogContent>
                   </Dialog>
-                )}
+                ) : null}
                 
                 {attendees.length > 0 && (
                   <Button
@@ -806,11 +845,15 @@ function MeetingCompactRow({ meeting }: { meeting: ScheduledMeeting; onUpdate?: 
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const startTime = new Date(meeting.startTime);
   const isActive = meeting.status === "scheduled";
+  const inProgress = isMeetingInProgress(meeting);
+  const safeJoinUrl = getSafeHttpsMeetingUrl(meeting.meetingUrl);
 
   return (
     <>
       <div
-        className="flex items-center gap-2 sm:gap-3 py-2.5 px-2 border-b last:border-b-0 min-w-0"
+        className={`flex items-center gap-2 sm:gap-3 py-2.5 px-2 border-b last:border-b-0 min-w-0 ${
+          inProgress ? "bg-emerald-500/5" : ""
+        }`}
         data-testid={`meeting-compact-${meeting.id}`}
       >
         <div className="w-14 sm:w-16 flex-shrink-0 text-xs text-muted-foreground tabular-nums">
@@ -819,18 +862,39 @@ function MeetingCompactRow({ meeting }: { meeting: ScheduledMeeting; onUpdate?: 
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium truncate">{meeting.title}</p>
           <p className="text-xs text-muted-foreground truncate">
-            {isToday(startTime)
-              ? "Today"
-              : isTomorrow(startTime)
-                ? "Tomorrow"
-                : format(startTime, "EEE, MMM d")}
+            {inProgress
+              ? "In progress — join now"
+              : isToday(startTime)
+                ? "Today"
+                : isTomorrow(startTime)
+                  ? "Tomorrow"
+                  : format(startTime, "EEE, MMM d")}
           </p>
         </div>
-        <div className="hidden sm:flex flex-shrink-0">
+        <div className="hidden sm:flex flex-shrink-0 items-center gap-1">
+          {inProgress && (
+            <Badge className="bg-emerald-600 text-white text-[10px] px-1.5 py-0">
+              Live
+            </Badge>
+          )}
           {getPlatformIcon(meeting.meetingPlatform)}
         </div>
         {isActive && (
           <div className="flex items-center gap-1 flex-shrink-0">
+            {safeJoinUrl && (
+              <Button
+                size="sm"
+                variant={inProgress ? "default" : "ghost"}
+                className={`h-8 px-2 ${inProgress ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
+                onClick={() => window.open(safeJoinUrl, "_blank", "noopener,noreferrer")}
+                data-testid={`button-compact-join-${meeting.id}`}
+              >
+                <Video className="w-3.5 h-3.5" />
+                <span className="sr-only sm:not-sr-only sm:ml-1 text-xs">
+                  {inProgress ? "Join now" : "Join"}
+                </span>
+              </Button>
+            )}
             <Button
               size="sm"
               variant="ghost"
