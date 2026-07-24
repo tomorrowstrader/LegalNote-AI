@@ -4,10 +4,20 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, FileText, DollarSign, CheckCircle2, TrendingUp, Clock, FileDown, Loader2, UserPlus, Mail, Building2, Calendar, Check, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Users, FileText, DollarSign, CheckCircle2, TrendingUp, Clock, FileDown, Loader2, UserPlus, Mail, Building2, Calendar, Check, X, Sparkles } from "lucide-react";
 import { format } from "date-fns";
+import { Link } from "wouter";
 import { exportMarkdownToPDF } from "@/lib/documentExport";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 interface AdminStatistics {
@@ -76,8 +86,19 @@ function waitlistRequestedAt(entry: WaitlistEntry): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+type SeedReeveResult = {
+  success: boolean;
+  message: string;
+  caseId?: string;
+  userId?: string;
+  userEmail?: string;
+};
+
 export default function AdminDashboard() {
   const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null);
+  const [sampleEmail, setSampleEmail] = useState("");
+  const [sampleUserId, setSampleUserId] = useState("");
+  const [seedingUserId, setSeedingUserId] = useState<string | null>(null);
   const { toast } = useToast();
   
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<AdminStatistics>({
@@ -95,6 +116,34 @@ export default function AdminDashboard() {
   const { data: waitlist, isLoading: waitlistLoading } = useQuery<WaitlistEntry[]>({
     queryKey: ["/api/admin/waitlist"],
   });
+
+  const seedReeveMutation = useMutation({
+    mutationFn: async (payload: { email?: string; userId?: string }) => {
+      return apiRequest<SeedReeveResult>("POST", "/api/admin/sample-matters/reeve", payload);
+    },
+    onSuccess: (result) => {
+      setSeedingUserId(null);
+      toast({
+        title: "Sample matter sent",
+        description: result.message,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/statistics"] });
+    },
+    onError: (error) => {
+      setSeedingUserId(null);
+      toast({
+        title: "Could not send sample matter",
+        description: getApiErrorMessage(error, "The target user must already have an account."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendReeveSample = (payload: { email?: string; userId?: string }) => {
+    if (payload.userId) setSeedingUserId(payload.userId);
+    seedReeveMutation.mutate(payload);
+  };
 
   const updateWaitlistStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -185,9 +234,19 @@ export default function AdminDashboard() {
 
   return (
     <div className="container mx-auto p-6 space-y-6" data-testid="admin-dashboard">
-      <div>
-        <h1 className="text-3xl font-bold" data-testid="text-admin-title">Admin Dashboard</h1>
-        <p className="text-muted-foreground">System overview and cost monitoring</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold" data-testid="text-admin-title">Admin Dashboard</h1>
+          <p className="text-muted-foreground">System overview and cost monitoring</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm" data-testid="button-admin-provision-firm">
+            <Link href="/admin/provision-firm">
+              <Building2 className="w-4 h-4 mr-2" />
+              Evaluation firms &amp; invites
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Overview Statistics */}
@@ -321,6 +380,91 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
+      {/* Sample matter provisioning */}
+      <Card data-testid="card-sample-matters">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            Sample matters
+          </CardTitle>
+          <CardDescription>
+            Push a ready-made family law sample (Reeve financial remedy conference) into a user account.
+            Includes diarized transcript, attendance note with open reasoning gaps, and action items.
+            The user must already have signed up.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="sample-user">Select user</Label>
+              <Select
+                value={sampleUserId || undefined}
+                onValueChange={(value) => {
+                  setSampleUserId(value);
+                  const match = userStats?.find((u) => u.userId === value);
+                  if (match?.email) setSampleEmail(match.email);
+                }}
+              >
+                <SelectTrigger id="sample-user" data-testid="select-sample-user">
+                  <SelectValue placeholder="Choose an account…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {userStats?.filter((u) => u.email).map((user) => (
+                    <SelectItem key={user.userId} value={user.userId}>
+                      {(user.firstName && user.lastName
+                        ? `${user.firstName} ${user.lastName} — `
+                        : "") + (user.email || user.userId)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sample-email">Or enter email</Label>
+              <Input
+                id="sample-email"
+                type="email"
+                value={sampleEmail}
+                onChange={(e) => {
+                  setSampleEmail(e.target.value);
+                  setSampleUserId("");
+                }}
+                placeholder="solicitor@firm.co.uk"
+                data-testid="input-sample-email"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              onClick={() => {
+                if (sampleUserId) {
+                  sendReeveSample({ userId: sampleUserId });
+                } else if (sampleEmail.trim()) {
+                  sendReeveSample({ email: sampleEmail.trim() });
+                }
+              }}
+              disabled={
+                seedReeveMutation.isPending ||
+                (!sampleUserId && !sampleEmail.trim())
+              }
+              data-testid="button-send-reeve-sample"
+            >
+              {seedReeveMutation.isPending && !seedingUserId ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                "Send Reeve sample matter"
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Re-sending archives any prior Reeve sample for that user and creates a fresh one.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* User Statistics Table */}
       <Card>
         <CardHeader>
@@ -340,6 +484,7 @@ export default function AdminDashboard() {
                   <th className="text-right py-2 px-2">Total Costs</th>
                   <th className="text-left py-2 px-2">Last Activity</th>
                   <th className="text-left py-2 px-2">Joined</th>
+                  <th className="text-right py-2 px-2">Sample</th>
                 </tr>
               </thead>
               <tbody>
@@ -377,11 +522,26 @@ export default function AdminDashboard() {
                     <td className="py-3 px-2 text-muted-foreground text-xs">
                       {formatDate(user.joinedDate)}
                     </td>
+                    <td className="py-3 px-2 text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={seedReeveMutation.isPending}
+                        onClick={() => sendReeveSample({ userId: user.userId })}
+                        data-testid={`button-send-reeve-${user.userId}`}
+                      >
+                        {seedingUserId === user.userId && seedReeveMutation.isPending ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          "Send Reeve"
+                        )}
+                      </Button>
+                    </td>
                   </tr>
                 ))}
                 {(!userStats || userStats.length === 0) && (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={9} className="py-8 text-center text-muted-foreground">
                       No users found
                     </td>
                   </tr>

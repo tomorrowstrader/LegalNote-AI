@@ -49,7 +49,7 @@ const moreNavLinks: NavLinkItem[] = [
 
 export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   const [location, setLocation] = useLocation();
-  const { user, isAdmin, isFirmAdmin, isPartner, isSupervisor, canAccessFirmCompliance } = useAuth();
+  const { user, isAdmin, isFirmAdmin, canAccessFirmCompliance } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const visibleMoreNavLinks = moreNavLinks;
   const visibleAllNavLinks = [...primaryNavLinks, ...visibleMoreNavLinks];
@@ -167,18 +167,17 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                     </Link>
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem asChild data-testid="menu-item-audit-logs">
-                  <Link href="/audit-logs">Audit Logs</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild data-testid="menu-item-security">
-                  <Link href="/app/security">
-                    <Shield className="w-4 h-4 mr-2" />
-                    Security & Compliance
-                  </Link>
-                </DropdownMenuItem>
-                {(isFirmAdmin || isPartner || isSupervisor) && (
+                {isAdmin && (
                   <>
-                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild data-testid="menu-item-audit-logs">
+                      <Link href="/audit-logs">Audit Logs</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild data-testid="menu-item-security">
+                      <Link href="/app/security">
+                        <Shield className="w-4 h-4 mr-2" />
+                        Security & Compliance
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild data-testid="menu-item-demo-generator">
                       <Link href="/demo-generator">
                         <Link2 className="w-4 h-4 mr-2" />
@@ -187,31 +186,32 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                     </DropdownMenuItem>
                   </>
                 )}
-                {(isFirmAdmin) && (
+                {isFirmAdmin && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild data-testid="menu-item-team-management">
                       <Link href="/team">Team Management</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild data-testid="menu-item-firm-overview">
-                      <Link href="/firm">Firm overview</Link>
+                      <Link href="/firm">Firm Overview</Link>
                     </DropdownMenuItem>
-                    {isAdmin && (
-                      <>
-                        <DropdownMenuItem asChild data-testid="menu-item-admin-dashboard">
-                          <Link href="/admin">Admin Dashboard</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild data-testid="menu-item-admin-provision-firm-nav">
-                          <Link href="/admin/provision-firm">Provision evaluation firm</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild data-testid="menu-item-admin-dpa-mint-nav">
-                          <Link href="/admin/dpa-mint">Mint DPA Link</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild data-testid="menu-item-admin-dpa-acceptances-nav">
-                          <Link href="/admin/dpa-acceptances">DPA Acceptances</Link>
-                        </DropdownMenuItem>
-                      </>
-                    )}
+                  </>
+                )}
+                {isAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild data-testid="menu-item-admin-dashboard">
+                      <Link href="/admin">Admin Dashboard</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild data-testid="menu-item-admin-provision-firm-nav">
+                      <Link href="/admin/provision-firm">Provision evaluation firm</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild data-testid="menu-item-admin-dpa-mint-nav">
+                      <Link href="/admin/dpa-mint">Mint DPA Link</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild data-testid="menu-item-admin-dpa-acceptances-nav">
+                      <Link href="/admin/dpa-acceptances">DPA Acceptances</Link>
+                    </DropdownMenuItem>
                   </>
                 )}
                 <DropdownMenuSeparator />

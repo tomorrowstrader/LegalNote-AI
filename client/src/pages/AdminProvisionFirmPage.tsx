@@ -2,12 +2,19 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Building2, Loader2 } from "lucide-react";
+import { Building2, Loader2, Mail } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -32,12 +39,24 @@ type EvaluationFirm = {
   createdAt: string;
 };
 
+type LoginInviteResult = {
+  success: boolean;
+  message: string;
+  firmId: string;
+  firmName: string;
+  email: string;
+  alreadyClaimed?: boolean;
+};
+
 export default function AdminProvisionFirmPage() {
   const { toast } = useToast();
   const [firmName, setFirmName] = useState("");
   const [leadEmail, setLeadEmail] = useState("");
   const [seatLimit, setSeatLimit] = useState("3");
   const [evaluationEndsAt, setEvaluationEndsAt] = useState("");
+  const [inviteFirmId, setInviteFirmId] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [sendingFirmId, setSendingFirmId] = useState<string | null>(null);
 
   const { isLoading: accessLoading, error: accessError, data: firms = [] } = useQuery<EvaluationFirm[]>({
     queryKey: ["/api/admin/evaluation-firms"],
@@ -72,6 +91,36 @@ export default function AdminProvisionFirmPage() {
     },
   });
 
+  const inviteMutation = useMutation({
+    mutationFn: async (payload: { firmId?: string; email?: string }) => {
+      return apiRequest<LoginInviteResult>(
+        "POST",
+        "/api/admin/evaluation-firms/send-login-invite",
+        payload,
+      );
+    },
+    onSuccess: (result) => {
+      setSendingFirmId(null);
+      toast({
+        title: "Login invite sent",
+        description: result.message,
+      });
+    },
+    onError: (error) => {
+      setSendingFirmId(null);
+      toast({
+        title: "Invite failed",
+        description: getApiErrorMessage(error, "Could not send login invite."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendInvite = (payload: { firmId?: string; email?: string }, firmIdForSpinner?: string) => {
+    if (firmIdForSpinner) setSendingFirmId(firmIdForSpinner);
+    inviteMutation.mutate(payload);
+  };
+
   if (accessLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -97,6 +146,8 @@ export default function AdminProvisionFirmPage() {
       </div>
     );
   }
+
+  const awaitingFirms = firms.filter((f) => f.provisionedLeadEmail && !f.provisionedLeadUserId);
 
   return (
     <div className="min-h-screen bg-background">
@@ -192,6 +243,85 @@ export default function AdminProvisionFirmPage() {
           </CardContent>
         </Card>
 
+        <Card data-testid="card-send-login-invite">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Mail className="w-5 h-5" />
+              Send first-login invite
+            </CardTitle>
+            <CardDescription>
+              Email a provisioned governed-evaluation lead a branded invite to sign in for the first time.
+              They must use the exact reserved email with Google or Microsoft.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="invite-firm">Select provisioned firm</Label>
+                <Select
+                  value={inviteFirmId || undefined}
+                  onValueChange={(value) => {
+                    setInviteFirmId(value);
+                    const match = firms.find((f) => f.id === value);
+                    if (match?.provisionedLeadEmail) setInviteEmail(match.provisionedLeadEmail);
+                  }}
+                >
+                  <SelectTrigger id="invite-firm" data-testid="select-invite-firm">
+                    <SelectValue placeholder="Choose a firm…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {firms.filter((f) => f.provisionedLeadEmail).map((firm) => (
+                      <SelectItem key={firm.id} value={firm.id}>
+                        {firm.name} — {firm.provisionedLeadEmail}
+                        {firm.provisionedLeadUserId ? " (active)" : " (awaiting login)"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="invite-email">Or enter lead email</Label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => {
+                    setInviteEmail(e.target.value);
+                    setInviteFirmId("");
+                  }}
+                  placeholder="shak.inayat@penngroup.co.uk"
+                  data-testid="input-invite-login-email"
+                />
+              </div>
+            </div>
+            <Button
+              onClick={() => {
+                if (inviteFirmId) sendInvite({ firmId: inviteFirmId }, inviteFirmId);
+                else if (inviteEmail.trim()) sendInvite({ email: inviteEmail.trim() });
+              }}
+              disabled={
+                inviteMutation.isPending ||
+                (!inviteFirmId && !inviteEmail.trim())
+              }
+              data-testid="button-send-login-invite"
+            >
+              {inviteMutation.isPending && !sendingFirmId ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                "Send login invite"
+              )}
+            </Button>
+            {awaitingFirms.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {awaitingFirms.length} firm{awaitingFirms.length === 1 ? "" : "s"} still awaiting first login.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Evaluation firms</CardTitle>
@@ -209,6 +339,7 @@ export default function AdminProvisionFirmPage() {
                     <TableHead>Seats</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Provisioned</TableHead>
+                    <TableHead className="text-right">Invite</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -228,6 +359,21 @@ export default function AdminProvisionFirmPage() {
                         {firm.provisionedAt
                           ? format(new Date(firm.provisionedAt), "dd MMM yyyy")
                           : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!firm.provisionedLeadEmail || inviteMutation.isPending}
+                          onClick={() => sendInvite({ firmId: firm.id }, firm.id)}
+                          data-testid={`button-invite-firm-${firm.id}`}
+                        >
+                          {sendingFirmId === firm.id && inviteMutation.isPending ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            "Send invite"
+                          )}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

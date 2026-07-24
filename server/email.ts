@@ -2032,6 +2032,83 @@ export async function sendLegalAgreementAcceptedEmail(params: {
 }
 
 /**
+ * Invite a provisioned governed-evaluation lead to sign in for the first time.
+ * On first login they claim the reserved firm lead seat.
+ */
+export async function sendGovernedEvaluationLoginInviteEmail(params: {
+  to: string;
+  firmName: string;
+  seatLimit?: number | null;
+  evaluationEndsAt?: Date | null;
+  invitedByName?: string | null;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const baseUrl = getLegalNoteEmailBaseUrl();
+  const loginUrl = `${baseUrl}/login`;
+  const safeTo = escapeHtmlEmail(params.to);
+  const safeFirm = escapeHtmlEmail(params.firmName);
+  const invitedBy = params.invitedByName
+    ? escapeHtmlEmail(params.invitedByName)
+    : null;
+  const seatText =
+    params.seatLimit != null && params.seatLimit > 0
+      ? `<p style="margin:0 0 8px"><strong>Seats reserved:</strong> ${params.seatLimit}</p>`
+      : '';
+  const endsText = params.evaluationEndsAt
+    ? `<p style="margin:0"><strong>Evaluation ends:</strong> ${escapeHtmlEmail(
+        params.evaluationEndsAt.toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        }),
+      )}</p>`
+    : '';
+
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: 'Governed evaluation — first login',
+    footerNote: `This email was sent to ${safeTo}. Contact jazz.dennis@legalnote.ai if you are not the right person.`,
+    bodyHtml: `
+      <h2>Your LegalNote evaluation account is ready</h2>
+      <p>Hello,</p>
+      ${invitedBy ? `<p>${invitedBy} has reserved <strong>${safeFirm}</strong> for a governed evaluation on LegalNote.</p>` : `<p><strong>${safeFirm}</strong> has been reserved for a governed evaluation on LegalNote.</p>`}
+      <p>Sign in with <strong>Google</strong> or <strong>Microsoft</strong> using <strong>${safeTo}</strong>. On first login you become the firm lead and can invite colleagues within your seat limit.</p>
+      <div class="meta">
+        <p style="margin:0 0 8px"><strong>Firm:</strong> ${safeFirm}</p>
+        <p style="margin:0 0 8px"><strong>Sign in email:</strong> ${safeTo}</p>
+        ${seatText}
+        ${endsText}
+      </div>
+      <p style="text-align:center;margin:28px 0;">
+        <a href="${loginUrl}" class="cta-btn">Sign in to LegalNote</a>
+      </p>
+      <div class="notice">
+        <strong>Important:</strong> use exactly this email address when signing in. A different Google or Microsoft account will not claim the reserved firm.
+      </div>
+      <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${loginUrl}</p>
+      <p style="margin-top:28px;">Kind regards,<br><strong>Jazz Dennis</strong><br>LegalNote</p>
+    `,
+  });
+
+  try {
+    const result = await sendEmail({
+      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
+      to: params.to,
+      replyTo: 'jazz.dennis@legalnote.ai',
+      subject: `${params.firmName} — your LegalNote evaluation login`,
+      html: emailHtml,
+    });
+    if (!result.success) {
+      console.error('[EMAIL] Error sending governed evaluation login invite:', result.error);
+    } else {
+      console.log('[EMAIL] Governed evaluation login invite sent:', result.messageId);
+    }
+    return result;
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending governed evaluation login invite:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+/**
  * After acceptance: ask the firm to complete evaluation configuration details.
  */
 export async function sendEvaluationSetupEmail(params: {

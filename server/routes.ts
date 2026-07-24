@@ -137,7 +137,7 @@ import {
 } from "./services/litigationHoldGraceWindowService";
 import { AssemblyAIService } from "./services/assemblyAIService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, legalNoteBrandHeaderHtml } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, legalNoteBrandHeaderHtml } from "./email";
 import {
   renderConsentAlreadyRespondedPage,
   renderConsentDecisionPage,
@@ -7918,6 +7918,135 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     try {
       const firmsList = await storage.listEvaluationFirms();
       res.json(firmsList);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Email a provisioned governed-evaluation lead their first-login invite
+  app.post("/api/admin/evaluation-firms/send-login-invite", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const schema = z.object({
+        firmId: z.string().uuid().optional(),
+        email: z.string().email().max(255).optional(),
+      }).refine((d) => Boolean(d.firmId || d.email), {
+        message: "Provide firmId or email",
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Invalid request — provide a firmId or lead email",
+          errors: parsed.error.flatten().fieldErrors,
+        });
+      }
+
+      let firm = parsed.data.firmId
+        ? await storage.getFirm(parsed.data.firmId)
+        : undefined;
+      if (!firm && parsed.data.email) {
+        firm = await storage.getFirmByProvisionedLeadEmail(parsed.data.email);
+      }
+      if (!firm || !firm.isEvaluation) {
+        return res.status(404).json({
+          message: "No evaluation firm found for that firm or email. Provision the firm first.",
+        });
+      }
+      if (!firm.provisionedLeadEmail) {
+        return res.status(400).json({
+          message: "This evaluation firm has no lead email on file.",
+        });
+      }
+
+      const adminUser = await storage.getUser(req.user.claims.sub);
+      const invitedByName = adminUser
+        ? [adminUser.firstName, adminUser.lastName].filter(Boolean).join(" ") || adminUser.email
+        : null;
+
+      const emailResult = await sendGovernedEvaluationLoginInviteEmail({
+        to: firm.provisionedLeadEmail,
+        firmName: firm.name,
+        seatLimit: firm.seatLimit,
+        evaluationEndsAt: firm.evaluationEndsAt,
+        invitedByName,
+      });
+
+      if (!emailResult.success) {
+        return res.status(502).json({
+          message: emailResult.error || "Failed to send invite email",
+          firmId: firm.id,
+          email: firm.provisionedLeadEmail,
+        });
+      }
+
+      await storage.createAuditLog({
+        eventType: "evaluation_login_invite_sent",
+        userId: req.user.claims.sub,
+        severity: "info",
+        metadata: {
+          firmId: firm.id,
+          firmName: firm.name,
+          leadEmail: firm.provisionedLeadEmail,
+          alreadyClaimed: Boolean(firm.provisionedLeadUserId),
+          messageId: emailResult.messageId,
+        },
+      }).catch(() => {});
+
+      res.json({
+        success: true,
+        message: `Login invite sent to ${firm.provisionedLeadEmail}`,
+        firmId: firm.id,
+        firmName: firm.name,
+        email: firm.provisionedLeadEmail,
+        alreadyClaimed: Boolean(firm.provisionedLeadUserId),
+        messageId: emailResult.messageId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Seed the Reeve family sample matter into a target user account (platform admin only)
+  app.post("/api/admin/sample-matters/reeve", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const schema = z.object({
+        email: z.string().email().max(255).optional(),
+        userId: z.string().min(1).max(128).optional(),
+      }).refine((d) => Boolean(d.email || d.userId), {
+        message: "Provide email or userId",
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Invalid request — provide a user email or userId",
+          errors: parsed.error.flatten().fieldErrors,
+        });
+      }
+
+      const { seedReeveSampleMatter } = await import("./services/seedReeveSampleMatter");
+      const result = await seedReeveSampleMatter({
+        userEmail: parsed.data.email,
+        userId: parsed.data.userId,
+      });
+
+      if (!result.success) {
+        const notFound = /no user found/i.test(result.message);
+        return res.status(notFound ? 404 : 400).json(result);
+      }
+
+      await storage.createAuditLog({
+        eventType: "sample_matter_seeded",
+        userId: req.user.claims.sub,
+        caseId: result.caseId,
+        severity: "info",
+        metadata: {
+          sample: "reeve_family_conference",
+          targetUserId: result.userId,
+          targetEmail: result.userEmail,
+          matterReference: "REE/FAM26-01188",
+        },
+      }).catch(() => {});
+
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }
