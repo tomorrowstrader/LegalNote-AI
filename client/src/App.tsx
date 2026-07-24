@@ -112,11 +112,12 @@ function Router() {
       <Route path="/calculator" component={Calculator} />
       <Route path="/login" component={Login} />
 
-      {/* Admin DPA tools — always registered so deep links don't 404 before/without auth.
+      {/* Admin tools — always registered so deep links don't blank before/without auth.
           API still enforces isAuthenticated + isAdmin. */}
       <Route path="/admin/dpa-mint" component={AdminDpaMintPage} />
       <Route path="/admin/dpa-acceptances" component={AdminDpaAcceptancesPage} />
       <Route path="/admin/provision-firm" component={AdminProvisionFirmPage} />
+      <Route path="/admin" component={AdminDashboard} />
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
@@ -144,7 +145,6 @@ function Router() {
           <Route path="/settings" component={Settings} />
           <Route path="/profile" component={MyProfile} />
           <Route path="/audit-logs" component={AuditLogs} />
-          <Route path="/admin" component={AdminDashboard} />
           <Route path="/app/security" component={SecurityFeatures} />
           <Route path="/my-actions" component={MyActions} />
           <Route path="/clients" component={Clients} />

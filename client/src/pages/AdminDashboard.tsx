@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toTitleCase } from "@/lib/utils";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,19 +47,33 @@ interface StrategyDoc {
 }
 
 interface WaitlistEntry {
-  id: number;
+  id: string;
   email: string;
-  name: string | null;
+  firstName: string | null;
+  lastName: string | null;
   firmName: string | null;
   firmSize: string | null;
   role: string | null;
-  phone: string | null;
   source: string | null;
   referralCode: string | null;
   status: string;
   gdprConsent: boolean;
   marketingConsent: boolean;
-  createdAt: string;
+  /** DB column is signup_at — keep createdAt as optional alias for older payloads */
+  signupAt: string;
+  createdAt?: string;
+}
+
+function waitlistDisplayName(entry: WaitlistEntry): string | null {
+  const parts = [entry.firstName, entry.lastName].filter(Boolean);
+  return parts.length ? parts.join(" ") : null;
+}
+
+function waitlistRequestedAt(entry: WaitlistEntry): Date | null {
+  const raw = entry.signupAt || entry.createdAt;
+  if (!raw) return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export default function AdminDashboard() {
@@ -83,9 +97,8 @@ export default function AdminDashboard() {
   });
 
   const updateWaitlistStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: number; status: string }) => {
-      const response = await apiRequest("PATCH", `/api/admin/waitlist/${id}`, { status });
-      return response.json();
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      return apiRequest("PATCH", `/api/admin/waitlist/${id}`, { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/waitlist"] });
@@ -106,8 +119,7 @@ export default function AdminDashboard() {
   const handleDownloadPDF = async (filename: string, title: string) => {
     setDownloadingDoc(filename);
     try {
-      const response = await apiRequest("GET", `/api/admin/docs/${filename}`);
-      const { content } = await response.json();
+      const { content } = await apiRequest<{ content: string }>("GET", `/api/admin/docs/${filename}`);
       await exportMarkdownToPDF(content, title);
     } catch (error) {
       console.error("Failed to download PDF:", error);
@@ -131,9 +143,11 @@ export default function AdminDashboard() {
     }).format(amount);
   };
 
-  const formatDate = (dateStr: string | null) => {
+  const formatDate = (dateStr: string | Date | null | undefined) => {
     if (!dateStr) return "Never";
-    return format(new Date(dateStr), "dd MMM yyyy HH:mm");
+    const d = dateStr instanceof Date ? dateStr : new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return "—";
+    return format(d, "dd MMM yyyy HH:mm");
   };
 
   if (statsLoading || usersLoading) {
@@ -415,15 +429,19 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {waitlist.map((entry) => (
+                  {waitlist.map((entry) => {
+                    const displayName = waitlistDisplayName(entry);
+                    const requestedAt = waitlistRequestedAt(entry);
+                    const statusLabel = entry.status ? toTitleCase(entry.status) : "Unknown";
+                    return (
                     <tr key={entry.id} className="border-b hover-elevate" data-testid={`row-waitlist-${entry.id}`}>
                       <td className="py-3 px-2">
                         <div className="font-medium flex items-center gap-2">
                           <Mail className="h-3 w-3 text-muted-foreground" />
                           {entry.email}
                         </div>
-                        {entry.name && (
-                          <div className="text-xs text-muted-foreground mt-1">{entry.name}</div>
+                        {displayName && (
+                          <div className="text-xs text-muted-foreground mt-1">{displayName}</div>
                         )}
                       </td>
                       <td className="py-3 px-2">
@@ -471,16 +489,16 @@ export default function AdminDashboard() {
                       </td>
                       <td className="py-3 px-2">
                         <Badge 
-                          variant={entry.status === "approved" ? "default" : entry.status === "rejected" ? "destructive" : "secondary"}
+                          variant={entry.status === "approved" || entry.status === "active" || entry.status === "invited" ? "default" : entry.status === "rejected" || entry.status === "declined" ? "destructive" : "secondary"}
                           className={entry.status === "pending" ? "bg-yellow-500/10 text-yellow-700" : ""}
                         >
-                          {toTitleCase(entry.status)}
+                          {statusLabel}
                         </Badge>
                       </td>
                       <td className="py-3 px-2 text-muted-foreground text-xs">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {format(new Date(entry.createdAt), "dd MMM yyyy")}
+                          {requestedAt ? format(requestedAt, "dd MMM yyyy") : "—"}
                         </div>
                       </td>
                       <td className="py-3 px-2">
@@ -491,7 +509,7 @@ export default function AdminDashboard() {
                                 size="icon"
                                 variant="ghost"
                                 className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                onClick={() => updateWaitlistStatus.mutate({ id: entry.id, status: "approved" })}
+                                onClick={() => updateWaitlistStatus.mutate({ id: entry.id, status: "invited" })}
                                 disabled={updateWaitlistStatus.isPending}
                                 data-testid={`button-approve-${entry.id}`}
                               >
@@ -501,7 +519,7 @@ export default function AdminDashboard() {
                                 size="icon"
                                 variant="ghost"
                                 className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => updateWaitlistStatus.mutate({ id: entry.id, status: "rejected" })}
+                                onClick={() => updateWaitlistStatus.mutate({ id: entry.id, status: "declined" })}
                                 disabled={updateWaitlistStatus.isPending}
                                 data-testid={`button-reject-${entry.id}`}
                               >
@@ -512,7 +530,8 @@ export default function AdminDashboard() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -546,7 +565,12 @@ export default function AdminDashboard() {
                     <div className="font-medium truncate" data-testid={`text-doc-title-${doc.filename}`}>{doc.title}</div>
                     <div className="text-xs text-muted-foreground flex items-center gap-3 mt-1">
                       <span data-testid={`text-doc-size-${doc.filename}`}>{formatFileSize(doc.size)}</span>
-                      <span data-testid={`text-doc-updated-${doc.filename}`}>Updated {format(new Date(doc.modifiedAt), "dd MMM yyyy")}</span>
+                      <span data-testid={`text-doc-updated-${doc.filename}`}>
+                        Updated {(() => {
+                          const d = new Date(doc.modifiedAt);
+                          return Number.isNaN(d.getTime()) ? "—" : format(d, "dd MMM yyyy");
+                        })()}
+                      </span>
                     </div>
                   </div>
                   <Button
