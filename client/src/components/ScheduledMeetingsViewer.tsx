@@ -16,7 +16,6 @@ import {
   XCircle, 
   AlertCircle,
   RefreshCw,
-  Link as LinkIcon,
   Bot,
   Send,
   Loader2,
@@ -30,6 +29,7 @@ import {
   ChevronUp,
   CalendarPlus,
   Radio,
+  Pencil,
 } from "lucide-react";
 import { format, formatDistanceToNow, isToday, isTomorrow, isPast, addDays, startOfDay } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
@@ -41,7 +41,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -169,16 +168,43 @@ function getMeetingStatusBadge(status: string) {
   }
 }
 
+/** Prefer detected platform; otherwise default Meet/Teams from the linked calendar OAuth account. */
+function resolveMeetingPlatform(
+  meeting: ScheduledMeeting,
+): "zoom" | "teams" | "meet" | "webex" | null {
+  const p = meeting.meetingPlatform;
+  if (p === "zoom" || p === "teams" || p === "meet" || p === "webex") return p;
+  if (meeting.calendarProvider === "outlook") return "teams";
+  if (meeting.calendarProvider === "google") return "meet";
+  return null;
+}
+
 function getPlatformIcon(platform: string | null) {
   switch (platform) {
-    case 'zoom':
-      return <Badge variant="outline" className="text-xs">Zoom</Badge>;
-    case 'teams':
-      return <Badge variant="outline" className="text-xs">Teams</Badge>;
-    case 'meet':
-      return <Badge variant="outline" className="text-xs">Meet</Badge>;
-    case 'webex':
-      return <Badge variant="outline" className="text-xs">Webex</Badge>;
+    case "zoom":
+      return (
+        <Badge variant="outline" className="text-xs">
+          Zoom
+        </Badge>
+      );
+    case "teams":
+      return (
+        <Badge variant="outline" className="text-xs">
+          Microsoft Teams
+        </Badge>
+      );
+    case "meet":
+      return (
+        <Badge variant="outline" className="text-xs">
+          Google Meet
+        </Badge>
+      );
+    case "webex":
+      return (
+        <Badge variant="outline" className="text-xs">
+          Webex
+        </Badge>
+      );
     default:
       return null;
   }
@@ -352,7 +378,7 @@ function CancelMeetingDialog({
   );
 }
 
-function RescheduleMeetingDialog({
+function EditMeetingDialog({
   meeting,
   open,
   onOpenChange,
@@ -362,72 +388,131 @@ function RescheduleMeetingDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { toast } = useToast();
-  const [newDate, setNewDate] = useState('');
-  const [newTime, setNewTime] = useState('');
-  
-  const rescheduleMutation = useMutation({
+  const [title, setTitle] = useState(meeting.title);
+  const [newDate, setNewDate] = useState("");
+  const [newTime, setNewTime] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    const start = new Date(meeting.startTime);
+    setTitle(meeting.title);
+    setNewDate(format(start, "yyyy-MM-dd"));
+    setNewTime(format(start, "HH:mm"));
+  }, [open, meeting]);
+
+  const saveMutation = useMutation({
     mutationFn: async () => {
+      const trimmedTitle = title.trim();
+      if (!trimmedTitle) {
+        throw new Error("Title is required");
+      }
+      if (!newDate || !newTime) {
+        throw new Error("Date and time are required");
+      }
+
       const newStartTime = new Date(`${newDate}T${newTime}`);
-      const endTimeDiff = meeting.endTime 
-        ? new Date(meeting.endTime).getTime() - new Date(meeting.startTime).getTime() 
-        : 60 * 60 * 1000;
-      const newEndTime = new Date(newStartTime.getTime() + endTimeDiff);
-      return apiRequest('POST', `/api/scheduled-meetings/${meeting.id}/reschedule`, {
-        newStartTime: newStartTime.toISOString(),
-        newEndTime: newEndTime.toISOString(),
+      if (isNaN(newStartTime.getTime())) {
+        throw new Error("Invalid date or time");
+      }
+
+      const originalStart = new Date(meeting.startTime);
+      const timeChanged = newStartTime.getTime() !== originalStart.getTime();
+      const titleChanged = trimmedTitle !== meeting.title;
+
+      if (!timeChanged && !titleChanged) {
+        throw new Error("No changes to save");
+      }
+
+      if (timeChanged) {
+        if (newStartTime <= new Date()) {
+          throw new Error("Start time must be in the future");
+        }
+        const endTimeDiff = meeting.endTime
+          ? new Date(meeting.endTime).getTime() - originalStart.getTime()
+          : 60 * 60 * 1000;
+        const newEndTime = new Date(newStartTime.getTime() + endTimeDiff);
+        return apiRequest("POST", `/api/scheduled-meetings/${meeting.id}/reschedule`, {
+          newStartTime: newStartTime.toISOString(),
+          newEndTime: newEndTime.toISOString(),
+          ...(titleChanged ? { title: trimmedTitle } : {}),
+        });
+      }
+
+      return apiRequest("PATCH", `/api/scheduled-meetings/${meeting.id}`, {
+        title: trimmedTitle,
       });
     },
     onSuccess: () => {
-      toast({ title: "Meeting rescheduled", description: "A new meeting has been created with the updated time." });
-      queryClient.invalidateQueries({ queryKey: ['/api/scheduled-meetings'] });
+      toast({ title: "Meeting updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduled-meetings"] });
       onOpenChange(false);
     },
-    onError: (error: any) => {
-      toast({ title: "Failed to reschedule", description: error.message, variant: "destructive" });
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update meeting",
+        description: getApiErrorMessage(error, error.message),
+        variant: "destructive",
+      });
     },
   });
-  
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="dialog-reschedule-meeting">
+      <DialogContent data-testid="dialog-edit-meeting">
         <DialogHeader>
-          <DialogTitle>Reschedule Meeting</DialogTitle>
+          <DialogTitle>Edit Meeting</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
-          <p className="text-sm text-muted-foreground">
-            Reschedule <span className="font-medium text-foreground">{meeting.title}</span>
-          </p>
           <div>
-            <Label>New Date</Label>
+            <Label htmlFor="edit-meeting-title">Title</Label>
             <Input
-              type="date"
-              value={newDate}
-              onChange={(e) => setNewDate(e.target.value)}
-              min={format(new Date(), 'yyyy-MM-dd')}
-              data-testid="input-reschedule-date"
+              id="edit-meeting-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              data-testid="input-edit-meeting-title"
             />
           </div>
           <div>
-            <Label>New Time</Label>
+            <Label htmlFor="edit-meeting-date">Date</Label>
             <Input
+              id="edit-meeting-date"
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
+              min={format(new Date(), "yyyy-MM-dd")}
+              data-testid="input-edit-meeting-date"
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-meeting-time">Time</Label>
+            <Input
+              id="edit-meeting-time"
               type="time"
               value={newTime}
               onChange={(e) => setNewTime(e.target.value)}
-              data-testid="input-reschedule-time"
+              data-testid="input-edit-meeting-time"
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-reschedule-dismiss">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-edit-meeting-dismiss"
+          >
             Cancel
           </Button>
           <Button
-            onClick={() => rescheduleMutation.mutate()}
-            disabled={rescheduleMutation.isPending || !newDate || !newTime}
-            data-testid="button-confirm-reschedule"
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending || !title.trim() || !newDate || !newTime}
+            data-testid="button-confirm-edit-meeting"
           >
-            {rescheduleMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CalendarClock className="w-4 h-4 mr-1" />}
-            Reschedule
+            {saveMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            ) : (
+              <CalendarClock className="w-4 h-4 mr-1" />
+            )}
+            Save changes
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -437,13 +522,11 @@ function RescheduleMeetingDialog({
 
 function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdate: () => void }) {
   const { toast } = useToast();
-  const [showUrlDialog, setShowUrlDialog] = useState(false);
-  const [meetingUrl, setMeetingUrl] = useState('');
   const [showRecipientDialog, setShowRecipientDialog] = useState(false);
   const [selectedAttendeeEmail, setSelectedAttendeeEmail] = useState('');
   const [showCaseDialog, setShowCaseDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showLiveBotModal, setShowLiveBotModal] = useState(false);
 
   const attendees = getMeetingAttendees(meeting);
@@ -488,20 +571,6 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
     },
     onError: (error: any) => {
       toast({ title: "Failed to deploy bot", description: error.message, variant: "destructive" });
-    },
-  });
-  
-  const setUrlMutation = useMutation({
-    mutationFn: async (url: string) => {
-      return apiRequest('POST', `/api/scheduled-meetings/${meeting.id}/set-url`, { meetingUrl: url });
-    },
-    onSuccess: () => {
-      toast({ title: "Meeting URL saved" });
-      setShowUrlDialog(false);
-      queryClient.invalidateQueries({ queryKey: ['/api/scheduled-meetings'] });
-    },
-    onError: (error: any) => {
-      toast({ title: "Failed to save URL", description: error.message, variant: "destructive" });
     },
   });
   
@@ -597,13 +666,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
               {getMeetingStatusBadge(meeting.status)}
               {isActive && getConsentStatusBadge(meeting.consentStatus)}
               {getBotStatusBadge(meeting.botStatus)}
-              {getPlatformIcon(meeting.meetingPlatform)}
-              
-              {isActive && !safeJoinUrl && (
-                <Badge variant="outline" className="text-orange-600 border-orange-300">
-                  <AlertCircle className="w-3 h-3 mr-1" /> No URL
-                </Badge>
-              )}
+              {getPlatformIcon(resolveMeetingPlatform(meeting))}
               
               {linkedCase && (
                 <Badge variant="secondary" data-testid={`badge-linked-case-${meeting.id}`}>
@@ -661,38 +724,15 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                   {meeting.caseId ? 'Change Case' : 'Link Case'}
                 </Button>
 
-                {!safeJoinUrl ? (
-                  <Dialog open={showUrlDialog} onOpenChange={setShowUrlDialog}>
-                    <DialogTrigger asChild>
-                      <Button size="sm" variant="outline" data-testid={`button-set-url-${meeting.id}`}>
-                        <LinkIcon className="w-3 h-3 mr-1" /> Set URL
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Set Meeting URL</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 pt-4">
-                        <div>
-                          <Label>Meeting URL</Label>
-                          <Input
-                            placeholder="https://zoom.us/j/..."
-                            value={meetingUrl}
-                            onChange={(e) => setMeetingUrl(e.target.value)}
-                            data-testid="input-meeting-url"
-                          />
-                        </div>
-                        <Button 
-                          onClick={() => setUrlMutation.mutate(meetingUrl)}
-                          disabled={!meetingUrl || setUrlMutation.isPending}
-                          data-testid="button-save-url"
-                        >
-                          {setUrlMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save URL'}
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                ) : null}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowEditDialog(true)}
+                  data-testid={`button-edit-meeting-${meeting.id}`}
+                >
+                  <Pencil className="w-3 h-3 mr-1" />
+                  Edit Meeting
+                </Button>
                 
                 {attendees.length > 0 && (
                   <Button
@@ -788,16 +828,6 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setShowRescheduleDialog(true)}
-                  data-testid={`button-reschedule-${meeting.id}`}
-                >
-                  <CalendarClock className="w-3 h-3 mr-1" />
-                  Reschedule
-                </Button>
-                
-                <Button
-                  size="sm"
-                  variant="outline"
                   className="text-destructive"
                   onClick={() => setShowCancelDialog(true)}
                   data-testid={`button-cancel-meeting-${meeting.id}`}
@@ -829,10 +859,10 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
         open={showCancelDialog}
         onOpenChange={setShowCancelDialog}
       />
-      <RescheduleMeetingDialog
+      <EditMeetingDialog
         meeting={meeting}
-        open={showRescheduleDialog}
-        onOpenChange={setShowRescheduleDialog}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
       />
     </>
   );
@@ -842,7 +872,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
 function MeetingCompactRow({ meeting }: { meeting: ScheduledMeeting; onUpdate?: () => void }) {
   const [showCaseDialog, setShowCaseDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const startTime = new Date(meeting.startTime);
   const isActive = meeting.status === "scheduled";
   const inProgress = isMeetingInProgress(meeting);
@@ -877,7 +907,7 @@ function MeetingCompactRow({ meeting }: { meeting: ScheduledMeeting; onUpdate?: 
               Live
             </Badge>
           )}
-          {getPlatformIcon(meeting.meetingPlatform)}
+          {getPlatformIcon(resolveMeetingPlatform(meeting))}
         </div>
         {isActive && (
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -909,11 +939,11 @@ function MeetingCompactRow({ meeting }: { meeting: ScheduledMeeting; onUpdate?: 
               size="sm"
               variant="ghost"
               className="h-8 px-2"
-              onClick={() => setShowRescheduleDialog(true)}
-              data-testid={`button-compact-reschedule-${meeting.id}`}
+              onClick={() => setShowEditDialog(true)}
+              data-testid={`button-compact-edit-meeting-${meeting.id}`}
             >
-              <CalendarClock className="w-3.5 h-3.5" />
-              <span className="sr-only sm:not-sr-only sm:ml-1 text-xs">Reschedule</span>
+              <Pencil className="w-3.5 h-3.5" />
+              <span className="sr-only sm:not-sr-only sm:ml-1 text-xs">Edit</span>
             </Button>
             <Button
               size="sm"
@@ -938,10 +968,10 @@ function MeetingCompactRow({ meeting }: { meeting: ScheduledMeeting; onUpdate?: 
         open={showCancelDialog}
         onOpenChange={setShowCancelDialog}
       />
-      <RescheduleMeetingDialog
+      <EditMeetingDialog
         meeting={meeting}
-        open={showRescheduleDialog}
-        onOpenChange={setShowRescheduleDialog}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
       />
     </>
   );

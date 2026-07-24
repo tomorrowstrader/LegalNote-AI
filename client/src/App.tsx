@@ -28,6 +28,8 @@ import AuditLogs from "@/pages/AuditLogs";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminDpaMintPage from "@/pages/AdminDpaMintPage";
 import AdminDpaAcceptancesPage from "@/pages/AdminDpaAcceptancesPage";
+import AdminProvisionFirmPage from "@/pages/AdminProvisionFirmPage";
+import FirmOverview from "@/pages/FirmOverview";
 import SecurityFeatures from "@/pages/SecurityFeatures";
 import Landing from "@/pages/Landing";
 import Pricing from "@/pages/Pricing";
@@ -114,6 +116,7 @@ function Router() {
           API still enforces isAuthenticated + isAdmin. */}
       <Route path="/admin/dpa-mint" component={AdminDpaMintPage} />
       <Route path="/admin/dpa-acceptances" component={AdminDpaAcceptancesPage} />
+      <Route path="/admin/provision-firm" component={AdminProvisionFirmPage} />
       
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
@@ -149,6 +152,7 @@ function Router() {
           <Route path="/time-summary" component={TimeSummary} />
           <Route path="/undertakings" component={UndertakingsDashboard} />
           {isFirmAdmin && <Route path="/team" component={TeamManagement} />}
+          {isFirmAdmin && <Route path="/firm" component={FirmOverview} />}
           {canAccessFirmCompliance && firmComplianceDashboardVisible && <Route path="/compliance" component={FirmCompliance} />}
           <Route path="/waitlist" component={WaitlistPage} />
         </>

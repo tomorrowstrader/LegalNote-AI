@@ -1,11 +1,18 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
-import { LegalPageFooter, LegalTable } from "@/components/LegalPageFooter";
+import {
+  LegalPageFooter,
+  LegalTable,
+  legalBodyClass,
+  legalH1Class,
+  legalH2Class,
+  legalH3Class,
+  legalLinkClass,
+  legalMutedClass,
+  legalPageShellClass,
+} from "@/components/LegalPageFooter";
 import { useEffect } from "react";
-
-const linkClass = "text-[hsl(18,65%,45%)] hover:underline";
-const h3Class = "text-xl font-medium text-[hsl(25,30%,15%)] mb-3 mt-6";
 
 export default function PrivacyPage() {
   useEffect(() => {
@@ -40,7 +47,7 @@ export default function PrivacyPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[hsl(30,25%,97%)] dark:bg-background">
+    <div className={legalPageShellClass}>
       <SecondaryPageHeader />
 
       <main className="max-w-4xl mx-auto px-6 py-16">
@@ -51,24 +58,24 @@ export default function PrivacyPage() {
           className="prose prose-lg max-w-none"
         >
           <h1
-            className="text-4xl font-medium text-[hsl(25,30%,12%)] mb-2"
+            className={legalH1Class}
             data-testid="heading-privacy"
           >
             Privacy Policy
           </h1>
-          <p className="text-[hsl(25,20%,45%)] mb-2">Last updated: July 2026</p>
-          <p className="text-sm text-[hsl(25,20%,45%)] mb-1">
+          <p className={`${legalMutedClass} mb-2`}>Last updated: July 2026</p>
+          <p className={`text-sm ${legalMutedClass} mb-1`}>
             LegalNote Technologies Ltd (registered in England and Wales, No.
             16788981; ICO Reg. ZC176177)
           </p>
-          <p className="text-sm text-[hsl(25,20%,45%)] mb-8">
+          <p className={`text-sm ${legalMutedClass} mb-8`}>
             Registered address: 71–75 Shelton Street, Covent Garden, London WC2H
             9JQ
           </p>
 
-          <div className="space-y-8 text-[hsl(25,20%,30%)]">
+          <div className={legalBodyClass}>
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 1. Introduction
               </h2>
               <p className="leading-relaxed mb-4">
@@ -87,7 +94,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 2. Data controller and processor roles
               </h2>
               <LegalTable
@@ -112,7 +119,7 @@ export default function PrivacyPage() {
                     "Sub-processors",
                     <>
                       See section 9 and the{" "}
-                      <Link href="/sub-processors" className={linkClass}>
+                      <Link href="/sub-processors" className={legalLinkClass}>
                         Sub-processor List
                       </Link>
                     </>,
@@ -129,10 +136,10 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 3. Personal data we collect
               </h2>
-              <h3 className={h3Class}>
+              <h3 className={legalH3Class}>
                 3.1 Account data (solicitor and firm users) — LegalNote as
                 controller
               </h3>
@@ -153,7 +160,7 @@ export default function PrivacyPage() {
                 </li>
               </ul>
 
-              <h3 className={h3Class}>
+              <h3 className={legalH3Class}>
                 3.2 Client and matter data — LegalNote as processor
               </h3>
               <ul className="list-disc pl-6 space-y-2">
@@ -180,14 +187,14 @@ export default function PrivacyPage() {
                 </li>
               </ul>
 
-              <h3 className={h3Class}>3.3 Technical data</h3>
+              <h3 className={legalH3Class}>3.3 Technical data</h3>
               <ul className="list-disc pl-6 space-y-2">
                 <li>
                   IP address, browser and device information, and security logs.
                 </li>
                 <li>
                   Cookies and similar technologies (see our{" "}
-                  <Link href="/cookies" className={linkClass}>
+                  <Link href="/cookies" className={legalLinkClass}>
                     Cookie Policy
                   </Link>
                   ).
@@ -196,7 +203,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 4. How we use personal data, and the legal basis
               </h2>
               <p className="leading-relaxed mb-4">
@@ -249,10 +256,10 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 5. Data storage, processing locations and security
               </h2>
-              <h3 className={h3Class}>
+              <h3 className={legalH3Class}>
                 5.1 Processing locations (aligned with production controls)
               </h3>
               <p className="leading-relaxed mb-4">
@@ -296,7 +303,7 @@ export default function PrivacyPage() {
                 ]}
               />
 
-              <h3 className={h3Class}>
+              <h3 className={legalH3Class}>
                 5.2 Other processing that may involve transfers outside the UK
                 or EEA
               </h3>
@@ -357,7 +364,7 @@ export default function PrivacyPage() {
                 government-access terms in our sub-processor agreements.
               </p>
 
-              <h3 className={h3Class}>5.3 Security measures</h3>
+              <h3 className={legalH3Class}>5.3 Security measures</h3>
               <ul className="list-disc pl-6 space-y-2">
                 <li>
                   TLS for data in transit; HSTS and security headers in
@@ -387,7 +394,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 6. Data retention
               </h2>
               <LegalTable
@@ -432,7 +439,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 7. Your rights under the UK GDPR
               </h2>
               <LegalTable
@@ -464,7 +471,7 @@ export default function PrivacyPage() {
               />
               <p className="leading-relaxed mt-4">
                 Account or website data:{" "}
-                <a href="mailto:privacy@legalnote.ai" className={linkClass}>
+                <a href="mailto:privacy@legalnote.ai" className={legalLinkClass}>
                   privacy@legalnote.ai
                 </a>
                 . Client or matter data: contact your solicitor, who is the
@@ -474,7 +481,7 @@ export default function PrivacyPage() {
                   href="https://ico.org.uk/make-a-complaint"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={linkClass}
+                  className={legalLinkClass}
                 >
                   ico.org.uk/make-a-complaint
                 </a>
@@ -483,14 +490,14 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 8. Cookies
               </h2>
               <p className="leading-relaxed">
                 We use strictly necessary cookies for authentication and session
                 management, and a limited functional cookie for UI preferences.
                 We do not use analytics or advertising cookies. See our{" "}
-                <Link href="/cookies" className={linkClass}>
+                <Link href="/cookies" className={legalLinkClass}>
                   Cookie Policy
                 </Link>{" "}
                 for details.
@@ -498,13 +505,13 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 9. Sub-processors
               </h2>
               <p className="leading-relaxed mb-4">
                 The current sub-processors used to deliver the service are listed
                 below. The full list, with change log, is in our{" "}
-                <Link href="/sub-processors" className={linkClass}>
+                <Link href="/sub-processors" className={legalLinkClass}>
                   Sub-processor List
                 </Link>
                 .
@@ -581,7 +588,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 10. Children's privacy
               </h2>
               <p className="leading-relaxed">
@@ -591,7 +598,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 11. Changes to this policy
               </h2>
               <p className="leading-relaxed">
@@ -602,16 +609,16 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 12. Contact us
               </h2>
               <p className="leading-relaxed mb-4">
                 Data protection:{" "}
-                <a href="mailto:privacy@legalnote.ai" className={linkClass}>
+                <a href="mailto:privacy@legalnote.ai" className={legalLinkClass}>
                   privacy@legalnote.ai
                 </a>
                 . Support:{" "}
-                <a href="mailto:support@legalnote.ai" className={linkClass}>
+                <a href="mailto:support@legalnote.ai" className={legalLinkClass}>
                   support@legalnote.ai
                 </a>
                 .

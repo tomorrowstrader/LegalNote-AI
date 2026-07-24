@@ -7,7 +7,13 @@ import { useMutation } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
 import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
-import { LegalPageFooter } from "@/components/LegalPageFooter";
+import {
+  LegalPageFooter,
+  legalH1Class,
+  legalLinkClass,
+  legalMutedClass,
+  legalPageShellClass,
+} from "@/components/LegalPageFooter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,9 +25,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { apiRequest, getApiErrorMessage } from "@/lib/queryClient";
-
-const linkClass =
-  "text-[hsl(18,65%,45%)] dark:text-[hsl(18,70%,62%)] hover:underline";
 
 const firmFormSchema = z.object({
   firmName: z.string().min(1, "Required").max(300),
@@ -119,7 +122,7 @@ export default function DpaPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[hsl(30,25%,97%)] dark:bg-background">
+    <div className={legalPageShellClass}>
       <SecondaryPageHeader />
 
       <main className="max-w-4xl mx-auto px-6 py-16">
@@ -129,12 +132,12 @@ export default function DpaPage() {
           transition={{ duration: 0.5 }}
         >
           <h1
-            className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2"
+            className={legalH1Class}
             data-testid="heading-dpa"
           >
             Data Processing Agreement
           </h1>
-          <p className="text-[hsl(25,20%,45%)] dark:text-muted-foreground mb-8">
+          <p className={`${legalMutedClass} mb-8`}>
             Accept the DPA and Governed Evaluation Agreement for governed
             evaluation of LegalNote
           </p>
@@ -147,15 +150,15 @@ export default function DpaPage() {
               exact text in force, and a certificate is emailed to you.
             </p>
             <p>
-              <Link href="/dpa/preview" className={linkClass} data-testid="link-dpa-preview">
+              <Link href="/dpa/preview" className={legalLinkClass} data-testid="link-dpa-preview">
                 Data Processing Agreement
               </Link>
               {" · "}
-              <Link href="/sub-processors" className={linkClass}>
+              <Link href="/sub-processors" className={legalLinkClass}>
                 Sub-processors
               </Link>
               {" · "}
-              <Link href="/privacy" className={linkClass}>
+              <Link href="/privacy" className={legalLinkClass}>
                 Privacy Policy
               </Link>
             </p>
@@ -179,7 +182,7 @@ export default function DpaPage() {
               >
                 This page requires a signed acceptance link from LegalNote that
                 states the Evaluation Period and Fee Earner Count. Contact{" "}
-                <a href="mailto:legal@legalnote.ai" className={linkClass}>
+                <a href="mailto:legal@legalnote.ai" className={legalLinkClass}>
                   legal@legalnote.ai
                 </a>{" "}
                 if you need a link.

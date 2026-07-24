@@ -2,6 +2,27 @@ import type { ReactNode } from "react";
 import { Link } from "wouter";
 import { Mail } from "lucide-react";
 
+/**
+ * Shared typography for public legal pages.
+ * Always pair light HSL with dashboard theme tokens so dark mode contrast stays correct.
+ */
+export const legalPageShellClass =
+  "min-h-screen bg-[hsl(30,25%,97%)] dark:bg-background";
+export const legalLinkClass =
+  "text-[hsl(18,65%,45%)] dark:text-[hsl(18,70%,62%)] hover:underline";
+export const legalH1Class =
+  "text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2";
+export const legalH2Class =
+  "text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4";
+export const legalH3Class =
+  "text-xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-3 mt-6";
+export const legalMutedClass =
+  "text-[hsl(25,20%,45%)] dark:text-muted-foreground";
+export const legalBodyClass =
+  "space-y-8 text-[hsl(25,20%,30%)] dark:text-foreground";
+export const legalCardClass =
+  "border border-[hsl(25,15%,85%)] dark:border-border bg-white/60 dark:bg-card rounded-md";
+
 /** Shared footer links for public legal pages */
 export function LegalPageFooter() {
   return (

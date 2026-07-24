@@ -1,10 +1,17 @@
 import { motion } from "framer-motion";
 import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
-import { LegalPageFooter, LegalTable } from "@/components/LegalPageFooter";
+import {
+  LegalPageFooter,
+  LegalTable,
+  legalBodyClass,
+  legalH1Class,
+  legalH2Class,
+  legalH3Class,
+  legalLinkClass,
+  legalMutedClass,
+  legalPageShellClass,
+} from "@/components/LegalPageFooter";
 import { useEffect } from "react";
-
-const linkClass = "text-[hsl(18,65%,45%)] hover:underline";
-const h3Class = "text-xl font-medium text-[hsl(25,30%,15%)] mb-3 mt-6";
 
 export default function CookiePage() {
   useEffect(() => {
@@ -39,7 +46,7 @@ export default function CookiePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[hsl(30,25%,97%)] dark:bg-background">
+    <div className={legalPageShellClass}>
       <SecondaryPageHeader />
 
       <main className="max-w-4xl mx-auto px-6 py-16">
@@ -50,16 +57,16 @@ export default function CookiePage() {
           className="prose prose-lg max-w-none"
         >
           <h1
-            className="text-4xl font-medium text-[hsl(25,30%,12%)] mb-2"
+            className={legalH1Class}
             data-testid="heading-cookies"
           >
             Cookie Policy
           </h1>
-          <p className="text-[hsl(25,20%,45%)] mb-8">Last updated: July 2026</p>
+          <p className={`${legalMutedClass} mb-8`}>Last updated: July 2026</p>
 
-          <div className="space-y-8 text-[hsl(25,20%,30%)]">
+          <div className={legalBodyClass}>
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 1. Introduction
               </h2>
               <p className="leading-relaxed">
@@ -70,7 +77,7 @@ export default function CookiePage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 2. What are cookies?
               </h2>
               <p className="leading-relaxed">
@@ -81,10 +88,10 @@ export default function CookiePage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 3. Cookies we use
               </h2>
-              <h3 className={h3Class}>3.1 Strictly necessary cookies</h3>
+              <h3 className={legalH3Class}>3.1 Strictly necessary cookies</h3>
               <p className="leading-relaxed mb-4">
                 These cookies are required for the Service to function and cannot
                 be disabled if you wish to use authenticated features.
@@ -104,7 +111,7 @@ export default function CookiePage() {
                 secure.
               </p>
 
-              <h3 className={h3Class}>3.2 Functional cookies</h3>
+              <h3 className={legalH3Class}>3.2 Functional cookies</h3>
               <LegalTable
                 headers={["Cookie", "Purpose", "Duration"]}
                 rows={[
@@ -116,7 +123,7 @@ export default function CookiePage() {
                 ]}
               />
 
-              <h3 className={h3Class}>3.3 Cookies we do not use</h3>
+              <h3 className={legalH3Class}>3.3 Cookies we do not use</h3>
               <ul className="list-disc pl-6 space-y-2">
                 <li>
                   We do not set analytics cookies (no Google Analytics, PostHog,
@@ -132,7 +139,7 @@ export default function CookiePage() {
                 </li>
               </ul>
 
-              <h3 className={h3Class}>3.4 Local storage (not cookies)</h3>
+              <h3 className={legalH3Class}>3.4 Local storage (not cookies)</h3>
               <p className="leading-relaxed">
                 The application may store non-cookie data in browser storage, for
                 example UI drafts or preferences. This is limited to operating
@@ -141,7 +148,7 @@ export default function CookiePage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 4. Third-party cookies and related technologies
               </h2>
               <p className="leading-relaxed mb-4">
@@ -159,7 +166,7 @@ export default function CookiePage() {
                       href="https://policies.google.com/privacy"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={linkClass}
+                      className={legalLinkClass}
                     >
                       policies.google.com/privacy
                     </a>,
@@ -172,7 +179,7 @@ export default function CookiePage() {
                       href="https://privacy.microsoft.com"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={linkClass}
+                      className={legalLinkClass}
                     >
                       privacy.microsoft.com
                     </a>,
@@ -185,7 +192,7 @@ export default function CookiePage() {
                       href="https://stripe.com/privacy"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={linkClass}
+                      className={legalLinkClass}
                     >
                       stripe.com/privacy
                     </a>,
@@ -199,7 +206,7 @@ export default function CookiePage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 5. Managing cookies
               </h2>
               <p className="leading-relaxed">
@@ -211,7 +218,7 @@ export default function CookiePage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 6. Do Not Track
               </h2>
               <p className="leading-relaxed">
@@ -222,7 +229,7 @@ export default function CookiePage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 7. Changes to this policy
               </h2>
               <p className="leading-relaxed">
@@ -232,12 +239,12 @@ export default function CookiePage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] mb-4">
+              <h2 className={legalH2Class}>
                 8. Contact us
               </h2>
               <p className="leading-relaxed mb-4">
                 Email:{" "}
-                <a href="mailto:privacy@legalnote.ai" className={linkClass}>
+                <a href="mailto:privacy@legalnote.ai" className={legalLinkClass}>
                   privacy@legalnote.ai
                 </a>
                 .

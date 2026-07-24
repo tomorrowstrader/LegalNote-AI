@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -840,7 +841,17 @@ export default function TeamManagement() {
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="heading-team-management">Team Management</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Manage your team members, roles, and regulatory designations
+            {" · "}
+            <Link href="/firm" className="text-foreground underline underline-offset-2">
+              Firm overview
+            </Link>
           </p>
+          {firm?.seatLimit != null && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Seat limit: {firm.seatLimit}
+              {firm.isEvaluation ? " (evaluation)" : ""}
+            </p>
+          )}
         </div>
         {isFirmAdmin && firm && <InviteDialog firmId={firm.id} />}
       </div>

@@ -784,6 +784,20 @@ export interface IStorage {
   getFirm(id: string): Promise<Firm | undefined>;
   updateFirm(id: string, updates: Partial<Firm>): Promise<Firm | undefined>;
   ensureUserHasFirm(userId: string): Promise<Firm>;
+  /** Platform admin: create evaluation firm reserved for a lead email. */
+  provisionEvaluationFirm(data: {
+    firmName: string;
+    leadEmail: string;
+    seatLimit: number;
+    provisionedByUserId: string;
+    evaluationEndsAt?: Date | null;
+  }): Promise<Firm>;
+  listEvaluationFirms(): Promise<Firm[]>;
+  getFirmByProvisionedLeadEmail(email: string): Promise<Firm | undefined>;
+  /** Attach user as firm admin when their email matches a pending evaluation provision. */
+  claimEvaluationFirmLead(userId: string, email: string | null | undefined): Promise<User | undefined>;
+  countFirmSeatUsage(firmId: string): Promise<{ members: number; pendingInvites: number; used: number; limit: number | null }>;
+  getFirmEvaluationStats(firmId: string, range: "today" | "48h" | "week" | "all"): Promise<FirmEvaluationStats>;
 
   // Team member methods
   getFirmMembers(firmId: string): Promise<User[]>;
@@ -2708,6 +2722,34 @@ export class MemStorage implements IStorage {
   async getFirm(_id: string): Promise<Firm | undefined> { return undefined; }
   async updateFirm(_id: string, _updates: Partial<Firm>): Promise<Firm | undefined> { throw new Error("Not implemented"); }
   async ensureUserHasFirm(_userId: string): Promise<Firm> { throw new Error("Not implemented"); }
+  async provisionEvaluationFirm(_data: {
+    firmName: string;
+    leadEmail: string;
+    seatLimit: number;
+    provisionedByUserId: string;
+    evaluationEndsAt?: Date | null;
+  }): Promise<Firm> { throw new Error("Not implemented in MemStorage"); }
+  async listEvaluationFirms(): Promise<Firm[]> { return []; }
+  async getFirmByProvisionedLeadEmail(_email: string): Promise<Firm | undefined> { return undefined; }
+  async claimEvaluationFirmLead(_userId: string, _email: string | null | undefined): Promise<User | undefined> { return undefined; }
+  async countFirmSeatUsage(_firmId: string): Promise<{ members: number; pendingInvites: number; used: number; limit: number | null }> {
+    return { members: 0, pendingInvites: 0, used: 0, limit: null };
+  }
+  async getFirmEvaluationStats(_firmId: string, range: FirmEvaluationStatsRange): Promise<FirmEvaluationStats> {
+    return {
+      range,
+      meetingsConducted: 0,
+      meetingHoursRecorded: 0,
+      notesProduced: 0,
+      lettersProduced: 0,
+      notesAdopted: 0,
+      lettersAdopted: 0,
+      documentsSent: 0,
+      hoursProtected: 0,
+      seats: { members: 0, pendingInvites: 0, used: 0, limit: null },
+      byMember: [],
+    };
+  }
   async getFirmMembers(_firmId: string): Promise<User[]> { return []; }
   async updateUserFirmRole(_userId: string, _updates: { primaryRole?: string | null; customRoleLabel?: string | null; regulatoryDesignations?: string[]; inviteStatus?: string; firmId?: string | null; invitedAt?: Date | null; }): Promise<User | undefined> { throw new Error("Not implemented"); }
   async removeUserFromFirm(_userId: string, _removedAt: Date): Promise<User | undefined> { throw new Error("Not implemented"); }
@@ -2771,9 +2813,39 @@ export class DisplayNameAlreadyConfirmedError extends Error {
 /** Canonical form for users.email and collision checks. IdP casing is preserved in email_at_link. */
 export function normalizeAuthEmail(email: string | null | undefined): string | null {
   if (email == null) return null;
-  const trimmed = email.trim();
-  if (!trimmed) return null;
-  return trimmed.toLowerCase();
+  const trimmed = email.trim().toLowerCase();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export type FirmEvaluationStatsRange = "today" | "48h" | "week" | "all";
+
+export type FirmEvaluationStats = {
+  range: FirmEvaluationStatsRange;
+  meetingsConducted: number;
+  meetingHoursRecorded: number;
+  notesProduced: number;
+  lettersProduced: number;
+  notesAdopted: number;
+  lettersAdopted: number;
+  documentsSent: number;
+  /** Estimated fee-earner hours protected vs manual note-up (incl. transcript editing). */
+  hoursProtected: number;
+  seats: { used: number; limit: number | null; members: number; pendingInvites: number };
+  byMember: Array<{
+    userId: string;
+    name: string;
+    meetings: number;
+    notesAdopted: number;
+  }>;
+};
+
+/** Manual note-up baseline: 45 minutes per recorded hour, capped at 90 minutes per matter. */
+function estimateHoursProtectedFromDurationSeconds(durationSeconds: number): number {
+  if (!durationSeconds || durationSeconds <= 0) return 0;
+  const recordedHours = durationSeconds / 3600;
+  const manualMinutes = Math.min(90, recordedHours * 45);
+  const legalNoteReviewMinutes = 12;
+  return Math.max(0, (manualMinutes - legalNoteReviewMinutes) / 60);
 }
 
 export class DbStorage implements IStorage {
@@ -2941,13 +3013,15 @@ export class DbStorage implements IStorage {
 
     const identity = await this.getAuthIdentity("google", profile.providerUserId);
     if (identity) {
-      return this.upsertUser({
+      const user = await this.upsertUser({
         id: identity.userId,
         email: canonicalEmail ?? undefined,
         firstName: profile.firstName ?? undefined,
         lastName: profile.lastName ?? undefined,
         profileImageUrl: profile.profileImageUrl ?? undefined,
       });
+      const claimed = await this.claimEvaluationFirmLead(user.id, user.email ?? canonicalEmail);
+      return claimed ?? user;
     }
 
     await this.assertNoEmailCollisionForNewIdentity({
@@ -2972,7 +3046,8 @@ export class DbStorage implements IStorage {
       emailAtLink,
     });
 
-    return user;
+    const claimed = await this.claimEvaluationFirmLead(user.id, user.email ?? canonicalEmail);
+    return claimed ?? user;
   }
 
   async resolveMicrosoftAuthUser(profile: {
@@ -2987,13 +3062,15 @@ export class DbStorage implements IStorage {
 
     const identity = await this.getAuthIdentity("microsoft", profile.providerUserId);
     if (identity) {
-      return this.upsertUser({
+      const user = await this.upsertUser({
         id: identity.userId,
         email: canonicalEmail ?? undefined,
         firstName: profile.firstName ?? undefined,
         lastName: profile.lastName ?? undefined,
         profileImageUrl: profile.profileImageUrl ?? undefined,
       });
+      const claimed = await this.claimEvaluationFirmLead(user.id, user.email ?? canonicalEmail);
+      return claimed ?? user;
     }
 
     if (!canonicalEmail) {
@@ -3022,7 +3099,8 @@ export class DbStorage implements IStorage {
       emailAtLink,
     });
 
-    return user;
+    const claimed = await this.claimEvaluationFirmLead(user.id, user.email ?? canonicalEmail);
+    return claimed ?? user;
   }
 
   async updateUserStripeInfo(userId: string, stripeInfo: {
@@ -6392,6 +6470,15 @@ export class DbStorage implements IStorage {
       email: data.email ?? null,
       website: data.website ?? null,
       logoUrl: data.logoUrl ?? null,
+      seatLimit: data.seatLimit ?? null,
+      isEvaluation: data.isEvaluation ?? false,
+      provisionedLeadEmail: data.provisionedLeadEmail
+        ? normalizeAuthEmail(data.provisionedLeadEmail)
+        : null,
+      provisionedLeadUserId: data.provisionedLeadUserId ?? null,
+      provisionedByUserId: data.provisionedByUserId ?? null,
+      provisionedAt: data.provisionedAt ?? null,
+      evaluationEndsAt: data.evaluationEndsAt ?? null,
     }).returning();
     return result[0];
   }
@@ -6414,6 +6501,12 @@ export class DbStorage implements IStorage {
       const firm = await this.getFirm(u.firmId);
       if (firm) return firm;
     }
+    // Prefer claiming an admin-provisioned evaluation firm over creating a personal firm
+    const claimed = await this.claimEvaluationFirmLead(userId, u.email);
+    if (claimed?.firmId) {
+      const firm = await this.getFirm(claimed.firmId);
+      if (firm) return firm;
+    }
     const displayName = u.firstName && u.lastName
       ? `${u.firstName} ${u.lastName}'s Firm`
       : u.email
@@ -6428,6 +6521,287 @@ export class DbStorage implements IStorage {
       updatedAt: new Date(),
     }).where(eq(users.id, userId));
     return firm;
+  }
+
+  async provisionEvaluationFirm(data: {
+    firmName: string;
+    leadEmail: string;
+    seatLimit: number;
+    provisionedByUserId: string;
+    evaluationEndsAt?: Date | null;
+  }): Promise<Firm> {
+    const leadEmail = normalizeAuthEmail(data.leadEmail);
+    if (!leadEmail) throw new Error("Lead email is required");
+
+    const existing = await this.getFirmByProvisionedLeadEmail(leadEmail);
+    if (existing && !existing.provisionedLeadUserId) {
+      throw new Error("An evaluation firm is already provisioned for this email and awaiting first login");
+    }
+
+    const existingUser = await db.select().from(users).where(eq(users.email, leadEmail)).limit(1);
+    if (existingUser[0]?.firmId) {
+      throw new Error("That user is already a member of a firm");
+    }
+
+    const firm = await this.createFirm({
+      name: data.firmName.trim(),
+      seatLimit: data.seatLimit,
+      isEvaluation: true,
+      provisionedLeadEmail: leadEmail,
+      provisionedByUserId: data.provisionedByUserId,
+      provisionedAt: new Date(),
+      evaluationEndsAt: data.evaluationEndsAt ?? null,
+    });
+
+    // If the user already exists (logged in before), claim immediately
+    if (existingUser[0]) {
+      await this.claimEvaluationFirmLead(existingUser[0].id, leadEmail);
+      const refreshed = await this.getFirm(firm.id);
+      return refreshed ?? firm;
+    }
+
+    return firm;
+  }
+
+  async listEvaluationFirms(): Promise<Firm[]> {
+    return await db
+      .select()
+      .from(firms)
+      .where(eq(firms.isEvaluation, true))
+      .orderBy(desc(firms.provisionedAt), desc(firms.createdAt));
+  }
+
+  async getFirmByProvisionedLeadEmail(email: string): Promise<Firm | undefined> {
+    const normalized = normalizeAuthEmail(email);
+    if (!normalized) return undefined;
+    const result = await db
+      .select()
+      .from(firms)
+      .where(sql`lower(${firms.provisionedLeadEmail}) = ${normalized}`)
+      .limit(1);
+    return result[0];
+  }
+
+  async claimEvaluationFirmLead(
+    userId: string,
+    email: string | null | undefined,
+  ): Promise<User | undefined> {
+    const normalized = normalizeAuthEmail(email);
+    if (!normalized) return undefined;
+
+    const user = await this.getUser(userId);
+    if (!user) return undefined;
+    if (user.firmId) return user;
+
+    const firm = await this.getFirmByProvisionedLeadEmail(normalized);
+    if (!firm || firm.provisionedLeadUserId) return undefined;
+
+    await db
+      .update(firms)
+      .set({ provisionedLeadUserId: userId })
+      .where(and(eq(firms.id, firm.id), sql`${firms.provisionedLeadUserId} IS NULL`));
+
+    const [updated] = await db
+      .update(users)
+      .set({
+        firmId: firm.id,
+        inviteStatus: "active",
+        regulatoryDesignations: ["is_firm_admin"],
+        primaryRole: user.primaryRole ?? "managing_partner",
+        updatedAt: new Date(),
+      })
+      .where(and(eq(users.id, userId), sql`${users.firmId} IS NULL`))
+      .returning();
+
+    return updated;
+  }
+
+  async countFirmSeatUsage(firmId: string): Promise<{
+    members: number;
+    pendingInvites: number;
+    used: number;
+    limit: number | null;
+  }> {
+    const firm = await this.getFirm(firmId);
+    const members = await this.getFirmMembers(firmId);
+    const invitations = await this.getFirmInvitations(firmId);
+    const pendingInvites = invitations.filter((i) => i.status === "pending").length;
+    const memberCount = members.length;
+    return {
+      members: memberCount,
+      pendingInvites,
+      used: memberCount + pendingInvites,
+      limit: firm?.seatLimit ?? null,
+    };
+  }
+
+  async getFirmEvaluationStats(
+    firmId: string,
+    range: FirmEvaluationStatsRange,
+  ): Promise<FirmEvaluationStats> {
+    const now = new Date();
+    let since: Date | null = null;
+    if (range === "today") {
+      since = new Date(now);
+      since.setHours(0, 0, 0, 0);
+    } else if (range === "48h") {
+      since = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    } else if (range === "week") {
+      since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    }
+
+    const firmCases = await this.getFirmCases(firmId, true);
+    const caseIds = firmCases.map((c) => c.id);
+    const members = await this.getFirmMembers(firmId);
+    const memberIds = members.map((m) => m.id);
+    const seats = await this.countFirmSeatUsage(firmId);
+
+    const empty: FirmEvaluationStats = {
+      range,
+      meetingsConducted: 0,
+      meetingHoursRecorded: 0,
+      notesProduced: 0,
+      lettersProduced: 0,
+      notesAdopted: 0,
+      lettersAdopted: 0,
+      documentsSent: 0,
+      hoursProtected: 0,
+      seats,
+      byMember: members.map((m) => ({
+        userId: m.id,
+        name:
+          m.firstName && m.lastName
+            ? `${m.firstName} ${m.lastName}`
+            : m.email || m.id,
+        meetings: 0,
+        notesAdopted: 0,
+      })),
+    };
+
+    if (caseIds.length === 0 && memberIds.length === 0) return empty;
+
+    const sessionConds = [];
+    if (caseIds.length > 0) sessionConds.push(inArray(meetingSessions.caseId, caseIds));
+    if (memberIds.length > 0) sessionConds.push(inArray(meetingSessions.createdBy, memberIds));
+    if (sessionConds.length === 0) return empty;
+
+    const sessions = await db
+      .select()
+      .from(meetingSessions)
+      .where(
+        and(
+          or(...sessionConds),
+          since ? gte(meetingSessions.startedAt, since) : sql`true`,
+        ),
+      );
+
+    const imports =
+      memberIds.length > 0
+        ? await db
+            .select()
+            .from(meetingImports)
+            .where(
+              and(
+                inArray(meetingImports.userId, memberIds),
+                since ? gte(meetingImports.createdAt, since) : sql`true`,
+              ),
+            )
+        : [];
+
+    let meetingSeconds = 0;
+    let hoursProtected = 0;
+    const meetingsByUser = new Map<string, number>();
+
+    for (const s of sessions) {
+      const dur = s.durationSeconds ?? 0;
+      meetingSeconds += dur;
+      hoursProtected += estimateHoursProtectedFromDurationSeconds(dur);
+      if (s.createdBy) {
+        meetingsByUser.set(s.createdBy, (meetingsByUser.get(s.createdBy) || 0) + 1);
+      }
+    }
+    for (const imp of imports) {
+      const dur = imp.durationSeconds ?? 0;
+      meetingSeconds += dur;
+      hoursProtected += estimateHoursProtectedFromDurationSeconds(dur);
+      meetingsByUser.set(imp.userId, (meetingsByUser.get(imp.userId) || 0) + 1);
+    }
+
+    const docs =
+      caseIds.length > 0
+        ? await db
+            .select()
+            .from(documents)
+            .where(
+              and(
+                inArray(documents.caseId, caseIds),
+                since ? gte(documents.createdAt, since) : sql`true`,
+              ),
+            )
+        : [];
+
+    let notesProduced = 0;
+    let lettersProduced = 0;
+    let notesAdopted = 0;
+    let lettersAdopted = 0;
+    const notesAdoptedByUser = new Map<string, number>();
+
+    for (const d of docs) {
+      if (d.type === "attendance_note") {
+        notesProduced += 1;
+        if (d.status === "approved") {
+          notesAdopted += 1;
+          if (d.createdBy) {
+            notesAdoptedByUser.set(
+              d.createdBy,
+              (notesAdoptedByUser.get(d.createdBy) || 0) + 1,
+            );
+          }
+        }
+      }
+      if (d.type === "client_letter" || d.type === "client_care_letter") {
+        lettersProduced += 1;
+        if (d.status === "approved") lettersAdopted += 1;
+      }
+    }
+
+    const docIds = docs.map((d) => d.id);
+    let documentsSent = 0;
+    if (docIds.length > 0) {
+      const sent = await db
+        .select()
+        .from(clientVersionTracking)
+        .where(
+          and(
+            inArray(clientVersionTracking.documentId, docIds),
+            eq(clientVersionTracking.sentToClient, true),
+            since ? gte(clientVersionTracking.sentAt, since) : sql`true`,
+          ),
+        );
+      documentsSent = sent.length;
+    }
+
+    return {
+      range,
+      meetingsConducted: sessions.length + imports.length,
+      meetingHoursRecorded: Math.round((meetingSeconds / 3600) * 10) / 10,
+      notesProduced,
+      lettersProduced,
+      notesAdopted,
+      lettersAdopted,
+      documentsSent,
+      hoursProtected: Math.round(hoursProtected * 10) / 10,
+      seats,
+      byMember: members.map((m) => ({
+        userId: m.id,
+        name:
+          m.firstName && m.lastName
+            ? `${m.firstName} ${m.lastName}`
+            : m.email || m.id,
+        meetings: meetingsByUser.get(m.id) || 0,
+        notesAdopted: notesAdoptedByUser.get(m.id) || 0,
+      })),
+    };
   }
 
   // Team member methods

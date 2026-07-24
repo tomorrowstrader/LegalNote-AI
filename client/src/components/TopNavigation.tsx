@@ -184,10 +184,16 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                     <DropdownMenuItem asChild data-testid="menu-item-team-management">
                       <Link href="/team">Team Management</Link>
                     </DropdownMenuItem>
+                    <DropdownMenuItem asChild data-testid="menu-item-firm-overview">
+                      <Link href="/firm">Firm overview</Link>
+                    </DropdownMenuItem>
                     {isAdmin && (
                       <>
                         <DropdownMenuItem asChild data-testid="menu-item-admin-dashboard">
                           <Link href="/admin">Admin Dashboard</Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild data-testid="menu-item-admin-provision-firm-nav">
+                          <Link href="/admin/provision-firm">Provision evaluation firm</Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild data-testid="menu-item-admin-dpa-mint-nav">
                           <Link href="/admin/dpa-mint">Mint DPA Link</Link>

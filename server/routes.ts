@@ -1849,6 +1849,12 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           profileImageUrl: req.user.claims.profile_image_url,
         });
       }
+
+      // Attach admin-provisioned evaluation firm if this email was reserved before login
+      if (user && !user.firmId) {
+        const claimed = await storage.claimEvaluationFirmLead(user.id, user.email);
+        if (claimed) user = claimed;
+      }
       
       // Add admin flag to user object (MVP: configurable via env)
       const ADMIN_USER_ID = getAdminUserId();
@@ -7811,6 +7817,72 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
+  // Provision an evaluation firm reserved for a lead email (platform admin only)
+  app.post("/api/admin/evaluation-firms", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const schema = z.object({
+        firmName: z.string().min(1).max(300).transform((s) => s.trim()),
+        leadEmail: z.string().email().max(255),
+        seatLimit: z.coerce.number().int().min(1).max(500).default(3),
+        evaluationEndsAt: z.string().min(1).max(40).optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Invalid provision request",
+          errors: parsed.error.flatten().fieldErrors,
+        });
+      }
+
+      let evaluationEndsAt: Date | null = null;
+      if (parsed.data.evaluationEndsAt) {
+        const raw = parsed.data.evaluationEndsAt.trim();
+        evaluationEndsAt = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+          ? new Date(`${raw}T23:59:59.000Z`)
+          : new Date(raw);
+        if (Number.isNaN(evaluationEndsAt.getTime())) {
+          return res.status(400).json({ message: "Invalid evaluation end date" });
+        }
+      }
+
+      const firm = await storage.provisionEvaluationFirm({
+        firmName: parsed.data.firmName,
+        leadEmail: parsed.data.leadEmail,
+        seatLimit: parsed.data.seatLimit,
+        provisionedByUserId: req.user.claims.sub,
+        evaluationEndsAt,
+      });
+
+      await storage.createAuditLog({
+        eventType: "evaluation_firm_provisioned",
+        userId: req.user.claims.sub,
+        severity: "info",
+        metadata: {
+          firmId: firm.id,
+          firmName: firm.name,
+          leadEmail: firm.provisionedLeadEmail,
+          seatLimit: firm.seatLimit,
+        },
+      }).catch(() => {});
+
+      res.status(201).json(firm);
+    } catch (error: any) {
+      if (error?.message && /already|member/i.test(error.message)) {
+        return res.status(409).json({ message: error.message });
+      }
+      next(error);
+    }
+  });
+
+  app.get("/api/admin/evaluation-firms", isAuthenticated, isAdmin, async (_req, res, next) => {
+    try {
+      const firmsList = await storage.listEvaluationFirms();
+      res.json(firmsList);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Strategy documents API (admin only)
   app.get("/api/admin/docs", isAuthenticated, isAdmin, async (req: any, res, next) => {
     try {
@@ -11252,7 +11324,7 @@ ${firmName}`;
     try {
       const userId = req.user.claims.sub;
       const { id } = req.params;
-      const { autoRecordEnabled, clientEmail, clientName, caseId } = req.body;
+      const { autoRecordEnabled, clientEmail, clientName, caseId, title } = req.body;
       
       const meeting = await storage.getScheduledMeeting(id);
       if (!meeting || meeting.userId !== userId) {
@@ -11268,6 +11340,15 @@ ${firmName}`;
       }
       
       const updates: Partial<ScheduledMeeting> = {};
+      if (title !== undefined) {
+        if (typeof title !== 'string' || !title.trim()) {
+          return res.status(400).json({ message: "Title must be a non-empty string" });
+        }
+        if (title.trim().length > 500) {
+          return res.status(400).json({ message: "Title must be 500 characters or less" });
+        }
+        updates.title = title.trim();
+      }
       if (autoRecordEnabled !== undefined) updates.autoRecordEnabled = !!autoRecordEnabled;
       if (clientEmail !== undefined) {
         if (clientEmail === null || clientEmail === '') {
@@ -11397,10 +11478,21 @@ ${firmName}`;
     try {
       const userId = req.user.claims.sub;
       const { id } = req.params;
-      const { newStartTime, newEndTime } = req.body;
+      const { newStartTime, newEndTime, title } = req.body;
       
       if (!newStartTime) {
         return res.status(400).json({ message: "New start time is required" });
+      }
+
+      let nextTitle: string | undefined;
+      if (title !== undefined) {
+        if (typeof title !== 'string' || !title.trim()) {
+          return res.status(400).json({ message: "Title must be a non-empty string" });
+        }
+        if (title.trim().length > 500) {
+          return res.status(400).json({ message: "Title must be 500 characters or less" });
+        }
+        nextTitle = title.trim();
       }
       
       const meeting = await storage.getScheduledMeeting(id);
@@ -11451,12 +11543,13 @@ ${firmName}`;
           ? (meeting.attendees as Array<{ email: string; name?: string }>).filter(a => a.email)
           : [];
         const parsedEnd = newEndTime ? new Date(newEndTime) : undefined;
+        const eventTitle = nextTitle || meeting.title;
 
         if (meeting.calendarProvider === 'outlook') {
           const outlookResult = await createOutlookMeetingCalendarEvent(
             userId,
             {
-              title: meeting.title,
+              title: eventTitle,
               description: meeting.description || undefined,
               startTime: parsedStart,
               endTime: parsedEnd,
@@ -11477,7 +11570,7 @@ ${firmName}`;
           }
         } else {
           const newCalResult = await createMeetingCalendarEvent(userId, {
-            title: meeting.title,
+            title: eventTitle,
             description: meeting.description || undefined,
             startTime: parsedStart,
             endTime: parsedEnd,
@@ -11511,7 +11604,7 @@ ${firmName}`;
         caseId: meeting.caseId || undefined,
         calendarEventId,
         calendarProvider: provider,
-        title: meeting.title,
+        title: nextTitle || meeting.title,
         description: meeting.description || undefined,
         meetingUrl: replacementMeetingUrl,
         meetingPlatform: platform,
@@ -11534,11 +11627,12 @@ ${firmName}`;
         try {
           const { sendPreConsentEmail } = await import("./email");
           const baseUrl = getCanonicalBaseUrl(req);
+          const displayTitle = nextTitle || meeting.title;
           await sendPreConsentEmail({
             to: meeting.clientEmail,
             recipientName: meeting.clientName || 'Client',
-            subject: `Meeting Rescheduled: ${meeting.title}`,
-            body: `We are writing to inform you that the meeting "${meeting.title}" originally scheduled for ${meeting.startTime ? new Date(meeting.startTime).toLocaleString('en-GB') : 'the scheduled date'} has been rescheduled to ${parsedStart.toLocaleString('en-GB')}.\n\nIf you have any questions, please do not hesitate to contact us.`,
+            subject: `Meeting Rescheduled: ${displayTitle}`,
+            body: `We are writing to inform you that the meeting "${displayTitle}" originally scheduled for ${meeting.startTime ? new Date(meeting.startTime).toLocaleString('en-GB') : 'the scheduled date'} has been rescheduled to ${parsedStart.toLocaleString('en-GB')}.\n\nIf you have any questions, please do not hesitate to contact us.`,
             consentUrl: baseUrl,
           });
         } catch (emailErr) {
@@ -11556,7 +11650,7 @@ ${firmName}`;
           newMeetingId: newMeeting.id,
           originalStartTime: meeting.startTime,
           newStartTime: newStartTime,
-          meetingTitle: meeting.title,
+          meetingTitle: nextTitle || meeting.title,
           clientEmail: meeting.clientEmail,
           calendarEventCreated: calendarSynced,
         },
@@ -13115,6 +13209,22 @@ ${firmName}`;
     }
   });
 
+  // Firm evaluation / team value stats (firm admin only)
+  app.get("/api/firm/evaluation-stats", isAuthenticated, requireFirmAdmin, async (req: any, res) => {
+    try {
+      const rangeParam = String(req.query.range || "today");
+      const range =
+        rangeParam === "48h" || rangeParam === "week" || rangeParam === "all" || rangeParam === "today"
+          ? rangeParam
+          : "today";
+      const stats = await storage.getFirmEvaluationStats(req.firmAdminUser.firmId, range);
+      res.json(stats);
+    } catch (error: any) {
+      console.error("[Firm] Error getting evaluation stats:", error);
+      res.status(500).json({ message: "Failed to get firm evaluation stats" });
+    }
+  });
+
   // Update firm details (firm admin only)
   app.patch("/api/firm", isAuthenticated, requireFirmAdmin, async (req: any, res) => {
     try {
@@ -13405,6 +13515,14 @@ ${firmName}`;
       );
       if (existingPending) {
         return res.status(400).json({ message: "A pending invitation already exists for this email address" });
+      }
+
+      const seats = await storage.countFirmSeatUsage(firmId);
+      if (seats.limit != null && seats.used >= seats.limit) {
+        return res.status(403).json({
+          message: `Seat limit reached (${seats.used}/${seats.limit}). Contact LegalNote to add seats.`,
+          seats,
+        });
       }
 
       const firm = await storage.getFirm(firmId);

@@ -1,9 +1,16 @@
 import { motion } from "framer-motion";
 import { SecondaryPageHeader } from "@/components/SecondaryPageHeader";
-import { LegalPageFooter, LegalTable } from "@/components/LegalPageFooter";
+import {
+  LegalPageFooter,
+  LegalTable,
+  legalBodyClass,
+  legalH1Class,
+  legalH2Class,
+  legalLinkClass,
+  legalMutedClass,
+  legalPageShellClass,
+} from "@/components/LegalPageFooter";
 import { useEffect } from "react";
-
-const linkClass = "text-[hsl(18,65%,45%)] hover:underline";
 
 export default function SubProcessorsPage() {
   useEffect(() => {
@@ -38,7 +45,7 @@ export default function SubProcessorsPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[hsl(30,25%,97%)] dark:bg-background">
+    <div className={legalPageShellClass}>
       <SecondaryPageHeader />
 
       <main className="max-w-4xl mx-auto px-6 py-16">
@@ -49,18 +56,18 @@ export default function SubProcessorsPage() {
           className="prose prose-lg max-w-none"
         >
           <h1
-            className="text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2"
+            className={legalH1Class}
             data-testid="heading-subprocessors"
           >
             Sub-processor List
           </h1>
-          <p className="text-[hsl(25,20%,45%)] dark:text-muted-foreground mb-8">
+          <p className={`${legalMutedClass} mb-8`}>
             Last updated: July 2026 · Version 3.0
           </p>
 
-          <div className="space-y-8 text-[hsl(25,20%,30%)] dark:text-foreground">
+          <div className={legalBodyClass}>
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
+              <h2 className={legalH2Class}>
                 Overview
               </h2>
               <p className="leading-relaxed mb-4">
@@ -84,7 +91,7 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
+              <h2 className={legalH2Class}>
                 Core privileged processing
               </h2>
               <LegalTable
@@ -124,7 +131,7 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
+              <h2 className={legalH2Class}>
                 Infrastructure
               </h2>
               <LegalTable
@@ -158,7 +165,7 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
+              <h2 className={legalH2Class}>
                 Identity, communications and payments
               </h2>
               <LegalTable
@@ -198,7 +205,7 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
+              <h2 className={legalH2Class}>
                 Optional practice integrations
               </h2>
               <LegalTable
@@ -215,7 +222,7 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
+              <h2 className={legalH2Class}>
                 Data residency summary
               </h2>
               <LegalTable
@@ -259,7 +266,7 @@ export default function SubProcessorsPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-medium text-[hsl(25,30%,15%)] dark:text-foreground mb-4">
+              <h2 className={legalH2Class}>
                 International transfer safeguards
               </h2>
               <p className="leading-relaxed">
@@ -277,7 +284,7 @@ export default function SubProcessorsPage() {
               <p className="leading-relaxed mt-6 mb-4">
                 LegalNote Technologies Ltd (No. 16788981), 71–75 Shelton Street,
                 Covent Garden, London WC2H 9JQ, United Kingdom. Contact:{" "}
-                <a href="mailto:privacy@legalnote.ai" className={linkClass}>
+                <a href="mailto:privacy@legalnote.ai" className={legalLinkClass}>
                   privacy@legalnote.ai
                 </a>
                 .

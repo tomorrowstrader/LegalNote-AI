@@ -18,6 +18,16 @@ export const firms = pgTable("firms", {
   email: text("email"),
   website: text("website"),
   logoUrl: text("logo_url"),
+  /** Evaluation / enterprise onboarding: max active members including lead (null = unlimited). */
+  seatLimit: integer("seat_limit"),
+  /** When true, firm was provisioned by LegalNote for a governed evaluation. */
+  isEvaluation: boolean("is_evaluation").notNull().default(false),
+  /** Lead email reserved before first login (normalised lowercase). */
+  provisionedLeadEmail: text("provisioned_lead_email"),
+  provisionedLeadUserId: varchar("provisioned_lead_user_id"),
+  provisionedByUserId: varchar("provisioned_by_user_id"),
+  provisionedAt: timestamp("provisioned_at"),
+  evaluationEndsAt: timestamp("evaluation_ends_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -1829,6 +1839,13 @@ export const insertFirmSchema = createInsertSchema(firms).omit({
   email: z.string().email().max(255).optional(),
   website: z.string().url().max(500).optional(),
   logoUrl: z.string().url().max(500).optional(),
+  seatLimit: z.number().int().min(1).max(500).optional().nullable(),
+  isEvaluation: z.boolean().optional(),
+  provisionedLeadEmail: z.string().email().max(255).optional().nullable(),
+  provisionedLeadUserId: z.string().optional().nullable(),
+  provisionedByUserId: z.string().optional().nullable(),
+  provisionedAt: z.date().optional().nullable(),
+  evaluationEndsAt: z.date().optional().nullable(),
 });
 
 export type InsertFirm = z.infer<typeof insertFirmSchema>;

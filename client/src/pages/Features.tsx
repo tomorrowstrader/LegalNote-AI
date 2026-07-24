@@ -191,7 +191,7 @@ export default function Features() {
       <SecondaryPageHeader />
 
       {/* Hero */}
-      <div className="relative bg-white py-20">
+      <div className="relative bg-white dark:bg-background py-20">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
             className="text-center max-w-3xl mx-auto"
@@ -199,13 +199,13 @@ export default function Features() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] dark:text-[hsl(18,70%,62%)] uppercase tracking-wider mb-4 block">
               Features
             </span>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-normal text-[hsl(25,30%,12%)] mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-normal text-[hsl(25,30%,12%)] dark:text-foreground mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Built for how solicitors actually work
             </h1>
-            <p className="text-xl text-[hsl(25,20%,40%)]" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-xl text-[hsl(25,20%,40%)] dark:text-muted-foreground" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Every feature designed around the reality of regulated legal practice. Not retrofitted from generic note-taking software.
             </p>
           </motion.div>
@@ -213,7 +213,7 @@ export default function Features() {
       </div>
 
       {/* Workflow Section */}
-      <div className="bg-[hsl(30,25%,94%)] py-20 border-y border-[hsl(30,20%,85%)]">
+      <div className="bg-[hsl(30,25%,94%)] dark:bg-muted/40 py-20 border-y border-[hsl(30,20%,85%)] dark:border-border">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div 
             className="text-center mb-12"
@@ -221,10 +221,10 @@ export default function Features() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-foreground mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Three steps to evidential records
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)]">
+            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-muted-foreground">
               From meeting to matter file in minutes, not hours.
             </p>
           </motion.div>
@@ -242,8 +242,8 @@ export default function Features() {
                 <div className="w-16 h-16 rounded-2xl bg-[hsl(18,65%,45%)] flex items-center justify-center mx-auto mb-4 shadow-lg">
                   <step.icon className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-2">{step.title}</h3>
-                <p className="text-[hsl(25,20%,40%)]">{step.description}</p>
+                <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2">{step.title}</h3>
+                <p className="text-[hsl(25,20%,40%)] dark:text-muted-foreground">{step.description}</p>
               </motion.div>
             ))}
           </div>
@@ -259,10 +259,10 @@ export default function Features() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-foreground mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Core capabilities
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
+            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-muted-foreground max-w-2xl mx-auto">
               Decisions don't get lost. Actions don't drift. Everything linked to the matter record.
             </p>
           </motion.div>
@@ -271,7 +271,7 @@ export default function Features() {
             {coreFeatures.map((feature, index) => (
               <motion.div
                 key={feature.title}
-                className="p-8 rounded-xl bg-white border border-[hsl(30,20%,88%)] shadow-sm hover:shadow-md transition-shadow"
+                className="p-8 rounded-xl bg-white dark:bg-card border border-[hsl(30,20%,88%)] dark:border-border shadow-sm hover:shadow-md transition-shadow"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -280,8 +280,8 @@ export default function Features() {
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[hsl(18,55%,88%)] to-[hsl(18,60%,80%)] flex items-center justify-center mb-5">
                   <feature.icon className="w-7 h-7 text-[hsl(18,65%,42%)]" />
                 </div>
-                <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">{feature.title}</h3>
-                <p className="text-[hsl(25,20%,40%)] leading-relaxed">{feature.description}</p>
+                <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-3">{feature.title}</h3>
+                <p className="text-[hsl(25,20%,40%)] dark:text-muted-foreground leading-relaxed">{feature.description}</p>
               </motion.div>
             ))}
           </div>
@@ -289,7 +289,7 @@ export default function Features() {
       </section>
 
       {/* Additional Features */}
-      <div className="bg-[hsl(30,25%,96%)] py-20 border-t border-[hsl(30,20%,88%)]">
+      <div className="bg-[hsl(30,25%,96%)] dark:bg-muted/30 py-20 border-t border-[hsl(30,20%,88%)] dark:border-border">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div 
             className="text-center mb-12"
@@ -297,7 +297,7 @@ export default function Features() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-3xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-3xl font-normal text-[hsl(25,30%,12%)] dark:text-foreground mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               And more
             </h2>
           </motion.div>
@@ -306,15 +306,15 @@ export default function Features() {
             {additionalFeatures.map((feature, index) => (
               <motion.div
                 key={feature.title}
-                className="p-6 rounded-xl bg-white border border-[hsl(30,20%,88%)]"
+                className="p-6 rounded-xl bg-white dark:bg-card border border-[hsl(30,20%,88%)] dark:border-border"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.05 }}
               >
                 <feature.icon className="w-8 h-8 text-[hsl(18,65%,45%)] mb-4" />
-                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{feature.title}</h3>
-                <p className="text-sm text-[hsl(25,20%,45%)]">{feature.description}</p>
+                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2">{feature.title}</h3>
+                <p className="text-sm text-[hsl(25,20%,45%)] dark:text-muted-foreground">{feature.description}</p>
               </motion.div>
             ))}
           </div>
@@ -322,7 +322,7 @@ export default function Features() {
       </div>
 
       {/* Neuro-Inclusive Practice */}
-      <div className="py-20 bg-white" data-testid="section-neuro-inclusive">
+      <div className="py-20 bg-white dark:bg-background" data-testid="section-neuro-inclusive">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div 
             className="text-center mb-16"
@@ -330,16 +330,16 @@ export default function Features() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] dark:text-[hsl(18,70%,62%)] uppercase tracking-wider mb-4 block">
               Neuro-Inclusive Practice
             </span>
-            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-foreground mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Reducing cognitive load by design
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)] max-w-3xl mx-auto mb-3">
+            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-muted-foreground max-w-3xl mx-auto mb-3">
               Every feature in LegalNote removes a step your brain would otherwise have to manage. For neurodivergent solicitors, including those with ADHD, dyslexia, and autism, this isn't a convenience. It's a reasonable adjustment.
             </p>
-            <p className="text-base text-[hsl(25,15%,50%)] max-w-2xl mx-auto">
+            <p className="text-base text-[hsl(25,15%,50%)] dark:text-muted-foreground max-w-2xl mx-auto">
               These aren't additional features. They're existing capabilities viewed through the lens of the Equality Act 2010 and the SRA's guidance on reasonable adjustments.
             </p>
           </motion.div>
@@ -348,7 +348,7 @@ export default function Features() {
             {neuroInclusiveFeatures.map((feature, index) => (
               <motion.div
                 key={feature.title}
-                className="p-6 rounded-xl bg-gradient-to-br from-[hsl(210,30%,97%)] to-[hsl(210,20%,95%)] border border-[hsl(210,20%,88%)]"
+                className="p-6 rounded-xl bg-gradient-to-br from-[hsl(210,30%,97%)] to-[hsl(210,20%,95%)] dark:from-card dark:to-card border border-[hsl(210,20%,88%)] dark:border-border"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -358,9 +358,9 @@ export default function Features() {
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(210,40%,90%)] to-[hsl(210,35%,85%)] flex items-center justify-center mb-4">
                   <feature.icon className="w-6 h-6 text-[hsl(210,50%,40%)]" />
                 </div>
-                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{feature.title}</h3>
-                <p className="text-sm text-[hsl(25,20%,40%)] mb-3 leading-relaxed">{feature.description}</p>
-                <div className="bg-white/70 rounded-lg p-3 border border-[hsl(210,20%,90%)]">
+                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2">{feature.title}</h3>
+                <p className="text-sm text-[hsl(25,20%,40%)] dark:text-muted-foreground mb-3 leading-relaxed">{feature.description}</p>
+                <div className="bg-white/70 dark:bg-card/70 rounded-lg p-3 border border-[hsl(210,20%,90%)] dark:border-border">
                   <p className="text-xs text-[hsl(210,30%,35%)] leading-relaxed">
                     <span className="font-semibold text-[hsl(210,50%,40%)]">Why this matters: </span>
                     {feature.differentiator}
@@ -376,10 +376,10 @@ export default function Features() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h3 className="text-2xl font-normal text-[hsl(25,30%,12%)] mb-2" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h3 className="text-2xl font-normal text-[hsl(25,30%,12%)] dark:text-foreground mb-2" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               On the roadmap
             </h3>
-            <p className="text-base text-[hsl(25,20%,40%)]">
+            <p className="text-base text-[hsl(25,20%,40%)] dark:text-muted-foreground">
               Purpose-built features designed specifically to reduce cognitive overhead further.
             </p>
           </motion.div>
@@ -388,7 +388,7 @@ export default function Features() {
             {neuroInclusiveRoadmap.map((feature, index) => (
               <motion.div
                 key={feature.title}
-                className="p-6 rounded-xl bg-gradient-to-br from-[hsl(210,25%,96%)] to-white border border-dashed border-[hsl(210,20%,82%)]"
+                className="p-6 rounded-xl bg-gradient-to-br from-[hsl(210,25%,96%)] to-white dark:from-card dark:to-card border border-dashed border-[hsl(210,20%,82%)] dark:border-border"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -403,23 +403,23 @@ export default function Features() {
                     {feature.badge}
                   </Badge>
                 </div>
-                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{feature.title}</h3>
-                <p className="text-sm text-[hsl(25,20%,40%)] leading-relaxed">{feature.description}</p>
+                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2">{feature.title}</h3>
+                <p className="text-sm text-[hsl(25,20%,40%)] dark:text-muted-foreground leading-relaxed">{feature.description}</p>
               </motion.div>
             ))}
           </div>
 
           <motion.div
-            className="text-center bg-[hsl(210,25%,96%)] rounded-xl p-8 border border-[hsl(210,20%,88%)] max-w-3xl mx-auto"
+            className="text-center bg-[hsl(210,25%,96%)] dark:bg-card rounded-xl p-8 border border-[hsl(210,20%,88%)] dark:border-border max-w-3xl mx-auto"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             data-testid="card-neuro-inclusive-summary"
           >
-            <p className="text-lg text-[hsl(25,25%,25%)] leading-relaxed" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-lg text-[hsl(25,25%,25%)] dark:text-foreground leading-relaxed" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               "The real differentiator isn't a single feature. It's the combination within a legal-specific context. No generic meeting app produces SRA-compliant attendance notes, logs consent, creates an audit trail, extracts obligations into a matter-linked calendar, and tracks document versions. All without the solicitor lifting a pen."
             </p>
-            <p className="text-sm text-[hsl(25,15%,50%)] mt-4">
+            <p className="text-sm text-[hsl(25,15%,50%)] dark:text-muted-foreground mt-4">
               That combination is the reasonable adjustment.
             </p>
           </motion.div>
@@ -427,7 +427,7 @@ export default function Features() {
       </div>
 
       {/* Practice Safeguards */}
-      <div className="py-20 bg-[hsl(30,25%,96%)]" data-testid="section-practice-safeguards">
+      <div className="py-20 bg-[hsl(30,25%,96%)] dark:bg-muted/30" data-testid="section-practice-safeguards">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div 
             className="text-center mb-16"
@@ -435,13 +435,13 @@ export default function Features() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] dark:text-[hsl(18,70%,62%)] uppercase tracking-wider mb-4 block">
               Practice Safeguards
             </span>
-            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-foreground mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Protect your practice, protect your fees
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
+            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-muted-foreground max-w-2xl mx-auto">
               Intelligent guardrails that surface during documentation, helping you catch issues before they become problems.
             </p>
           </motion.div>
@@ -465,10 +465,10 @@ export default function Features() {
                     {feature.badge}
                   </Badge>
                 </div>
-                <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">{feature.title}</h3>
-                <p className="text-[hsl(25,20%,40%)] mb-4 leading-relaxed">{feature.description}</p>
-                <div className="bg-white/60 rounded-lg p-4 border border-amber-200/50">
-                  <p className="text-sm text-[hsl(25,20%,35%)] italic">
+                <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-3">{feature.title}</h3>
+                <p className="text-[hsl(25,20%,40%)] dark:text-muted-foreground mb-4 leading-relaxed">{feature.description}</p>
+                <div className="bg-white/60 dark:bg-card/60 rounded-lg p-4 border border-amber-200/50 dark:border-border">
+                  <p className="text-sm text-[hsl(25,20%,35%)] dark:text-foreground italic">
                     <span className="font-medium not-italic text-amber-700">Example: </span>
                     {feature.example}
                   </p>
@@ -480,7 +480,7 @@ export default function Features() {
       </div>
 
       {/* Integrations */}
-      <div className="py-20 bg-[hsl(30,25%,94%)] border-y border-[hsl(30,20%,85%)]" data-testid="section-integrations">
+      <div className="py-20 bg-[hsl(30,25%,94%)] dark:bg-muted/40 border-y border-[hsl(30,20%,85%)] dark:border-border" data-testid="section-integrations">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div 
             className="text-center mb-16"
@@ -488,13 +488,13 @@ export default function Features() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <span className="text-sm font-medium text-[hsl(18,65%,45%)] uppercase tracking-wider mb-4 block">
+            <span className="text-sm font-medium text-[hsl(18,65%,45%)] dark:text-[hsl(18,70%,62%)] uppercase tracking-wider mb-4 block">
               Integrations
             </span>
-            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <h2 className="text-3xl sm:text-4xl font-normal text-[hsl(25,30%,12%)] dark:text-foreground mb-4" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               Works with your existing tools
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
+            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-muted-foreground max-w-2xl mx-auto">
               Connect LegalNote to your practice management system, calendar, and cloud storage. No duplicate data entry.
             </p>
           </motion.div>
@@ -503,21 +503,21 @@ export default function Features() {
             {integrations.map((integration, index) => (
               <motion.div
                 key={integration.title}
-                className="p-6 rounded-xl bg-white border border-[hsl(30,20%,88%)] shadow-sm"
+                className="p-6 rounded-xl bg-white dark:bg-card border border-[hsl(30,20%,88%)] dark:border-border shadow-sm"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.05 }}
                 data-testid={`card-integration-${index}`}
               >
-                <div className="w-12 h-12 rounded-xl bg-[hsl(30,25%,96%)] flex items-center justify-center mb-4" data-testid={`icon-integration-${index}`}>
+                <div className="w-12 h-12 rounded-xl bg-[hsl(30,25%,96%)] dark:bg-muted/30 flex items-center justify-center mb-4" data-testid={`icon-integration-${index}`}>
                   {integration.logo === "google" && <Calendar className="w-6 h-6 text-[#4285F4]" />}
                   {integration.logo === "outlook" && <CalendarClock className="w-6 h-6 text-[#0078D4]" />}
                   {integration.logo === "microsoft" && <Cloud className="w-6 h-6 text-[#0078D4]" />}
                   {integration.logo === "clio" && <Briefcase className="w-6 h-6 text-[hsl(18,65%,45%)]" />}
                 </div>
-                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] mb-2">{integration.title}</h3>
-                <p className="text-sm text-[hsl(25,20%,45%)] leading-relaxed">{integration.description}</p>
+                <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2">{integration.title}</h3>
+                <p className="text-sm text-[hsl(25,20%,45%)] dark:text-muted-foreground leading-relaxed">{integration.description}</p>
               </motion.div>
             ))}
           </div>

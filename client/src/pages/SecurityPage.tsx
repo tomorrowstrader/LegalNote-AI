@@ -131,7 +131,7 @@ export default function SecurityPage() {
       <SecondaryPageHeader />
 
       <section className="relative py-20 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[hsl(30,30%,95%)] via-white to-[hsl(18,30%,95%)]" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[hsl(30,30%,95%)] via-white to-[hsl(18,30%,95%)] dark:from-background dark:via-background dark:to-background" />
         <div className="relative max-w-7xl mx-auto px-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -147,13 +147,13 @@ export default function SecurityPage() {
               Enterprise-Grade Security
             </div>
             <h1 
-              className="text-4xl sm:text-5xl lg:text-6xl font-medium text-[hsl(25,30%,12%)] mb-6 leading-tight"
+              className="text-4xl sm:text-5xl lg:text-6xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-6 leading-tight"
               data-testid="heading-security-hero"
             >
               For the Most{" "}
-              <span className="text-[hsl(18,65%,45%)]">Sensitive Matters</span>
+              <span className="text-[hsl(18,65%,45%)] dark:text-[hsl(18,70%,62%)]">Sensitive Matters</span>
             </h1>
-            <p className="text-xl text-[hsl(25,20%,40%)] mb-10 leading-relaxed" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            <p className="text-xl text-[hsl(25,20%,40%)] dark:text-muted-foreground mb-10 leading-relaxed" style={{ fontFamily: "'Lora', Georgia, serif" }}>
               LegalNote keeps your client data safe with world-class security and data privacy measures designed specifically for regulated UK legal practice.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -168,7 +168,7 @@ export default function SecurityPage() {
               <Button 
                 variant="outline"
                 size="lg"
-                className="border-[hsl(30,20%,80%)] text-[hsl(25,25%,25%)]"
+                className="border-[hsl(30,20%,80%)] dark:border-border text-[hsl(25,25%,25%)] dark:text-foreground"
                 data-testid="button-security-contact"
                 asChild
               >
@@ -182,7 +182,7 @@ export default function SecurityPage() {
         </div>
       </section>
 
-      <section ref={enterpriseProtectionRef} className="py-20 bg-white">
+      <section ref={enterpriseProtectionRef} className="py-20 bg-white dark:bg-background">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -191,12 +191,12 @@ export default function SecurityPage() {
             className="text-center mb-16"
           >
             <h2 
-              className="text-3xl sm:text-4xl font-medium text-[hsl(25,30%,12%)] mb-4"
+              className="text-3xl sm:text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-4"
               data-testid="heading-security-protection"
             >
               Enterprise-Grade Protection
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
+            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-muted-foreground max-w-2xl mx-auto">
               Built from the ground up with security as a foundation, not an afterthought.
             </p>
           </motion.div>
@@ -209,20 +209,20 @@ export default function SecurityPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: index * 0.1 }}
-                className="p-6 rounded-xl bg-[hsl(30,25%,97%)] border border-[hsl(30,20%,90%)]"
+                className="p-6 rounded-xl bg-[hsl(30,25%,97%)] dark:bg-card border border-[hsl(30,20%,90%)] dark:border-border"
               >
                 <div className="w-12 h-12 rounded-lg bg-[hsl(18,50%,90%)] flex items-center justify-center mb-4">
                   <feature.icon className="w-6 h-6 text-[hsl(18,65%,40%)]" />
                 </div>
-                <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-2">{feature.title}</h3>
-                <p className="text-[hsl(25,20%,40%)] leading-relaxed">{feature.description}</p>
+                <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-2">{feature.title}</h3>
+                <p className="text-[hsl(25,20%,40%)] dark:text-muted-foreground leading-relaxed">{feature.description}</p>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="py-20 bg-[hsl(30,25%,97%)]">
+      <section className="py-20 bg-[hsl(30,25%,97%)] dark:bg-background">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -231,12 +231,12 @@ export default function SecurityPage() {
             className="text-center mb-16"
           >
             <h2 
-              className="text-3xl sm:text-4xl font-medium text-[hsl(25,30%,12%)] mb-4"
+              className="text-3xl sm:text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-4"
               data-testid="heading-security-compliance"
             >
               Compliant with Industry Standards
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
+            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-muted-foreground max-w-2xl mx-auto">
               Aligned with the regulatory frameworks that matter for UK legal practice.
             </p>
           </motion.div>
@@ -252,14 +252,14 @@ export default function SecurityPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: index * 0.1 }}
-                className="group p-6 rounded-xl bg-white border border-[hsl(30,20%,88%)] hover-elevate transition-all text-center"
+                className="group p-6 rounded-xl bg-white dark:bg-card border border-[hsl(30,20%,88%)] dark:border-border hover-elevate transition-all text-center"
                 data-testid={`link-compliance-${standard.name.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 <div className="w-16 h-16 rounded-full bg-[hsl(18,50%,92%)] flex items-center justify-center mx-auto mb-4">
                   <Key className="w-8 h-8 text-[hsl(18,65%,40%)]" />
                 </div>
-                <h3 className="text-lg font-semibold text-[hsl(25,30%,12%)] mb-2">{standard.name}</h3>
-                <p className="text-sm text-[hsl(25,20%,45%)]">{standard.description}</p>
+                <h3 className="text-lg font-semibold text-[hsl(25,30%,12%)] dark:text-foreground mb-2">{standard.name}</h3>
+                <p className="text-sm text-[hsl(25,20%,45%)] dark:text-muted-foreground">{standard.description}</p>
               </motion.a>
             ))}
           </div>
@@ -267,7 +267,7 @@ export default function SecurityPage() {
       </section>
 
       {/* Regulatory Compliance Section - Moved from homepage */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-white dark:bg-background">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -276,12 +276,12 @@ export default function SecurityPage() {
             className="text-center mb-12"
           >
             <h2 
-              className="text-3xl sm:text-4xl font-medium text-[hsl(25,30%,12%)] mb-4"
+              className="text-3xl sm:text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-4"
               data-testid="heading-regulatory-compliance"
             >
               Built to Evidence Professional Judgement
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
+            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-muted-foreground max-w-2xl mx-auto">
               Detailed attendance notes as a core strand of evidencing competent service.
             </p>
           </motion.div>
@@ -319,7 +319,7 @@ export default function SecurityPage() {
             ].map((item, index) => (
               <motion.div
                 key={item.obligation}
-                className="p-6 rounded-xl bg-[hsl(30,25%,97%)] border border-[hsl(30,20%,90%)]"
+                className="p-6 rounded-xl bg-[hsl(30,25%,97%)] dark:bg-card border border-[hsl(30,20%,90%)] dark:border-border"
                 initial={{ opacity: 0, x: index % 2 === 0 ? -20 : 20 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
@@ -333,15 +333,15 @@ export default function SecurityPage() {
                   </div>
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <h3 className="text-lg font-medium text-[hsl(25,30%,12%)]">{item.obligation}</h3>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(25,30%,92%)] text-[hsl(25,30%,40%)]">
+                      <h3 className="text-lg font-medium text-[hsl(25,30%,12%)] dark:text-foreground">{item.obligation}</h3>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(25,30%,92%)] dark:bg-muted text-[hsl(25,30%,40%)] dark:text-muted-foreground">
                         {item.reference}
                       </span>
                     </div>
-                    <p className="text-sm text-[hsl(25,20%,50%)] mb-3 italic">
+                    <p className="text-sm text-[hsl(25,20%,50%)] dark:text-muted-foreground mb-3 italic">
                       "{item.requirement}"
                     </p>
-                    <p className="text-sm text-[hsl(25,20%,35%)]">
+                    <p className="text-sm text-[hsl(25,20%,35%)] dark:text-foreground">
                       <span className="font-medium text-[hsl(18,55%,40%)]">How LegalNote helps:</span> {item.howLegalNoteHelps}
                     </p>
                   </div>
@@ -352,7 +352,7 @@ export default function SecurityPage() {
         </div>
       </section>
 
-      <section className="py-20 bg-[hsl(30,25%,97%)]">
+      <section className="py-20 bg-[hsl(30,25%,97%)] dark:bg-background">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <motion.div
@@ -361,12 +361,12 @@ export default function SecurityPage() {
               viewport={{ once: true }}
             >
               <h2 
-                className="text-3xl sm:text-4xl font-medium text-[hsl(25,30%,12%)] mb-6"
+                className="text-3xl sm:text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-6"
                 data-testid="heading-security-fundamental"
               >
                 Security is Fundamental to Everything We Do
               </h2>
-              <p className="text-lg text-[hsl(25,20%,40%)] mb-8 leading-relaxed">
+              <p className="text-lg text-[hsl(25,20%,40%)] dark:text-muted-foreground mb-8 leading-relaxed">
                 We've built a comprehensive system that protects data at every level, from robust user authentication to vigilant activity monitoring. Our approach combines proven security technologies with rigorous protocols, ensuring that client information remains secure throughout its lifecycle.
               </p>
               <ul className="space-y-4">
@@ -380,7 +380,7 @@ export default function SecurityPage() {
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-3">
                     <CheckCircle className="w-5 h-5 text-[hsl(18,65%,45%)] flex-shrink-0 mt-0.5" />
-                    <span className="text-[hsl(25,20%,35%)]">{item}</span>
+                    <span className="text-[hsl(25,20%,35%)] dark:text-foreground">{item}</span>
                   </li>
                 ))}
               </ul>
@@ -428,7 +428,7 @@ export default function SecurityPage() {
         </div>
       </section>
 
-      <section className="py-20 bg-[hsl(30,25%,97%)]">
+      <section className="py-20 bg-[hsl(30,25%,97%)] dark:bg-background">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -441,12 +441,12 @@ export default function SecurityPage() {
               Data Minimisation
             </div>
             <h2 
-              className="text-3xl sm:text-4xl font-medium text-[hsl(25,30%,12%)] mb-4"
+              className="text-3xl sm:text-4xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-4"
               data-testid="heading-audio-deletion"
             >
               Audio Deleted Within 7 Days
             </h2>
-            <p className="text-lg text-[hsl(25,20%,40%)] max-w-2xl mx-auto">
+            <p className="text-lg text-[hsl(25,20%,40%)] dark:text-muted-foreground max-w-2xl mx-auto">
               We don't just protect your data. We eliminate it. Audio recordings are automatically purged within 7 days, leaving only the documentation that matters.
             </p>
           </motion.div>
@@ -457,13 +457,13 @@ export default function SecurityPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="text-center p-8 rounded-xl bg-white border border-[hsl(30,20%,88%)]"
+              className="text-center p-8 rounded-xl bg-white dark:bg-card border border-[hsl(30,20%,88%)] dark:border-border"
             >
               <div className="w-16 h-16 rounded-full bg-[hsl(18,50%,92%)] flex items-center justify-center mx-auto mb-6">
                 <Clock className="w-8 h-8 text-[hsl(18,65%,40%)]" />
               </div>
-              <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">Automatic Purge</h3>
-              <p className="text-[hsl(25,20%,40%)]">
+              <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-3">Automatic Purge</h3>
+              <p className="text-[hsl(25,20%,40%)] dark:text-muted-foreground">
                 Audio files are automatically and irreversibly deleted after your retention period. No manual intervention required.
               </p>
             </motion.div>
@@ -473,13 +473,13 @@ export default function SecurityPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.2 }}
-              className="text-center p-8 rounded-xl bg-white border border-[hsl(30,20%,88%)]"
+              className="text-center p-8 rounded-xl bg-white dark:bg-card border border-[hsl(30,20%,88%)] dark:border-border"
             >
               <div className="w-16 h-16 rounded-full bg-[hsl(18,50%,92%)] flex items-center justify-center mx-auto mb-6">
                 <FileCheck className="w-8 h-8 text-[hsl(18,65%,40%)]" />
               </div>
-              <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">Documentation Preserved</h3>
-              <p className="text-[hsl(25,20%,40%)]">
+              <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-3">Documentation Preserved</h3>
+              <p className="text-[hsl(25,20%,40%)] dark:text-muted-foreground">
                 Transcripts, attendance notes, and matter records remain as permanent records. The evidence of your work persists.
               </p>
             </motion.div>
@@ -489,13 +489,13 @@ export default function SecurityPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.3 }}
-              className="text-center p-8 rounded-xl bg-white border border-[hsl(30,20%,88%)]"
+              className="text-center p-8 rounded-xl bg-white dark:bg-card border border-[hsl(30,20%,88%)] dark:border-border"
             >
               <div className="w-16 h-16 rounded-full bg-[hsl(18,50%,92%)] flex items-center justify-center mx-auto mb-6">
                 <Shield className="w-8 h-8 text-[hsl(18,65%,40%)]" />
               </div>
-              <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] mb-3">GDPR Article 5(1)(e)</h3>
-              <p className="text-[hsl(25,20%,40%)]">
+              <h3 className="text-xl font-medium text-[hsl(25,30%,12%)] dark:text-foreground mb-3">GDPR Article 5(1)(e)</h3>
+              <p className="text-[hsl(25,20%,40%)] dark:text-muted-foreground">
                 Storage limitation principle in action. We keep data only as long as necessary. No longer.
               </p>
             </motion.div>
