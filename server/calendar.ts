@@ -21,6 +21,9 @@ export interface CalendarSyncResult {
   provider: 'google' | 'outlook';
   eventId?: string;
   error?: string;
+  /** Join URL when a Meet/Teams conference was created with the event */
+  meetingUrl?: string;
+  meetingPlatform?: 'meet' | 'teams';
 }
 
 // Helper to format event description
@@ -348,6 +351,8 @@ export interface MeetingEventData {
   endTime?: Date;
   meetingUrl?: string;
   attendees?: Array<{ email: string; name?: string }>;
+  /** When true (default if no meetingUrl), mint a Google Meet link on the event */
+  createConference?: boolean;
 }
 
 export async function createMeetingCalendarEvent(
@@ -364,6 +369,9 @@ export async function createMeetingCalendarEvent(
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
     const endTime = data.endTime || new Date(data.startTime.getTime() + 60 * 60 * 1000);
+    const createConference =
+      data.createConference === true ||
+      (data.createConference !== false && !data.meetingUrl);
 
     const eventBody: Record<string, unknown> = {
       summary: data.title,
@@ -396,15 +404,42 @@ export async function createMeetingCalendarEvent(
       eventBody.location = data.meetingUrl;
     }
 
+    if (createConference) {
+      eventBody.conferenceData = {
+        createRequest: {
+          requestId: `legalnote-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
+      };
+    }
+
     const response = await calendar.events.insert({
       calendarId: 'primary',
+      conferenceDataVersion: createConference ? 1 : undefined,
+      sendUpdates: data.attendees && data.attendees.length > 0 ? 'all' : 'none',
       requestBody: eventBody,
     });
+
+    let meetingUrl: string | undefined = data.meetingUrl;
+    let meetingPlatform: 'meet' | 'teams' | undefined;
+
+    if (createConference) {
+      const hangoutLink = response.data.hangoutLink || undefined;
+      const videoEntry = response.data.conferenceData?.entryPoints?.find(
+        (e) => e.entryPointType === 'video' && e.uri,
+      )?.uri;
+      meetingUrl = hangoutLink || videoEntry || meetingUrl;
+      if (meetingUrl) meetingPlatform = 'meet';
+    } else if (meetingUrl?.includes('meet.google.com')) {
+      meetingPlatform = 'meet';
+    }
 
     return {
       success: true,
       provider: 'google',
       eventId: response.data.id || undefined,
+      meetingUrl,
+      meetingPlatform,
     };
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));

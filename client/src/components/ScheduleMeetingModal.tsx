@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarPlus, Loader2, Search, Briefcase, X } from "lucide-react";
+import { CalendarPlus, Loader2, Search, Briefcase, X, Video, ChevronDown, ChevronUp } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 import { format } from "date-fns";
-import type { Case } from "@shared/schema";
+import type { Case, ScheduledMeeting } from "@shared/schema";
 
 interface ScheduleMeetingModalProps {
   open: boolean;
@@ -50,6 +50,10 @@ function parseAttendeeEmails(raw: string): Array<{ email: string }> {
   return emails;
 }
 
+function conferenceLabel(provider: "google" | "outlook"): string {
+  return provider === "google" ? "Google Meet" : "Microsoft Teams";
+}
+
 export default function ScheduleMeetingModal({
   open,
   onOpenChange,
@@ -63,6 +67,7 @@ export default function ScheduleMeetingModal({
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [meetingUrl, setMeetingUrl] = useState("");
+  const [showExistingLink, setShowExistingLink] = useState(false);
   const [attendeesRaw, setAttendeesRaw] = useState("");
   const [description, setDescription] = useState("");
   const [caseId, setCaseId] = useState<string | null>(null);
@@ -76,6 +81,8 @@ export default function ScheduleMeetingModal({
 
   const bothConnected = googleConnected && outlookConnected;
   const defaultProvider: "google" | "outlook" = googleConnected ? "google" : "outlook";
+  const activeProvider = bothConnected ? provider : defaultProvider;
+  const autoConferenceName = conferenceLabel(activeProvider);
 
   useEffect(() => {
     if (!open) return;
@@ -84,6 +91,7 @@ export default function ScheduleMeetingModal({
     setStartTime("");
     setEndTime("");
     setMeetingUrl("");
+    setShowExistingLink(false);
     setAttendeesRaw("");
     setDescription("");
     setCaseId(null);
@@ -142,22 +150,33 @@ export default function ScheduleMeetingModal({
         throw new Error("Enter valid attendee email addresses");
       }
 
-      return apiRequest("POST", "/api/scheduled-meetings", {
+      return apiRequest<ScheduledMeeting>("POST", "/api/scheduled-meetings", {
         title: title.trim(),
         description: description.trim() || undefined,
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         meetingUrl: safeUrl,
+        createConference: !safeUrl,
         caseId: caseId || undefined,
-        provider: bothConnected ? provider : defaultProvider,
+        provider: activeProvider,
         attendees,
         clientEmail: attendees[0]?.email,
       });
     },
-    onSuccess: () => {
+    onSuccess: (meeting) => {
+      const platform =
+        meeting.meetingPlatform === "meet"
+          ? "Google Meet"
+          : meeting.meetingPlatform === "teams"
+            ? "Teams"
+            : null;
       toast({
         title: "Meeting scheduled",
-        description: "Added to your calendar and Upcoming Meetings.",
+        description: platform
+          ? `Added to your calendar with a ${platform} link.`
+          : meeting.meetingUrl
+            ? "Added to your calendar and Upcoming Meetings."
+            : `Added to your calendar. ${autoConferenceName} link may appear after refresh if your account supports it.`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/scheduled-meetings"] });
       onOpenChange(false);
@@ -188,11 +207,20 @@ export default function ScheduleMeetingModal({
             Schedule Meeting
           </DialogTitle>
           <DialogDescription>
-            Create a meeting on your connected calendar. It will appear in Upcoming Meetings.
+            Create the meeting here — we&apos;ll add it to your calendar and generate a{" "}
+            {autoConferenceName} link automatically.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 pt-1">
+          <div className="flex items-start gap-2 rounded-md border bg-muted/40 px-3 py-2.5 text-sm">
+            <Video className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <p className="text-muted-foreground">
+              A <span className="font-medium text-foreground">{autoConferenceName}</span> join
+              link will be created with the calendar event. No need to set one up first.
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="schedule-title">Title</Label>
             <Input
@@ -239,18 +267,6 @@ export default function ScheduleMeetingModal({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="schedule-url">Meeting URL (optional)</Label>
-            <Input
-              id="schedule-url"
-              type="url"
-              value={meetingUrl}
-              onChange={(e) => setMeetingUrl(e.target.value)}
-              placeholder="https://meet.google.com/…"
-              data-testid="input-schedule-url"
-            />
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="schedule-attendees">Attendees (optional)</Label>
             <Input
               id="schedule-attendees"
@@ -285,8 +301,8 @@ export default function ScheduleMeetingModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="google">Google Calendar</SelectItem>
-                  <SelectItem value="outlook">Outlook Calendar</SelectItem>
+                  <SelectItem value="google">Google Calendar (Meet link)</SelectItem>
+                  <SelectItem value="outlook">Outlook Calendar (Teams link)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -351,6 +367,38 @@ export default function ScheduleMeetingModal({
               </>
             )}
           </div>
+
+          <div className="space-y-2 border-t pt-3">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between text-left text-sm text-muted-foreground hover:text-foreground"
+              onClick={() => setShowExistingLink((v) => !v)}
+              data-testid="button-toggle-existing-link"
+            >
+              <span>Use an existing meeting link instead</span>
+              {showExistingLink ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+            {showExistingLink && (
+              <div className="space-y-2">
+                <Label htmlFor="schedule-url">Meeting URL</Label>
+                <Input
+                  id="schedule-url"
+                  type="url"
+                  value={meetingUrl}
+                  onChange={(e) => setMeetingUrl(e.target.value)}
+                  placeholder="https://zoom.us/j/… or https://meet.google.com/…"
+                  data-testid="input-schedule-url"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Paste a Zoom/Meet/Teams link to skip auto-creating {autoConferenceName}.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         <DialogFooter className="gap-2">
@@ -371,7 +419,7 @@ export default function ScheduleMeetingModal({
             ) : (
               <CalendarPlus className="w-4 h-4 mr-1" />
             )}
-            Add to calendar
+            Schedule with {autoConferenceName}
           </Button>
         </DialogFooter>
       </DialogContent>

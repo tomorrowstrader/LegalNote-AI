@@ -180,10 +180,21 @@ export async function createReplitOutlookMeetingEvent(eventData: {
   endTime?: Date;
   meetingUrl?: string;
   attendees?: Array<{ email: string; name?: string }>;
-}): Promise<{ success: boolean; eventId?: string; error?: string }> {
+  /** When true (default if no meetingUrl), attach a Teams online meeting */
+  createOnlineMeeting?: boolean;
+}): Promise<{
+  success: boolean;
+  eventId?: string;
+  error?: string;
+  meetingUrl?: string;
+  meetingPlatform?: 'teams';
+}> {
   try {
     const client = await getUncachableOutlookClient();
     const endTime = eventData.endTime || new Date(eventData.startTime.getTime() + 60 * 60 * 1000);
+    const createOnlineMeeting =
+      eventData.createOnlineMeeting === true ||
+      (eventData.createOnlineMeeting !== false && !eventData.meetingUrl);
 
     const description =
       eventData.description ||
@@ -211,6 +222,11 @@ export async function createReplitOutlookMeetingEvent(eventData: {
       event.location = { displayName: eventData.meetingUrl };
     }
 
+    if (createOnlineMeeting) {
+      event.isOnlineMeeting = true;
+      event.onlineMeetingProvider = 'teamsForBusiness';
+    }
+
     if (eventData.attendees && eventData.attendees.length > 0) {
       event.attendees = eventData.attendees.map((a) => ({
         emailAddress: {
@@ -221,12 +237,48 @@ export async function createReplitOutlookMeetingEvent(eventData: {
       }));
     }
 
-    const response = await client.api('/me/events').post(event);
+    let response: {
+      id?: string;
+      onlineMeeting?: { joinUrl?: string };
+      onlineMeetingUrl?: string;
+    };
+
+    try {
+      response = await client.api('/me/events').post(event);
+    } catch (onlineErr) {
+      // Some mailboxes (e.g. personal Outlook.com) reject teamsForBusiness —
+      // retry with a plain online meeting, then without conferencing.
+      if (!createOnlineMeeting) throw onlineErr;
+
+      console.warn(
+        '[OUTLOOK] Teams-for-business create failed, retrying without provider:',
+        onlineErr instanceof Error ? onlineErr.message : onlineErr,
+      );
+      delete event.onlineMeetingProvider;
+      try {
+        response = await client.api('/me/events').post(event);
+      } catch (retryErr) {
+        console.warn(
+          '[OUTLOOK] Online meeting create failed, creating calendar event only:',
+          retryErr instanceof Error ? retryErr.message : retryErr,
+        );
+        delete event.isOnlineMeeting;
+        response = await client.api('/me/events').post(event);
+      }
+    }
+
     console.log('[OUTLOOK] Meeting event created:', response.id);
+
+    const joinUrl =
+      response.onlineMeeting?.joinUrl ||
+      response.onlineMeetingUrl ||
+      eventData.meetingUrl;
 
     return {
       success: true,
       eventId: response.id || undefined,
+      meetingUrl: joinUrl,
+      meetingPlatform: !eventData.meetingUrl && joinUrl ? "teams" : undefined,
     };
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));

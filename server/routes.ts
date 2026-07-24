@@ -11087,6 +11087,8 @@ ${firmName}`;
         startTime: z.string().min(1),
         endTime: z.string().min(1).optional().nullable(),
         meetingUrl: z.union([z.string().url().max(1000), z.literal(""), z.null()]).optional(),
+        /** Default true when no meetingUrl — mint Meet (Google) or Teams (Outlook) */
+        createConference: z.boolean().optional().default(true),
         caseId: z.string().min(1).optional().nullable(),
         provider: z.enum(["google", "outlook"]).optional(),
         attendees: z
@@ -11168,14 +11170,17 @@ ${firmName}`;
         provider = "google";
       }
 
-      const meetingUrl =
+      const providedMeetingUrl =
         data.meetingUrl && data.meetingUrl.trim().length > 0
           ? data.meetingUrl.trim()
           : undefined;
+      const createConference = providedMeetingUrl ? false : data.createConference !== false;
       const attendees = (data.attendees || []).filter((a) => a.email);
       const description = data.description?.trim() || undefined;
 
       let calendarEventId: string | undefined;
+      let meetingUrl = providedMeetingUrl;
+      let meetingPlatform: "zoom" | "teams" | "meet" | "webex" | undefined;
 
       if (provider === "outlook") {
         const outlookResult = await createReplitOutlookMeetingEvent({
@@ -11183,8 +11188,9 @@ ${firmName}`;
           description,
           startTime,
           endTime,
-          meetingUrl,
+          meetingUrl: providedMeetingUrl,
           attendees,
+          createOnlineMeeting: createConference,
         });
         if (!outlookResult.success || !outlookResult.eventId) {
           return res.status(502).json({
@@ -11192,6 +11198,12 @@ ${firmName}`;
           });
         }
         calendarEventId = outlookResult.eventId;
+        if (outlookResult.meetingUrl) {
+          meetingUrl = outlookResult.meetingUrl;
+        }
+        if (outlookResult.meetingPlatform) {
+          meetingPlatform = outlookResult.meetingPlatform;
+        }
       } else {
         const googleResult = await createMeetingCalendarEvent(
           userId,
@@ -11200,8 +11212,9 @@ ${firmName}`;
             description,
             startTime,
             endTime,
-            meetingUrl,
+            meetingUrl: providedMeetingUrl,
             attendees,
+            createConference,
           },
           storage,
         );
@@ -11211,10 +11224,15 @@ ${firmName}`;
           });
         }
         calendarEventId = googleResult.eventId;
+        if (googleResult.meetingUrl) {
+          meetingUrl = googleResult.meetingUrl;
+        }
+        if (googleResult.meetingPlatform) {
+          meetingPlatform = googleResult.meetingPlatform;
+        }
       }
 
-      let meetingPlatform: "zoom" | "teams" | "meet" | "webex" | undefined;
-      if (meetingUrl) {
+      if (!meetingPlatform && meetingUrl) {
         const urlLower = meetingUrl.toLowerCase();
         if (urlLower.includes("zoom.us")) meetingPlatform = "zoom";
         else if (urlLower.includes("teams.microsoft.com") || urlLower.includes("teams.live.com")) {
@@ -11263,6 +11281,9 @@ ${firmName}`;
           calendarProvider: provider,
           calendarEventId,
           attendeeCount: attendees.length,
+          meetingUrl: meetingUrl || null,
+          meetingPlatform: meetingPlatform || null,
+          conferenceAutoCreated: createConference && !providedMeetingUrl,
         },
         severity: "info",
       });
