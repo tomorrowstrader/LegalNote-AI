@@ -381,10 +381,23 @@ export class MeetingSchedulerService {
   }
 
   async sendConsentEmailForMeeting(meeting: ScheduledMeeting): Promise<boolean> {
-    if (!meeting.clientEmail || !meeting.clientName) {
+    if (!meeting.clientEmail) {
       console.log(`[MEETING_SCHEDULER] No client email for meeting ${meeting.id}`);
       return false;
     }
+
+    const recipientName =
+      meeting.clientName?.trim() ||
+      (Array.isArray(meeting.attendees)
+        ? (meeting.attendees as Array<{ email?: string; name?: string }>)
+            .find(
+              (a) =>
+                typeof a?.email === "string" &&
+                a.email.trim().toLowerCase() === meeting.clientEmail!.trim().toLowerCase(),
+            )
+            ?.name?.trim()
+        : undefined) ||
+      meeting.clientEmail.trim();
 
     const consentToken = randomBytes(32).toString('hex');
     const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
@@ -403,7 +416,7 @@ export class MeetingSchedulerService {
 
     const emailSubject = `Recording Consent Request - Meeting on ${meetingDate}`;
     const emailBody = `
-Dear ${meeting.clientName},
+Dear ${recipientName},
 
 We would like to record our upcoming meeting scheduled for ${meetingDate} at ${meetingTime}.
 
@@ -426,7 +439,7 @@ Your Legal Team
     const preConsentEmail = await storage.createPreConsentEmail({
       userId: meeting.userId,
       recipientEmail: meeting.clientEmail,
-      recipientName: meeting.clientName,
+      recipientName,
       meetingPlatform: (['zoom', 'teams', 'meet', 'webex'] as const).includes(
         meeting.meetingPlatform as 'zoom' | 'teams' | 'meet' | 'webex'
       ) ? (meeting.meetingPlatform as 'zoom' | 'teams' | 'meet' | 'webex') : undefined,
@@ -442,7 +455,7 @@ Your Legal Team
     try {
       await sendPreConsentEmail({
         to: meeting.clientEmail,
-        recipientName: meeting.clientName,
+        recipientName,
         subject: emailSubject,
         body: emailBody,
         consentUrl,

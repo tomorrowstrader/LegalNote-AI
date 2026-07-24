@@ -24,7 +24,9 @@ const DISMISS_PREFIX = "ln-meeting-prompt-dismissed:";
 /** Match server T-30 cron window (~25–35 min). Do not treat "anytime under 30 min" as T-30. */
 const T30_MAX_MS = 35 * 60 * 1000;
 const T30_MIN_MS = 25 * 60 * 1000;
-const T1_MAX_MS = 90 * 1000;
+/** Join-now prompt: from 5 minutes before start through the 15-minute late-join grace. */
+const JOIN_EARLY_MS = 5 * 60 * 1000;
+const JOIN_LATE_MS = 15 * 60 * 1000;
 
 function dismissKey(meetingId: string, offset: PromptOffset): string {
   return `${DISMISS_PREFIX}${meetingId}:${offset}`;
@@ -62,7 +64,8 @@ export function pickActivePrompt(
 
   for (const meeting of scheduled) {
     const msUntil = new Date(meeting.startTime).getTime() - now;
-    if (msUntil > 0 && msUntil <= T1_MAX_MS && !isDismissed(meeting.id, 1)) {
+    // Join window: T-5 through T+15 (includes after scheduled start).
+    if (msUntil <= JOIN_EARLY_MS && msUntil > -JOIN_LATE_MS && !isDismissed(meeting.id, 1)) {
       return { meeting, offset: 1 };
     }
   }
@@ -79,7 +82,8 @@ export function pickActivePrompt(
 }
 
 /**
- * App-wide T-30 / T-1 meeting prompts (one component, offset selects content).
+ * App-wide T-30 / join-now meeting prompts (one component, offset selects content).
+ * Join-now fires from 5 minutes before start through the 15-minute late-join grace.
  * Mount in the authenticated shell so it fires on any page.
  */
 export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }) {
@@ -155,9 +159,8 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
   const handleJoinWithLegalNote = useCallback(() => {
     if (!active) return;
     const url = getSafeHttpsMeetingUrl(active.meeting.meetingUrl);
-    if (!url) return;
     setJoinTarget({
-      meetingUrl: url,
+      meetingUrl: url || "",
       caseId: active.meeting.caseId || undefined,
       caseTitle: linkedCase?.title || active.meeting.title || undefined,
       suggestedClientName: active.meeting.clientName || linkedCase?.clientName || undefined,
@@ -171,9 +174,10 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
 
   const meeting = active?.meeting;
   const startTime = meeting ? new Date(meeting.startTime) : null;
-  const safeJoinUrl = meeting ? getSafeHttpsMeetingUrl(meeting.meetingUrl) : null;
   const clientLabel = meeting?.clientName || linkedCase?.clientName || null;
   const caseLabel = linkedCase?.title || null;
+  const msUntilStart = startTime ? startTime.getTime() - now : 0;
+  const meetingHasStarted = msUntilStart <= 0;
 
   return (
     <>
@@ -188,13 +192,19 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
-                {active!.offset === 1 ? "Meeting starting" : "Meeting in 30 minutes"}
+                {active!.offset === 1
+                  ? meetingHasStarted
+                    ? "Meeting in progress"
+                    : "Meeting starting"
+                  : "Meeting in 30 minutes"}
               </AlertDialogTitle>
               <AlertDialogDescription asChild>
                 <div className="space-y-3 text-sm text-muted-foreground">
                   <p>
                     {active!.offset === 1
-                      ? "Your meeting is about to begin."
+                      ? meetingHasStarted
+                        ? "Your meeting has started — you can still join now."
+                        : "Your meeting is about to begin."
                       : "You have an upcoming meeting. Review the matter before you join."}
                   </p>
                   <div className="rounded-md border bg-muted/40 p-3 space-y-1.5 text-foreground">
@@ -210,7 +220,7 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
                       <p data-testid="meeting-prompt-case">Matter: {caseLabel}</p>
                     )}
                   </div>
-                  {active!.offset === 1 && safeJoinUrl && (
+                  {active!.offset === 1 && (
                     <p className="text-xs text-amber-700 dark:text-amber-400">
                       LegalNote is not in the call until you send it. Continue to send LegalNote and join the meeting.
                     </p>
@@ -237,10 +247,10 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
                 </Button>
               )}
 
-              {active!.offset === 1 && safeJoinUrl && (
+              {active!.offset === 1 && (
                 <Button onClick={handleJoinWithLegalNote} data-testid="button-meeting-prompt-join">
                   <Video className="w-4 h-4 mr-1" />
-                  Join with LegalNote
+                  Join now with LegalNote
                 </Button>
               )}
             </AlertDialogFooter>

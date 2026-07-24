@@ -32,16 +32,50 @@ function buildCalendarOAuthReturnUrl(
   return `/settings?${search.toString()}`;
 }
 
-function meetingAttendeeEmails(meeting: ScheduledMeeting): string[] {
+function meetingAttendees(meeting: ScheduledMeeting): Array<{ email: string; name?: string }> {
   if (!Array.isArray(meeting.attendees)) return [];
   return meeting.attendees
-    .map((a) => (typeof a === 'object' && a !== null && 'email' in a ? String((a as { email?: string }).email || '') : ''))
-    .filter(Boolean);
+    .map((a) => {
+      if (typeof a !== "object" || a === null || !("email" in a)) return null;
+      const email = String((a as { email?: string }).email || "").trim();
+      if (!email) return null;
+      const name =
+        "name" in a && typeof (a as { name?: unknown }).name === "string"
+          ? String((a as { name: string }).name).trim() || undefined
+          : undefined;
+      return { email, name };
+    })
+    .filter((a): a is { email: string; name?: string } => a !== null);
+}
+
+function meetingAttendeeEmails(meeting: ScheduledMeeting): string[] {
+  return meetingAttendees(meeting).map((a) => a.email);
 }
 
 function isConsentRecipientAmongAttendees(meeting: ScheduledMeeting, email: string): boolean {
   const normalized = email.trim().toLowerCase();
   return meetingAttendeeEmails(meeting).some((e) => e.trim().toLowerCase() === normalized);
+}
+
+/** Prefer stored name, then attendee display name, then email. */
+function resolveConsentRecipientName(
+  meeting: ScheduledMeeting,
+  email: string,
+  explicitName?: string | null,
+): string {
+  const trimmedExplicit = explicitName?.trim();
+  if (trimmedExplicit) return trimmedExplicit;
+
+  const stored = meeting.clientName?.trim();
+  if (stored) return stored;
+
+  const normalized = email.trim().toLowerCase();
+  const attendee = meetingAttendees(meeting).find(
+    (a) => a.email.trim().toLowerCase() === normalized,
+  );
+  if (attendee?.name) return attendee.name;
+
+  return email.trim();
 }
 
 // Helper to resolve template paths in both dev and production
@@ -11269,10 +11303,13 @@ ${firmName}`;
         data.clientEmail && data.clientEmail.trim().length > 0
           ? data.clientEmail.trim()
           : attendees[0]?.email;
-      const clientName =
-        data.clientName && data.clientName.trim().length > 0
-          ? data.clientName.trim()
-          : attendees[0]?.name;
+      const clientName = clientEmail
+        ? (data.clientName && data.clientName.trim().length > 0
+            ? data.clientName.trim()
+            : attendees.find((a) => a.email.toLowerCase() === clientEmail.toLowerCase())?.name ||
+              attendees[0]?.name ||
+              clientEmail)
+        : undefined;
 
       const meeting = await storage.createScheduledMeeting({
         userId,
@@ -11364,10 +11401,21 @@ ${firmName}`;
           });
         } else {
           updates.clientEmail = clientEmail.trim();
+          if (clientName === undefined) {
+            updates.clientName = resolveConsentRecipientName(meeting, updates.clientEmail);
+          }
         }
       }
       if (clientName !== undefined) {
         updates.clientName = clientName === null || clientName === '' ? null : String(clientName).trim();
+      }
+
+      const nextEmail =
+        updates.clientEmail !== undefined ? updates.clientEmail : meeting.clientEmail;
+      const nextName =
+        updates.clientName !== undefined ? updates.clientName : meeting.clientName;
+      if (nextEmail && !nextName) {
+        updates.clientName = resolveConsentRecipientName(meeting, nextEmail);
       }
       
       if (caseId !== undefined) {
@@ -11678,14 +11726,16 @@ ${firmName}`;
         return res.status(400).json({ message: "No consent recipient set for this meeting" });
       }
 
-      if (!meeting.clientName) {
-        return res.status(400).json({ message: "Consent recipient name is required" });
-      }
-
       if (!isConsentRecipientAmongAttendees(meeting, meeting.clientEmail)) {
         return res.status(400).json({
           message: "Consent recipient must be selected from this meeting's attendee list",
         });
+      }
+
+      const recipientName = resolveConsentRecipientName(meeting, meeting.clientEmail);
+      if (!meeting.clientName || meeting.clientName.trim() !== recipientName) {
+        await storage.updateScheduledMeeting(meeting.id, { clientName: recipientName });
+        meeting.clientName = recipientName;
       }
       
       const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
