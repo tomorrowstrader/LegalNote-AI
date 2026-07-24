@@ -50,6 +50,28 @@ function parseAttendeeEmails(raw: string): Array<{ email: string }> {
   return emails;
 }
 
+const DURATION_OPTIONS = [15, 20, 25, 30, 45, 60, 90, 120] as const;
+const DEFAULT_DURATION_MINUTES = 30;
+
+function formatDurationLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} mins`;
+  if (minutes === 60) return "60 mins (1 hour)";
+  if (minutes % 60 === 0) return `${minutes} mins (${minutes / 60} hours)`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${minutes} mins (${hours}h ${mins}m)`;
+}
+
+function addMinutesToTime(timeHHMM: string, minutes: number): string | null {
+  if (!timeHHMM) return null;
+  const [h, m] = timeHHMM.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  const total = h * 60 + m + minutes;
+  const endH = Math.floor(total / 60) % 24;
+  const endM = total % 60;
+  return `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`;
+}
+
 function conferenceLabel(provider: "google" | "outlook"): string {
   return provider === "google" ? "Google Meet" : "Microsoft Teams";
 }
@@ -65,7 +87,7 @@ export default function ScheduleMeetingModal({
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState<number>(DEFAULT_DURATION_MINUTES);
   const [meetingUrl, setMeetingUrl] = useState("");
   const [showExistingLink, setShowExistingLink] = useState(false);
   const [attendeesRaw, setAttendeesRaw] = useState("");
@@ -83,13 +105,17 @@ export default function ScheduleMeetingModal({
   const defaultProvider: "google" | "outlook" = googleConnected ? "google" : "outlook";
   const activeProvider = bothConnected ? provider : defaultProvider;
   const autoConferenceName = conferenceLabel(activeProvider);
+  const computedEndTime = useMemo(
+    () => addMinutesToTime(startTime, durationMinutes),
+    [startTime, durationMinutes],
+  );
 
   useEffect(() => {
     if (!open) return;
     setTitle("");
     setDate(format(new Date(), "yyyy-MM-dd"));
     setStartTime("");
-    setEndTime("");
+    setDurationMinutes(DEFAULT_DURATION_MINUTES);
     setMeetingUrl("");
     setShowExistingLink(false);
     setAttendeesRaw("");
@@ -125,15 +151,7 @@ export default function ScheduleMeetingModal({
         throw new Error("Start time must be in the future");
       }
 
-      let end: Date;
-      if (endTime) {
-        end = new Date(`${date}T${endTime}`);
-        if (isNaN(end.getTime()) || end <= start) {
-          throw new Error("End time must be after start time");
-        }
-      } else {
-        end = new Date(start.getTime() + 60 * 60 * 1000);
-      }
+      const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
 
       const trimmedUrl = meetingUrl.trim();
       let safeUrl: string | undefined;
@@ -233,7 +251,7 @@ export default function ScheduleMeetingModal({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2 col-span-2 sm:col-span-1">
+            <div className="space-y-2 col-span-2">
               <Label htmlFor="schedule-date">Date</Label>
               <Input
                 id="schedule-date"
@@ -255,15 +273,33 @@ export default function ScheduleMeetingModal({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="schedule-end">End (optional)</Label>
-              <Input
-                id="schedule-end"
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                data-testid="input-schedule-end"
-              />
+              <Label htmlFor="schedule-duration">Duration</Label>
+              <Select
+                value={String(durationMinutes)}
+                onValueChange={(v) => setDurationMinutes(Number(v))}
+              >
+                <SelectTrigger id="schedule-duration" data-testid="select-schedule-duration">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_OPTIONS.map((mins) => (
+                    <SelectItem key={mins} value={String(mins)}>
+                      {formatDurationLabel(mins)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            {startTime && computedEndTime && (
+              <p className="col-span-2 text-xs text-muted-foreground" data-testid="text-schedule-end-preview">
+                Ends at {computedEndTime}
+                {(() => {
+                  const [h, m] = startTime.split(":").map(Number);
+                  const crossesMidnight = h * 60 + m + durationMinutes >= 24 * 60;
+                  return crossesMidnight ? " (next day)" : "";
+                })()}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

@@ -52,8 +52,12 @@ export function getApiErrorMessage(
   }
 
   message = message.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim();
-  if (!message || /doctype|<!html/i.test(message) || message.length > 280) {
+  if (!message || /doctype|<!html/i.test(message)) {
     return fallback;
+  }
+  // Prefer a usable slice over a generic fallback for long provider errors
+  if (message.length > 280) {
+    return `${message.slice(0, 277).trimEnd()}…`;
   }
   return message;
 }

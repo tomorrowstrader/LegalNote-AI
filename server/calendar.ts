@@ -1,7 +1,10 @@
 import { google } from 'googleapis';
+import { Client } from '@microsoft/microsoft-graph-client';
 import type { IStorage } from './storage';
 import type { CalendarIntegration } from '@shared/schema';
 import { computeReminderSchedule } from './reminderScheduler';
+import { ensureFreshOutlookToken } from './oauth';
+import { formatGraphLocalDateTime } from './graphDateTime';
 
 // Calendar integration types
 export interface CalendarEventData {
@@ -452,6 +455,176 @@ export async function createMeetingCalendarEvent(
   }
 }
 
+/**
+ * Create a meeting on the user's OAuth-connected Outlook calendar (Microsoft Graph).
+ * Prefer this over the Replit connector for production users who connected via Settings.
+ */
+export async function createOutlookMeetingCalendarEvent(
+  userId: string,
+  data: MeetingEventData,
+  storage: IStorage,
+  baseUrl: string,
+): Promise<CalendarSyncResult> {
+  try {
+    const accessToken = await ensureFreshOutlookToken(storage, userId, baseUrl);
+    const graphClient = Client.initWithMiddleware({
+      authProvider: { getAccessToken: async () => accessToken },
+    });
+
+    const endTime = data.endTime || new Date(data.startTime.getTime() + 60 * 60 * 1000);
+    const createOnlineMeeting =
+      data.createConference === true ||
+      (data.createConference !== false && !data.meetingUrl);
+
+    const event: Record<string, unknown> = {
+      subject: data.title,
+      body: {
+        contentType: 'Text',
+        content: data.description || `Meeting: ${data.title}\n\nCreated by LegalNote`,
+      },
+      start: {
+        dateTime: formatGraphLocalDateTime(data.startTime),
+        timeZone: 'Europe/London',
+      },
+      end: {
+        dateTime: formatGraphLocalDateTime(endTime),
+        timeZone: 'Europe/London',
+      },
+      isReminderOn: true,
+      reminderMinutesBeforeStart: 15,
+    };
+
+    if (data.meetingUrl) {
+      event.location = { displayName: data.meetingUrl };
+    }
+
+    if (createOnlineMeeting) {
+      event.isOnlineMeeting = true;
+      event.onlineMeetingProvider = 'teamsForBusiness';
+    }
+
+    if (data.attendees && data.attendees.length > 0) {
+      event.attendees = data.attendees.map((a) => ({
+        emailAddress: {
+          address: a.email,
+          name: a.name || a.email,
+        },
+        type: 'required',
+      }));
+    }
+
+    let response: {
+      id?: string;
+      onlineMeeting?: { joinUrl?: string };
+      onlineMeetingUrl?: string;
+    };
+
+    try {
+      response = await graphClient.api('/me/events').post(event);
+    } catch (onlineErr) {
+      if (!createOnlineMeeting) throw onlineErr;
+
+      console.warn(
+        '[OUTLOOK] Teams-for-business create failed, retrying without provider:',
+        onlineErr instanceof Error ? onlineErr.message : onlineErr,
+      );
+      delete event.onlineMeetingProvider;
+      try {
+        response = await graphClient.api('/me/events').post(event);
+      } catch (retryErr) {
+        console.warn(
+          '[OUTLOOK] Online meeting create failed, creating calendar event only:',
+          retryErr instanceof Error ? retryErr.message : retryErr,
+        );
+        delete event.isOnlineMeeting;
+        response = await graphClient.api('/me/events').post(event);
+      }
+    }
+
+    const joinUrl =
+      response.onlineMeeting?.joinUrl ||
+      response.onlineMeetingUrl ||
+      data.meetingUrl;
+
+    return {
+      success: true,
+      provider: 'outlook',
+      eventId: response.id || undefined,
+      meetingUrl: joinUrl,
+      meetingPlatform: !data.meetingUrl && joinUrl ? 'teams' : undefined,
+    };
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    let detail = err.message;
+    const body = (error as { body?: unknown })?.body;
+    if (body) {
+      try {
+        const parsed = typeof body === 'string' ? JSON.parse(body) : body;
+        const graphMessage =
+          (parsed as { error?: { message?: string }; message?: string })?.error?.message ||
+          (parsed as { message?: string })?.message;
+        if (typeof graphMessage === 'string' && graphMessage.trim()) {
+          detail = graphMessage.trim();
+        }
+      } catch {
+        if (typeof body === 'string' && body.length < 300) detail = body;
+      }
+    }
+    console.error('[OUTLOOK] OAuth meeting event creation failed:', detail);
+    return {
+      success: false,
+      provider: 'outlook',
+      error: detail || 'Failed to create Outlook meeting calendar event',
+    };
+  }
+}
+
+export async function deleteOutlookCalendarEvent(
+  userId: string,
+  eventId: string,
+  storage: IStorage,
+  baseUrl: string,
+): Promise<CalendarSyncResult> {
+  try {
+    const accessToken = await ensureFreshOutlookToken(storage, userId, baseUrl);
+    const graphClient = Client.initWithMiddleware({
+      authProvider: { getAccessToken: async () => accessToken },
+    });
+    await graphClient.api(`/me/events/${eventId}`).delete();
+    return {
+      success: true,
+      provider: 'outlook',
+    };
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    let detail = err.message;
+    const body = (error as { body?: unknown })?.body;
+    if (body) {
+      try {
+        const parsed = typeof body === 'string' ? JSON.parse(body) : body;
+        const graphMessage =
+          (parsed as { error?: { message?: string }; message?: string })?.error?.message ||
+          (parsed as { message?: string })?.message;
+        if (typeof graphMessage === 'string' && graphMessage.trim()) {
+          detail = graphMessage.trim();
+        }
+      } catch {
+        if (typeof body === 'string' && body.length < 300) detail = body;
+      }
+    }
+    // Already deleted / not found — treat as success so LegalNote can finish cancel
+    if (/not found|404|ErrorItemNotFound/i.test(detail)) {
+      return { success: true, provider: 'outlook' };
+    }
+    console.error('[OUTLOOK] OAuth event delete failed:', detail);
+    return {
+      success: false,
+      provider: 'outlook',
+      error: detail || 'Failed to delete Outlook calendar event',
+    };
+  }
+}
+
 // Public API
 export async function createCalendarEvent(
   userId: string,
@@ -491,14 +664,14 @@ export async function getConnectedProviders(
 
   return {
     google: {
-      connected: !!(googleIntegration?.accessToken),
-      email: googleIntegration?.email || undefined,
-      connectedAt: googleIntegration?.connectedAt?.toISOString(),
+      connected: !!(googleIntegration?.accessToken && googleIntegration.accessToken !== 'replit-managed'),
+      email: googleIntegration?.accessToken === 'replit-managed' ? undefined : (googleIntegration?.email || undefined),
+      connectedAt: googleIntegration?.accessToken === 'replit-managed' ? undefined : googleIntegration?.connectedAt?.toISOString(),
     },
     outlook: {
-      connected: !!(outlookIntegration?.accessToken),
-      email: outlookIntegration?.email || undefined,
-      connectedAt: outlookIntegration?.connectedAt?.toISOString(),
+      connected: !!(outlookIntegration?.accessToken && outlookIntegration.accessToken !== 'replit-managed'),
+      email: outlookIntegration?.accessToken === 'replit-managed' ? undefined : (outlookIntegration?.email || undefined),
+      connectedAt: outlookIntegration?.accessToken === 'replit-managed' ? undefined : outlookIntegration?.connectedAt?.toISOString(),
     },
   };
 }

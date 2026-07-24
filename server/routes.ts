@@ -107,9 +107,7 @@ import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotif
 import { assembleSraReportData, buildSraReportPreview } from "./services/sraReportService";
 import { compileSraReportPdf } from "./services/sraReportPdf";
 import { logPersonnelMatterAccess } from "./personnelAccessAudit";
-import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent } from "./calendar";
-import { isReplitCalendarConnected, createReplitCalendarEvent, updateReplitCalendarEvent, deleteReplitCalendarEvent } from "./replitCalendar";
-import { isReplitOutlookConnected, createReplitOutlookEvent, createReplitOutlookMeetingEvent, updateReplitOutlookEvent, deleteReplitOutlookEvent } from "./replitOutlook";
+import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent, createOutlookMeetingCalendarEvent, deleteOutlookCalendarEvent } from "./calendar";
 import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber, isValidUKPhoneNumber, phoneLastFour } from "./sms";
 import {
   createGoogleOAuthClient,
@@ -8902,22 +8900,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   app.get("/api/oauth/connections", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      
-      // Check Replit-managed connections first
-      const replitGoogleConnected = await isReplitCalendarConnected();
-      // Get user's own OAuth connections
       const providers = await getConnectedProviders(userId, storage);
-      
-      // If Replit Google connection is available, override Google status
-      if (replitGoogleConnected) {
-        providers.google = {
-          connected: true,
-          email: 'Connected via Replit',
-          connectedAt: new Date().toISOString(),
-        };
-      }
-
-      // getConnectedProviders already includes Outlook from calendar_integrations
       res.json(providers);
     } catch (error) {
       next(error);
@@ -9143,73 +9126,28 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           result = { success: false, error: outlookError.message, provider: 'outlook' };
         }
       }
-      // Handle Google calendar sync
+      // Handle Google calendar sync via user OAuth
       else if (provider === 'google') {
-        const replitConnected = await isReplitCalendarConnected();
-        
-        if (replitConnected) {
-          console.log('[SYNC] Using Replit-managed Google Calendar connection');
-          
-          if (existingEvent) {
-            console.log('[SYNC] Updating existing calendar event:', existingEvent.providerEventId);
-            const updateResult = await updateReplitCalendarEvent(existingEvent.providerEventId, {
-              title: caseData.title,
-              deadline: eventData.deadline.toISOString(),
-              notes: eventData.notes,
-              priority: eventData.priority,
-              isAllDay: eventData.isAllDay,
-            });
-            result = { ...updateResult, provider: 'google' };
-            
-            if (result.success) {
-              await storage.updateCalendarEvent(existingEvent.id, {
-                lastUpdatedAt: new Date(),
-              });
-            }
-          } else {
-            console.log('[SYNC] Creating new calendar event via Replit connector');
-            const createResult = await createReplitCalendarEvent({
-              caseId: req.params.id,
-              title: caseData.title,
-              deadline: eventData.deadline.toISOString(),
-              notes: eventData.notes,
-              priority: eventData.priority,
-              isAllDay: eventData.isAllDay,
-            });
-            result = { ...createResult, provider: 'google' };
-            
-            console.log('[SYNC] Replit create result:', result);
-            
-            if (result.success && result.eventId) {
-              console.log('[SYNC] Saving calendar event to database');
-              await storage.createCalendarEvent({
-                caseId: req.params.id,
-                userId: userId,
-                provider: provider,
-                providerEventId: result.eventId,
-                eventType: 'deadline',
-              });
-            }
+        const googleIntegration = await storage.getCalendarIntegration(userId, 'google');
+        if (!googleIntegration?.accessToken || googleIntegration.accessToken === 'replit-managed') {
+          return res.status(400).json({ message: "Google Calendar is not connected. Please connect via Settings." });
+        }
+
+        if (existingEvent) {
+          result = await updateCalendarEvent(userId, existingEvent.providerEventId, eventData, storage);
+          if (result.success) {
+            await storage.updateCalendarEvent(existingEvent.id, { lastUpdatedAt: new Date() });
           }
         } else {
-          // Fall back to user's own OAuth connection
-          console.log('[SYNC] Replit connection not available, using user OAuth');
-          if (existingEvent) {
-            result = await updateCalendarEvent(userId, existingEvent.providerEventId, eventData, storage);
-            if (result.success) {
-              await storage.updateCalendarEvent(existingEvent.id, { lastUpdatedAt: new Date() });
-            }
-          } else {
-            result = await createCalendarEvent(userId, eventData, storage);
-            if (result.success && result.eventId) {
-              await storage.createCalendarEvent({
-                caseId: req.params.id,
-                userId: userId,
-                provider: 'google',
-                providerEventId: result.eventId,
-                eventType: 'deadline',
-              });
-            }
+          result = await createCalendarEvent(userId, eventData, storage);
+          if (result.success && result.eventId) {
+            await storage.createCalendarEvent({
+              caseId: req.params.id,
+              userId: userId,
+              provider: 'google',
+              providerEventId: result.eventId,
+              eventType: 'deadline',
+            });
           }
         }
       }
@@ -9289,7 +9227,15 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       // Delete events from calendars and database
       for (const event of eventsToDelete) {
         if (event.provider === 'outlook') {
-          await deleteReplitOutlookEvent(event.providerEventId);
+          const del = await deleteOutlookCalendarEvent(
+            userId,
+            event.providerEventId,
+            storage,
+            getCanonicalBaseUrl(req),
+          );
+          if (!del.success) {
+            console.warn('[UNSYNC] Outlook delete failed:', del.error);
+          }
         } else {
           await deleteCalendarEvent(userId, event.providerEventId, storage);
         }
@@ -11137,7 +11083,7 @@ ${firmName}`;
       }
 
       const connections = await getConnectedProviders(userId, storage);
-      const outlookConnected = connections.outlook.connected || (await isReplitOutlookConnected());
+      const outlookConnected = connections.outlook.connected;
       const googleConnected = connections.google.connected;
 
       if (!googleConnected && !outlookConnected) {
@@ -11183,15 +11129,21 @@ ${firmName}`;
       let meetingPlatform: "zoom" | "teams" | "meet" | "webex" | undefined;
 
       if (provider === "outlook") {
-        const outlookResult = await createReplitOutlookMeetingEvent({
-          title: data.title,
-          description,
-          startTime,
-          endTime,
-          meetingUrl: providedMeetingUrl,
-          attendees,
-          createOnlineMeeting: createConference,
-        });
+        const outlookResult = await createOutlookMeetingCalendarEvent(
+          userId,
+          {
+            title: data.title,
+            description,
+            startTime,
+            endTime,
+            meetingUrl: providedMeetingUrl,
+            attendees,
+            createConference,
+          },
+          storage,
+          getCanonicalBaseUrl(req),
+        );
+
         if (!outlookResult.success || !outlookResult.eventId) {
           return res.status(502).json({
             message: `Failed to create Outlook calendar event: ${outlookResult.error || "Unknown error"}`,
@@ -11201,7 +11153,7 @@ ${firmName}`;
         if (outlookResult.meetingUrl) {
           meetingUrl = outlookResult.meetingUrl;
         }
-        if (outlookResult.meetingPlatform) {
+        if (outlookResult.meetingPlatform === "teams" || outlookResult.meetingPlatform === "meet") {
           meetingPlatform = outlookResult.meetingPlatform;
         }
       } else {
@@ -11380,7 +11332,12 @@ ${firmName}`;
       if (meeting.calendarEventId && !meeting.calendarEventId.startsWith('rescheduled-')) {
         try {
           if (meeting.calendarProvider === 'outlook') {
-            calendarDeleteResult = await deleteReplitOutlookEvent(meeting.calendarEventId);
+            calendarDeleteResult = await deleteOutlookCalendarEvent(
+              userId,
+              meeting.calendarEventId,
+              storage,
+              getCanonicalBaseUrl(req),
+            );
           } else {
             calendarDeleteResult = await deleteCalendarEvent(userId, meeting.calendarEventId, storage);
           }
@@ -11463,11 +11420,18 @@ ${firmName}`;
       let calendarEventId = `rescheduled-${meeting.calendarEventId}-${Date.now()}`;
       
       let calendarSynced = false;
+      let replacementMeetingUrl = meeting.meetingUrl || undefined;
+      let replacementPlatform = meeting.meetingPlatform || undefined;
       
       if (meeting.calendarEventId && !meeting.calendarEventId.startsWith('rescheduled-')) {
         try {
           if (meeting.calendarProvider === 'outlook') {
-            const calResult = await deleteReplitOutlookEvent(meeting.calendarEventId);
+            const calResult = await deleteOutlookCalendarEvent(
+              userId,
+              meeting.calendarEventId,
+              storage,
+              getCanonicalBaseUrl(req),
+            );
             if (!calResult.success) {
               return res.status(502).json({ message: `Failed to void original calendar event: ${calResult.error}` });
             }
@@ -11486,17 +11450,28 @@ ${firmName}`;
         const attendeesList = Array.isArray(meeting.attendees) 
           ? (meeting.attendees as Array<{ email: string; name?: string }>).filter(a => a.email)
           : [];
+        const parsedEnd = newEndTime ? new Date(newEndTime) : undefined;
+
         if (meeting.calendarProvider === 'outlook') {
-          const outlookResult = await createReplitOutlookEvent({
-            caseId: meeting.caseId || 'meeting',
-            title: meeting.title,
-            clientName: meeting.clientName || 'Client',
-            deadline: parsedStart.toISOString(),
-            notes: meeting.description || undefined,
-          });
+          const outlookResult = await createOutlookMeetingCalendarEvent(
+            userId,
+            {
+              title: meeting.title,
+              description: meeting.description || undefined,
+              startTime: parsedStart,
+              endTime: parsedEnd,
+              meetingUrl: meeting.meetingUrl || undefined,
+              attendees: attendeesList,
+              createConference: !meeting.meetingUrl,
+            },
+            storage,
+            getCanonicalBaseUrl(req),
+          );
           if (outlookResult.success && outlookResult.eventId) {
             calendarEventId = outlookResult.eventId;
             calendarSynced = true;
+            if (outlookResult.meetingUrl) replacementMeetingUrl = outlookResult.meetingUrl;
+            if (outlookResult.meetingPlatform) replacementPlatform = outlookResult.meetingPlatform;
           } else {
             return res.status(502).json({ message: `Failed to create replacement calendar event: ${outlookResult.error}` });
           }
@@ -11505,13 +11480,16 @@ ${firmName}`;
             title: meeting.title,
             description: meeting.description || undefined,
             startTime: parsedStart,
-            endTime: newEndTime ? new Date(newEndTime) : undefined,
+            endTime: parsedEnd,
             meetingUrl: meeting.meetingUrl || undefined,
             attendees: attendeesList,
+            createConference: !meeting.meetingUrl,
           }, storage);
           if (newCalResult.success && newCalResult.eventId) {
             calendarEventId = newCalResult.eventId;
             calendarSynced = true;
+            if (newCalResult.meetingUrl) replacementMeetingUrl = newCalResult.meetingUrl;
+            if (newCalResult.meetingPlatform) replacementPlatform = newCalResult.meetingPlatform;
           } else {
             return res.status(502).json({ message: `Failed to create replacement calendar event: ${newCalResult.error}` });
           }
@@ -11521,8 +11499,8 @@ ${firmName}`;
       }
       
       const validPlatforms = ['zoom', 'teams', 'meet', 'webex'] as const;
-      const platform = validPlatforms.includes(meeting.meetingPlatform as typeof validPlatforms[number])
-        ? (meeting.meetingPlatform as typeof validPlatforms[number])
+      const platform = validPlatforms.includes(replacementPlatform as typeof validPlatforms[number])
+        ? (replacementPlatform as typeof validPlatforms[number])
         : undefined;
       const provider = (meeting.calendarProvider === 'google' || meeting.calendarProvider === 'outlook')
         ? meeting.calendarProvider
@@ -11535,7 +11513,7 @@ ${firmName}`;
         calendarProvider: provider,
         title: meeting.title,
         description: meeting.description || undefined,
-        meetingUrl: meeting.meetingUrl || undefined,
+        meetingUrl: replacementMeetingUrl,
         meetingPlatform: platform,
         startTime: parsedStart,
         endTime: newEndTime ? new Date(newEndTime) : undefined,
