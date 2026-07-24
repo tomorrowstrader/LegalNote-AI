@@ -1,5 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { CalendarPlus, Loader2, Search, Briefcase, X, Video, ChevronDown, ChevronUp } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  CalendarPlus,
+  Loader2,
+  Search,
+  Briefcase,
+  X,
+  Video,
+  ChevronDown,
+  ChevronUp,
+  UserPlus,
+  Shield,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -24,7 +36,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 import { format } from "date-fns";
-import type { Case, ScheduledMeeting } from "@shared/schema";
+import type { Case, Client, ScheduledMeeting } from "@shared/schema";
 
 interface ScheduleMeetingModalProps {
   open: boolean;
@@ -95,10 +107,20 @@ export default function ScheduleMeetingModal({
   const [caseId, setCaseId] = useState<string | null>(null);
   const [caseSearch, setCaseSearch] = useState("");
   const [provider, setProvider] = useState<"google" | "outlook">("google");
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [clientName, setClientName] = useState("");
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const clientSearchRef = useRef<HTMLDivElement>(null);
 
   const { data: cases = [] } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
     enabled: open,
+  });
+
+  const { data: clientSearchResults = [] } = useQuery<Client[]>({
+    queryKey: [`/api/clients/search?q=${encodeURIComponent(clientSearchQuery)}`],
+    enabled: open && clientSearchQuery.trim().length >= 2 && !selectedClient,
   });
 
   const bothConnected = googleConnected && outlookConnected;
@@ -123,7 +145,63 @@ export default function ScheduleMeetingModal({
     setCaseId(null);
     setCaseSearch("");
     setProvider(defaultProvider);
+    setSelectedClient(null);
+    setClientName("");
+    setClientSearchQuery("");
+    setShowClientDropdown(false);
   }, [open, defaultProvider]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (clientSearchRef.current && !clientSearchRef.current.contains(e.target as Node)) {
+        setShowClientDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleClientSelect = (client: Client) => {
+    setSelectedClient(client);
+    setClientName(client.name);
+    setShowClientDropdown(false);
+    setClientSearchQuery("");
+  };
+
+  const handleClearClient = () => {
+    setSelectedClient(null);
+    setClientName("");
+    setClientSearchQuery("");
+  };
+
+  const handleClientInputChange = (value: string) => {
+    setClientSearchQuery(value);
+    setClientName(value);
+    setSelectedClient(null);
+    setShowClientDropdown(value.trim().length >= 2);
+  };
+
+  const createClientMutation = useMutation({
+    mutationFn: async (name: string) => {
+      return await apiRequest<Client>("POST", "/api/clients", { name });
+    },
+    onSuccess: (client) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      handleClientSelect(client);
+      toast({
+        title: "Client created",
+        description: `${client.name} has been added to your client registry.`,
+        duration: 4000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Could not create client",
+        description: getApiErrorMessage(error, "Please try again."),
+        variant: "destructive",
+      });
+    },
+  });
 
   const filteredCases = useMemo(() => {
     if (!caseSearch.trim()) return cases.slice(0, 8);
@@ -144,6 +222,9 @@ export default function ScheduleMeetingModal({
     mutationFn: async () => {
       if (!title.trim() || !date || !startTime) {
         throw new Error("Title, date, and start time are required");
+      }
+      if (!selectedClient) {
+        throw new Error("Select an existing client or create a new one");
       }
 
       const start = new Date(`${date}T${startTime}`);
@@ -179,6 +260,7 @@ export default function ScheduleMeetingModal({
         provider: activeProvider,
         attendees,
         clientEmail: attendees[0]?.email,
+        clientName: selectedClient.name,
       });
     },
     onSuccess: (meeting) => {
@@ -248,6 +330,113 @@ export default function ScheduleMeetingModal({
               placeholder="Client conference"
               data-testid="input-schedule-title"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="schedule-client-name">
+              Client Name <span className="text-accent">*</span>
+            </Label>
+            <div ref={clientSearchRef} className="relative">
+              {selectedClient ? (
+                <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
+                  <span
+                    className="text-sm font-medium flex-1 truncate"
+                    data-testid="text-schedule-selected-client"
+                  >
+                    {selectedClient.name}
+                  </span>
+                  {selectedClient.amlRiskLevel && (
+                    <Badge
+                      variant={
+                        selectedClient.amlRiskLevel === "high"
+                          ? "destructive"
+                          : selectedClient.amlRiskLevel === "medium"
+                            ? "secondary"
+                            : "outline"
+                      }
+                      className="text-xs shrink-0"
+                    >
+                      <Shield className="w-3 h-3 mr-1" />
+                      {selectedClient.amlRiskLevel.toUpperCase()}
+                    </Badge>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleClearClient}
+                    data-testid="button-schedule-clear-client"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Input
+                  id="schedule-client-name"
+                  placeholder="Search existing clients or type a new name..."
+                  value={clientName}
+                  onChange={(e) => handleClientInputChange(e.target.value)}
+                  onFocus={() => {
+                    if (clientSearchQuery.trim().length >= 2) setShowClientDropdown(true);
+                  }}
+                  data-testid="input-schedule-client-name"
+                />
+              )}
+              {showClientDropdown && !selectedClient && (
+                <div
+                  className="absolute z-50 top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-md max-h-48 overflow-y-auto"
+                  data-testid="dropdown-schedule-client-search"
+                >
+                  {clientSearchResults.length > 0 ? (
+                    clientSearchResults.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center justify-between gap-2"
+                        onClick={() => handleClientSelect(c)}
+                        data-testid={`option-schedule-client-${c.id}`}
+                      >
+                        <span className="truncate">{c.name}</span>
+                        {c.amlRiskLevel && (
+                          <Badge
+                            variant={
+                              c.amlRiskLevel === "high"
+                                ? "destructive"
+                                : c.amlRiskLevel === "medium"
+                                  ? "secondary"
+                                  : "outline"
+                            }
+                            className="text-xs shrink-0"
+                          >
+                            {c.amlRiskLevel.toUpperCase()}
+                          </Badge>
+                        )}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      No matching clients
+                    </div>
+                  )}
+                  {clientName.trim().length >= 2 && (
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center gap-2 border-t"
+                      onClick={() => createClientMutation.mutate(clientName.trim())}
+                      disabled={createClientMutation.isPending}
+                      data-testid="button-schedule-create-client-inline"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>
+                        {createClientMutation.isPending
+                          ? "Creating..."
+                          : `Create "${clientName.trim()}" as new client`}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -390,6 +579,16 @@ export default function ScheduleMeetingModal({
                           onClick={() => {
                             setCaseId(c.id);
                             setCaseSearch("");
+                            if (c.clientId && c.clientName && !selectedClient) {
+                              setSelectedClient({
+                                id: c.clientId,
+                                name: c.clientName,
+                                amlRiskLevel: null,
+                              } as Client);
+                              setClientName(c.clientName);
+                              setClientSearchQuery("");
+                              setShowClientDropdown(false);
+                            }
                           }}
                           data-testid={`button-schedule-select-case-${c.id}`}
                         >
@@ -447,7 +646,13 @@ export default function ScheduleMeetingModal({
           </Button>
           <Button
             onClick={() => createMutation.mutate()}
-            disabled={createMutation.isPending || !title.trim() || !date || !startTime}
+            disabled={
+              createMutation.isPending ||
+              !title.trim() ||
+              !date ||
+              !startTime ||
+              !selectedClient
+            }
             data-testid="button-confirm-schedule"
           >
             {createMutation.isPending ? (

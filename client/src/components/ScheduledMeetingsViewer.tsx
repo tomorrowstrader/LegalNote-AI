@@ -47,13 +47,17 @@ import { Label } from "@/components/ui/label";
 import { isFeatureVisible } from "@/lib/features";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 import { LiveBotModal } from "@/components/LiveBotModal";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 /** Keep meetings visible this long after start for late logins (must match server). */
 const LATE_JOIN_GRACE_MS = 15 * 60 * 1000;
 /** Show Join now from this long before scheduled start. */
 const EARLY_JOIN_MS = 5 * 60 * 1000;
-
-type MeetingAttendee = { email: string; name?: string; responseStatus?: string };
 
 type MeetingTimeTab = "today" | "tomorrow" | "next7" | "later";
 
@@ -123,17 +127,6 @@ function useIsDesktop(breakpointPx = 768) {
   }, [breakpointPx]);
 
   return isDesktop;
-}
-
-function getMeetingAttendees(meeting: ScheduledMeeting): MeetingAttendee[] {
-  if (!Array.isArray(meeting.attendees)) return [];
-  return meeting.attendees.filter(
-    (a): a is MeetingAttendee =>
-      typeof a === "object" &&
-      a !== null &&
-      typeof (a as MeetingAttendee).email === "string" &&
-      (a as MeetingAttendee).email.length > 0,
-  );
 }
 
 const calendarAutoRecordVisible = isFeatureVisible("calendarAutoRecord");
@@ -542,14 +535,17 @@ function EditMeetingDialog({
 function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdate: () => void }) {
   const { toast } = useToast();
   const now = useNowTick();
-  const [showRecipientDialog, setShowRecipientDialog] = useState(false);
-  const [selectedAttendeeEmail, setSelectedAttendeeEmail] = useState('');
   const [showCaseDialog, setShowCaseDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showLiveBotModal, setShowLiveBotModal] = useState(false);
+  const [allocateLater, setAllocateLater] = useState(false);
 
-  const attendees = getMeetingAttendees(meeting);
+  const openLiveBot = (deferMatter: boolean) => {
+    setAllocateLater(deferMatter);
+    setShowLiveBotModal(true);
+  };
+
   const safeJoinUrl = getSafeHttpsMeetingUrl(meeting.meetingUrl);
   
   const startTime = new Date(meeting.startTime);
@@ -597,31 +593,6 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   
   const handleToggleAutoRecord = (enabled: boolean) => {
     updateMutation.mutate({ autoRecordEnabled: enabled });
-  };
-
-  const openRecipientDialog = () => {
-    setSelectedAttendeeEmail(meeting.clientEmail || '');
-    setShowRecipientDialog(true);
-  };
-
-  const handleConfirmRecipient = () => {
-    const attendee = attendees.find(
-      (a) => a.email.toLowerCase() === selectedAttendeeEmail.trim().toLowerCase(),
-    );
-    if (!attendee) {
-      toast({
-        title: "Select a recipient",
-        description: "Choose an attendee from the meeting invite.",
-        variant: "destructive",
-      });
-      return;
-    }
-    const recipientName = (attendee.name || "").trim() || attendee.email;
-    updateMutation.mutate({
-      clientEmail: attendee.email,
-      clientName: recipientName,
-    });
-    setShowRecipientDialog(false);
   };
 
   const { data: linkedCase } = useQuery<Case>({
@@ -719,23 +690,53 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
             {isActive && (
               <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
                 {(safeJoinUrl || joinNow) ? (
-                  <Button
-                    size="sm"
-                    className={joinNow ? "bg-emerald-600 hover:bg-emerald-700 text-white" : undefined}
-                    onClick={() => {
-                      if (safeJoinUrl && meeting.recallBotId) {
-                        window.open(safeJoinUrl, '_blank', 'noopener,noreferrer');
-                      } else {
-                        setShowLiveBotModal(true);
-                      }
-                    }}
-                    data-testid={`button-join-with-legalnote-${meeting.id}`}
-                  >
-                    <Video className="w-3 h-3 mr-1" />
-                    {joinNow
-                      ? (meeting.recallBotId && safeJoinUrl ? "Join now" : "Join now with LegalNote")
-                      : (meeting.recallBotId ? "Join meeting" : "Join with LegalNote")}
-                  </Button>
+                  meeting.recallBotId && safeJoinUrl ? (
+                    <Button
+                      size="sm"
+                      className={joinNow ? "bg-emerald-600 hover:bg-emerald-700 text-white" : undefined}
+                      onClick={() => window.open(safeJoinUrl, '_blank', 'noopener,noreferrer')}
+                      data-testid={`button-join-with-legalnote-${meeting.id}`}
+                    >
+                      <Video className="w-3 h-3 mr-1" />
+                      {joinNow ? "Join now" : "Join meeting"}
+                    </Button>
+                  ) : (
+                    <div className="flex items-stretch">
+                      <Button
+                        size="sm"
+                        className={`rounded-r-none ${joinNow ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
+                        onClick={() => openLiveBot(false)}
+                        data-testid={`button-join-with-legalnote-${meeting.id}`}
+                      >
+                        <Video className="w-3 h-3 mr-1" />
+                        {joinNow ? "Join now with LegalNote" : "Join with LegalNote"}
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            className={`rounded-l-none border-l px-2 ${
+                              joinNow
+                                ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500"
+                                : ""
+                            }`}
+                            aria-label="More join options"
+                            data-testid={`button-join-options-${meeting.id}`}
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuItem
+                            onClick={() => openLiveBot(true)}
+                            data-testid={`menu-join-allocate-later-${meeting.id}`}
+                          >
+                            Join &amp; allocate to matter later
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )
                 ) : null}
 
                 <Button
@@ -757,62 +758,6 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                   <Pencil className="w-3 h-3 mr-1" />
                   Edit Meeting
                 </Button>
-                
-                {attendees.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={openRecipientDialog}
-                    data-testid={`button-choose-recipient-${meeting.id}`}
-                  >
-                    <Users className="w-3 h-3 mr-1" />
-                    {meeting.clientEmail ? 'Change recipient' : 'Choose recipient'}
-                  </Button>
-                )}
-
-                <Dialog open={showRecipientDialog} onOpenChange={setShowRecipientDialog}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Choose consent recipient</DialogTitle>
-                    </DialogHeader>
-                    <p className="text-sm text-muted-foreground">
-                      Select who will receive the recording consent email. This must be someone on the meeting invite.
-                    </p>
-                    <div className="space-y-2 pt-2 max-h-64 overflow-y-auto">
-                      {attendees.map((attendee) => (
-                        <button
-                          key={attendee.email}
-                          type="button"
-                          onClick={() => setSelectedAttendeeEmail(attendee.email)}
-                          className={`w-full text-left p-3 rounded-md border transition-colors ${
-                            selectedAttendeeEmail === attendee.email
-                              ? 'border-primary bg-primary/5'
-                              : 'hover:bg-muted/50'
-                          }`}
-                          data-testid={`attendee-option-${attendee.email}`}
-                        >
-                          <div className="font-medium text-sm">
-                            {attendee.name || attendee.email}
-                          </div>
-                          {attendee.name && (
-                            <div className="text-xs text-muted-foreground">{attendee.email}</div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                    <Button
-                      onClick={handleConfirmRecipient}
-                      disabled={!selectedAttendeeEmail || updateMutation.isPending}
-                      data-testid="button-confirm-recipient"
-                    >
-                      {updateMutation.isPending ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        'Confirm recipient'
-                      )}
-                    </Button>
-                  </DialogContent>
-                </Dialog>
                 
                 {meeting.clientEmail && meeting.consentStatus === 'pending' && (
                   <Button 
@@ -872,11 +817,15 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
       />
       <LiveBotModal
         open={showLiveBotModal}
-        onOpenChange={setShowLiveBotModal}
-        caseId={meeting.caseId}
-        caseTitle={linkedCase?.title || meeting.title}
+        onOpenChange={(next) => {
+          setShowLiveBotModal(next);
+          if (!next) setAllocateLater(false);
+        }}
+        caseId={allocateLater ? null : meeting.caseId}
+        caseTitle={allocateLater ? undefined : (linkedCase?.title || meeting.title)}
         initialMeetingUrl={safeJoinUrl}
         suggestedClientName={meeting.clientName || linkedCase?.clientName || undefined}
+        allocateLater={allocateLater}
       />
       <CancelMeetingDialog
         meeting={meeting}

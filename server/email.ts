@@ -558,111 +558,108 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
 
 interface SendPreConsentEmailParams {
   to: string;
-  recipientName: string;
-  subject: string;
-  body: string;
+  /** Display name only — never an email address. Omitted from greeting if missing/email-like. */
+  recipientName?: string;
   consentUrl: string;
+  /** Optional schedule context (date/time only — never matter title or client identifiers). */
+  scheduledMeetingTime?: Date;
 }
 
+function publicFacingDisplayName(name?: string | null): string | null {
+  const trimmed = name?.trim();
+  if (!trimmed || trimmed.includes("@")) return null;
+  return trimmed;
+}
+
+/**
+ * Pre-meeting recording consent request.
+ * GDPR / data residency: omits client identifiers, matter titles, and case references.
+ * Schedule date/time may be included; all matter detail stays behind the consent link.
+ */
 export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const { to, recipientName, subject, body, consentUrl } = params;
+  const { to, recipientName, consentUrl, scheduledMeetingTime } = params;
+
+  const displayName = publicFacingDisplayName(recipientName);
+  const greeting = displayName ? `Hello ${escapeHtmlPlain(displayName)},` : "Hello,";
+
+  const whenLine = scheduledMeetingTime && !isNaN(scheduledMeetingTime.getTime())
+    ? (() => {
+        const date = scheduledMeetingTime.toLocaleDateString("en-GB", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        });
+        const time = scheduledMeetingTime.toLocaleTimeString("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        return ` for your meeting on <strong>${escapeHtmlPlain(date)}</strong> at <strong>${escapeHtmlPlain(time)}</strong>`;
+      })()
+    : "";
 
   const emailHtml = `
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          line-height: 1.6;
-          color: #1a1a1a;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-          background-color: #f5f5f5;
-        }
-        .container {
-          background: white;
-          border-radius: 8px;
-          padding: 0;
-          overflow: hidden;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-        .header {
-          border-bottom: 2px solid #000;
-          padding: 24px 32px 16px;
-          margin-bottom: 0;
-        }
-        .header h1 {
-          margin: 0;
-          font-size: 24px;
-          font-weight: 600;
-        }
-        .content {
-          white-space: pre-wrap;
-          margin-bottom: 24px;
-        }
-        .cta-button {
-          display: inline-block;
-          background: #000;
-          color: #fff;
-          padding: 14px 28px;
-          border-radius: 6px;
-          text-decoration: none;
-          font-weight: 500;
-          margin: 16px 0;
-        }
-        .cta-button:hover {
-          background: #333;
-        }
-        .footer {
-          margin-top: 32px;
-          padding-top: 16px;
-          border-top: 1px solid #e5e5e5;
-          font-size: 12px;
-          color: #666;
-        }
-        .notice {
-          background: #f8f9fa;
-          border-radius: 6px;
-          padding: 16px;
-          margin: 24px 0;
-          font-size: 14px;
-        }
-      </style>
+      <title>Recording consent request</title>
     </head>
-    <body>
-      <div class="container">
-        ${legalNoteBrandHeaderHtml()}
-        <div class="header">
-          <h1>Recording Consent Request</h1>
-        </div>
-        <div style="padding: 24px 32px 32px;">
-        
-        <div class="content">${body.replace(/\n/g, '<br>')}</div>
-        
-        <div style="text-align: center;">
-          <a href="${consentUrl}" class="cta-button">Provide Consent</a>
-        </div>
-        
-        <div class="notice">
-          <strong>What happens next?</strong><br>
-          By clicking "Provide Consent", you acknowledge that the meeting may be recorded for the purpose of creating accurate legal documentation. The recording will be stored securely and processed in compliance with GDPR.
-        </div>
-        
-        <p style="font-size: 13px; color: #666;">
-          If the button above doesn't work, copy and paste this link into your browser:<br>
-          <a href="${consentUrl}">${consentUrl}</a>
-        </p>
-        
-        <div class="footer">
-          <p>This email was sent by LegalNote on behalf of your legal representative.</p>
-          <p>If you did not expect this email, please contact your legal representative.</p>
-        </div>
-        </div>
-      </div>
+    <body style="margin:0;padding:0;background-color:#f3f3f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f3f3;">
+        <tr>
+          <td align="center" style="padding:0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;">
+              ${legalNoteBrandHeaderTableRow()}
+              <tr>
+                <td align="center" style="background-color:#f3f3f3;padding:36px 24px 48px;">
+                  <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;line-height:1.3;color:#1a1a1a;">
+                    Recording consent
+                  </p>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="background-color:#000000;padding:0 20px 48px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;margin:-36px auto 0;background-color:#ffffff;border-radius:16px;">
+                    <tr>
+                      <td style="padding:40px 32px 36px;text-align:left;">
+                        <p style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a;">
+                          ${greeting}
+                        </p>
+                        <p style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a;">
+                          Your solicitor has asked for your consent to record an upcoming meeting${whenLine}, so accurate attendance notes can be prepared.
+                        </p>
+                        <p style="margin:0 0 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#555555;">
+                          Continue on LegalNote to consent or decline. No matter details are included in this email.
+                        </p>
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+                          <tr>
+                            <td align="center" style="background-color:#000000;border-radius:8px;">
+                              <a href="${escapeHtmlPlain(consentUrl)}" style="display:block;padding:16px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.06em;text-decoration:none;color:#ffffff;text-transform:uppercase;">
+                                Review and respond
+                                <span style="display:inline-block;margin-left:12px;padding-left:12px;border-left:2px solid #b8e000;line-height:1;">→</span>
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin:24px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#888888;">
+                          If the button does not work, copy this link into your browser:<br>
+                          <a href="${escapeHtmlPlain(consentUrl)}" style="color:#555555;word-break:break-all;">${escapeHtmlPlain(consentUrl)}</a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                  <p style="margin:28px 20px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#999999;text-align:center;">
+                    If you do not wish the meeting to be recorded, open the link and choose Decline — or ignore this email and nothing will be recorded.
+                    <br><br>Sent via LegalNote — Meeting to Matter.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
     </body>
     </html>
   `;
@@ -671,7 +668,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
     const result = await sendEmail({
       from: 'LegalNote™ <support@legalnote.ai>',
       to,
-      subject,
+      subject: 'Recording consent request',
       html: emailHtml,
     });
 
@@ -684,6 +681,55 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
     return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending pre-consent email:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+function escapeHtmlPlain(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Generic branded notice for clients — no matter titles or client identifiers in content. */
+export async function sendBrandedClientNoticeEmail(params: {
+  to: string;
+  subject: string;
+  heading: string;
+  messageHtml: string;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { to, subject, heading, messageHtml } = params;
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${escapeHtmlPlain(subject)}</title>
+    </head>
+    <body style="margin:0;padding:0;background-color:#faf9f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a1a;">
+      <div style="max-width:600px;margin:0 auto;background:#ffffff;">
+        ${legalNoteBrandHeaderHtml()}
+        <div style="padding:28px 32px 36px;">
+          <h1 style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;color:#3d3028;">${escapeHtmlPlain(heading)}</h1>
+          <div style="font-size:15px;line-height:1.55;color:#333333;">${messageHtml}</div>
+          <hr style="margin:32px 0;border:none;border-top:1px solid #e8e4df;">
+          <p style="margin:0;font-size:12px;color:#8a7d72;">Sent via LegalNote — Meeting to Matter.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  try {
+    return await sendEmail({
+      from: 'LegalNote™ <support@legalnote.ai>',
+      to,
+      subject,
+      html: emailHtml,
+    });
+  } catch (error: any) {
     return { success: false, error: error.message || 'Unknown error' };
   }
 }

@@ -403,38 +403,13 @@ export class MeetingSchedulerService {
     const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
     const consentUrl = `${baseUrl}/consent/${consentToken}`;
 
-    const meetingDate = new Date(meeting.startTime).toLocaleDateString('en-GB', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-    const meetingTime = new Date(meeting.startTime).toLocaleTimeString('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    const emailSubject = `Recording Consent Request - Meeting on ${meetingDate}`;
-    const emailBody = `
-Dear ${recipientName},
-
-We would like to record our upcoming meeting scheduled for ${meetingDate} at ${meetingTime}.
-
-Meeting: ${meeting.title}
-
-The recording will be used to:
-- Create accurate attendance notes
-- Ensure nothing important is missed
-- Provide you with a written record of our discussion
-
-Please click the link below to provide your consent:
-${consentUrl}
-
-If you do not wish the meeting to be recorded, simply ignore this email and we will not record it.
-
-Kind regards,
-Your Legal Team
-    `.trim();
+    // Stored copy only — outbound HTML is owned by sendPreConsentEmail (no matter titles / PII).
+    const emailSubject = 'Recording consent request';
+    const emailBody = [
+      'Your solicitor has requested recording consent for an upcoming meeting.',
+      'Respond via the LegalNote consent link. No matter details are included in this email.',
+      consentUrl,
+    ].join('\n\n');
 
     const preConsentEmail = await storage.createPreConsentEmail({
       userId: meeting.userId,
@@ -456,9 +431,8 @@ Your Legal Team
       await sendPreConsentEmail({
         to: meeting.clientEmail,
         recipientName,
-        subject: emailSubject,
-        body: emailBody,
         consentUrl,
+        scheduledMeetingTime: meeting.startTime,
       });
 
       await storage.updatePreConsentEmail(preConsentEmail.id, { emailStatus: 'sent' });

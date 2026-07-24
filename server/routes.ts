@@ -138,6 +138,12 @@ import {
 import { AssemblyAIService } from "./services/assemblyAIService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, legalNoteBrandHeaderHtml } from "./email";
+import {
+  renderConsentAlreadyRespondedPage,
+  renderConsentDecisionPage,
+  renderConsentExpiredPage,
+  renderConsentNotFoundPage,
+} from "./consentPublicPage";
 import { assembleSraReportData, buildSraReportPreview } from "./services/sraReportService";
 import { compileSraReportPdf } from "./services/sraReportPdf";
 import { logPersonnelMatterAccess } from "./personnelAccessAudit";
@@ -10281,8 +10287,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
       const recipientName = contactName || "Client";
       const recipientEmail = contactEmail || `sms-${consentToken.substring(0, 8)}@placeholder.invalid`;
-      const emailSubject = "Recording Consent — Please Review and Confirm";
-      const emailBody = `Dear ${recipientName},\n\nYour solicitor would like to confirm that you consent to this meeting being recorded by LegalNote for the purpose of producing legal documentation.\n\nPlease click the button below to confirm your consent.\n\n[Acknowledge Consent Button]\n\nIf you have any questions, please contact your solicitor directly.`;
+      const emailSubject = "Recording consent request";
+      const emailBody = [
+        "Your solicitor has requested recording consent for a meeting.",
+        "Respond via the LegalNote consent link. No matter details are included in this email.",
+        consentUrl,
+      ].join("\n\n");
 
       const consentEmail = await storage.createPreConsentEmail({
         userId,
@@ -10305,8 +10315,6 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           const result = await sendPreConsentEmail({
             to: contactEmail,
             recipientName,
-            subject: emailSubject,
-            body: emailBody,
             consentUrl,
           });
 
@@ -10328,7 +10336,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         try {
           const { formatUKPhoneNumber, sendSmsMessage } = await import("./sms");
           const formattedPhone = formatUKPhoneNumber(contactMobile);
-          const smsBody = `${recipientName}, your solicitor requests consent to record this meeting. Tap to confirm: ${consentUrl}`;
+          const smsBody = `Your solicitor requests consent to record a meeting. Tap to respond: ${consentUrl}`;
 
           const smsResult = await sendSmsMessage(formattedPhone, smsBody);
           if (!smsResult.success) {
@@ -10600,36 +10608,17 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       
       // Generate consent token
       const consentToken = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
-      
-      // Get firm profile for email branding
-      const firmProfile = await storage.getFirmProfile();
-      const firmName = firmProfile?.firmName || 'LegalNote';
-      
-      // Create email content
-      const emailSubject = `Recording Consent for Video Meeting - ${firmName}`;
-      const emailBody = `Dear ${recipientName},
+      const baseUrl = getCanonicalBaseUrl(req);
+      const consentUrl = `${baseUrl}/consent/${consentToken}`;
+      const scheduledAt = scheduledMeetingTime ? new Date(scheduledMeetingTime) : undefined;
 
-We are writing to inform you that we would like to record our upcoming video meeting for the purposes of creating accurate attendance notes and legal documentation.
-
-Meeting Details:
-${scheduledMeetingTime ? `- Scheduled Time: ${new Date(scheduledMeetingTime).toLocaleString('en-GB')}` : ''}
-${meetingPlatform ? `- Platform: ${meetingPlatform.charAt(0).toUpperCase() + meetingPlatform.slice(1)}` : ''}
-${meetingUrl ? `- Meeting Link: ${meetingUrl}` : ''}
-
-By acknowledging this consent, you agree to the recording being used to generate accurate meeting notes and documentation. The recording will be:
-- Stored securely with encryption
-- Retained for a maximum of 7 days
-- Used solely for the purpose of creating legal documentation
-- Processed in compliance with GDPR and data protection requirements
-
-Please click the button below to acknowledge your consent:
-
-[Acknowledge Consent Button]
-
-If you have any questions or concerns, please contact us before the meeting.
-
-Kind regards,
-${firmName}`;
+      // Stored copy only — outbound HTML is owned by sendPreConsentEmail (no matter / meeting URL PII).
+      const emailSubject = "Recording consent request";
+      const emailBody = [
+        "Your solicitor has requested recording consent for an upcoming meeting.",
+        "Respond via the LegalNote consent link. No matter details are included in this email.",
+        consentUrl,
+      ].join("\n\n");
 
       // Create consent email record
       const consentEmail = await storage.createPreConsentEmail({
@@ -10638,7 +10627,7 @@ ${firmName}`;
         recipientEmail,
         recipientName,
         meetingPlatform: meetingPlatform || undefined,
-        scheduledMeetingTime: scheduledMeetingTime ? new Date(scheduledMeetingTime) : undefined,
+        scheduledMeetingTime: scheduledAt,
         meetingUrl: meetingUrl || undefined,
         emailSubject,
         emailBody,
@@ -10647,26 +10636,22 @@ ${firmName}`;
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
       });
       
-      // Send email using Resend
       try {
-        const resend = await import("resend");
-        const resendClient = new resend.Resend(process.env.RESEND_API_KEY);
-        
-        const baseUrl = getCanonicalBaseUrl(req);
-        const consentUrl = `${baseUrl}/consent/${consentToken}`;
-        
-        const htmlBody = emailBody
-          .replace(/\n/g, '<br>')
-          .replace('[Acknowledge Consent Button]', 
-            `<a href="${consentUrl}" style="display: inline-block; background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 16px 0;">Acknowledge Consent</a>`
-          );
-        
-        await resendClient.emails.send({
-          from: `${firmName} <noreply@${process.env.RESEND_DOMAIN || 'resend.dev'}>`,
+        const { sendPreConsentEmail } = await import("./email");
+        const result = await sendPreConsentEmail({
           to: recipientEmail,
-          subject: emailSubject,
-          html: htmlBody,
+          recipientName,
+          consentUrl,
+          scheduledMeetingTime: scheduledAt,
         });
+
+        if (!result.success) {
+          await storage.updatePreConsentEmail(consentEmail.id, { emailStatus: 'failed' });
+          return res.status(500).json({
+            message: "Failed to send consent email",
+            error: result.error,
+          });
+        }
         
         await storage.updatePreConsentEmail(consentEmail.id, { 
           emailStatus: 'sent',
@@ -10882,172 +10867,26 @@ ${firmName}`;
       
       const consentEmail = await storage.getPreConsentEmailByToken(token);
       if (!consentEmail) {
-        return res.status(404).send(`
-          <!DOCTYPE html>
-          <html>
-          <head><title>Consent Not Found</title></head>
-          <body style="font-family: sans-serif; padding: 40px; text-align: center;">
-            <h1>Consent Request Not Found</h1>
-            <p>This consent request is invalid or has been removed.</p>
-          </body>
-          </html>
-        `);
+        return res.status(404).send(renderConsentNotFoundPage());
       }
       
       if (consentEmail.consentResponseStatus && consentEmail.consentResponseStatus !== 'awaiting') {
-        const statusLabel = consentEmail.consentResponseStatus === 'granted' ? 'Consent Granted'
-          : consentEmail.consentResponseStatus === 'declined' ? 'Consent Declined'
-          : 'Reschedule Requested';
+        const statusLabel = consentEmail.consentResponseStatus === 'granted' ? 'Consent granted'
+          : consentEmail.consentResponseStatus === 'declined' ? 'Consent declined'
+          : 'Reschedule requested';
         const respondedAt = consentEmail.consentRespondedAt 
           ? new Date(consentEmail.consentRespondedAt).toLocaleString('en-GB')
           : consentEmail.consentAcknowledgedAt 
           ? new Date(consentEmail.consentAcknowledgedAt).toLocaleString('en-GB')
           : 'earlier';
-        return res.send(`
-          <!DOCTYPE html>
-          <html>
-          <head><title>Response Already Recorded</title></head>
-          <body style="font-family: sans-serif; padding: 40px; text-align: center;">
-            <h1>Response Already Recorded</h1>
-            <p>Thank you! Your response (${statusLabel}) was recorded on ${respondedAt}.</p>
-          </body>
-          </html>
-        `);
+        return res.send(renderConsentAlreadyRespondedPage(statusLabel, respondedAt));
       }
       
       if (consentEmail.expiresAt && new Date(consentEmail.expiresAt) < new Date()) {
-        return res.send(`
-          <!DOCTYPE html>
-          <html>
-          <head><title>Consent Expired</title></head>
-          <body style="font-family: sans-serif; padding: 40px; text-align: center;">
-            <h1>Consent Request Expired</h1>
-            <p>This consent request has expired. Please contact your solicitor for a new consent request.</p>
-          </body>
-          </html>
-        `);
+        return res.send(renderConsentExpiredPage());
       }
       
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Recording Consent</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; color: #1a1a1a; }
-            h1 { color: #1a1a1a; }
-            .card { background: #f8f9fa; border-radius: 8px; padding: 24px; margin: 24px 0; }
-            .button { display: inline-block; background: #000; color: #fff; padding: 14px 28px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; text-decoration: none; margin-right: 8px; margin-bottom: 8px; }
-            .button:hover { background: #333; }
-            .button-outline { display: inline-block; background: #fff; color: #1a1a1a; padding: 14px 28px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 16px; cursor: pointer; text-decoration: none; margin-right: 8px; margin-bottom: 8px; }
-            .button-outline:hover { background: #f3f4f6; }
-            .button-destructive { display: inline-block; background: #dc2626; color: #fff; padding: 14px 28px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-right: 8px; margin-bottom: 8px; }
-            .button-destructive:hover { background: #b91c1c; }
-            .success { display: none; color: #059669; padding: 16px; background: #f0fdf4; border-radius: 8px; margin-top: 16px; }
-            .error { display: none; color: #dc2626; padding: 16px; background: #fef2f2; border-radius: 8px; margin-top: 16px; }
-            .decline-section { display: none; margin-top: 24px; padding: 24px; background: #fef2f2; border-radius: 8px; }
-            .reschedule-section { display: none; margin-top: 24px; padding: 24px; background: #fffbeb; border-radius: 8px; }
-            textarea { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical; min-height: 80px; box-sizing: border-box; margin-top: 8px; }
-            .actions { margin-top: 16px; }
-            .divider { border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }
-            .secondary-actions { margin-top: 16px; }
-            .secondary-actions p { color: #6b7280; font-size: 14px; margin-bottom: 8px; }
-          </style>
-        </head>
-        <body>
-          <h1>Recording Consent</h1>
-          <div class="card">
-            <h2>Meeting Recording Consent</h2>
-            <p>Dear ${consentEmail.recipientName},</p>
-            <p>By clicking "Grant Consent" below, you agree to the recording of your video meeting for the purpose of creating accurate legal documentation.</p>
-            <p><strong>Your consent confirms:</strong></p>
-            <ul>
-              <li>The meeting may be recorded</li>
-              <li>The recording will be used to generate attendance notes</li>
-              <li>The recording will be stored securely and deleted within 7 days</li>
-              <li>Processing complies with GDPR and data protection requirements</li>
-            </ul>
-          </div>
-          
-          <div id="main-actions">
-            <button class="button" onclick="submitResponse('granted')" data-testid="button-grant-consent">Grant Consent</button>
-            
-            <hr class="divider" />
-            
-            <div class="secondary-actions">
-              <p>If you are unable to attend or do not wish to be recorded:</p>
-              <button class="button-outline" onclick="showSection('reschedule')" data-testid="button-show-reschedule">Request Reschedule</button>
-              <button class="button-outline" onclick="showSection('decline')" data-testid="button-show-decline">Decline Recording</button>
-            </div>
-          </div>
-          
-          <div class="decline-section" id="decline-section">
-            <h3>Decline Recording Consent</h3>
-            <p>If you decline, the meeting will not be recorded. Your solicitor will be notified.</p>
-            <label for="decline-message">Message to your solicitor (optional):</label>
-            <textarea id="decline-message" placeholder="Add a note if you wish..." data-testid="input-decline-message"></textarea>
-            <div class="actions">
-              <button class="button-destructive" onclick="submitResponse('declined')" data-testid="button-confirm-decline">Confirm Decline</button>
-              <button class="button-outline" onclick="hideAll()" data-testid="button-cancel-decline">Cancel</button>
-            </div>
-          </div>
-          
-          <div class="reschedule-section" id="reschedule-section">
-            <h3>Request Reschedule</h3>
-            <p>Your solicitor will be notified and will contact you with a new time.</p>
-            <label for="reschedule-message">Message to your solicitor (optional):</label>
-            <textarea id="reschedule-message" placeholder="e.g., I am unavailable at this time. Could we move to Thursday afternoon?" data-testid="input-reschedule-message"></textarea>
-            <div class="actions">
-              <button class="button" onclick="submitResponse('reschedule_requested')" data-testid="button-confirm-reschedule">Send Reschedule Request</button>
-              <button class="button-outline" onclick="hideAll()" data-testid="button-cancel-reschedule">Cancel</button>
-            </div>
-          </div>
-          
-          <div class="success" id="success"></div>
-          <div class="error" id="error">Something went wrong. Please try again.</div>
-          
-          <script>
-            function showSection(type) {
-              document.getElementById('decline-section').style.display = type === 'decline' ? 'block' : 'none';
-              document.getElementById('reschedule-section').style.display = type === 'reschedule' ? 'block' : 'none';
-            }
-            function hideAll() {
-              document.getElementById('decline-section').style.display = 'none';
-              document.getElementById('reschedule-section').style.display = 'none';
-            }
-            async function submitResponse(responseType) {
-              try {
-                let message = '';
-                if (responseType === 'declined') {
-                  message = document.getElementById('decline-message').value;
-                } else if (responseType === 'reschedule_requested') {
-                  message = document.getElementById('reschedule-message').value;
-                }
-                const response = await fetch('/api/pre-consent/acknowledge/${token}', { 
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ responseType, message })
-                });
-                const data = await response.json();
-                if (response.ok) {
-                  document.getElementById('success').textContent = data.message || 'Your response has been recorded.';
-                  document.getElementById('success').style.display = 'block';
-                  document.getElementById('main-actions').style.display = 'none';
-                  document.getElementById('decline-section').style.display = 'none';
-                  document.getElementById('reschedule-section').style.display = 'none';
-                } else {
-                  document.getElementById('error').textContent = data.message || 'Something went wrong. Please try again.';
-                  document.getElementById('error').style.display = 'block';
-                }
-              } catch (e) {
-                document.getElementById('error').style.display = 'block';
-              }
-            }
-          </script>
-        </body>
-        </html>
-      `);
+      res.send(renderConsentDecisionPage(token));
     } catch (error) {
       next(error);
     }
@@ -11303,13 +11142,14 @@ ${firmName}`;
         data.clientEmail && data.clientEmail.trim().length > 0
           ? data.clientEmail.trim()
           : attendees[0]?.email;
-      const clientName = clientEmail
-        ? (data.clientName && data.clientName.trim().length > 0
-            ? data.clientName.trim()
-            : attendees.find((a) => a.email.toLowerCase() === clientEmail.toLowerCase())?.name ||
+      const clientName =
+        data.clientName && data.clientName.trim().length > 0
+          ? data.clientName.trim()
+          : clientEmail
+            ? attendees.find((a) => a.email.toLowerCase() === clientEmail.toLowerCase())?.name ||
               attendees[0]?.name ||
-              clientEmail)
-        : undefined;
+              clientEmail
+            : undefined;
 
       const meeting = await storage.createScheduledMeeting({
         userId,
@@ -11485,14 +11325,12 @@ ${firmName}`;
       
       if (meeting.clientEmail) {
         try {
-          const { sendPreConsentEmail } = await import("./email");
-          const baseUrl = getCanonicalBaseUrl(req);
-          await sendPreConsentEmail({
+          const { sendBrandedClientNoticeEmail } = await import("./email");
+          await sendBrandedClientNoticeEmail({
             to: meeting.clientEmail,
-            recipientName: meeting.clientName || 'Client',
-            subject: `Meeting Cancelled: ${meeting.title}`,
-            body: `We are writing to inform you that the meeting "${meeting.title}" originally scheduled for ${meeting.startTime ? new Date(meeting.startTime).toLocaleString('en-GB') : 'the scheduled date'} has been cancelled.${reason ? `\n\nReason: ${reason}` : ''}\n\nIf you have any questions, please do not hesitate to contact us.`,
-            consentUrl: baseUrl,
+            subject: "Meeting cancelled",
+            heading: "Meeting cancelled",
+            messageHtml: `<p style="margin:0 0 12px;">A meeting with your solicitor has been cancelled.${reason ? " Please contact them if you need further details." : ""}</p><p style="margin:0;">If you have questions, reply to your solicitor directly.</p>`,
           });
         } catch (emailErr) {
           console.log(`[MEETING_CANCEL] Notification email failed (non-blocking): ${emailErr}`);
@@ -11673,15 +11511,20 @@ ${firmName}`;
       
       if (meeting.clientEmail) {
         try {
-          const { sendPreConsentEmail } = await import("./email");
-          const baseUrl = getCanonicalBaseUrl(req);
-          const displayTitle = nextTitle || meeting.title;
-          await sendPreConsentEmail({
+          const { sendBrandedClientNoticeEmail } = await import("./email");
+          const when = parsedStart.toLocaleString("en-GB", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          await sendBrandedClientNoticeEmail({
             to: meeting.clientEmail,
-            recipientName: meeting.clientName || 'Client',
-            subject: `Meeting Rescheduled: ${displayTitle}`,
-            body: `We are writing to inform you that the meeting "${displayTitle}" originally scheduled for ${meeting.startTime ? new Date(meeting.startTime).toLocaleString('en-GB') : 'the scheduled date'} has been rescheduled to ${parsedStart.toLocaleString('en-GB')}.\n\nIf you have any questions, please do not hesitate to contact us.`,
-            consentUrl: baseUrl,
+            subject: "Meeting rescheduled",
+            heading: "Meeting rescheduled",
+            messageHtml: `<p style="margin:0 0 12px;">A meeting with your solicitor has been rescheduled to <strong>${when}</strong>.</p><p style="margin:0;">If you have questions, reply to your solicitor directly.</p>`,
           });
         } catch (emailErr) {
           console.log(`[MEETING_RESCHEDULE] Notification email failed (non-blocking): ${emailErr}`);

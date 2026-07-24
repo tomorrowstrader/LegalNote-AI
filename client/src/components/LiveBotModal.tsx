@@ -50,6 +50,11 @@ interface LiveBotModalProps {
   initialMeetingUrl?: string | null;
   /** Client name from the calendar/meeting invite — used to suggest the likely matter. */
   suggestedClientName?: string | null;
+  /**
+   * Skip matter selection and join without a case — recording can be allocated
+   * after the call (same pattern as Quick Recording).
+   */
+  allocateLater?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -141,12 +146,15 @@ export function LiveBotModal({
   caseTitle,
   initialMeetingUrl,
   suggestedClientName,
+  allocateLater = false,
   open,
   onOpenChange,
 }: LiveBotModalProps) {
   const { toast } = useToast();
   const liveBotSession = useLiveBotSessionOptional();
-  const [step, setStep] = useState<Step>(caseId ? "url" : "select_case");
+  const [step, setStep] = useState<Step>(
+    allocateLater || caseId ? "url" : "select_case",
+  );
   const [meetingUrl, setMeetingUrl] = useState("");
   const [platform, setPlatform] = useState<string | null>(null);
   const [consentMode, setConsentMode] = useState<ConsentMode>("in_meeting");
@@ -176,13 +184,19 @@ export function LiveBotModal({
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
   const [assignDone, setAssignDone] = useState(false);
 
-  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(caseId || null);
-  const [selectedCaseTitle, setSelectedCaseTitle] = useState<string>(caseTitle || "");
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(
+    allocateLater ? null : caseId || null,
+  );
+  const [selectedCaseTitle, setSelectedCaseTitle] = useState<string>(
+    allocateLater ? "" : caseTitle || "",
+  );
   const [isCreatingCase, setIsCreatingCase] = useState(false);
   const [newCaseTitle, setNewCaseTitle] = useState("");
   const [newCaseClient, setNewCaseClient] = useState(suggestedClientName || "");
   /** When true, show the full matter list instead of the suggested confirm card. */
   const [browseAllCases, setBrowseAllCases] = useState(false);
+  /** Join without a matter; assign the recording after the call. */
+  const [deferCaseAssignment, setDeferCaseAssignment] = useState(allocateLater);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -293,8 +307,19 @@ export function LiveBotModal({
     step === "select_case" && !!suggestedCase && !browseAllCases && !isCreatingCase;
 
   const continueAfterCaseSelect = (id: string, title: string) => {
+    setDeferCaseAssignment(false);
     setSelectedCaseId(id);
     setSelectedCaseTitle(title);
+    const detected = detectPlatform(meetingUrl);
+    setStep(detected ? "consent" : "url");
+  };
+
+  const continueWithoutCase = () => {
+    setDeferCaseAssignment(true);
+    setSelectedCaseId(null);
+    setSelectedCaseTitle("");
+    setIsCreatingCase(false);
+    setBrowseAllCases(false);
     const detected = detectPlatform(meetingUrl);
     setStep(detected ? "consent" : "url");
   };
@@ -356,27 +381,29 @@ export function LiveBotModal({
 
   const deployMutation = useMutation({
     mutationFn: async () => {
+      const resolvedCaseId = deferCaseAssignment ? undefined : (selectedCaseId ?? caseId ?? undefined);
       return apiRequest<{ importId: string; botId: string; platform: string; status: string }>(
         "POST",
         "/api/recall/bot",
-        { meetingUrl, ...((selectedCaseId ?? caseId) ? { caseId: selectedCaseId ?? caseId } : {}), consentMode }
+        { meetingUrl, ...(resolvedCaseId ? { caseId: resolvedCaseId } : {}), consentMode }
       );
     },
     onSuccess: async (data) => {
+      const resolvedCaseId = deferCaseAssignment ? undefined : (selectedCaseId ?? caseId ?? undefined);
       setImportId(data.importId);
       setBotId(data.botId);
 
       liveBotSession?.startSession({
         importId: data.importId,
         botId: data.botId,
-        caseId: selectedCaseId ?? caseId,
-        caseTitle: caseTitle || selectedCaseTitle || null,
+        caseId: resolvedCaseId,
+        caseTitle: resolvedCaseId ? (caseTitle || selectedCaseTitle || null) : null,
         meetingUrl,
         consentMode,
       });
 
       // For pre_confirmed path, log consent immediately (only for client meetings)
-      if (consentMode === "pre_confirmed" && (selectedCaseId ?? caseId)) {
+      if (consentMode === "pre_confirmed" && resolvedCaseId) {
         try {
           await apiRequest("PATCH", `/api/recall/import/${data.importId}/consent`, {
             userConfirmsVerbalConsent: true,
@@ -506,19 +533,27 @@ export function LiveBotModal({
     const url = (initialMeetingUrl || "").trim();
     setBrowseAllCases(false);
     setNewCaseClient(suggestedClientName || "");
+    setDeferCaseAssignment(allocateLater);
+    if (allocateLater) {
+      setSelectedCaseId(null);
+      setSelectedCaseTitle("");
+    } else {
+      setSelectedCaseId(caseId || null);
+      setSelectedCaseTitle(caseTitle || "");
+    }
     if (!url) {
-      if (!(caseId || selectedCaseId)) setStep("select_case");
+      setStep(allocateLater || caseId ? "url" : "select_case");
       return;
     }
     setMeetingUrl(url);
     const detected = detectPlatform(url);
     setPlatform(detected);
-    if (caseId || selectedCaseId) {
+    if (allocateLater || caseId) {
       setStep(detected ? "consent" : "url");
     } else {
       setStep("select_case");
     }
-  }, [open, initialMeetingUrl, caseId, suggestedClientName]);
+  }, [open, initialMeetingUrl, caseId, caseTitle, suggestedClientName, allocateLater]);
 
   const handleClose = () => {
     // If in-meeting consent mode and consent not yet obtained, warn but don't block
@@ -557,7 +592,9 @@ export function LiveBotModal({
   const resetState = () => {
     const url = (initialMeetingUrl || "").trim();
     const detected = url ? detectPlatform(url) : null;
-    setStep(caseId ? (detected ? "consent" : "url") : "select_case");
+    const skipCase = allocateLater;
+    setDeferCaseAssignment(skipCase);
+    setStep(skipCase || caseId ? (detected ? "consent" : "url") : "select_case");
     setMeetingUrl(url);
     setPlatform(detected);
     setConsentMode("in_meeting");
@@ -579,8 +616,8 @@ export function LiveBotModal({
     if (pollRef.current) clearInterval(pollRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-    setSelectedCaseId(caseId || null);
-    setSelectedCaseTitle(caseTitle || "");
+    setSelectedCaseId(skipCase ? null : caseId || null);
+    setSelectedCaseTitle(skipCase ? "" : caseTitle || "");
     setIsCreatingCase(false);
     setNewCaseTitle("");
     setNewCaseClient(suggestedClientName || "");
@@ -615,9 +652,11 @@ export function LiveBotModal({
               : "Join meeting with LegalNote"}
           </DialogTitle>
           <DialogDescription>
-            {caseTitle || selectedCaseTitle
-              ? `Send the LegalNote bot to join your video call and record it for "${caseTitle || selectedCaseTitle}"`
-              : "Send the LegalNote bot to join your video call. You can assign the recording to a matter after the call ends."}
+            {deferCaseAssignment
+              ? "Send the LegalNote bot to join your video call. You can assign the recording to a matter after the call ends."
+              : caseTitle || selectedCaseTitle
+                ? `Send the LegalNote bot to join your video call and record it for "${caseTitle || selectedCaseTitle}"`
+                : "Send the LegalNote bot to join your video call. You can assign the recording to a matter after the call ends."}
           </DialogDescription>
         </DialogHeader>
 
@@ -657,6 +696,14 @@ export function LiveBotModal({
                     data-testid="button-choose-different-case"
                   >
                     Choose a different matter
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full text-muted-foreground"
+                    onClick={continueWithoutCase}
+                    data-testid="button-allocate-matter-later-suggested"
+                  >
+                    Join now — allocate to matter later
                   </Button>
                 </div>
               </div>
@@ -699,6 +746,14 @@ export function LiveBotModal({
                 >
                   <PlusCircle className="w-4 h-4" />
                   Create new matter
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full text-muted-foreground"
+                  onClick={continueWithoutCase}
+                  data-testid="button-allocate-matter-later"
+                >
+                  Join now — allocate to matter later
                 </Button>
               </>
             ) : (

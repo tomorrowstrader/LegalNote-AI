@@ -96,6 +96,7 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
     caseId?: string;
     caseTitle?: string;
     suggestedClientName?: string;
+    allocateLater?: boolean;
   } | null>(null);
 
   const { data: meetings } = useQuery<ScheduledMeeting[]>({
@@ -156,14 +157,15 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
   }, [active, briefReady, setLocation]);
 
   /** Opens LiveBotModal so the solicitor must still press Send LegalNote to Call. */
-  const handleJoinWithLegalNote = useCallback(() => {
+  const handleJoinWithLegalNote = useCallback((allocateLater = false) => {
     if (!active) return;
     const url = getSafeHttpsMeetingUrl(active.meeting.meetingUrl);
     setJoinTarget({
       meetingUrl: url || "",
-      caseId: active.meeting.caseId || undefined,
-      caseTitle: linkedCase?.title || active.meeting.title || undefined,
+      caseId: allocateLater ? undefined : (active.meeting.caseId || undefined),
+      caseTitle: allocateLater ? undefined : (linkedCase?.title || active.meeting.title || undefined),
       suggestedClientName: active.meeting.clientName || linkedCase?.clientName || undefined,
+      allocateLater,
     });
     markDismissed(active.meeting.id, active.offset);
     setSuppressed(true);
@@ -248,10 +250,19 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
               )}
 
               {active!.offset === 1 && (
-                <Button onClick={handleJoinWithLegalNote} data-testid="button-meeting-prompt-join">
-                  <Video className="w-4 h-4 mr-1" />
-                  Join now with LegalNote
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleJoinWithLegalNote(true)}
+                    data-testid="button-meeting-prompt-join-later"
+                  >
+                    Join &amp; allocate later
+                  </Button>
+                  <Button onClick={() => handleJoinWithLegalNote(false)} data-testid="button-meeting-prompt-join">
+                    <Video className="w-4 h-4 mr-1" />
+                    Join now with LegalNote
+                  </Button>
+                </>
               )}
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -268,6 +279,7 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
         caseTitle={joinTarget?.caseTitle}
         initialMeetingUrl={joinTarget?.meetingUrl}
         suggestedClientName={joinTarget?.suggestedClientName}
+        allocateLater={joinTarget?.allocateLater}
       />
     </>
   );
