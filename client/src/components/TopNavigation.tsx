@@ -25,13 +25,22 @@ interface TopNavigationProps {
   onRestartTour: () => void;
 }
 
-const primaryNavLinks = [
-  { path: "/", label: "Dashboard", mobileLabel: "Dashboard", icon: Home },
-  { path: "/new-note", label: "New Note", mobileLabel: "New Note", icon: FileText },
-  { path: "/cases", label: "Cases", mobileLabel: "Saved Cases", icon: FolderOpen },
+interface NavLinkItem {
+  path: string;
+  label: string;
+  mobileLabel: string;
+  icon: typeof Home;
+  testId?: string;
+  mobileTestId?: string;
+}
+
+const primaryNavLinks: NavLinkItem[] = [
+  { path: "/", label: "Dashboard", mobileLabel: "Dashboard", testId: "link-dashboard", mobileTestId: "mobile-link-dashboard", icon: Home },
+  { path: "/new-note", label: "New Note", mobileLabel: "New Note", testId: "link-new-note", mobileTestId: "mobile-link-new-note", icon: FileText },
+  { path: "/cases", label: "Cases", mobileLabel: "Saved Cases", testId: "link-cases", mobileTestId: "mobile-link-saved-cases", icon: FolderOpen },
 ];
 
-const moreNavLinks = [
+const moreNavLinks: NavLinkItem[] = [
   { path: "/my-actions", label: "My Obligations", mobileLabel: "My Obligations", icon: CheckSquare },
   { path: "/clients", label: "Clients", mobileLabel: "Clients", icon: Users },
   { path: "/time-summary", label: "Time Summary", mobileLabel: "Time Summary", icon: Clock },
@@ -64,7 +73,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
             {primaryNavLinks.map((link) => {
               const isActive = location === link.path;
               return (
-                <Link key={link.path} href={link.path} data-testid={`link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                <Link key={link.path} href={link.path} data-testid={link.testId}>
                   <button
                     className={`px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
                       isActive
@@ -235,12 +244,15 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 {visibleAllNavLinks.map((link) => {
                   const isActive = location === link.path;
                   const Icon = link.icon;
+                  const mobileTestId =
+                    link.mobileTestId ??
+                    `mobile-link-${link.mobileLabel.toLowerCase().replace(/\s+/g, '-')}`;
                   return (
                     <DropdownMenuItem
                       key={link.path}
                       onClick={() => handleNavClick(link.path)}
                       className={isActive ? "bg-accent/20" : ""}
-                      data-testid={`mobile-link-${link.mobileLabel.toLowerCase().replace(/\s+/g, '-')}`}
+                      data-testid={mobileTestId}
                     >
                       <Icon className="w-4 h-4 mr-2" />
                       {link.mobileLabel}

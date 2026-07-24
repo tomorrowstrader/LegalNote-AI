@@ -105,10 +105,10 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
       spotlightClicks: true,
     },
     {
-      target: '[data-testid="link-saved-cases"]',
+      target: '[data-testid="link-cases"]',
       content: (
         <div className="space-y-2">
-          <h3 className="text-lg font-semibold">Saved Cases</h3>
+          <h3 className="text-lg font-semibold">Cases</h3>
           <p className="text-sm leading-relaxed text-muted-foreground">
             View and manage all your cases in one place. Filter by priority, status, or use search to find specific clients quickly.
           </p>
