@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -6,8 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, FileText } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import type { FirmProfile } from "@shared/schema";
+import { Link } from "wouter";
 
 interface ClientCareLetterModalProps {
   open: boolean;
@@ -17,18 +21,66 @@ interface ClientCareLetterModalProps {
   costsEstimate?: string | null;
 }
 
+function formatFirmAddress(profile: FirmProfile): string {
+  return [profile.addressLine1, profile.addressLine2, profile.city, profile.postcode]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function formatFeeEarnerName(user: {
+  firstName?: string;
+  lastName?: string;
+} | null | undefined): string {
+  if (!user) return "";
+  return [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+}
+
 export default function ClientCareLetterModal({
   open, onOpenChange, caseId, clientName, costsEstimate,
 }: ClientCareLetterModalProps) {
   const { toast } = useToast();
+  const { user, isLoading: authLoading } = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [prefillReady, setPrefillReady] = useState(false);
   const [firmName, setFirmName] = useState("");
   const [firmAddress, setFirmAddress] = useState("");
   const [firmPhone, setFirmPhone] = useState("");
   const [firmEmail, setFirmEmail] = useState("");
   const [sraNumber, setSraNumber] = useState("");
   const [feeEarnerName, setFeeEarnerName] = useState("");
-  const [costs, setCosts] = useState(costsEstimate || "");
+  const [costs, setCosts] = useState("");
+
+  const { data: firmProfile, isLoading: firmProfileLoading, isFetched: firmProfileFetched } = useQuery<FirmProfile | null>({
+    queryKey: ["/api/firm-profile"],
+    enabled: open,
+  });
+
+  useEffect(() => {
+    if (!open) {
+      setPrefillReady(false);
+      return;
+    }
+    if (prefillReady) return;
+    if (authLoading || firmProfileLoading) return;
+
+    setFirmName(firmProfile?.firmName?.trim() || "");
+    setFirmAddress(firmProfile ? formatFirmAddress(firmProfile) : "");
+    setFirmPhone(firmProfile?.phone?.trim() || "");
+    setFirmEmail(firmProfile?.email?.trim() || "");
+    setSraNumber(firmProfile?.sraNumber?.trim() || "");
+    setFeeEarnerName(formatFeeEarnerName(user));
+    setCosts(costsEstimate?.trim() || "");
+    setPrefillReady(true);
+  }, [
+    open,
+    prefillReady,
+    authLoading,
+    firmProfileLoading,
+    firmProfile,
+    user,
+    costsEstimate,
+  ]);
 
   const handleGenerate = async () => {
     if (!firmName.trim() || !feeEarnerName.trim()) {
@@ -76,6 +128,9 @@ export default function ClientCareLetterModal({
     }
   };
 
+  const isPrefilling = open && !prefillReady;
+  const missingFirmProfile = prefillReady && firmProfileFetched && !firmProfile;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -85,9 +140,19 @@ export default function ClientCareLetterModal({
             Prepare Client Care Letter
           </DialogTitle>
           <DialogDescription>
-            Enter your firm details to generate an SRA-compliant client care letter for {clientName}.
+            Details are pre-filled from your firm profile and account. Review or edit before generating the letter for {clientName}.
           </DialogDescription>
         </DialogHeader>
+
+        {missingFirmProfile && (
+          <p className="text-xs text-muted-foreground">
+            No firm profile found.{" "}
+            <Link href="/settings" className="underline underline-offset-2 text-foreground">
+              Complete firm details in Settings
+            </Link>{" "}
+            to auto-fill next time.
+          </p>
+        )}
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
@@ -99,7 +164,7 @@ export default function ClientCareLetterModal({
               placeholder="e.g., Smith & Partners Solicitors"
               value={firmName}
               onChange={(e) => setFirmName(e.target.value)}
-              disabled={isGenerating}
+              disabled={isGenerating || isPrefilling}
               data-testid="input-ccl-firm-name"
             />
           </div>
@@ -112,7 +177,7 @@ export default function ClientCareLetterModal({
               placeholder="e.g., John Smith, Senior Solicitor"
               value={feeEarnerName}
               onChange={(e) => setFeeEarnerName(e.target.value)}
-              disabled={isGenerating}
+              disabled={isGenerating || isPrefilling}
               data-testid="input-ccl-fee-earner"
             />
           </div>
@@ -123,7 +188,7 @@ export default function ClientCareLetterModal({
               placeholder="e.g., 1 High Street, London, EC1A 1AA"
               value={firmAddress}
               onChange={(e) => setFirmAddress(e.target.value)}
-              disabled={isGenerating}
+              disabled={isGenerating || isPrefilling}
               data-testid="input-ccl-firm-address"
             />
           </div>
@@ -135,7 +200,7 @@ export default function ClientCareLetterModal({
                 placeholder="020 1234 5678"
                 value={firmPhone}
                 onChange={(e) => setFirmPhone(e.target.value)}
-                disabled={isGenerating}
+                disabled={isGenerating || isPrefilling}
                 data-testid="input-ccl-firm-phone"
               />
             </div>
@@ -146,7 +211,7 @@ export default function ClientCareLetterModal({
                 placeholder="info@smithpartners.co.uk"
                 value={firmEmail}
                 onChange={(e) => setFirmEmail(e.target.value)}
-                disabled={isGenerating}
+                disabled={isGenerating || isPrefilling}
                 data-testid="input-ccl-firm-email"
               />
             </div>
@@ -158,7 +223,7 @@ export default function ClientCareLetterModal({
               placeholder="e.g., 123456"
               value={sraNumber}
               onChange={(e) => setSraNumber(e.target.value)}
-              disabled={isGenerating}
+              disabled={isGenerating || isPrefilling}
               data-testid="input-ccl-sra-number"
             />
           </div>
@@ -169,7 +234,7 @@ export default function ClientCareLetterModal({
               placeholder="e.g., £1,500 – £3,000 plus VAT and disbursements"
               value={costs}
               onChange={(e) => setCosts(e.target.value)}
-              disabled={isGenerating}
+              disabled={isGenerating || isPrefilling}
               data-testid="input-ccl-costs"
             />
           </div>
@@ -179,11 +244,20 @@ export default function ClientCareLetterModal({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isGenerating}>
             Cancel
           </Button>
-          <Button onClick={handleGenerate} disabled={isGenerating} data-testid="button-generate-ccl">
+          <Button
+            onClick={handleGenerate}
+            disabled={isGenerating || isPrefilling}
+            data-testid="button-generate-ccl"
+          >
             {isGenerating ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Preparing...
+              </>
+            ) : isPrefilling ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Loading details…
               </>
             ) : (
               "Prepare Letter"
