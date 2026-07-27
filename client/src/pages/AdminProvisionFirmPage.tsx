@@ -37,6 +37,7 @@ type EvaluationFirm = {
   provisionedAt: string | null;
   evaluationEndsAt: string | null;
   createdAt: string;
+  wasUpdate?: boolean;
 };
 
 type LoginInviteResult = {
@@ -48,6 +49,13 @@ type LoginInviteResult = {
   alreadyClaimed?: boolean;
 };
 
+function toDateInputValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
 export default function AdminProvisionFirmPage() {
   const { toast } = useToast();
   const [firmName, setFirmName] = useState("");
@@ -56,6 +64,7 @@ export default function AdminProvisionFirmPage() {
   const [evaluationEndsAt, setEvaluationEndsAt] = useState("");
   const [inviteFirmId, setInviteFirmId] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteEndsAt, setInviteEndsAt] = useState("");
   const [sendingFirmId, setSendingFirmId] = useState<string | null>(null);
 
   const { isLoading: accessLoading, error: accessError, data: firms = [] } = useQuery<EvaluationFirm[]>({
@@ -73,8 +82,10 @@ export default function AdminProvisionFirmPage() {
     },
     onSuccess: (firm) => {
       toast({
-        title: "Evaluation firm provisioned",
-        description: `${firm.name} reserved for ${firm.provisionedLeadEmail}. They become firm lead on first login.`,
+        title: firm.wasUpdate ? "Evaluation firm updated" : "Evaluation firm provisioned",
+        description: firm.wasUpdate
+          ? `${firm.name} details updated for ${firm.provisionedLeadEmail}. Use “Send login invite” below to email them again.`
+          : `${firm.name} reserved for ${firm.provisionedLeadEmail}. They become firm lead on first login.`,
       });
       setFirmName("");
       setLeadEmail("");
@@ -92,7 +103,11 @@ export default function AdminProvisionFirmPage() {
   });
 
   const inviteMutation = useMutation({
-    mutationFn: async (payload: { firmId?: string; email?: string }) => {
+    mutationFn: async (payload: {
+      firmId?: string;
+      email?: string;
+      evaluationEndsAt?: string | null;
+    }) => {
       return apiRequest<LoginInviteResult>(
         "POST",
         "/api/admin/evaluation-firms/send-login-invite",
@@ -105,6 +120,7 @@ export default function AdminProvisionFirmPage() {
         title: "Login invite sent",
         description: result.message,
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/evaluation-firms"] });
     },
     onError: (error) => {
       setSendingFirmId(null);
@@ -116,7 +132,10 @@ export default function AdminProvisionFirmPage() {
     },
   });
 
-  const sendInvite = (payload: { firmId?: string; email?: string }, firmIdForSpinner?: string) => {
+  const sendInvite = (
+    payload: { firmId?: string; email?: string; evaluationEndsAt?: string | null },
+    firmIdForSpinner?: string,
+  ) => {
     if (firmIdForSpinner) setSendingFirmId(firmIdForSpinner);
     inviteMutation.mutate(payload);
   };
@@ -173,7 +192,10 @@ export default function AdminProvisionFirmPage() {
         <Card>
           <CardHeader>
             <CardTitle>New evaluation firm</CardTitle>
-            <CardDescription>Default seat limit is 3 (lead + two invitees).</CardDescription>
+            <CardDescription>
+              Default seat limit is 3 (lead + two invitees). Re-submitting the same lead email updates an
+              existing reservation that is still awaiting first login (e.g. to correct the end date).
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -251,7 +273,8 @@ export default function AdminProvisionFirmPage() {
             </CardTitle>
             <CardDescription>
               Email a provisioned governed-evaluation lead a branded invite to sign in for the first time.
-              They must use the exact reserved email with Google or Microsoft.
+              They must use the exact reserved email with Google or Microsoft. You can correct the evaluation
+              end date here before sending — it updates the firm and appears in the email.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -264,6 +287,7 @@ export default function AdminProvisionFirmPage() {
                     setInviteFirmId(value);
                     const match = firms.find((f) => f.id === value);
                     if (match?.provisionedLeadEmail) setInviteEmail(match.provisionedLeadEmail);
+                    setInviteEndsAt(toDateInputValue(match?.evaluationEndsAt));
                   }}
                 >
                   <SelectTrigger id="invite-firm" data-testid="select-invite-firm">
@@ -288,16 +312,33 @@ export default function AdminProvisionFirmPage() {
                   onChange={(e) => {
                     setInviteEmail(e.target.value);
                     setInviteFirmId("");
+                    const match = firms.find(
+                      (f) =>
+                        f.provisionedLeadEmail &&
+                        f.provisionedLeadEmail.toLowerCase() === e.target.value.trim().toLowerCase(),
+                    );
+                    setInviteEndsAt(toDateInputValue(match?.evaluationEndsAt));
                   }}
                   placeholder="shak.inayat@penngroup.co.uk"
                   data-testid="input-invite-login-email"
                 />
               </div>
             </div>
+            <div className="space-y-2 max-w-xs">
+              <Label htmlFor="invite-ends-at">Evaluation end (optional)</Label>
+              <Input
+                id="invite-ends-at"
+                type="date"
+                value={inviteEndsAt}
+                onChange={(e) => setInviteEndsAt(e.target.value)}
+                data-testid="input-invite-ends-at"
+              />
+            </div>
             <Button
               onClick={() => {
-                if (inviteFirmId) sendInvite({ firmId: inviteFirmId }, inviteFirmId);
-                else if (inviteEmail.trim()) sendInvite({ email: inviteEmail.trim() });
+                const endsPayload = inviteEndsAt ? { evaluationEndsAt: inviteEndsAt } : {};
+                if (inviteFirmId) sendInvite({ firmId: inviteFirmId, ...endsPayload }, inviteFirmId);
+                else if (inviteEmail.trim()) sendInvite({ email: inviteEmail.trim(), ...endsPayload });
               }}
               disabled={
                 inviteMutation.isPending ||
@@ -337,6 +378,7 @@ export default function AdminProvisionFirmPage() {
                     <TableHead>Firm</TableHead>
                     <TableHead>Lead email</TableHead>
                     <TableHead>Seats</TableHead>
+                    <TableHead>Ends</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Provisioned</TableHead>
                     <TableHead className="text-right">Invite</TableHead>
@@ -348,6 +390,11 @@ export default function AdminProvisionFirmPage() {
                       <TableCell className="font-medium">{firm.name}</TableCell>
                       <TableCell>{firm.provisionedLeadEmail ?? "—"}</TableCell>
                       <TableCell>{firm.seatLimit ?? "Unlimited"}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {firm.evaluationEndsAt
+                          ? format(new Date(firm.evaluationEndsAt), "dd MMM yyyy")
+                          : "—"}
+                      </TableCell>
                       <TableCell>
                         {firm.provisionedLeadUserId ? (
                           <Badge variant="default">Active</Badge>

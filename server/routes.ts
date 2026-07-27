@@ -7885,6 +7885,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         }
       }
 
+      const prior = await storage.getFirmByProvisionedLeadEmail(parsed.data.leadEmail);
+      const wasUpdate = Boolean(prior && !prior.provisionedLeadUserId);
+
       const firm = await storage.provisionEvaluationFirm({
         firmName: parsed.data.firmName,
         leadEmail: parsed.data.leadEmail,
@@ -7894,7 +7897,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       });
 
       await storage.createAuditLog({
-        eventType: "evaluation_firm_provisioned",
+        eventType: wasUpdate ? "evaluation_firm_provision_updated" : "evaluation_firm_provisioned",
         userId: req.user.claims.sub,
         severity: "info",
         metadata: {
@@ -7902,10 +7905,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           firmName: firm.name,
           leadEmail: firm.provisionedLeadEmail,
           seatLimit: firm.seatLimit,
+          evaluationEndsAt: firm.evaluationEndsAt,
+          wasUpdate,
         },
       }).catch(() => {});
 
-      res.status(201).json(firm);
+      res.status(wasUpdate ? 200 : 201).json({ ...firm, wasUpdate });
     } catch (error: any) {
       if (error?.message && /already|member/i.test(error.message)) {
         return res.status(409).json({ message: error.message });
@@ -7929,6 +7934,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const schema = z.object({
         firmId: z.string().uuid().optional(),
         email: z.string().email().max(255).optional(),
+        /** Optional: correct evaluation end date before sending the invite email. */
+        evaluationEndsAt: z.string().min(1).max(40).optional().nullable(),
       }).refine((d) => Boolean(d.firmId || d.email), {
         message: "Provide firmId or email",
       });
@@ -7955,6 +7962,21 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         return res.status(400).json({
           message: "This evaluation firm has no lead email on file.",
         });
+      }
+
+      if (parsed.data.evaluationEndsAt !== undefined) {
+        let evaluationEndsAt: Date | null = null;
+        if (parsed.data.evaluationEndsAt) {
+          const raw = parsed.data.evaluationEndsAt.trim();
+          evaluationEndsAt = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+            ? new Date(`${raw}T23:59:59.000Z`)
+            : new Date(raw);
+          if (Number.isNaN(evaluationEndsAt.getTime())) {
+            return res.status(400).json({ message: "Invalid evaluation end date" });
+          }
+        }
+        const updated = await storage.updateFirm(firm.id, { evaluationEndsAt });
+        if (updated) firm = updated;
       }
 
       const adminUser = await storage.getUser(req.user.claims.sub);

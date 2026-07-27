@@ -6534,8 +6534,19 @@ export class DbStorage implements IStorage {
     if (!leadEmail) throw new Error("Lead email is required");
 
     const existing = await this.getFirmByProvisionedLeadEmail(leadEmail);
+    // Re-provisioning the same awaiting lead updates the reservation (name, seats, end date)
+    // instead of blocking — so admins can correct details and resend the invite.
     if (existing && !existing.provisionedLeadUserId) {
-      throw new Error("An evaluation firm is already provisioned for this email and awaiting first login");
+      const updated = await this.updateFirm(existing.id, {
+        name: data.firmName.trim(),
+        seatLimit: data.seatLimit,
+        isEvaluation: true,
+        provisionedByUserId: data.provisionedByUserId,
+        provisionedAt: new Date(),
+        evaluationEndsAt: data.evaluationEndsAt ?? null,
+      });
+      if (!updated) throw new Error("Failed to update provisioned evaluation firm");
+      return updated;
     }
 
     const existingUser = await db.select().from(users).where(eq(users.email, leadEmail)).limit(1);
