@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Loader2, Video, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -13,8 +13,14 @@ import {
 import MeetingToMatterProcessingOverlay, {
   type ProcessingStep,
 } from "@/components/MeetingToMatterProcessingOverlay";
+import MeetingNotesCapture from "@/components/MeetingNotesCapture";
 import { useLiveBotSession, type LiveBotPhase } from "@/contexts/LiveBotSessionContext";
 import { createProcessingStepTimer } from "@/lib/processingStepTimer";
+import {
+  flushMeetingNotesToCase,
+  hasMeetingNotesDraft,
+  liveBotDraftKey,
+} from "@/lib/meetingNotesDraft";
 import { useToast } from "@/hooks/use-toast";
 
 function formatElapsed(seconds: number) {
@@ -56,6 +62,7 @@ function phaseToProcessingStep(phase: LiveBotPhase): ProcessingStep {
 /**
  * Global bottom-right status for live LegalNote video bots.
  * Survives closing LiveBotModal and drives Meeting-to-Matter when the call ends.
+ * Hosts the in-meeting notes capture panel while the bot is live.
  */
 export function LiveBotSessionIndicator() {
   const {
@@ -71,6 +78,11 @@ export function LiveBotSessionIndicator() {
   const { toast } = useToast();
   const [processingStep, setProcessingStep] = useState<ProcessingStep>("saving");
   const [didToastEnd, setDidToastEnd] = useState(false);
+  const flushedRef = useRef<string | null>(null);
+
+  const notesActive =
+    !!session &&
+    (phase === "joining" || phase === "waiting" || phase === "recording");
 
   const showFloating =
     !!session &&
@@ -89,6 +101,47 @@ export function LiveBotSessionIndicator() {
       phase === "complete" ||
       phase === "awaiting_assignment" ||
       phase === "error");
+
+  // Flush solicitor notes into the matter Notes section when the call ends
+  useEffect(() => {
+    if (!session?.importId) return;
+    const terminal =
+      phase === "ended" ||
+      phase === "processing" ||
+      phase === "complete";
+    if (!terminal || !session.caseId) return;
+    if (flushedRef.current === session.importId) return;
+    flushedRef.current = session.importId;
+
+    void (async () => {
+      try {
+        const flushed = await flushMeetingNotesToCase({
+          caseId: session.caseId!,
+          draftKey: liveBotDraftKey(session.importId),
+          caseTitle: session.caseTitle,
+        });
+        if (flushed) {
+          toast({
+            title: "Meeting notes saved",
+            description: "Your typed notes have been added to the matter Notes section.",
+            duration: 5000,
+          });
+        }
+      } catch {
+        flushedRef.current = null;
+        toast({
+          title: "Could not save meeting notes",
+          description: "Your draft is still stored locally. Open the matter and try adding a note.",
+          variant: "destructive",
+          duration: 7000,
+        });
+      }
+    })();
+  }, [phase, session?.importId, session?.caseId, session?.caseTitle, toast]);
+
+  useEffect(() => {
+    if (!session) flushedRef.current = null;
+  }, [session?.importId]);
 
   // Drive Meeting-to-Matter step animation from live phase
   useEffect(() => {
@@ -131,9 +184,27 @@ export function LiveBotSessionIndicator() {
 
   if (!session) return null;
 
+  const draftKey = liveBotDraftKey(session.importId);
+  const pendingNotesHint =
+    phase === "awaiting_assignment" && hasMeetingNotesDraft(draftKey)
+      ? " Your typed meeting notes will be added when you assign the recording."
+      : "";
+
   return (
     <>
-      {showFloating && !showEndDialog && (
+      {notesActive && (
+        <MeetingNotesCapture
+          draftKey={draftKey}
+          caseTitle={session.caseTitle}
+          elapsedSeconds={elapsedSeconds}
+          active
+          variant="floating"
+          defaultOpen={phase === "recording"}
+          liveLabel={phase === "recording" ? "Recording" : phaseLabel(phase)}
+        />
+      )}
+
+      {showFloating && !showEndDialog && !notesActive && (
         <div className="fixed bottom-6 right-6 z-50" data-testid="live-bot-session-indicator">
           <div className="flex flex-col gap-2 bg-card border border-card-border rounded-lg p-3 shadow-xl min-w-[200px]">
             <div className="flex items-center justify-between gap-2">
@@ -187,7 +258,6 @@ export function LiveBotSessionIndicator() {
         onOpenChange={(open) => {
           setPanelOpen(open);
           if (!open && (phase === "complete" || phase === "error" || phase === "awaiting_assignment")) {
-            // Keep session for awaiting_assignment so dashboard can still find it; clear on complete/error
             if (phase === "complete" || phase === "error") clearSession();
           }
         }}
@@ -220,6 +290,7 @@ export function LiveBotSessionIndicator() {
               <CheckCircle2 className="w-10 h-10 text-green-600" />
               <p className="text-sm text-muted-foreground">
                 The recording is saved. Assign it to a matter from the dashboard to produce the attendance note.
+                {pendingNotesHint}
               </p>
               <Button
                 onClick={() => {

@@ -60,15 +60,16 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
 
   const updateNoteMutation = useMutation({
     mutationFn: async (content: string) => {
-      return await apiRequest('PATCH', `/api/cases/${caseId}`, { textNotes: content });
+      return await apiRequest('POST', `/api/cases/${caseId}/quick-notes`, { content });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/quick-notes`] });
       
       toast({
-        title: "Quick Note Saved",
-        description: "Your note has been added to the case successfully",
+        title: "Note Saved",
+        description: "Your note has been added to the matter Notes section",
         duration: 6000,
       });
       
@@ -81,7 +82,7 @@ export default function AddQuickNoteModal({ open, onOpenChange, caseId }: AddQui
     onError: (error) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to save quick note",
+        description: error.message || "Failed to save note",
         variant: "destructive",
       });
     }

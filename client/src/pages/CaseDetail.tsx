@@ -62,7 +62,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCaseActions } from "@/hooks/useCaseActions";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
-import type { Case, AudioRecording, ConsentLog, MeetingSession, Transcript, Document } from "@shared/schema";
+import type { Case, AudioRecording, ConsentLog, MeetingSession, Transcript, Document, QuickNote } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREA_LABELS, PRACTICE_AREAS, type PracticeArea } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
@@ -402,6 +402,11 @@ export default function CaseDetail() {
     // is visible even if the dedicated processing-status poll stalls.
     refetchInterval: (query) =>
       query.state.data?.status === "processing" ? 5000 : false,
+  });
+
+  const { data: quickNotes = [] } = useQuery<QuickNote[]>({
+    queryKey: [`/api/cases/${caseId}/quick-notes`],
+    enabled: !!caseId,
   });
 
   const { data: audioData, isLoading: audioLoading } = useQuery<AudioRecording>({
@@ -1028,6 +1033,8 @@ export default function CaseDetail() {
       activeSession.recordingType
     : null;
 
+  const notesCount = quickNotes.length + (caseData.textNotes?.trim() ? 1 : 0);
+
   const matterNavItems: { id: string; label: string; icon: any; badge?: React.ReactNode; show?: boolean }[] = [
     {
       id: 'documents', label: 'Documents', icon: FileText,
@@ -1057,8 +1064,8 @@ export default function CaseDetail() {
     },
     {
       id: 'notes', label: 'Notes', icon: MessageSquarePlus,
-      badge: caseData.textNotes
-        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">1</Badge>
+      badge: notesCount > 0
+        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{notesCount}</Badge>
         : undefined,
     },
     { id: 'briefing', label: 'Pre-meeting Briefing', icon: Sparkles },
@@ -1263,7 +1270,7 @@ export default function CaseDetail() {
     notes: (
       <Button variant="outline" size="sm" onClick={() => setShowAddNoteModal(true)} className="gap-1.5" data-testid="button-add-note-top">
         <Plus className="w-3.5 h-3.5" />
-        {caseData.textNotes ? 'Edit Note' : 'Add Note'}
+        Add Note
       </Button>
     ),
   };
@@ -2121,22 +2128,55 @@ export default function CaseDetail() {
           )}
 
           {activeSection === 'notes' && (
-            <div className="max-w-3xl">
-              {caseData.textNotes ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                  <p className="text-foreground whitespace-pre-wrap leading-relaxed" data-testid="text-quick-notes-content">
-                    {caseData.textNotes}
-                  </p>
-                </div>
-              ) : (
+            <div className="max-w-3xl space-y-6">
+              {notesCount === 0 ? (
                 <div className="text-center py-16 space-y-3">
                   <MessageSquarePlus className="w-8 h-8 mx-auto text-muted-foreground/40" />
                   <p className="font-medium text-sm">No notes added yet</p>
-                  <p className="text-xs text-muted-foreground">Quick notes appear here. Use the button above to add one.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Notes from meetings and quick notes appear here.
+                  </p>
                   <Button variant="outline" size="sm" onClick={() => setShowAddNoteModal(true)} className="gap-2" data-testid="button-add-note-empty">
                     <Plus className="w-3.5 h-3.5" />
                     Add Note
                   </Button>
+                </div>
+              ) : (
+                <div className="space-y-5" data-testid="notes-list">
+                  {quickNotes.map((note) => {
+                    const isMeeting = note.content.startsWith("Meeting notes —");
+                    return (
+                      <article
+                        key={note.id}
+                        className="border-b border-border/60 pb-5 last:border-0 last:pb-0"
+                        data-testid={`note-entry-${note.id}`}
+                      >
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          {isMeeting ? (
+                            <Badge variant="secondary" className="text-[10px] h-5">From meeting</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] h-5">Note</Badge>
+                          )}
+                          <time className="text-xs text-muted-foreground">
+                            {format(new Date(note.createdAt), "d MMM yyyy · HH:mm")}
+                          </time>
+                        </div>
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                          {note.content}
+                        </p>
+                      </article>
+                    );
+                  })}
+                  {caseData.textNotes?.trim() && (
+                    <article className="border-b border-border/60 pb-5 last:border-0 last:pb-0" data-testid="text-quick-notes-content">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="text-[10px] h-5">Legacy note</Badge>
+                      </div>
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                        {caseData.textNotes}
+                      </p>
+                    </article>
+                  )}
                 </div>
               )}
             </div>

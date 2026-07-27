@@ -42,6 +42,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Case } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
 import { useLiveBotSessionOptional } from "@/contexts/LiveBotSessionContext";
+import { flushLiveBotNotesOnAssign } from "@/lib/meetingNotesDraft";
 
 interface LiveBotModalProps {
   caseId?: string | null;
@@ -332,16 +333,31 @@ export function LiveBotModal({
       caseData?: { title: string; clientName: string };
     }) => {
       if (!importId) throw new Error("No import ID");
-      return apiRequest("POST", `/api/recall/import/${importId}/assign`, {
-        caseId: assignCaseId,
-        recordingType,
-        createCase: shouldCreate,
-        caseData,
-      });
+      return apiRequest<{ success: boolean; caseId: string; importId: string }>(
+        "POST",
+        `/api/recall/import/${importId}/assign`,
+        {
+          caseId: assignCaseId,
+          recordingType,
+          createCase: shouldCreate,
+          caseData,
+        },
+      );
     },
-    onSuccess: () => {
+    onSuccess: async (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/recall/imports/unassigned"] });
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      if (data?.caseId && data?.importId) {
+        try {
+          await flushLiveBotNotesOnAssign(
+            data.importId,
+            data.caseId,
+            variables.caseData?.title || selectedCaseTitle || undefined,
+          );
+        } catch {
+          // Draft retained locally if flush fails
+        }
+      }
       setAssignDone(true);
     },
     onError: (error: any) => {

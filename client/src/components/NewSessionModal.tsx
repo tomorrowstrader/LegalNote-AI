@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ConsentModal from "@/components/ConsentModal";
+import MeetingNotesCapture from "@/components/MeetingNotesCapture";
 import { Mic, Square, Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +14,7 @@ import { logAuditEvent } from "@/lib/auditLogger";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { appendConsentSegmentToFormData, snapshotConsentSegment } from "@/lib/consentSegmentCapture";
+import { flushMeetingNotesToCase, newSessionDraftKey } from "@/lib/meetingNotesDraft";
 
 interface NewSessionModalProps {
   open: boolean;
@@ -198,12 +200,26 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
         });
       }
 
+      let notesSaved = false;
+      try {
+        notesSaved = await flushMeetingNotesToCase({
+          caseId,
+          draftKey: newSessionDraftKey(caseId),
+          caseTitle,
+        });
+      } catch {
+        // Session still saved; notes remain in local draft
+      }
+
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/sessions`] });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/quick-notes`] });
 
       toast({
         title: "Session saved",
-        description: "The new session has been added to this matter.",
+        description: notesSaved
+          ? "The session was added and your meeting notes were saved to Notes."
+          : "The new session has been added to this matter.",
         duration: 5000,
       });
       onOpenChange(false);
@@ -230,7 +246,7 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
       <Dialog open={open} onOpenChange={(o) => {
         if (!isRecording && step !== "saving") onOpenChange(o);
       }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className={step === "recording" ? "sm:max-w-3xl" : "sm:max-w-md"}>
           <DialogHeader>
             <DialogTitle>Record New Session</DialogTitle>
             <p className="text-sm text-muted-foreground">{caseTitle}</p>
@@ -286,21 +302,32 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
           )}
 
           {step === "recording" && (
-            <div className="flex flex-col items-center gap-4 py-6">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-destructive rounded-full animate-pulse" />
-                <span className="text-sm font-medium">Recording in Progress</span>
+            <div className="grid gap-4 py-2 md:grid-cols-[200px_1fr]">
+              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/60 bg-muted/20 px-4 py-6">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-destructive rounded-full animate-pulse" />
+                  <span className="text-sm font-medium">Recording</span>
+                </div>
+                <Badge variant="outline" className="text-lg font-mono">
+                  {formatDuration(recordingDuration)}
+                </Badge>
+                {sessionLabel && (
+                  <p className="text-sm text-muted-foreground text-center">{sessionLabel}</p>
+                )}
+                <Button onClick={stopAndSave} variant="destructive" className="gap-2 w-full" data-testid="button-modal-stop-recording">
+                  <Square className="w-4 h-4" />
+                  Stop and Save
+                </Button>
               </div>
-              <Badge variant="outline" className="text-lg">
-                {formatDuration(recordingDuration)}
-              </Badge>
-              {sessionLabel && (
-                <p className="text-sm text-muted-foreground">{sessionLabel}</p>
-              )}
-              <Button onClick={stopAndSave} variant="destructive" className="gap-2" data-testid="button-modal-stop-recording">
-                <Square className="w-4 h-4" />
-                Stop and Save
-              </Button>
+              <MeetingNotesCapture
+                draftKey={newSessionDraftKey(caseId)}
+                caseTitle={caseTitle}
+                elapsedSeconds={recordingDuration}
+                active
+                variant="inline"
+                defaultOpen
+                className="min-h-[320px]"
+              />
             </div>
           )}
 

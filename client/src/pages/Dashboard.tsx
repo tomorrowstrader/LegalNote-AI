@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInDays, differenceInHours, isPast } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { isFeatureVisible } from "@/lib/features";
+import { flushLiveBotNotesOnAssign } from "@/lib/meetingNotesDraft";
 
 const amlComplianceVisible = isFeatureVisible("amlCompliance");
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -99,10 +100,25 @@ export default function Dashboard() {
       recordingType: string;
       createCase?: boolean;
       caseData?: { title: string; clientName: string };
-    }) => apiRequest("POST", `/api/recall/import/${importId}/assign`, { caseId, recordingType, createCase, caseData }),
-    onSuccess: () => {
+    }) => apiRequest<{ success: boolean; caseId: string; importId: string }>(
+      "POST",
+      `/api/recall/import/${importId}/assign`,
+      { caseId, recordingType, createCase, caseData },
+    ),
+    onSuccess: async (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/recall/imports/unassigned"] });
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      if (data?.caseId && data?.importId) {
+        try {
+          await flushLiveBotNotesOnAssign(
+            data.importId,
+            data.caseId,
+            variables.caseData?.title,
+          );
+        } catch {
+          // Draft retained locally if flush fails
+        }
+      }
       toast({ title: "Recording assigned", description: "The recording has been assigned and is now being processed.", duration: 4000 });
       setAssignImport(null);
       setAssignCaseId("");
