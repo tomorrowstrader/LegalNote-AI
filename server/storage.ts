@@ -3086,6 +3086,62 @@ export class DbStorage implements IStorage {
       throw new AuthEmailRequiredError();
     }
 
+    // Tenant/app migration: Microsoft may issue a new oid for the same mailbox.
+    // If this email already has a Microsoft identity, remap oid and continue —
+    // do not treat as a cross-provider collision.
+    const [emailOwner] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          isNotNull(users.email),
+          sql`lower(${users.email}) = ${canonicalEmail}`,
+        ),
+      )
+      .limit(1);
+
+    if (emailOwner) {
+      const [existingMicrosoft] = await db
+        .select()
+        .from(authIdentities)
+        .where(
+          and(
+            eq(authIdentities.userId, emailOwner.id),
+            eq(authIdentities.provider, "microsoft"),
+          ),
+        )
+        .limit(1);
+
+      if (existingMicrosoft) {
+        console.warn(
+          "[AUTH] Remapping Microsoft oid after app/tenant change:",
+          JSON.stringify({
+            userId: emailOwner.id,
+            email: canonicalEmail,
+            previousProviderUserId: existingMicrosoft.providerUserId,
+            newProviderUserId: profile.providerUserId,
+          }),
+        );
+        await db
+          .update(authIdentities)
+          .set({
+            providerUserId: profile.providerUserId,
+            emailAtLink: emailAtLink ?? existingMicrosoft.emailAtLink,
+          })
+          .where(eq(authIdentities.id, existingMicrosoft.id));
+
+        const user = await this.upsertUser({
+          id: emailOwner.id,
+          email: canonicalEmail,
+          firstName: profile.firstName ?? undefined,
+          lastName: profile.lastName ?? undefined,
+          profileImageUrl: profile.profileImageUrl ?? undefined,
+        });
+        const claimed = await this.claimEvaluationFirmLead(user.id, user.email ?? canonicalEmail);
+        return claimed ?? user;
+      }
+    }
+
     await this.assertNoEmailCollisionForNewIdentity({
       provider: "microsoft",
       providerUserId: profile.providerUserId,
