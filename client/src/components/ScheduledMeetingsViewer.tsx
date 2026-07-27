@@ -30,9 +30,13 @@ import {
   CalendarPlus,
   Radio,
   Pencil,
+  FileText,
+  ExternalLink,
+  FolderOpen,
 } from "lucide-react";
 import { format, formatDistanceToNow, isToday, isTomorrow, isPast, addDays, startOfDay } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
+import { useLocation } from "wouter";
 import type { ScheduledMeeting, Case } from "@shared/schema";
 import ConfigurationErrorModal from "@/components/ConfigurationErrorModal";
 import ScheduleMeetingModal from "@/components/ScheduleMeetingModal";
@@ -43,9 +47,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { isFeatureVisible } from "@/lib/features";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
+import { toTitleCase } from "@/lib/utils";
 import { LiveBotModal } from "@/components/LiveBotModal";
 import {
   DropdownMenu,
@@ -53,6 +59,31 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+const CASE_STATUS_COLORS: Record<string, string> = {
+  pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  processing: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+  review_required: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+  completed: "bg-green-500/10 text-green-500 border-green-500/20",
+  failed: "bg-red-500/10 text-red-500 border-red-500/20",
+};
+
+const caseStatusIconColor = (status: string) => {
+  switch (status) {
+    case "pending":
+      return "text-amber-500";
+    case "processing":
+      return "text-blue-500";
+    case "review_required":
+      return "text-purple-500";
+    case "completed":
+      return "text-emerald-500";
+    case "failed":
+      return "text-red-500";
+    default:
+      return "text-muted-foreground";
+  }
+};
 
 /** Keep meetings visible this long after start for late logins (must match server). */
 const LATE_JOIN_GRACE_MS = 15 * 60 * 1000;
@@ -232,20 +263,36 @@ function CasePickerDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   
-  const { data: cases = [] } = useQuery<Case[]>({
+  const { data: cases = [], isLoading } = useQuery<Case[]>({
     queryKey: ['/api/cases'],
     enabled: open,
   });
+
+  useEffect(() => {
+    if (!open) setSearchQuery('');
+  }, [open]);
   
-  const filteredCases = cases.filter(c => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return c.title.toLowerCase().includes(q) || 
-           c.clientName.toLowerCase().includes(q) ||
-           (c.matterReference && c.matterReference.toLowerCase().includes(q));
-  });
+  const filteredCases = cases
+    .filter((c) => !c.archived)
+    .filter((c) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        c.title.toLowerCase().includes(q) ||
+        (c.clientName && c.clientName.toLowerCase().includes(q)) ||
+        (c.matterReference && c.matterReference.toLowerCase().includes(q))
+      );
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt || b.createdAt).getTime() -
+        new Date(a.updatedAt || a.createdAt).getTime()
+    );
+
+  const hasScrollableList = filteredCases.length > 5;
   
   const linkCaseMutation = useMutation({
     mutationFn: async (caseId: string | null) => {
@@ -263,30 +310,61 @@ function CasePickerDialog({
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md" data-testid="dialog-case-picker">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Briefcase className="w-4 h-4" />
-            Link to Case
-          </DialogTitle>
+      <DialogContent
+        className="max-w-96 gap-0 overflow-hidden rounded-xl border border-[#e6ddd0] bg-white p-0 shadow-2xl dark:border-border dark:bg-popover"
+        data-testid="dialog-case-picker"
+      >
+        <DialogHeader className="space-y-0 border-b border-[#e8dfd2] bg-white px-4 py-3 pr-12 text-left dark:border-border dark:bg-popover">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <DialogTitle className="text-sm font-semibold leading-none tracking-normal">
+                  Link to Case
+                </DialogTitle>
+                {filteredCases.length > 0 && (
+                  <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                    {filteredCases.length}
+                  </Badge>
+                )}
+              </div>
+              {hasScrollableList && (
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Showing latest cases. Scroll for more.
+                </p>
+              )}
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 shrink-0 text-xs px-2 gap-1"
+              onClick={() => {
+                setLocation("/cases");
+                onOpenChange(false);
+              }}
+              data-testid="case-picker-view-all"
+            >
+              <FolderOpen className="w-3 h-3" />
+              View all
+            </Button>
+          </div>
         </DialogHeader>
-        <div className="space-y-4 pt-2">
+
+        <div className="space-y-2 border-b border-[#e8dfd2] px-3 py-3 dark:border-border">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search cases..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="h-9 border-[#e8dfd2] bg-white pl-9 shadow-none focus-visible:ring-[#dec27b]/40 dark:border-border"
               data-testid="input-case-search"
             />
           </div>
-          
           {meeting.caseId && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="w-full"
+              className="h-8 w-full justify-start text-xs text-muted-foreground hover:text-foreground"
               onClick={() => linkCaseMutation.mutate(null)}
               disabled={linkCaseMutation.isPending}
               data-testid="button-unlink-case"
@@ -295,31 +373,84 @@ function CasePickerDialog({
               Unlink Current Case
             </Button>
           )}
-          
-          <div className="max-h-60 overflow-y-auto space-y-2">
-            {filteredCases.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No cases found</p>
-            ) : (
-              filteredCases.map(c => (
-                <button
-                  key={c.id}
-                  className={`w-full text-left p-3 rounded-md border transition-colors hover-elevate ${
-                    meeting.caseId === c.id ? 'border-primary bg-primary/5' : ''
-                  }`}
-                  onClick={() => linkCaseMutation.mutate(c.id)}
-                  disabled={linkCaseMutation.isPending}
-                  data-testid={`button-select-case-${c.id}`}
-                >
-                  <p className="font-medium text-sm truncate">{c.title}</p>
-                  <p className="text-xs text-muted-foreground">{c.clientName}</p>
-                  {c.matterReference && (
-                    <p className="text-xs text-muted-foreground">Ref: {c.matterReference}</p>
-                  )}
-                </button>
-              ))
-            )}
-          </div>
         </div>
+
+        <ScrollArea className="max-h-[31rem] [&_[data-radix-scroll-area-scrollbar]]:opacity-100">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredCases.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+              <Briefcase className="w-8 h-8 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">No cases found</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                {searchQuery ? "Try a different search" : "Your cases will appear here"}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 p-3">
+              {filteredCases.map((caseItem) => {
+                const isLinked = meeting.caseId === caseItem.id;
+                const iconColor = caseStatusIconColor(caseItem.status);
+
+                return (
+                  <button
+                    key={caseItem.id}
+                    type="button"
+                    onClick={() => linkCaseMutation.mutate(caseItem.id)}
+                    disabled={linkCaseMutation.isPending}
+                    className={`flex w-full min-h-20 items-start gap-3 rounded-lg border px-3 py-3 text-left shadow-sm transition-colors dark:hover:bg-accent/20 ${
+                      isLinked
+                        ? "border-[#dec27b] bg-white hover:bg-[#fff8e7] dark:border-amber-500/30 dark:bg-card dark:hover:bg-amber-500/10"
+                        : "border-[#e8dfd2] bg-white hover:bg-[#fbf7ef] dark:border-border dark:bg-card"
+                    }`}
+                    data-testid={`button-select-case-${caseItem.id}`}
+                  >
+                    <div
+                      className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4ede2] dark:bg-muted ${iconColor}`}
+                    >
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs font-semibold text-foreground leading-tight flex-1 min-w-0 truncate">
+                          {caseItem.title}
+                        </p>
+                        {isLinked && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+                            Linked
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed truncate">
+                        {caseItem.clientName || "Unknown Client"}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <span className="text-[10px] text-muted-foreground/70">
+                          {format(
+                            new Date(caseItem.updatedAt || caseItem.createdAt),
+                            "dd MMM yyyy"
+                          )}
+                        </span>
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <ExternalLink className="w-2.5 h-2.5" />
+                          Link case
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] px-1.5 py-0 ml-auto ${CASE_STATUS_COLORS[caseItem.status] || ""}`}
+                        >
+                          {toTitleCase(caseItem.status)}
+                        </Badge>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
