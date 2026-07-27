@@ -190,7 +190,10 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
             if (!next) handleDismiss();
           }}
         >
-          <AlertDialogContent data-testid={`dialog-meeting-prompt-${active!.offset}`}>
+          <AlertDialogContent
+            className="w-[calc(100vw-2rem)] max-w-xl"
+            data-testid={`dialog-meeting-prompt-${active!.offset}`}
+          >
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
@@ -230,8 +233,9 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col sm:flex-row gap-2 sm:justify-end">
+            <AlertDialogFooter className="mt-2 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end sm:space-x-0">
               <AlertDialogCancel
+                className="w-full sm:w-auto"
                 onClick={handleDismiss}
                 data-testid="button-meeting-prompt-dismiss"
               >
@@ -241,6 +245,7 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
 
               {active!.offset === 30 && caseId && (
                 <Button
+                  className="w-full sm:w-auto"
                   onClick={handlePrepareBriefing}
                   data-testid="button-meeting-prompt-briefing"
                 >
@@ -252,13 +257,18 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
               {active!.offset === 1 && (
                 <>
                   <Button
+                    className="w-full sm:w-auto"
                     variant="outline"
                     onClick={() => handleJoinWithLegalNote(true)}
                     data-testid="button-meeting-prompt-join-later"
                   >
                     Join &amp; allocate later
                   </Button>
-                  <Button onClick={() => handleJoinWithLegalNote(false)} data-testid="button-meeting-prompt-join">
+                  <Button
+                    className="w-full sm:w-auto"
+                    onClick={() => handleJoinWithLegalNote(false)}
+                    data-testid="button-meeting-prompt-join"
+                  >
                     <Video className="w-4 h-4 mr-1" />
                     Join now with LegalNote
                   </Button>
