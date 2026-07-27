@@ -2998,6 +2998,15 @@ export class DbStorage implements IStorage {
 
     if (linkedToOwner) return;
 
+    console.warn(
+      "[AUTH] Email collision:",
+      JSON.stringify({
+        provider,
+        attemptedProviderUserId: providerUserId,
+        email: canonicalEmail,
+        existingUserId: emailOwner.id,
+      }),
+    );
     throw new AuthEmailCollisionError();
   }
 

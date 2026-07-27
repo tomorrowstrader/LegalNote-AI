@@ -15,6 +15,7 @@ import { migrateVerificationWarningsToJsonb } from "./verificationWarningsMigrat
 import { clearScheduledMeetingGuessedRecipients } from "./clearScheduledMeetingRecipientsMigration";
 import { ensureTranscriptImportsTable } from "./transcriptImportsMigration";
 import { ensureEvaluationOnboardingSetupsTable } from "./evaluationOnboardingMigration";
+import { ensureMeetingImportsConsentColumns } from "./meetingImportsConsentMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
@@ -263,6 +264,9 @@ app.use((req, res, next) => {
 
   // Ensure evaluation onboarding setup table exists (idempotent)
   await ensureEvaluationOnboardingSetupsTable();
+
+  // Ensure live Recall meeting imports have consent-tracking columns (idempotent)
+  await ensureMeetingImportsConsentColumns();
 
   // Remove calendar-scraped consent recipients (solicitor must choose explicitly)
   await clearScheduledMeetingGuessedRecipients();
