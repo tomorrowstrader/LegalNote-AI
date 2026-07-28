@@ -12696,11 +12696,17 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const { db: dbConn } = await import("./db");
       const { auditTrail, cases: casesTable } = await import("@shared/schema");
       const { eq, and, desc, gte, inArray: inArr } = await import("drizzle-orm");
+      const {
+        buildNotificationCopy,
+        buildNotificationHref,
+        resolveDocumentType,
+      } = await import("./services/notificationPresentation");
       
       const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // last 7 days
       
       const notifiableEvents = [
-        'transcript_generated', 'document_generated', 'document_regenerated',
+        'transcript_generated', 'transcription_completed',
+        'document_generated', 'document_regenerated',
         'case_email_sent', 'audio_expiring_soon', 'deadline_approaching', 'consent_given',
         'case_handover_received',
         'pre_consent_acknowledged', 'pre_consent_declined', 'pre_consent_reschedule_requested',
@@ -12730,6 +12736,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       
       // Get user's read notifications from user preferences metadata (stored in audit trail metadata)
       const readNotifications = new Set<string>();
+      let markAllReadAt: Date | null = null;
       const readEvents = await dbConn
         .select()
         .from(auditTrail)
@@ -12742,65 +12749,20 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       readEvents.forEach(e => {
         const meta = e.metadata as any;
         if (meta?.notificationId) readNotifications.add(meta.notificationId);
+        if (meta?.markAllRead) {
+          const ts = meta.timestamp ? new Date(meta.timestamp) : e.timestamp;
+          if (!markAllReadAt || ts > markAllReadAt) markAllReadAt = ts;
+        }
       });
       
       const notifications = events.map(event => {
         const caseRecord = event.caseId ? caseMap.get(event.caseId) : null;
-        let title = '';
-        let message = '';
-        
-        switch (event.eventType) {
-          case 'transcript_generated':
-            title = 'Transcription Complete';
-            message = `The transcript for ${caseRecord?.title || 'your case'} is ready to review.`;
-            break;
-          case 'document_generated':
-            title = 'Document Ready';
-            message = `Attendance note and summary for ${caseRecord?.title || 'your case'} have been generated.`;
-            break;
-          case 'document_regenerated':
-            title = 'Further Version Produced';
-            message = `A further document version has been produced for ${caseRecord?.title || 'your case'}.`;
-            break;
-          case 'case_email_sent':
-            title = 'Email Sent';
-            message = `Documents for ${caseRecord?.title || 'your case'} were sent to the client.`;
-            break;
-          case 'consent_given':
-            title = 'Consent Confirmed';
-            message = `Client consent was confirmed for ${caseRecord?.title || 'your case'}.`;
-            break;
-          case 'pre_consent_acknowledged':
-            title = 'Pre-Meeting Consent Granted';
-            message = `${(event.metadata as any)?.recipientName || 'Your client'} has granted recording consent${caseRecord ? ` for ${caseRecord.title}` : ''}.`;
-            break;
-          case 'pre_consent_declined':
-            title = 'Pre-Meeting Consent Declined';
-            message = `${(event.metadata as any)?.recipientName || 'Your client'} has declined recording consent${caseRecord ? ` for ${caseRecord.title}` : ''}. No recording will be attempted.`;
-            break;
-          case 'pre_consent_reschedule_requested':
-            title = 'Reschedule Requested';
-            message = `${(event.metadata as any)?.recipientName || 'Your client'} has requested to reschedule${caseRecord ? ` the meeting for ${caseRecord.title}` : ''}. ${(event.metadata as any)?.clientMessage ? `Message: "${(event.metadata as any).clientMessage}"` : ''}`;
-            break;
-          case 'audio_expiring_soon':
-            title = 'Audio Expiring Soon';
-            message = `Recording for ${caseRecord?.title || 'a case'} will be auto-deleted when its 7-day retention period ends (GDPR).`;
-            break;
-          case 'deadline_approaching':
-            title = 'Deadline Approaching';
-            message = `Case deadline for ${caseRecord?.title || 'a case'} is approaching.`;
-            break;
-          case 'meeting_reminder': {
-            const mins = (event.metadata as any)?.minutesBefore;
-            const meetingTitle = (event.metadata as any)?.meetingTitle || 'your meeting';
-            title = mins === 10 ? 'Meeting in 10 minutes' : 'Meeting in 30 minutes';
-            message = `${meetingTitle} starts soon${caseRecord ? ` (${caseRecord.title})` : ''}.`;
-            break;
-          }
-          default:
-            title = event.eventType.replace(/_/g, ' ');
-            message = '';
-        }
+        const { title, message } = buildNotificationCopy(event, caseRecord);
+        const href = buildNotificationHref(event);
+        const documentType = resolveDocumentType(event);
+        const isRead =
+          readNotifications.has(event.id) ||
+          (!!markAllReadAt && event.timestamp <= markAllReadAt);
         
         return {
           id: event.id,
@@ -12808,9 +12770,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           title,
           message,
           caseId: event.caseId || undefined,
-          caseTitle: caseRecord?.title,
+          caseTitle: caseRecord?.title || undefined,
+          documentId: event.documentId || undefined,
+          documentType: documentType || undefined,
+          href,
           createdAt: event.timestamp.toISOString(),
-          readAt: readNotifications.has(event.id) ? event.timestamp.toISOString() : undefined,
+          readAt: isRead ? event.timestamp.toISOString() : undefined,
         };
       }).filter(n => n.title);
       
