@@ -121,9 +121,23 @@ function formatConfidence(confidence: number): string {
 /** Strip speaker labels so we can compare utterance text vs stored full content. */
 function plainTranscriptLength(text: string): number {
   return text
-    .replace(/\[Speaker [^\]]*\]:\s*/gi, "")
+    // Match AssemblyAI "[Speaker A]:" and named labels like "[Priya]:" from sample/seeded matters
+    .replace(/\[[^\]]+\]:\s*/g, "")
     .replace(/\s+/g, " ")
     .trim().length;
+}
+
+/**
+ * Attendance-note style transcripts prepend metadata above a `---` rule.
+ * Compare dialogue body only so a header never forces the plain-text fallback
+ * when segmented utterances already cover the conversation.
+ */
+function dialogueBodyForCompare(text: string): string {
+  const match = text.match(/\n---\s*\n/);
+  if (match && match.index !== undefined) {
+    return text.slice(match.index + match[0].length);
+  }
+  return text;
 }
 
 export default function DiarizedTranscriptViewer({
@@ -224,12 +238,16 @@ export default function DiarizedTranscriptViewer({
 
   // Prefer the longer of stored full content vs speaker segments — incomplete
   // diarization or a truncated correction must never hide the fuller capture.
+  // Ignore attendance headers and speaker-label formatting when comparing lengths
+  // so sample/seeded matters with named speakers still use the coloured layout.
   const utteranceTextLen = plainTranscriptLength(utterances.map((u) => u.text).join(" "));
-  const fallbackTextLen = fallbackContent ? plainTranscriptLength(fallbackContent) : 0;
+  const fallbackTextLen = fallbackContent
+    ? plainTranscriptLength(dialogueBodyForCompare(fallbackContent))
+    : 0;
   const preferFullContent =
     !!fallbackContent &&
-    (fallbackTextLen > utteranceTextLen + 20 ||
-      (utterances.length === 1 && fallbackTextLen >= utteranceTextLen));
+    ((utterances.length === 1 && fallbackTextLen >= utteranceTextLen) ||
+      (utterances.length > 1 && fallbackTextLen > utteranceTextLen * 1.15 + 80));
 
   if (preferFullContent) {
     return (

@@ -1,7 +1,7 @@
 /**
  * Sample family (financial remedy) matter: Reeve conference fixture.
  * Seeds a complete matter with diarized transcript, attendance note
- * (REASONING_GAP markers left open), action items, and audit trail.
+ * (REASONING_GAP markers left open), client letter, action items, and audit trail.
  *
  * Fixture source: Fixture_Family_MultiRegister_Conference_Reeve.md
  */
@@ -16,10 +16,13 @@ import {
   auditTrail,
   actionItems,
   users,
+  firms,
+  firmProfile,
 } from "../../shared/schema";
 import { eq, sql } from "drizzle-orm";
 
 const MATTER_REFERENCE = "REE/FAM26-01188";
+const FEE_EARNER_DISPLAY = "Priya Raval, Partner, Solicitor";
 const DURATION_MINUTES = 156;
 const DURATION_SECONDS = DURATION_MINUTES * 60;
 const DURATION_MS = DURATION_SECONDS * 1000;
@@ -208,7 +211,7 @@ function buildAttendanceNote(sessionDate: Date): string {
   return `**ATTENDANCE NOTE**
 
 **File Ref:** ${MATTER_REFERENCE}  
-**Advisor:** Priya Raval, Partner, Solicitor
+**Advisor:** ${FEE_EARNER_DISPLAY}
 
 **Client Name:** Adam Reeve  
 **Date:** ${dateLabel}
@@ -416,8 +419,110 @@ Time Engaged: ${DURATION_MINUTES} minutes
 
 This attendance note is subject to legal professional privilege.
 
-Prepared by: Priya Raval, Partner, Solicitor
+Prepared by: ${FEE_EARNER_DISPLAY}
 Date Prepared: ${dateLabel}`;
+}
+
+/**
+ * Post-meeting client confirmation letter — mirrors assembleSummaryDocument format
+ * and the generateSummary structure (What we discussed / What I advised / What happens next).
+ * Facts only from the attendance note; no internal reasoning or "not discussed" placeholders.
+ */
+function buildClientLetter(sessionDate: Date, firmName: string): string {
+  const dateLabel = sessionDate.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  return `**Client:** Adam Reeve
+**Matter reference:** ${MATTER_REFERENCE}
+**Date:** ${dateLabel}
+
+Thank you for meeting with me on ${dateLabel}. This letter sets out what we discussed and the advice I gave you, together with the steps that you and I need to take next.
+
+---
+
+**What we discussed**
+
+**Background and divorce status**
+
+You and Nadia met in 2011, began living together that autumn, married in June 2022, and separated in February 2025. The marriage lasted approximately 2 years 8 months, within a relationship of approximately 13 years 4 months from cohabitation. Nadia issued divorce proceedings in September 2025. A conditional order has been granted, but no final order has yet been made. You were clear that the marriage is over and that you want it finished so that arrangements for the children can be sorted properly. Both of you are British citizens born in the UK.
+
+Ellis Warner, a paralegal, sat in on our meeting and took a note. You confirmed that you had signed our terms of business and privacy documentation, and that you did not consider yourself vulnerable, though I confirmed I would still work to our vulnerable persons policy.
+
+**The children**
+
+You have 2 children. Sasha is 9 and has cerebral palsy. She can walk short distances around the home but otherwise uses a wheelchair and cannot manage stairs. The family home has been adapted under a Disabled Facilities Grant, including a ramp and a downstairs wet room. Reuben is 6 and has been awaiting an autism assessment for approximately 1 year; there is no diagnosis at this stage.
+
+There is an existing child arrangements order from 2025 providing for 3 days and 2 nights each week with you, worked around your railway signaller rota. You described the order as not operating as intended, with periods of 6 consecutive days followed by a fortnight with no contact, and handovers landing immediately before night shifts, with Sasha routinely awake from 05:30. You raised a safety concern given your railway role. Both of you hold parental responsibility equally.
+
+**Finances and the family home**
+
+The family home is worth approximately £340,000, with a mortgage of approximately £196,000 and equity of approximately £144,000. It is held in joint names and occupied by Nadia and the children. Your net employment income is £2,100 per month, plus a service pension in payment of £1,150 per month from your 12 years in the Royal Engineers, giving a total of £3,250 per month. Nadia's income from 12 hours per week at a school office (£520 per month) plus disability-related benefits for Sasha and carer's allowance totals just over £3,900 per month.
+
+You currently pay Nadia £820 per month as a combined figure for child maintenance and a mortgage contribution. There is approximately £1,400 in the joint account and approximately £6,000 in your sole account (from an Army lump sum). Your railway pension has accrued approximately £11,000; Nadia's pension is a few thousand and not yet quantified. We did not deal with any investments on this occasion.
+
+You had understood that assets are split fifty-fifty. I corrected that. I also explained lasting powers of attorney and wills, and that you currently have neither. You thought a previous firm may have severed the joint tenancy on the family home, but you were unsure, so that remains to be checked on the title. Separately, I explained what non-molestation and occupation orders are, and you told me about a February 2026 doorstep argument that led to a police interview under caution and a letter in April 2026 confirming no further action.
+
+**Costs**
+
+I outlined the shape of costs for the work discussed. A service discount for forces and former forces applies and will appear on every bill; it does not reduce disbursements such as court fees. Funding options we touched on included public funding (unlikely for most of this work), after-the-event insurance, and before-the-event legal expenses cover that may already sit on a home insurance policy.
+
+---
+
+**What I advised**
+
+**How the court approaches finances**
+
+I advised you that there is no rule that assets are divided equally. A court deciding financial remedy looks at a list of factors, of which marriage length is one. Needs sit at the top of those factors where there are children, and Sasha's needs are of particular importance. A likely direction of travel is that both of you may need a similar amount so the children are comfortable in both homes, but that is not a promise, and the figures come first. I did not advise on any particular housing outcome (whether the adapted home is retained, sold or transferred).
+
+**Banking and the mortgage**
+
+I advised you to restrict borrowing on the joint account and to ring-fence your sole account, so that the financial position is frozen while negotiations proceed. I advised you to stop paying the mortgage, and confirmed that we would write to the other side this week to notify them. I also advised you that the £820 payment would be recorded as a composite figure only, and that your service pension would be treated as income in payment, distinct from accrued pension provision such as the railway pot.
+
+**Children arrangements**
+
+I advised you that the court's paramount consideration is the children's welfare, not either parent's preference, and that parental responsibility must be exercised reasonably and responsibly. The court starts from a high bar before interfering where the overall balance is broadly right and the children are well looked after. The unpredictability of the pattern and handovers before night shifts are real issues worth putting to the other side if you choose to raise them. I asked you to think about whether you want the arrangements issue taken further at this stage and to let me know.
+
+**Wills, lasting power of attorney and title**
+
+I advised you to put a will and lasting power of attorney in place promptly. While you remain married, if something happened tomorrow Nadia would still deal with decisions unless something is put in place. You instructed me to refer you to our wills and probate team. I also explained severance of a joint tenancy (survivor versus defined shares) and advised that we check how the family home is held on the title before reaching any conclusion.
+
+**Injunctions and the police matter**
+
+I explained what non-molestation and occupation orders are, and the without-notice and on-notice routes, but I did not advise on whether you could or should apply on the facts available today. On the police matter, I advised that the factual chronology and your dispute of the allegation would be recorded separately and kept separate.
+
+**Funding**
+
+I advised you to check your home insurance policy documents for legal expenses cover before doing anything else, because if cover is present it changes the funding picture.
+
+---
+
+**What happens next**
+
+**You need to do the following:**
+
+1. **Check your home insurance for legal expenses cover** and dig out the policy documents this weekend.
+2. **Stop the payment into the joint account** and pay Nadia direct instead.
+3. **Send me the sealed child arrangements order from 2025.**
+4. **Send me the screenshot of the maintenance calculator** used to work out the £820 figure.
+5. **Let me know** whether you want the children arrangements issue taken further at this stage.
+
+**I will do the following:**
+
+1. Write to the other side regarding the mortgage position this week.
+2. Refer you to our wills and probate team today.
+3. Obtain a copy of the title to check how the former family home is held.
+
+---
+
+Please do not hesitate to contact me if you have any questions about anything in this letter. I will write to you with the figures on costs once you have confirmed your instructions.
+
+Yours sincerely,
+
+${FEE_EARNER_DISPLAY}
+${firmName}`;
 }
 
 export type SeedReeveResult = {
@@ -471,6 +576,20 @@ export async function seedReeveSampleMatter(opts: {
       return { success: false, message: "Provide userId or userEmail" };
     }
 
+    let resolvedFirmName = "Not specified";
+    if (firmId) {
+      const [firmRow] = await db
+        .select({ name: firms.name })
+        .from(firms)
+        .where(eq(firms.id, firmId))
+        .limit(1);
+      if (firmRow?.name) resolvedFirmName = firmRow.name;
+    }
+    if (resolvedFirmName === "Not specified") {
+      const [profileRow] = await db.select({ firmName: firmProfile.firmName }).from(firmProfile).limit(1);
+      if (profileRow?.firmName) resolvedFirmName = profileRow.firmName;
+    }
+
     // Idempotent: archive any prior Reeve sample for this user before re-seeding.
     await db
       .update(cases)
@@ -484,6 +603,7 @@ export async function seedReeveSampleMatter(opts: {
     const utterances = buildUtterances(TURNS);
     const transcriptContent = buildTranscriptContent(sessionDate, utterances);
     const attendanceNoteContent = buildAttendanceNote(sessionDate);
+    const clientLetterContent = buildClientLetter(sessionDate, resolvedFirmName);
 
     const [newCase] = await db
       .insert(cases)
@@ -570,6 +690,18 @@ export async function seedReeveSampleMatter(opts: {
       reasoningGapsFilled: 0,
       reasoningGapsReviewed: false,
       createdAt: new Date(sessionDate.getTime() + DURATION_MS + 12 * 60 * 1000),
+    });
+
+    await db.insert(documents).values({
+      caseId: newCase.id,
+      meetingSessionId: session.id,
+      type: "client_letter",
+      content: clientLetterContent,
+      version: 1,
+      versionType: "ai_generated",
+      createdBy: userId!,
+      status: "draft",
+      createdAt: new Date(sessionDate.getTime() + DURATION_MS + 13 * 60 * 1000),
     });
 
     const actionItemsList = [
@@ -685,6 +817,16 @@ export async function seedReeveSampleMatter(opts: {
           versionType: "ai_generated",
           version: 1,
           reasoningGapsIdentified: 2,
+        },
+        severity: "info" as const,
+      },
+      {
+        eventType: "document_generated",
+        timestamp: new Date(sessionDate.getTime() + DURATION_MS + 13 * 60 * 1000),
+        metadata: {
+          documentType: "client_letter",
+          versionType: "ai_generated",
+          version: 1,
         },
         severity: "info" as const,
       },

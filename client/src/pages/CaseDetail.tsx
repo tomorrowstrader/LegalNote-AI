@@ -6,7 +6,7 @@ import {
   Share2, Eye, Archive, Video, ListChecks, History,
   ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send,
   ShieldCheck, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, Mic, FileCheck,
-  ChevronsLeft, ChevronsRight,
+  ChevronsLeft, ChevronsRight, Minimize2,
 } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { processingStartStorageKey } from "@/lib/processingEta";
 import DocumentViewer from "@/components/DocumentViewer";
@@ -279,6 +280,15 @@ export default function CaseDetail() {
   const caseId = params.id;
   const { toast } = useToast();
   const { isFocusMode, toggleFocusMode, exitFocusMode } = useFocusMode();
+
+  useEffect(() => {
+    if (!isFocusMode) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") exitFocusMode();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isFocusMode, exitFocusMode]);
 
   const [autoOpenComplianceNote, setAutoOpenComplianceNote] = useState(0);
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
@@ -1279,9 +1289,21 @@ export default function CaseDetail() {
     <div className={cn("flex bg-background overflow-x-hidden", isFocusMode ? "min-h-screen" : "h-[calc(100vh-4rem)]")}>
       {isFocusMode && (
         <div className="fixed top-4 right-4 z-[200]">
-          <Button variant="outline" size="sm" onClick={exitFocusMode} className="gap-2 bg-background/80 backdrop-blur-sm shadow-lg" data-testid="button-exit-focus-mode">
-            <X className="w-4 h-4" /> Exit Focus Mode
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={exitFocusMode}
+                className="h-9 w-9 bg-background/75 backdrop-blur-sm border-border/50 text-muted-foreground hover:text-foreground shadow-sm"
+                data-testid="button-exit-focus-mode"
+                aria-label="Exit Focus Mode"
+              >
+                <Minimize2 className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Exit Focus Mode (Esc)</TooltipContent>
+          </Tooltip>
         </div>
       )}
 

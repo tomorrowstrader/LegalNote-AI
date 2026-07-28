@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
+import { adoptionRequiredMessage, getUnadoptedDocumentTypes } from "@/lib/documentAdoption";
 import type { FirmProfile, Case } from "@shared/schema";
 
 interface SpeakerUtterance {
@@ -56,8 +57,19 @@ export function useCaseExport({ caseId, enabled, prefetchedData }: UseCaseExport
   const caseData = prefetchedData?.caseData ?? fetchedCaseData;
   const transcript = prefetchedData?.transcript ?? fetchedTranscript;
 
-  const handleDownload = async (selectedDocs: string[], format: 'pdf' | 'word') => {
-    if (!caseData || !documents) return;
+  const handleDownload = async (selectedDocs: string[], format: 'pdf' | 'word'): Promise<boolean> => {
+    if (!caseData || !documents) return false;
+
+    const unadoptedTypes = getUnadoptedDocumentTypes(selectedDocs, documents);
+    if (unadoptedTypes.length > 0) {
+      toast({
+        title: "Adoption required",
+        description: adoptionRequiredMessage(unadoptedTypes, "download"),
+        variant: "destructive",
+        duration: 6000,
+      });
+      return false;
+    }
 
     const activeDocuments = documents.filter((doc: any) => doc.isActive);
     const attendanceNote = activeDocuments.find((doc: any) => doc.type === 'attendance_note');
@@ -97,7 +109,7 @@ export function useCaseExport({ caseId, enabled, prefetchedData }: UseCaseExport
         description: "None of the selected documents have content to export",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     // Determine single document type for branding; 'selected' when multiple
@@ -133,12 +145,14 @@ export function useCaseExport({ caseId, enabled, prefetchedData }: UseCaseExport
         title: `${format.toUpperCase()} downloaded`,
         description: `Selected documents exported successfully`,
       });
+      return true;
     } catch (error) {
       toast({
         title: "Export failed",
         description: `Failed to export as ${format.toUpperCase()}. Please try again.`,
         variant: "destructive",
       });
+      return false;
     }
   };
 

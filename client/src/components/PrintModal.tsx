@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,9 +10,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { FileText, FileDown, Loader2, Shield } from "lucide-react";
+import { FileText, Loader2, Printer } from "lucide-react";
 
-interface DownloadModalProps {
+interface PrintModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   availableDocuments: {
@@ -21,102 +21,114 @@ interface DownloadModalProps {
     hasTranscript: boolean;
     hasCareLetter?: boolean;
   };
-  sharedDocuments: string[];
-  onDownload: (selectedDocs: string[], format: 'pdf' | 'word') => Promise<boolean | void>;
+  /** Pre-select docs when the modal opens (e.g. current tab). */
+  defaultSelected?: string[];
+  onPrint: (selectedDocs: string[]) => Promise<boolean | void>;
 }
 
-export default function DownloadModal({
+function getDocumentLabel(type: string) {
+  switch (type) {
+    case "attendance_note":
+      return "Attendance Note";
+    case "summary":
+      return "Client Letter";
+    case "transcript":
+      return "Full Transcript";
+    case "client_care_letter":
+      return "Client Care Letter";
+    default:
+      return type;
+  }
+}
+
+export default function PrintModal({
   open,
   onOpenChange,
   availableDocuments,
-  sharedDocuments,
-  onDownload,
-}: DownloadModalProps) {
-  const [selectedDocuments, setSelectedDocuments] = useState<string[]>(() => {
-    const defaults: string[] = [];
-    if (availableDocuments.hasAttendanceNote) {
-      defaults.push("attendance_note");
+  defaultSelected,
+  onPrint,
+}: PrintModalProps) {
+  const buildDefaults = () => {
+    const available = (doc: string) => {
+      if (doc === "attendance_note") return availableDocuments.hasAttendanceNote;
+      if (doc === "summary") return availableDocuments.hasSummary;
+      if (doc === "transcript") return availableDocuments.hasTranscript;
+      if (doc === "client_care_letter") return !!availableDocuments.hasCareLetter;
+      return false;
+    };
+
+    if (defaultSelected && defaultSelected.length > 0) {
+      const filtered = defaultSelected.filter(available);
+      if (filtered.length > 0) return filtered;
     }
-    return defaults;
-  });
-  const [isDownloading, setIsDownloading] = useState(false);
+
+    if (availableDocuments.hasAttendanceNote) return ["attendance_note"];
+    if (availableDocuments.hasSummary) return ["summary"];
+    if (availableDocuments.hasCareLetter) return ["client_care_letter"];
+    if (availableDocuments.hasTranscript) return ["transcript"];
+    return [];
+  };
+
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>(buildDefaults);
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setSelectedDocuments(buildDefaults());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset selection when modal opens
+  }, [open, defaultSelected]);
 
   const toggleDocument = (docType: string) => {
-    setSelectedDocuments(prev =>
-      prev.includes(docType)
-        ? prev.filter(d => d !== docType)
-        : [...prev, docType]
+    setSelectedDocuments((prev) =>
+      prev.includes(docType) ? prev.filter((d) => d !== docType) : [...prev, docType],
     );
   };
 
-  const handleDownload = async (format: 'pdf' | 'word') => {
+  const handlePrint = async () => {
     if (selectedDocuments.length === 0) return;
-    
-    setIsDownloading(true);
+    setIsPrinting(true);
     try {
-      const succeeded = await onDownload(selectedDocuments, format);
+      const succeeded = await onPrint(selectedDocuments);
       if (succeeded !== false) {
         onOpenChange(false);
       }
     } finally {
-      setIsDownloading(false);
+      setIsPrinting(false);
     }
   };
 
-  const handleClose = () => {
-    if (!isDownloading) {
-      const defaults: string[] = [];
-      if (availableDocuments.hasAttendanceNote) {
-        defaults.push("attendance_note");
-      }
-      setSelectedDocuments(defaults);
+  const handleClose = (nextOpen: boolean) => {
+    if (!nextOpen && !isPrinting) {
       onOpenChange(false);
-    }
-  };
-
-  const getDocumentLabel = (type: string) => {
-    switch (type) {
-      case "attendance_note": return "Attendance Note";
-      case "summary": return "Client Letter";
-      case "transcript": return "Full Transcript";
-      case "client_care_letter": return "Client Care Letter";
-      default: return type;
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md" data-testid="modal-download">
+      <DialogContent className="sm:max-w-md print:hidden" data-testid="modal-print">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FileDown className="w-5 h-5" />
-            Download Working Copy
+            <Printer className="w-5 h-5" />
+            Print Documents
           </DialogTitle>
           <DialogDescription>
-            Select which documents to include in your download
+            Select which documents to include in the print preview
           </DialogDescription>
         </DialogHeader>
-
-        {/* Master Record notice */}
-        <div className="flex items-start gap-2 p-3 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
-          <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-          <div className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
-            <span className="font-semibold">Working copy only.</span> The master record and complete audit trail remain securely held in LegalNote. This download is for reference only.
-          </div>
-        </div>
 
         <div className="space-y-4 py-4">
           <div className="space-y-3">
             {availableDocuments.hasAttendanceNote && (
               <div className="flex items-center space-x-3">
                 <Checkbox
-                  id="doc-attendance"
+                  id="print-doc-attendance"
                   checked={selectedDocuments.includes("attendance_note")}
                   onCheckedChange={() => toggleDocument("attendance_note")}
-                  data-testid="checkbox-attendance-note"
+                  data-testid="checkbox-print-attendance-note"
                 />
-                <Label 
-                  htmlFor="doc-attendance" 
+                <Label
+                  htmlFor="print-doc-attendance"
                   className="flex items-center gap-2 cursor-pointer font-normal"
                 >
                   <FileText className="w-4 h-4 text-muted-foreground" />
@@ -128,13 +140,13 @@ export default function DownloadModal({
             {availableDocuments.hasSummary && (
               <div className="flex items-center space-x-3">
                 <Checkbox
-                  id="doc-summary"
+                  id="print-doc-summary"
                   checked={selectedDocuments.includes("summary")}
                   onCheckedChange={() => toggleDocument("summary")}
-                  data-testid="checkbox-summary"
+                  data-testid="checkbox-print-summary"
                 />
-                <Label 
-                  htmlFor="doc-summary" 
+                <Label
+                  htmlFor="print-doc-summary"
                   className="flex items-center gap-2 cursor-pointer font-normal"
                 >
                   <FileText className="w-4 h-4 text-muted-foreground" />
@@ -146,13 +158,13 @@ export default function DownloadModal({
             {availableDocuments.hasCareLetter && (
               <div className="flex items-center space-x-3">
                 <Checkbox
-                  id="doc-care-letter"
+                  id="print-doc-care-letter"
                   checked={selectedDocuments.includes("client_care_letter")}
                   onCheckedChange={() => toggleDocument("client_care_letter")}
-                  data-testid="checkbox-care-letter"
+                  data-testid="checkbox-print-care-letter"
                 />
-                <Label 
-                  htmlFor="doc-care-letter" 
+                <Label
+                  htmlFor="print-doc-care-letter"
                   className="flex items-center gap-2 cursor-pointer font-normal"
                 >
                   <FileText className="w-4 h-4 text-muted-foreground" />
@@ -164,13 +176,13 @@ export default function DownloadModal({
             {availableDocuments.hasTranscript && (
               <div className="flex items-center space-x-3">
                 <Checkbox
-                  id="doc-transcript"
+                  id="print-doc-transcript"
                   checked={selectedDocuments.includes("transcript")}
                   onCheckedChange={() => toggleDocument("transcript")}
-                  data-testid="checkbox-transcript"
+                  data-testid="checkbox-print-transcript"
                 />
-                <Label 
-                  htmlFor="doc-transcript" 
+                <Label
+                  htmlFor="print-doc-transcript"
                   className="flex items-center gap-2 cursor-pointer font-normal"
                 >
                   <FileText className="w-4 h-4 text-muted-foreground" />
@@ -182,46 +194,34 @@ export default function DownloadModal({
 
           {selectedDocuments.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Please select at least one document to download
+              Please select at least one document to print
             </p>
           )}
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter className="gap-2">
           <Button
-            onClick={() => handleDownload('pdf')}
-            disabled={selectedDocuments.length === 0 || isDownloading}
-            className="w-full sm:w-auto"
-            data-testid="button-download-pdf"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isPrinting}
+            data-testid="button-print-cancel"
           >
-            {isDownloading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Downloading...
-              </>
-            ) : (
-              <>
-                <FileDown className="w-4 h-4 mr-2" />
-                Download PDF
-              </>
-            )}
+            Cancel
           </Button>
           <Button
-            onClick={() => handleDownload('word')}
-            disabled={selectedDocuments.length === 0 || isDownloading}
-            variant="outline"
-            className="w-full sm:w-auto"
-            data-testid="button-download-word"
+            onClick={handlePrint}
+            disabled={selectedDocuments.length === 0 || isPrinting}
+            data-testid="button-print-confirm"
           >
-            {isDownloading ? (
+            {isPrinting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Downloading...
+                Preparing…
               </>
             ) : (
               <>
-                <FileDown className="w-4 h-4 mr-2" />
-                Download Word (.docx)
+                <Printer className="w-4 h-4 mr-2" />
+                Print
               </>
             )}
           </Button>

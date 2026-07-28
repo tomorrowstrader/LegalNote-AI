@@ -2666,6 +2666,25 @@ export default function DocumentViewer({
       data-testid="container-document-viewer"
       style={{ '--doc-header-height': `${headerHeight}px` } as CSSProperties}
     >
+      {focusMode && (
+        <div className="fixed top-4 right-4 z-[110] print:hidden">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setFocusMode(false)}
+                className="h-9 w-9 bg-background/75 backdrop-blur-sm border-border/50 text-muted-foreground hover:text-foreground shadow-sm"
+                data-testid="button-exit-focus-mode"
+                aria-label="Exit Focus Mode"
+              >
+                <Minimize2 className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Exit Focus Mode (Esc)</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full min-w-0 max-w-full">
         <div ref={stickyHeaderRef} className={`sticky top-0 z-40 pt-1 pb-3 ${focusMode ? 'print:hidden' : ''}`}>
           <div className="rounded-2xl border border-border/60 bg-card/95 backdrop-blur-sm shadow-sm px-4 pt-4 pb-3">
@@ -2778,7 +2797,17 @@ export default function DocumentViewer({
                   )}
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button size="icon" variant="ghost" onClick={() => setFocusMode(f => !f)} data-testid="button-focus-mode" className="hidden sm:flex">
+                      <Button
+                        size="icon"
+                        variant={focusMode ? 'secondary' : 'ghost'}
+                        onClick={() => setFocusMode(f => !f)}
+                        data-testid="button-focus-mode"
+                        className={cn(
+                          "hidden sm:flex",
+                          focusMode && "bg-accent/15 text-accent hover:bg-accent/20 hover:text-accent",
+                        )}
+                        aria-pressed={focusMode}
+                      >
                         {focusMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                       </Button>
                     </TooltipTrigger>
