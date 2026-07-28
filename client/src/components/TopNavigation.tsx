@@ -121,32 +121,22 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
             </DropdownMenu>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 ml-auto min-w-0 max-w-full has-[[data-recording-active]]:gap-1 has-[[data-recording-active]]:[&_[data-hide-while-recording]]:hidden">
-            <div data-hide-while-recording className="shrink-0">
-              <CaseQuickSwitch />
-            </div>
+          <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+            <CaseQuickSwitch />
 
-            <div data-hide-while-recording className="min-w-0">
-              <GlobalSearch />
-            </div>
+            <GlobalSearch />
 
             <QuickRecordButton />
 
             <NotificationsPanel />
 
-            <div data-hide-while-recording className="shrink-0">
-              <ThemeToggle />
-            </div>
+            <ThemeToggle />
 
-            {isAdmin && (
-              <div data-hide-while-recording className="shrink-0">
-                <AdminQuickAccess />
-              </div>
-            )}
+            {isAdmin && <AdminQuickAccess />}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-primary-foreground shrink-0" data-testid="button-user-menu">
+                <Button variant="ghost" size="icon" className="text-primary-foreground" data-testid="button-user-menu">
                   <User className="w-5 h-5" />
                 </Button>
               </DropdownMenuTrigger>
@@ -244,7 +234,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="lg:hidden text-primary-foreground shrink-0" 
+                  className="lg:hidden text-primary-foreground" 
                   data-testid="button-mobile-menu"
                 >
                   <Menu className="w-5 h-5" />

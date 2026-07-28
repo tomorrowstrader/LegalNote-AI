@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, Square, FileText, Shield, AlertTriangle, Wifi, WifiOff, CloudUpload, Battery, BatteryLow, UserPlus, X } from "lucide-react";
+import { Mic, Square, FileText, AlertTriangle, UserPlus, X, Shield, BatteryLow } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import RecordingControlCenter, {
+  ControlCenterActionButton,
+} from "@/components/RecordingControlCenter";
 import {
   Dialog,
   DialogContent,
@@ -992,138 +995,68 @@ export default function QuickRecordButton() {
 
   if (countdown !== null) {
     return (
-      <div data-recording-active className="flex shrink-0 items-center gap-1 sm:gap-2">
-        <div className="flex items-center gap-1 sm:gap-2 bg-destructive/20 rounded-full px-2 sm:px-3 py-1 animate-pulse">
-          <span className="text-xs sm:text-sm font-semibold text-red-400 dark:text-red-300 whitespace-nowrap" data-testid="text-countdown">
-            <span className="hidden sm:inline">Recording in </span>{countdown}...
-          </span>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={cancelCountdown}
-          className="text-primary-foreground h-7 px-2 shrink-0"
-          data-testid="button-cancel-countdown"
-        >
-          <span className="hidden sm:inline">Cancel</span>
-          <span className="sm:hidden">✕</span>
-        </Button>
-      </div>
+      <>
+        {/* Keep nav mic slot empty while countdown runs — controls live in the corner */}
+        <span className="sr-only" data-testid="text-countdown">
+          Recording in {countdown}
+        </span>
+        <RecordingControlCenter
+          tone="countdown"
+          statusLabel="Starting"
+          title="Quick Record"
+          countdown={countdown}
+          safeguards={{ protected: true }}
+          actions={
+            <ControlCenterActionButton
+              variant="outline"
+              onClick={cancelCountdown}
+              data-testid="button-cancel-countdown"
+            >
+              Cancel
+            </ControlCenterActionButton>
+          }
+        />
+      </>
     );
   }
 
   if (isRecording) {
     return (
       <>
-        <div
-          data-recording-active
-          className="flex shrink-0 items-center gap-1.5 sm:gap-2 bg-background/30 backdrop-blur-sm rounded-lg pl-2 pr-1.5 sm:pl-2.5 sm:pr-2 py-1 border border-white/10"
-        >
-          <Badge className="bg-destructive animate-pulse hidden sm:inline-flex text-[10px] px-1.5 py-0 h-5" data-testid="badge-quick-recording">
-            Recording
-          </Badge>
-          <div className="w-2 h-2 bg-destructive rounded-full animate-pulse sm:hidden shrink-0" />
-          <p className="text-xs font-mono font-semibold text-primary-foreground tabular-nums shrink-0" data-testid="text-quick-duration">
-            {formatDuration(recordingDuration)}
-          </p>
-          
-          {useChunkedUpload && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="hidden md:flex items-center gap-0.5 shrink-0">
-                  {chunkedRecording.isUploading ? (
-                    <CloudUpload className="w-3 h-3 text-blue-400 animate-pulse" />
-                  ) : chunkedRecording.networkStatus.online ? (
-                    <Wifi className="w-3 h-3 text-green-400" />
-                  ) : (
-                    <WifiOff className="w-3 h-3 text-amber-400" />
-                  )}
-                  <span className="text-[10px] text-muted-foreground tabular-nums">
-                    {chunkedRecording.chunksUploaded}
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-sm max-w-[220px]">
-                  {chunkedRecording.networkStatus.online 
-                    ? `${chunkedRecording.chunksUploaded} chunks saved to cloud. Your recording is protected every 10 seconds.`
-                    : "Offline - chunks will upload when connected."}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-          
-          {chunkedRecording.isSilent && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center text-amber-400 animate-pulse shrink-0">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-sm max-w-[220px]">
-                  No audio detected for 30+ seconds. Check your microphone is working.
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-          
-          {chunkedRecording.batteryLevel !== null && chunkedRecording.batteryLevel < 20 && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center text-amber-400 shrink-0">
-                  <BatteryLow className="w-3.5 h-3.5" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-sm max-w-[220px]">
-                  Low battery! Your recording is protected - chunks save every 10 seconds. Consider plugging in.
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-          
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="hidden sm:flex items-center gap-1 text-green-400 shrink-0" aria-label="Protected">
-                <Shield className="w-3 h-3" />
-                <span className="text-[10px] hidden lg:inline">Protected</span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <div className="text-sm max-w-[250px] space-y-1">
-                <p className="font-medium">Recording Safeguards Active:</p>
-                <ul className="text-xs space-y-0.5">
-                  <li>• Tab close warning enabled</li>
-                  {useChunkedUpload && <li>• Chunks saved every 10 seconds</li>}
-                  {useChunkedUpload && <li>• Local backup via IndexedDB</li>}
-                  {useChunkedUpload && chunkedRecording.networkStatus.online && <li>• Cloud sync active</li>}
-                  {useChunkedUpload && <li>• Silence detection monitoring</li>}
-                  <li>• Consent segment preserved</li>
-                  <li>• Cross-device recovery available</li>
-                </ul>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleStopClick}
-            className={`gap-1 h-8 px-2.5 shrink-0 ${
-              stopConfirmationPending 
-                ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30 animate-pulse' 
-                : 'text-primary-foreground'
-            }`}
-            data-testid="button-stop-quick-record"
-          >
-            <Square className="w-3.5 h-3.5 shrink-0" />
-            <span className="text-xs whitespace-nowrap">
-              {stopConfirmationPending ? 'Confirm' : 'Stop'}
-            </span>
-          </Button>
-        </div>
-        
+        <span className="sr-only" data-testid="badge-quick-recording">
+          Recording {formatDuration(recordingDuration)}
+        </span>
+        <span className="sr-only" data-testid="text-quick-duration">
+          {formatDuration(recordingDuration)}
+        </span>
+        <RecordingControlCenter
+          tone={stopConfirmationPending ? "warning" : "recording"}
+          statusLabel="Recording"
+          title="Quick Record"
+          elapsedSeconds={recordingDuration}
+          safeguards={{
+            protected: true,
+            showChunkStatus: useChunkedUpload,
+            online: chunkedRecording.networkStatus.online,
+            isUploading: chunkedRecording.isUploading,
+            chunksUploaded: chunkedRecording.chunksUploaded,
+          }}
+          alerts={{
+            isSilent: chunkedRecording.isSilent,
+            batteryLevel: chunkedRecording.batteryLevel,
+          }}
+          actions={
+            <ControlCenterActionButton
+              variant={stopConfirmationPending ? "confirm" : "destructive"}
+              onClick={handleStopClick}
+              data-testid="button-stop-quick-record"
+            >
+              <Square className="h-3.5 w-3.5" />
+              {stopConfirmationPending ? "Confirm stop" : "Stop recording"}
+            </ControlCenterActionButton>
+          }
+        />
+
         <ConsentModal
           open={showConsentModal}
           onConsentGiven={handleConsentGiven}

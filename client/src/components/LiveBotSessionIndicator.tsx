@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Loader2, Video, CheckCircle2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,6 +13,9 @@ import MeetingToMatterProcessingOverlay, {
   type ProcessingStep,
 } from "@/components/MeetingToMatterProcessingOverlay";
 import MeetingNotesCapture from "@/components/MeetingNotesCapture";
+import RecordingControlCenter, {
+  ControlCenterActionButton,
+} from "@/components/RecordingControlCenter";
 import { useLiveBotSession, type LiveBotPhase } from "@/contexts/LiveBotSessionContext";
 import { createProcessingStepTimer } from "@/lib/processingStepTimer";
 import {
@@ -22,12 +24,6 @@ import {
   liveBotDraftKey,
 } from "@/lib/meetingNotesDraft";
 import { useToast } from "@/hooks/use-toast";
-
-function formatElapsed(seconds: number) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 function phaseLabel(phase: LiveBotPhase): string {
   switch (phase) {
@@ -57,6 +53,12 @@ function phaseToProcessingStep(phase: LiveBotPhase): ProcessingStep {
   if (phase === "processing") return "processing";
   if (phase === "ended") return "uploading";
   return "saving";
+}
+
+function phaseTone(phase: LiveBotPhase): "recording" | "live" | "processing" {
+  if (phase === "recording") return "recording";
+  if (phase === "ended" || phase === "processing") return "processing";
+  return "live";
 }
 
 /**
@@ -190,67 +192,57 @@ export function LiveBotSessionIndicator() {
       ? " Your typed meeting notes will be added when you assign the recording."
       : "";
 
+  const showTimer =
+    phase === "joining" || phase === "waiting" || phase === "recording";
+
   return (
     <>
-      {notesActive && (
-        <MeetingNotesCapture
-          draftKey={draftKey}
-          caseTitle={session.caseTitle}
-          elapsedSeconds={elapsedSeconds}
-          active
-          variant="floating"
-          defaultOpen={phase === "recording"}
-          liveLabel={phase === "recording" ? "Recording" : phaseLabel(phase)}
-        />
-      )}
-
-      {showFloating && !showEndDialog && !notesActive && (
-        <div className="fixed bottom-6 right-6 z-50" data-testid="live-bot-session-indicator">
-          <div className="flex flex-col gap-2 bg-card border border-card-border rounded-lg p-3 shadow-xl min-w-[200px]">
-            <div className="flex items-center justify-between gap-2">
-              <Badge
-                className={
-                  phase === "recording"
-                    ? "bg-destructive animate-pulse"
-                    : phase === "ended" || phase === "processing"
-                      ? "bg-accent"
-                      : "bg-muted text-foreground"
-                }
-                data-testid="badge-live-bot-phase"
+      {showFloating && !showEndDialog && (
+        <RecordingControlCenter
+          tone={phaseTone(phase)}
+          statusLabel={phase === "recording" ? "Recording" : phaseLabel(phase)}
+          title={session.caseTitle || "Video meeting"}
+          elapsedSeconds={showTimer ? elapsedSeconds : undefined}
+          icon="video"
+          safeguards={{
+            protected:
+              phase === "recording" || phase === "joining" || phase === "waiting",
+          }}
+          data-testid="live-bot-session-indicator"
+          actions={
+            !notesActive ? (
+              <ControlCenterActionButton
+                variant="outline"
+                onClick={() => setPanelOpen(true)}
+                data-testid="button-open-live-bot-panel"
               >
-                {phase === "recording" ? "Recording" : phaseLabel(phase)}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-2">
-              <Video className="w-4 h-4 text-muted-foreground shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-muted-foreground truncate">
-                  {session.caseTitle || "Video meeting"}
-                </p>
-                {(phase === "joining" || phase === "waiting" || phase === "recording") && (
-                  <p className="text-lg font-mono font-semibold" data-testid="text-live-bot-duration">
-                    {formatElapsed(elapsedSeconds)}
-                  </p>
+                {phase === "ended" || phase === "processing" ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    View progress
+                  </>
+                ) : (
+                  "Open status"
                 )}
-                {(phase === "ended" || phase === "processing") && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Meeting-to-Matter in progress
-                  </p>
-                )}
-              </div>
+              </ControlCenterActionButton>
+            ) : undefined
+          }
+        >
+          {notesActive && (
+            <div className="max-h-[min(52vh,420px)] overflow-hidden">
+              <MeetingNotesCapture
+                draftKey={draftKey}
+                caseTitle={session.caseTitle}
+                elapsedSeconds={elapsedSeconds}
+                active
+                variant="inline"
+                defaultOpen={phase === "recording"}
+                liveLabel={phase === "recording" ? "Recording" : phaseLabel(phase)}
+                className="rounded-none border-0 shadow-none min-h-[240px] h-[min(48vh,380px)]"
+              />
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full"
-              onClick={() => setPanelOpen(true)}
-              data-testid="button-open-live-bot-panel"
-            >
-              {phase === "ended" || phase === "processing" ? "View progress" : "Open status"}
-            </Button>
-          </div>
-        </div>
+          )}
+        </RecordingControlCenter>
       )}
 
       <Dialog
