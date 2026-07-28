@@ -36,13 +36,42 @@ import {
   FolderPlus,
   PlusCircle,
   Trash2,
+  FileText,
+  Briefcase,
 } from "lucide-react";
+import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Case } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
 import { useLiveBotSessionOptional } from "@/contexts/LiveBotSessionContext";
 import { flushLiveBotNotesOnAssign } from "@/lib/meetingNotesDraft";
+import { toTitleCase } from "@/lib/utils";
+
+const STATUS_COLORS: Record<string, string> = {
+  pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  processing: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+  review_required: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+  completed: "bg-green-500/10 text-green-500 border-green-500/20",
+  failed: "bg-red-500/10 text-red-500 border-red-500/20",
+};
+
+const statusIconColor = (status: string) => {
+  switch (status) {
+    case "pending":
+      return "text-amber-500";
+    case "processing":
+      return "text-blue-500";
+    case "review_required":
+      return "text-purple-500";
+    case "completed":
+      return "text-emerald-500";
+    case "failed":
+      return "text-red-500";
+    default:
+      return "text-muted-foreground";
+  }
+};
 
 interface LiveBotModalProps {
   caseId?: string | null;
@@ -655,49 +684,105 @@ export function LiveBotModal({
   const effectiveConsentMode = (botPoll?.consentMode as ConsentMode | undefined) ?? consentMode;
   const showInMeetingConsentCard = effectiveConsentMode === "in_meeting" && isRecording && !consentObtained && !consentDeclined;
 
+  const isSelectCaseStep = step === "select_case";
+  const hasScrollableCases = rankedCases.length > 4;
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Video className="w-5 h-5" />
-            {step === "select_case"
-              ? showSuggestedConfirm
-                ? "Confirm matter"
-                : "Select matter"
-              : "Join meeting with LegalNote"}
-          </DialogTitle>
-          <DialogDescription>
-            {deferCaseAssignment
-              ? "Send the LegalNote bot to join your video call. You can assign the recording to a matter after the call ends."
-              : caseTitle || selectedCaseTitle
-                ? `Send the LegalNote bot to join your video call and record it for "${caseTitle || selectedCaseTitle}"`
-                : "Send the LegalNote bot to join your video call. You can assign the recording to a matter after the call ends."}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent
+        className={
+          isSelectCaseStep
+            ? "max-w-md gap-0 overflow-hidden rounded-xl border border-[#e6ddd0] bg-white p-0 shadow-2xl dark:border-border dark:bg-popover sm:rounded-xl"
+            : "max-w-lg"
+        }
+      >
+        {isSelectCaseStep ? (
+          <div className="flex items-start justify-between gap-3 border-b border-[#e8dfd2] bg-white px-4 py-3 pr-12 dark:border-border dark:bg-popover">
+            <div className="min-w-0">
+              <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Video className="h-4 w-4 shrink-0" />
+                {showSuggestedConfirm ? "Confirm matter" : "Select matter"}
+              </DialogTitle>
+              <DialogDescription className="mt-0.5 text-[11px] text-muted-foreground">
+                {deferCaseAssignment
+                  ? "Send the LegalNote bot to join your video call. You can assign the recording to a matter after the call ends."
+                  : caseTitle || selectedCaseTitle
+                    ? `Send the LegalNote bot to join your video call and record it for "${caseTitle || selectedCaseTitle}"`
+                    : "Send the LegalNote bot to join your video call. You can assign the recording to a matter after the call ends."}
+              </DialogDescription>
+            </div>
+          </div>
+        ) : (
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Video className="w-5 h-5" />
+              Join meeting with LegalNote
+            </DialogTitle>
+            <DialogDescription>
+              {deferCaseAssignment
+                ? "Send the LegalNote bot to join your video call. You can assign the recording to a matter after the call ends."
+                : caseTitle || selectedCaseTitle
+                  ? `Send the LegalNote bot to join your video call and record it for "${caseTitle || selectedCaseTitle}"`
+                  : "Send the LegalNote bot to join your video call. You can assign the recording to a matter after the call ends."}
+            </DialogDescription>
+          </DialogHeader>
+        )}
 
-        {step === "select_case" && (
-          <div className="flex flex-col gap-4">
+        {isSelectCaseStep && (
+          <div className="flex flex-col">
             {!isCreatingCase && !showSuggestedConfirm && (
-              <p className="text-sm text-muted-foreground">
-                {suggestedClientName
-                  ? `Which matter is this meeting for? Matters matching “${suggestedClientName}” are listed first.`
-                  : "Which matter is this meeting for?"}
-              </p>
+              <div className="border-b border-[#e8dfd2] px-4 py-2.5 dark:border-border">
+                <p className="text-xs text-muted-foreground">
+                  {suggestedClientName
+                    ? `Which matter is this meeting for? Matters matching “${suggestedClientName}” are listed first.`
+                    : "Which matter is this meeting for?"}
+                </p>
+                {hasScrollableCases && (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground/70">
+                    Scroll for more matters.
+                  </p>
+                )}
+              </div>
             )}
 
             {showSuggestedConfirm && suggestedCase ? (
-              <div className="flex flex-col gap-4" data-testid="suggested-case-confirm">
-                <p className="text-sm text-muted-foreground">
+              <div className="flex flex-col gap-3 p-3" data-testid="suggested-case-confirm">
+                <p className="px-1 text-xs text-muted-foreground">
                   Based on the meeting invite, this looks like the right matter.
                 </p>
-                <div className="rounded-md border bg-muted/40 px-3 py-3 space-y-1">
-                  <p className="text-sm font-medium">{suggestedCase.title}</p>
-                  {suggestedCase.clientName && (
-                    <p className="text-xs text-muted-foreground">{suggestedCase.clientName}</p>
-                  )}
+                <div className="flex min-h-20 items-start gap-3 rounded-lg border border-[#dec27b] bg-white px-3 py-3 shadow-sm dark:border-amber-500/30 dark:bg-card">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4ede2] text-amber-500 dark:bg-muted">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="min-w-0 flex-1 truncate text-xs font-semibold leading-tight text-foreground">
+                        {suggestedCase.title}
+                      </p>
+                      <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
+                        Likely match
+                      </Badge>
+                    </div>
+                    <p className="mt-1 truncate text-xs leading-relaxed text-muted-foreground">
+                      {suggestedCase.clientName || "Unknown Client"}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground/70">
+                        {format(
+                          new Date(suggestedCase.updatedAt || suggestedCase.createdAt),
+                          "dd MMM yyyy"
+                        )}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={`ml-auto px-1.5 py-0 text-[10px] ${STATUS_COLORS[suggestedCase.status] || ""}`}
+                      >
+                        {toTitleCase(suggestedCase.status)}
+                      </Badge>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 pt-1">
                   <Button
                     className="w-full"
                     onClick={() => continueAfterCaseSelect(suggestedCase.id, suggestedCase.title)}
@@ -707,7 +792,7 @@ export function LiveBotModal({
                   </Button>
                   <Button
                     variant="outline"
-                    className="w-full"
+                    className="w-full border-[#e8dfd2] bg-white hover:bg-[#fbf7ef] dark:border-border dark:bg-card dark:hover:bg-accent/20"
                     onClick={() => setBrowseAllCases(true)}
                     data-testid="button-choose-different-case"
                   >
@@ -725,55 +810,102 @@ export function LiveBotModal({
               </div>
             ) : !isCreatingCase ? (
               <>
-                <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
-                  {rankedCases.map(({ caseItem: c, score }) => (
-                    <button
-                      key={c.id}
-                      onClick={() => continueAfterCaseSelect(c.id, c.title)}
-                      className="flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-md border text-left hover:bg-muted/50 transition-colors"
-                      data-testid={`button-select-case-${c.id}`}
-                    >
-                      <span className="text-sm font-medium flex items-center gap-2">
-                        {c.title}
-                        {score >= SUGGEST_SCORE_THRESHOLD && (
-                          <Badge variant="secondary" className="text-[10px] font-normal">
-                            Likely match
-                          </Badge>
-                        )}
-                      </span>
-                      {c.clientName && (
-                        <span className="text-xs text-muted-foreground">{c.clientName}</span>
-                      )}
-                    </button>
-                  ))}
-                  {!rankedCases.length && (
-                    <p className="text-sm text-muted-foreground text-center py-4">No cases found</p>
+                <div
+                  className="max-h-[min(20rem,50vh)] overflow-y-auto overscroll-contain [scrollbar-gutter:stable] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#d4c8b8] dark:[&::-webkit-scrollbar-thumb]:bg-border"
+                  data-testid="select-matter-scroll"
+                >
+                  {rankedCases.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
+                      <Briefcase className="mb-2 h-8 w-8 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">No cases found</p>
+                      <p className="mt-1 text-xs text-muted-foreground/70">
+                        Create a new matter to continue
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 p-3">
+                      {rankedCases.map(({ caseItem: c, score }) => {
+                        const isLikely = score >= SUGGEST_SCORE_THRESHOLD;
+                        const iconColor = statusIconColor(c.status);
+
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => continueAfterCaseSelect(c.id, c.title)}
+                            className={`flex w-full min-h-20 items-start gap-3 rounded-lg border px-3 py-3 text-left shadow-sm transition-colors dark:hover:bg-accent/20 ${
+                              isLikely
+                                ? "border-[#dec27b] bg-white hover:bg-[#fff8e7] dark:border-amber-500/30 dark:bg-card dark:hover:bg-amber-500/10"
+                                : "border-[#e8dfd2] bg-white hover:bg-[#fbf7ef] dark:border-border dark:bg-card"
+                            }`}
+                            data-testid={`button-select-case-${c.id}`}
+                          >
+                            <div
+                              className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4ede2] dark:bg-muted ${iconColor}`}
+                            >
+                              <FileText className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="min-w-0 flex-1 truncate text-xs font-semibold leading-tight text-foreground">
+                                  {c.title}
+                                </p>
+                                {isLikely && (
+                                  <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
+                                    Likely match
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="mt-1 truncate text-xs leading-relaxed text-muted-foreground">
+                                {c.clientName || "Unknown Client"}
+                              </p>
+                              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                <span className="text-[10px] text-muted-foreground/70">
+                                  {format(
+                                    new Date(c.updatedAt || c.createdAt),
+                                    "dd MMM yyyy"
+                                  )}
+                                </span>
+                                <Badge
+                                  variant="outline"
+                                  className={`ml-auto px-1.5 py-0 text-[10px] ${STATUS_COLORS[c.status] || ""}`}
+                                >
+                                  {toTitleCase(c.status)}
+                                </Badge>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  onClick={() => {
-                    setIsCreatingCase(true);
-                    if (suggestedClientName && !newCaseClient) {
-                      setNewCaseClient(suggestedClientName);
-                    }
-                  }}
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  Create new matter
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full text-muted-foreground"
-                  onClick={continueWithoutCase}
-                  data-testid="button-allocate-matter-later"
-                >
-                  Join now — allocate to matter later
-                </Button>
+                <div className="flex flex-col gap-2 border-t border-[#e8dfd2] p-3 dark:border-border">
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2 border-[#e8dfd2] bg-white hover:bg-[#fbf7ef] dark:border-border dark:bg-card dark:hover:bg-accent/20"
+                    onClick={() => {
+                      setIsCreatingCase(true);
+                      if (suggestedClientName && !newCaseClient) {
+                        setNewCaseClient(suggestedClientName);
+                      }
+                    }}
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Create new matter
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full text-muted-foreground"
+                    onClick={continueWithoutCase}
+                    data-testid="button-allocate-matter-later"
+                  >
+                    Join now — allocate to matter later
+                  </Button>
+                </div>
               </>
             ) : (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 p-4">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="new-case-title">Matter name</Label>
                   <Input
@@ -795,7 +927,7 @@ export function LiveBotModal({
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
-                    className="flex-1"
+                    className="flex-1 border-[#e8dfd2] bg-white hover:bg-[#fbf7ef] dark:border-border dark:bg-card dark:hover:bg-accent/20"
                     onClick={() => setIsCreatingCase(false)}
                   >
                     Back
