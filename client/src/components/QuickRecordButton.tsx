@@ -680,8 +680,40 @@ export default function QuickRecordButton() {
           console.log(`Chunked upload finalized: ${result.totalChunks} chunks, ${result.totalBytes} bytes`);
         } catch (uploadError: any) {
           console.error('Chunked upload finalization failed:', uploadError);
-          uploadFailed = true;
-          throw uploadError;
+          // Fallback: server may have lost in-memory session after restart/redeploy.
+          // Client still has the full recording blob — upload it directly.
+          if (audioBlobRef.current) {
+            console.warn('Falling back to direct audio upload after chunk finalize failure');
+            try {
+              const formData = new FormData();
+              const { extension } = audioFormatRef.current;
+              formData.append('audioFile', audioBlobRef.current, `recording${extension}`);
+              formData.append('duration', recordingDuration.toString());
+              appendConsentSegmentToFormData(
+                formData,
+                consentBlobRef.current,
+                consentDurationSecondsRef.current,
+              );
+
+              const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
+                method: 'POST',
+                credentials: 'include',
+                body: formData,
+              });
+
+              if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.message || 'Upload failed');
+              }
+            } catch (fallbackError: any) {
+              console.error('Direct audio upload fallback failed:', fallbackError);
+              uploadFailed = true;
+              throw fallbackError;
+            }
+          } else {
+            uploadFailed = true;
+            throw uploadError;
+          }
         }
       } else if (audioBlobRef.current) {
         try {

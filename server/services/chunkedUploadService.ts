@@ -59,6 +59,94 @@ export class ChunkedUploadService {
     }, CLEANUP_INTERVAL_MS);
   }
 
+  /**
+   * Load chunk buffers from object storage for a session.
+   * Used when the in-memory Map was lost (process restart, multi-instance, idle cleanup).
+   */
+  private async loadChunksFromDurable(sessionId: string): Promise<Map<number, Buffer>> {
+    const chunks = new Map<number, Buffer>();
+    const storedChunks = await this.objectStorage.listChunks(sessionId);
+
+    for (const chunkInfo of storedChunks) {
+      try {
+        const chunkData = await this.objectStorage.getFile(chunkInfo.key);
+        if (chunkData) {
+          chunks.set(chunkInfo.index, chunkData);
+        }
+      } catch (error) {
+        console.warn(
+          `[ChunkedUpload] Could not retrieve chunk ${chunkInfo.index} for session ${sessionId}:`,
+          error
+        );
+      }
+    }
+
+    return chunks;
+  }
+
+  /**
+   * Resolve a live session from memory, or rehydrate from DB + durable chunk storage.
+   * Chunks are already persisted on every uploadChunk, so restart/redeploy must not
+   * fail finalize with "session not found".
+   */
+  private async ensureActiveSession(sessionId: string, userId: string): Promise<RecordingSession> {
+    const existing = activeSessions.get(sessionId);
+    if (existing) {
+      if (existing.userId !== userId) {
+        throw new Error("Unauthorized: Session belongs to different user");
+      }
+      return existing;
+    }
+
+    const rows = await db
+      .select()
+      .from(recordingSessions)
+      .where(
+        and(
+          eq(recordingSessions.id, sessionId),
+          eq(recordingSessions.userId, userId)
+        )
+      );
+
+    if (rows.length === 0) {
+      throw new Error("Recording session not found or expired");
+    }
+
+    const meta = rows[0];
+    if (
+      meta.status === "completed" ||
+      meta.status === "cancelled" ||
+      meta.status === "recovered"
+    ) {
+      throw new Error("Session already finalized");
+    }
+
+    const chunks = await this.loadChunksFromDurable(sessionId);
+    const session: RecordingSession = {
+      id: sessionId,
+      userId: meta.userId,
+      caseId: meta.caseId || undefined,
+      chunks,
+      mimeType: meta.mimeType,
+      createdAt: meta.startedAt,
+      lastActivityAt: new Date(),
+      finalized: false,
+      consentSegmentPreserved: false,
+      consentConfirmedChunk: meta.consentChunkNumber ?? undefined,
+      consentElapsedSeconds: meta.consentElapsedSeconds ?? undefined,
+      consentConfirmedAt:
+        meta.consentChunkNumber != null || meta.consentElapsedSeconds != null
+          ? meta.lastActivityAt
+          : undefined,
+    };
+
+    activeSessions.set(sessionId, session);
+    console.log(
+      `[ChunkedUpload] Rehydrated session ${sessionId} from durable storage (${chunks.size} chunks, status=${meta.status})`
+    );
+    return session;
+  }
+
   async createSession(userId: string, mimeType: string, caseId?: string): Promise<string> {
     const sessionId = randomUUID();
     
@@ -102,15 +190,7 @@ export class ChunkedUploadService {
     chunkNumber: number, 
     chunkData: Buffer
   ): Promise<{ received: number; bytesStored: number }> {
-    const session = activeSessions.get(sessionId);
-    
-    if (!session) {
-      throw new Error("Recording session not found or expired");
-    }
-
-    if (session.userId !== userId) {
-      throw new Error("Unauthorized: Session belongs to different user");
-    }
+    const session = await this.ensureActiveSession(sessionId, userId);
 
     if (session.finalized) {
       throw new Error("Session already finalized");
@@ -160,15 +240,7 @@ export class ChunkedUploadService {
     consentChunk: number;
     elapsedSeconds: number;
   }> {
-    const session = activeSessions.get(sessionId);
-    
-    if (!session) {
-      throw new Error("Recording session not found or expired");
-    }
-
-    if (session.userId !== userId) {
-      throw new Error("Unauthorized: Session belongs to different user");
-    }
+    const session = await this.ensureActiveSession(sessionId, userId);
 
     const now = new Date();
     const elapsedMs = now.getTime() - session.createdAt.getTime();
@@ -178,6 +250,7 @@ export class ChunkedUploadService {
     session.consentConfirmedAt = now;
     session.consentConfirmedChunk = consentChunk;
     session.consentElapsedSeconds = elapsedSeconds;
+    session.lastActivityAt = now;
 
     // Update database with consent info
     try {
@@ -213,18 +286,18 @@ export class ChunkedUploadService {
     consentSegmentPath?: string;
     consentDurationSeconds?: number;
   }> {
-    const session = activeSessions.get(sessionId);
-    
-    if (!session) {
-      throw new Error("Recording session not found or expired");
-    }
-
-    if (session.userId !== userId) {
-      throw new Error("Unauthorized: Session belongs to different user");
-    }
+    const session = await this.ensureActiveSession(sessionId, userId);
 
     if (session.finalized) {
       throw new Error("Session already finalized");
+    }
+
+    // If memory was empty after rehydrate, try durable storage once more
+    if (session.chunks.size === 0) {
+      const durableChunks = await this.loadChunksFromDurable(sessionId);
+      for (const [index, buffer] of durableChunks.entries()) {
+        session.chunks.set(index, buffer);
+      }
     }
 
     if (session.chunks.size === 0) {
@@ -311,6 +384,11 @@ export class ChunkedUploadService {
     } catch (error) {
       console.error(`[ChunkedUpload] Failed to mark session completed in DB:`, error);
     }
+
+    // Best-effort cleanup of durable chunk files after successful assemble
+    this.objectStorage.deleteChunks(sessionId, extension, totalChunks).catch((e) => {
+      console.warn(`[ChunkedUpload] Failed to clean up durable chunks for ${sessionId}:`, e);
+    });
 
     setTimeout(() => {
       activeSessions.delete(sessionId);
