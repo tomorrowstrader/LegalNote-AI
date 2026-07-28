@@ -960,7 +960,7 @@ export default function QuickRecordButton() {
 
   if (countdown !== null) {
     return (
-      <div className="flex items-center gap-1 sm:gap-2">
+      <div data-recording-active className="flex shrink-0 items-center gap-1 sm:gap-2">
         <div className="flex items-center gap-1 sm:gap-2 bg-destructive/20 rounded-full px-2 sm:px-3 py-1 animate-pulse">
           <span className="text-xs sm:text-sm font-semibold text-red-400 dark:text-red-300 whitespace-nowrap" data-testid="text-countdown">
             <span className="hidden sm:inline">Recording in </span>{countdown}...
@@ -970,7 +970,7 @@ export default function QuickRecordButton() {
           variant="ghost"
           size="sm"
           onClick={cancelCountdown}
-          className="text-primary-foreground h-7 px-2"
+          className="text-primary-foreground h-7 px-2 shrink-0"
           data-testid="button-cancel-countdown"
         >
           <span className="hidden sm:inline">Cancel</span>
@@ -983,19 +983,22 @@ export default function QuickRecordButton() {
   if (isRecording) {
     return (
       <>
-        <div className="flex items-center gap-1 sm:gap-3 bg-background/30 backdrop-blur-sm rounded-lg px-2 sm:px-3 py-1.5 border border-white/10">
-          <Badge className="bg-destructive animate-pulse hidden sm:flex" data-testid="badge-quick-recording">
+        <div
+          data-recording-active
+          className="flex shrink-0 items-center gap-1.5 sm:gap-2 bg-background/30 backdrop-blur-sm rounded-lg pl-2 pr-1.5 sm:pl-2.5 sm:pr-2 py-1 border border-white/10"
+        >
+          <Badge className="bg-destructive animate-pulse hidden sm:inline-flex text-[10px] px-1.5 py-0 h-5" data-testid="badge-quick-recording">
             Recording
           </Badge>
-          <div className="w-2 h-2 bg-destructive rounded-full animate-pulse sm:hidden" />
-          <p className="text-xs sm:text-sm font-mono font-semibold text-primary-foreground" data-testid="text-quick-duration">
+          <div className="w-2 h-2 bg-destructive rounded-full animate-pulse sm:hidden shrink-0" />
+          <p className="text-xs font-mono font-semibold text-primary-foreground tabular-nums shrink-0" data-testid="text-quick-duration">
             {formatDuration(recordingDuration)}
           </p>
           
           {useChunkedUpload && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="hidden sm:flex items-center gap-1">
+                <div className="hidden md:flex items-center gap-0.5 shrink-0">
                   {chunkedRecording.isUploading ? (
                     <CloudUpload className="w-3 h-3 text-blue-400 animate-pulse" />
                   ) : chunkedRecording.networkStatus.online ? (
@@ -1003,7 +1006,7 @@ export default function QuickRecordButton() {
                   ) : (
                     <WifiOff className="w-3 h-3 text-amber-400" />
                   )}
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-[10px] text-muted-foreground tabular-nums">
                     {chunkedRecording.chunksUploaded}
                   </span>
                 </div>
@@ -1021,9 +1024,8 @@ export default function QuickRecordButton() {
           {chunkedRecording.isSilent && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-1 text-amber-400 animate-pulse">
+                <div className="flex items-center text-amber-400 animate-pulse shrink-0">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline text-xs">Silence</span>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
@@ -1037,9 +1039,8 @@ export default function QuickRecordButton() {
           {chunkedRecording.batteryLevel !== null && chunkedRecording.batteryLevel < 20 && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-1 text-amber-400">
+                <div className="flex items-center text-amber-400 shrink-0">
                   <BatteryLow className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline text-xs">{chunkedRecording.batteryLevel}%</span>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
@@ -1052,9 +1053,9 @@ export default function QuickRecordButton() {
           
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="hidden sm:flex items-center gap-1 text-green-400">
+              <div className="hidden sm:flex items-center gap-1 text-green-400 shrink-0" aria-label="Protected">
                 <Shield className="w-3 h-3" />
-                <span className="text-xs">Protected</span>
+                <span className="text-[10px] hidden lg:inline">Protected</span>
               </div>
             </TooltipTrigger>
             <TooltipContent>
@@ -1077,16 +1078,16 @@ export default function QuickRecordButton() {
             variant="ghost"
             size="sm"
             onClick={handleStopClick}
-            className={`gap-1 min-h-[44px] px-3 ${
+            className={`gap-1 h-8 px-2.5 shrink-0 ${
               stopConfirmationPending 
                 ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30 animate-pulse' 
                 : 'text-primary-foreground'
             }`}
             data-testid="button-stop-quick-record"
           >
-            <Square className="w-4 h-4" />
-            <span className="text-xs sm:text-sm whitespace-nowrap">
-              {stopConfirmationPending ? 'Confirm Stop?' : 'Stop'}
+            <Square className="w-3.5 h-3.5 shrink-0" />
+            <span className="text-xs whitespace-nowrap">
+              {stopConfirmationPending ? 'Confirm' : 'Stop'}
             </span>
           </Button>
         </div>
