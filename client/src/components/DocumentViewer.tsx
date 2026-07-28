@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, RefreshCw, Share2 } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, RefreshCw, Share2, Quote, Play } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -76,6 +76,13 @@ import {
   type VerificationWarning,
 } from "@shared/verificationWarnings";
 import { stripRtfToPlainText } from "@shared/stripRtf";
+import {
+  evidenceForGap,
+  parseGapsWithEvidence,
+  replaceGapMarkerAndEvidence,
+  type GapTranscriptEvidence,
+  type GapTranscriptUtterance,
+} from "@shared/reasoningGapEvidence";
 
 interface DocumentVersion {
   id: string;
@@ -919,6 +926,122 @@ function scrollToTranscriptQuote(quote: string) {
   return true;
 }
 
+function formatGapPeekTimestamp(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function GapTranscriptPeek({
+  evidence,
+  utterances,
+  testIdPrefix,
+  gapIndex,
+  onSeekTimestamp,
+  onClose,
+}: {
+  evidence: GapTranscriptEvidence | null;
+  utterances: GapTranscriptUtterance[];
+  testIdPrefix: string;
+  gapIndex: number;
+  onSeekTimestamp?: (timestampMs: number) => void;
+  onClose: () => void;
+}) {
+  if (!evidence) {
+    return (
+      <div
+        className="rounded-md border border-dashed border-border bg-background/80 px-2.5 py-2 space-y-1.5"
+        data-testid={`gap-transcript-peek-empty-${testIdPrefix}-${gapIndex}`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[11px] text-muted-foreground leading-snug">
+            No clear match in the transcript — this may not have been said, or the wording differs from the note.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label="Close transcript peek"
+            data-testid={`button-close-gap-peek-${testIdPrefix}-${gapIndex}`}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const slice = utterances.slice(evidence.contextStart, evidence.contextEnd + 1);
+  const canSeek = evidence.startMs != null && typeof onSeekTimestamp === "function";
+
+  return (
+    <div
+      className="rounded-md border border-amber-200/80 dark:border-amber-800/60 bg-amber-50/40 dark:bg-amber-950/20 overflow-hidden"
+      data-testid={`gap-transcript-peek-${testIdPrefix}-${gapIndex}`}
+    >
+      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 border-b border-amber-200/60 dark:border-amber-800/40">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Quote className="w-3 h-3 text-amber-700 dark:text-amber-400 shrink-0" />
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300 truncate">
+            What was said
+          </span>
+          {evidence.startMs != null && (
+            <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+              {formatGapPeekTimestamp(evidence.startMs)}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-0.5 shrink-0">
+          {canSeek && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-6 px-1.5 text-[10px] gap-1"
+              onClick={() => onSeekTimestamp!(evidence.startMs!)}
+              data-testid={`button-gap-peek-play-${testIdPrefix}-${gapIndex}`}
+            >
+              <Play className="w-3 h-3" />
+              Play
+            </Button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 text-muted-foreground hover:text-foreground"
+            aria-label="Close transcript peek"
+            data-testid={`button-close-gap-peek-${testIdPrefix}-${gapIndex}`}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+      <div className="max-h-44 overflow-y-auto px-2.5 py-2 space-y-2">
+        {slice.map((utt, i) => {
+          const absoluteIndex = evidence.contextStart + i;
+          const isMatch = absoluteIndex === evidence.utteranceIndex;
+          return (
+            <div
+              key={`${absoluteIndex}-${utt.start}`}
+              className={cn(
+                "text-[11px] leading-snug rounded px-1.5 py-1",
+                isMatch && "bg-amber-100/80 dark:bg-amber-900/40 ring-1 ring-amber-300/70 dark:ring-amber-700/50",
+              )}
+              data-testid={`gap-peek-utterance-${testIdPrefix}-${gapIndex}-${absoluteIndex}`}
+            >
+              {utt.speaker ? (
+                <span className="font-semibold text-foreground/80 mr-1">{utt.speaker}:</span>
+              ) : null}
+              <span className="text-foreground/90">{utt.text}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function GapReviewPanel({
   documentId,
   gaps,
@@ -932,6 +1055,9 @@ function GapReviewPanel({
   onAmlChange,
   testIdPrefix,
   emptyHint,
+  utterances,
+  storedEvidence,
+  onSeekTimestamp,
 }: {
   documentId: string;
   gaps: string[];
@@ -945,14 +1071,25 @@ function GapReviewPanel({
   onAmlChange: (checked: boolean) => void;
   testIdPrefix: "attendance" | "summary";
   emptyHint: string;
+  utterances?: GapTranscriptUtterance[] | null;
+  storedEvidence?: Array<GapTranscriptEvidence | null>;
+  onSeekTimestamp?: (timestampMs: number) => void;
 }) {
+  const [openPeekIndex, setOpenPeekIndex] = useState<number | null>(null);
+  const hasTranscript = (utterances?.length ?? 0) > 0;
+  const peekOpen = openPeekIndex != null;
+
   return (
     <Card
-      className="lg:w-80 w-full flex-shrink-0 lg:sticky lg:self-start flex flex-col overflow-hidden z-20"
+      className={cn(
+        "w-full flex-shrink-0 lg:sticky lg:self-start flex flex-col overflow-hidden z-20 transition-[width]",
+        peekOpen ? "lg:w-[26rem]" : "lg:w-80",
+      )}
       style={{
-        // Sit below the Documents sticky chrome (measured via --doc-header-height), not a fixed top-16
+        // Stick within <main>'s scrollport, below the Documents sticky chrome
         top: "var(--doc-header-height, 5rem)",
-        maxHeight: "calc(100vh - var(--doc-header-height, 5rem) - 1rem)",
+        // Cap to the visible main area (app shell ~4rem + docs header)
+        maxHeight: "calc(100dvh - 4rem - var(--doc-header-height, 5rem) - 1rem)",
       }}
       data-testid={`panel-gap-review-${testIdPrefix}`}
     >
@@ -979,7 +1116,9 @@ function GapReviewPanel({
           </Button>
         </div>
         <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
-          Tap a section to jump in the note. Add reasoning below each gap.
+          {hasTranscript
+            ? "Check what was said, then add your reasoning. Stay on this panel — you do not need to leave the note."
+            : "Tap a section to jump in the note. Add reasoning below each gap."}
         </p>
         {hasAmlFlag && (
           <div
@@ -1001,10 +1140,19 @@ function GapReviewPanel({
         ) : (
           gaps.map((sectionName, idx) => {
             const { section, detail } = splitGapLabel(sectionName);
+            const peekIsOpen = openPeekIndex === idx;
+            const resolvedEvidence = evidenceForGap(
+              storedEvidence?.[idx],
+              sectionName,
+              utterances,
+            );
             return (
               <div
                 key={`${documentId}-gap-${idx}`}
-                className="rounded-lg border border-border/80 bg-muted/20 p-3 space-y-2"
+                className={cn(
+                  "rounded-lg border bg-muted/20 p-3 space-y-2",
+                  peekIsOpen ? "border-amber-300 dark:border-amber-700" : "border-border/80",
+                )}
                 data-testid={`gap-item-${testIdPrefix}-${idx}`}
               >
                 <div className="flex items-start gap-2">
@@ -1016,7 +1164,7 @@ function GapReviewPanel({
                       type="button"
                       onClick={() => scrollToReasoningGap(sectionName, idx)}
                       className="text-left text-xs font-semibold text-foreground hover:text-amber-800 dark:hover:text-amber-300 underline-offset-2 hover:underline w-full leading-snug"
-                      title={`Jump to advice point: ${section}`}
+                      title={`Show in note: ${section}`}
                       data-testid={`button-gap-heading-${testIdPrefix}-${idx}`}
                     >
                       {section}
@@ -1029,8 +1177,50 @@ function GapReviewPanel({
                         testId={`text-gap-detail-${testIdPrefix}-${idx}`}
                       />
                     ) : null}
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => scrollToReasoningGap(sectionName, idx)}
+                        className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                        data-testid={`button-gap-show-in-note-${testIdPrefix}-${idx}`}
+                      >
+                        Show in note
+                      </button>
+                      {hasTranscript && (
+                        <>
+                          <span className="text-[10px] text-muted-foreground/50" aria-hidden>
+                            ·
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setOpenPeekIndex(peekIsOpen ? null : idx)}
+                            className={cn(
+                              "text-[10px] font-medium underline-offset-2 hover:underline",
+                              peekIsOpen
+                                ? "text-amber-800 dark:text-amber-300"
+                                : "text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200",
+                            )}
+                            data-testid={`button-gap-what-was-said-${testIdPrefix}-${idx}`}
+                          >
+                            {peekIsOpen ? "Hide what was said" : "What was said"}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                {peekIsOpen && hasTranscript && (
+                  <GapTranscriptPeek
+                    evidence={resolvedEvidence}
+                    utterances={utterances ?? []}
+                    testIdPrefix={testIdPrefix}
+                    gapIndex={idx}
+                    onSeekTimestamp={onSeekTimestamp}
+                    onClose={() => setOpenPeekIndex(null)}
+                  />
+                )}
+
                 <Textarea
                   placeholder="Add your reasoning…"
                   value={gapInputs[String(idx)] ?? ""}
@@ -1092,24 +1282,10 @@ function GapReviewPanel({
 }
 
 // Replace the nth (0-indexed) occurrence of any REASONING_GAP marker with the given text.
-// Works even when multiple markers share the same section name.
+// Also removes the sibling RGAP_EVIDENCE comment so pointers do not outlive the gap.
 function replaceMarkerAtIndex(content: string, targetIdx: number, replacement: string): string {
   const normalized = normalizeReasoningGapMarkers(content);
-  const markerRegex = /<!--\s*REASONING_GAP:\s*.+?\s*-->/g;
-  let count = 0;
-  let result = "";
-  let lastIndex = 0;
-  let match;
-  while ((match = markerRegex.exec(normalized)) !== null) {
-    if (count === targetIdx) {
-      result += normalized.slice(lastIndex, match.index) + replacement;
-      lastIndex = match.index + match[0].length;
-      result += normalized.slice(lastIndex);
-      return result;
-    }
-    count++;
-  }
-  return normalized;
+  return replaceGapMarkerAndEvidence(normalized, targetIdx, replacement);
 }
 
 function CommentsPanel({ 
@@ -2762,7 +2938,9 @@ export default function DocumentViewer({
 
   return (
     <div 
-      className={`space-y-6 min-w-0 max-w-full overflow-x-hidden ${focusMode ? 'fixed inset-0 z-[100] bg-background overflow-auto p-8 print:p-0' : ''}`}
+      // overflow-x-clip (not hidden): hidden forces overflow-y to auto and creates a
+      // scroll container, which breaks position:sticky on the Reasoning Gaps panel.
+      className={`space-y-6 min-w-0 max-w-full overflow-x-clip ${focusMode ? 'fixed inset-0 z-[100] bg-background overflow-auto p-8 print:p-0' : ''}`}
       data-testid="container-document-viewer"
       style={{ '--doc-header-height': `${headerHeight}px` } as CSSProperties}
     >
@@ -3210,6 +3388,11 @@ export default function DocumentViewer({
                 }
                 testIdPrefix="attendance"
                 emptyHint="No open reasoning gaps in this version. Review the note in full, then adopt when you are satisfied."
+                utterances={transcriptUtterances}
+                storedEvidence={parseGapsWithEvidence(
+                  gapContentByDocId[attendanceNote.id] ?? attendanceNote.content,
+                ).map((g) => g.evidence)}
+                onSeekTimestamp={onTranscriptTimestampClick}
               />
             )}
           </div>
@@ -3454,6 +3637,11 @@ export default function DocumentViewer({
                 }
                 testIdPrefix="summary"
                 emptyHint="No open reasoning gaps in this version. Review the record in full, then adopt when you are satisfied."
+                utterances={transcriptUtterances}
+                storedEvidence={parseGapsWithEvidence(
+                  gapContentByDocId[summary.id] ?? summary.content,
+                ).map((g) => g.evidence)}
+                onSeekTimestamp={onTranscriptTimestampClick}
               />
             )}
           </div>

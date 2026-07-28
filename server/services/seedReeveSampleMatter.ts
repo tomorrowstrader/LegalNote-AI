@@ -20,6 +20,7 @@ import {
   firmProfile,
 } from "../../shared/schema";
 import { normalizeAttendanceSectionLabels } from "../../shared/attendanceNoteFormat";
+import { enrichContentWithGapEvidence } from "../../shared/reasoningGapEvidence";
 import { eq, sql } from "drizzle-orm";
 
 const MATTER_REFERENCE = "REE/FAM26-01188";
@@ -607,7 +608,10 @@ export async function seedReeveSampleMatter(opts: {
     const sessionDate = new Date(2026, 6, 16, 10, 0, 0, 0);
     const utterances = buildUtterances(TURNS);
     const transcriptContent = buildTranscriptContent(sessionDate, utterances);
-    const attendanceNoteContent = buildAttendanceNote(sessionDate);
+    const attendanceNoteContent = enrichContentWithGapEvidence(
+      buildAttendanceNote(sessionDate),
+      utterances,
+    );
     const clientLetterContent = buildClientLetter(sessionDate, resolvedFirmName);
 
     const [newCase] = await db

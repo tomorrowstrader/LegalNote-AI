@@ -15,6 +15,7 @@ import {
   type VerificationWarningCategory,
 } from '@shared/verificationWarnings';
 import { normalizeAttendanceSectionLabels } from '@shared/attendanceNoteFormat';
+import { enrichContentWithGapEvidence } from '@shared/reasoningGapEvidence';
 
 /**
  * Post-process document content to ensure known section headings are bold.
@@ -1737,6 +1738,16 @@ ${transcript}`,
           `Unsupported recording type: ${recordingType}. Permitted types: ${CLIENT_FACING_RECORDING_TYPES.join(', ')}`,
         );
     }
+
+    // Attach transcript pointers beside each REASONING_GAP so the review panel
+    // can open an inline "What was said" peek without hunting the full transcript.
+    if (utterances && utterances.length > 0 && result.content) {
+      result = {
+        ...result,
+        content: enrichContentWithGapEvidence(result.content, utterances),
+      };
+    }
+
     return result;
   }
 
