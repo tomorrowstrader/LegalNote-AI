@@ -7,11 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
+import { printDocuments } from "@/lib/printDocuments";
+import { adoptionRequiredMessage, getUnadoptedDocumentTypes } from "@/lib/documentAdoption";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile, DocumentComment } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import DownloadModal from "@/components/DownloadModal";
+import PrintModal from "@/components/PrintModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
 import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -1364,6 +1367,7 @@ export default function DocumentViewer({
   const { toast } = useToast();
   const { role: authRole } = useAuth();
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [zoom, setZoom] = useState(100);
@@ -1534,7 +1538,7 @@ export default function DocumentViewer({
     setShowDownloadModal(true);
   };
 
-  const handleDownload = async (selectedDocs: string[], format: 'pdf' | 'word') => {
+  const handleDownload = async (selectedDocs: string[], format: 'pdf' | 'word'): Promise<boolean> => {
     if (selectedDocs.length === 0) {
       toast({
         title: "No Documents Selected",
@@ -1542,7 +1546,18 @@ export default function DocumentViewer({
         variant: "destructive",
         duration: 6000,
       });
-      return;
+      return false;
+    }
+
+    const unadoptedTypes = getUnadoptedDocumentTypes(selectedDocs, documents);
+    if (unadoptedTypes.length > 0) {
+      toast({
+        title: "Adoption required",
+        description: adoptionRequiredMessage(unadoptedTypes, "download"),
+        variant: "destructive",
+        duration: 6000,
+      });
+      return false;
     }
 
     try {
@@ -1603,7 +1618,7 @@ export default function DocumentViewer({
           duration: 6000,
         });
         setShowDownloadModal(false);
-        return;
+        return false;
       }
 
       if (format === 'pdf') {
@@ -1635,6 +1650,7 @@ export default function DocumentViewer({
       }
 
       setShowDownloadModal(false);
+      return true;
     } catch (error) {
       console.error('Export failed:', error);
       toast({
@@ -1643,6 +1659,7 @@ export default function DocumentViewer({
         variant: "destructive",
         duration: 6000,
       });
+      return false;
     }
   };
 
@@ -2634,7 +2651,90 @@ export default function DocumentViewer({
   }, [focusMode]);
 
   const handlePrint = () => {
-    window.print();
+    setShowPrintModal(true);
+  };
+
+  const handlePrintDocuments = async (selectedDocs: string[]): Promise<boolean> => {
+    if (selectedDocs.length === 0) {
+      toast({
+        title: "No Documents Selected",
+        description: "Please select at least one document to print",
+        variant: "destructive",
+        duration: 6000,
+      });
+      return false;
+    }
+
+    const unadoptedTypes = getUnadoptedDocumentTypes(selectedDocs, documents);
+    if (unadoptedTypes.length > 0) {
+      toast({
+        title: "Adoption required",
+        description: adoptionRequiredMessage(unadoptedTypes, "print"),
+        variant: "destructive",
+        duration: 6000,
+      });
+      return false;
+    }
+
+    try {
+      const content: Parameters<typeof printDocuments>[0] = {
+        caseTitle,
+        clientName,
+        matterReference,
+        createdAt,
+        documentType: selectedDocs.length === 1 ? selectedDocs[0] : "full_case",
+        firmName: firmProfile?.firmName || undefined,
+      };
+
+      if (selectedDocs.includes("attendance_note") || selectedDocs.includes("meeting_notes")) {
+        if (attendanceNote?.content) {
+          content.attendanceNote = attendanceNote.content;
+        }
+      }
+
+      if (selectedDocs.includes("summary")) {
+        const summaryContent = summary?.content || textNotes;
+        if (summaryContent) {
+          content.summary = summaryContent;
+        }
+      }
+
+      if (selectedDocs.includes("client_care_letter")) {
+        if (clientCareLetter?.content) {
+          content.clientCareLetter = clientCareLetter.content;
+        }
+      }
+
+      if (selectedDocs.includes("transcript")) {
+        if (transcriptContent) {
+          content.transcript = transcriptContent;
+        }
+      }
+
+      const hasAnyContent =
+        content.attendanceNote || content.summary || content.clientCareLetter || content.transcript;
+      if (!hasAnyContent) {
+        toast({
+          title: "No Content Available",
+          description: "The selected documents don't have any content to print yet",
+          variant: "destructive",
+          duration: 6000,
+        });
+        return false;
+      }
+
+      await printDocuments(content);
+      return true;
+    } catch (error) {
+      console.error("Print failed:", error);
+      toast({
+        title: "Print Failed",
+        description: "Failed to prepare documents for printing. Please try again.",
+        variant: "destructive",
+        duration: 6000,
+      });
+      return false;
+    }
   };
 
   const zoomLevels = [75, 100, 125, 150];
@@ -2776,7 +2876,7 @@ export default function DocumentViewer({
                         <Printer className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Print (Cmd+P)</TooltipContent>
+                    <TooltipContent>Print documents</TooltipContent>
                   </Tooltip>
                   {/* Page View / Draft toggle — only visible outside transcript and edit modes */}
                   {activeTab !== 'transcript' && !editingDocId && (
@@ -3558,6 +3658,27 @@ export default function DocumentViewer({
         }}
         sharedDocuments={['attendance_note', 'summary', 'client_care_letter', 'transcript']}
         onDownload={handleDownload}
+      />
+
+      <PrintModal
+        open={showPrintModal}
+        onOpenChange={setShowPrintModal}
+        availableDocuments={{
+          hasAttendanceNote: !!attendanceNote,
+          hasSummary: !!summary || !!textNotes,
+          hasTranscript: !!transcriptContent,
+          hasCareLetter: !!clientCareLetter,
+        }}
+        defaultSelected={
+          activeTab === "summary"
+            ? ["summary"]
+            : activeTab === "transcript"
+              ? ["transcript"]
+              : activeTab === "care_letter"
+                ? ["client_care_letter"]
+                : ["attendance_note"]
+        }
+        onPrint={handlePrintDocuments}
       />
 
       <ShareLinkModal
