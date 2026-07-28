@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { toTitleCase } from "@/lib/utils";
 import {
   ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles,
@@ -6,7 +6,7 @@ import {
   Share2, Eye, Archive, Video, ListChecks, History,
   ScrollText, Focus, X, Phone, Lock, ArrowRightLeft, Clock, Send,
   ShieldCheck, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, Mic, FileCheck,
-  ChevronsLeft, ChevronsRight, Minimize2,
+  ChevronsLeft, ChevronsRight, Minimize2, PanelLeft,
 } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -29,6 +30,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { processingStartStorageKey } from "@/lib/processingEta";
 import { buildCapturePath } from "@/lib/capture";
+import { hasDocumentsAwaitingAdoption } from "@/lib/documentAdoption";
+import {
+  clearReviewFirstExitedThisVisit,
+  isAutoReviewFirstEnabled,
+  markReviewFirstExitedThisVisit,
+  setAutoReviewFirstEnabled,
+  wasReviewFirstExitedThisVisit,
+} from "@/lib/reviewFirstMode";
 import DocumentViewer from "@/components/DocumentViewer";
 import MeetingToMatterProcessingStatusCard from "@/components/MeetingToMatterProcessingStatusCard";
 import { AudioPlayer, type AudioPlayerHandle } from "@/components/AudioPlayer";
@@ -275,16 +284,22 @@ export default function CaseDetail() {
   const search = useSearch();
   const caseId = params.id;
   const { toast } = useToast();
-  const { isFocusMode, toggleFocusMode, exitFocusMode } = useFocusMode();
+  const { isFocusMode, exitFocusMode, enterFocusMode } = useFocusMode();
+  const [autoReviewFirst, setAutoReviewFirst] = useState(() => isAutoReviewFirstEnabled());
+
+  const exitToFullMatterView = () => {
+    if (caseId) markReviewFirstExitedThisVisit(caseId);
+    exitFocusMode();
+  };
 
   useEffect(() => {
     if (!isFocusMode) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") exitFocusMode();
+      if (e.key === "Escape") exitToFullMatterView();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isFocusMode, exitFocusMode]);
+  }, [isFocusMode, caseId]);
 
   const [autoOpenComplianceNote, setAutoOpenComplianceNote] = useState(0);
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
@@ -473,14 +488,47 @@ export default function CaseDetail() {
   });
 
   const { data: documents = [] } = useQuery<Array<{
-    id: string; caseId: string; type: 'attendance_note' | 'summary';
+    id: string; caseId: string; type: string;
     content: string; version: number; createdAt: string; isActive?: boolean;
-    meetingSessionId?: string | null;
+    status?: string; meetingSessionId?: string | null;
   }>>({
     queryKey: [`/api/cases/${caseId}/documents`],
     enabled: shouldLoadCaseContent,
     refetchInterval: caseData?.status === "processing" ? 5000 : false,
   });
+
+  const hasDocsAwaitingReview = useMemo(() => {
+    const adoptionDocs = documents.map((d) => ({
+      type: d.type,
+      status: d.status ?? "draft",
+      isActive: d.isActive,
+    }));
+    if (documents.length > 0) {
+      return hasDocumentsAwaitingAdoption(adoptionDocs);
+    }
+    // Docs not loaded yet — use matter status as a signal after Capture / processing.
+    return caseData?.status === "review_required";
+  }, [caseData?.status, documents]);
+
+  // Auto-enter review-first mode when documents await adoption (Capture-style “one job”).
+  useEffect(() => {
+    if (!caseId || !caseData) return;
+    if (!hasDocsAwaitingReview) return;
+    if (!autoReviewFirst) return;
+    if (wasReviewFirstExitedThisVisit(caseId)) return;
+    if (urlSection && urlSection !== "documents") return;
+    if (isFocusMode) return;
+    enterFocusMode();
+    setActiveSection("documents");
+  }, [
+    caseId,
+    caseData,
+    hasDocsAwaitingReview,
+    autoReviewFirst,
+    urlSection,
+    isFocusMode,
+    enterFocusMode,
+  ]);
 
   const { data: processingStatus, error: processingStatusError } = useQuery<{
     status: string;
@@ -1169,10 +1217,39 @@ export default function CaseDetail() {
             Join with LegalNote
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={toggleFocusMode} data-testid="action-focus-mode">
+          <DropdownMenuItem
+            onClick={() => {
+              if (isFocusMode) {
+                exitToFullMatterView();
+              } else {
+                if (caseId) clearReviewFirstExitedThisVisit(caseId);
+                enterFocusMode();
+                setActiveSection("documents");
+              }
+            }}
+            data-testid="action-focus-mode"
+          >
             <Focus className="w-4 h-4 mr-2" />
-            {isFocusMode ? "Exit Focus Mode" : "Focus Mode"}
+            {isFocusMode ? "Full matter view" : "Review mode"}
           </DropdownMenuItem>
+          <DropdownMenuCheckboxItem
+            checked={autoReviewFirst}
+            onCheckedChange={(checked) => {
+              const enabled = !!checked;
+              setAutoReviewFirstEnabled(enabled);
+              setAutoReviewFirst(enabled);
+              if (enabled && caseId) {
+                clearReviewFirstExitedThisVisit(caseId);
+                if (hasDocsAwaitingReview) {
+                  enterFocusMode();
+                  setActiveSection("documents");
+                }
+              }
+            }}
+            data-testid="action-auto-review-first"
+          >
+            Auto review mode when work outstanding
+          </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setShowPriorityModal(true)} data-testid="action-set-priority">
             <AlertCircle className="w-4 h-4 mr-2" />
@@ -1284,22 +1361,32 @@ export default function CaseDetail() {
   return (
     <div className={cn("flex bg-background overflow-x-hidden", isFocusMode ? "min-h-screen" : "h-[calc(100vh-4rem)]")}>
       {isFocusMode && (
-        <div className="fixed top-4 right-4 z-[200]">
+        <div className="fixed top-4 right-4 z-[200] flex flex-col items-end gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
-                size="icon"
-                onClick={exitFocusMode}
-                className="h-9 w-9 bg-background/75 backdrop-blur-sm border-border/50 text-muted-foreground hover:text-foreground shadow-sm"
+                size="sm"
+                onClick={exitToFullMatterView}
+                className="h-9 gap-2 bg-background/90 backdrop-blur-sm border-border/50 text-muted-foreground hover:text-foreground shadow-sm"
                 data-testid="button-exit-focus-mode"
-                aria-label="Exit Focus Mode"
+                aria-label="Full matter view"
               >
-                <Minimize2 className="w-4 h-4" />
+                <PanelLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Full matter view</span>
+                <Minimize2 className="w-3.5 h-3.5 sm:hidden" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Exit Focus Mode (Esc)</TooltipContent>
+            <TooltipContent>Full matter view (Esc) — restore sidebar and navigation</TooltipContent>
           </Tooltip>
+          {hasDocsAwaitingReview && (
+            <p
+              className="text-[11px] text-muted-foreground bg-background/80 backdrop-blur-sm px-2 py-1 rounded-md border border-border/40 max-w-[14rem] text-right"
+              data-testid="text-review-mode-hint"
+            >
+              Review mode — documents need your adoption
+            </p>
+          )}
         </div>
       )}
 
@@ -1865,6 +1952,8 @@ export default function CaseDetail() {
               knownDurationSeconds={audioData?.duration ?? undefined}
               litigationHold={caseData.litigationHold}
               litigationHoldReason={caseData.litigationHoldReason}
+              defaultCollapsed
+              persistCollapse
             />
           )}
 

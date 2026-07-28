@@ -50,6 +50,18 @@ export function getUnadoptedDocumentTypes(
   });
 }
 
+/** True when any active adoption-gated document is not yet approved. */
+export function hasDocumentsAwaitingAdoption(
+  documents: Array<{ type: string; status: string; isActive?: boolean | null }>,
+): boolean {
+  return documents.some(
+    (d) =>
+      d.isActive !== false &&
+      ADOPTION_REQUIRED_TYPES.has(d.type) &&
+      d.status !== "approved",
+  );
+}
+
 export function adoptionRequiredMessage(
   unadoptedTypes: readonly string[],
   action: "print" | "download",

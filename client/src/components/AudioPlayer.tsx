@@ -1,9 +1,14 @@
 import { useState, useRef, useEffect, useImperativeHandle, useCallback, type Ref } from "react";
-import { Play, Pause, Volume2, VolumeX, Clock, SkipBack, SkipForward, ShieldCheck, Lock } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Clock, SkipBack, SkipForward, ShieldCheck, Lock, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { formatDistanceToNow, differenceInDays, differenceInHours, differenceInMinutes } from "date-fns";
 import { logAuditEvent } from "@/lib/auditLogger";
+import { cn } from "@/lib/utils";
+import {
+  isCaseAudioExpanded,
+  setCaseAudioExpanded,
+} from "@/lib/reviewFirstMode";
 
 const BAR_COUNT = 60;
 
@@ -40,9 +45,25 @@ interface AudioPlayerProps {
   knownDurationSeconds?: number;
   litigationHold?: boolean;
   litigationHoldReason?: string | null;
+  /** Start as a slim bar so documents stay above the fold. User can expand the waveform. */
+  defaultCollapsed?: boolean;
+  /** When true, expand/collapse is remembered in localStorage (casefile player). */
+  persistCollapse?: boolean;
 }
 
-export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecordingId, playerRef, knownDurationSeconds, litigationHold, litigationHoldReason }: AudioPlayerProps) {
+export function AudioPlayer({
+  audioUrl,
+  expiresAt,
+  onExpired,
+  caseId,
+  audioRecordingId,
+  playerRef,
+  knownDurationSeconds,
+  litigationHold,
+  litigationHoldReason,
+  defaultCollapsed = false,
+  persistCollapse = false,
+}: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
@@ -58,6 +79,19 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isPastRetentionExpiry, setIsPastRetentionExpiry] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(() => {
+    if (persistCollapse) return isCaseAudioExpanded();
+    return !defaultCollapsed;
+  });
+
+  const collapsible = defaultCollapsed || persistCollapse;
+
+  const setExpanded = useCallback((expanded: boolean) => {
+    setIsExpanded(expanded);
+    if (persistCollapse) setCaseAudioExpanded(expanded);
+  }, [persistCollapse]);
+
+  const showExpandedPlayer = !collapsible || isExpanded;
 
   const isPlaybackBlocked = isPastRetentionExpiry && !litigationHold;
 
@@ -439,7 +473,13 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
   }
 
   return (
-    <div className="space-y-2" data-testid={isPastRetentionExpiry && litigationHold ? "audio-player-litigation-hold-preserved" : undefined}>
+    <div
+      className={cn(
+        "space-y-2",
+        collapsible && !showExpandedPlayer && "sticky top-14 z-10 -mx-1 px-1 py-1 bg-background/95 backdrop-blur-sm",
+      )}
+      data-testid={isPastRetentionExpiry && litigationHold ? "audio-player-litigation-hold-preserved" : undefined}
+    >
       {isPastRetentionExpiry && litigationHold && (
         <div
           className="flex items-start gap-2 text-xs bg-red-50 dark:bg-red-950/30 border border-red-400/60 dark:border-red-700/60 rounded-md px-3 py-2"
@@ -459,116 +499,203 @@ export function AudioPlayer({ audioUrl, expiresAt, onExpired, caseId, audioRecor
       {getExpirationWarning()}
       
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
-      
-      <div className="bg-gradient-to-b from-card to-muted/20 border border-border/60 rounded-2xl px-3 py-3 sm:px-5 sm:py-4 shadow-sm overflow-hidden" data-testid="audio-player">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <div className="flex items-center justify-center gap-2 shrink-0">
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => skipBy(-15)}
-              className="rounded-full w-9 h-9 text-muted-foreground hover:text-foreground"
-              data-testid="button-skip-back"
-            >
-              <SkipBack className="h-3.5 w-3.5" />
-            </Button>
 
-            <button
-              onClick={togglePlayPause}
-              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all active:scale-95 shadow-md hover:shadow-lg hover:brightness-105"
-              data-testid="button-play-pause"
-            >
-              {isPlaying ? (
-                <Pause className="h-5 w-5" />
-              ) : (
-                <Play className="h-5 w-5 ml-0.5" />
-              )}
-            </button>
+      {collapsible && !showExpandedPlayer ? (
+        <div
+          className="bg-card border border-border/60 rounded-xl px-3 py-2 shadow-sm flex items-center gap-3"
+          data-testid="audio-player-collapsed"
+        >
+          <button
+            onClick={togglePlayPause}
+            className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0 transition-all active:scale-95"
+            data-testid="button-play-pause"
+            aria-label={isPlaying ? "Pause" : "Play"}
+          >
+            {isPlaying ? (
+              <Pause className="h-3.5 w-3.5" />
+            ) : (
+              <Play className="h-3.5 w-3.5 ml-0.5" />
+            )}
+          </button>
 
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => skipBy(15)}
-              className="rounded-full w-9 h-9 text-muted-foreground hover:text-foreground"
-              data-testid="button-skip-forward"
-            >
-              <SkipForward className="h-3.5 w-3.5" />
-            </Button>
+          <div className="flex items-center gap-1.5 text-xs tabular-nums text-muted-foreground shrink-0 min-w-[5.5rem]">
+            <span ref={currentTimeDisplayRef} data-testid="text-current-time" className="font-medium text-foreground">
+              {formatTime(currentTime)}
+            </span>
+            <span aria-hidden>/</span>
+            <span data-testid="text-duration">{formatTime(duration)}</span>
           </div>
 
-          <div className="flex-1 min-w-0 space-y-1">
-            <div
-              ref={waveformRef}
-              className="flex items-end gap-px sm:gap-[2px] h-10 sm:h-12 w-full overflow-hidden cursor-pointer select-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary touch-none"
-              onPointerDown={handleWaveformPointerDown}
-              onPointerMove={handleWaveformPointerMove}
-              onPointerUp={handleWaveformPointerUp}
-              onPointerCancel={() => { isDraggingRef.current = false; }}
-              onLostPointerCapture={() => { isDraggingRef.current = false; }}
-              onKeyDown={handleWaveformKeyDown}
-              data-testid="waveform-timeline"
-              role="slider"
-              aria-label="Audio timeline"
-              aria-valuemin={0}
-              aria-valuemax={duration}
-              aria-valuenow={currentTime}
-              aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
-              tabIndex={0}
-            >
-              {WAVEFORM_BARS.map((height, i) => {
-                const progress = duration > 0 ? currentTime / duration : 0;
-                const isPlayed = i < Math.floor(progress * BAR_COUNT);
-                return (
-                  <div
-                    key={i}
-                    ref={el => { barRefsArray.current[i] = el; }}
-                    className="flex-1 min-w-0 rounded-full"
-                    style={{
-                      height: `${height * 100}%`,
-                      backgroundColor: isPlayed
-                        ? 'hsl(var(--primary))'
-                        : 'hsl(var(--muted-foreground) / 0.25)',
-                    }}
-                    data-testid={`waveform-bar-${i}`}
-                  />
-                );
-              })}
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span ref={currentTimeDisplayRef} data-testid="text-current-time" className="font-medium tabular-nums">{formatTime(currentTime)}</span>
-              <span data-testid="text-duration" className="tabular-nums">{formatTime(duration)}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0 sm:pl-2 sm:border-l sm:border-border/40">
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={toggleMute}
-              className="shrink-0"
-              data-testid="button-mute"
-            >
-              {isMuted || volume === 0 ? (
-                <VolumeX className="h-4 w-4" />
-              ) : (
-                <Volume2 className="h-4 w-4" />
-              )}
-            </Button>
+          <div className="flex-1 min-w-0">
             <Slider
-              value={[isMuted ? 0 : volume]}
-              max={1}
-              step={0.01}
-              onValueChange={handleVolumeChange}
-              className="flex-1 sm:flex-none sm:w-16"
-              data-testid="slider-volume"
+              value={[duration > 0 ? Math.min(currentTime, duration) : 0]}
+              max={duration > 0 ? duration : 1}
+              step={0.1}
+              onValueChange={(value) => {
+                if (!audioRef.current || isPlaybackBlocked || duration <= 0) return;
+                const next = value[0];
+                audioRef.current.currentTime = next;
+                setCurrentTime(next);
+              }}
+              className="w-full"
+              data-testid="slider-collapsed-seek"
+              disabled={isPlaybackBlocked || duration <= 0}
             />
           </div>
+
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={toggleMute}
+            className="shrink-0 h-8 w-8"
+            data-testid="button-mute"
+            aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}
+          >
+            {isMuted || volume === 0 ? (
+              <VolumeX className="h-3.5 w-3.5" />
+            ) : (
+              <Volume2 className="h-3.5 w-3.5" />
+            )}
+          </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setExpanded(true)}
+            className="shrink-0 gap-1 text-xs text-muted-foreground hover:text-foreground h-8 px-2"
+            data-testid="button-expand-audio"
+            aria-expanded={false}
+            aria-label="Expand waveform"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Expand</span>
+          </Button>
         </div>
-        
-        <div className="flex justify-end mt-3">
-          {getRetentionCountdown()}
+      ) : (
+        <div className="bg-gradient-to-b from-card to-muted/20 border border-border/60 rounded-2xl px-3 py-3 sm:px-5 sm:py-4 shadow-sm overflow-hidden" data-testid="audio-player">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex items-center justify-center gap-2 shrink-0">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => skipBy(-15)}
+                className="rounded-full w-9 h-9 text-muted-foreground hover:text-foreground"
+                data-testid="button-skip-back"
+              >
+                <SkipBack className="h-3.5 w-3.5" />
+              </Button>
+
+              <button
+                onClick={togglePlayPause}
+                className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all active:scale-95 shadow-md hover:shadow-lg hover:brightness-105"
+                data-testid="button-play-pause"
+              >
+                {isPlaying ? (
+                  <Pause className="h-5 w-5" />
+                ) : (
+                  <Play className="h-5 w-5 ml-0.5" />
+                )}
+              </button>
+
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => skipBy(15)}
+                className="rounded-full w-9 h-9 text-muted-foreground hover:text-foreground"
+                data-testid="button-skip-forward"
+              >
+                <SkipForward className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            <div className="flex-1 min-w-0 space-y-1">
+              <div
+                ref={waveformRef}
+                className="flex items-end gap-px sm:gap-[2px] h-10 sm:h-12 w-full overflow-hidden cursor-pointer select-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary touch-none"
+                onPointerDown={handleWaveformPointerDown}
+                onPointerMove={handleWaveformPointerMove}
+                onPointerUp={handleWaveformPointerUp}
+                onPointerCancel={() => { isDraggingRef.current = false; }}
+                onLostPointerCapture={() => { isDraggingRef.current = false; }}
+                onKeyDown={handleWaveformKeyDown}
+                data-testid="waveform-timeline"
+                role="slider"
+                aria-label="Audio timeline"
+                aria-valuemin={0}
+                aria-valuemax={duration}
+                aria-valuenow={currentTime}
+                aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+                tabIndex={0}
+              >
+                {WAVEFORM_BARS.map((height, i) => {
+                  const progress = duration > 0 ? currentTime / duration : 0;
+                  const isPlayed = i < Math.floor(progress * BAR_COUNT);
+                  return (
+                    <div
+                      key={i}
+                      ref={el => { barRefsArray.current[i] = el; }}
+                      className="flex-1 min-w-0 rounded-full"
+                      style={{
+                        height: `${height * 100}%`,
+                        backgroundColor: isPlayed
+                          ? 'hsl(var(--primary))'
+                          : 'hsl(var(--muted-foreground) / 0.25)',
+                      }}
+                      data-testid={`waveform-bar-${i}`}
+                    />
+                  );
+                })}
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span ref={currentTimeDisplayRef} data-testid="text-current-time" className="font-medium tabular-nums">{formatTime(currentTime)}</span>
+                <span data-testid="text-duration" className="tabular-nums">{formatTime(duration)}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 sm:pl-2 sm:border-l sm:border-border/40">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={toggleMute}
+                className="shrink-0"
+                data-testid="button-mute"
+              >
+                {isMuted || volume === 0 ? (
+                  <VolumeX className="h-4 w-4" />
+                ) : (
+                  <Volume2 className="h-4 w-4" />
+                )}
+              </Button>
+              <Slider
+                value={[isMuted ? 0 : volume]}
+                max={1}
+                step={0.01}
+                onValueChange={handleVolumeChange}
+                className="flex-1 sm:flex-none sm:w-16"
+                data-testid="slider-volume"
+              />
+            </div>
+          </div>
+          
+          <div className={cn("flex items-center gap-2 mt-3", collapsible ? "justify-between" : "justify-end")}>
+            {collapsible && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setExpanded(false)}
+                className="gap-1 text-xs text-muted-foreground hover:text-foreground h-8 px-2"
+                data-testid="button-collapse-audio"
+                aria-expanded={true}
+                aria-label="Collapse waveform"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+                Collapse
+              </Button>
+            )}
+            {getRetentionCountdown()}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
