@@ -27,7 +27,6 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  CalendarPlus,
   Radio,
   Pencil,
   FileText,
@@ -1261,15 +1260,15 @@ export function ScheduledMeetingsViewer() {
               <>
                 <Button
                   size="sm"
-                  variant="outline"
                   onClick={handleScheduleClick}
                   data-testid="button-schedule-meeting"
                 >
-                  <CalendarPlus className="w-4 h-4 mr-2" />
-                  Schedule
+                  <Video className="w-4 h-4 mr-2" />
+                  New meeting
                 </Button>
                 <Button
                   size="sm"
+                  variant="outline"
                   onClick={handleCalendarAction}
                   disabled={syncMutation.isPending}
                   data-testid={
@@ -1298,17 +1297,16 @@ export function ScheduledMeetingsViewer() {
             <Video className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No upcoming meetings in the next 30 days</p>
             <p className="text-sm mt-2">
-              Schedule a meeting or sync your calendar to see upcoming video calls
+              Create one here or sync your calendar to see upcoming video calls
             </p>
             <Button
               size="sm"
-              variant="outline"
               className="mt-4"
               onClick={handleScheduleClick}
               data-testid="button-schedule-meeting-empty"
             >
-              <CalendarPlus className="w-4 h-4 mr-2" />
-              Schedule meeting
+              <Video className="w-4 h-4 mr-2" />
+              New meeting
             </Button>
           </div>
         ) : (
