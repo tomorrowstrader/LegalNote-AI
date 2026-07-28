@@ -181,14 +181,14 @@ export default function RecordingControlCenter({
             <div className="shrink-0 text-right pt-0.5">
               {countdown !== null ? (
                 <p
-                  className="font-mono text-3xl font-semibold tabular-nums tracking-tight text-foreground"
+                  className="text-3xl font-semibold tabular-nums tracking-tight text-foreground"
                   data-testid="text-control-center-countdown"
                 >
                   {countdown}
                 </p>
               ) : typeof elapsedSeconds === "number" ? (
                 <p
-                  className="font-mono text-3xl font-semibold tabular-nums tracking-tight text-foreground"
+                  className="text-3xl font-semibold tabular-nums tracking-tight text-foreground"
                   data-testid="text-control-center-duration"
                 >
                   {formatElapsed(elapsedSeconds)}
