@@ -857,38 +857,47 @@ The system supplies the attendance note header (centred title ATTENDANCE NOTE, t
 **1. [FIRST MAJOR TOPIC - USE CLEAR PROFESSIONAL HEADING IN CAPS]**
 
    **What was discussed:**
+
    [Opening paragraph describing the issue or matter discussed - based strictly on what was said. Include facts established, re-expressed in legal register, and state any non-duration value that follows from them (e.g. annualised income, net equity). For marriage or cohabitation length, use the system-supplied duration facts when present — e.g. "The client married in August 2014 and separated in March 2026. The jointly owned property is the matrimonial home."]
 
    **Advice given:**
+
    [Legal advice provided - use professional terminology. Always write: "I advised the client that..." NOT "We discussed..." or "I told them..."]
    
-   Key points advised:
+   **Key points advised:**
+
    - [Advice point 1]
    - [Advice point 2]
    - [Advice point 3]
 
-   Reasoning behind advice and decisions:
+   **Reasoning behind advice and decisions:**
+
    [State the reasoning and thinking behind the advice given and any decisions made — as evident from the conversation. For example: "I advised the client to [action], having considered [factor 1], [factor 2], and [factor 3]." Only if the fee earner did not state the reasoning FOR THIS ADVICE anywhere in this section (see rules 5–7 above), emit a marker whose detail quotes or closely paraphrases the specific unreasoned advice from Advice given above (a topic being discussed elsewhere in the meeting is not a reason having been given for this advice): <!-- REASONING_GAP: [FIRST MAJOR TOPIC]: [specific advice point from Advice given] --> — never bare "Reasoning behind advice", and never where you have already explained the advice here]
 
    **Client's instructions and response:**
+
    [The client confirmed understanding and instructed... / The client requested... / The client's response to the advice given]
 
 **2. [SECOND MAJOR TOPIC - IN CAPS]**
 
    **What was discussed:**
+
    [Include facts established, re-expressed in legal register, and state any non-duration value that follows from them (e.g. annualised income, net equity). For marriage or cohabitation length, use the system-supplied duration facts when present — e.g. "The client married in August 2014 and separated in March 2026. The jointly owned property is the matrimonial home."]
    - [Fact 1 from the conversation]
    - [Fact 2 from the conversation]
 
    **Advice given:**
+
    I advised the client that [legal principle or position]. Specifically:
    - [Advice point 1]
    - [Advice point 2]
 
-   Reasoning behind advice and decisions:
+   **Reasoning behind advice and decisions:**
+
    [State the reasoning and thinking behind the advice — as evident from the conversation. Only if the fee earner did not state the reasoning FOR THIS ADVICE anywhere in this section (see rules 5–7 above), emit: <!-- REASONING_GAP: [SECOND MAJOR TOPIC]: [specific advice point from Advice given] --> — never bare "Reasoning behind advice", and never where you have already explained the advice here]
 
    **Client's instructions and response:**
+
    [Client's instructions and response to advice given]
 
 **3. [ADDITIONAL TOPICS AS NEEDED]**
@@ -916,7 +925,8 @@ The system supplies the attendance note header (centred title ATTENDANCE NOTE, t
    Next appointment: [The date or timing stated at the meeting, exactly as given (e.g. "24 March 2026", "tonight", "within 10 working days of submission"), or "${NOT_DISCUSSED_PHRASE}" only if no timing of any kind was given]
 
 FORMATTING GUIDELINES:
-- Use **bold** for ALL section headings (ATTENDANCE NOTE, MATTERS DISCUSSED, each numbered topic, NEXT STEPS)
+- Use **bold** for ALL section headings (ATTENDANCE NOTE, MATTERS DISCUSSED, each numbered topic, NEXT STEPS) and for ALL sub-headings that end with a colon (What was discussed:, Advice given:, Key points advised:, Reasoning behind advice and decisions:, Client's instructions and response:)
+- Put a blank line after every bold sub-heading (the line with the colon) before the body text starts — body must never sit on the same line as the colon
 - Use clean white space between sections - NO horizontal lines or underscores
 - Use dash (-) for ALL sub-points and bullet lists
 - Use numbered lists (1. 2. 3.) for main topics and sequential action steps

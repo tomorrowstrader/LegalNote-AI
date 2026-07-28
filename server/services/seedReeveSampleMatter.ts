@@ -19,6 +19,7 @@ import {
   firms,
   firmProfile,
 } from "../../shared/schema";
+import { normalizeAttendanceSectionLabels } from "../../shared/attendanceNoteFormat";
 import { eq, sql } from "drizzle-orm";
 
 const MATTER_REFERENCE = "REE/FAM26-01188";
@@ -208,7 +209,7 @@ function buildAttendanceNote(sessionDate: Date): string {
     year: "numeric",
   });
 
-  return `**ATTENDANCE NOTE**
+  const raw = `**ATTENDANCE NOTE**
 
 **File Ref:** ${MATTER_REFERENCE}  
 **Advisor:** ${FEE_EARNER_DISPLAY}
@@ -421,6 +422,10 @@ This attendance note is subject to legal professional privilege.
 
 Prepared by: ${FEE_EARNER_DISPLAY}
 Date Prepared: ${dateLabel}`;
+
+  // House style: bold section labels, blank line under each label before body
+  // (TipTap collapses single newlines so label+body otherwise sit on one line).
+  return normalizeAttendanceSectionLabels(raw);
 }
 
 /**

@@ -1,6 +1,8 @@
 /**
  * Attendance-note markdown normalization.
- * Keeps section labels bold and on their own lines; body text stays regular weight.
+ * Keeps section labels bold and on their own lines; body text stays regular weight
+ * and starts on the line under the label (blank line so TipTap/markdown-it do not
+ * collapse label+body onto one visual line).
  */
 
 export const ATTENDANCE_SECTION_LABELS = [
@@ -20,6 +22,7 @@ const LABEL_ALTERNATION = ATTENDANCE_SECTION_LABELS.map(escapeRegExp).join('|');
 /**
  * Normalize section labels so they render as:
  *   **What was discussed:**
+ *
  *   Body text…
  *
  * Handles glued labels ("railway.Advice given:I advised"), label+body wrapped in
@@ -58,7 +61,7 @@ export function normalizeAttendanceSectionLabels(body: string): string {
       `^([ \\t]*)\\*\\*((?:${LABEL_ALTERNATION}))\\*\\*[ \\t]*(\\S.*)$`,
       'gim',
     ),
-    '$1**$2**\n$3',
+    '$1**$2**\n\n$3',
   );
 
   // Plain label with body on the same line: Advice given:I advised
@@ -67,7 +70,7 @@ export function normalizeAttendanceSectionLabels(body: string): string {
       `^([ \\t]*)(?!\\*\\*)((?:${LABEL_ALTERNATION}))[ \\t]*(\\S.*)$`,
       'gim',
     ),
-    '$1**$2**\n$3',
+    '$1**$2**\n\n$3',
   );
 
   // Standalone label lines → bold label only
@@ -83,6 +86,22 @@ export function normalizeAttendanceSectionLabels(body: string): string {
   result = result.replace(
     /^([ \t]*)(?:\*\*)?(\d+\.\s+[A-Z][A-Z0-9 ,/'&()——–-]{2,})(?:\*\*)?[ \t]*$/gm,
     '$1**$2**',
+  );
+
+  // Ensure a blank line after every bold section label so body is a separate
+  // paragraph (single \\n collapses to a space in TipTap/markdown-it).
+  result = result.replace(
+    new RegExp(
+      `^([ \\t]*\\*\\*(?:${LABEL_ALTERNATION})\\*\\*)[ \\t]*\\n(?!\\n)`,
+      'gim',
+    ),
+    '$1\n\n',
+  );
+
+  // Same for numbered topic headings — keep a line drop before following content
+  result = result.replace(
+    /^([ \t]*\*\*\d+\.\s+[A-Z][A-Z0-9 ,/'&()——–-]{2,}\*\*)[ \t]*\n(?!\n)/gm,
+    '$1\n\n',
   );
 
   return result.replace(/\n{3,}/g, '\n\n');

@@ -7,7 +7,7 @@ describe('normalizeAttendanceSectionLabels', () => {
       'The client described the nature of his work on the railway.Advice given:I advised the client on the legal framework.';
     const result = normalizeAttendanceSectionLabels(input);
 
-    expect(result).toContain('railway.\n\n**Advice given:**\nI advised the client');
+    expect(result).toContain('railway.\n\n**Advice given:**\n\nI advised the client');
     expect(result).not.toMatch(/\*\*Advice given:\*\*[^\n]/);
   });
 
@@ -26,8 +26,8 @@ The client explained everything that happened.
 I advised the client.`;
     const result = normalizeAttendanceSectionLabels(input);
 
-    expect(result).toContain('**What was discussed:**\nThe client explained');
-    expect(result).toContain('**Advice given:**');
+    expect(result).toContain('**What was discussed:**\n\nThe client explained');
+    expect(result).toContain('**Advice given:**\n\nI advised the client');
   });
 
   it('normalizes all standard section labels', () => {
@@ -44,10 +44,33 @@ Client's instructions and response:
 Agreed.`;
     const result = normalizeAttendanceSectionLabels(input);
 
-    expect(result).toContain('**What was discussed:**');
-    expect(result).toContain('**Key points advised:**');
-    expect(result).toContain('**Reasoning behind advice and decisions:**');
-    expect(result).toContain("**Client's instructions and response:**");
+    expect(result).toContain('**What was discussed:**\n\nFacts.');
+    expect(result).toContain('**Key points advised:**\n\n- Point one');
+    expect(result).toContain('**Reasoning behind advice and decisions:**\n\nBecause X.');
+    expect(result).toContain("**Client's instructions and response:**\n\nAgreed.");
+  });
+
+  it('inserts a blank line when label and body share a soft line break', () => {
+    const input = `**What was discussed:**
+The client stated the facts.
+
+**Advice given:**
+I advised the client.`;
+    const result = normalizeAttendanceSectionLabels(input);
+
+    expect(result).toContain('**What was discussed:**\n\nThe client stated');
+    expect(result).toContain('**Advice given:**\n\nI advised the client');
+  });
+
+  it('keeps a blank line after numbered topic headings', () => {
+    const input = `**1. BACKGROUND AND STATUS OF THE TRANSACTION**
+**What was discussed:**
+Facts.`;
+    const result = normalizeAttendanceSectionLabels(input);
+
+    expect(result).toContain(
+      '**1. BACKGROUND AND STATUS OF THE TRANSACTION**\n\n**What was discussed:**\n\nFacts.',
+    );
   });
 
   it('is idempotent', () => {
