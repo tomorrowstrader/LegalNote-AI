@@ -451,7 +451,7 @@ export default function GlobalSearch() {
               className="relative w-[clamp(200px,20vw,320px)] cursor-text"
               onClick={() => setResultsOpen(true)}
             >
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/70 z-10 pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/60 dark:text-foreground/70 z-10 pointer-events-none" />
               <Input
                 type="search"
                 placeholder="Search cases, clients, or content..."
@@ -462,7 +462,7 @@ export default function GlobalSearch() {
                   e.stopPropagation();
                   setResultsOpen(true);
                 }}
-                className="pl-10 bg-white/90 border-white/50 text-foreground placeholder:text-muted-foreground"
+                className="global-search-input pl-10 border-border text-foreground placeholder:text-muted-foreground dark:border-white/50"
                 data-testid="input-global-search"
               />
             </div>

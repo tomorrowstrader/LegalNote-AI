@@ -670,6 +670,20 @@ select {
   background: hsl(var(--background) / 0.5) !important;
 }
 
+/* Top nav global search: solid dashboard fill in light mode; dark keeps glass */
+input.global-search-input {
+  background: hsl(var(--background)) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: hsl(var(--foreground));
+}
+
+.dark input.global-search-input {
+  background: hsl(var(--background) / 0.5) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
 /* Glass effect for badges and pills */
 [data-slot="badge"] {
   backdrop-filter: blur(6px);
