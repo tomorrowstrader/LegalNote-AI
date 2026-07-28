@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { FocusModeProvider, useFocusMode } from "@/contexts/FocusModeContext";
 import { LiveBotSessionProvider } from "@/contexts/LiveBotSessionContext";
+import { NewNoteRecordingProvider } from "@/contexts/NewNoteRecordingContext";
 import { LiveBotSessionIndicator } from "@/components/LiveBotSessionIndicator";
 import { useNewNoteShortcut } from "@/hooks/useNewNoteShortcut";
 import { useQuickRecordShortcut } from "@/hooks/useQuickRecordShortcut";
@@ -228,7 +229,9 @@ function AuthenticatedApp() {
   return (
     <FocusModeProvider>
       <LiveBotSessionProvider>
-        <AuthenticatedAppContent />
+        <NewNoteRecordingProvider>
+          <AuthenticatedAppContent />
+        </NewNoteRecordingProvider>
       </LiveBotSessionProvider>
     </FocusModeProvider>
   );

@@ -17,13 +17,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
-import ConsentModal from "@/components/ConsentModal";
-import MeetingToMatterProcessingOverlay, { type ProcessingStep } from "@/components/MeetingToMatterProcessingOverlay";
-import { createProcessingStepTimer } from "@/lib/processingStepTimer";
 import TextNotesModal from "@/components/TextNotesModal";
 import CaseTemplatesModal, { CaseTemplate } from "@/components/CaseTemplatesModal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -36,18 +29,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, Mic, Square, AlertTriangle, LayoutTemplate, CheckCircle2, Shield, UserPlus, X, FolderPlus, FolderOpen } from "lucide-react";
+import { ArrowLeft, Mic, LayoutTemplate, CheckCircle2, Shield, UserPlus, X, FolderPlus, FolderOpen } from "lucide-react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { logAuditEvent } from "@/lib/auditLogger";
 import type { Case, Client } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
-import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
-import { appendConsentSegmentToFormData, snapshotConsentSegment } from "@/lib/consentSegmentCapture";
+import { useNewNoteRecording, type NewNoteRecordingMeta } from "@/contexts/NewNoteRecordingContext";
 
 interface CaseResponse {
   id: string;
@@ -59,32 +50,26 @@ interface CaseResponse {
   sourceType: string;
 }
 
-interface AudioResponse {
-  id: string;
-  caseId: string;
-  filePath: string | null;
-  expiresAt: string;
-}
-
 export default function NewNote() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
+  const {
+    isActive: sessionActive,
+    isRecording,
+    countdown,
+    startCountdown,
+    cancelCountdown,
+  } = useNewNoteRecording();
   
   const [caseTitle, setCaseTitle] = useState("");
   const [clientName, setClientName] = useState("");
   const [matterRef, setMatterRef] = useState("");
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const [showConsentModal, setShowConsentModal] = useState(false);
-  const [showStopConfirmation, setShowStopConfirmation] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const [showTextNotesModal, setShowTextNotesModal] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState<CaseTemplate | null>(null);
   const [pendingTemplate, setPendingTemplate] = useState<CaseTemplate | null>(null);
   const [checklistAcknowledged, setChecklistAcknowledged] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
@@ -100,8 +85,8 @@ export default function NewNote() {
   const [conflictCheckNote, setConflictCheckNote] = useState("");
   const [costsEstimate, setCostsEstimate] = useState("");
   const [sessionLabel, setSessionLabel] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [processingStep, setProcessingStep] = useState<ProcessingStep>("saving");
+  // Keep local form disabled while global New Note recording is active
+  const recordingLocked = sessionActive;
 
   const { data: clientSearchResults = [] } = useQuery<Client[]>({
     queryKey: [`/api/clients/search?q=${encodeURIComponent(clientSearchQuery)}`],
@@ -171,90 +156,6 @@ export default function NewNote() {
       });
     },
   });
-  
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const audioBlobRef = useRef<Blob | null>(null);
-  const consentBlobRef = useRef<Blob | null>(null);
-  const consentDurationSecondsRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (countdown === null) return;
-
-    if (countdown === 0) {
-      setCountdown(null);
-      startActualRecording();
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setCountdown(countdown - 1);
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [countdown]);
-
-  const startActualRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-      consentBlobRef.current = null;
-      consentDurationSecondsRef.current = null;
-      
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-      
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        audioBlobRef.current = audioBlob;
-        stream.getTracks().forEach(track => track.stop());
-      };
-      
-      // 1s timeslices so we can snapshot a consent prefix mid-recording
-      mediaRecorder.start(1000);
-      setShowConsentModal(true);
-      setIsRecording(true);
-      setRecordingDuration(0);
-
-      // Log recording started event
-      await logAuditEvent({
-        eventType: "recording_started",
-        metadata: { source: "new_note_page" },
-        severity: "info",
-      });
-    } catch (error) {
-      console.error('Failed to start recording:', error);
-      toast({
-        title: "Recording not available",
-        description: "Microphone access failed. Using text notes instead.",
-        duration: 6000,
-      });
-      setShowTextNotesModal(true);
-    }
-  };
-
-  useEffect(() => {
-    if (!isRecording) return;
-
-    const interval = setInterval(() => {
-      setRecordingDuration(prev => prev + 1);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isRecording]);
-
-  useEffect(() => {
-    return () => {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
-    };
-  }, []);
 
   const initiateRecording = () => {
     if (noteMode === "new_matter") {
@@ -274,6 +175,14 @@ export default function NewNote() {
         });
         return;
       }
+      if (!conflictCheckCompleted && !conflictCheckNote.trim()) {
+        toast({
+          title: "Conflict check required",
+          description: "Either confirm the conflict check or provide a reason for deferral",
+          variant: "destructive",
+        });
+        return;
+      }
     } else {
       if (!selectedCaseId) {
         toast({
@@ -284,68 +193,36 @@ export default function NewNote() {
         return;
       }
     }
-    setCountdown(3);
-  };
 
-  const cancelCountdown = () => {
-    setCountdown(null);
-  };
+    const selectedCase = existingCases.find((c) => c.id === selectedCaseId);
+    const meta: NewNoteRecordingMeta = {
+      noteMode,
+      caseTitle: noteMode === "add_session" ? (selectedCase?.title || "Session") : caseTitle.trim(),
+      clientId: selectedClient?.id,
+      clientName: selectedClient?.name,
+      clientAmlRiskLevel: selectedClient?.amlRiskLevel,
+      matterRef: matterRef || undefined,
+      practiceArea,
+      conflictCheckCompleted,
+      conflictCheckNote: conflictCheckNote || undefined,
+      costsEstimate: costsEstimate || undefined,
+      templateId: activeTemplate?.id || undefined,
+      selectedCaseId: noteMode === "add_session" ? selectedCaseId : undefined,
+      recordingType,
+      sessionLabel: sessionLabel || undefined,
+      displayTitle:
+        noteMode === "add_session"
+          ? selectedCase?.title || "Existing matter"
+          : caseTitle.trim() || "New Note",
+      displaySubtitle:
+        noteMode === "add_session"
+          ? selectedCase?.clientName || "Adding session"
+          : selectedClient?.name
+            ? `Recording for ${selectedClient.name}`
+            : "New matter recording",
+    };
 
-  const handleConsentGiven = async () => {
-    console.log('Client consent given - recording continues');
-    setConsentGiven(true);
-    setShowConsentModal(false);
-
-    const consentBlob = await snapshotConsentSegment({
-      mediaRecorder: mediaRecorderRef.current,
-      audioChunks: audioChunksRef.current,
-      mimeType: mediaRecorderRef.current?.mimeType || "audio/webm",
-    });
-    consentBlobRef.current = consentBlob;
-    consentDurationSecondsRef.current = Math.max(1, recordingDuration);
-    
-    // Consent is sealed server-side via POST /api/consent — no duplicate client audit entry.
-  };
-
-  const handleConsentDeclined = async () => {
-    console.log('Client consent declined - stopping recording');
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    setConsentGiven(false);
-    setShowConsentModal(false);
-    setIsRecording(false);
-    setRecordingDuration(0);
-    audioBlobRef.current = null;
-    setShowTextNotesModal(true);
-
-    // Log consent declined event
-    await logAuditEvent({
-      eventType: "consent_declined",
-      metadata: { 
-        source: "new_note_page",
-        fallback: "text_notes",
-      },
-      severity: "warning",
-    });
-  };
-
-  const handleStopClick = () => {
-    setShowStopConfirmation(true);
-  };
-
-  const confirmStopRecording = () => {
-    console.log('Recording stopped');
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    setIsRecording(false);
-    setShowStopConfirmation(false);
-    saveCase();
-  };
-
-  const cancelStopRecording = () => {
-    setShowStopConfirmation(false);
+    startCountdown(meta);
   };
 
   const handleOpenMatter = async () => {
@@ -416,233 +293,6 @@ export default function NewNote() {
     } catch (error: any) {
       toast({
         title: "Error creating matter",
-        description: error.message || "Something went wrong",
-        variant: "destructive",
-        duration: 8000,
-      });
-    }
-  };
-
-  const saveCase = async () => {
-    console.log('Saving case:', { noteMode, recordingType });
-    
-    if (!user?.id) {
-      toast({
-        title: "Authentication required",
-        description: "Please log in to create a case",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (noteMode === "new_matter" && !selectedClient) {
-      toast({
-        title: "Client required",
-        description: "Please select or create a client before saving",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (noteMode === "add_session" && !selectedCaseId) {
-      toast({
-        title: "Matter required",
-        description: "Please select an existing matter to add a session",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (noteMode === "new_matter" && !practiceArea) {
-      toast({
-        title: "Practice area required",
-        description: "Please select a practice area for this matter",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (noteMode === "new_matter" && !conflictCheckCompleted && !conflictCheckNote.trim()) {
-      toast({
-        title: "Conflict check required",
-        description: "Either confirm the conflict check or provide a reason for deferral",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    let caseResult: CaseResponse | null = null;
-    let consentLogFailed = false;
-
-    setIsProcessing(true);
-    const advanceStep = createProcessingStepTimer(setProcessingStep);
-    setProcessingStep("saving");
-    
-    try {
-      let targetCaseId: string;
-
-      if (noteMode === "add_session" && selectedCaseId) {
-        targetCaseId = selectedCaseId;
-        const selectedCase = existingCases.find(c => c.id === selectedCaseId);
-        caseResult = selectedCase ? {
-          id: selectedCase.id,
-          title: selectedCase.title,
-          clientName: selectedCase.clientName || "",
-          matterReference: selectedCase.matterReference || undefined,
-          status: selectedCase.status,
-          priority: selectedCase.priority || "normal",
-          sourceType: selectedCase.sourceType,
-        } : null;
-      } else {
-        caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
-          title: caseTitle,
-          clientName: selectedClient!.name,
-          clientId: selectedClient!.id,
-          matterReference: matterRef || undefined,
-          sourceType: "audio",
-          status: "pending",
-          priority: "normal",
-          riskLevel: selectedClient!.amlRiskLevel || undefined,
-          templateId: activeTemplate?.id || undefined,
-          practiceArea: practiceArea || undefined,
-          conflictCheckCompleted,
-          conflictCheckNote: conflictCheckNote || undefined,
-          costsEstimate: costsEstimate || undefined,
-        });
-        targetCaseId = caseResult.id;
-      }
-
-      const sessionResult = await apiRequest<{ id: string }>("POST", `/api/cases/${targetCaseId}/sessions`, {
-        recordingType,
-        sessionTitle: sessionLabel.trim() || undefined,
-      });
-      
-      const audioResult = await apiRequest<AudioResponse>("POST", "/api/audio", {
-        caseId: targetCaseId,
-        meetingSessionId: sessionResult.id,
-      });
-      
-      await advanceStep("uploading");
-
-      if (audioBlobRef.current) {
-        console.log('Uploading audio file via multipart...');
-        
-        const formData = new FormData();
-        formData.append('audioFile', audioBlobRef.current, 'recording.webm');
-        formData.append('duration', recordingDuration.toString());
-        appendConsentSegmentToFormData(
-          formData,
-          consentBlobRef.current,
-          consentDurationSecondsRef.current,
-        );
-        
-        const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
-          method: 'POST',
-          credentials: 'include',
-          body: formData,
-        });
-        
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Upload failed');
-        }
-        
-        console.log('Audio upload completed successfully');
-      }
-      
-      if (consentGiven !== null) {
-        try {
-
-          const consentPayload = {
-            caseId: targetCaseId,
-            audioRecordingId: audioResult.id,
-            consentGiven: consentGiven,
-            consentModality: "verbal_recorded" as const,
-            disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
-            disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
-            lawfulBasis: "consent" as const,
-            recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
-            source: "new_note_page",
-          };
-          console.log('Saving consent log to backend...', consentPayload);
-          await apiRequest("POST", "/api/consent", consentPayload);
-          console.log('Consent log saved successfully');
-        } catch (consentError: any) {
-          console.error('Consent log failed:', consentError);
-          console.error('Consent error details:', consentError?.message || consentError);
-          consentLogFailed = true;
-          setIsProcessing(false);
-          
-          toast({
-            title: "GDPR Compliance Error",
-            description: "Failed to save consent record. This case cannot be processed without proper consent logging.",
-            variant: "destructive",
-            duration: 10000,
-          });
-          
-          return;
-        }
-      }
-
-      if (!consentLogFailed) {
-        await advanceStep("processing");
-
-        // Always pass sessionId so recordingType reaches the derivation engine
-        apiRequest("POST", `/api/cases/${targetCaseId}/process`, { sessionId: sessionResult.id })
-          .then(() => {
-            queryClient.invalidateQueries({
-              predicate: (query) => {
-                const key = query.queryKey[0] as string;
-                return key?.startsWith("/api/cases");
-              },
-            });
-          })
-          .catch((processError: unknown) => {
-            console.error('Failed to auto-trigger processing:', processError);
-            toast({
-              title: "Recording saved — tap Process to generate documents",
-              description: "The recording was saved but processing could not start automatically.",
-              duration: 8000,
-            });
-          });
-      }
-      
-      queryClient.invalidateQueries({ 
-        predicate: (query) => {
-          const key = query.queryKey[0] as string;
-          return key?.startsWith("/api/cases");
-        }
-      });
-      
-      const savedCaseId = targetCaseId;
-      
-      toast({
-        title: noteMode === "add_session" ? "Session added successfully" : "Case created successfully",
-        description: "Meeting-to-Matter™ Engine is preparing your documents.",
-        duration: 6000,
-        action: savedCaseId ? (
-          <ToastAction 
-            altText="View case" 
-            onClick={() => setLocation(`/case/${savedCaseId}`)}
-            data-testid="button-toast-view-case"
-          >
-            View Case
-          </ToastAction>
-        ) : undefined,
-      });
-      
-      if (savedCaseId && !consentLogFailed) {
-        await advanceStep("complete");
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setLocation(`/case/${savedCaseId}`);
-        setIsProcessing(false);
-        setProcessingStep("saving");
-      }
-    } catch (error: any) {
-      setIsProcessing(false);
-      setProcessingStep("saving");
-      toast({
-        title: "Error creating case",
         description: error.message || "Something went wrong",
         variant: "destructive",
         duration: 8000,
@@ -800,12 +450,6 @@ export default function NewNote() {
     }
   };
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto px-6 lg:px-8 py-8">
@@ -830,7 +474,7 @@ export default function NewNote() {
             <Button
               variant="outline"
               onClick={() => setShowTemplatesModal(true)}
-              disabled={isRecording || countdown !== null}
+              disabled={recordingLocked}
               className="gap-2 shrink-0"
               data-testid="button-use-template"
             >
@@ -890,7 +534,7 @@ export default function NewNote() {
                 value={noteMode}
                 onValueChange={(v) => setNoteMode(v as "new_matter" | "add_session")}
                 className="flex flex-col gap-3 sm:flex-row sm:gap-6"
-                disabled={isRecording || countdown !== null}
+                disabled={recordingLocked}
               >
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="new_matter" id="mode-new" data-testid="radio-new-matter" />
@@ -913,7 +557,7 @@ export default function NewNote() {
                 <Select
                   value={recordingType}
                   onValueChange={(v) => setRecordingType(v as RecordingType)}
-                  disabled={isRecording || countdown !== null}
+                  disabled={recordingLocked}
                 >
                   <SelectTrigger id="recording-type" data-testid="select-recording-type">
                     <SelectValue placeholder="Select recording type" />
@@ -951,7 +595,7 @@ export default function NewNote() {
                           variant="ghost"
                           size="icon"
                           onClick={() => { setSelectedCaseId(""); setCaseSearchQuery(""); }}
-                          disabled={isRecording || countdown !== null}
+                          disabled={recordingLocked}
                           data-testid="button-clear-case"
                         >
                           <X className="w-4 h-4" />
@@ -964,7 +608,7 @@ export default function NewNote() {
                         value={caseSearchQuery}
                         onChange={(e) => { setCaseSearchQuery(e.target.value); setShowCaseDropdown(true); }}
                         onFocus={() => setShowCaseDropdown(true)}
-                        disabled={isRecording || countdown !== null}
+                        disabled={recordingLocked}
                         data-testid="input-case-search"
                       />
                     )}
@@ -1005,7 +649,7 @@ export default function NewNote() {
                   placeholder="e.g. Bail hearing, Manchester Crown Court"
                   value={sessionLabel}
                   onChange={(e) => setSessionLabel(e.target.value)}
-                  disabled={isRecording || countdown !== null}
+                  disabled={recordingLocked}
                   data-testid="input-session-label"
                 />
               </div>
@@ -1021,7 +665,7 @@ export default function NewNote() {
                       placeholder="e.g., Estate Planning Consultation"
                       value={caseTitle}
                       onChange={(e) => setCaseTitle(e.target.value)}
-                      disabled={isRecording || countdown !== null}
+                      disabled={recordingLocked}
                       data-testid="input-case-title"
                     />
                   </div>
@@ -1045,7 +689,7 @@ export default function NewNote() {
                             variant="ghost"
                             size="icon"
                             onClick={handleClearClient}
-                            disabled={isRecording || countdown !== null}
+                            disabled={recordingLocked}
                             data-testid="button-clear-client"
                           >
                             <X className="w-4 h-4" />
@@ -1058,7 +702,7 @@ export default function NewNote() {
                           value={clientName}
                           onChange={(e) => handleClientInputChange(e.target.value)}
                           onFocus={() => { if (clientSearchQuery.trim().length >= 2) setShowClientDropdown(true); }}
-                          disabled={isRecording || countdown !== null}
+                          disabled={recordingLocked}
                           data-testid="input-client-name"
                         />
                       )}
@@ -1122,7 +766,7 @@ export default function NewNote() {
                       placeholder="e.g., MAT-2025-001"
                       value={matterRef}
                       onChange={(e) => setMatterRef(e.target.value)}
-                      disabled={isRecording || countdown !== null}
+                      disabled={recordingLocked}
                       data-testid="input-matter-ref"
                     />
                   </div>
@@ -1131,7 +775,7 @@ export default function NewNote() {
                     <Select
                       value={practiceArea}
                       onValueChange={(val) => setPracticeArea(val as PracticeArea)}
-                      disabled={isRecording || countdown !== null}
+                      disabled={recordingLocked}
                     >
                       <SelectTrigger id="practice-area" data-testid="select-practice-area">
                         <SelectValue placeholder="Select practice area..." />
@@ -1157,7 +801,7 @@ export default function NewNote() {
                       placeholder="e.g., £1,500 – £3,000 plus VAT and disbursements"
                       value={costsEstimate}
                       onChange={(e) => setCostsEstimate(e.target.value)}
-                      disabled={isRecording || countdown !== null}
+                      disabled={recordingLocked}
                       data-testid="input-costs-estimate"
                     />
                     <p className="text-xs text-muted-foreground">
@@ -1186,7 +830,7 @@ export default function NewNote() {
                     setConflictCheckCompleted(checked === true);
                     if (checked) setConflictCheckNote("");
                   }}
-                  disabled={isRecording || countdown !== null}
+                  disabled={recordingLocked}
                   data-testid="checkbox-conflict-check"
                 />
                 <div className="space-y-1">
@@ -1208,7 +852,7 @@ export default function NewNote() {
                     placeholder="e.g., Conflict check to be completed by compliance team before first meeting"
                     value={conflictCheckNote}
                     onChange={(e) => setConflictCheckNote(e.target.value)}
-                    disabled={isRecording || countdown !== null}
+                    disabled={recordingLocked}
                     className="text-sm"
                     data-testid="input-conflict-note"
                   />
@@ -1225,50 +869,40 @@ export default function NewNote() {
             <CardContent className="space-y-4">
               <div className="p-4 bg-muted rounded-md space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  The recording will begin with a 3-second countdown. You will then read the consent
-                  disclaimer to your client, and they will verbally confirm their consent on the recording.
-                  This ensures GDPR compliance with full audit trail.
+                  The recording will begin with a 3-second countdown in the bottom-right control
+                  center. You will then read the consent disclaimer to your client, and they will
+                  verbally confirm their consent on the recording. You can navigate away — the
+                  recording stays manageable from the control center.
                 </p>
               </div>
 
-              {countdown !== null && (
-                <div className="flex flex-col items-center gap-4 p-8">
-                  <div className="text-7xl font-bold text-primary">
-                    {countdown}
-                  </div>
-                  <p className="text-muted-foreground">Recording starts in...</p>
-                  <Button 
-                    variant="outline" 
-                    onClick={cancelCountdown}
-                    data-testid="button-cancel-countdown"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              )}
-
-              {isRecording && (
-                <div className="flex flex-col items-center gap-4 p-6 bg-destructive/10 rounded-md border border-destructive/20">
+              {sessionActive ? (
+                <div className="flex flex-col items-center gap-3 p-6 bg-destructive/10 rounded-md border border-destructive/20">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-destructive rounded-full animate-pulse" />
-                    <span className="text-sm font-medium">Recording in Progress</span>
+                    <span className="text-sm font-medium">
+                      {countdown !== null
+                        ? "Starting in the control center…"
+                        : isRecording
+                          ? "Recording in progress"
+                          : "Processing your recording…"}
+                    </span>
                   </div>
-                  <Badge variant="outline" className="text-lg">
-                    {formatDuration(recordingDuration)}
-                  </Badge>
-                  <Button
-                    onClick={handleStopClick}
-                    variant="destructive"
-                    className="gap-2"
-                    data-testid="button-stop-recording"
-                  >
-                    <Square className="w-4 h-4" />
-                    Stop Recording
-                  </Button>
+                  <p className="text-sm text-muted-foreground text-center max-w-md">
+                    Use the bottom-right control center to stop, confirm, or monitor progress.
+                    It stays available if you leave this page.
+                  </p>
+                  {countdown !== null && (
+                    <Button
+                      variant="outline"
+                      onClick={cancelCountdown}
+                      data-testid="button-cancel-countdown"
+                    >
+                      Cancel start
+                    </Button>
+                  )}
                 </div>
-              )}
-
-              {!isRecording && countdown === null && (
+              ) : (
                 <div className="space-y-3">
                   <Button
                     onClick={initiateRecording}
@@ -1297,23 +931,6 @@ export default function NewNote() {
           </Card>
         </div>
       </div>
-
-      <ConsentModal
-        open={showConsentModal}
-        onConsentGiven={handleConsentGiven}
-        onConsentDeclined={handleConsentDeclined}
-      />
-
-      <Dialog open={isProcessing} onOpenChange={() => {}}>
-        <DialogContent
-          className="sm:max-w-md"
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={(e) => e.preventDefault()}
-          data-testid="dialog-new-note-processing"
-        >
-          <MeetingToMatterProcessingOverlay processingStep={processingStep} />
-        </DialogContent>
-      </Dialog>
 
       <TextNotesModal
         open={showTextNotesModal}
@@ -1365,28 +982,6 @@ export default function NewNote() {
               data-testid="button-checklist-acknowledge"
             >
               I've Reviewed This. Proceed
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={showStopConfirmation} onOpenChange={setShowStopConfirmation}>
-        <AlertDialogContent data-testid="dialog-stop-confirmation">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
-              Stop Recording?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to stop the recording? This action will finalize the audio capture and save the case.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelStopRecording} data-testid="button-cancel-stop">
-              Continue Recording
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmStopRecording} data-testid="button-confirm-stop">
-              Stop Recording
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
