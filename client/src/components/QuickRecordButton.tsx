@@ -111,6 +111,8 @@ export default function QuickRecordButton() {
     queryKey: ["/api/cases", contextCaseId],
     enabled: !!contextCaseId,
   });
+  /** Snapshot matter id when recording starts so navigation mid-record doesn't drop attachment. */
+  const recordingTargetCaseIdRef = useRef<string | null>(null);
   const contextMatterTitle = contextCase?.title?.trim() || null;
   const controlCenterTitle = contextMatterTitle || "Quick Record";
   const controlCenterSubtitle = contextMatterTitle
@@ -471,8 +473,9 @@ export default function QuickRecordButton() {
   }, [stopConfirmationPending]);
 
   const initiateRecording = useCallback(() => {
+    recordingTargetCaseIdRef.current = contextCaseId;
     setCountdown(3); // 3-second countdown
-  }, []);
+  }, [contextCaseId]);
 
   // Control+L is registered globally (useQuickRecordShortcut) and dispatches this event
   useEffect(() => {
@@ -485,6 +488,7 @@ export default function QuickRecordButton() {
   }, [isRecording, countdown, initiateRecording]);
 
   const cancelCountdown = () => {
+    recordingTargetCaseIdRef.current = null;
     setCountdown(null);
   };
 
@@ -584,6 +588,12 @@ export default function QuickRecordButton() {
       });
       
       setStopConfirmationPending(false);
+      const targetCaseId = recordingTargetCaseIdRef.current;
+      if (targetCaseId) {
+        // On a matter: add session immediately — no new-case metadata form
+        void saveSessionToExistingCase(targetCaseId);
+        return;
+      }
       if (contextMatterTitle && !caseTitle.trim()) {
         setCaseTitle(contextMatterTitle);
       }
@@ -592,6 +602,248 @@ export default function QuickRecordButton() {
         setClientSearchQuery(contextCase.clientName);
       }
       setShowMetadataModal(true);
+    }
+  };
+
+  /** Upload + process onto an existing matter (Quick Record started from /case/:id). */
+  const saveSessionToExistingCase = async (caseId: string) => {
+    if (!user?.id) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to save this recording",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    const advanceStep = createProcessingStepTimer(setProcessingStep);
+    setProcessingStep("saving");
+
+    let audioResult: AudioResponse | null = null;
+    let consentLogFailed = false;
+    let uploadFailed = false;
+    let sessionResult: { id: string } | null = null;
+
+    const saveConsentLog = async (audioRecordingId?: string) => {
+      if (consentGiven === null) return;
+      await apiRequest("POST", "/api/consent", {
+        caseId,
+        ...(audioRecordingId ? { audioRecordingId } : {}),
+        consentGiven,
+        consentModality: "verbal_recorded" as const,
+        disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
+        disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
+        lawfulBasis: "consent" as const,
+        recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
+        source: "quick_record_button",
+      });
+    };
+
+    try {
+      sessionResult = await apiRequest<{ id: string }>("POST", `/api/cases/${caseId}/sessions`, {
+        recordingType: "full_meeting",
+        sessionTitle: "Quick Record",
+      });
+
+      try {
+        audioResult = await apiRequest<AudioResponse>("POST", "/api/audio", {
+          caseId,
+          meetingSessionId: sessionResult.id,
+        });
+      } catch (audioCreateError: any) {
+        console.error("Audio record creation failed:", audioCreateError);
+        uploadFailed = true;
+      }
+
+      if (consentGiven !== null) {
+        try {
+          await saveConsentLog(audioResult?.id);
+        } catch (consentError: any) {
+          console.error("Consent log failed:", consentError);
+          consentLogFailed = true;
+        }
+      }
+
+      if (!audioResult) {
+        throw new Error(
+          "Could not create audio record. Your consent has been saved — try Quick Record again or contact support.",
+        );
+      }
+
+      await advanceStep("uploading");
+
+      if (useChunkedUpload && chunkedRecording.chunkSessionId) {
+        try {
+          await chunkedRecording.finalizeAndUpload(audioResult.id);
+        } catch (uploadError: any) {
+          console.error("Chunked upload finalization failed:", uploadError);
+          if (audioBlobRef.current) {
+            try {
+              const formData = new FormData();
+              const { extension } = audioFormatRef.current;
+              formData.append("audioFile", audioBlobRef.current, `recording${extension}`);
+              formData.append("duration", recordingDuration.toString());
+              appendConsentSegmentToFormData(
+                formData,
+                consentBlobRef.current,
+                consentDurationSecondsRef.current,
+              );
+              const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
+                method: "POST",
+                credentials: "include",
+                body: formData,
+              });
+              if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.message || "Upload failed");
+              }
+            } catch (fallbackError: any) {
+              uploadFailed = true;
+              throw fallbackError;
+            }
+          } else {
+            uploadFailed = true;
+            throw uploadError;
+          }
+        }
+      } else if (audioBlobRef.current) {
+        try {
+          const formData = new FormData();
+          const { extension } = audioFormatRef.current;
+          formData.append("audioFile", audioBlobRef.current, `recording${extension}`);
+          formData.append("duration", recordingDuration.toString());
+          appendConsentSegmentToFormData(
+            formData,
+            consentBlobRef.current,
+            consentDurationSecondsRef.current,
+          );
+          const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+          });
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || "Upload failed");
+          }
+        } catch (uploadError: any) {
+          uploadFailed = true;
+          throw uploadError;
+        }
+      }
+
+      if (!consentLogFailed && !uploadFailed && consentGiven === true && sessionResult) {
+        await advanceStep("processing");
+        apiRequest("POST", `/api/cases/${caseId}/process`, { sessionId: sessionResult.id })
+          .then(() => {
+            queryClient.invalidateQueries({
+              predicate: (query) => {
+                const key = query.queryKey[0] as string;
+                return key?.startsWith("/api/cases");
+              },
+            });
+          })
+          .catch((error: any) => {
+            console.error("AI processing failed:", error);
+            toast({
+              title: "Processing Issue",
+              description: `Documents may not have been generated: ${error?.message || "Unknown error"}. You can retry from the case detail page.`,
+              variant: "destructive",
+              duration: 10000,
+            });
+          });
+      }
+
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0] as string;
+          return key?.startsWith("/api/cases");
+        },
+      });
+
+      await logAuditEvent({
+        eventType: "case_created_from_recording",
+        caseId,
+        metadata: {
+          source: "quick_record_button",
+          consentLoggingSaved: !consentLogFailed,
+          consentSelectedDuringRecording: consentGiven,
+          uploadSucceeded: !uploadFailed,
+          durationSeconds: recordingDuration,
+          chunkedUpload: useChunkedUpload,
+          attachedToExistingCase: true,
+        },
+        severity: consentLogFailed ? "warning" : "info",
+      });
+
+      if (consentLogFailed) {
+        setIsProcessing(false);
+        toast({
+          title: "Action required",
+          description: "Session saved but consent log failed. GDPR compliance requires you to save consent.",
+          variant: "destructive",
+          duration: 15000,
+          action: (
+            <ToastAction
+              altText="View case"
+              onClick={() => setLocation(`/case/${caseId}`)}
+              data-testid="button-toast-view-case-consent-failed"
+            >
+              View Case
+            </ToastAction>
+          ),
+        });
+        return;
+      }
+
+      await advanceStep("complete");
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      toast({
+        title: "Session added to matter",
+        description: "Meeting-to-Matter™ Engine is preparing your documents.",
+        duration: 6000,
+        action: (
+          <ToastAction
+            altText="View case"
+            onClick={() => setLocation(`/case/${caseId}`)}
+            data-testid="button-toast-view-case"
+          >
+            View Case
+          </ToastAction>
+        ),
+      });
+
+      clearRecordingSession();
+      recordingTargetCaseIdRef.current = null;
+      setIsProcessing(false);
+      setProcessingStep("saving");
+      setRecordingDuration(0);
+      audioBlobRef.current = null;
+      setConsentGiven(null);
+
+      if (!location.includes(`/case/${caseId}`)) {
+        setLocation(`/case/${caseId}`);
+      }
+    } catch (error: any) {
+      setIsProcessing(false);
+      setProcessingStep("saving");
+      toast({
+        title: "Could not save session",
+        description: error?.message || "Something went wrong saving this recording to the matter.",
+        variant: "destructive",
+        duration: 10000,
+        action: (
+          <ToastAction
+            altText="View case"
+            onClick={() => setLocation(`/case/${caseId}`)}
+            data-testid="button-toast-view-case-session-failed"
+          >
+            View Case
+          </ToastAction>
+        ),
+      });
     }
   };
 
@@ -1106,7 +1358,7 @@ export default function QuickRecordButton() {
         </TooltipTrigger>
         <TooltipContent>
           <p className="text-sm max-w-[220px]">
-            <strong>Quick Record:</strong> Start recording instantly, add case details after
+            <strong>Record now:</strong> Starts immediately. On a matter, adds a session; otherwise creates a new matter after you stop.
             <span className="block mt-1 text-muted-foreground font-mono text-xs">Ctrl+L</span>
           </p>
         </TooltipContent>

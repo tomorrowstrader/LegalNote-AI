@@ -9,7 +9,7 @@ import { FocusModeProvider, useFocusMode } from "@/contexts/FocusModeContext";
 import { LiveBotSessionProvider } from "@/contexts/LiveBotSessionContext";
 import { NewNoteRecordingProvider } from "@/contexts/NewNoteRecordingContext";
 import { LiveBotSessionIndicator } from "@/components/LiveBotSessionIndicator";
-import { useNewNoteShortcut } from "@/hooks/useNewNoteShortcut";
+import { useCaptureShortcut } from "@/hooks/useCaptureShortcut";
 import { useQuickRecordShortcut } from "@/hooks/useQuickRecordShortcut";
 import TopNavigation from "@/components/TopNavigation";
 import FirmSetupPrompt from "@/components/FirmSetupPrompt";
@@ -20,7 +20,7 @@ import { UpcomingMeetingPrompt } from "@/components/UpcomingMeetingPrompt";
 import { RecordingRecoveryModal, useRecordingRecovery } from "@/components/RecordingRecoveryModal";
 import { VideoBotRecoveryModal, useVideoBotRecovery } from "@/components/VideoBotRecoveryModal";
 import Dashboard from "@/pages/Dashboard";
-import NewNote from "@/pages/NewNote";
+import Capture from "@/pages/Capture";
 import CaseDetail from "@/pages/CaseDetail";
 import SavedCases from "@/pages/SavedCases";
 import Settings from "@/pages/Settings";
@@ -140,7 +140,8 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Dashboard} />
-          <Route path="/new-note" component={NewNote} />
+          <Route path="/capture" component={Capture} />
+          <Route path="/new-note" component={() => <RedirectTo to="/capture" />} />
           <Route path="/case/:id" component={CaseDetail} />
           <Route path="/cases" component={SavedCases} />
           <Route path="/settings" component={Settings} />
@@ -177,7 +178,7 @@ function AuthenticatedAppContent() {
     !isLoading && hasAppAccess && !showRecoveryModal,
   );
 
-  useNewNoteShortcut();
+  useCaptureShortcut();
   useQuickRecordShortcut();
 
   useEffect(() => {

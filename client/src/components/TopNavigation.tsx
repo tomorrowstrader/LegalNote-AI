@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, User, HelpCircle, Shield, Home, FileText, FolderOpen, Settings, CheckSquare, Users, Clock, ChevronDown, BadgePoundSterling, Link2 } from "lucide-react";
+import { Menu, User, HelpCircle, Shield, Home, Mic, FolderOpen, Settings, CheckSquare, Users, Clock, ChevronDown, BadgePoundSterling, Link2 } from "lucide-react";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +36,7 @@ interface NavLinkItem {
 
 const primaryNavLinks: NavLinkItem[] = [
   { path: "/", label: "Dashboard", mobileLabel: "Dashboard", testId: "link-dashboard", mobileTestId: "mobile-link-dashboard", icon: Home },
-  { path: "/new-note", label: "New Note", mobileLabel: "New Note", testId: "link-new-note", mobileTestId: "mobile-link-new-note", icon: FileText },
+  { path: "/capture", label: "Capture", mobileLabel: "Capture", testId: "link-capture", mobileTestId: "mobile-link-capture", icon: Mic },
   { path: "/cases", label: "Cases", mobileLabel: "Saved Cases", testId: "link-cases", mobileTestId: "mobile-link-saved-cases", icon: FolderOpen },
 ];
 
@@ -71,7 +71,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
 
           <div className="hidden lg:flex items-center gap-1 flex-shrink-0">
             {primaryNavLinks.map((link) => {
-              const isActive = location === link.path;
+              const isActive = location === link.path || (link.path !== "/" && location.startsWith(link.path));
               return (
                 <Link key={link.path} href={link.path} data-testid={link.testId}>
                   <button
@@ -242,7 +242,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 {visibleAllNavLinks.map((link) => {
-                  const isActive = location === link.path;
+                  const isActive = location === link.path || (link.path !== "/" && location.startsWith(link.path));
                   const Icon = link.icon;
                   const mobileTestId =
                     link.mobileTestId ??

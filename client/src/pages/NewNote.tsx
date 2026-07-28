@@ -50,7 +50,14 @@ interface CaseResponse {
   sourceType: string;
 }
 
-export default function NewNote() {
+interface NewNoteProps {
+  /** Prefill add-session mode when opened from Capture with a matter context. */
+  initialCaseId?: string | null;
+  /** Use Capture branding instead of legacy "New Note" copy. */
+  captureBranding?: boolean;
+}
+
+export default function NewNote({ initialCaseId = null, captureBranding = false }: NewNoteProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -74,8 +81,10 @@ export default function NewNote() {
   const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const clientSearchRef = useRef<HTMLDivElement>(null);
-  const [noteMode, setNoteMode] = useState<"new_matter" | "add_session">("new_matter");
-  const [selectedCaseId, setSelectedCaseId] = useState<string>("");
+  const [noteMode, setNoteMode] = useState<"new_matter" | "add_session">(
+    initialCaseId ? "add_session" : "new_matter",
+  );
+  const [selectedCaseId, setSelectedCaseId] = useState<string>(initialCaseId || "");
   const [recordingType, setRecordingType] = useState<RecordingType>("full_meeting");
   const [caseSearchQuery, setCaseSearchQuery] = useState("");
   const [showCaseDropdown, setShowCaseDropdown] = useState(false);
@@ -87,6 +96,12 @@ export default function NewNote() {
   const [sessionLabel, setSessionLabel] = useState("");
   // Keep local form disabled while global New Note recording is active
   const recordingLocked = sessionActive;
+
+  useEffect(() => {
+    if (!initialCaseId) return;
+    setNoteMode("add_session");
+    setSelectedCaseId(initialCaseId);
+  }, [initialCaseId]);
 
   const { data: clientSearchResults = [] } = useQuery<Client[]>({
     queryKey: [`/api/clients/search?q=${encodeURIComponent(clientSearchQuery)}`],
@@ -451,24 +466,30 @@ export default function NewNote() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto px-6 lg:px-8 py-8">
-        <Button
-          variant="ghost"
-          onClick={() => setLocation('/')}
-          className="mb-6 gap-2"
-          data-testid="button-back"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
-        </Button>
+    <div className={captureBranding ? undefined : "min-h-screen bg-background"}>
+      <div className={`max-w-4xl mx-auto px-6 lg:px-8 ${captureBranding ? "pb-8" : "py-8"}`}>
+        {!captureBranding && (
+          <Button
+            variant="ghost"
+            onClick={() => setLocation('/')}
+            className="mb-6 gap-2"
+            data-testid="button-back"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </Button>
+        )}
 
         <div className="space-y-6">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-3xl font-semibold text-foreground">Create New Note</h1>
+              <h1 className="text-3xl font-semibold text-foreground">
+                {captureBranding ? "Record in person" : "Create New Note"}
+              </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Record client meeting with consent capture and automatic transcription powered by Meeting-to-Matter™
+                {captureBranding
+                  ? "Prepare matter or session details, then start recording with consent capture via Meeting-to-Matter™."
+                  : "Record client meeting with consent capture and automatic transcription powered by Meeting-to-Matter™"}
               </p>
             </div>
             <Button

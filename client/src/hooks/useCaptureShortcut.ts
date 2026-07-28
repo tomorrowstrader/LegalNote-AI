@@ -1,8 +1,8 @@
 import { useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 
-/** @deprecated Prefer useCaptureShortcut — kept for any lingering imports. */
-export function useNewNoteShortcut() {
+/** Ctrl+Alt+N → Capture launcher (deliberate entry). */
+export function useCaptureShortcut() {
   const [, setLocation] = useLocation();
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
@@ -15,8 +15,6 @@ export function useNewNoteShortcut() {
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 }

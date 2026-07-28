@@ -26,9 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import CaseSelectorModal from "@/components/CaseSelectorModal";
-import LogCallModal from "@/components/LogCallModal";
-import LiveBotModal from "@/components/LiveBotModal";
 import {
   Dialog,
   DialogContent,
@@ -71,8 +68,6 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<StatusTab>("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("deadline");
-  const [showCaseSelector, setShowCaseSelector] = useState(false);
-  const [logCallCase, setLogCallCase] = useState<Case | null>(null);
   const [statsRange, setStatsRange] = useState<StatsRange>("all");
   const [assignImport, setAssignImport] = useState<MeetingImport | null>(null);
   const [assignCaseId, setAssignCaseId] = useState("");
@@ -82,7 +77,6 @@ export default function Dashboard() {
   const [newMatterClient, setNewMatterClient] = useState("");
   const [discardTarget, setDiscardTarget] = useState<MeetingImport | null>(null);
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
-  const [showImpromptuBot, setShowImpromptuBot] = useState(false);
 
   const { data: cases, isLoading } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
@@ -322,8 +316,8 @@ export default function Dashboard() {
           icon: FolderOpen,
           title: "No active cases",
           description: "Start by creating your first attendance note from a meeting recording",
-          actionLabel: "Create New Note",
-          onAction: () => setLocation('/new-note'),
+          actionLabel: "Capture",
+          onAction: () => setLocation('/capture'),
         };
       case "review":
         return {
@@ -401,18 +395,18 @@ export default function Dashboard() {
                 <span>to record</span>
               </div>
               <Button
-                onClick={() => setLocation('/new-note')}
+                onClick={() => setLocation('/capture')}
                 className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold gap-2 shadow-md"
-                data-testid="button-new-note"
+                data-testid="button-capture"
               >
-                <FileText className="w-4 h-4" />
-                <span className="hidden sm:inline">New Note</span>
-                <span className="sm:hidden">New</span>
+                <Mic className="w-4 h-4" />
+                <span className="hidden sm:inline">Capture</span>
+                <span className="sm:hidden">Capture</span>
               </Button>
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setShowImpromptuBot(true)}
+                onClick={() => setLocation('/capture?mode=join')}
                 className="text-xs text-muted-foreground flex items-center gap-1"
                 data-testid="button-join-meeting-dashboard"
               >
@@ -420,7 +414,7 @@ export default function Dashboard() {
                 Join Meeting
               </button>
               <button
-                onClick={() => setShowCaseSelector(true)}
+                onClick={() => setLocation('/capture?mode=phone')}
                 className="text-xs text-muted-foreground flex items-center gap-1"
                 data-testid="button-log-call-dashboard"
               >
@@ -742,31 +736,6 @@ export default function Dashboard() {
           <ScheduledMeetingsViewer />
         </div>
       </div>
-
-      <CaseSelectorModal
-        open={showCaseSelector}
-        onOpenChange={setShowCaseSelector}
-        onSelect={(caseItem) => setLogCallCase(caseItem)}
-        title="Log a Phone Call"
-        description="Which case is this call about?"
-      />
-
-      {logCallCase && (
-        <LogCallModal
-          open={!!logCallCase}
-          onOpenChange={(open) => { if (!open) setLogCallCase(null); }}
-          caseId={logCallCase.id}
-          caseTitle={logCallCase.title}
-          clientName={logCallCase.clientName}
-          matterReference={logCallCase.matterReference || undefined}
-        />
-      )}
-
-      {/* Impromptu Bot Modal (no case linked) */}
-      <LiveBotModal
-        open={showImpromptuBot}
-        onOpenChange={setShowImpromptuBot}
-      />
 
       {/* Assign Recording Dialog */}
       <Dialog open={!!assignImport} onOpenChange={(open) => { if (!open) { setAssignImport(null); setAssignMode("existing"); setNewMatterTitle(""); setNewMatterClient(""); } }}>

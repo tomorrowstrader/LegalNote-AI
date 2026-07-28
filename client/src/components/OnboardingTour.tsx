@@ -81,9 +81,9 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
       target: '[data-testid="button-quick-record"]',
       content: (
         <div className="space-y-2">
-          <h3 className="text-lg font-semibold">Quick Record</h3>
+          <h3 className="text-lg font-semibold">Record now</h3>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Instantly start recording a client meeting with built-in consent capture. Perfect for urgent matters and spontaneous consultations.
+            Instantly start recording with consent capture. On a matter it adds a session; elsewhere it creates a new matter after you stop. Perfect when the client is already in the room.
           </p>
         </div>
       ),
@@ -91,12 +91,12 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
       disableBeacon: true,
     },
     {
-      target: '[data-testid="link-new-note"]',
+      target: '[data-testid="link-capture"]',
       content: (
         <div className="space-y-2">
-          <h3 className="text-lg font-semibold">Create New Case</h3>
+          <h3 className="text-lg font-semibold">Capture</h3>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Start a new case with audio recording or manual text entry. All cases are automatically organized and searchable.
+            Choose how to capture: in-person recording, video meeting, import, transcript upload, or phone dictation.
           </p>
         </div>
       ),
@@ -137,7 +137,7 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
         <div className="space-y-3">
           <h2 className="text-2xl font-bold tracking-tight">Quick Tip: Ctrl+L</h2>
           <p className="text-base leading-relaxed text-muted-foreground">
-            Press <kbd className="px-2 py-1 bg-muted border border-border rounded text-sm font-mono">Ctrl+L</kbd> from anywhere to start Quick Record — the same as the red microphone in the top bar. It's the fastest way to capture your LegalNotes.
+            Press <kbd className="px-2 py-1 bg-muted border border-border rounded text-sm font-mono">Ctrl+L</kbd> from anywhere to start recording immediately — the same as the red microphone in the top bar.
           </p>
         </div>
       ),

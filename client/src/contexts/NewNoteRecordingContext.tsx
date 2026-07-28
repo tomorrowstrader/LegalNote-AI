@@ -173,11 +173,11 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       console.error("Failed to start recording:", error);
       toast({
         title: "Recording not available",
-        description: "Microphone access failed. Return to New Note and use text notes instead.",
+        description: "Microphone access failed. Return to Capture and use text notes instead.",
         duration: 6000,
       });
       resetSession();
-      setLocation("/new-note");
+      setLocation("/capture");
     }
   }, [resetSession, setLocation, toast]);
 
@@ -221,7 +221,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
     if (phase !== "idle") {
       toast({
         title: "Recording already in progress",
-        description: "Stop or finish the current New Note recording first.",
+        description: "Stop or finish the current recording first.",
         variant: "destructive",
       });
       return;
@@ -266,10 +266,10 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
     resetSession();
     toast({
       title: "Consent declined",
-      description: "Recording discarded. You can capture text notes from New Note instead.",
+      description: "Recording discarded. You can capture text notes from Capture instead.",
       duration: 6000,
     });
-    setLocation("/new-note");
+    setLocation("/capture");
   }, [resetSession, setLocation, toast]);
 
   const saveRecording = useCallback(async () => {
@@ -532,7 +532,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
                   : "recording"
           }
           statusLabel={statusLabel}
-          title={meta?.displayTitle || "New Note"}
+          title={meta?.displayTitle || "Capture"}
           subtitle={
             meta?.displaySubtitle ||
             (phase === "processing"

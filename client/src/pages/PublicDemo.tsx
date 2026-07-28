@@ -43,15 +43,19 @@ export function useDemoMode() {
 }
 
 const DEMO_CLICK_GUARDS: Record<string, string> = {
+  "button-capture": "Recording is available in your firm's live account, follow the walkthrough to continue.",
   "button-new-note": "Recording is available in your firm's live account, follow the walkthrough to continue.",
   "button-log-call-dashboard": "Call logging is available in your firm's live account.",
   "button-record-new-session": "Recording is available in your firm's live account.",
   "button-download-documents": "Document export is available in your firm's live account.",
+  "link-capture": "Follow the walkthrough to see how recording works in this showroom.",
   "link-new-note": "Follow the walkthrough to see how recording works in this showroom.",
   "link-cases": "Explore the cases shown in this showroom, follow the walkthrough to continue.",
   "link-home": "You are exploring the LegalNote showroom. Follow the steps to see the full experience.",
+  "more-link-capture": "Follow the walkthrough to see how recording works.",
   "more-link-new-note": "Follow the walkthrough to see how recording works.",
   "more-link-cases": "Case management is available in your firm's live account.",
+  "mobile-link-capture": "Follow the walkthrough to see how recording works.",
   "mobile-link-new-note": "Follow the walkthrough to see how recording works.",
   "mobile-link-saved-cases": "Case management is available in your firm's live account.",
   "button-quick-record": "Follow the walkthrough, recording is demonstrated through Join Meeting.",

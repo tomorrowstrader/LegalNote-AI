@@ -339,8 +339,8 @@ export default function SavedCases() {
                   ? "No cases match your search criteria. Try different keywords or filters."
                   : "Start by creating your first attendance note"
               }
-              actionLabel={searchQuery ? undefined : "Create New Note"}
-              onAction={searchQuery ? undefined : () => setLocation('/new-note')}
+              actionLabel={searchQuery ? undefined : "Capture"}
+              onAction={searchQuery ? undefined : () => setLocation('/capture')}
             />
           )}
         </div>

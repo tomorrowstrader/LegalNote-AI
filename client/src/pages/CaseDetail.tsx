@@ -28,6 +28,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { processingStartStorageKey } from "@/lib/processingEta";
+import { buildCapturePath } from "@/lib/capture";
 import DocumentViewer from "@/components/DocumentViewer";
 import MeetingToMatterProcessingStatusCard from "@/components/MeetingToMatterProcessingStatusCard";
 import { AudioPlayer, type AudioPlayerHandle } from "@/components/AudioPlayer";
@@ -37,10 +38,6 @@ import CaseTimeline from "@/components/CaseTimeline";
 import AddQuickNoteModal from "@/components/AddQuickNoteModal";
 import SetPriorityDeadlineModal from "@/components/SetPriorityDeadlineModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
-import ImportRecordingModal from "@/components/ImportRecordingModal";
-import UploadTranscriptModal from "@/components/UploadTranscriptModal";
-import { LiveBotModal } from "@/components/LiveBotModal";
-import LogCallModal from "@/components/LogCallModal";
 import ComplianceThread from "@/components/ComplianceThread";
 import AmlTriggerBanner from "@/components/AmlTriggerBanner";
 import SharedHistoryViewer from "@/components/SharedHistoryViewer";
@@ -48,7 +45,6 @@ import ActiveShareLinks from "@/components/ActiveShareLinks";
 import ActionItemsViewer from "@/components/ActionItemsViewer";
 import PreMeetingBriefing from "@/components/PreMeetingBriefing";
 import HandoverModal from "@/components/HandoverModal";
-import NewSessionModal from "@/components/NewSessionModal";
 import ExternalDocumentRefs from "@/components/ExternalDocumentRefs";
 import TimeEntriesViewer from "@/components/TimeEntriesViewer";
 import TimeRecordingModal from "@/components/TimeRecordingModal";
@@ -294,14 +290,9 @@ export default function CaseDetail() {
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [showUploadTranscriptModal, setShowUploadTranscriptModal] = useState(false);
-  const [showLiveBotModal, setShowLiveBotModal] = useState(false);
-  const [showLogCallModal, setShowLogCallModal] = useState(false);
   const [showHandoverModal, setShowHandoverModal] = useState(false);
   const [showTimeRecordingModal, setShowTimeRecordingModal] = useState(false);
   const [showCareLetterModal, setShowCareLetterModal] = useState(false);
-  const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [focusSessionId, setFocusSessionId] = useState<string | null>(() => {
     try {
@@ -1173,7 +1164,7 @@ export default function CaseDetail() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuItem onClick={() => setShowLiveBotModal(true)} data-testid="button-join-with-bot">
+          <DropdownMenuItem onClick={() => setLocation(buildCapturePath({ mode: "join", caseId }))} data-testid="button-join-with-bot">
             <Video className="w-4 h-4 mr-2" />
             Join with LegalNote
           </DropdownMenuItem>
@@ -1187,15 +1178,15 @@ export default function CaseDetail() {
             <AlertCircle className="w-4 h-4 mr-2" />
             Set Priority / Deadline
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setShowLogCallModal(true)} data-testid="action-log-call">
+          <DropdownMenuItem onClick={() => setLocation(buildCapturePath({ mode: "phone", caseId }))} data-testid="action-log-call">
             <Phone className="w-4 h-4 mr-2" />
             Log a Phone Call
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setShowImportModal(true)} data-testid="action-import-recording">
+          <DropdownMenuItem onClick={() => setLocation(buildCapturePath({ mode: "import", caseId }))} data-testid="action-import-recording">
             <Video className="w-4 h-4 mr-2" />
             Import Recording
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setShowUploadTranscriptModal(true)} data-testid="action-upload-transcript">
+          <DropdownMenuItem onClick={() => setLocation(buildCapturePath({ mode: "transcript", caseId }))} data-testid="action-upload-transcript">
             <FileText className="w-4 h-4 mr-2" />
             Upload Transcript
           </DropdownMenuItem>
@@ -1258,14 +1249,19 @@ export default function CaseDetail() {
         <Button
           size="sm"
           variant="outline"
-          onClick={() => setShowUploadTranscriptModal(true)}
+          onClick={() => setLocation(buildCapturePath({ mode: "transcript", caseId }))}
           className="gap-1.5"
           data-testid="button-upload-transcript-session"
         >
           <FileText className="w-3.5 h-3.5" />
           Upload Transcript
         </Button>
-        <Button size="sm" onClick={() => setShowNewSessionModal(true)} className="gap-1.5" data-testid="button-record-new-session">
+        <Button
+          size="sm"
+          onClick={() => setLocation(buildCapturePath({ mode: "record", caseId }))}
+          className="gap-1.5"
+          data-testid="button-record-new-session"
+        >
           <Mic className="w-3.5 h-3.5" />
           Record New Session
         </Button>
@@ -2028,7 +2024,7 @@ export default function CaseDetail() {
                   <History className="w-8 h-8 mx-auto text-muted-foreground/40" />
                   <p className="font-medium text-sm">No sessions recorded yet</p>
                   <p className="text-xs text-muted-foreground">Sessions will appear here once a meeting is recorded for this matter.</p>
-                  <Button size="sm" onClick={() => setShowNewSessionModal(true)} className="gap-2 mt-2" data-testid="button-record-new-session-empty">
+                  <Button size="sm" onClick={() => setLocation(buildCapturePath({ mode: "record", caseId }))} className="gap-2 mt-2" data-testid="button-record-new-session-empty">
                     <Mic className="w-4 h-4" />
                     Record New Session
                   </Button>
@@ -2499,10 +2495,6 @@ export default function CaseDetail() {
           hasCareLetter: !!caseData.clientCareLetterId,
         }}
       />
-      <ImportRecordingModal open={showImportModal} onOpenChange={setShowImportModal} caseId={caseId!} caseTitle={caseData.title} />
-      <UploadTranscriptModal open={showUploadTranscriptModal} onOpenChange={setShowUploadTranscriptModal} caseId={caseId!} caseTitle={caseData.title} />
-      <LiveBotModal open={showLiveBotModal} onOpenChange={setShowLiveBotModal} caseId={caseId!} caseTitle={caseData.title} />
-      <LogCallModal open={showLogCallModal} onOpenChange={setShowLogCallModal} caseId={caseId!} caseTitle={caseData.title} clientName={caseData.clientName} clientId={caseData.clientId || undefined} matterReference={caseData.matterReference || undefined} />
       {caseHandoverVisible && (
         <HandoverModal open={showHandoverModal} onOpenChange={setShowHandoverModal} caseId={caseId!} caseTitle={caseData.title} currentAssignee={caseData.assignedToUserId || undefined} />
       )}
@@ -2514,7 +2506,6 @@ export default function CaseDetail() {
         sessionType={caseData.sourceType === 'dictation' ? 'Telephone Attendance' : 'Meeting'}
       />
       <ClientCareLetterModal open={showCareLetterModal} onOpenChange={setShowCareLetterModal} caseId={caseId!} clientName={caseData.clientName} costsEstimate={caseData.costsEstimate} />
-      <NewSessionModal open={showNewSessionModal} onOpenChange={setShowNewSessionModal} caseId={caseId!} caseTitle={caseData.title} />
 
       <Dialog open={showSendCareLetterDialog} onOpenChange={setShowSendCareLetterDialog}>
         <DialogContent className="sm:max-w-md">
