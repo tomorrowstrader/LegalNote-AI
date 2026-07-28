@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, Square, FileText, AlertTriangle, UserPlus, X, Shield, BatteryLow } from "lucide-react";
+import { Mic, Square, FileText, AlertTriangle, BatteryLow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RecordingControlCenter, {
   ControlCenterActionButton,
@@ -29,12 +29,12 @@ import {
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToastAction } from "@/components/ui/toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ConsentModal from "@/components/ConsentModal";
+import ClientNameAutocomplete from "@/components/ClientNameAutocomplete";
 import MeetingToMatterProcessingOverlay, { type ProcessingStep } from "@/components/MeetingToMatterProcessingOverlay";
 import { createProcessingStepTimer } from "@/lib/processingStepTimer";
 import TextNotesModal from "@/components/TextNotesModal";
@@ -132,15 +132,11 @@ export default function QuickRecordButton() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState<ProcessingStep>('saving');
   const [caseTitle, setCaseTitle] = useState("");
-  const [clientName, setClientName] = useState("");
   const [matterRef, setMatterRef] = useState("");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [clientSearchQuery, setClientSearchQuery] = useState("");
-  const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [practiceArea, setPracticeArea] = useState<PracticeArea | "">("");
   const [conflictCheckCompleted, setConflictCheckCompleted] = useState(false);
   const [conflictCheckNote, setConflictCheckNote] = useState("");
-  const clientSearchRef = useRef<HTMLDivElement>(null);
   const [showInterruptedWarning, setShowInterruptedWarning] = useState(false);
   const [interruptedDuration, setInterruptedDuration] = useState(0);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
@@ -178,51 +174,6 @@ export default function QuickRecordButton() {
   const setIsRecording = useChunkedUpload 
     ? () => {} 
     : setIsRecordingLocal;
-
-  const { data: qrClientSearchResults = [] } = useQuery<Client[]>({
-    queryKey: [`/api/clients/search?q=${encodeURIComponent(clientSearchQuery)}`],
-    enabled: clientSearchQuery.trim().length >= 2 && !selectedClient,
-  });
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (clientSearchRef.current && !clientSearchRef.current.contains(e.target as Node)) {
-        setShowClientDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleQRClientSelect = (client: Client) => {
-    setSelectedClient(client);
-    setClientName(client.name);
-    setShowClientDropdown(false);
-    setClientSearchQuery("");
-  };
-
-  const handleQRClearClient = () => {
-    setSelectedClient(null);
-    setClientName("");
-    setClientSearchQuery("");
-  };
-
-  const handleQRClientInputChange = (value: string) => {
-    setClientSearchQuery(value);
-    setClientName(value);
-    setSelectedClient(null);
-    setShowClientDropdown(value.trim().length >= 2);
-  };
-
-  const createQRClientMutation = useMutation({
-    mutationFn: async (name: string) => {
-      return await apiRequest<Client>("POST", "/api/clients", { name });
-    },
-    onSuccess: (client) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
-      handleQRClientSelect(client);
-    },
-  });
 
   useEffect(() => {
     if ('getBattery' in navigator) {
@@ -596,10 +547,6 @@ export default function QuickRecordButton() {
       }
       if (contextMatterTitle && !caseTitle.trim()) {
         setCaseTitle(contextMatterTitle);
-      }
-      if (contextCase?.clientName && !clientName.trim() && !selectedClient) {
-        setClientName(contextCase.clientName);
-        setClientSearchQuery(contextCase.clientName);
       }
       setShowMetadataModal(true);
     }
@@ -1129,10 +1076,8 @@ export default function QuickRecordButton() {
         setProcessingStep('saving');
         setRecordingDuration(0);
         setCaseTitle("");
-        setClientName("");
         setMatterRef("");
         setSelectedClient(null);
-        setClientSearchQuery("");
         audioBlobRef.current = null;
         setConsentGiven(null);
       }
@@ -1203,10 +1148,8 @@ export default function QuickRecordButton() {
     setShowMetadataModal(false);
     setRecordingDuration(0);
     setCaseTitle("");
-    setClientName("");
     setMatterRef("");
     setSelectedClient(null);
-    setClientSearchQuery("");
   };
 
   const saveTextNotes = async (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
@@ -1384,7 +1327,7 @@ export default function QuickRecordButton() {
       )}
 
       <Dialog open={showMetadataModal} onOpenChange={(open) => !isProcessing && setShowMetadataModal(open)}>
-        <DialogContent data-testid="dialog-metadata" className="sm:max-w-md">
+        <DialogContent data-testid="dialog-metadata" className="sm:max-w-md overflow-visible">
           {isProcessing ? (
             <MeetingToMatterProcessingOverlay processingStep={processingStep} />
           ) : (
@@ -1412,69 +1355,13 @@ export default function QuickRecordButton() {
                   <Label htmlFor="quick-client-name">
                     Client Name <span className="text-accent">*</span>
                   </Label>
-                  <div ref={clientSearchRef} className="relative">
-                    {selectedClient ? (
-                      <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
-                        <span className="text-sm font-medium flex-1 truncate" data-testid="text-quick-selected-client">
-                          {selectedClient.name}
-                        </span>
-                        {selectedClient.amlRiskLevel && (
-                          <Badge variant={selectedClient.amlRiskLevel === "high" ? "destructive" : selectedClient.amlRiskLevel === "medium" ? "secondary" : "outline"} className="text-xs shrink-0">
-                            <Shield className="w-3 h-3 mr-1" />
-                            {selectedClient.amlRiskLevel.toUpperCase()}
-                          </Badge>
-                        )}
-                        <Button variant="ghost" size="icon" onClick={handleQRClearClient} data-testid="button-quick-clear-client">
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <Input
-                        id="quick-client-name"
-                        placeholder="Search existing clients or type a new name..."
-                        value={clientName}
-                        onChange={(e) => handleQRClientInputChange(e.target.value)}
-                        onFocus={() => { if (clientSearchQuery.trim().length >= 2) setShowClientDropdown(true); }}
-                        data-testid="input-quick-client-name"
-                      />
-                    )}
-                    {showClientDropdown && !selectedClient && (
-                      <div className="absolute z-50 top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-md max-h-48 overflow-y-auto">
-                        {qrClientSearchResults.length > 0 ? (
-                          qrClientSearchResults.map((c) => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center justify-between gap-2"
-                              onClick={() => handleQRClientSelect(c)}
-                              data-testid={`option-quick-client-${c.id}`}
-                            >
-                              <span className="truncate">{c.name}</span>
-                              {c.amlRiskLevel && (
-                                <Badge variant={c.amlRiskLevel === "high" ? "destructive" : c.amlRiskLevel === "medium" ? "secondary" : "outline"} className="text-xs shrink-0">
-                                  {c.amlRiskLevel.toUpperCase()}
-                                </Badge>
-                              )}
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-3 py-2 text-sm text-muted-foreground">No matching clients</div>
-                        )}
-                        {clientName.trim().length >= 2 && (
-                          <button
-                            type="button"
-                            className="w-full text-left px-3 py-2 text-sm hover-elevate flex items-center gap-2 border-t"
-                            onClick={() => createQRClientMutation.mutate(clientName.trim())}
-                            disabled={createQRClientMutation.isPending}
-                            data-testid="button-quick-create-client-inline"
-                          >
-                            <UserPlus className="w-4 h-4" />
-                            <span>{createQRClientMutation.isPending ? "Creating..." : `Create "${clientName.trim()}" as new client`}</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <ClientNameAutocomplete
+                    id="quick-client-name"
+                    selectedClient={selectedClient}
+                    onSelect={setSelectedClient}
+                    onClear={() => setSelectedClient(null)}
+                    data-testid="input-quick-client-name"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="quick-matter-ref">Matter Reference</Label>
