@@ -104,7 +104,21 @@ const getSupportedMimeType = (): { mimeType: string; extension: string } => {
 export default function QuickRecordButton() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const caseMatch = location.match(/\/case\/([^/]+)/);
+  const contextCaseId = caseMatch ? caseMatch[1] : null;
+  const { data: contextCase } = useQuery<{ id: string; title: string; clientName?: string }>({
+    queryKey: ["/api/cases", contextCaseId],
+    enabled: !!contextCaseId,
+  });
+  const contextMatterTitle = contextCase?.title?.trim() || null;
+  const controlCenterTitle = contextMatterTitle || "Quick Record";
+  const controlCenterSubtitle = contextMatterTitle
+    ? contextCase?.clientName
+      ? `Recording for ${contextCase.clientName}`
+      : "Recording for this matter"
+    : null;
+
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [stopConfirmationPending, setStopConfirmationPending] = useState(false);
@@ -570,6 +584,13 @@ export default function QuickRecordButton() {
       });
       
       setStopConfirmationPending(false);
+      if (contextMatterTitle && !caseTitle.trim()) {
+        setCaseTitle(contextMatterTitle);
+      }
+      if (contextCase?.clientName && !clientName.trim() && !selectedClient) {
+        setClientName(contextCase.clientName);
+        setClientSearchQuery(contextCase.clientName);
+      }
       setShowMetadataModal(true);
     }
   };
@@ -1003,9 +1024,11 @@ export default function QuickRecordButton() {
         <RecordingControlCenter
           tone="countdown"
           statusLabel="Starting"
-          title="Quick Record"
+          title={controlCenterTitle}
+          subtitle={controlCenterSubtitle || "Starting shortly"}
           countdown={countdown}
           safeguards={{ protected: true }}
+          collapsible={false}
           actions={
             <ControlCenterActionButton
               variant="outline"
@@ -1032,8 +1055,10 @@ export default function QuickRecordButton() {
         <RecordingControlCenter
           tone={stopConfirmationPending ? "warning" : "recording"}
           statusLabel="Recording"
-          title="Quick Record"
+          title={controlCenterTitle}
+          subtitle={controlCenterSubtitle}
           elapsedSeconds={recordingDuration}
+          forceExpanded={stopConfirmationPending}
           safeguards={{
             protected: true,
             showChunkStatus: useChunkedUpload,
@@ -1086,6 +1111,25 @@ export default function QuickRecordButton() {
           </p>
         </TooltipContent>
       </Tooltip>
+
+      {isProcessing && (
+        <RecordingControlCenter
+          tone="processing"
+          statusLabel={
+            processingStep === "complete"
+              ? "Ready"
+              : processingStep === "processing"
+                ? "Producing notes"
+                : processingStep === "uploading"
+                  ? "Uploading"
+                  : "Saving"
+          }
+          title={caseTitle.trim() || controlCenterTitle}
+          subtitle="Meeting-to-Matter in progress"
+          collapsible={false}
+          data-testid="recording-control-center-processing"
+        />
+      )}
 
       <Dialog open={showMetadataModal} onOpenChange={(open) => !isProcessing && setShowMetadataModal(open)}>
         <DialogContent data-testid="dialog-metadata" className="sm:max-w-md">

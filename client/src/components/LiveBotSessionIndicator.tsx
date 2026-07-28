@@ -202,6 +202,13 @@ export function LiveBotSessionIndicator() {
           tone={phaseTone(phase)}
           statusLabel={phase === "recording" ? "Recording" : phaseLabel(phase)}
           title={session.caseTitle || "Video meeting"}
+          subtitle={
+            phase === "ended" || phase === "processing"
+              ? "Meeting-to-Matter in progress"
+              : session.caseTitle
+                ? "Live meeting capture"
+                : "Unassigned meeting"
+          }
           elapsedSeconds={showTimer ? elapsedSeconds : undefined}
           icon="video"
           safeguards={{
