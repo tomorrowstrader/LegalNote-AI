@@ -17,10 +17,15 @@ import { printDocuments } from "@/lib/printDocuments";
 import {
   adoptionRequiredMessage,
   getDocumentTypeLabel,
+  getFirstPendingAdoptionTab,
   getNextAdoptionTab,
   getUnadoptedDocumentTypes,
 } from "@/lib/documentAdoption";
 import { hasUsedShortAdoptLabel, markShortAdoptLabelUsed } from "@/lib/reviewFirstMode";
+import {
+  useDocumentReviewShortcuts,
+  type DocumentReviewShortcutAction,
+} from "@/hooks/useDocumentReviewShortcuts";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile, DocumentComment } from "@shared/schema";
@@ -2581,6 +2586,98 @@ export default function DocumentViewer({
     (attendanceNote.version ?? 1) > 1 &&
     !isDemoMode;
 
+  const transcriptContent = stripRtfToPlainText(transcriptDoc?.content ?? transcript ?? "");
+
+  const requestAdoptDocument = useCallback((document: Document) => {
+    if (document.status === "approved") return;
+    const docGaps = parseReasoningGaps(
+      gapContentByDocIdRef.current[document.id] ?? document.content,
+    );
+    if (docGaps.length > 0) {
+      setPendingApprovalDocId(document.id);
+    } else {
+      const wasReviewed = (document.reasoningGapsFilled ?? 0) > 0;
+      approveMutation.mutate({
+        documentId: document.id,
+        reasoningGapsReviewed: wasReviewed,
+      });
+    }
+  }, [approveMutation]);
+
+  const handleReviewShortcut = useCallback(
+    (action: DocumentReviewShortcutAction) => {
+      if (editingDocId) return;
+
+      const availableTabs = [
+        attendanceNote ? "attendance" : null,
+        summary ? "summary" : null,
+        transcriptContent ? "transcript" : null,
+        clientCareLetter ? "care_letter" : null,
+      ].filter(Boolean) as string[];
+
+      if (action === "nextTab" || action === "prevTab") {
+        if (availableTabs.length < 2) return;
+        const idx = Math.max(0, availableTabs.indexOf(activeTab));
+        const next =
+          action === "nextTab"
+            ? availableTabs[(idx + 1) % availableTabs.length]
+            : availableTabs[(idx - 1 + availableTabs.length) % availableTabs.length];
+        if (next) setActiveTab(next);
+        return;
+      }
+
+      if (action === "nextUnadopted") {
+        const next = getFirstPendingAdoptionTab(pendingAdoption, activeTab);
+        if (next) {
+          setActiveTab(next);
+        } else {
+          toast({
+            title: "Nothing left to adopt",
+            description: "All documents on this matter are already adopted.",
+            duration: 4000,
+          });
+        }
+        return;
+      }
+
+      if (action === "adopt") {
+        if (approveMutation.isPending) return;
+        const doc =
+          activeTab === "attendance"
+            ? attendanceNote
+            : activeTab === "summary"
+              ? summary
+              : activeTab === "care_letter"
+                ? clientCareLetter
+                : undefined;
+        if (!doc || doc.status === "approved") return;
+        if (pendingApprovalDocId === doc.id) {
+          approveMutation.mutate({
+            documentId: doc.id,
+            reasoningGapsReviewed: false,
+          });
+          return;
+        }
+        requestAdoptDocument(doc);
+      }
+    },
+    [
+      editingDocId,
+      attendanceNote,
+      summary,
+      clientCareLetter,
+      transcriptContent,
+      activeTab,
+      pendingAdoption,
+      approveMutation,
+      pendingApprovalDocId,
+      requestAdoptDocument,
+      toast,
+    ],
+  );
+
+  useDocumentReviewShortcuts(true, handleReviewShortcut);
+
   const { data: attendanceVersionsForGaps = [] } = useQuery<DocumentVersion[]>({
     queryKey: ['/api/cases', caseId, 'document-versions', attendanceDocType, 'gap-recovery'],
     queryFn: async () => {
@@ -2659,8 +2756,6 @@ export default function DocumentViewer({
       })
     : null;
   
-  const transcriptContent = stripRtfToPlainText(transcriptDoc?.content ?? transcript ?? "");
-
   // Secondary action under document title when awaiting review
   const DocumentPrimaryActions = ({ document }: { document?: Document }) => {
     if (!document) return null;
@@ -2710,13 +2805,7 @@ export default function DocumentViewer({
     };
 
     const handleApproveClick = () => {
-      if (gapCount > 0) {
-        setPendingApprovalDocId(document.id);
-      } else {
-        // reviewed=true only when solicitor previously filled reasoning gaps (went through review panel)
-        const wasReviewed = (document.reasoningGapsFilled ?? 0) > 0;
-        approveMutation.mutate({ documentId: document.id, reasoningGapsReviewed: wasReviewed });
-      }
+      requestAdoptDocument(document);
     };
 
     return (
@@ -2809,17 +2898,22 @@ export default function DocumentViewer({
                   </div>
                 </TooltipContent>
               </Tooltip>
-              <Button
-                size="sm"
-                variant="default"
-                onClick={handleApproveClick}
-                disabled={isApproving || isEditing}
-                className="gap-1.5 font-medium shadow-sm h-auto min-h-8 py-1.5 whitespace-normal text-left"
-                data-testid="button-approve-document"
-              >
-                <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-                {useShortAdoptLabel ? "I Adopt" : "I have reviewed and adopt this note"}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={handleApproveClick}
+                    disabled={isApproving || isEditing}
+                    className="gap-1.5 font-medium shadow-sm h-auto min-h-8 py-1.5 whitespace-normal text-left"
+                    data-testid="button-approve-document"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                    {useShortAdoptLabel ? "I Adopt" : "I have reviewed and adopt this note"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Adopt this document (Ctrl+Enter)</TooltipContent>
+              </Tooltip>
             </>
           )}
         </div>
@@ -3324,6 +3418,13 @@ export default function DocumentViewer({
                       </span>
                     ))}
                   </div>
+                  <span
+                    className="ml-auto hidden sm:inline text-[10px] text-amber-700/60 dark:text-amber-400/50 tabular-nums"
+                    title="Ctrl+Enter adopt · Ctrl+] / Ctrl+[ tabs · Ctrl+. next to adopt"
+                    data-testid="text-review-shortcuts-hint"
+                  >
+                    Ctrl+Enter · Ctrl+] · Ctrl+.
+                  </span>
                 </>
               ) : (
                 <>

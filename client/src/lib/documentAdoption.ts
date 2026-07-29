@@ -94,6 +94,25 @@ export function getNextAdoptionTab(
   return null;
 }
 
+/**
+ * First unadopted tab in review order, optionally skipping the tab already open
+ * (so Ctrl+. advances when you're already on a pending doc).
+ */
+export function getFirstPendingAdoptionTab(
+  pending: Array<{ tab: AdoptionTab }>,
+  currentTab?: string,
+): AdoptionTab | null {
+  if (pending.length === 0) return null;
+  const ordered = ADOPTION_TAB_ORDER.filter((tab) =>
+    pending.some((p) => p.tab === tab),
+  );
+  if (ordered.length === 0) return null;
+  if (!currentTab) return ordered[0];
+  const idx = ordered.indexOf(currentTab as AdoptionTab);
+  if (idx < 0) return ordered[0];
+  return ordered[(idx + 1) % ordered.length] ?? ordered[0];
+}
+
 export function adoptionRequiredMessage(
   unadoptedTypes: readonly string[],
   action: "print" | "download",

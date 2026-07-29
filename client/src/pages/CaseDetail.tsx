@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { toTitleCase } from "@/lib/utils";
 import {
   ArrowLeft, Calendar, User, Shield, Loader2, RefreshCw, Sparkles,
@@ -104,6 +104,26 @@ const SECTION_LABELS: Record<CaseSection, string> = {
   sharing: "Sharing History",
   audit: "Audit Trail",
   supervision: "Supervision",
+};
+
+/** Short nav labels; page headers still use SECTION_LABELS. */
+const NAV_LABELS: Record<CaseSection, string> = {
+  documents: "Documents",
+  sessions: "Sessions",
+  time: "Time",
+  notes: "Notes",
+  "linked-calls": "Phone notes",
+  briefing: "Briefing",
+  obligations: "Obligations",
+  undertakings: "Undertakings",
+  "external-refs": "External refs",
+  consent: "Consent",
+  compliance: "AML thread",
+  supervision: "Supervision",
+  "litigation-hold": "Litigation hold",
+  activity: "Activity",
+  sharing: "Sharing",
+  audit: "Audit",
 };
 
 function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHold, litigationHoldReason }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void; litigationHold?: boolean; litigationHoldReason?: string | null }) {
@@ -1056,21 +1076,24 @@ export default function CaseDetail() {
 
   const notesCount = quickNotes.length + (caseData.textNotes?.trim() ? 1 : 0);
 
-  const matterNavItems: { id: string; label: string; icon: any; badge?: React.ReactNode; show?: boolean }[] = [
+  type CaseNavItem = {
+    id: CaseSection;
+    label: string;
+    icon: typeof FileText;
+    badge?: ReactNode;
+    show?: boolean;
+  };
+
+  // Day-to-day first — review loop, recordings, billing, notes
+  const primaryNavItems: CaseNavItem[] = [
     {
-      id: 'documents', label: 'Documents', icon: FileText,
+      id: 'documents', label: NAV_LABELS.documents, icon: FileText,
       badge: isDemoJustRevealed
         ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate animate-pulse">2</Badge>
         : undefined,
     },
     {
-      id: 'obligations', label: 'Obligations', icon: ListChecks,
-      badge: pendingObligationsCount > 0
-        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{pendingObligationsCount}</Badge>
-        : undefined,
-    },
-    {
-      id: 'sessions', label: 'Sessions', icon: History,
+      id: 'sessions', label: NAV_LABELS.sessions, icon: History,
       badge: sessionTotal > 0
         ? (
           <Badge
@@ -1084,59 +1107,78 @@ export default function CaseDetail() {
         : undefined,
     },
     {
-      id: 'notes', label: 'Notes', icon: MessageSquarePlus,
-      badge: notesCount > 0
-        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{notesCount}</Badge>
-        : undefined,
-    },
-    { id: 'briefing', label: 'Pre-meeting Briefing', icon: Sparkles },
-    {
-      id: 'time', label: 'Time Recording', icon: Clock,
+      id: 'time', label: NAV_LABELS.time, icon: Clock,
       badge: totalTimeLabel
         ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{totalTimeLabel}</Badge>
         : undefined,
     },
     {
-      id: 'undertakings', label: 'Undertakings', icon: Shield,
+      id: 'notes', label: NAV_LABELS.notes, icon: MessageSquarePlus,
+      badge: notesCount > 0
+        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{notesCount}</Badge>
+        : undefined,
+    },
+    {
+      id: 'linked-calls',
+      label: NAV_LABELS["linked-calls"],
+      icon: Phone,
+      show: linkedDictations.length > 0,
+      badge: linkedDictations.length > 0
+        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{linkedDictations.length}</Badge>
+        : undefined,
+    },
+    { id: 'briefing', label: NAV_LABELS.briefing, icon: Sparkles },
+  ].filter(item => item.show !== false);
+
+  // Less frequent matter admin — still above Compliance
+  const secondaryNavItems: CaseNavItem[] = [
+    {
+      id: 'obligations', label: NAV_LABELS.obligations, icon: ListChecks,
+      badge: pendingObligationsCount > 0
+        ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{pendingObligationsCount}</Badge>
+        : undefined,
+    },
+    {
+      id: 'undertakings', label: NAV_LABELS.undertakings, icon: Shield,
       badge: outstandingUndertakingsCount > 0
         ? <Badge variant="destructive" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{outstandingUndertakingsCount}</Badge>
         : undefined,
     },
-    { id: 'external-refs', label: 'External References', icon: FileText, show: externalReferencesVisible },
-    { id: 'linked-calls', label: 'Telephone Notes', icon: Phone, show: linkedDictations.length > 0, badge: linkedDictations.length > 0 ? <Badge variant="secondary" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">{linkedDictations.length}</Badge> : undefined },
+    { id: 'external-refs', label: NAV_LABELS["external-refs"], icon: FileText, show: externalReferencesVisible },
   ].filter(item => item.show !== false);
 
-  const complianceNavItems: { id: string; label: string; icon: any; badge?: React.ReactNode; show?: boolean }[] = [
-    { id: 'consent', label: 'Consent Evidence', icon: Shield, show: caseData.sourceType === 'audio' },
+  const complianceNavItems: CaseNavItem[] = [
+    { id: 'consent', label: NAV_LABELS.consent, icon: Shield, show: caseData.sourceType === 'audio' },
     {
-      id: 'compliance', label: 'Compliance Thread', icon: ShieldCheck,
+      id: 'compliance', label: NAV_LABELS.compliance, icon: ShieldCheck,
       show: amlComplianceVisible,
       badge: caseData.riskLevel
         ? <Badge className={cn("text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate", riskColors[caseData.riskLevel] || '')}>{(caseData.riskLevel as string).toUpperCase()}</Badge>
         : undefined,
     },
-    { id: 'supervision', label: 'Supervision', icon: ShieldCheck, show: supervisionVisible },
+    { id: 'supervision', label: NAV_LABELS.supervision, icon: ShieldCheck, show: supervisionVisible },
     {
       id: 'litigation-hold',
-      label: 'Litigation Hold',
+      label: NAV_LABELS["litigation-hold"],
       icon: Lock,
       badge: caseData.litigationHold
         ? <Badge variant="destructive" className="text-[10px] h-4 px-1 no-default-hover-elevate no-default-active-elevate">Hold</Badge>
         : undefined,
     },
-    { id: 'activity', label: 'Activity Timeline', icon: Calendar },
-    { id: 'sharing', label: 'Sharing History', icon: Share2 },
-    { id: 'audit', label: 'Audit Trail', icon: ScrollText },
+    { id: 'activity', label: NAV_LABELS.activity, icon: Calendar },
+    { id: 'sharing', label: NAV_LABELS.sharing, icon: Share2 },
+    { id: 'audit', label: NAV_LABELS.audit, icon: ScrollText },
   ].filter(item => item.show !== false);
 
-  const NavItem = ({ item, isCompliance = false }: { item: typeof matterNavItems[0]; isCompliance?: boolean }) => {
+  const NavItem = ({ item, isCompliance = false }: { item: CaseNavItem; isCompliance?: boolean }) => {
     const isActive = activeSection === item.id;
     const Icon = item.icon;
+    const fullLabel = SECTION_LABELS[item.id];
     return (
       <button
         key={item.id}
         onClick={() => {
-          setActiveSection(item.id as CaseSection);
+          setActiveSection(item.id);
           if (item.id === 'compliance') setAutoOpenComplianceNote(0);
           if (item.id === 'documents' && isDemoJustRevealed) {
             setIsDemoJustRevealed(false);
@@ -1145,7 +1187,7 @@ export default function CaseDetail() {
             demoJustProducedTimerRef.current = setTimeout(() => setShowDemoJustProducedBadge(false), 5000);
           }
         }}
-        title={sidebarCollapsed ? item.label : undefined}
+        title={sidebarCollapsed ? fullLabel : fullLabel !== item.label ? fullLabel : undefined}
         className={cn(
           "relative w-full flex items-center rounded-md text-sm transition-colors duration-150 text-left group",
           sidebarCollapsed ? "justify-center px-2 py-2.5" : "gap-2.5 px-3 py-2",
@@ -1154,7 +1196,7 @@ export default function CaseDetail() {
             : "text-foreground/70 hover:text-foreground hover-elevate"
         )}
         data-testid={`nav-${item.id}`}
-        aria-label={item.label}
+        aria-label={fullLabel}
       >
         {isActive && (
           <span className={cn(
@@ -1171,6 +1213,27 @@ export default function CaseDetail() {
       </button>
     );
   };
+
+  const NavGroupLabel = ({ collapsedIcon: CollapsedIcon, label, showCollapsedIcon = true }: {
+    collapsedIcon: typeof ShieldCheck;
+    label: string;
+    showCollapsedIcon?: boolean;
+  }) => (
+    <div className={cn("pt-3 pb-1", sidebarCollapsed ? "px-1 flex justify-center" : "px-3")}>
+      {sidebarCollapsed ? (
+        showCollapsedIcon ? (
+          <CollapsedIcon className="w-3.5 h-3.5 text-muted-foreground" aria-label={label} />
+        ) : (
+          <span className="block w-6 border-t border-border" aria-label={label} />
+        )
+      ) : (
+        <div className="flex items-center gap-1.5">
+          <CollapsedIcon className="w-3 h-3 text-muted-foreground" />
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">{label}</p>
+        </div>
+      )}
+    </div>
+  );
 
   const showAudioPlayer = caseData.sourceType === 'audio' && (audioData?.filePath || audioData?.deletedAt);
 
@@ -1250,7 +1313,7 @@ export default function CaseDetail() {
     </div>
   );
 
-  const sectionActions: Partial<Record<CaseSection, React.ReactNode>> = {
+  const sectionActions: Partial<Record<CaseSection, ReactNode>> = {
     documents: sharedCaseActionsGroup,
     obligations: sharedCaseActionsGroup,
     briefing: sharedCaseActionsGroup,
@@ -1526,22 +1589,23 @@ export default function CaseDetail() {
           </div>
           )}
 
-          {/* Matter nav */}
+          {/* Matter nav — day-to-day first, then more, then compliance */}
           <nav className={cn("flex-1 py-2 space-y-0.5", sidebarCollapsed ? "px-1" : "px-2")} aria-label="Matter sections">
-            {matterNavItems.map(item => <NavItem key={item.id} item={item} />)}
+            {!sidebarCollapsed && (
+              <div className="px-3 pb-1">
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Day to day</p>
+              </div>
+            )}
+            {primaryNavItems.map(item => <NavItem key={item.id} item={item} />)}
 
-            {/* Compliance divider */}
-            <div className={cn("pt-4 pb-1", sidebarCollapsed ? "px-1 flex justify-center" : "px-3")}>
-              {sidebarCollapsed ? (
-                <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" aria-label="Compliance" />
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3 h-3 text-muted-foreground" />
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Compliance</p>
-                </div>
-              )}
-            </div>
+            {secondaryNavItems.length > 0 && (
+              <>
+                <NavGroupLabel collapsedIcon={ListChecks} label="More" showCollapsedIcon={false} />
+                {secondaryNavItems.map(item => <NavItem key={item.id} item={item} />)}
+              </>
+            )}
 
+            <NavGroupLabel collapsedIcon={ShieldCheck} label="Compliance" />
             {complianceNavItems.map(item => <NavItem key={item.id} item={item} isCompliance />)}
           </nav>
 
@@ -1583,14 +1647,17 @@ export default function CaseDetail() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-[min(100vw-2rem,20rem)] max-h-[70vh] overflow-y-auto">
-              {matterNavItems.map((item) => {
+              <div className="px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium">
+                Day to day
+              </div>
+              {primaryNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeSection === item.id;
                 return (
                   <DropdownMenuItem
                     key={item.id}
                     onClick={() => {
-                      setActiveSection(item.id as CaseSection);
+                      setActiveSection(item.id);
                       setMobileSectionMenuOpen(false);
                       if (item.id === 'documents' && isDemoJustRevealed) {
                         setIsDemoJustRevealed(false);
@@ -1603,12 +1670,46 @@ export default function CaseDetail() {
                     data-testid={`mobile-nav-${item.id}`}
                   >
                     <Icon className="w-4 h-4 mr-2 shrink-0" />
-                    <span className="flex-1 truncate">{item.label}</span>
+                    <span className="flex-1 truncate">{SECTION_LABELS[item.id]}</span>
                     {item.badge}
                   </DropdownMenuItem>
                 );
               })}
-              {complianceNavItems.length > 0 && <DropdownMenuSeparator />}
+              {secondaryNavItems.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium">
+                    More
+                  </div>
+                  {secondaryNavItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeSection === item.id;
+                    return (
+                      <DropdownMenuItem
+                        key={item.id}
+                        onClick={() => {
+                          setActiveSection(item.id);
+                          setMobileSectionMenuOpen(false);
+                        }}
+                        className={cn(isActive && "bg-accent/20")}
+                        data-testid={`mobile-nav-${item.id}`}
+                      >
+                        <Icon className="w-4 h-4 mr-2 shrink-0" />
+                        <span className="flex-1 truncate">{SECTION_LABELS[item.id]}</span>
+                        {item.badge}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </>
+              )}
+              {complianceNavItems.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium">
+                    Compliance
+                  </div>
+                </>
+              )}
               {complianceNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeSection === item.id;
@@ -1616,7 +1717,7 @@ export default function CaseDetail() {
                   <DropdownMenuItem
                     key={item.id}
                     onClick={() => {
-                      setActiveSection(item.id as CaseSection);
+                      setActiveSection(item.id);
                       setMobileSectionMenuOpen(false);
                       if (item.id === 'compliance') setAutoOpenComplianceNote(0);
                     }}
@@ -1624,7 +1725,7 @@ export default function CaseDetail() {
                     data-testid={`mobile-nav-${item.id}`}
                   >
                     <Icon className="w-4 h-4 mr-2 shrink-0" />
-                    <span className="flex-1 truncate">{item.label}</span>
+                    <span className="flex-1 truncate">{SECTION_LABELS[item.id]}</span>
                     {item.badge}
                   </DropdownMenuItem>
                 );
