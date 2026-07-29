@@ -12,6 +12,8 @@ import { format } from "date-fns";
 interface AcknowledgeData {
   documentId: string;
   content: string;
+  documentType?: string;
+  documentLabel?: string;
   caseTitle: string;
   matterReference: string | null;
   acknowledgedAt: string | null;
@@ -83,6 +85,7 @@ export default function AcknowledgePage() {
 
   const alreadyAcknowledged = !!data.acknowledgedAt;
   const firmName = data.firmProfile?.firmName || "Your Solicitors";
+  const documentLabel = data.documentLabel || "Client Care Letter";
 
   if (confirmed || alreadyAcknowledged) {
     const acknowledgedAt = confirmed
@@ -97,7 +100,7 @@ export default function AcknowledgePage() {
           <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
           <h1 className="text-xl font-semibold">Acknowledged</h1>
           <p className="text-sm text-muted-foreground">
-            Thank you. Your acknowledgement of the Client Care Letter for{" "}
+            Thank you. Your acknowledgement of the {documentLabel} for{" "}
             <strong>{data.caseTitle}</strong> has been recorded.
           </p>
           <div className="text-xs text-muted-foreground bg-muted/50 rounded-md px-4 py-3">
@@ -134,7 +137,7 @@ export default function AcknowledgePage() {
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-8">
         {/* Instruction banner */}
         <div className="bg-card rounded-md border border-border p-5 space-y-2">
-          <h2 className="text-base font-semibold">Client Care Letter</h2>
+          <h2 className="text-base font-semibold">{documentLabel}</h2>
           {data.matterReference && (
             <p className="text-xs text-muted-foreground">Matter reference: {data.matterReference}</p>
           )}

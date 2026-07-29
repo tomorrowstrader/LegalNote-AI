@@ -3,6 +3,7 @@ import { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table
 import { saveAs } from 'file-saver';
 import type { FirmProfile } from '@shared/schema';
 import { extractLetterhead, resolveBrandingMode, formatLetterheadAddress, formatLetterheadFooterLine } from '@shared/letterhead';
+import { findAttendanceMattersBodyIndex, normalizeAttendanceSectionLabels } from '@shared/attendanceNoteFormat';
 
 interface DocumentContent {
   summary?: string;
@@ -140,10 +141,13 @@ function normalizeExportText(text: string | undefined | null): string | undefine
 }
 
 function normalizeDocumentContent(content: DocumentContent): DocumentContent {
+  const attendanceRaw = normalizeExportText(content.attendanceNote);
   return {
     ...content,
     summary: normalizeExportText(content.summary),
-    attendanceNote: normalizeExportText(content.attendanceNote),
+    attendanceNote: attendanceRaw
+      ? normalizeAttendanceSectionLabels(attendanceRaw)
+      : undefined,
     transcript: normalizeExportText(content.transcript),
     clientCareLetter: normalizeExportText(content.clientCareLetter),
     solicitorReasoningNote: normalizeExportText(content.solicitorReasoningNote) ?? null,
@@ -382,9 +386,11 @@ function parseAttendanceNoteHeader(
   markdown: string,
   fallbacks?: { clientName?: string; matterReference?: string; caseTitle?: string },
 ): ParsedAttendanceNoteHeader {
-  const bodyIdx = markdown.indexOf('**MATTERS DISCUSSED**');
+  const bodyIdx = findAttendanceMattersBodyIndex(markdown);
   const headerPart = bodyIdx >= 0 ? markdown.slice(0, bodyIdx) : markdown;
-  const bodyMarkdown = bodyIdx >= 0 ? markdown.slice(bodyIdx) : markdown;
+  const bodyMarkdown = bodyIdx >= 0
+    ? normalizeAttendanceSectionLabels(markdown.slice(bodyIdx))
+    : normalizeAttendanceSectionLabels(markdown);
 
   const fields: AttendanceNoteField[] = [];
   const seenLabels = new Set<string>();

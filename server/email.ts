@@ -1363,6 +1363,7 @@ interface SendAcknowledgementRequestParams {
   caseTitle: string;
   matterReference?: string;
   token: string;
+  documentLabel?: string;
   firmProfile?: {
     firmName: string;
     phone?: string;
@@ -1371,18 +1372,30 @@ interface SendAcknowledgementRequestParams {
 }
 
 /**
- * Sends a client care letter acknowledgement request email with a secure one-time link
+ * Sends a document acknowledgement request email with a secure one-time link
+ * (Client Letter or Client Care Letter).
  */
 export async function sendAcknowledgementRequestEmail(
   params: SendAcknowledgementRequestParams
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const { to, clientName, caseTitle, matterReference, token, firmProfile } = params;
+  const {
+    to,
+    clientName,
+    caseTitle,
+    matterReference,
+    token,
+    documentLabel = "Client Care Letter",
+    firmProfile,
+  } = params;
 
   const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
   const acknowledgeUrl = `${baseUrl}/acknowledge/${token}`;
 
   const firmName = firmProfile?.firmName || 'Your Solicitors';
-  const ref = matterReference ? `<p style="color:#666;font-size:13px;margin-top:4px">Matter reference: ${matterReference}</p>` : '';
+  const isCareLetter = documentLabel === "Client Care Letter";
+  const noticeWhy = isCareLetter
+    ? "SRA regulations require us to confirm that our clients have received and understood the terms of our engagement. Your acknowledgement creates a secure record for your protection as well as ours."
+    : "Your solicitor has asked you to confirm that you have received and read this letter. Your acknowledgement creates a secure record for your protection as well as theirs.";
 
   const emailHtml = `
     <!DOCTYPE html>
@@ -1408,15 +1421,15 @@ export async function sendAcknowledgementRequestEmail(
       ${legalNoteBrandHeaderHtml()}
       <div class="content" style="padding:36px 40px;background:#fff;">
         <p style="margin:0 0 8px;font-size:13px;color:#8a7d72;text-transform:uppercase;letter-spacing:0.06em;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">${firmName} · Secure Document Portal</p>
-        <h2>Your Client Care Letter is ready</h2>
+        <h2>Your ${documentLabel} is ready</h2>
         <p>Dear ${clientName},</p>
-        <p>We have prepared your Client Care Letter in connection with the matter: <strong>${caseTitle}</strong>.${matterReference ? ` (Ref: ${matterReference})` : ''}</p>
+        <p>We have prepared your ${documentLabel} in connection with the matter: <strong>${caseTitle}</strong>.${matterReference ? ` (Ref: ${matterReference})` : ''}</p>
         <p>Please click the button below to read your letter and confirm that you have received and understood its contents.</p>
         <a href="${acknowledgeUrl}" class="cta-btn">Read &amp; Acknowledge Letter</a>
         <p>This is a one-time secure link. It will remain active until you have confirmed acknowledgement.</p>
         <div class="notice">
           <strong>Why are we asking you to do this?</strong><br>
-          SRA regulations require us to confirm that our clients have received and understood the terms of our engagement. Your acknowledgement creates a secure record for your protection as well as ours.
+          ${noticeWhy}
         </div>
         <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${acknowledgeUrl}</p>
       </div>
@@ -1432,7 +1445,7 @@ export async function sendAcknowledgementRequestEmail(
     const result = await sendEmail({
       from: 'LegalNote <noreply@legalnote.ai>',
       to,
-      subject: `Action required: Please acknowledge your Client Care Letter — ${caseTitle}`,
+      subject: `Action required: Please acknowledge your ${documentLabel} — ${caseTitle}`,
       html: emailHtml,
     });
 

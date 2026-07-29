@@ -79,4 +79,21 @@ Facts.`;
     );
     expect(normalizeAttendanceSectionLabels(once)).toBe(once);
   });
+
+  it('splits bold label glued to body with no space after the colon', () => {
+    const input = '**What was discussed:The client confirmed the facts.**';
+    const result = normalizeAttendanceSectionLabels(input);
+    expect(result).toContain('**What was discussed:**\n\nThe client confirmed the facts.');
+    expect(result).not.toMatch(/\*\*What was discussed:The/);
+  });
+
+  it('canonicalises plain MATTERS DISCUSSED and glued labels beneath it', () => {
+    const input = `MATTERS DISCUSSED
+
+**1. BACKGROUND AND PERSONAL CIRCUMSTANCES**
+**What was discussed:The client confirmed residence.`;
+    const result = normalizeAttendanceSectionLabels(input);
+    expect(result).toContain('**MATTERS DISCUSSED**');
+    expect(result).toContain('**What was discussed:**\n\nThe client confirmed residence.');
+  });
 });

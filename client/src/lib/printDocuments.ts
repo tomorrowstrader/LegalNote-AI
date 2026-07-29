@@ -3,6 +3,8 @@
  * so the print dialog shows document content only (not app chrome).
  */
 
+import { normalizeAttendanceSectionLabels } from "@shared/attendanceNoteFormat";
+
 export interface PrintDocumentContent {
   summary?: string;
   attendanceNote?: string;
@@ -243,7 +245,11 @@ function buildPrintDocumentHtml(content: PrintDocumentContent): string {
 
   if (content.attendanceNote) {
     sections.push(
-      buildSection("Attendance Note", contentToPrintHtml(content.attendanceNote), content),
+      buildSection(
+        "Attendance Note",
+        contentToPrintHtml(normalizeAttendanceSectionLabels(content.attendanceNote)),
+        content,
+      ),
     );
   }
   if (content.summary) {

@@ -6209,15 +6209,35 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const caseData = await storage.getCase(document.caseId, userId);
       if (!caseData) return res.status(403).json({ message: "Not authorised" });
 
-      if (document.type !== 'client_care_letter') {
-        return res.status(400).json({ message: "Acknowledgement is only available for client care letters" });
+      if (document.type !== 'client_care_letter' && document.type !== 'client_letter' && document.type !== 'summary') {
+        return res.status(400).json({ message: "Acknowledgement is only available for client letters and client care letters" });
       }
 
-      // Get the client email
+      const documentLabel =
+        document.type === 'client_care_letter' ? 'Client Care Letter' : 'Client Letter';
+
+      // Get the client email — body override allowed so solicitors can supply it at send time
       const client = caseData.clientId ? await storage.getClient(caseData.clientId, userId) : null;
-      const clientEmail = client?.email || req.body.clientEmail;
-      if (!clientEmail) {
-        return res.status(400).json({ message: "No client email address found. Please update the client record or provide an email." });
+      const rawEmail = (client?.email || req.body.clientEmail || "").toString().trim();
+      if (!rawEmail) {
+        return res.status(400).json({
+          message: "No client email address found. Please provide an email to send the acknowledgement request.",
+          code: "CLIENT_EMAIL_REQUIRED",
+        });
+      }
+      const emailParsed = z.string().email("Please enter a valid email address").safeParse(rawEmail);
+      if (!emailParsed.success) {
+        return res.status(400).json({ message: emailParsed.error.errors[0]?.message || "Invalid email address" });
+      }
+      const clientEmail = emailParsed.data;
+
+      // Persist to the client record when supplied and missing, so next send doesn't re-prompt
+      if (client && caseData.clientId && !client.email) {
+        try {
+          await storage.updateClient(caseData.clientId, { email: clientEmail }, userId);
+        } catch (persistErr) {
+          console.warn("[ACK] Could not save client email to profile:", persistErr);
+        }
       }
 
       // Generate a secure token
@@ -6241,6 +6261,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         caseTitle: caseData.title,
         matterReference: caseData.matterReference || undefined,
         token,
+        documentLabel,
         firmProfile: firmProfile ? {
           firmName: firmProfile.firmName,
           phone: firmProfile.phone || undefined,
@@ -6258,11 +6279,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         metadata: {
           clientEmail,
           caseTitle: caseData.title,
+          documentType: document.type,
+          documentLabel,
         },
         req,
       });
 
-      res.json({ success: true, sentTo: clientEmail });
+      res.json({ success: true, sentTo: clientEmail, documentLabel });
     } catch (error: any) {
       next(error);
     }
@@ -6282,6 +6305,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       res.json({
         documentId: document.id,
         content: document.content,
+        documentType: document.type,
+        documentLabel:
+          document.type === "client_care_letter"
+            ? "Client Care Letter"
+            : document.type === "client_letter" || document.type === "summary"
+              ? "Client Letter"
+              : "Letter",
         caseTitle: caseData?.title || 'Your Matter',
         matterReference: caseData?.matterReference || null,
         acknowledgedAt: document.acknowledgedAt,

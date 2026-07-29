@@ -19,6 +19,13 @@ function escapeRegExp(value: string): string {
 
 const LABEL_ALTERNATION = ATTENDANCE_SECTION_LABELS.map(escapeRegExp).join('|');
 
+/** Find the start of the MATTERS DISCUSSED body (bold or plain heading). */
+export function findAttendanceMattersBodyIndex(content: string): number {
+  if (!content) return -1;
+  const match = content.match(/^\s*(?:\*\*)?MATTERS DISCUSSED(?:\*\*)?/im);
+  return match?.index ?? -1;
+}
+
 /**
  * Normalize section labels so they render as:
  *   **What was discussed:**
@@ -26,12 +33,18 @@ const LABEL_ALTERNATION = ATTENDANCE_SECTION_LABELS.map(escapeRegExp).join('|');
  *   Body text…
  *
  * Handles glued labels ("railway.Advice given:I advised"), label+body wrapped in
- * one bold span, and unclosed ** after a label (which otherwise bolds the rest
- * of the document).
+ * one bold span, missing space after the colon ("**What was discussed:The client"),
+ * and unclosed ** after a label (which otherwise bolds the rest of the document).
  */
 export function normalizeAttendanceSectionLabels(body: string): string {
   if (!body) return body;
   let result = body;
+
+  // Canonicalise MATTERS DISCUSSED heading (older notes often omit bold)
+  result = result.replace(
+    /^([ \t]*)(?:\*\*)?MATTERS DISCUSSED(?:\*\*)?[ \t]*$/gim,
+    '$1**MATTERS DISCUSSED**',
+  );
 
   // Close unclosed bold that opens on a section-label line: **Advice given:
   result = result.replace(
@@ -39,10 +52,19 @@ export function normalizeAttendanceSectionLabels(body: string): string {
     '$1**$2**',
   );
 
-  // **Label: body text** → **Label:**\n\nbody text
+  // **Label: body text** → **Label:**\n\nbody text  (space after colon)
   result = result.replace(
     new RegExp(`\\*\\*((?:${LABEL_ALTERNATION}))\\s+([^*]+?)\\*\\*`, 'gi'),
     '**$1**\n\n$2',
+  );
+
+  // **Label:body** or **Label:body (no space after colon; bold never closed after label)
+  result = result.replace(
+    new RegExp(
+      `^([ \\t]*)\\*\\*((?:${LABEL_ALTERNATION}))(?!\\*\\*)[ \\t]*(\\S.*?)(?:\\*\\*)?[ \\t]*$`,
+      'gim',
+    ),
+    '$1**$2**\n\n$3',
   );
 
   // Split labels glued to preceding prose (not markdown * markers):

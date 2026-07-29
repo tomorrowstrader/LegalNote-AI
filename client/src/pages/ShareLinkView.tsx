@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
+import { normalizeAttendanceSectionLabels } from "@shared/attendanceNoteFormat";
 
 interface ShareLinkData {
   requiresSmsVerification: boolean;
@@ -57,11 +58,16 @@ function SharedDocumentContent({
   content,
   testId,
   transcript = false,
+  attendance = false,
 }: {
   content: string;
   testId: string;
   transcript?: boolean;
+  attendance?: boolean;
 }) {
+  const displayContent = attendance
+    ? normalizeAttendanceSectionLabels(content)
+    : content;
   return (
     <ScrollArea type="always" className="h-full pr-3">
       <div
@@ -71,7 +77,7 @@ function SharedDocumentContent({
         data-testid={testId}
       >
         <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-          {content}
+          {displayContent}
         </ReactMarkdown>
       </div>
     </ScrollArea>
@@ -740,6 +746,7 @@ export default function ShareLinkView() {
                   <SharedDocumentContent
                     content={attendanceNote.content}
                     testId="content-attendance-note"
+                    attendance
                   />
                 </TabsContent>
               )}

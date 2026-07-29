@@ -341,7 +341,7 @@ export default function CaseDetail() {
   const [hasAutoSeeked, setHasAutoSeeked] = useState(false);
 
   const searchParams = new URLSearchParams(search);
-  const urlTab = searchParams.get('tab') as 'attendance' | 'summary' | 'transcript' | 'compliance' | null;
+  const urlTab = searchParams.get('tab') as 'attendance' | 'summary' | 'transcript' | 'care_letter' | 'compliance' | null;
   const urlSection = searchParams.get('section') as CaseSection | null;
   const urlTimestamp = searchParams.get('timestamp');
   const urlSessionId = searchParams.get('sessionId');
@@ -2029,6 +2029,7 @@ export default function CaseDetail() {
                   hasAmlFlag={amlComplianceVisible && !!caseData.riskLevel && ['high', 'medium'].includes(caseData.riskLevel as string)}
                   litigationHold={caseData.litigationHold}
                   onLogTime={() => setShowTimeRecordingModal(true)}
+                  clientId={caseData.clientId}
                 />
               </div>
             );

@@ -63,9 +63,8 @@ function documentLabel(documentType?: string): string {
     case "meeting_notes":
       return "Attendance note";
     case "client_letter":
-      return "Client letter";
     case "summary":
-      return "Case summary";
+      return "Client letter";
     case "client_care_letter":
       return "Client care letter";
     default:
@@ -73,15 +72,16 @@ function documentLabel(documentType?: string): string {
   }
 }
 
-function documentTab(documentType?: string): "attendance" | "summary" | "transcript" | undefined {
+function documentTab(documentType?: string): "attendance" | "summary" | "transcript" | "care_letter" | undefined {
   switch (documentType) {
     case "attendance_note":
     case "meeting_notes":
-    case "client_care_letter":
       return "attendance";
     case "client_letter":
     case "summary":
       return "summary";
+    case "client_care_letter":
+      return "care_letter";
     default:
       return undefined;
   }
@@ -143,8 +143,8 @@ export function buildNotificationCopy(
       };
     case "document_generated":
       return {
-        title: `${docLabel} ready`,
-        message: `${docLabel} for “${matter}” is ready to review.`,
+        title: `${docLabel} ready to adopt`,
+        message: `${docLabel} for “${matter}” is ready to adopt.`,
       };
     case "document_regenerated":
       return {

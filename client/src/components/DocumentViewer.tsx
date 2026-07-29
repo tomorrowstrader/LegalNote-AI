@@ -47,7 +47,7 @@ import {
   findBestAdviceMatchInSection,
   enrichGapCitationChips,
 } from "@/lib/reasoningGapAnchors";
-import { normalizeAttendanceSectionLabels } from "@shared/attendanceNoteFormat";
+import { findAttendanceMattersBodyIndex, normalizeAttendanceSectionLabels } from "@shared/attendanceNoteFormat";
 
 function markdownToPlainText(md: string): string {
   if (!md) return '';
@@ -335,6 +335,8 @@ interface Document {
   reasoningGapsReviewed?: boolean | null;
   reasoningGapsIdentified?: number | null;
   reasoningGapsFilled?: number | null;
+  acknowledgedAt?: string | null;
+  acknowledgedByEmail?: string | null;
 }
 
 function usesJustifiedLegalLayout(type: Document['type']): boolean {
@@ -378,10 +380,50 @@ function parseAttendanceHeaderFields(header: string): Record<string, string> {
 function formatAttendanceNoteMarkdown(content: string, type: Document['type']): string {
   if (type !== 'attendance_note' && type !== 'meeting_notes') return content;
 
-  const bodyIdx = content.search(/^\s*\*\*MATTERS DISCUSSED\*\*/m);
+  const bodyIdx = findAttendanceMattersBodyIndex(content);
   const headerEnd = bodyIdx >= 0 ? bodyIdx : content.length;
   const rawHeader = content.slice(0, headerEnd);
   const rawBody = content.slice(headerEnd);
+
+  // Older notes may lack a MATTERS DISCUSSED marker — still normalize section labels
+  // across the full document so house style applies without re-production.
+  if (bodyIdx < 0) {
+    const fieldsPass = (() => {
+      const fields = parseAttendanceHeaderFields(content);
+      const fileRef = fields['File Ref'];
+      const advisor = fields['Advisor'];
+      const clientName = fields['Client Name'];
+      const date = fields['Date'];
+      const units = fields['Time Spent (Units)'];
+      const duration = fields['Duration'];
+      if (!(fileRef || advisor || clientName || date || units || duration)) {
+        return content.replace(
+          /^(\s*)(?:\*\*)?(File Ref|Date|Time|Duration|Time Spent \(Units\)|Advisor|Client Name):(?:\*\*)?\s*(.*?)(?: {2})?$/gm,
+          (_match, indent: string, label: string, value: string) =>
+            `${indent}**${label}:** ${value.trimEnd()}  `,
+        );
+      }
+      const group1 = [
+        fileRef ? `**File Ref:** ${fileRef}` : null,
+        advisor ? `**Advisor:** ${advisor}` : null,
+      ].filter(Boolean).join('  \n');
+      const group2 = [
+        clientName ? `**Client Name:** ${clientName}` : null,
+        date ? `**Date:** ${date}` : null,
+      ].filter(Boolean).join('  \n');
+      const group3 = [
+        units ? `**Time Spent (Units):** ${units}` : null,
+        duration ? `**Duration:** ${duration}` : null,
+      ].filter(Boolean).join('  \n');
+      // Keep non-header remainder (body) attached after rebuilt metadata
+      const firstLabel = content.search(
+        /^\s*(?:\*\*)?(?:What was discussed:|Advice given:|Key points advised:|\d+\.\s+[A-Z])/im,
+      );
+      const remainder = firstLabel >= 0 ? content.slice(firstLabel) : '';
+      return `**ATTENDANCE NOTE**\n\n${[group1, group2, group3].filter(Boolean).join('\n\n')}\n\n${remainder}`;
+    })();
+    return normalizeAttendanceSectionLabels(fieldsPass);
+  }
 
   const fields = parseAttendanceHeaderFields(rawHeader);
   const fileRef = fields['File Ref'];
@@ -515,6 +557,8 @@ interface DocumentViewerProps {
   litigationHold?: boolean;
   /** Opens time recording from the post-adoption done state. */
   onLogTime?: () => void;
+  /** Linked client id — used to resolve/save email for care-letter acknowledgement. */
+  clientId?: string | null;
 }
 
 /**
@@ -1554,6 +1598,7 @@ export default function DocumentViewer({
   hasAmlFlag,
   litigationHold,
   onLogTime,
+  clientId,
 }: DocumentViewerProps) {
   const { toast } = useToast();
   const { role: authRole } = useAuth();
@@ -1598,6 +1643,10 @@ export default function DocumentViewer({
   const [pendingApprovalDocId, setPendingApprovalDocId] = useState<string | null>(null); // doc waiting for soft gate confirm
   const [amlAcknowledged, setAmlAcknowledged] = useState<Record<string, boolean>>({}); // docId -> confirmed AML consideration
   const [useShortAdoptLabel, setUseShortAdoptLabel] = useState(() => hasUsedShortAdoptLabel());
+  const [showAckEmailDialog, setShowAckEmailDialog] = useState(false);
+  const [ackEmailInput, setAckEmailInput] = useState("");
+  const [ackEmailError, setAckEmailError] = useState<string | null>(null);
+  const [pendingAckDocumentId, setPendingAckDocumentId] = useState<string | null>(null);
   const adoptionDocsRef = useRef<{
     attendanceNote: Document | null | undefined;
     summary: Document | null | undefined;
@@ -1648,6 +1697,11 @@ export default function DocumentViewer({
 
   const { data: firmProfile } = useQuery<FirmProfile>({
     queryKey: ['/api/firm-profile'],
+  });
+
+  const { data: linkedClient } = useQuery<{ id: string; name: string; email?: string | null }>({
+    queryKey: ["/api/clients", clientId],
+    enabled: !!clientId,
   });
 
   const hasMeetingNotesDoc = !documents.some(d => d.type === 'attendance_note') && documents.some(d => d.type === 'meeting_notes');
@@ -2038,11 +2092,20 @@ export default function DocumentViewer({
   });
 
   const requestAcknowledgementMutation = useMutation({
-    mutationFn: async ({ documentId }: { documentId: string }) => {
-      return await apiRequest('POST', `/api/documents/${documentId}/request-acknowledgement`, {});
+    mutationFn: async ({ documentId, clientEmail }: { documentId: string; clientEmail?: string }) => {
+      return await apiRequest('POST', `/api/documents/${documentId}/request-acknowledgement`, {
+        ...(clientEmail ? { clientEmail } : {}),
+      });
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      if (clientId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId] });
+      }
+      setShowAckEmailDialog(false);
+      setPendingAckDocumentId(null);
+      setAckEmailInput("");
+      setAckEmailError(null);
       toast({
         title: "Acknowledgement request sent",
         description: `An email has been sent to ${data.sentTo || 'the client'} with a secure link to read and acknowledge the letter.`,
@@ -2050,14 +2113,55 @@ export default function DocumentViewer({
       });
     },
     onError: (err: any) => {
+      const message = getApiErrorMessage(err, "");
+      const needsEmail =
+        message.includes("CLIENT_EMAIL_REQUIRED") ||
+        message.includes("No client email") ||
+        message.includes("provide an email");
+      if (needsEmail && pendingAckDocumentId) {
+        setShowAckEmailDialog(true);
+        setAckEmailError(null);
+        return;
+      }
       toast({
         title: "Failed to send request",
-        description: err.message || "Could not send the acknowledgement request. Check that the client record has an email address.",
+        description: message || "Could not send the acknowledgement request.",
         variant: "destructive",
         duration: 8000,
       });
     },
   });
+
+  const startRequestAcknowledgement = (documentId: string) => {
+    setPendingAckDocumentId(documentId);
+    setAckEmailError(null);
+    const knownEmail = linkedClient?.email?.trim();
+    if (knownEmail) {
+      requestAcknowledgementMutation.mutate({ documentId, clientEmail: knownEmail });
+      return;
+    }
+    // Client still loading — let the server resolve; prompt only if email is missing.
+    if (clientId && linkedClient === undefined) {
+      requestAcknowledgementMutation.mutate({ documentId });
+      return;
+    }
+    setAckEmailInput("");
+    setShowAckEmailDialog(true);
+  };
+
+  const submitAckEmailAndSend = () => {
+    const email = ackEmailInput.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAckEmailError("Enter a valid client email address.");
+      return;
+    }
+    if (!pendingAckDocumentId) return;
+    setAckEmailError(null);
+    requestAcknowledgementMutation.mutate({
+      documentId: pendingAckDocumentId,
+      clientEmail: email,
+    });
+  };
 
   const unlockMutation = useMutation({
     mutationFn: async ({ documentId }: { documentId: string }) => {
@@ -2772,6 +2876,52 @@ export default function DocumentViewer({
           </div>
         )}
       </div>
+    );
+  };
+
+  const DocumentAcknowledgementAction = ({
+    document,
+    testIdPrefix,
+  }: {
+    document?: Document;
+    testIdPrefix: string;
+  }) => {
+    if (!document) return null;
+    if (document.acknowledgedAt) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="default" className="gap-1 bg-green-600" data-testid={`badge-acknowledged-${testIdPrefix}`}>
+              <MailCheck className="w-3 h-3" />
+              Acknowledged
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            Acknowledged on {new Date(document.acknowledgedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            {document.acknowledgedByEmail ? ` by ${document.acknowledgedByEmail}` : ''}
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => startRequestAcknowledgement(document.id)}
+            disabled={requestAcknowledgementMutation.isPending}
+            className="gap-1"
+            data-testid={`button-request-acknowledgement-${testIdPrefix}`}
+          >
+            <Mail className="w-3 h-3" />
+            {requestAcknowledgementMutation.isPending && pendingAckDocumentId === document.id
+              ? "Sending..."
+              : "Request Acknowledgement"}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Send client a secure link to read and confirm this letter</TooltipContent>
+      </Tooltip>
     );
   };
 
@@ -3525,7 +3675,12 @@ export default function DocumentViewer({
                       </Badge>
                     )}
                   </div>
-                  <DocumentStatusActions document={summary} />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {summary && (
+                      <DocumentAcknowledgementAction document={summary} testIdPrefix="client-letter" />
+                    )}
+                    <DocumentStatusActions document={summary} />
+                  </div>
                 </div>
               </CardHeader>
               <DocumentPrimaryActions document={summary} />
@@ -3850,37 +4005,7 @@ export default function DocumentViewer({
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <CardTitle>Client Care Letter</CardTitle>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {(clientCareLetter as any).acknowledgedAt ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Badge variant="default" className="gap-1 bg-green-600" data-testid="badge-acknowledged">
-                            <MailCheck className="w-3 h-3" />
-                            Acknowledged
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          Acknowledged on {new Date((clientCareLetter as any).acknowledgedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          {(clientCareLetter as any).acknowledgedByEmail ? ` by ${(clientCareLetter as any).acknowledgedByEmail}` : ''}
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => requestAcknowledgementMutation.mutate({ documentId: clientCareLetter.id })}
-                            disabled={requestAcknowledgementMutation.isPending}
-                            className="gap-1"
-                            data-testid="button-request-acknowledgement"
-                          >
-                            <Mail className="w-3 h-3" />
-                            {requestAcknowledgementMutation.isPending ? "Sending..." : "Request Acknowledgement"}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Send client a secure link to read and confirm this letter</TooltipContent>
-                      </Tooltip>
-                    )}
+                    <DocumentAcknowledgementAction document={clientCareLetter} testIdPrefix="care-letter" />
                     <Badge variant="outline" data-testid="badge-care-letter-ai">Produced by LegalNote</Badge>
                     <DocumentStatusActions document={clientCareLetter} />
                   </div>
@@ -3967,6 +4092,75 @@ export default function DocumentViewer({
           hasCareLetter: !!clientCareLetter,
         }}
       />
+
+      <Dialog
+        open={showAckEmailDialog}
+        onOpenChange={(open) => {
+          if (requestAcknowledgementMutation.isPending) return;
+          setShowAckEmailDialog(open);
+          if (!open) {
+            setPendingAckDocumentId(null);
+            setAckEmailError(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md" data-testid="dialog-ack-client-email">
+          <DialogHeader>
+            <DialogTitle>Client email needed</DialogTitle>
+            <DialogDescription>
+              Send a secure acknowledgement link for this letter.
+              {clientName ? ` We’ll email ${clientName}.` : ""} The address will be saved on the client record for next time.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="ack-client-email">Client email</Label>
+            <Input
+              id="ack-client-email"
+              type="email"
+              autoFocus
+              value={ackEmailInput}
+              onChange={(e) => {
+                setAckEmailInput(e.target.value);
+                if (ackEmailError) setAckEmailError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  submitAckEmailAndSend();
+                }
+              }}
+              placeholder="client@example.com"
+              data-testid="input-ack-client-email"
+            />
+            {ackEmailError && (
+              <p className="text-xs text-destructive" data-testid="text-ack-email-error">
+                {ackEmailError}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAckEmailDialog(false);
+                setPendingAckDocumentId(null);
+                setAckEmailError(null);
+              }}
+              disabled={requestAcknowledgementMutation.isPending}
+              data-testid="button-cancel-ack-email"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submitAckEmailAndSend}
+              disabled={requestAcknowledgementMutation.isPending || !ackEmailInput.trim()}
+              data-testid="button-send-ack-with-email"
+            >
+              {requestAcknowledgementMutation.isPending ? "Sending..." : "Send acknowledgement"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!pendingRedactionData} onOpenChange={(open) => { if (!open) setPendingRedactionData(null); }}>
         <DialogContent className="sm:max-w-md">
