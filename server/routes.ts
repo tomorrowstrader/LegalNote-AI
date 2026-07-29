@@ -100,7 +100,7 @@ function resolveTemplatePath(filename: string): string {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, type InsertCase } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresSealedConsentForProcessing, type InsertCase } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
@@ -2246,6 +2246,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         validatedData.clientName = partyLabelForMatterKind(matterKind);
         validatedData.conflictCheckCompleted = false;
         validatedData.conflictCheckNote = undefined;
+      } else {
+        validatedData.hasExternalAttendees = false;
       }
 
       // If clientId provided, verify ownership and derive clientName
@@ -4156,8 +4158,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         });
       }
 
-      // For external sharing, verify server-side consent from database
-      if (isExternal) {
+      // For external sharing on client matters, verify server-side consent from database
+      if (isExternal && isClientMatterKind((caseData as { matterKind?: string }).matterKind)) {
         // Check if client consent exists in the database
         const consentLogs = await storage.getConsentLogsByCase(req.params.id, userId);
         const hasValidConsent = consentLogs.some((log: any) => log.consentGiven === true);
@@ -5278,7 +5280,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(403).json({ message: "Not authorized" });
       }
       
-      // GDPR Compliance: sealed consent required before processing (no dictation bypass)
+      // GDPR: sealed client consent required for client matters only
       const { assertSealedConsent, SealedConsentError } = await import("./services/assertSealedConsent");
       const sessionId = req.body.sessionId;
 
@@ -5292,22 +5294,27 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         audioRecording = await storage.getAudioRecordingByCase(caseId, userId);
       }
 
-      try {
-        await assertSealedConsent(caseId, userId, audioRecording?.id);
-      } catch (error: any) {
-        if (error instanceof SealedConsentError) {
-          await logAuditEvent(userId, "access_control_violation", {
-            caseId,
-            req,
-            metadata: {
-              action: "process_without_sealed_consent",
-              reason: error.reason,
-            },
-            severity: "critical",
-          });
-          return res.status(403).json({ message: error.message });
+      if (requiresSealedConsentForProcessing(
+        (caseData as { matterKind?: string }).matterKind,
+        (caseData as { hasExternalAttendees?: boolean }).hasExternalAttendees,
+      )) {
+        try {
+          await assertSealedConsent(caseId, userId, audioRecording?.id);
+        } catch (error: any) {
+          if (error instanceof SealedConsentError) {
+            await logAuditEvent(userId, "access_control_violation", {
+              caseId,
+              req,
+              metadata: {
+                action: "process_without_sealed_consent",
+                reason: error.reason,
+              },
+              severity: "critical",
+            });
+            return res.status(403).json({ message: error.message });
+          }
+          throw error;
         }
-        throw error;
       }
 
       if (!audioRecording || !audioRecording.filePath) {
@@ -5388,7 +5395,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(400).json({ message: "Only failed cases can be retried" });
       }
       
-      // GDPR Compliance: sealed consent required (no dictation bypass)
+      // GDPR: sealed client consent required for client matters only
       const { assertSealedConsent, SealedConsentError } = await import("./services/assertSealedConsent");
       const retrySessionId = req.body.sessionId;
 
@@ -5402,13 +5409,18 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         audioRecording = await storage.getAudioRecordingByCase(caseId, userId);
       }
 
-      try {
-        await assertSealedConsent(caseId, userId, audioRecording?.id);
-      } catch (error: any) {
-        if (error instanceof SealedConsentError) {
-          return res.status(403).json({ message: error.message });
+      if (requiresSealedConsentForProcessing(
+        (caseData as { matterKind?: string }).matterKind,
+        (caseData as { hasExternalAttendees?: boolean }).hasExternalAttendees,
+      )) {
+        try {
+          await assertSealedConsent(caseId, userId, audioRecording?.id);
+        } catch (error: any) {
+          if (error instanceof SealedConsentError) {
+            return res.status(403).json({ message: error.message });
+          }
+          throw error;
         }
-        throw error;
       }
 
       if (!audioRecording || !audioRecording.filePath) {
@@ -10179,6 +10191,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             title: resolvedTitle,
             clientName: partyLabelForMatterKind(matterKind),
             matterKind,
+            hasExternalAttendees: !!newCaseData?.hasExternalAttendees,
             status: 'pending',
             priority: 'normal',
             sourceType: 'audio',

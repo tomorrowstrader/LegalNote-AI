@@ -45,12 +45,13 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Case, MatterKind } from "@shared/schema";
 import { MATTER_KIND_LABELS, RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
-import { isClientMatterKind, partyLabelForMatterKind } from "@shared/matterKinds";
+import { isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresParticipantConsent, requiresSealedConsentForProcessing } from "@shared/matterKinds";
 import {
   defaultRecordingTypeForMatterKind,
   recordingTypesForMatterKind,
 } from "@shared/recordingTypes";
-import { CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
+import { CONSENT_DISCLAIMER_TEXT, PARTICIPANT_CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   autoLeaveDeadlineSeconds,
   formatWaitRemaining,
@@ -243,7 +244,11 @@ export function LiveBotModal({
   const [newCaseTitle, setNewCaseTitle] = useState("");
   const [newCaseClient, setNewCaseClient] = useState(suggestedClientName || "");
   const [newCaseMatterKind, setNewCaseMatterKind] = useState<MatterKind>("client");
+  const [newCaseHasExternalAttendees, setNewCaseHasExternalAttendees] = useState(false);
   const [postMeetingMatterKind, setPostMeetingMatterKind] = useState<MatterKind>("client");
+  const [postMeetingHasExternalAttendees, setPostMeetingHasExternalAttendees] = useState(false);
+  /** Whether the live consent UI should use the participant (non-client external) script. */
+  const [useParticipantConsentScript, setUseParticipantConsentScript] = useState(false);
   /** When true, show the full matter list instead of the suggested confirm card. */
   const [browseAllCases, setBrowseAllCases] = useState(false);
   /** Join without a matter; assign the recording after the call. */
@@ -362,19 +367,25 @@ export function LiveBotModal({
   const showSuggestedConfirm =
     step === "select_case" && !!suggestedCase && !browseAllCases && !isCreatingCase;
 
-  const continueAfterCaseSelect = (id: string, title: string, matterKind?: string | null) => {
+  const continueAfterCaseSelect = (id: string, title: string, matterKind?: string | null, hasExternalAttendees?: boolean | null) => {
     setDeferCaseAssignment(false);
     setSelectedCaseId(id);
     setSelectedCaseTitle(title);
     const detected = detectPlatform(meetingUrl);
-    const skipClientConsent = !isClientMatterKind(
-      matterKind ?? cases?.find((c) => c.id === id)?.matterKind,
-    );
-    if (skipClientConsent) {
+    const caseRow = cases?.find((c) => c.id === id) as
+      | (Case & { hasExternalAttendees?: boolean })
+      | undefined;
+    const kind = matterKind ?? caseRow?.matterKind;
+    const external =
+      hasExternalAttendees ??
+      caseRow?.hasExternalAttendees ??
+      false;
+    const needsConsent = requiresSealedConsentForProcessing(kind, external);
+    setUseParticipantConsentScript(requiresParticipantConsent(kind, external));
+    if (!needsConsent) {
       setConsentMode("pre_confirmed");
       setConsentObtained(true);
       consentObtainedRef.current = true;
-      // Still collect the meeting URL if needed; skip client consent step
       setStep(detected ? "url" : "url");
       return;
     }
@@ -396,7 +407,12 @@ export function LiveBotModal({
       assignCaseId?: string;
       recordingType: string;
       createCase?: boolean;
-      caseData?: { title: string; clientName?: string; matterKind?: MatterKind };
+      caseData?: {
+        title: string;
+        clientName?: string;
+        matterKind?: MatterKind;
+        hasExternalAttendees?: boolean;
+      };
     }) => {
       if (!importId) throw new Error("No import ID");
       return apiRequest<{ success: boolean; caseId: string; importId: string }>(
@@ -453,6 +469,7 @@ export function LiveBotModal({
       title: string;
       clientName?: string;
       matterKind: MatterKind;
+      hasExternalAttendees?: boolean;
       sourceType: "audio";
       status: "pending";
       priority: "normal";
@@ -463,7 +480,12 @@ export function LiveBotModal({
     onSuccess: async (newCase: any) => {
       setIsCreatingCase(false);
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
-      continueAfterCaseSelect(newCase.id, newCase.title, newCase.matterKind);
+      continueAfterCaseSelect(
+        newCase.id,
+        newCase.title,
+        newCase.matterKind,
+        newCase.hasExternalAttendees ?? newCaseHasExternalAttendees,
+      );
     },
     onError: (error: any) => {
       toast({ title: "Could not create case", description: error.message, variant: "destructive" });
@@ -995,7 +1017,11 @@ export function LiveBotModal({
                   <Label>Matter type</Label>
                   <RadioGroup
                     value={newCaseMatterKind}
-                    onValueChange={(v) => setNewCaseMatterKind(v as MatterKind)}
+                    onValueChange={(v) => {
+                      const next = v as MatterKind;
+                      setNewCaseMatterKind(next);
+                      if (isClientMatterKind(next)) setNewCaseHasExternalAttendees(false);
+                    }}
                     className="flex flex-col gap-2"
                   >
                     {(Object.entries(MATTER_KIND_LABELS) as [MatterKind, string][]).map(([value, label]) => (
@@ -1008,6 +1034,19 @@ export function LiveBotModal({
                     ))}
                   </RadioGroup>
                 </div>
+                {!isClientMatterKind(newCaseMatterKind) && (
+                  <div className="flex items-start gap-2">
+                    <Checkbox
+                      id="live-external-attendees"
+                      checked={newCaseHasExternalAttendees}
+                      onCheckedChange={(checked) => setNewCaseHasExternalAttendees(checked === true)}
+                      data-testid="checkbox-live-external-attendees"
+                    />
+                    <Label htmlFor="live-external-attendees" className="cursor-pointer font-normal text-sm leading-snug">
+                      External attendees present (outside the firm)
+                    </Label>
+                  </div>
+                )}
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="new-case-title">
                     {isClientMatterKind(newCaseMatterKind) ? "Matter name" : "Meeting title"}
@@ -1053,6 +1092,8 @@ export function LiveBotModal({
                       createCaseMutation.mutate({
                         title: newCaseTitle.trim(),
                         matterKind: newCaseMatterKind,
+                        hasExternalAttendees:
+                          !isClientMatterKind(newCaseMatterKind) && newCaseHasExternalAttendees,
                         clientName: isClientMatterKind(newCaseMatterKind)
                           ? newCaseClient.trim()
                           : partyLabelForMatterKind(newCaseMatterKind),
@@ -1324,15 +1365,26 @@ export function LiveBotModal({
               <div className="border-2 border-amber-500/50 bg-amber-500/5 rounded-md p-4 space-y-3" data-testid="card-in-meeting-consent">
                 <div className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">Read consent script to client now</p>
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                    {useParticipantConsentScript
+                      ? "Read participant notice to attendees now"
+                      : "Read consent script to client now"}
+                  </p>
                 </div>
                 <div className="bg-background rounded-md p-3 border border-border">
-                  <p className="text-xs font-medium text-muted-foreground mb-1.5">READ TO CLIENT:</p>
-                  <p className="text-sm leading-relaxed italic">"{CONSENT_DISCLAIMER_TEXT}"</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                    {useParticipantConsentScript ? "READ TO ATTENDEES:" : "READ TO CLIENT:"}
+                  </p>
+                  <p className="text-sm leading-relaxed italic">
+                    "{useParticipantConsentScript ? PARTICIPANT_CONSENT_DISCLAIMER_TEXT : CONSENT_DISCLAIMER_TEXT}"
+                  </p>
                 </div>
                 <div className="bg-muted/40 p-2.5 rounded-md">
                   <p className="text-xs text-muted-foreground">
-                    <strong>Recording time:</strong> {formatElapsed(recordingElapsed)} into session. The client's verbal response is being captured on the recording.
+                    <strong>Recording time:</strong> {formatElapsed(recordingElapsed)} into session.{" "}
+                    {useParticipantConsentScript
+                      ? "Attendees' verbal responses are being captured on the recording."
+                      : "The client's verbal response is being captured on the recording."}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -1557,7 +1609,7 @@ export function LiveBotModal({
                               {c.title}
                               {c.clientName ? ` — ${c.clientName}` : ""}
                               {c.matterKind && c.matterKind !== "client"
-                                ? ` (${MATTER_KIND_LABELS[c.matterKind as MatterKind] || c.matterKind})`
+                                ? ` (${MATTER_KIND_LABELS[normalizeMatterKind(c.matterKind)]})`
                                 : ""}
                             </SelectItem>
                           ))}
@@ -1608,6 +1660,7 @@ export function LiveBotModal({
                           setPostMeetingMatterKind(next);
                           setPostMeetingRecordingType(defaultRecordingTypeForMatterKind(next));
                           if (!isClientMatterKind(next)) setPostMeetingClient("");
+                          else setPostMeetingHasExternalAttendees(false);
                         }}
                         className="flex flex-col gap-2"
                       >
@@ -1621,6 +1674,19 @@ export function LiveBotModal({
                         ))}
                       </RadioGroup>
                     </div>
+                    {!isClientMatterKind(postMeetingMatterKind) && (
+                      <div className="flex items-start gap-2">
+                        <Checkbox
+                          id="post-external-attendees"
+                          checked={postMeetingHasExternalAttendees}
+                          onCheckedChange={(checked) => setPostMeetingHasExternalAttendees(checked === true)}
+                          data-testid="checkbox-post-external-attendees"
+                        />
+                        <Label htmlFor="post-external-attendees" className="cursor-pointer font-normal text-sm leading-snug">
+                          External attendees present (outside the firm)
+                        </Label>
+                      </div>
+                    )}
                     <div className="space-y-1.5">
                       <Label htmlFor="post-matter-title">
                         {isClientMatterKind(postMeetingMatterKind) ? "Matter title" : "Meeting title"}{" "}
@@ -1682,6 +1748,9 @@ export function LiveBotModal({
                           caseData: {
                             title: postMeetingTitle.trim(),
                             matterKind: postMeetingMatterKind,
+                            hasExternalAttendees:
+                              !isClientMatterKind(postMeetingMatterKind) &&
+                              postMeetingHasExternalAttendees,
                             clientName: isClientMatterKind(postMeetingMatterKind)
                               ? postMeetingClient.trim()
                               : partyLabelForMatterKind(postMeetingMatterKind),

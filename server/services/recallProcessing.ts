@@ -396,18 +396,25 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
   });
 
   const { assertSealedConsent, SealedConsentError } = await import('./assertSealedConsent');
-  try {
-    await assertSealedConsent(caseId, userId, audioRecord.id);
-  } catch (error: any) {
-    if (error instanceof SealedConsentError) {
-      console.error(`[RecallProcessing] Sealed consent gate failed for case ${caseId}:`, error.message);
-      await storage.updateMeetingImport(importId, {
-        status: 'failed',
-        errorMessage: error.message,
-      });
-      return;
+  const { requiresSealedConsentForProcessing } = await import('@shared/schema');
+  const caseForConsent = await storage.getCase(caseId, userId);
+  if (requiresSealedConsentForProcessing(
+    (caseForConsent as { matterKind?: string } | undefined)?.matterKind,
+    (caseForConsent as { hasExternalAttendees?: boolean } | undefined)?.hasExternalAttendees,
+  )) {
+    try {
+      await assertSealedConsent(caseId, userId, audioRecord.id);
+    } catch (error: any) {
+      if (error instanceof SealedConsentError) {
+        console.error(`[RecallProcessing] Sealed consent gate failed for case ${caseId}:`, error.message);
+        await storage.updateMeetingImport(importId, {
+          status: 'failed',
+          errorMessage: error.message,
+        });
+        return;
+      }
+      throw error;
     }
-    throw error;
   }
 
   await storage.updateMeetingImport(importId, {

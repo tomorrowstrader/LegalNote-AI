@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile, DocumentComment } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
+import { isClientMatterKind } from "@shared/matterKinds";
 import DownloadModal from "@/components/DownloadModal";
 import PrintModal from "@/components/PrintModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
@@ -551,6 +552,8 @@ interface DocumentViewerProps {
   status: string;
   caseTitle: string;
   clientName: string;
+  /** When not client, Client Letter / Care Letter tabs are hidden. */
+  matterKind?: string | null;
   matterReference?: string;
   createdAt: string;
   onTranscriptTimestampClick?: (timestampMs: number) => void;
@@ -1593,6 +1596,7 @@ export default function DocumentViewer({
   status,
   caseTitle,
   clientName,
+  matterKind,
   matterReference,
   createdAt,
   onTranscriptTimestampClick,
@@ -1607,6 +1611,7 @@ export default function DocumentViewer({
 }: DocumentViewerProps) {
   const { toast } = useToast();
   const { role: authRole } = useAuth();
+  const isClientMatter = isClientMatterKind(matterKind);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -1661,14 +1666,30 @@ export default function DocumentViewer({
   const healedMarkersRef = useRef<Set<string>>(new Set());
   
   // Controlled tab state with support for initial tab from URL
-  const [activeTab, setActiveTab] = useState<string>(initialTab || 'attendance');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const tab = initialTab || 'attendance';
+    if (!isClientMatterKind(matterKind) && (tab === 'summary' || tab === 'care_letter')) {
+      return 'attendance';
+    }
+    return tab;
+  });
   
   // Update tab when initialTab changes (e.g., from search navigation)
   useEffect(() => {
     if (initialTab) {
-      setActiveTab(initialTab);
+      if (!isClientMatter && (initialTab === 'summary' || initialTab === 'care_letter')) {
+        setActiveTab('attendance');
+      } else {
+        setActiveTab(initialTab);
+      }
     }
-  }, [initialTab]);
+  }, [initialTab, isClientMatter]);
+
+  useEffect(() => {
+    if (!isClientMatter && (activeTab === 'summary' || activeTab === 'care_letter')) {
+      setActiveTab('attendance');
+    }
+  }, [isClientMatter, activeTab]);
 
   // Gap chip citations (Page View HTML + TipTap DOM) — jump to Advice given in that section
   useEffect(() => {
@@ -2528,9 +2549,9 @@ export default function DocumentViewer({
   const attendanceNote = findDoc('attendance_note') ?? findDoc('meeting_notes');
   const isMeetingNotes = !findDoc('attendance_note') && !!findDoc('meeting_notes');
   // Pipeline persists as client_letter; older rows and some paths use summary
-  const summary = findDoc('summary') ?? findDoc('client_letter');
+  const summary = isClientMatter ? (findDoc('summary') ?? findDoc('client_letter')) : undefined;
   const transcriptDoc = findDoc('transcript');
-  const clientCareLetter = findDoc('client_care_letter');
+  const clientCareLetter = isClientMatter ? findDoc('client_care_letter') : undefined;
 
   adoptionDocsRef.current = { attendanceNote, summary, clientCareLetter };
 
@@ -3453,7 +3474,11 @@ export default function DocumentViewer({
               )}
             </div>
           )}
-          <TabsList className={`grid w-full h-auto rounded-xl ${clientCareLetter ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          <TabsList className={`grid w-full h-auto rounded-xl ${
+            isClientMatter
+              ? (clientCareLetter ? 'grid-cols-4' : 'grid-cols-3')
+              : 'grid-cols-2'
+          }`}>
             <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
               <ReviewStatusDot
                 status={getDocumentReviewStatus(attendanceNote, {
@@ -3474,6 +3499,7 @@ export default function DocumentViewer({
                 </>
               )}
             </TabsTrigger>
+            {isClientMatter && (
             <TabsTrigger value="summary" data-testid="tab-summary" className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
               <ReviewStatusDot
                 status={getDocumentReviewStatus(summary, {
@@ -3484,11 +3510,12 @@ export default function DocumentViewer({
               />
               Client Letter
             </TabsTrigger>
+            )}
             <TabsTrigger value="transcript" data-testid="tab-transcript" disabled={!transcriptContent} className="text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
               <span className="hidden sm:inline">Transcript</span>
               <span className="sm:hidden">Script</span>
             </TabsTrigger>
-            {clientCareLetter && (
+            {isClientMatter && clientCareLetter && (
               <TabsTrigger value="care_letter" data-testid="tab-care-letter" className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
                 <ReviewStatusDot
                   status={getDocumentReviewStatus(clientCareLetter, {
@@ -4186,6 +4213,7 @@ export default function DocumentViewer({
         caseTitle={caseTitle}
         userRole={shareUserRole}
         recipientName={clientName}
+        requireClientConsent={isClientMatter}
         availableDocuments={{
           hasAttendanceNote: !!attendanceNote,
           hasSummary: !!summary || !!textNotes,

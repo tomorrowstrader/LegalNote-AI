@@ -1509,14 +1509,14 @@ ${transcript}`,
   }
 
   /**
-   * Minutes / internal meeting note for non-client (internal or firm) meetings.
+   * Minutes / internal meeting note for non-client (internal) meetings.
    */
   async generateInternalMeetingNote(
     transcript: string,
     metadata: CaseMetadata,
     revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
-    const systemPrompt = `You are a UK-qualified solicitor creating professional minutes of an internal or firm meeting (not a client attendance).
+    const systemPrompt = `You are a UK-qualified solicitor creating professional minutes of an internal meeting (not a client attendance).
 
 ${DERIVATION_ENGINE_RULES}
 

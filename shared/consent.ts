@@ -4,3 +4,12 @@ export const CONSENT_DISCLAIMER_TEXT =
 
 /** Version identifier for the canonical disclaimer wording (bump when text changes). */
 export const CONSENT_DISCLAIMER_VERSION = "v1.1";
+
+/**
+ * Participant notice for non-client meetings with people outside the firm
+ * (BD, chambers, vendors, etc.) — not the client-care attendance-note script.
+ */
+export const PARTICIPANT_CONSENT_DISCLAIMER_TEXT =
+  "I'd like to record this meeting to produce accurate minutes and action points for our records. The recording is stored securely and deleted after 7 days. Are you happy for me to proceed?";
+
+export const PARTICIPANT_CONSENT_DISCLAIMER_VERSION = "participant-v1.0";

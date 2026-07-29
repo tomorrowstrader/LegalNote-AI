@@ -62,6 +62,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Case, AudioRecording, ConsentLog, MeetingSession, Transcript, Document, QuickNote } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREA_LABELS, PRACTICE_AREAS, type PracticeArea } from "@shared/schema";
+import { isClientMatterKind, normalizeMatterKind, requiresParticipantConsent, requiresSealedConsentForProcessing } from "@shared/matterKinds";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { isFeatureVisible } from "@/lib/features";
@@ -712,6 +713,10 @@ export default function CaseDetail() {
 
   const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
   const hasDeclinedConsent = consentLogs.some(log => log.consentGiven === false);
+  const isClientMatter = isClientMatterKind(caseData?.matterKind);
+  const hasExternalAttendees = !!(caseData as { hasExternalAttendees?: boolean } | undefined)?.hasExternalAttendees;
+  const requiresConsentGate = requiresSealedConsentForProcessing(caseData?.matterKind, hasExternalAttendees);
+  const needsParticipantConsent = requiresParticipantConsent(caseData?.matterKind, hasExternalAttendees);
   const hasMissingAudio =
     caseData?.sourceType === 'audio' &&
     !audioLoading &&
@@ -1148,7 +1153,7 @@ export default function CaseDetail() {
   ].filter(item => item.show !== false);
 
   const complianceNavItems: CaseNavItem[] = [
-    { id: 'consent', label: NAV_LABELS.consent, icon: Shield, show: caseData.sourceType === 'audio' },
+    { id: 'consent', label: NAV_LABELS.consent, icon: Shield, show: requiresConsentGate && caseData.sourceType === 'audio' },
     {
       id: 'compliance', label: NAV_LABELS.compliance, icon: ShieldCheck,
       show: amlComplianceVisible,
@@ -1461,9 +1466,9 @@ export default function CaseDetail() {
             ) : (
               <p className="text-xs text-muted-foreground truncate">{caseData.clientName}</p>
             )}
-            {caseData.matterKind && caseData.matterKind !== "client" && (
+            {caseData.matterKind && !isClientMatterKind(caseData.matterKind) && (
               <Badge variant="outline" className="text-[10px] mt-1 no-default-hover-elevate no-default-active-elevate" data-testid="badge-matter-kind">
-                {caseData.matterKind === "firm" ? "Firm meeting" : "Internal meeting"}
+                {hasExternalAttendees ? "Non-client · external attendees" : "Non-client meeting"}
               </Badge>
             )}
             {caseData.matterReference && (
@@ -1783,15 +1788,19 @@ export default function CaseDetail() {
             </div>
           )}
 
-          {/* GDPR / Consent alert */}
-          {caseData.sourceType === 'audio' && !consentLoading && !hasValidConsent && (
+          {/* GDPR / Consent alert — client or non-client with external attendees */}
+          {requiresConsentGate && caseData.sourceType === 'audio' && !consentLoading && !hasValidConsent && (
             <div className="p-4 bg-destructive/10 border border-destructive/40 rounded-md" data-testid="alert-gdpr-required">
               <div className="flex items-start gap-3">
                 <Shield className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground">GDPR Compliance Required</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {needsParticipantConsent ? "Participant Consent Required" : "GDPR Compliance Required"}
+                  </p>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    No valid client consent has been recorded. Obtain consent before processing audio.
+                    {needsParticipantConsent
+                      ? "No participant recording notice has been recorded. Confirm attendees agreed before processing audio."
+                      : "No valid client consent has been recorded. Obtain consent before processing audio."}
                   </p>
                 </div>
                 <Button
@@ -1802,7 +1811,7 @@ export default function CaseDetail() {
                   data-testid="button-get-consent-gdpr-banner"
                 >
                   <Shield className="w-3.5 h-3.5" />
-                  Get Consent
+                  {needsParticipantConsent ? "Confirm Notice" : "Get Consent"}
                 </Button>
               </div>
             </div>
@@ -1871,7 +1880,7 @@ export default function CaseDetail() {
           )}
 
           {/* Missing-consent banner for bot meetings where consent was not confirmed — shown once session has clearly ended */}
-          {liveImport && liveImport.consentMode === 'in_meeting' && liveImport.consentConfirmed === false && ['transcribing', 'completed', 'failed'].includes(liveImport.status) && (
+          {requiresConsentGate && liveImport && liveImport.consentMode === 'in_meeting' && liveImport.consentConfirmed === false && ['transcribing', 'completed', 'failed'].includes(liveImport.status) && (
             <div className="p-4 rounded-md border border-amber-500/50 bg-amber-500/10 space-y-3" data-testid="banner-missing-consent">
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
@@ -1958,7 +1967,7 @@ export default function CaseDetail() {
           )}
 
           {/* No-consent text-only alert — only when consent was explicitly declined */}
-          {caseData.sourceType === 'audio' && hasDeclinedConsent && !hasValidConsent && !consentLoading && !audioLoading && (
+          {requiresConsentGate && caseData.sourceType === 'audio' && hasDeclinedConsent && !hasValidConsent && !consentLoading && !audioLoading && (
             <Alert className="bg-card border-muted" data-testid="alert-no-recording-consent">
               <FileText className="w-4 h-4" />
               <AlertDescription>
@@ -2064,20 +2073,27 @@ export default function CaseDetail() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-semibold text-sm mb-1">
-                    {caseData.sourceType === 'dictation' ? 'Ready for Processing'
-                      : hasValidConsent ? 'Ready for Processing' : 'Consent Required Before Processing'}
+                    {caseData.sourceType === 'dictation' || !requiresConsentGate || hasValidConsent
+                      ? 'Ready for Processing'
+                      : 'Consent Required Before Processing'}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {caseData.sourceType === 'dictation'
                       ? 'Your dictation is ready to transcribe and produce a telephone attendance note.'
-                      : hasValidConsent
-                        ? 'Your audio recording is ready to transcribe and produce legal documents.'
-                        : 'Valid client consent must be recorded before processing can begin.'}
+                      : !requiresConsentGate
+                        ? 'Your recording is ready to transcribe and produce meeting notes.'
+                        : hasValidConsent
+                          ? needsParticipantConsent
+                            ? 'Your recording is ready to transcribe and produce meeting notes.'
+                            : 'Your audio recording is ready to transcribe and produce legal documents.'
+                          : needsParticipantConsent
+                            ? 'Participant agreement must be recorded before processing can begin.'
+                            : 'Valid client consent must be recorded before processing can begin.'}
                   </p>
                 </div>
                 <Button
                   onClick={() => processAIMutation.mutate()}
-                  disabled={processAIMutation.isPending || (caseData.sourceType !== 'dictation' && !hasValidConsent)}
+                  disabled={processAIMutation.isPending || (requiresConsentGate && caseData.sourceType !== 'dictation' && !hasValidConsent)}
                   className="gap-2 bg-accent hover:bg-accent shrink-0"
                   size="sm"
                   data-testid="button-process-ai"
@@ -2126,6 +2142,7 @@ export default function CaseDetail() {
                   status={caseData.status}
                   caseTitle={caseData.title}
                   clientName={caseData.clientName}
+                  matterKind={normalizeMatterKind(caseData.matterKind)}
                   matterReference={caseData.matterReference || undefined}
                   createdAt={new Date(caseData.createdAt).toISOString()}
                   onTranscriptTimestampClick={handleTranscriptTimestampClick}
@@ -2393,7 +2410,13 @@ export default function CaseDetail() {
 
           {activeSection === 'consent' && (
             <div className="max-w-3xl">
-              {caseData.sourceType === 'audio' ? (
+              {!requiresConsentGate ? (
+                <div className="text-center py-16 space-y-3">
+                  <Shield className="w-8 h-8 mx-auto text-muted-foreground/40" />
+                  <p className="font-medium text-sm">Consent capture not required</p>
+                  <p className="text-xs text-muted-foreground">Firm-only non-client meetings do not use client or participant consent capture.</p>
+                </div>
+              ) : caseData.sourceType === 'audio' ? (
                 <ConsentEvidence
                   caseId={caseId!}
                   sessions={meetingSessions}
@@ -2519,6 +2542,7 @@ export default function CaseDetail() {
                   : "Set practice area"}
               </Badge>
             )}
+            {isClientMatter && (
             <div className="flex items-center gap-1.5">
               {(() => {
                 const ccCriterion = sraReadiness?.criteria?.find((c) => c.key === "conflict_check");
@@ -2552,7 +2576,8 @@ export default function CaseDetail() {
                 Record Conflict Check
               </Button>
             </div>
-            {caseData.clientCareLetterId ? (
+            )}
+            {isClientMatter && (caseData.clientCareLetterId ? (
               <>
                 <Badge
                   variant="secondary"
@@ -2579,7 +2604,7 @@ export default function CaseDetail() {
                 <FileText className="w-3 h-3" />
                 Generate Client Care Letter
               </Button>
-            )}
+            ))}
             <div className="flex items-center gap-3 text-xs text-muted-foreground ml-auto">
               <span className="flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
@@ -2610,19 +2635,20 @@ export default function CaseDetail() {
         caseTitle={caseData.title}
         userRole="Partner"
         recipientName={caseData.clientName}
+        requireClientConsent={isClientMatter}
         availableDocuments={{
           hasAttendanceNote: documents.some(
             (d) =>
               d.isActive !== false &&
               (d.type === "attendance_note" || (d.type as string) === "meeting_notes"),
           ),
-          hasSummary: documents.some(
+          hasSummary: isClientMatter && documents.some(
             (d) =>
               d.isActive !== false &&
               (d.type === "summary" || (d.type as string) === "client_letter"),
           ),
           hasTranscript: !!transcript?.content,
-          hasCareLetter: !!caseData.clientCareLetterId,
+          hasCareLetter: isClientMatter && !!caseData.clientCareLetterId,
         }}
       />
       {caseHandoverVisible && (

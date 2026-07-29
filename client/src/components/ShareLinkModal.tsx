@@ -33,6 +33,8 @@ interface ShareLinkModalProps {
   userRole: "Partner" | "Senior Associate" | "Solicitor" | "Paralegal";
   /** Full client name from the case file — first name is prefilled as recipient name. */
   recipientName?: string;
+  /** When false (internal meetings), skip the client-consent external-share gate. */
+  requireClientConsent?: boolean;
   availableDocuments?: {
     hasAttendanceNote: boolean;
     hasSummary: boolean;
@@ -67,6 +69,7 @@ export default function ShareLinkModal({
   caseTitle,
   userRole,
   recipientName: defaultRecipientName,
+  requireClientConsent = true,
   availableDocuments = {
     hasAttendanceNote: true,
     hasSummary: true,
@@ -197,7 +200,7 @@ export default function ShareLinkModal({
       return;
     }
 
-    if (isExternal && !clientConsent) {
+    if (isExternal && requireClientConsent && !clientConsent) {
       toast({
         title: "Consent Required",
         description: "You must confirm client consent for external sharing",
@@ -521,7 +524,7 @@ export default function ShareLinkModal({
             </Label>
           </div>
 
-          {isExternal && (
+          {isExternal && requireClientConsent && (
             <>
               <div className="space-y-2">
                 <Label htmlFor="organization">Organization (optional)</Label>
@@ -554,6 +557,18 @@ export default function ShareLinkModal({
                 </Label>
               </div>
             </>
+          )}
+          {isExternal && !requireClientConsent && (
+            <div className="space-y-2">
+              <Label htmlFor="organization">Organization (optional)</Label>
+              <Input
+                id="organization"
+                placeholder="Recipient's organization"
+                value={organization}
+                onChange={(e) => setOrganization(e.target.value)}
+                data-testid="input-organization"
+              />
+            </div>
           )}
 
           <div className="grid grid-cols-2 gap-4">
@@ -663,7 +678,7 @@ export default function ShareLinkModal({
           <Button 
             onClick={handleShare} 
             className="bg-accent hover:bg-accent"
-            disabled={!recipientEmail || !recipientName || (isExternal && !clientConsent) || (smsProtection && !smsPhoneNumber)}
+            disabled={!recipientEmail || !recipientName || (isExternal && requireClientConsent && !clientConsent) || (smsProtection && !smsPhoneNumber)}
             data-testid="button-send-link"
           >
             <Share2 className="w-4 h-4 mr-2" />

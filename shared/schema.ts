@@ -15,7 +15,10 @@ export {
   isMatterKind,
   normalizeMatterKind,
   partyLabelForMatterKind,
+  requiresClientConsent,
   requiresClientForMatter,
+  requiresParticipantConsent,
+  requiresSealedConsentForProcessing,
   type MatterKind,
 } from "./matterKinds";
 
@@ -229,11 +232,13 @@ export const cases = pgTable("cases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   firmId: varchar("firm_id").references(() => firms.id),
   title: text("title").notNull(),
-  /** Denormalised party label. For non-client matters this is "Internal" / "Firm". */
+  /** Denormalised party label. For non-client matters this is "Non-client". */
   clientName: text("client_name").notNull(),
   clientId: varchar("client_id").references(() => clients.id),
-  /** client = solicitor–client work; internal/firm = non-client meetings. */
+  /** client = solicitor–client work; internal = non-client meetings (legacy firm collapsed to internal). */
   matterKind: text("matter_kind").notNull().default("client"),
+  /** Non-client meetings only: people outside the firm are attending (triggers participant consent). */
+  hasExternalAttendees: boolean("has_external_attendees").notNull().default(false),
   matterReference: text("matter_reference"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   assignedToUserId: varchar("assigned_to_user_id").references(() => users.id),
@@ -906,12 +911,14 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   clientCareLetterId: true,
   clientCareLetterSentAt: true,
   matterKind: true,
+  hasExternalAttendees: true,
 }).extend({
   title: z.string().min(1).max(500).transform(sanitizeString),
-  /** Optional for non-client matters; server fills Internal/Firm party label when omitted. */
+  /** Optional for non-client matters; server fills Non-client party label when omitted. */
   clientName: z.string().max(200).default("").transform(sanitizeString),
   clientId: z.string().uuid().optional(),
   matterKind: z.enum(MATTER_KINDS).default("client"),
+  hasExternalAttendees: z.boolean().default(false),
   matterReference: z.string().max(100).transform(sanitizeString).optional(),
   status: z.enum(["pending", "processing", "review_required", "completed"]).default("pending"),
   priority: z.enum(["urgent", "deadline-soon", "normal"]).default("normal"),

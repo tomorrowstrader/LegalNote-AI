@@ -38,7 +38,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Case, Client, MatterKind } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, MATTER_KIND_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
-import { isClientMatterKind, partyLabelForMatterKind, normalizeMatterKind } from "@shared/matterKinds";
+import { isClientMatterKind, partyLabelForMatterKind, normalizeMatterKind, requiresParticipantConsent } from "@shared/matterKinds";
 import {
   defaultRecordingTypeForMatterKind,
   recordingTypesForMatterKind,
@@ -92,6 +92,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
   const [selectedCaseId, setSelectedCaseId] = useState<string>(initialCaseId || "");
   const [recordingType, setRecordingType] = useState<RecordingType>("full_meeting");
   const [matterKind, setMatterKind] = useState<MatterKind>("client");
+  const [hasExternalAttendees, setHasExternalAttendees] = useState(false);
   const [caseSearchQuery, setCaseSearchQuery] = useState("");
   const [showCaseDropdown, setShowCaseDropdown] = useState(false);
   const caseSearchRef = useRef<HTMLDivElement>(null);
@@ -135,6 +136,16 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       ? normalizeMatterKind(existingCases.find((c) => c.id === selectedCaseId)?.matterKind)
       : matterKind;
   const isClientMatter = isClientMatterKind(effectiveMatterKind);
+  const selectedExistingCase = noteMode === "add_session"
+    ? existingCases.find((c) => c.id === selectedCaseId)
+    : undefined;
+  const effectiveHasExternalAttendees = noteMode === "add_session"
+    ? !!(selectedExistingCase as { hasExternalAttendees?: boolean } | undefined)?.hasExternalAttendees
+    : hasExternalAttendees;
+  const needsParticipantConsent = requiresParticipantConsent(
+    effectiveMatterKind,
+    effectiveHasExternalAttendees,
+  );
   const allowedRecordingTypes = recordingTypesForMatterKind(effectiveMatterKind);
 
   useEffect(() => {
@@ -249,6 +260,9 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       matterKind: noteMode === "add_session"
         ? (selectedCase?.matterKind as MatterKind | undefined) || "client"
         : matterKind,
+      hasExternalAttendees: noteMode === "add_session"
+        ? !!(selectedCase as { hasExternalAttendees?: boolean } | undefined)?.hasExternalAttendees
+        : !isClientMatter && hasExternalAttendees,
       matterRef: matterRef || undefined,
       practiceArea: isClientMatter ? practiceArea : "",
       conflictCheckCompleted: isClientMatter ? conflictCheckCompleted : false,
@@ -313,6 +327,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       const caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
         title: caseTitle,
         matterKind,
+        hasExternalAttendees: !isClientMatter && hasExternalAttendees,
         clientName: isClientMatter ? selectedClient!.name : partyLabelForMatterKind(matterKind),
         clientId: isClientMatter ? selectedClient!.id : undefined,
         matterReference: matterRef || undefined,
@@ -732,6 +747,8 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                           setConflictCheckCompleted(false);
                           setConflictCheckNote("");
                           setCostsEstimate("");
+                        } else {
+                          setHasExternalAttendees(false);
                         }
                       }}
                       className="flex flex-col gap-2 sm:flex-row sm:gap-4"
@@ -747,9 +764,26 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                       ))}
                     </RadioGroup>
                     {!isClientMatter && (
-                      <p className="text-xs text-muted-foreground">
-                        No client registry entry, conflict check, or client letter — minutes and action points only.
-                      </p>
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          No client registry entry, conflict check, or client letter — minutes and action points only.
+                        </p>
+                        <div className="flex items-start gap-2 pt-1">
+                          <Checkbox
+                            id="external-attendees"
+                            checked={hasExternalAttendees}
+                            onCheckedChange={(checked) => setHasExternalAttendees(checked === true)}
+                            disabled={recordingLocked}
+                            data-testid="checkbox-external-attendees"
+                          />
+                          <Label htmlFor="external-attendees" className="cursor-pointer font-normal text-sm leading-snug">
+                            External attendees present (outside the firm)
+                            <span className="block text-xs text-muted-foreground mt-0.5">
+                              e.g. chambers, vendors, BD — captures a short participant recording notice
+                            </span>
+                          </Label>
+                        </div>
+                      </>
                     )}
                   </div>
                   <div className="space-y-2">
@@ -758,7 +792,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                     </Label>
                     <Input
                       id="case-title"
-                      placeholder={isClientMatter ? "e.g., Estate Planning Consultation" : "e.g., Partners meeting — Q3 planning"}
+                      placeholder={isClientMatter ? "e.g., Estate Planning Consultation" : hasExternalAttendees ? "e.g., Penn Chamber — app introduction" : "e.g., Partners meeting — Q3 planning"}
                       value={caseTitle}
                       onChange={(e) => setCaseTitle(e.target.value)}
                       disabled={recordingLocked}
@@ -967,7 +1001,9 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
           <Card>
             <CardHeader>
               <CardTitle>
-                {isClientMatter ? "Audio Recording with Consent Capture" : "Audio Recording"}
+                {isClientMatter || needsParticipantConsent
+                  ? "Audio Recording with Consent Capture"
+                  : "Audio Recording"}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -975,7 +1011,9 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                 <p className="text-sm text-muted-foreground">
                   {isClientMatter
                     ? "The recording will begin with a 3-second countdown in the bottom-right control center. You will then read the consent disclaimer to your client, and they will verbally confirm their consent on the recording. You can navigate away — the recording stays manageable from the control center."
-                    : "The recording will begin with a 3-second countdown in the bottom-right control center. Client consent capture is not required for internal or firm meetings. You can navigate away — the recording stays manageable from the control center."}
+                    : needsParticipantConsent
+                      ? "The recording will begin with a 3-second countdown in the bottom-right control center. You will then read a short participant recording notice to attendees and confirm their agreement on the recording."
+                      : "The recording will begin with a 3-second countdown in the bottom-right control center. Client consent capture is not required for firm-only non-client meetings. You can navigate away — the recording stays manageable from the control center."}
                 </p>
               </div>
 
@@ -1014,7 +1052,9 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                     data-testid="button-start-recording"
                   >
                     <Mic className="w-5 h-5" />
-                    Start Recording with Consent Capture
+                    {isClientMatter || needsParticipantConsent
+                      ? "Start Recording with Consent Capture"
+                      : "Start Recording"}
                   </Button>
                   {noteMode === "new_matter" && (
                     <Button

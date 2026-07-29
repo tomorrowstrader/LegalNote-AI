@@ -28,10 +28,19 @@ import {
   flushMeetingNotesToCase,
   type MeetingNotesDraftKey,
 } from "@/lib/meetingNotesDraft";
-import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
+import {
+  CONSENT_DISCLAIMER_TEXT,
+  CONSENT_DISCLAIMER_VERSION,
+  PARTICIPANT_CONSENT_DISCLAIMER_TEXT,
+  PARTICIPANT_CONSENT_DISCLAIMER_VERSION,
+} from "@shared/consent";
 import type { MatterKind, PracticeArea, RecordingType } from "@shared/schema";
-import { isClientMatterKind } from "@shared/matterKinds";
-import { partyLabelForMatterKind } from "@shared/matterKinds";
+import {
+  isClientMatterKind,
+  partyLabelForMatterKind,
+  requiresParticipantConsent,
+  requiresSealedConsentForProcessing,
+} from "@shared/matterKinds";
 
 export type NewNoteRecordingMeta = {
   noteMode: "new_matter" | "add_session";
@@ -40,6 +49,8 @@ export type NewNoteRecordingMeta = {
   clientName?: string;
   clientAmlRiskLevel?: string | null;
   matterKind?: MatterKind;
+  /** Non-client: people outside the firm are attending. */
+  hasExternalAttendees?: boolean;
   matterRef?: string;
   practiceArea?: PracticeArea | "";
   conflictCheckCompleted: boolean;
@@ -214,8 +225,12 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       };
 
       mediaRecorder.start(1000);
-      const skipClientConsent = !isClientMatterKind(metaRef.current?.matterKind);
-      if (skipClientConsent) {
+      const kind = metaRef.current?.matterKind ?? "client";
+      const needsConsent = requiresSealedConsentForProcessing(
+        kind,
+        metaRef.current?.hasExternalAttendees,
+      );
+      if (!needsConsent) {
         setConsentGiven(null);
         setShowConsentModal(false);
       } else {
@@ -228,8 +243,14 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
         eventType: "recording_started",
         metadata: {
           source: "new_note_page",
-          matterKind: metaRef.current?.matterKind ?? "client",
-          skipClientConsent,
+          matterKind: kind,
+          hasExternalAttendees: !!metaRef.current?.hasExternalAttendees,
+          skipConsent: !needsConsent,
+          consentVariant: isClientMatterKind(kind)
+            ? "client"
+            : requiresParticipantConsent(kind, metaRef.current?.hasExternalAttendees)
+              ? "participant"
+              : "none",
         },
         severity: "info",
       });
@@ -385,6 +406,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
         caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
           title: snapshot.caseTitle,
           matterKind: kind,
+          hasExternalAttendees: !isClientMatterKind(kind) && !!snapshot.hasExternalAttendees,
           clientName: isClientMatterKind(kind)
             ? snapshot.clientName
             : partyLabelForMatterKind(kind),
@@ -443,23 +465,32 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
 
       if (consentGivenRef.current !== null) {
         try {
+          const isParticipant = requiresParticipantConsent(
+            snapshot.matterKind,
+            snapshot.hasExternalAttendees,
+          );
           await apiRequest("POST", "/api/consent", {
             caseId: targetCaseId,
             audioRecordingId: audioResult.id,
             consentGiven: consentGivenRef.current,
             consentModality: "verbal_recorded" as const,
-            disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
-            disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
+            disclaimerScriptVersion: isParticipant
+              ? PARTICIPANT_CONSENT_DISCLAIMER_VERSION
+              : CONSENT_DISCLAIMER_VERSION,
+            disclaimerWordingText: isParticipant
+              ? PARTICIPANT_CONSENT_DISCLAIMER_TEXT
+              : CONSENT_DISCLAIMER_TEXT,
             lawfulBasis: "consent" as const,
-            recordingPurpose:
-              "Creation of attendance notes and transcripts for legal record-keeping",
+            recordingPurpose: isParticipant
+              ? "Creation of meeting minutes and action points for firm records"
+              : "Creation of attendance notes and transcripts for legal record-keeping",
             source: "new_note_page",
           });
         } catch (consentError) {
           console.error("Consent log failed:", consentError);
           consentLogFailed = true;
           toast({
-            title: "GDPR Compliance Error",
+            title: "Consent record error",
             description:
               "Failed to save consent record. Open the matter to complete consent logging.",
             variant: "destructive",
@@ -723,6 +754,11 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
 
       <ConsentModal
         open={showConsentModal}
+        variant={
+          requiresParticipantConsent(meta?.matterKind, meta?.hasExternalAttendees)
+            ? "participant"
+            : "client"
+        }
         onConsentGiven={handleConsentGiven}
         onConsentDeclined={handleConsentDeclined}
       />

@@ -20,6 +20,7 @@ export function initializeWorkers() {
     console.log(`[AI-WORKER] Starting AI processing for case ${data.caseId}${data.sessionId ? ` session ${data.sessionId}` : ''}`);
 
     const { assertSealedConsent, SealedConsentError } = await import('./services/assertSealedConsent');
+    const { requiresSealedConsentForProcessing } = await import('@shared/schema');
     let audioRecordingId: string | undefined;
     if (data.sessionId) {
       const sessionAudio = await storage.getAudioRecordingBySession(data.sessionId);
@@ -30,14 +31,20 @@ export function initializeWorkers() {
       audioRecordingId = caseAudio?.id;
     }
 
-    try {
-      await assertSealedConsent(data.caseId, data.userId, audioRecordingId);
-    } catch (error: any) {
-      if (error instanceof SealedConsentError) {
-        console.error(`[AI-WORKER] Sealed consent gate failed for case ${data.caseId}:`, error.message);
-        throw new Error(error.message);
+    const caseForConsent = await storage.getCase(data.caseId, data.userId);
+    if (requiresSealedConsentForProcessing(
+      (caseForConsent as { matterKind?: string } | undefined)?.matterKind,
+      (caseForConsent as { hasExternalAttendees?: boolean } | undefined)?.hasExternalAttendees,
+    )) {
+      try {
+        await assertSealedConsent(data.caseId, data.userId, audioRecordingId);
+      } catch (error: any) {
+        if (error instanceof SealedConsentError) {
+          console.error(`[AI-WORKER] Sealed consent gate failed for case ${data.caseId}:`, error.message);
+          throw new Error(error.message);
+        }
+        throw error;
       }
-      throw error;
     }
     
     const pipeline = new AIProcessingPipeline(storage);
