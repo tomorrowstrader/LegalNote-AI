@@ -472,7 +472,7 @@ export default function CaseDetail() {
     enabled: shouldLoadCaseContent,
   });
 
-  const { data: documents = [] } = useQuery<Array<{
+  const { data: documents = [], isFetched: documentsFetched, isFetching: documentsFetching } = useQuery<Array<{
     id: string; caseId: string; type: string;
     content: string; version: number; createdAt: string; isActive?: boolean;
     status?: string; meetingSessionId?: string | null;
@@ -615,8 +615,9 @@ export default function CaseDetail() {
   }, [processingStatus?.status, caseData?.status, caseId]);
 
   // When the matter leaves processing via case poll (not only processing-status),
-  // refresh documents/versions so a new further version appears immediately.
+  // refresh documents/versions and hand off into the adoption review loop.
   const prevCaseStatusRef = useRef<string | undefined>(undefined);
+  const pendingAdoptionHandoffRef = useRef(false);
   useEffect(() => {
     const prev = prevCaseStatusRef.current;
     prevCaseStatusRef.current = caseData?.status;
@@ -638,8 +639,41 @@ export default function CaseDetail() {
           duration: 8000,
         });
       }
+      if (caseData.status === "review_required" || caseData.status === "completed") {
+        setActiveSection("documents");
+        pendingAdoptionHandoffRef.current = true;
+      }
     }
   }, [caseData?.status, caseData?.aiProcessingMetadata, caseId, toast]);
+
+  // After processing completes, toast once documents are available for adoption.
+  useEffect(() => {
+    if (!pendingAdoptionHandoffRef.current) return;
+    if (!caseData || (caseData.status !== "review_required" && caseData.status !== "completed")) return;
+    if (!shouldLoadCaseContent || !documentsFetched || documentsFetching) return;
+
+    pendingAdoptionHandoffRef.current = false;
+    const pendingCount = documents.filter(
+      (d) =>
+        d.isActive !== false &&
+        ["attendance_note", "meeting_notes", "summary", "client_letter", "client_care_letter"].includes(d.type) &&
+        (d.status ?? "draft") !== "approved",
+    ).length;
+
+    if (pendingCount > 0) {
+      toast({
+        title: `${pendingCount} document${pendingCount === 1 ? "" : "s"} ready to adopt`,
+        description: "Review each note below, then adopt when you are satisfied.",
+        duration: 7000,
+      });
+    } else {
+      toast({
+        title: "Documents ready",
+        description: "Your session documents are available below.",
+        duration: 5000,
+      });
+    }
+  }, [caseData, documents, documentsFetched, documentsFetching, shouldLoadCaseContent, toast]);
 
   useEffect(() => {
     if (

@@ -16,3 +16,22 @@ export function setCaseAudioExpanded(expanded: boolean): void {
     /* ignore */
   }
 }
+
+/** After first successful adopt, use the short "I Adopt" label. */
+export const SHORT_ADOPT_LABEL_KEY = "legalnote-adopt-label-short";
+
+export function hasUsedShortAdoptLabel(): boolean {
+  try {
+    return localStorage.getItem(SHORT_ADOPT_LABEL_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markShortAdoptLabelUsed(): void {
+  try {
+    localStorage.setItem(SHORT_ADOPT_LABEL_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}

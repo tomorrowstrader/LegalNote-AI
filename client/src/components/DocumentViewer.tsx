@@ -20,6 +20,7 @@ import {
   getNextAdoptionTab,
   getUnadoptedDocumentTypes,
 } from "@/lib/documentAdoption";
+import { hasUsedShortAdoptLabel, markShortAdoptLabelUsed } from "@/lib/reviewFirstMode";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile, DocumentComment } from "@shared/schema";
@@ -1596,6 +1597,7 @@ export default function DocumentViewer({
   const [showRationaleSection, setShowRationaleSection] = useState<Record<string, boolean>>({}); // docId -> expanded
   const [pendingApprovalDocId, setPendingApprovalDocId] = useState<string | null>(null); // doc waiting for soft gate confirm
   const [amlAcknowledged, setAmlAcknowledged] = useState<Record<string, boolean>>({}); // docId -> confirmed AML consideration
+  const [useShortAdoptLabel, setUseShortAdoptLabel] = useState(() => hasUsedShortAdoptLabel());
   const adoptionDocsRef = useRef<{
     attendanceNote: Document | null | undefined;
     summary: Document | null | undefined;
@@ -1870,6 +1872,8 @@ export default function DocumentViewer({
 
       const { attendanceNote: a, summary: s, clientCareLetter: c } = adoptionDocsRef.current;
       const nextTab = getNextAdoptionTab([a, s, c], variables.documentId);
+      markShortAdoptLabelUsed();
+      setUseShortAdoptLabel(true);
       if (nextTab) {
         setActiveTab(nextTab);
         toast({
@@ -2706,11 +2710,11 @@ export default function DocumentViewer({
                 variant="default"
                 onClick={handleApproveClick}
                 disabled={isApproving || isEditing}
-                className="gap-1.5 font-medium shadow-sm"
+                className="gap-1.5 font-medium shadow-sm h-auto min-h-8 py-1.5 whitespace-normal text-left"
                 data-testid="button-approve-document"
               >
-                <CheckCircle className="w-3.5 h-3.5" />
-                I Adopt
+                <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                {useShortAdoptLabel ? "I Adopt" : "I have reviewed and adopt this note"}
               </Button>
             </>
           )}
@@ -3251,7 +3255,7 @@ export default function DocumentViewer({
         </div>
 
         <TabsContent value="attendance" className="mt-6">
-          {attendanceNote?.status === 'draft' && !dismissedReviewBanners.has('attendance') && (
+          {attendanceNote?.status === 'draft' && pendingAdoption.length === 0 && !dismissedReviewBanners.has('attendance') && (
             <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-attendance">
               <div className="flex items-start gap-3">
                 <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
@@ -3483,7 +3487,7 @@ export default function DocumentViewer({
         </TabsContent>
 
         <TabsContent value="summary" className="mt-6">
-          {summary?.status === 'draft' && !dismissedReviewBanners.has('summary') && (
+          {summary?.status === 'draft' && pendingAdoption.length === 0 && !dismissedReviewBanners.has('summary') && (
             <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-summary">
               <div className="flex items-start gap-3">
                 <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
@@ -3827,7 +3831,7 @@ export default function DocumentViewer({
 
         {clientCareLetter && (
           <TabsContent value="care_letter" className="mt-6">
-            {clientCareLetter.status === 'draft' && !dismissedReviewBanners.has('care_letter') && (
+            {clientCareLetter.status === 'draft' && pendingAdoption.length === 0 && !dismissedReviewBanners.has('care_letter') && (
               <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-care-letter">
                 <div className="flex items-start gap-3">
                   <Eye className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
