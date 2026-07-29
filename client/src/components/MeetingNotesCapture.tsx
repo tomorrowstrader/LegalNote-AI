@@ -255,7 +255,7 @@ export default function MeetingNotesCapture({
           type="button"
           onClick={() => setMode("open")}
           className={cn(
-            "group flex items-center gap-2.5 rounded-full border border-border/80 bg-card/95 px-4 py-2.5 shadow-lg backdrop-blur-sm",
+            "group flex items-center gap-2.5 rounded-full border border-border bg-card px-4 py-2.5 shadow-lg",
             "transition-all duration-300 hover:shadow-xl hover:border-accent/40",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           )}
@@ -290,13 +290,11 @@ export default function MeetingNotesCapture({
   }
 
   const actionButtonClass = cn(
-    "inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2",
-    "text-[13px] font-medium text-white transition-all duration-150",
-    "shadow-[0_2px_8px_rgba(140,55,25,0.35),0_1px_2px_rgba(0,0,0,0.12)]",
-    "hover:shadow-[0_4px_12px_rgba(140,55,25,0.4),0_2px_4px_rgba(0,0,0,0.14)] hover:-translate-y-px",
-    "active:translate-y-0 active:shadow-[0_1px_4px_rgba(140,55,25,0.3)]",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-    "h-10 min-w-0 w-full",
+    "inline-flex flex-1 items-center justify-center gap-1 rounded-md px-1.5 py-1",
+    "text-[11px] font-medium text-white transition-colors duration-150",
+    "shadow-sm hover:brightness-95 active:brightness-90",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
+    "h-7 min-w-0",
   );
 
   const panel = (
@@ -317,9 +315,7 @@ export default function MeetingNotesCapture({
       style={
         isCompanion
           ? { backgroundColor: PAPER_WHITE, color: INK }
-          : isDocked
-            ? { color: INK, background: "transparent" }
-            : undefined
+          : undefined
       }
       data-testid="meeting-notes-panel"
     >
@@ -369,7 +365,7 @@ export default function MeetingNotesCapture({
           "relative z-10 flex items-start justify-between gap-3 px-4",
           isDocked ? "pb-2 pt-1" : "pt-3.5 pb-3",
           isCompanion && "border-b border-[hsl(24,28%,78%/0.55)]",
-          isDocked && "border-b border-[hsl(24,28%,78%/0.35)]",
+          isDocked && "border-b border-border/60",
           !isNotepad && "border-b border-border/50",
         )}
       >
@@ -401,22 +397,22 @@ export default function MeetingNotesCapture({
             <>
               <div className="flex items-center gap-2">
                 {isDocked ? (
-                  <Logo variant="icon" size="sm" tone="light" className="h-4 w-4" />
-                ) : isNotepad ? (
-                  <Logo variant="icon" size="sm" tone="light" className="h-5 w-5" />
+                  <Logo variant="icon" size="sm" tone="auto" className="h-4 w-4" />
                 ) : (
                   <PenLine className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 )}
                 <h3
-                  className="text-sm font-medium tracking-tight"
-                  style={isDocked ? { fontFamily: "var(--font-serif)", color: INK } : undefined}
+                  className={cn(
+                    "text-sm font-medium tracking-tight",
+                    isDocked && "text-foreground",
+                  )}
+                  style={isDocked ? { fontFamily: "var(--font-serif)" } : undefined}
                 >
                   Meeting notes
                 </h3>
                 {isDocked && liveLabel && (
                   <span
-                    className="shrink-0 text-[10px] uppercase tracking-wider font-medium"
-                    style={{ color: BRAND }}
+                    className="shrink-0 text-[10px] uppercase tracking-wider font-medium text-accent"
                   >
                     {liveLabel}
                   </span>
@@ -435,7 +431,7 @@ export default function MeetingNotesCapture({
             <span
               className={cn(
                 "mr-1 min-w-[4.5ch] text-right font-mono text-[11px] tabular-nums",
-                isNotepad ? "text-[hsl(220,12%,40%)]" : "text-muted-foreground",
+                isCompanion ? "text-[hsl(220,12%,40%)]" : "text-muted-foreground",
               )}
               data-testid="text-meeting-notes-elapsed"
             >
@@ -461,7 +457,7 @@ export default function MeetingNotesCapture({
               size="icon"
               className={cn(
                 "h-7 w-7",
-                isDocked && "text-[hsl(220,12%,40%)] hover:bg-[hsl(24,30%,80%/0.45)] hover:text-[hsl(18,50%,30%)]",
+                isDocked && "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
               onClick={onPopOut}
               aria-label="Pop out notes to a separate window"
@@ -500,8 +496,8 @@ export default function MeetingNotesCapture({
         </div>
       </header>
 
-      {/* Equal 2×2 — only the inserts solicitors need live */}
-      <div className="relative z-10 grid grid-cols-2 gap-2 px-3 pt-3">
+      {/* Compact single row — Timestamp · Attendees · Instructions · Undertakings */}
+      <div className="relative z-10 flex items-center gap-1 px-3 pt-2">
         {NOTE_ACTIONS.map((action) => (
           <button
             key={action.id}
@@ -527,20 +523,22 @@ export default function MeetingNotesCapture({
                 : `button-snippet-${action.id}`
             }
           >
-            <action.icon className="h-3.5 w-3.5 shrink-0" />
-            {action.label}
+            <action.icon className="h-3 w-3 shrink-0" />
+            <span className="truncate">{action.label}</span>
           </button>
         ))}
       </div>
 
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-3 pb-2 pt-2.5">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-3 pb-2 pt-2">
         <div
           className={cn(
             "relative min-h-0 flex-1 overflow-hidden rounded-md",
-            isNotepad && "bg-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-[hsl(28,22%,82%)]",
+            isCompanion && "bg-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-[hsl(28,22%,82%)]",
+            isDocked && "bg-muted/40 ring-1 ring-border/60",
+            !isNotepad && "bg-transparent",
           )}
         >
-          {isNotepad && (
+          {isCompanion && (
             <div
               className="pointer-events-none absolute inset-0"
               style={{
@@ -563,13 +561,15 @@ export default function MeetingNotesCapture({
             placeholder="Capture instructions, undertakings, or anything the attendance note may miss…"
             className={cn(
               "relative z-10 min-h-0 w-full h-full resize-none border-0 bg-transparent px-3 py-2",
-              "text-[15px] leading-[28px] placeholder:text-[hsl(220,10%,55%)]",
+              "text-[15px] leading-[28px]",
               "focus-visible:outline-none",
+              isCompanion && "placeholder:text-[hsl(220,10%,55%)]",
+              isDocked && "leading-relaxed text-foreground placeholder:text-muted-foreground",
               !isNotepad && "px-1 py-1 leading-relaxed text-foreground placeholder:text-muted-foreground/55",
             )}
             style={{
               fontFamily: "var(--font-serif)",
-              color: isNotepad ? INK : undefined,
+              color: isCompanion ? INK : undefined,
             }}
             spellCheck
             data-testid="textarea-meeting-notes"
@@ -581,14 +581,17 @@ export default function MeetingNotesCapture({
         className={cn(
           "relative z-10 flex items-center justify-between gap-2 px-4 py-2",
           isCompanion && "border-t border-[hsl(30,18%,86%)]",
-          isDocked && "border-t border-[hsl(24,28%,78%/0.35)]",
+          isDocked && "border-t border-border/60",
           !isNotepad && "border-t border-border/50",
         )}
       >
-        <p className={cn("text-[11px]", isNotepad ? "text-[hsl(220,12%,42%)]" : "text-muted-foreground")}>
+        <p className={cn("text-[11px]", isCompanion ? "text-[hsl(220,12%,42%)]" : "text-muted-foreground")}>
           {saveState === "saving" && "Saving…"}
           {saveState === "saved" && (
-            <span className="inline-flex items-center gap-1" style={isNotepad ? { color: BRAND } : undefined}>
+            <span
+              className="inline-flex items-center gap-1"
+              style={isCompanion ? { color: BRAND } : undefined}
+            >
               <Check className="h-3 w-3" /> Saved
             </span>
           )}
@@ -606,7 +609,10 @@ export default function MeetingNotesCapture({
                   : "⌘⇧T timestamp · Esc collapse")}
         </p>
         {!caseTitle && !isDocked && (
-          <span className="text-[10px] uppercase tracking-wide text-[hsl(220,10%,50%)]">Unassigned</span>
+          <span className={cn(
+            "text-[10px] uppercase tracking-wide",
+            isCompanion ? "text-[hsl(220,10%,50%)]" : "text-muted-foreground",
+          )}>Unassigned</span>
         )}
       </footer>
     </div>

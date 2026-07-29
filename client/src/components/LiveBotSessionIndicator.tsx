@@ -357,7 +357,7 @@ export function LiveBotSessionIndicator() {
               className="space-y-2.5 px-4 pb-4 pt-1"
               data-testid="meeting-notes-popout-dock"
             >
-              <p className="text-xs leading-relaxed text-[hsl(220,12%,40%)]">
+              <p className="text-xs leading-relaxed text-muted-foreground">
                 Meeting notes are open in a separate window — keep it beside your video call.
                 Drafts stay in sync and save when the call ends.
               </p>
@@ -365,7 +365,6 @@ export function LiveBotSessionIndicator() {
                 <ControlCenterActionButton
                   variant="outline"
                   onClick={focusPopout}
-                  className="border-[hsl(28,22%,78%)] bg-white/70 text-[hsl(220,20%,16%)] hover:bg-white"
                   data-testid="button-focus-meeting-notes-popout"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
@@ -374,7 +373,6 @@ export function LiveBotSessionIndicator() {
                 <ControlCenterActionButton
                   variant="outline"
                   onClick={closePopout}
-                  className="border-[hsl(28,22%,78%)] bg-white/70 text-[hsl(220,20%,16%)] hover:bg-white"
                   data-testid="button-dock-meeting-notes-inline"
                 >
                   Dock notes here
