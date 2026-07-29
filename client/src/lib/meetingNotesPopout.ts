@@ -45,6 +45,77 @@ export function buildMeetingNotesPopoutUrl(opts: {
 const POPOUT_FEATURES =
   "popup=yes,width=420,height=680,resizable=yes,scrollbars=yes";
 
+const PENDING_WINDOW_NAME = "ln-meeting-notes-pending";
+
+/**
+ * Opens a blank companion window synchronously (must run in a user-gesture stack).
+ * Call {@link activateMeetingNotesPopout} once the importId / draft key is known.
+ * Returns null if the browser blocked the popup.
+ */
+export function reserveMeetingNotesPopout(): Window | null {
+  const win = window.open("about:blank", PENDING_WINDOW_NAME, POPOUT_FEATURES);
+  if (!win) return null;
+  try {
+    win.document.write(
+      `<!doctype html><title>Meeting notes — LegalNote</title>` +
+        `<body style="margin:0;font:14px/1.45 system-ui,sans-serif;color:#334155;background:#f8fafc;` +
+        `display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center">` +
+        `<p>Opening LegalNote meeting notes…</p></body>`,
+    );
+    win.document.close();
+  } catch {
+    // ignore — navigation will replace about:blank shortly
+  }
+  try {
+    win.focus();
+  } catch {
+    // ignore
+  }
+  return win;
+}
+
+/**
+ * Navigates a reserved (or any) window to the notes companion route and registers it.
+ */
+export function activateMeetingNotesPopout(
+  win: Window,
+  opts: {
+    draftKey: MeetingNotesDraftKey;
+    caseTitle?: string | null;
+    liveLabel?: string | null;
+    elapsedSeconds?: number;
+  },
+): boolean {
+  if (win.closed) return false;
+  const url = new URL(buildMeetingNotesPopoutUrl(opts), window.location.origin).href;
+  try {
+    win.location.href = url;
+  } catch {
+    return false;
+  }
+  openWindows.set(opts.draftKey, win);
+  try {
+    win.focus();
+  } catch {
+    // ignore
+  }
+  return true;
+}
+
+function closeReservedPopout(win: Window | null | undefined): void {
+  if (!win || win.closed) return;
+  try {
+    win.close();
+  } catch {
+    // ignore
+  }
+}
+
+/** Close a window reserved before deploy if the bot send failed or was abandoned. */
+export function discardReservedMeetingNotesPopout(win: Window | null | undefined): void {
+  closeReservedPopout(win);
+}
+
 /**
  * Opens (or focuses) the companion notes window for this draft.
  * Returns null if the browser blocked the popup.
@@ -54,10 +125,15 @@ export function openMeetingNotesPopout(opts: {
   caseTitle?: string | null;
   liveLabel?: string | null;
   elapsedSeconds?: number;
+  /** Optional window reserved via {@link reserveMeetingNotesPopout} during a user gesture. */
+  reservedWindow?: Window | null;
 }): Window | null {
   const name = popoutWindowName(opts.draftKey);
   const existing = openWindows.get(opts.draftKey);
   if (existing && !existing.closed) {
+    if (opts.reservedWindow && opts.reservedWindow !== existing) {
+      closeReservedPopout(opts.reservedWindow);
+    }
     existing.focus();
     publishMeetingNotesPopout({
       type: "meta",
@@ -75,9 +151,18 @@ export function openMeetingNotesPopout(opts: {
     return existing;
   }
 
+  if (opts.reservedWindow && !opts.reservedWindow.closed) {
+    if (activateMeetingNotesPopout(opts.reservedWindow, opts)) {
+      return opts.reservedWindow;
+    }
+  }
+
   const url = buildMeetingNotesPopoutUrl(opts);
   const win = window.open(url, name, POPOUT_FEATURES);
-  if (!win) return null;
+  if (!win) {
+    closeReservedPopout(opts.reservedWindow);
+    return null;
+  }
 
   openWindows.set(opts.draftKey, win);
   try {

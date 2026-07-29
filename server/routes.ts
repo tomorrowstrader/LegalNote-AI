@@ -10699,7 +10699,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
-  // Cancel a live bot while still waiting / before recording starts
+  // Cancel a live bot while still waiting / before recording starts (discards — no processing)
   app.post("/api/recall/bot/:botId/cancel", isAuthenticated, async (req: any, res, next) => {
     try {
       const { recallService } = await import("./services/recallService");
@@ -10731,19 +10731,28 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         // proceed with stored status
       }
 
-      if (botStatus && !isCancellableBotStatus(botStatus) && botStatus !== 'in_call_recording') {
-        // Allow cancel even mid-recording? Product decision: allow cancel only before
-        // recording, OR also during recording as "end early". User asked for waiting
-        // cancel — keep strict for non-cancellable terminal states.
+      if (botStatus === 'in_call_recording') {
+        return res.status(409).json({
+          message:
+            "Recording is in progress — use Stop to leave and produce the attendance note.",
+          botStatus,
+          useStop: true,
+        });
+      }
+
+      if (botStatus && !isCancellableBotStatus(botStatus)) {
         if (['done', 'recording_done', 'call_ended', 'fatal', 'left_consent_declined', 'left_user_cancelled'].includes(botStatus)) {
           return res.status(409).json({
             message: "LegalNote has already left this meeting",
             botStatus,
           });
         }
+        return res.status(409).json({
+          message: "LegalNote cannot be cancelled in the current state",
+          botStatus,
+        });
       }
 
-      // Also allow cancel while recording (solicitor ends early) — leaveCall works either way
       let botLeft = false;
       let leaveError: string | undefined;
       try {
@@ -10754,18 +10763,10 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         console.error(`[Recall] leaveCall failed on cancel for bot ${botId}:`, leaveError);
       }
 
-      const neverRecorded =
-        !botStatus ||
-        isCancellableBotStatus(botStatus) ||
-        botStatus === 'joining_call' ||
-        botStatus === 'joining';
-
       await storage.updateMeetingImport(importRecord.id, {
         status: 'failed',
         botStatus: botLeft ? 'left_user_cancelled' : (botStatus || 'left_user_cancelled'),
-        errorMessage: neverRecorded
-          ? USER_CANCELLED_LIVE_BOT_MESSAGE
-          : 'Cancelled — LegalNote left the meeting early. No attendance note was produced.',
+        errorMessage: USER_CANCELLED_LIVE_BOT_MESSAGE,
       });
 
       await storage.createAuditLog({
@@ -10790,6 +10791,99 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         leaveError,
         importStatus: fresh?.status || 'failed',
         errorMessage: fresh?.errorMessage || USER_CANCELLED_LIVE_BOT_MESSAGE,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Stop a live bot during recording — leave the call but still produce the attendance note
+  app.post("/api/recall/bot/:botId/stop", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { recallService } = await import("./services/recallService");
+      const { isCancellableBotStatus } = await import("@shared/liveBotLifecycle");
+      const userId = req.user.claims.sub;
+      const { botId } = req.params;
+
+      const importRecord = await storage.getMeetingImportByBotId(botId);
+      if (!importRecord || importRecord.userId !== userId) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+
+      if (importRecord.status !== 'live') {
+        return res.status(409).json({
+          message: "This meeting session is no longer active",
+          importStatus: importRecord.status,
+        });
+      }
+
+      let botStatus = importRecord.botStatus;
+      try {
+        const bot = await recallService.getBot(botId);
+        botStatus = recallService.getBotStatusCode(bot) || botStatus;
+      } catch {
+        // proceed with stored status
+      }
+
+      if (
+        botStatus &&
+        ['done', 'recording_done', 'call_ended', 'fatal', 'left_consent_declined', 'left_user_cancelled'].includes(botStatus)
+      ) {
+        return res.status(409).json({
+          message: "LegalNote has already left this meeting",
+          botStatus,
+        });
+      }
+
+      // Nothing captured yet — cancel (discard) is the right action
+      if (!botStatus || isCancellableBotStatus(botStatus)) {
+        return res.status(409).json({
+          message: "Nothing has been recorded yet — use Cancel LegalNote instead.",
+          botStatus,
+          useCancel: true,
+        });
+      }
+
+      let botLeft = false;
+      let leaveError: string | undefined;
+      try {
+        await recallService.leaveCall(botId);
+        botLeft = true;
+      } catch (err) {
+        leaveError = err instanceof Error ? err.message : String(err);
+        console.error(`[Recall] leaveCall failed on stop for bot ${botId}:`, leaveError);
+        return res.status(502).json({
+          message: leaveError || "Could not remove LegalNote from the meeting",
+          botLeft: false,
+        });
+      }
+
+      // Keep import live — webhook / cron will process when Recall marks the bot done
+      await storage.updateMeetingImport(importRecord.id, {
+        botStatus: 'call_ended',
+      });
+
+      await storage.createAuditLog({
+        eventType: 'live_bot_stopped',
+        userId,
+        caseId: importRecord.caseId || undefined,
+        ipAddress: req.ip || req.socket?.remoteAddress,
+        metadata: {
+          importId: importRecord.id,
+          botId,
+          botLeft,
+          priorBotStatus: botStatus,
+          ...(leaveError ? { leaveError } : {}),
+        },
+        severity: 'info',
+      });
+
+      const fresh = await storage.getMeetingImport(importRecord.id);
+      res.json({
+        success: true,
+        botLeft,
+        importStatus: fresh?.status || 'live',
+        botStatus: fresh?.botStatus || 'call_ended',
       });
     } catch (error) {
       next(error);

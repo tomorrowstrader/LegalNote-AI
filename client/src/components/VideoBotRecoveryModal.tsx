@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
@@ -32,6 +32,41 @@ export interface IncompleteVideoImport {
   consentMode: string;
   consentConfirmed: boolean;
   errorMessage: string | null;
+}
+
+/** Persist dismissals so the recovery prompt does not reappear every login for the same import+status. */
+const DISMISS_PREFIX = "ln-video-bot-recovery-dismissed:";
+
+function dismissKey(importId: string, status: string): string {
+  return `${DISMISS_PREFIX}${importId}:${status}`;
+}
+
+/** Exported for unit tests. */
+export function isVideoBotRecoveryDismissed(importId: string, status: string): boolean {
+  try {
+    return localStorage.getItem(dismissKey(importId, status)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Exported for unit tests. Permanent ack — will not show again for this import+status. */
+export function markVideoBotRecoveryDismissed(importId: string, status: string): void {
+  try {
+    localStorage.setItem(dismissKey(importId, status), "1");
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+function markImportsDismissed(imports: Pick<IncompleteVideoImport, "importId" | "status">[]): void {
+  for (const imp of imports) {
+    markVideoBotRecoveryDismissed(imp.importId, imp.status);
+  }
+}
+
+function filterUndismissed(imports: IncompleteVideoImport[]): IncompleteVideoImport[] {
+  return imports.filter((i) => !isVideoBotRecoveryDismissed(i.importId, i.status));
 }
 
 interface VideoBotRecoveryModalProps {
@@ -73,8 +108,28 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
   const activeSessionImportId = liveBotSession?.session?.importId;
 
   const visibleImports = useMemo(
-    () => imports.filter((i) => i.importId !== activeSessionImportId),
+    () =>
+      filterUndismissed(imports.filter((i) => i.importId !== activeSessionImportId)),
     [imports, activeSessionImportId],
+  );
+
+  const acknowledgeAndClose = useCallback(
+    (importsToDismiss: Pick<IncompleteVideoImport, "importId" | "status">[] = visibleImports) => {
+      markImportsDismissed(importsToDismiss);
+      onOpenChange(false);
+    },
+    [onOpenChange, visibleImports],
+  );
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) {
+        // X / escape / overlay — treat as acknowledged so it does not return next login
+        markImportsDismissed(visibleImports);
+      }
+      onOpenChange(nextOpen);
+    },
+    [onOpenChange, visibleImports],
   );
 
   useEffect(() => {
@@ -97,7 +152,7 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
         !["done", "recording_done", "call_ended", "fatal"].includes(imp.botStatus);
 
       if (imp.status === "awaiting_assignment") {
-        onOpenChange(false);
+        acknowledgeAndClose([imp]);
         setLocation("/");
         toast({
           title: "Recording awaiting assignment",
@@ -144,7 +199,7 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
         queryClient.invalidateQueries({ queryKey: [`/api/cases/${imp.caseId}/live-import`] });
       }
 
-      onOpenChange(false);
+      acknowledgeAndClose([imp]);
       toast({
         title: botStillLive ? "Resumed live meeting" : "Continuing video recording",
         description: botStillLive
@@ -164,7 +219,7 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg" data-testid="dialog-video-bot-recovery">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -233,7 +288,7 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
                       variant="outline"
                       className="gap-1.5"
                       onClick={() => {
-                        onOpenChange(false);
+                        acknowledgeAndClose([imp]);
                         setLocation(`/case/${imp.caseId}`);
                       }}
                       data-testid={`button-view-matter-video-import-${imp.importId}`}
@@ -252,12 +307,12 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
           <Button
             variant="ghost"
             onClick={() => {
-              onOpenChange(false);
+              acknowledgeAndClose();
               refetch();
             }}
             data-testid="button-video-bot-recovery-later"
           >
-            Remind me later
+            Dismiss
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -268,6 +323,7 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
 /**
  * On app load, check for incomplete video-bot imports and open recovery prompt.
  * Skips while Quick Record recovery is showing, and while a live session is already tracked.
+ * Skips imports the user already acknowledged (Continue / View matter / dismiss) for that status.
  */
 export function useVideoBotRecovery(enabled: boolean = true) {
   const [showVideoBotRecovery, setShowVideoBotRecovery] = useState(false);
@@ -285,7 +341,7 @@ export function useVideoBotRecovery(enabled: boolean = true) {
 
         const list = Array.isArray(response) ? (response as IncompleteVideoImport[]) : [];
         const activeId = liveBotSession?.session?.importId;
-        const pending = list.filter((i) => i.importId !== activeId);
+        const pending = filterUndismissed(list.filter((i) => i.importId !== activeId));
 
         if (pending.length > 0) {
           setShowVideoBotRecovery(true);

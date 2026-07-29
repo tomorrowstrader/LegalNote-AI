@@ -78,7 +78,9 @@ export function LiveBotSessionIndicator() {
     liveBotModalOpen,
     clearSession,
     cancelSession,
+    stopSession,
     cancelling,
+    stopping,
     errorMessage,
   } = useLiveBotSession();
   const [, setLocation] = useLocation();
@@ -246,7 +248,7 @@ export function LiveBotSessionIndicator() {
     if (result.success) {
       toast({
         title: "LegalNote cancelled",
-        description: result.errorMessage || "LegalNote left the meeting.",
+        description: result.errorMessage || "LegalNote left the meeting. No attendance note will be produced.",
         duration: 5000,
       });
     } else {
@@ -257,6 +259,25 @@ export function LiveBotSessionIndicator() {
       });
     }
   };
+
+  const handleStop = async () => {
+    const result = await stopSession();
+    if (result.success) {
+      toast({
+        title: "LegalNote stopped",
+        description: "LegalNote left the call. Meeting-to-Matter will produce the attendance note from what was captured.",
+        duration: 6000,
+      });
+    } else {
+      toast({
+        title: "Could not stop",
+        description: result.errorMessage || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const leaveBusy = cancelling || stopping;
 
   return (
     <>
@@ -280,21 +301,39 @@ export function LiveBotSessionIndicator() {
           data-testid="live-bot-session-indicator"
           actions={
             notesActive ? (
-              <ControlCenterActionButton
-                variant="outline"
-                disabled={cancelling}
-                onClick={() => void handleCancel()}
-                data-testid="button-cancel-live-bot"
-              >
-                {cancelling ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Cancelling…
-                  </>
-                ) : (
-                  "Cancel LegalNote"
-                )}
-              </ControlCenterActionButton>
+              phase === "recording" ? (
+                <ControlCenterActionButton
+                  variant="destructive"
+                  disabled={leaveBusy}
+                  onClick={() => void handleStop()}
+                  data-testid="button-stop-live-bot"
+                >
+                  {stopping ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Stopping…
+                    </>
+                  ) : (
+                    "Stop LegalNote"
+                  )}
+                </ControlCenterActionButton>
+              ) : (
+                <ControlCenterActionButton
+                  variant="outline"
+                  disabled={leaveBusy}
+                  onClick={() => void handleCancel()}
+                  data-testid="button-cancel-live-bot"
+                >
+                  {cancelling ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Cancelling…
+                    </>
+                  ) : (
+                    "Cancel LegalNote"
+                  )}
+                </ControlCenterActionButton>
+              )
             ) : (
               <ControlCenterActionButton
                 variant="outline"

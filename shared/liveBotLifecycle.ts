@@ -43,7 +43,7 @@ export const USER_CANCELLED_LIVE_BOT_MESSAGE =
 export const CONSENT_DECLINED_LIVE_BOT_MESSAGE =
   "Client declined consent — bot removed from call";
 
-/** Bot statuses where the solicitor can still cancel before a real recording starts. */
+/** Bot statuses where the solicitor can still cancel before a real recording starts (discards). */
 export const CANCELLABLE_BOT_STATUSES = [
   "joining_call",
   "joining",
@@ -54,6 +54,11 @@ export const CANCELLABLE_BOT_STATUSES = [
 export function isCancellableBotStatus(botStatus: string | null | undefined): boolean {
   if (!botStatus) return false;
   return (CANCELLABLE_BOT_STATUSES as readonly string[]).includes(botStatus);
+}
+
+/** True when Stop (leave + still process) is appropriate — recording has started. */
+export function isStoppableBotStatus(botStatus: string | null | undefined): boolean {
+  return botStatus === "in_call_recording";
 }
 
 /**

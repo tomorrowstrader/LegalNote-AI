@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import {
   autoLeaveDeadlineSeconds,
   formatWaitRemaining,
@@ -68,9 +68,12 @@ interface LiveBotSessionContextType {
   setLiveBotModalOpen: (open: boolean) => void;
   startSession: (session: Omit<LiveBotSession, "startedAt"> & { startedAt?: number }) => void;
   clearSession: () => void;
-  /** Leave the call and clear the session (waiting / pre-recording cancel). */
+  /** Leave before recording starts — discards; no attendance note. */
   cancelSession: () => Promise<{ success: boolean; errorMessage?: string }>;
+  /** Leave during recording — still produces the attendance note from what was captured. */
+  stopSession: () => Promise<{ success: boolean; errorMessage?: string }>;
   cancelling: boolean;
+  stopping: boolean;
 }
 
 const LiveBotSessionContext = createContext<LiveBotSessionContextType | undefined>(undefined);
@@ -121,6 +124,7 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [liveBotModalOpen, setLiveBotModalOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const notifiedEndRef = useRef(false);
@@ -156,6 +160,7 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
     setElapsedSeconds(0);
     setPanelOpen(false);
     setCancelling(false);
+    setStopping(false);
     notifiedEndRef.current = false;
     if (pollRef.current) clearInterval(pollRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
@@ -203,11 +208,40 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ["/api/recall/meetings"] });
       return { success: true, errorMessage: data.errorMessage || undefined };
     } catch (err: any) {
-      const msg = err?.message || "Could not cancel LegalNote";
+      const msg = getApiErrorMessage(err, "Could not cancel LegalNote");
       setErrorMessage(msg);
       return { success: false, errorMessage: msg };
     } finally {
       setCancelling(false);
+    }
+  }, [session]);
+
+  const stopSession = useCallback(async () => {
+    if (!session?.botId) return { success: false, errorMessage: "No active session" };
+    setStopping(true);
+    try {
+      await apiRequest<{
+        success: boolean;
+        importStatus?: string;
+        botStatus?: string;
+      }>("POST", `/api/recall/bot/${session.botId}/stop`, {});
+      // Leave import live — poll / webhook will advance into processing
+      setBotStatus("call_ended");
+      setImportStatus((prev) => prev || "live");
+      setErrorMessage(null);
+      setPanelOpen(true);
+      if (session.caseId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/cases/${session.caseId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/cases/${session.caseId}/live-import`] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/recall/meetings"] });
+      return { success: true };
+    } catch (err: any) {
+      const msg = getApiErrorMessage(err, "Could not stop LegalNote");
+      setErrorMessage(msg);
+      return { success: false, errorMessage: msg };
+    } finally {
+      setStopping(false);
     }
   }, [session]);
 
@@ -298,7 +332,9 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
       startSession,
       clearSession,
       cancelSession,
+      stopSession,
       cancelling,
+      stopping,
     }),
     [
       session,
@@ -316,7 +352,9 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
       startSession,
       clearSession,
       cancelSession,
+      stopSession,
       cancelling,
+      stopping,
     ],
   );
 

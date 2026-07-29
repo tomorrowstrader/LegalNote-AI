@@ -49,7 +49,12 @@ import {
   formatWaitRemaining,
 } from "@shared/liveBotLifecycle";
 import { useLiveBotSessionOptional } from "@/contexts/LiveBotSessionContext";
-import { flushLiveBotNotesOnAssign } from "@/lib/meetingNotesDraft";
+import { flushLiveBotNotesOnAssign, liveBotDraftKey } from "@/lib/meetingNotesDraft";
+import {
+  discardReservedMeetingNotesPopout,
+  openMeetingNotesPopout,
+  reserveMeetingNotesPopout,
+} from "@/lib/meetingNotesPopout";
 import { toTitleCase } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -239,6 +244,8 @@ export function LiveBotModal({
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const consentObtainedRef = useRef(false);
+  /** Notes companion reserved on Send click so popup blockers allow it after async deploy. */
+  const reservedNotesPopoutRef = useRef<Window | null>(null);
 
   // URL platform detection
   useEffect(() => {
@@ -448,14 +455,35 @@ export function LiveBotModal({
       setImportId(data.importId);
       setBotId(data.botId);
 
+      const titleForNotes = resolvedCaseId ? (caseTitle || selectedCaseTitle || null) : null;
+
       liveBotSession?.startSession({
         importId: data.importId,
         botId: data.botId,
         caseId: resolvedCaseId,
-        caseTitle: resolvedCaseId ? (caseTitle || selectedCaseTitle || null) : null,
+        caseTitle: titleForNotes,
         meetingUrl,
         consentMode,
       });
+
+      // Activate notes companion before Teams/Zoom deep-link steals focus.
+      // Window was reserved synchronously on Send so this survives the async deploy.
+      const reserved = reservedNotesPopoutRef.current;
+      reservedNotesPopoutRef.current = null;
+      const notesWin = openMeetingNotesPopout({
+        draftKey: liveBotDraftKey(data.importId),
+        caseTitle: titleForNotes,
+        liveLabel: "Waiting to join",
+        elapsedSeconds: 0,
+        reservedWindow: reserved,
+      });
+      if (!notesWin) {
+        toast({
+          title: "Notes window blocked",
+          description: "Allow pop-ups for LegalNote to keep notes beside your call — or use the pop-out control on the live panel.",
+          duration: 7000,
+        });
+      }
 
       // For pre_confirmed path, log consent immediately (only for client meetings)
       if (consentMode === "pre_confirmed" && resolvedCaseId) {
@@ -495,6 +523,8 @@ export function LiveBotModal({
       setElapsed(0);
     },
     onError: (error: Error) => {
+      discardReservedMeetingNotesPopout(reservedNotesPopoutRef.current);
+      reservedNotesPopoutRef.current = null;
       const raw = error.message || "";
       const withoutStatus = raw.replace(/^\d{3}:\s*/, "");
       let display = withoutStatus;
@@ -579,6 +609,9 @@ export function LiveBotModal({
   });
 
   const handleSendBot = () => {
+    // Reserve the notes companion in this click gesture — async deploy would otherwise be blocked.
+    discardReservedMeetingNotesPopout(reservedNotesPopoutRef.current);
+    reservedNotesPopoutRef.current = reserveMeetingNotesPopout();
     deployMutation.mutate();
   };
 
@@ -1150,7 +1183,7 @@ export function LiveBotModal({
                         );
                         toast({
                           title: "LegalNote cancelled",
-                          description: "LegalNote left the meeting.",
+                          description: "LegalNote left the meeting. No attendance note will be produced.",
                         });
                       } else {
                         toast({
@@ -1166,6 +1199,44 @@ export function LiveBotModal({
                       <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Cancelling…</>
                     ) : (
                       "Cancel LegalNote"
+                    )}
+                  </Button>
+                </div>
+              )}
+              {isRecording && !consentDeclined && (
+                <div className="space-y-2 max-w-sm mx-auto">
+                  <p className="text-xs text-muted-foreground text-center">
+                    Stop removes LegalNote from the call and still produces the attendance note from what was captured.
+                  </p>
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    disabled={liveBotSession?.stopping || liveBotSession?.cancelling}
+                    onClick={async () => {
+                      if (!liveBotSession) return;
+                      const result = await liveBotSession.stopSession();
+                      if (result.success) {
+                        toast({
+                          title: "LegalNote stopped",
+                          description:
+                            "LegalNote left the call. Meeting-to-Matter will produce the attendance note from what was captured.",
+                          duration: 6000,
+                        });
+                        onOpenChange(false);
+                      } else {
+                        toast({
+                          title: "Could not stop",
+                          description: result.errorMessage || "Please try again.",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                    data-testid="button-stop-live-bot-modal"
+                  >
+                    {liveBotSession?.stopping ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Stopping…</>
+                    ) : (
+                      "Stop LegalNote"
                     )}
                   </Button>
                 </div>
