@@ -6,7 +6,98 @@ import { storage } from '../storage';
 import { ObjectStorageService } from '../objectStorage';
 import { applyObjectLegalHoldForNewRecording } from './litigationHoldObjectLockService';
 import { preserveConsentSegmentFromFullAudio } from './consentSegmentService';
+import { recallService } from './recallService';
+import {
+  isAbandonedMeetingSubCode,
+  messageForAbandonedSubCode,
+} from '@shared/liveBotLifecycle';
 import type { MeetingImport } from '@shared/schema';
+
+function isConsentDeclinedImport(imp: MeetingImport): boolean {
+  return (
+    imp.botStatus === 'left_consent_declined' ||
+    (typeof imp.errorMessage === 'string' &&
+      imp.errorMessage.includes('declined consent'))
+  );
+}
+
+function isUserCancelledImport(imp: MeetingImport): boolean {
+  return (
+    imp.botStatus === 'left_user_cancelled' ||
+    (typeof imp.errorMessage === 'string' &&
+      imp.errorMessage.toLowerCase().includes('cancelled'))
+  );
+}
+
+/**
+ * If the bot left without ever recording (waiting-room / no-one-joined timeout, etc.),
+ * mark the import failed with a clear reason and skip Meeting-to-Matter.
+ * Returns true when processing should stop.
+ */
+export async function markAbandonedIfNeverRecorded(
+  importRecord: MeetingImport,
+  opts?: { subCode?: string | null; botStatus?: string | null },
+): Promise<{ abandoned: boolean; errorMessage?: string; subCode?: string }> {
+  if (isConsentDeclinedImport(importRecord) || isUserCancelledImport(importRecord)) {
+    return { abandoned: true, errorMessage: importRecord.errorMessage || undefined };
+  }
+
+  // Already failed with a never-started reason — do not re-enter processing
+  if (
+    importRecord.status === 'failed' &&
+    typeof importRecord.errorMessage === 'string' &&
+    /waiting room|nobody else joined|never started|not admitted|cancelled/i.test(
+      importRecord.errorMessage,
+    )
+  ) {
+    return { abandoned: true, errorMessage: importRecord.errorMessage };
+  }
+
+  const botId = importRecord.recallBotId;
+  if (!botId) return { abandoned: false };
+
+  let subCode = opts?.subCode || undefined;
+  let neverRecorded = false;
+  let statusCode = opts?.botStatus || importRecord.botStatus || undefined;
+
+  try {
+    const bot = await recallService.getBot(botId);
+    subCode = subCode || recallService.getBotSubCode(bot);
+    neverRecorded = recallService.botNeverRecorded(bot);
+    statusCode = recallService.getBotStatusCode(bot) || statusCode;
+  } catch (err: any) {
+    console.warn(
+      `[RecallProcessing] Could not fetch bot ${botId} for abandon check:`,
+      err.message,
+    );
+  }
+
+  const terminal =
+    statusCode === 'done' ||
+    statusCode === 'recording_done' ||
+    statusCode === 'call_ended' ||
+    statusCode === 'fatal';
+
+  const abandonedBySubCode = isAbandonedMeetingSubCode(subCode);
+  // Fail fast when the bot finished without ever entering recording — covers
+  // timeouts whose sub_code is missing from the payload.
+  const abandonedSilent = terminal && neverRecorded;
+
+  if (!abandonedBySubCode && !abandonedSilent) {
+    return { abandoned: false, subCode };
+  }
+
+  const errorMessage = messageForAbandonedSubCode(subCode);
+  console.log(
+    `[RecallProcessing] Import ${importRecord.id} abandoned (subCode=${subCode || 'none'}, neverRecorded=${neverRecorded}) — skipping processing`,
+  );
+  await storage.updateMeetingImport(importRecord.id, {
+    status: 'failed',
+    botStatus: statusCode || importRecord.botStatus || 'call_ended',
+    errorMessage,
+  });
+  return { abandoned: true, errorMessage, subCode };
+}
 
 /**
  * Download the recording media URL from Recall.ai's new API format.
@@ -79,42 +170,19 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
 }
 
 /**
- * Get the current status code of a bot from Recall.ai.
- */
-async function getBotStatusCode(botId: string): Promise<string | null> {
-  const key = (process.env.RECALL_API_KEY || '')
-    .replace(/^(Token|Bearer)\s+/i, '')
-    .replace(/[^\x21-\x7E]/g, '')
-    .trim();
-  const region = process.env.RECALL_REGION || 'us-west-2';
-  try {
-    const r = await fetch(`https://${region}.recall.ai/api/v1/bot/${botId}/`, {
-      headers: { 'Authorization': `Token ${key}` },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!r.ok) return null;
-    const bot = await r.json() as { status_changes?: Array<{ code: string }>; status?: { code: string } };
-    if (bot.status_changes?.length) {
-      return bot.status_changes[bot.status_changes.length - 1].code;
-    }
-    return bot.status?.code || null;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Process a completed bot recording: download, store, and trigger transcription + doc generation.
  * Safe to call multiple times — guarded by import status check.
  */
 export async function processBotRecording(importRecord: MeetingImport): Promise<void> {
   const { id: importId, recallBotId: botId, caseId, userId } = importRecord;
 
-  if (
-    importRecord.botStatus === 'left_consent_declined' ||
-    (typeof importRecord.errorMessage === 'string' && importRecord.errorMessage.includes('declined consent'))
-  ) {
-    console.log(`[RecallProcessing] Import ${importId} consent declined — skipping processing`);
+  if (isConsentDeclinedImport(importRecord) || isUserCancelledImport(importRecord)) {
+    console.log(`[RecallProcessing] Import ${importId} declined/cancelled — skipping processing`);
+    return;
+  }
+
+  const abandon = await markAbandonedIfNeverRecorded(importRecord);
+  if (abandon.abandoned) {
     return;
   }
 
@@ -130,7 +198,13 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     const recording = await getRecordingUrl(botId);
     if (!recording?.url) {
       console.error(`[RecallProcessing] No recording URL for bot ${botId} (unlinked import)`);
-      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: 'Recording not available — the call may have been too short or the bot was not admitted' });
+      const abandon = await markAbandonedIfNeverRecorded(importRecord);
+      await storage.updateMeetingImport(importId, {
+        status: 'failed',
+        errorMessage:
+          abandon.errorMessage ||
+          'Recording not available — the call may have been too short or the bot was not admitted',
+      });
       return;
     }
 
@@ -191,11 +265,8 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     console.log(`[RecallProcessing] Import ${importId} already in status "${fresh?.status}" — skipping`);
     return;
   }
-  if (
-    fresh.botStatus === 'left_consent_declined' ||
-    (typeof fresh.errorMessage === 'string' && fresh.errorMessage.includes('declined consent'))
-  ) {
-    console.log(`[RecallProcessing] Import ${importId} consent declined — skipping processing`);
+  if (isConsentDeclinedImport(fresh) || isUserCancelledImport(fresh)) {
+    console.log(`[RecallProcessing] Import ${importId} declined/cancelled — skipping processing`);
     return;
   }
 
@@ -225,7 +296,13 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     const recording = await getRecordingUrl(botId);
     if (!recording?.url) {
       console.error(`[RecallProcessing] No recording URL for bot ${botId}`);
-      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: 'Recording not available — the call may have been too short or the bot was not admitted' });
+      const abandon = await markAbandonedIfNeverRecorded(fresh);
+      await storage.updateMeetingImport(importId, {
+        status: 'failed',
+        errorMessage:
+          abandon.errorMessage ||
+          'Recording not available — the call may have been too short or the bot was not admitted',
+      });
       return;
     }
 
@@ -385,21 +462,36 @@ export async function checkLiveImports(): Promise<void> {
   for (const imp of liveImports) {
     if (!imp.recallBotId) continue;
     try {
-      const statusCode = await getBotStatusCode(imp.recallBotId);
-      console.log(`[RecallProcessing] Import ${imp.id} bot ${imp.recallBotId}: ${statusCode}`);
+      const bot = await recallService.getBot(imp.recallBotId);
+      const statusCode = recallService.getBotStatusCode(bot) || null;
+      const subCode = recallService.getBotSubCode(bot);
+      console.log(
+        `[RecallProcessing] Import ${imp.id} bot ${imp.recallBotId}: ${statusCode}${subCode ? ` (${subCode})` : ''}`,
+      );
 
-      if (statusCode === 'done' || statusCode === 'recording_done') {
-        // Update botStatus on the record and trigger processing
+      if (statusCode === 'done' || statusCode === 'recording_done' || statusCode === 'call_ended') {
         await storage.updateMeetingImport(imp.id, { botStatus: statusCode });
-        await processBotRecording(imp);
+        const abandon = await markAbandonedIfNeverRecorded(
+          { ...imp, botStatus: statusCode },
+          { subCode, botStatus: statusCode },
+        );
+        if (abandon.abandoned) continue;
+        if (statusCode === 'done' || statusCode === 'recording_done') {
+          await processBotRecording({ ...imp, botStatus: statusCode });
+        }
       } else if (statusCode === 'fatal') {
-        await storage.updateMeetingImport(imp.id, {
-          botStatus: 'fatal',
-          status: 'failed',
-          errorMessage: 'Bot encountered an unrecoverable error',
-        });
+        const abandon = await markAbandonedIfNeverRecorded(
+          { ...imp, botStatus: 'fatal' },
+          { subCode, botStatus: 'fatal' },
+        );
+        if (!abandon.abandoned) {
+          await storage.updateMeetingImport(imp.id, {
+            botStatus: 'fatal',
+            status: 'failed',
+            errorMessage: 'Bot encountered an unrecoverable error',
+          });
+        }
       } else if (statusCode) {
-        // Just keep botStatus current
         await storage.updateMeetingImport(imp.id, { botStatus: statusCode });
       }
     } catch (err: any) {

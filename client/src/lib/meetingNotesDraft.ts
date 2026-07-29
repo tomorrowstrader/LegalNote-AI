@@ -23,30 +23,67 @@ function flushedKey(draftKey: MeetingNotesDraftKey): string {
   return `${FLUSHED_PREFIX}${draftKey}`;
 }
 
-export function readMeetingNotesDraft(draftKey: MeetingNotesDraftKey): string {
+function readFrom(store: Storage, key: string): string {
   try {
-    return sessionStorage.getItem(storageKey(draftKey)) ?? "";
+    return store.getItem(key) ?? "";
   } catch {
     return "";
   }
 }
 
-export function writeMeetingNotesDraft(draftKey: MeetingNotesDraftKey, content: string): void {
+function writeTo(store: Storage, key: string, content: string): void {
   try {
     if (!content) {
-      sessionStorage.removeItem(storageKey(draftKey));
+      store.removeItem(key);
     } else {
-      sessionStorage.setItem(storageKey(draftKey), content);
+      store.setItem(key, content);
     }
   } catch {
     // ignore quota / private mode
   }
 }
 
-export function clearMeetingNotesDraft(draftKey: MeetingNotesDraftKey): void {
+/**
+ * localStorage so the main app and a pop-out companion window share the same draft.
+ * Migrates any legacy sessionStorage draft on first read.
+ */
+export function readMeetingNotesDraft(draftKey: MeetingNotesDraftKey): string {
+  const key = storageKey(draftKey);
   try {
-    sessionStorage.removeItem(storageKey(draftKey));
-    sessionStorage.removeItem(flushedKey(draftKey));
+    const fromLocal = localStorage.getItem(key);
+    if (fromLocal != null) return fromLocal;
+
+    const fromSession = sessionStorage.getItem(key);
+    if (fromSession) {
+      localStorage.setItem(key, fromSession);
+      sessionStorage.removeItem(key);
+      return fromSession;
+    }
+    return "";
+  } catch {
+    return readFrom(sessionStorage, key);
+  }
+}
+
+export function writeMeetingNotesDraft(draftKey: MeetingNotesDraftKey, content: string): void {
+  const key = storageKey(draftKey);
+  try {
+    writeTo(localStorage, key, content);
+    // Clear legacy session copy so windows don't diverge
+    sessionStorage.removeItem(key);
+  } catch {
+    writeTo(sessionStorage, key, content);
+  }
+}
+
+export function clearMeetingNotesDraft(draftKey: MeetingNotesDraftKey): void {
+  const key = storageKey(draftKey);
+  const flushed = flushedKey(draftKey);
+  try {
+    localStorage.removeItem(key);
+    localStorage.removeItem(flushed);
+    sessionStorage.removeItem(key);
+    sessionStorage.removeItem(flushed);
   } catch {
     // ignore
   }
@@ -58,7 +95,10 @@ export function hasMeetingNotesDraft(draftKey: MeetingNotesDraftKey): boolean {
 
 function wasFlushed(draftKey: MeetingNotesDraftKey): boolean {
   try {
-    return sessionStorage.getItem(flushedKey(draftKey)) === "1";
+    return (
+      localStorage.getItem(flushedKey(draftKey)) === "1" ||
+      sessionStorage.getItem(flushedKey(draftKey)) === "1"
+    );
   } catch {
     return false;
   }
@@ -66,10 +106,32 @@ function wasFlushed(draftKey: MeetingNotesDraftKey): boolean {
 
 function markFlushed(draftKey: MeetingNotesDraftKey): void {
   try {
-    sessionStorage.setItem(flushedKey(draftKey), "1");
+    localStorage.setItem(flushedKey(draftKey), "1");
   } catch {
-    // ignore
+    try {
+      sessionStorage.setItem(flushedKey(draftKey), "1");
+    } catch {
+      // ignore
+    }
   }
+}
+
+/**
+ * Subscribe to draft changes from other windows (pop-out ↔ main).
+ * Does not fire for writes in the same window.
+ */
+export function subscribeMeetingNotesDraft(
+  draftKey: MeetingNotesDraftKey,
+  onChange: (content: string) => void,
+): () => void {
+  const key = storageKey(draftKey);
+  const handler = (e: StorageEvent) => {
+    if (e.storageArea !== localStorage) return;
+    if (e.key !== key) return;
+    onChange(e.newValue ?? "");
+  };
+  window.addEventListener("storage", handler);
+  return () => window.removeEventListener("storage", handler);
 }
 
 function formatMeetingNoteHeader(caseTitle?: string | null): string {

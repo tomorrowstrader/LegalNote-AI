@@ -68,7 +68,9 @@ import AccessPending from "@/pages/AccessPending";
 import ScrollToTop from "@/components/ScrollToTop";
 import PublicDemo from "@/pages/PublicDemo";
 import DemoGenerator from "@/pages/DemoGenerator";
+import MeetingNotesPopout from "@/pages/MeetingNotesPopout";
 import { isFeatureVisible } from "@/lib/features";
+import { isMeetingNotesPopoutRoute } from "@/lib/meetingNotesPopout";
 
 const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
 const publicComplianceBadgeVisible = isFeatureVisible("publicComplianceBadge");
@@ -139,6 +141,7 @@ function Router() {
         </>
       ) : (
         <>
+          <Route path="/meeting-notes-popout" component={MeetingNotesPopout} />
           <Route path="/" component={Dashboard} />
           <Route path="/capture" component={Capture} />
           <Route path="/new-note" component={() => <RedirectTo to="/capture" />} />
@@ -195,32 +198,34 @@ function AuthenticatedAppContent() {
   };
 
   const isPublicDemoRoute = location.startsWith("/demo/");
+  const isNotesPopout = isMeetingNotesPopoutRoute(location);
+  const hideAppChrome = isPublicDemoRoute || isNotesPopout || isFocusMode;
   const recoveryBlocking = showRecoveryModal || showVideoBotRecovery;
 
   return (
-    <div className={`min-h-screen bg-background ${!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute ? 'pt-16' : ''}`}>
-      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <TopNavigation onRestartTour={handleRestartTour} />}
-      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <FirmSetupPrompt />}
-      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <DisplayNameOnboarding />}
-      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <IntegrationsOnboarding />}
-      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && <OnboardingTour restartTrigger={restartTourTrigger} />}
-      {!isLoading && hasAppAccess && !isFocusMode && !isPublicDemoRoute && (
+    <div className={`min-h-screen bg-background ${!isLoading && hasAppAccess && !hideAppChrome ? 'pt-16' : ''}`}>
+      {!isLoading && hasAppAccess && !hideAppChrome && <TopNavigation onRestartTour={handleRestartTour} />}
+      {!isLoading && hasAppAccess && !hideAppChrome && <FirmSetupPrompt />}
+      {!isLoading && hasAppAccess && !hideAppChrome && <DisplayNameOnboarding />}
+      {!isLoading && hasAppAccess && !hideAppChrome && <IntegrationsOnboarding />}
+      {!isLoading && hasAppAccess && !hideAppChrome && <OnboardingTour restartTrigger={restartTourTrigger} />}
+      {!isLoading && hasAppAccess && !hideAppChrome && (
         <UpcomingMeetingPrompt blocked={recoveryBlocking} />
       )}
-      {!isLoading && hasAppAccess && !isPublicDemoRoute && (
+      {!isLoading && hasAppAccess && !isPublicDemoRoute && !isNotesPopout && (
         <RecordingRecoveryModal
           open={showRecoveryModal}
           onOpenChange={setShowRecoveryModal}
         />
       )}
-      {!isLoading && hasAppAccess && !isPublicDemoRoute && (
+      {!isLoading && hasAppAccess && !isPublicDemoRoute && !isNotesPopout && (
         <VideoBotRecoveryModal
           open={showVideoBotRecovery}
           onOpenChange={setShowVideoBotRecovery}
         />
       )}
-      {!isLoading && hasAppAccess && !isPublicDemoRoute && <LiveBotSessionIndicator />}
-      <ScrollToTop />
+      {!isLoading && hasAppAccess && !isPublicDemoRoute && !isNotesPopout && <LiveBotSessionIndicator />}
+      {!isNotesPopout && <ScrollToTop />}
       <Router />
     </div>
   );

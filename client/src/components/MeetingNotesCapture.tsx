@@ -3,6 +3,7 @@ import {
   Check,
   ChevronDown,
   Clock,
+  ExternalLink,
   ListChecks,
   ListTodo,
   Maximize2,
@@ -17,6 +18,7 @@ import {
   type MeetingNotesDraftKey,
   hasMeetingNotesDraft,
   readMeetingNotesDraft,
+  subscribeMeetingNotesDraft,
   writeMeetingNotesDraft,
 } from "@/lib/meetingNotesDraft";
 
@@ -53,14 +55,17 @@ export interface MeetingNotesCaptureProps {
   active: boolean;
   /**
    * floating — fixed bottom-right dock (live bot)
-   * inline — fills parent (new session modal)
+   * inline — fills parent (new session modal / control center)
+   * companion — full-height pop-out window
    */
-  variant?: "floating" | "inline";
+  variant?: "floating" | "inline" | "companion";
   className?: string;
   /** Prefer open on first show when empty (subtle invite). */
   defaultOpen?: boolean;
   /** Optional live status label shown on the collapsed chip (e.g. "Recording"). */
   liveLabel?: string | null;
+  /** Opens the companion notes window (omit to hide Pop out). */
+  onPopOut?: () => void;
 }
 
 export default function MeetingNotesCapture({
@@ -72,9 +77,12 @@ export default function MeetingNotesCapture({
   className,
   defaultOpen = false,
   liveLabel,
+  onPopOut,
 }: MeetingNotesCaptureProps) {
   const [mode, setMode] = useState<PanelMode>(() =>
-    defaultOpen || hasMeetingNotesDraft(draftKey) ? "open" : "collapsed",
+    defaultOpen || hasMeetingNotesDraft(draftKey) || variant === "companion"
+      ? "open"
+      : "collapsed",
   );
   const [content, setContent] = useState(() => readMeetingNotesDraft(draftKey));
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
@@ -83,6 +91,7 @@ export default function MeetingNotesCapture({
   const savedClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftKeyRef = useRef(draftKey);
   const contentRef = useRef(content);
+  const applyingRemoteRef = useRef(false);
   draftKeyRef.current = draftKey;
   contentRef.current = content;
 
@@ -90,12 +99,28 @@ export default function MeetingNotesCapture({
   useEffect(() => {
     const next = readMeetingNotesDraft(draftKey);
     setContent(next);
-    if (next.trim()) {
+    if (next.trim() || variant === "companion") {
       setMode((m) => (m === "collapsed" ? "open" : m));
     }
+  }, [draftKey, variant]);
+
+  // Sync from other windows (pop-out ↔ main)
+  useEffect(() => {
+    return subscribeMeetingNotesDraft(draftKey, (next) => {
+      if (next === contentRef.current) return;
+      applyingRemoteRef.current = true;
+      setContent(next);
+      contentRef.current = next;
+      setSaveState("saved");
+      if (savedClearRef.current) clearTimeout(savedClearRef.current);
+      savedClearRef.current = setTimeout(() => setSaveState("idle"), 1600);
+      requestAnimationFrame(() => {
+        applyingRemoteRef.current = false;
+      });
+    });
   }, [draftKey]);
 
-  // Persist with debounce
+  // Persist immediately so pop-out ↔ main and end-of-call flush never miss keystrokes
   const persist = useCallback((value: string) => {
     writeMeetingNotesDraft(draftKeyRef.current, value);
     setSaveState("saved");
@@ -104,10 +129,18 @@ export default function MeetingNotesCapture({
   }, []);
 
   const handleChange = (value: string) => {
+    if (applyingRemoteRef.current) return;
     setContent(value);
+    contentRef.current = value;
     setSaveState("saving");
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => persist(value), 450);
+    // Short debounce only for the "Saved" label; draft is written right away
+    writeMeetingNotesDraft(draftKeyRef.current, value);
+    saveTimerRef.current = setTimeout(() => {
+      setSaveState("saved");
+      if (savedClearRef.current) clearTimeout(savedClearRef.current);
+      savedClearRef.current = setTimeout(() => setSaveState("idle"), 1600);
+    }, 280);
   };
 
   useEffect(() => {
@@ -149,6 +182,7 @@ export default function MeetingNotesCapture({
         t.setSelectionRange(caret, caret);
       });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleChange closes over persist via debounce
     [persist],
   );
 
@@ -158,7 +192,7 @@ export default function MeetingNotesCapture({
 
   // Keyboard shortcuts while panel focused
   useEffect(() => {
-    if (!active || mode === "collapsed") return;
+    if (!active || (mode === "collapsed" && variant !== "companion")) return;
 
     const onKey = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
@@ -171,7 +205,7 @@ export default function MeetingNotesCapture({
         e.preventDefault();
         insertTimestamp();
       }
-      if (e.key === "Escape" && mode !== "collapsed") {
+      if (e.key === "Escape" && mode !== "collapsed" && variant !== "companion") {
         e.preventDefault();
         setMode("collapsed");
       }
@@ -179,11 +213,12 @@ export default function MeetingNotesCapture({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, mode, content, persist, insertTimestamp]);
+  }, [active, mode, content, persist, insertTimestamp, variant]);
 
   if (!active) return null;
 
   const hasContent = content.trim().length > 0;
+  const showPopOut = !!onPopOut && variant !== "companion";
 
   if (variant === "floating" && mode === "collapsed") {
     return (
@@ -228,6 +263,7 @@ export default function MeetingNotesCapture({
         "relative flex flex-col overflow-hidden border border-border/70 bg-card shadow-xl",
         variant === "floating" && "rounded-xl",
         variant === "inline" && "rounded-lg h-full min-h-[280px]",
+        variant === "companion" && "h-full min-h-0 rounded-none border-0 shadow-none",
         mode === "focus" && variant === "floating" && "h-[min(72vh,560px)]",
         mode === "open" && variant === "floating" && "h-[380px]",
         className,
@@ -259,6 +295,20 @@ export default function MeetingNotesCapture({
             <span className="mr-1 font-mono text-[11px] tabular-nums text-muted-foreground" data-testid="text-meeting-notes-elapsed">
               {formatElapsed(elapsedSeconds)}
             </span>
+          )}
+          {showPopOut && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={onPopOut}
+              aria-label="Pop out notes to a separate window"
+              title="Pop out — keep beside your video call"
+              data-testid="button-popout-meeting-notes"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Button>
           )}
           {variant === "floating" && (
             <>
@@ -338,7 +388,14 @@ export default function MeetingNotesCapture({
               <Check className="h-3 w-3" /> Saved
             </span>
           )}
-          {saveState === "idle" && (hasContent ? "Draft kept until the meeting ends" : "⌘⇧T timestamp · Esc collapse")}
+          {saveState === "idle" &&
+            (variant === "companion"
+              ? hasContent
+                ? "Draft syncs with LegalNote · saved when the meeting ends"
+                : "⌘⇧T timestamp · dock back when finished"
+              : hasContent
+                ? "Draft kept until the meeting ends"
+                : "⌘⇧T timestamp · Esc collapse")}
         </p>
         {!caseTitle && (
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground/80">Unassigned</span>
@@ -347,9 +404,12 @@ export default function MeetingNotesCapture({
     </div>
   );
 
-  if (variant === "inline") {
+  if (variant === "inline" || variant === "companion") {
     return (
-      <div className={cn("relative", className)} data-testid="meeting-notes-inline">
+      <div
+        className={cn("relative", variant === "companion" && "h-full min-h-0")}
+        data-testid={variant === "companion" ? "meeting-notes-companion" : "meeting-notes-inline"}
+      >
         {panel}
       </div>
     );

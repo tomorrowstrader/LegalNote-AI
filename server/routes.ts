@@ -10643,32 +10643,153 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const userId = req.user.claims.sub;
       const { botId } = req.params;
 
-      const importRecord = await storage.getMeetingImportByBotId(botId);
+      let importRecord = await storage.getMeetingImportByBotId(botId);
       if (!importRecord || importRecord.userId !== userId) {
         return res.status(404).json({ message: "Bot not found" });
       }
 
       const bot = await recallService.getBot(botId);
       const botStatusCode = recallService.getBotStatusCode(bot);
+      const subCode = recallService.getBotSubCode(bot);
 
       // Only write to DB when we have a status to record
       if (botStatusCode) {
         await storage.updateMeetingImport(importRecord.id, {
           botStatus: botStatusCode,
         });
+        importRecord = (await storage.getMeetingImport(importRecord.id)) || importRecord;
+      }
+
+      // Fail fast on never-started / waiting-room timeouts so the client never
+      // enters Meeting-to-Matter for an empty recording.
+      const terminal =
+        botStatusCode === 'done' ||
+        botStatusCode === 'recording_done' ||
+        botStatusCode === 'call_ended' ||
+        botStatusCode === 'fatal';
+      if (
+        terminal &&
+        importRecord.status === 'live'
+      ) {
+        const { markAbandonedIfNeverRecorded } = await import("./services/recallProcessing");
+        const abandon = await markAbandonedIfNeverRecorded(importRecord, {
+          subCode,
+          botStatus: botStatusCode,
+        });
+        if (abandon.abandoned) {
+          importRecord = (await storage.getMeetingImport(importRecord.id)) || importRecord;
+        }
       }
 
       res.json({
         importId: importRecord.id,
         botId,
         botStatus: botStatusCode,
-        subCode: recallService.getBotSubCode(bot),
+        subCode,
         importStatus: importRecord.status,
+        errorMessage: importRecord.errorMessage || null,
         statusLabel: recallService.formatBotStatus(bot),
         participants: bot.meeting_participants?.map(p => ({ name: p.name })) || [],
         meetingTitle: bot.meeting_metadata?.title,
         consentMode: importRecord.consentMode || 'pre_confirmed',
         consentConfirmed: importRecord.consentConfirmed,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Cancel a live bot while still waiting / before recording starts
+  app.post("/api/recall/bot/:botId/cancel", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { recallService } = await import("./services/recallService");
+      const {
+        USER_CANCELLED_LIVE_BOT_MESSAGE,
+        isCancellableBotStatus,
+      } = await import("@shared/liveBotLifecycle");
+      const userId = req.user.claims.sub;
+      const { botId } = req.params;
+
+      const importRecord = await storage.getMeetingImportByBotId(botId);
+      if (!importRecord || importRecord.userId !== userId) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+
+      if (importRecord.status !== 'live') {
+        return res.status(409).json({
+          message: "This meeting session is no longer active",
+          importStatus: importRecord.status,
+        });
+      }
+
+      // Refresh status from Recall when possible
+      let botStatus = importRecord.botStatus;
+      try {
+        const bot = await recallService.getBot(botId);
+        botStatus = recallService.getBotStatusCode(bot) || botStatus;
+      } catch {
+        // proceed with stored status
+      }
+
+      if (botStatus && !isCancellableBotStatus(botStatus) && botStatus !== 'in_call_recording') {
+        // Allow cancel even mid-recording? Product decision: allow cancel only before
+        // recording, OR also during recording as "end early". User asked for waiting
+        // cancel — keep strict for non-cancellable terminal states.
+        if (['done', 'recording_done', 'call_ended', 'fatal', 'left_consent_declined', 'left_user_cancelled'].includes(botStatus)) {
+          return res.status(409).json({
+            message: "LegalNote has already left this meeting",
+            botStatus,
+          });
+        }
+      }
+
+      // Also allow cancel while recording (solicitor ends early) — leaveCall works either way
+      let botLeft = false;
+      let leaveError: string | undefined;
+      try {
+        await recallService.leaveCall(botId);
+        botLeft = true;
+      } catch (err) {
+        leaveError = err instanceof Error ? err.message : String(err);
+        console.error(`[Recall] leaveCall failed on cancel for bot ${botId}:`, leaveError);
+      }
+
+      const neverRecorded =
+        !botStatus ||
+        isCancellableBotStatus(botStatus) ||
+        botStatus === 'joining_call' ||
+        botStatus === 'joining';
+
+      await storage.updateMeetingImport(importRecord.id, {
+        status: 'failed',
+        botStatus: botLeft ? 'left_user_cancelled' : (botStatus || 'left_user_cancelled'),
+        errorMessage: neverRecorded
+          ? USER_CANCELLED_LIVE_BOT_MESSAGE
+          : 'Cancelled — LegalNote left the meeting early. No attendance note was produced.',
+      });
+
+      await storage.createAuditLog({
+        eventType: 'live_bot_cancelled',
+        userId,
+        caseId: importRecord.caseId || undefined,
+        ipAddress: req.ip || req.socket?.remoteAddress,
+        metadata: {
+          importId: importRecord.id,
+          botId,
+          botLeft,
+          priorBotStatus: botStatus,
+          ...(leaveError ? { leaveError } : {}),
+        },
+        severity: 'info',
+      });
+
+      const fresh = await storage.getMeetingImport(importRecord.id);
+      res.json({
+        success: true,
+        botLeft,
+        leaveError,
+        importStatus: fresh?.status || 'failed',
+        errorMessage: fresh?.errorMessage || USER_CANCELLED_LIVE_BOT_MESSAGE,
       });
     } catch (error) {
       next(error);
@@ -10723,42 +10844,88 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       };
 
       const statusCode = eventStatusMap[event] || event.replace('bot.', '');
+      const webhookSubCode =
+        data?.status?.sub_code ||
+        data?.data?.sub_code ||
+        (Array.isArray(data?.status_changes) && data.status_changes.length
+          ? data.status_changes[data.status_changes.length - 1].sub_code
+          : undefined);
 
-      // Don't clobber a consent-decline ejection with later lifecycle events
+      // Don't clobber a consent-decline / user-cancel ejection with later lifecycle events
       const alreadyDeclined =
         importRecord.botStatus === 'left_consent_declined' ||
         (typeof importRecord.errorMessage === 'string' && importRecord.errorMessage.includes('declined consent'));
-      if (!alreadyDeclined) {
+      const alreadyCancelled =
+        importRecord.botStatus === 'left_user_cancelled' ||
+        (typeof importRecord.errorMessage === 'string' &&
+          importRecord.errorMessage.toLowerCase().includes('cancelled'));
+      if (!alreadyDeclined && !alreadyCancelled) {
         await storage.updateMeetingImport(importRecord.id, { botStatus: statusCode });
       }
 
       // bot.done = recording fully ready — trigger processing pipeline
-      // Skip if solicitor already ejected the bot after consent was declined
+      // Skip if solicitor already ejected the bot after consent was declined / cancelled
       if (event === 'bot.done' || statusCode === 'done') {
-        if (alreadyDeclined) {
-          console.log(`[Recall webhook] Import ${importRecord.id} consent declined — skipping processing`);
+        if (alreadyDeclined || alreadyCancelled) {
+          console.log(`[Recall webhook] Import ${importRecord.id} declined/cancelled — skipping processing`);
         } else {
           const fresh = await storage.getMeetingImport(importRecord.id);
           const declinedAfter =
             fresh?.botStatus === 'left_consent_declined' ||
             (typeof fresh?.errorMessage === 'string' && fresh.errorMessage.includes('declined consent'));
-          if (declinedAfter) {
-            console.log(`[Recall webhook] Import ${importRecord.id} consent declined — skipping processing`);
+          const cancelledAfter =
+            fresh?.botStatus === 'left_user_cancelled' ||
+            (typeof fresh?.errorMessage === 'string' &&
+              fresh.errorMessage.toLowerCase().includes('cancelled'));
+          if (declinedAfter || cancelledAfter) {
+            console.log(`[Recall webhook] Import ${importRecord.id} declined/cancelled — skipping processing`);
           } else {
-            const { processBotRecording } = await import("./services/recallProcessing");
-            processBotRecording(fresh || importRecord).catch((err: Error) => {
-              console.error('[Recall webhook] processBotRecording error:', err.message);
+            const { markAbandonedIfNeverRecorded, processBotRecording } = await import("./services/recallProcessing");
+            const abandon = await markAbandonedIfNeverRecorded(fresh || importRecord, {
+              subCode: webhookSubCode,
+              botStatus: statusCode,
             });
+            if (!abandon.abandoned) {
+              processBotRecording(fresh || importRecord).catch((err: Error) => {
+                console.error('[Recall webhook] processBotRecording error:', err.message);
+              });
+            }
           }
+        }
+      }
+
+      // call_ended with abandon sub_code — mark failed immediately (don't wait for bot.done)
+      if (
+        (event === 'bot.call_ended' || statusCode === 'call_ended') &&
+        !alreadyDeclined &&
+        !alreadyCancelled
+      ) {
+        const { markAbandonedIfNeverRecorded } = await import("./services/recallProcessing");
+        const fresh = await storage.getMeetingImport(importRecord.id);
+        if (fresh && fresh.status === 'live') {
+          await markAbandonedIfNeverRecorded(fresh, {
+            subCode: webhookSubCode,
+            botStatus: statusCode,
+          });
         }
       }
 
       // bot.fatal = unrecoverable error
       if (event === 'bot.fatal' || statusCode === 'fatal') {
-        await storage.updateMeetingImport(importRecord.id, {
-          status: 'failed',
-          errorMessage: 'The bot encountered an unrecoverable error during the meeting.',
-        });
+        const { markAbandonedIfNeverRecorded } = await import("./services/recallProcessing");
+        const fresh = await storage.getMeetingImport(importRecord.id);
+        const abandon = fresh
+          ? await markAbandonedIfNeverRecorded(fresh, {
+              subCode: webhookSubCode,
+              botStatus: 'fatal',
+            })
+          : { abandoned: false };
+        if (!abandon.abandoned) {
+          await storage.updateMeetingImport(importRecord.id, {
+            status: 'failed',
+            errorMessage: 'The bot encountered an unrecoverable error during the meeting.',
+          });
+        }
       }
 
       res.json({ received: true });

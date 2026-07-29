@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Loader2, Video, CheckCircle2 } from "lucide-react";
+import { ExternalLink, Loader2, Video, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,6 +17,7 @@ import RecordingControlCenter, {
   ControlCenterActionButton,
 } from "@/components/RecordingControlCenter";
 import { useLiveBotSession, type LiveBotPhase } from "@/contexts/LiveBotSessionContext";
+import { useMeetingNotesPopout } from "@/hooks/useMeetingNotesPopout";
 import { createProcessingStepTimer } from "@/lib/processingStepTimer";
 import {
   flushMeetingNotesToCase,
@@ -42,7 +43,7 @@ function phaseLabel(phase: LiveBotPhase): string {
     case "awaiting_assignment":
       return "Assign recording";
     case "error":
-      return "Something went wrong";
+      return "Meeting not captured";
     default:
       return "Live meeting";
   }
@@ -71,10 +72,14 @@ export function LiveBotSessionIndicator() {
     session,
     phase,
     elapsedSeconds,
+    waitRemainingLabel,
     panelOpen,
     setPanelOpen,
     liveBotModalOpen,
     clearSession,
+    cancelSession,
+    cancelling,
+    errorMessage,
   } = useLiveBotSession();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -85,6 +90,31 @@ export function LiveBotSessionIndicator() {
   const notesActive =
     !!session &&
     (phase === "joining" || phase === "waiting" || phase === "recording");
+
+  const draftKey = session ? liveBotDraftKey(session.importId) : null;
+  const {
+    popoutOpen,
+    openPopout,
+    focusPopout,
+    closePopout,
+  } = useMeetingNotesPopout(draftKey, {
+    active: notesActive,
+    caseTitle: session?.caseTitle,
+    liveLabel: phase === "recording" ? "Recording" : phaseLabel(phase),
+    elapsedSeconds,
+  });
+
+  const handlePopOut = () => {
+    const ok = openPopout();
+    if (!ok) {
+      toast({
+        title: "Could not open notes window",
+        description: "Allow pop-ups for LegalNote, then try again.",
+        variant: "destructive",
+        duration: 6000,
+      });
+    }
+  };
 
   const showFloating =
     !!session &&
@@ -145,7 +175,6 @@ export function LiveBotSessionIndicator() {
     if (!session) flushedRef.current = null;
   }, [session?.importId]);
 
-  // Drive Meeting-to-Matter step animation from live phase
   useEffect(() => {
     if (!session) return;
     if (phase === "ended" || phase === "processing" || phase === "complete") {
@@ -168,6 +197,19 @@ export function LiveBotSessionIndicator() {
 
   useEffect(() => {
     if (!session || didToastEnd) return;
+    // Never toast "Call ended" for abandoned / cancelled failures
+    if (phase === "error") {
+      setDidToastEnd(true);
+      toast({
+        title: "Meeting not captured",
+        description:
+          errorMessage ||
+          "LegalNote could not join or record this meeting. No attendance note was produced.",
+        duration: 7000,
+        variant: "destructive",
+      });
+      return;
+    }
     if (phase === "ended" || phase === "processing") {
       setDidToastEnd(true);
       toast({
@@ -178,15 +220,14 @@ export function LiveBotSessionIndicator() {
         duration: 6000,
       });
     }
-  }, [phase, session, didToastEnd, toast]);
+  }, [phase, session, didToastEnd, toast, errorMessage]);
 
   useEffect(() => {
     if (!session) setDidToastEnd(false);
   }, [session?.importId]);
 
-  if (!session) return null;
+  if (!session || !draftKey) return null;
 
-  const draftKey = liveBotDraftKey(session.importId);
   const pendingNotesHint =
     phase === "awaiting_assignment" && hasMeetingNotesDraft(draftKey)
       ? " Your typed meeting notes will be added when you assign the recording."
@@ -194,6 +235,28 @@ export function LiveBotSessionIndicator() {
 
   const showTimer =
     phase === "joining" || phase === "waiting" || phase === "recording";
+
+  const waitSubtitle =
+    (phase === "waiting" || phase === "joining") && waitRemainingLabel
+      ? `Auto-leaves in ${waitRemainingLabel} if not admitted`
+      : null;
+
+  const handleCancel = async () => {
+    const result = await cancelSession();
+    if (result.success) {
+      toast({
+        title: "LegalNote cancelled",
+        description: result.errorMessage || "LegalNote left the meeting.",
+        duration: 5000,
+      });
+    } else {
+      toast({
+        title: "Could not cancel",
+        description: result.errorMessage || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <>
@@ -205,9 +268,8 @@ export function LiveBotSessionIndicator() {
           subtitle={
             phase === "ended" || phase === "processing"
               ? "Meeting-to-Matter in progress"
-              : session.caseTitle
-                ? "Live meeting capture"
-                : "Unassigned meeting"
+              : waitSubtitle ||
+                (session.caseTitle ? "Live meeting capture" : "Unassigned meeting")
           }
           elapsedSeconds={showTimer ? elapsedSeconds : undefined}
           icon="video"
@@ -217,7 +279,23 @@ export function LiveBotSessionIndicator() {
           }}
           data-testid="live-bot-session-indicator"
           actions={
-            !notesActive ? (
+            notesActive ? (
+              <ControlCenterActionButton
+                variant="outline"
+                disabled={cancelling}
+                onClick={() => void handleCancel()}
+                data-testid="button-cancel-live-bot"
+              >
+                {cancelling ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Cancelling…
+                  </>
+                ) : (
+                  "Cancel LegalNote"
+                )}
+              </ControlCenterActionButton>
+            ) : (
               <ControlCenterActionButton
                 variant="outline"
                 onClick={() => setPanelOpen(true)}
@@ -232,10 +310,38 @@ export function LiveBotSessionIndicator() {
                   "Open status"
                 )}
               </ControlCenterActionButton>
-            ) : undefined
+            )
           }
         >
-          {notesActive && (
+          {notesActive && popoutOpen && (
+            <div
+              className="space-y-2.5 px-4 py-3"
+              data-testid="meeting-notes-popout-dock"
+            >
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Meeting notes are open in a separate window — keep it beside your video call.
+                Drafts stay in sync and save when the call ends.
+              </p>
+              <div className="flex flex-col gap-2">
+                <ControlCenterActionButton
+                  variant="outline"
+                  onClick={focusPopout}
+                  data-testid="button-focus-meeting-notes-popout"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Focus notes window
+                </ControlCenterActionButton>
+                <ControlCenterActionButton
+                  variant="outline"
+                  onClick={closePopout}
+                  data-testid="button-dock-meeting-notes-inline"
+                >
+                  Dock notes here
+                </ControlCenterActionButton>
+              </div>
+            </div>
+          )}
+          {notesActive && !popoutOpen && (
             <div className="max-h-[min(52vh,420px)] overflow-hidden">
               <MeetingNotesCapture
                 draftKey={draftKey}
@@ -245,6 +351,7 @@ export function LiveBotSessionIndicator() {
                 variant="inline"
                 defaultOpen={phase === "recording"}
                 liveLabel={phase === "recording" ? "Recording" : phaseLabel(phase)}
+                onPopOut={handlePopOut}
                 className="rounded-none border-0 shadow-none min-h-[240px] h-[min(48vh,380px)]"
               />
             </div>
@@ -270,13 +377,15 @@ export function LiveBotSessionIndicator() {
                 : phase === "awaiting_assignment"
                   ? "Recording saved"
                   : phase === "error"
-                    ? "Processing issue"
+                    ? "Meeting not captured"
                     : "Call ended"}
             </DialogTitle>
             <DialogDescription>
               {session.caseTitle
                 ? `Matter: ${session.caseTitle}`
-                : "LegalNote captured this meeting and is producing your documents."}
+                : phase === "error"
+                  ? "LegalNote could not capture this meeting."
+                  : "LegalNote captured this meeting and is producing your documents."}
             </DialogDescription>
           </DialogHeader>
 
@@ -306,9 +415,15 @@ export function LiveBotSessionIndicator() {
           {phase === "error" && (
             <div className="space-y-3 py-2">
               <p className="text-sm text-muted-foreground">
-                Something went wrong while joining or processing this call. Check the matter page or try again.
+                {errorMessage ||
+                  "Something went wrong while joining or processing this call. Check the matter page or try again."}
               </p>
-              <Button variant="outline" className="w-full" onClick={() => clearSession()}>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => clearSession()}
+                data-testid="button-dismiss-live-bot-error"
+              >
                 Dismiss
               </Button>
             </div>

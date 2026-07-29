@@ -44,6 +44,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Case } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
+import {
+  autoLeaveDeadlineSeconds,
+  formatWaitRemaining,
+} from "@shared/liveBotLifecycle";
 import { useLiveBotSessionOptional } from "@/contexts/LiveBotSessionContext";
 import { flushLiveBotNotesOnAssign } from "@/lib/meetingNotesDraft";
 import { toTitleCase } from "@/lib/utils";
@@ -136,6 +140,8 @@ interface BotPollResponse {
   meetingTitle?: string;
   consentMode?: string;
   consentConfirmed?: boolean;
+  subCode?: string | null;
+  errorMessage?: string | null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -147,6 +153,7 @@ const STATUS_LABELS: Record<string, string> = {
   done: "Recording complete",
   fatal: "Bot encountered an error",
   left_consent_declined: "Left call — consent declined",
+  left_user_cancelled: "Cancelled",
 };
 
 const ACTIVE_STATUSES = new Set([
@@ -272,12 +279,15 @@ export function LiveBotModal({
             }
           }
 
-          if (data.botStatus === "fatal") {
+          if (data.botStatus === "fatal" || data.importStatus === "failed") {
             clearInterval(pollRef.current!);
             clearInterval(timerRef.current!);
             clearInterval(recordingTimerRef.current!);
             setStep("error");
-            setErrorMessage("The bot was unable to join or record the meeting. Please check the meeting URL and try again.");
+            setErrorMessage(
+              data.errorMessage ||
+                "The bot was unable to join or record the meeting. Please check the meeting URL and try again.",
+            );
           }
 
           if (data.importStatus === "completed") {
@@ -603,9 +613,17 @@ export function LiveBotModal({
   const handleClose = () => {
     // If in-meeting consent mode and consent not yet obtained, warn but don't block
     if (step === "live" && !consentDeclined) {
+      const status = botPoll?.botStatus;
+      const waiting =
+        status === "joining_call" ||
+        status === "in_waiting_room" ||
+        status === "in_call_not_recording" ||
+        !status;
       toast({
-        title: "Bot still running",
-        description: "LegalNote is still recording. Watch the status pill in the bottom-right — it will update when the call ends and notes are produced.",
+        title: waiting ? "LegalNote still waiting" : "Bot still running",
+        description: waiting
+          ? "LegalNote is still trying to join. Use Cancel LegalNote on the status pill if the meeting won’t start."
+          : "LegalNote is still recording. Watch the status pill in the bottom-right — it will update when the call ends and notes are produced.",
         duration: 6000,
       });
     }
@@ -680,6 +698,11 @@ export function LiveBotModal({
   const currentStatus = botPoll?.botStatus;
   const isRecording = currentStatus === "in_call_recording";
   const isWaiting = currentStatus === "joining_call" || currentStatus === "in_waiting_room";
+  const waitDeadline = autoLeaveDeadlineSeconds(currentStatus);
+  const waitRemainingLabel =
+    waitDeadline != null && (isWaiting || currentStatus === "in_call_not_recording")
+      ? formatWaitRemaining(Math.max(0, waitDeadline - elapsed))
+      : null;
   // Prefer server-returned consentMode from poll; fall back to local selection pre-deploy
   const effectiveConsentMode = (botPoll?.consentMode as ConsentMode | undefined) ?? consentMode;
   const showInMeetingConsentCard = effectiveConsentMode === "in_meeting" && isRecording && !consentObtained && !consentDeclined;
@@ -1086,14 +1109,65 @@ export function LiveBotModal({
                   <p className="text-xs text-muted-foreground mt-1 font-mono">{formatElapsed(elapsed)}</p>
                 )}
               </div>
-              {isWaiting && (
+              {(isWaiting || currentStatus === "in_call_not_recording") && (
                 <div className="space-y-2 max-w-sm mx-auto">
-                  <p className="text-xs text-muted-foreground text-center">
-                    If your meeting has a waiting room, admit &quot;LegalNote&quot; to start recording.
-                  </p>
-                  <p className="text-xs text-muted-foreground text-center">
-                    Zoom, Teams, or Meet may label the participant as &quot;unverified&quot;. That is the meeting platform&apos;s default for third-party recording bots — not a LegalNote security warning. Removing it requires platform publisher verification (Zoom Marketplace / Microsoft / Google), not a setting in this app.
-                  </p>
+                  {isWaiting && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      If your meeting has a waiting room, admit &quot;LegalNote&quot; to start recording.
+                    </p>
+                  )}
+                  {currentStatus === "in_call_not_recording" && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      LegalNote is in the call. It will leave automatically if nobody else joins.
+                    </p>
+                  )}
+                  {waitRemainingLabel && (
+                    <p className="text-xs text-center font-medium" data-testid="text-wait-remaining">
+                      Auto-leaves in {waitRemainingLabel}
+                      {isWaiting ? " if not admitted" : " if nobody joins"}
+                    </p>
+                  )}
+                  {isWaiting && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Zoom, Teams, or Meet may label the participant as &quot;unverified&quot;. That is the meeting platform&apos;s default for third-party recording bots — not a LegalNote security warning. Removing it requires platform publisher verification (Zoom Marketplace / Microsoft / Google), not a setting in this app.
+                    </p>
+                  )}
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={liveBotSession?.cancelling}
+                    onClick={async () => {
+                      if (!liveBotSession) return;
+                      const result = await liveBotSession.cancelSession();
+                      if (result.success) {
+                        clearInterval(pollRef.current!);
+                        clearInterval(timerRef.current!);
+                        clearInterval(recordingTimerRef.current!);
+                        setStep("error");
+                        setErrorMessage(
+                          result.errorMessage ||
+                            "Cancelled — LegalNote left before the meeting started.",
+                        );
+                        toast({
+                          title: "LegalNote cancelled",
+                          description: "LegalNote left the meeting.",
+                        });
+                      } else {
+                        toast({
+                          title: "Could not cancel",
+                          description: result.errorMessage || "Please try again.",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                    data-testid="button-cancel-live-bot-modal"
+                  >
+                    {liveBotSession?.cancelling ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Cancelling…</>
+                    ) : (
+                      "Cancel LegalNote"
+                    )}
+                  </Button>
                 </div>
               )}
             </div>

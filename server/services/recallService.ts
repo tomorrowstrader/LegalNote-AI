@@ -1,5 +1,9 @@
 import { storage } from '../storage';
 import type { MeetingImport, RecallConnection } from '@shared/schema';
+import {
+  NOONE_JOINED_TIMEOUT_SEC,
+  WAITING_ROOM_TIMEOUT_SEC,
+} from '@shared/liveBotLifecycle';
 
 // Recall.ai uses regional endpoints - default to us-west-2, can be overridden via env var
 // Options: us-west-2, us-east-1, eu-central-1, ap-northeast-1
@@ -109,9 +113,22 @@ export class RecallService {
 
   getBotSubCode(bot: RecallBotResponse): string | undefined {
     if (bot.status_changes?.length) {
-      return bot.status_changes[bot.status_changes.length - 1].sub_code;
+      // Prefer the latest non-empty sub_code — call_ended often carries the timeout
+      // reason while a later "done" entry may omit it.
+      for (let i = bot.status_changes.length - 1; i >= 0; i--) {
+        const sub = bot.status_changes[i].sub_code;
+        if (sub) return sub;
+      }
     }
     return bot.status?.sub_code;
+  }
+
+  /** True if any status_change indicates the bot never got a usable meeting recording. */
+  botNeverRecorded(bot: RecallBotResponse): boolean {
+    const changes = bot.status_changes || [];
+    return !changes.some(
+      (c) => c.code === 'in_call_recording' || c.code === 'recording_done',
+    );
   }
 
   private async apiRequest<T>(
@@ -182,8 +199,8 @@ export class RecallService {
           audio_mixed_mp3: {},
         },
         automatic_leave: {
-          waiting_room_timeout: 600,
-          noone_joined_timeout: 300,
+          waiting_room_timeout: WAITING_ROOM_TIMEOUT_SEC,
+          noone_joined_timeout: NOONE_JOINED_TIMEOUT_SEC,
           everyone_left_timeout: { timeout: 60, activate_after: null },
         },
       }),

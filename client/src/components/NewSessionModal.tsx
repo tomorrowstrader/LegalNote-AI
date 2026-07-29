@@ -7,9 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ConsentModal from "@/components/ConsentModal";
 import MeetingNotesCapture from "@/components/MeetingNotesCapture";
-import { Mic, Square, Loader2 } from "lucide-react";
+import { ControlCenterActionButton } from "@/components/RecordingControlCenter";
+import { ExternalLink, Mic, Square, Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useMeetingNotesPopout } from "@/hooks/useMeetingNotesPopout";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
@@ -33,6 +35,32 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
+
+  const notesDraftKey = newSessionDraftKey(caseId);
+  const notesActive = open && step === "recording";
+  const {
+    popoutOpen,
+    openPopout,
+    focusPopout,
+    closePopout,
+  } = useMeetingNotesPopout(notesDraftKey, {
+    active: notesActive,
+    caseTitle,
+    liveLabel: "Recording",
+    elapsedSeconds: recordingDuration,
+  });
+
+  const handlePopOut = () => {
+    const ok = openPopout();
+    if (!ok) {
+      toast({
+        title: "Could not open notes window",
+        description: "Allow pop-ups for LegalNote, then try again.",
+        variant: "destructive",
+        duration: 6000,
+      });
+    }
+  };
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -319,15 +347,42 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
                   Stop and Save
                 </Button>
               </div>
-              <MeetingNotesCapture
-                draftKey={newSessionDraftKey(caseId)}
-                caseTitle={caseTitle}
-                elapsedSeconds={recordingDuration}
-                active
-                variant="inline"
-                defaultOpen
-                className="min-h-[320px]"
-              />
+              {popoutOpen ? (
+                <div
+                  className="flex flex-col justify-center gap-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-6"
+                  data-testid="meeting-notes-popout-dock"
+                >
+                  <p className="text-sm text-muted-foreground text-center leading-relaxed">
+                    Meeting notes are open in a separate window. Drafts stay in sync and save when you stop recording.
+                  </p>
+                  <ControlCenterActionButton
+                    variant="outline"
+                    onClick={focusPopout}
+                    data-testid="button-focus-meeting-notes-popout"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Focus notes window
+                  </ControlCenterActionButton>
+                  <ControlCenterActionButton
+                    variant="outline"
+                    onClick={closePopout}
+                    data-testid="button-dock-meeting-notes-inline"
+                  >
+                    Dock notes here
+                  </ControlCenterActionButton>
+                </div>
+              ) : (
+                <MeetingNotesCapture
+                  draftKey={notesDraftKey}
+                  caseTitle={caseTitle}
+                  elapsedSeconds={recordingDuration}
+                  active
+                  variant="inline"
+                  defaultOpen
+                  onPopOut={handlePopOut}
+                  className="min-h-[320px]"
+                />
+              )}
             </div>
           )}
 

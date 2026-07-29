@@ -9,6 +9,10 @@ import {
   type ReactNode,
 } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  autoLeaveDeadlineSeconds,
+  formatWaitRemaining,
+} from "@shared/liveBotLifecycle";
 
 const STORAGE_KEY = "ln-live-bot-session";
 
@@ -41,6 +45,8 @@ interface BotPollResponse {
   consentMode?: string;
   consentConfirmed?: boolean;
   participants?: Array<{ name: string }>;
+  subCode?: string | null;
+  errorMessage?: string | null;
 }
 
 interface LiveBotSessionContextType {
@@ -48,8 +54,13 @@ interface LiveBotSessionContextType {
   phase: LiveBotPhase;
   botStatus: string | null;
   importStatus: string | null;
+  subCode: string | null;
+  errorMessage: string | null;
   consentConfirmed: boolean;
   elapsedSeconds: number;
+  /** Seconds until Recall auto-leave while waiting; null when not applicable. */
+  waitRemainingSeconds: number | null;
+  waitRemainingLabel: string | null;
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
   /** True while any LiveBotModal instance is open — hides the floating pill. */
@@ -57,6 +68,9 @@ interface LiveBotSessionContextType {
   setLiveBotModalOpen: (open: boolean) => void;
   startSession: (session: Omit<LiveBotSession, "startedAt"> & { startedAt?: number }) => void;
   clearSession: () => void;
+  /** Leave the call and clear the session (waiting / pre-recording cancel). */
+  cancelSession: () => Promise<{ success: boolean; errorMessage?: string }>;
+  cancelling: boolean;
 }
 
 const LiveBotSessionContext = createContext<LiveBotSessionContextType | undefined>(undefined);
@@ -67,6 +81,7 @@ function phaseFromStatuses(botStatus: string | null, importStatus: string | null
   if (importStatus === "awaiting_assignment") return "awaiting_assignment";
   if (importStatus === "transcribing" || importStatus === "pending") return "processing";
   if (botStatus === "fatal") return "error";
+  if (botStatus === "left_user_cancelled" || botStatus === "left_consent_declined") return "error";
   if (botStatus === "call_ended" || botStatus === "done" || botStatus === "recording_done") return "ended";
   if (botStatus === "in_call_recording") return "recording";
   if (botStatus === "in_waiting_room" || botStatus === "joining_call" || botStatus === "joining") return "waiting";
@@ -99,10 +114,13 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<LiveBotSession | null>(() => readStoredSession());
   const [botStatus, setBotStatus] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [subCode, setSubCode] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [panelOpen, setPanelOpen] = useState(false);
   const [liveBotModalOpen, setLiveBotModalOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const notifiedEndRef = useRef(false);
@@ -114,14 +132,30 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
     [botStatus, importStatus],
   );
 
+  const waitRemainingSeconds = useMemo(() => {
+    if (!session) return null;
+    if (phase !== "waiting" && phase !== "joining") return null;
+    const deadline = autoLeaveDeadlineSeconds(botStatus);
+    if (deadline == null) return null;
+    return Math.max(0, deadline - elapsedSeconds);
+  }, [session, phase, botStatus, elapsedSeconds]);
+
+  const waitRemainingLabel = useMemo(() => {
+    if (waitRemainingSeconds == null) return null;
+    return formatWaitRemaining(waitRemainingSeconds);
+  }, [waitRemainingSeconds]);
+
   const clearSession = useCallback(() => {
     setSession(null);
     writeStoredSession(null);
     setBotStatus(null);
     setImportStatus(null);
+    setSubCode(null);
+    setErrorMessage(null);
     setConsentConfirmed(false);
     setElapsedSeconds(0);
     setPanelOpen(false);
+    setCancelling(false);
     notifiedEndRef.current = false;
     if (pollRef.current) clearInterval(pollRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
@@ -139,6 +173,8 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
       writeStoredSession(full);
       setBotStatus("joining_call");
       setImportStatus("live");
+      setSubCode(null);
+      setErrorMessage(null);
       setConsentConfirmed(next.consentMode === "pre_confirmed");
       setElapsedSeconds(0);
       notifiedEndRef.current = false;
@@ -146,6 +182,34 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
+
+  const cancelSession = useCallback(async () => {
+    if (!session?.botId) return { success: false, errorMessage: "No active session" };
+    setCancelling(true);
+    try {
+      const data = await apiRequest<{
+        success: boolean;
+        errorMessage?: string;
+        importStatus?: string;
+      }>("POST", `/api/recall/bot/${session.botId}/cancel`, {});
+      setImportStatus("failed");
+      setBotStatus("left_user_cancelled");
+      setErrorMessage(data.errorMessage || "Cancelled — LegalNote left before the meeting started.");
+      setPanelOpen(true);
+      if (session.caseId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/cases/${session.caseId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/cases/${session.caseId}/live-import`] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/recall/meetings"] });
+      return { success: true, errorMessage: data.errorMessage || undefined };
+    } catch (err: any) {
+      const msg = err?.message || "Could not cancel LegalNote";
+      setErrorMessage(msg);
+      return { success: false, errorMessage: msg };
+    } finally {
+      setCancelling(false);
+    }
+  }, [session]);
 
   // Elapsed timer while session is active and not terminal
   useEffect(() => {
@@ -171,6 +235,8 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
         const data = await apiRequest<BotPollResponse>("GET", `/api/recall/bot/${session.botId}`);
         setBotStatus(data.botStatus);
         setImportStatus(data.importStatus);
+        if (data.subCode) setSubCode(data.subCode);
+        if (data.errorMessage) setErrorMessage(data.errorMessage);
         if (data.consentConfirmed) setConsentConfirmed(true);
 
         const nextPhase = phaseFromStatuses(data.botStatus, data.importStatus);
@@ -180,7 +246,8 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
           (nextPhase === "ended" ||
             nextPhase === "processing" ||
             nextPhase === "complete" ||
-            nextPhase === "awaiting_assignment")
+            nextPhase === "awaiting_assignment" ||
+            nextPhase === "error")
         ) {
           notifiedEndRef.current = true;
           if (!liveBotModalOpenRef.current) {
@@ -218,26 +285,38 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
       phase,
       botStatus,
       importStatus,
+      subCode,
+      errorMessage,
       consentConfirmed,
       elapsedSeconds,
+      waitRemainingSeconds,
+      waitRemainingLabel,
       panelOpen,
       setPanelOpen,
       liveBotModalOpen,
       setLiveBotModalOpen,
       startSession,
       clearSession,
+      cancelSession,
+      cancelling,
     }),
     [
       session,
       phase,
       botStatus,
       importStatus,
+      subCode,
+      errorMessage,
       consentConfirmed,
       elapsedSeconds,
+      waitRemainingSeconds,
+      waitRemainingLabel,
       panelOpen,
       liveBotModalOpen,
       startSession,
       clearSession,
+      cancelSession,
+      cancelling,
     ],
   );
 
