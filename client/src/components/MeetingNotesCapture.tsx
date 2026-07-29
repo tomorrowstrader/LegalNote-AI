@@ -28,7 +28,10 @@ type PanelMode = "collapsed" | "open" | "focus";
 /** Landing-page terracotta — primary brand accent on marketing surfaces. */
 const BRAND = "hsl(18, 70%, 42%)";
 const BRAND_HOVER = "hsl(18, 72%, 36%)";
-const PAPER = "hsl(36, 33%, 97%)";
+/** Warm tapioca / brownie milk — notepad header wash. */
+const TAPIOCA = "hsl(28, 42%, 86%)";
+const TAPIOCA_DEEP = "hsl(24, 38%, 78%)";
+const PAPER_WHITE = "hsl(40, 40%, 99%)";
 const PAPER_LINE = "hsl(30, 18%, 88%)";
 const INK = "hsl(220, 20%, 16%)";
 
@@ -41,8 +44,9 @@ const SECONDARY_SNIPPETS: { id: string; label: string; icon: typeof Users; text:
 const ATTENDEES_SNIPPET = "Attendees:\n- ";
 
 function formatElapsed(seconds: number) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
+  const total = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
@@ -108,7 +112,8 @@ export default function MeetingNotesCapture({
   contentRef.current = content;
 
   const isCompanion = variant === "companion";
-  const isNotepad = isCompanion || variant === "inline";
+  const isDocked = variant === "inline";
+  const isNotepad = isCompanion || isDocked;
 
   // Reload draft when key changes (e.g. new import)
   useEffect(() => {
@@ -258,7 +263,7 @@ export default function MeetingNotesCapture({
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{liveLabel}</span>
           )}
           {typeof elapsedSeconds === "number" && (
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">
+            <span className="min-w-[4.5ch] text-right font-mono text-xs tabular-nums text-muted-foreground">
               {formatElapsed(elapsedSeconds)}
             </span>
           )}
@@ -296,37 +301,57 @@ export default function MeetingNotesCapture({
     <div
       className={cn(
         "relative flex flex-col overflow-hidden",
-        isNotepad
-          ? "border border-[hsl(30,18%,84%)] shadow-[0_8px_30px_rgba(40,30,20,0.12)]"
-          : "border border-border/70 bg-card shadow-xl",
+        isCompanion &&
+          "border border-[hsl(30,18%,84%)] shadow-[0_8px_30px_rgba(40,30,20,0.12)]",
+        isDocked && "border-0 bg-transparent shadow-none",
+        !isNotepad && "border border-border/70 bg-card shadow-xl",
         variant === "floating" && "rounded-xl",
-        variant === "inline" && "rounded-lg h-full min-h-[280px]",
+        variant === "inline" && "h-full min-h-[260px] rounded-none",
         variant === "companion" && "h-full min-h-0 rounded-none border-0 shadow-none",
         mode === "focus" && variant === "floating" && "h-[min(72vh,560px)]",
         mode === "open" && variant === "floating" && "h-[380px]",
         className,
       )}
-      style={isNotepad ? { backgroundColor: PAPER, color: INK } : undefined}
+      style={
+        isCompanion
+          ? { backgroundColor: PAPER_WHITE, color: INK }
+          : isDocked
+            ? { color: INK, background: "transparent" }
+            : undefined
+      }
       data-testid="meeting-notes-panel"
     >
-      {/* Paper wash + subtle left margin rule (notepad spine) */}
-      {isNotepad ? (
+      {/* Companion-only full wash; docked inherits the control-center shell gradient */}
+      {isCompanion ? (
         <>
           <div
             className="pointer-events-none absolute inset-0"
             style={{
-              background:
-                "radial-gradient(90% 60% at 100% 0%, hsl(18, 55%, 92% / 0.45) 0%, transparent 50%), linear-gradient(180deg, hsl(36, 40%, 98%) 0%, hsl(36, 28%, 96%) 100%)",
+              background: `
+                radial-gradient(120% 55% at 12% 0%, ${TAPIOCA_DEEP} 0%, transparent 55%),
+                radial-gradient(90% 45% at 88% 8%, hsl(18, 48%, 82% / 0.55) 0%, transparent 50%),
+                linear-gradient(
+                  180deg,
+                  ${TAPIOCA} 0%,
+                  ${TAPIOCA} 32%,
+                  hsl(30, 36%, 92%) 40%,
+                  hsl(36, 30%, 97%) 52%,
+                  ${PAPER_WHITE} 62%,
+                  ${PAPER_WHITE} 100%
+                )
+              `,
             }}
             aria-hidden
           />
           <div
             className="pointer-events-none absolute bottom-0 left-0 top-0 w-[3px]"
-            style={{ backgroundColor: "hsl(18, 55%, 72%)" }}
+            style={{
+              background: `linear-gradient(180deg, hsl(18, 45%, 62%) 0%, hsl(18, 35%, 72%) 40%, hsl(30, 20%, 82%) 100%)`,
+            }}
             aria-hidden
           />
         </>
-      ) : (
+      ) : !isNotepad ? (
         <div
           className="pointer-events-none absolute inset-0 opacity-60"
           style={{
@@ -335,12 +360,15 @@ export default function MeetingNotesCapture({
           }}
           aria-hidden
         />
-      )}
+      ) : null}
 
       <header
         className={cn(
-          "relative z-10 flex items-start justify-between gap-3 px-4 pt-3.5 pb-3",
-          isNotepad ? "border-b border-[hsl(30,18%,86%)]" : "border-b border-border/50",
+          "relative z-10 flex items-start justify-between gap-3 px-4",
+          isDocked ? "pb-2 pt-1" : "pt-3.5 pb-3",
+          isCompanion && "border-b border-[hsl(24,28%,78%/0.55)]",
+          isDocked && "border-b border-[hsl(24,28%,78%/0.35)]",
+          !isNotepad && "border-b border-border/50",
         )}
       >
         <div className="min-w-0 flex-1">
@@ -370,24 +398,41 @@ export default function MeetingNotesCapture({
           ) : (
             <>
               <div className="flex items-center gap-2">
-                {isNotepad ? (
+                {isDocked ? (
+                  <Logo variant="icon" size="sm" tone="light" className="h-4 w-4" />
+                ) : isNotepad ? (
                   <Logo variant="icon" size="sm" tone="light" className="h-5 w-5" />
                 ) : (
                   <PenLine className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 )}
-                <h3 className="text-sm font-medium tracking-tight">Meeting notes</h3>
+                <h3
+                  className="text-sm font-medium tracking-tight"
+                  style={isDocked ? { fontFamily: "var(--font-serif)", color: INK } : undefined}
+                >
+                  Meeting notes
+                </h3>
+                {isDocked && liveLabel && (
+                  <span
+                    className="shrink-0 text-[10px] uppercase tracking-wider font-medium"
+                    style={{ color: BRAND }}
+                  >
+                    {liveLabel}
+                  </span>
+                )}
               </div>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                {caseTitle?.trim() || "Optional — saved to the matter when the call ends"}
-              </p>
+              {!isDocked && (
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {caseTitle?.trim() || "Optional — saved to the matter when the call ends"}
+                </p>
+              )}
             </>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {typeof elapsedSeconds === "number" && (
+          {typeof elapsedSeconds === "number" && !isDocked && (
             <span
               className={cn(
-                "mr-1 font-mono text-[11px] tabular-nums",
+                "mr-1 min-w-[4.5ch] text-right font-mono text-[11px] tabular-nums",
                 isNotepad ? "text-[hsl(220,12%,40%)]" : "text-muted-foreground",
               )}
               data-testid="text-meeting-notes-elapsed"
@@ -412,7 +457,10 @@ export default function MeetingNotesCapture({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className={cn(
+                "h-7 w-7",
+                isDocked && "text-[hsl(220,12%,40%)] hover:bg-[hsl(24,30%,80%/0.45)] hover:text-[hsl(18,50%,30%)]",
+              )}
               onClick={onPopOut}
               aria-label="Pop out notes to a separate window"
               title="Pop out — keep beside your video call"
@@ -505,7 +553,7 @@ export default function MeetingNotesCapture({
         <div
           className={cn(
             "relative min-h-0 flex-1 overflow-hidden rounded-md",
-            isNotepad && "ring-1 ring-[hsl(30,18%,86%)] bg-white/40",
+            isNotepad && "bg-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-[hsl(28,22%,82%)]",
           )}
         >
           {isNotepad && (
@@ -548,7 +596,9 @@ export default function MeetingNotesCapture({
       <footer
         className={cn(
           "relative z-10 flex items-center justify-between gap-2 px-4 py-2",
-          isNotepad ? "border-t border-[hsl(30,18%,86%)]" : "border-t border-border/50",
+          isCompanion && "border-t border-[hsl(30,18%,86%)]",
+          isDocked && "border-t border-[hsl(24,28%,78%/0.35)]",
+          !isNotepad && "border-t border-border/50",
         )}
       >
         <p className={cn("text-[11px]", isNotepad ? "text-[hsl(220,12%,42%)]" : "text-muted-foreground")}>
@@ -563,11 +613,15 @@ export default function MeetingNotesCapture({
               ? hasContent
                 ? "Draft syncs with LegalNote · saved when recording ends"
                 : "⌘⇧T timestamp · dock back when finished"
-              : hasContent
-                ? "Draft kept until the meeting ends"
-                : "⌘⇧T timestamp · Esc collapse")}
+              : isDocked
+                ? hasContent
+                  ? "Draft kept until the meeting ends"
+                  : "⌘⇧T timestamp · pop out for a wider pad"
+                : hasContent
+                  ? "Draft kept until the meeting ends"
+                  : "⌘⇧T timestamp · Esc collapse")}
         </p>
-        {!caseTitle && (
+        {!caseTitle && !isDocked && (
           <span className="text-[10px] uppercase tracking-wide text-[hsl(220,10%,50%)]">Unassigned</span>
         )}
       </footer>

@@ -63,8 +63,9 @@ export interface RecordingControlCenterProps {
 }
 
 function formatElapsed(seconds: number) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
+  const total = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
@@ -104,6 +105,21 @@ const toneStyles: Record<
   },
 };
 
+/** Shared notepad wash — top tapioca brownie trailing into white (matches meeting notes). */
+const NOTEPAD_SHELL_BG = `
+  radial-gradient(120% 55% at 12% 0%, hsl(24, 38%, 78%) 0%, transparent 55%),
+  radial-gradient(90% 45% at 88% 8%, hsl(18, 48%, 82% / 0.45) 0%, transparent 50%),
+  linear-gradient(
+    180deg,
+    hsl(28, 42%, 86%) 0%,
+    hsl(28, 40%, 88%) 18%,
+    hsl(30, 36%, 92%) 28%,
+    hsl(36, 30%, 97%) 38%,
+    hsl(40, 40%, 99%) 48%,
+    hsl(40, 40%, 99%) 100%
+  )
+`;
+
 /**
  * Bottom-right meeting control center — shared shell for Quick Record,
  * live video bots, and any in-progress capture session.
@@ -140,6 +156,7 @@ export default function RecordingControlCenter({
       : null;
 
   const isCollapsed = collapsible && collapsed && !forceExpanded;
+  const hasNotepadBody = !!children;
   const displayTitle =
     title?.trim() || (icon === "video" ? "Video meeting" : "Quick Record");
   const timerLabel =
@@ -187,7 +204,7 @@ export default function RecordingControlCenter({
         </span>
         {timerLabel && (
           <span
-            className="font-semibold tabular-nums text-sm text-foreground/80"
+            className="min-w-[4.5ch] text-right font-mono text-sm font-semibold tabular-nums text-foreground/80"
             data-testid="text-control-center-duration"
           >
             {timerLabel}
@@ -215,7 +232,10 @@ export default function RecordingControlCenter({
   const panel = (
     <div
       className={cn(
-        "fixed bottom-5 right-5 z-[60] w-[min(340px,calc(100vw-1.5rem))]",
+        "fixed bottom-5 right-5 z-[60]",
+        hasNotepadBody
+          ? "w-[min(380px,calc(100vw-1.5rem))]"
+          : "w-[min(340px,calc(100vw-1.5rem))]",
         "animate-in fade-in-0 slide-in-from-bottom-3 duration-300",
         className,
       )}
@@ -224,27 +244,49 @@ export default function RecordingControlCenter({
     >
       <div
         className={cn(
-          "relative overflow-hidden rounded-2xl border border-border/70",
-          "bg-card/95 shadow-[0_18px_50px_-20px_rgba(15,18,28,0.55)] backdrop-blur-md",
+          "relative overflow-hidden rounded-2xl",
+          hasNotepadBody
+            ? "border border-[hsl(28,24%,78%)] shadow-[0_18px_50px_-18px_rgba(60,35,20,0.45)]"
+            : "border border-border/70 bg-card/95 shadow-[0_18px_50px_-20px_rgba(15,18,28,0.55)] backdrop-blur-md",
         )}
+        style={hasNotepadBody ? { background: NOTEPAD_SHELL_BG } : undefined}
       >
+        {!hasNotepadBody && (
+          <>
+            <div
+              className={cn(
+                "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-90",
+                styles.glow,
+              )}
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute inset-0 opacity-[0.35]"
+              style={{
+                background:
+                  "radial-gradient(120% 90% at 100% 0%, hsl(210 25% 96% / 0.55) 0%, transparent 50%)",
+              }}
+              aria-hidden
+            />
+          </>
+        )}
+        {hasNotepadBody && (
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 top-0 w-[3px]"
+            style={{
+              background:
+                "linear-gradient(180deg, hsl(18, 45%, 62%) 0%, hsl(18, 35%, 72%) 28%, hsl(30, 20%, 82%) 100%)",
+            }}
+            aria-hidden
+          />
+        )}
+
         <div
           className={cn(
-            "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-90",
-            styles.glow,
+            "relative z-10 p-4",
+            hasNotepadBody && "text-[hsl(220,20%,16%)]",
           )}
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.35]"
-          style={{
-            background:
-              "radial-gradient(120% 90% at 100% 0%, hsl(210 25% 96% / 0.55) 0%, transparent 50%)",
-          }}
-          aria-hidden
-        />
-
-        <div className="relative z-10 p-4">
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
@@ -265,14 +307,31 @@ export default function RecordingControlCenter({
                 </span>
               </div>
               <div className="mt-2.5 flex items-center gap-2 min-w-0">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/80 text-muted-foreground">
+                <span
+                  className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                    hasNotepadBody
+                      ? "bg-[hsl(24,30%,80%/0.65)] text-[hsl(18,45%,35%)]"
+                      : "bg-muted/80 text-muted-foreground",
+                  )}
+                >
                   <Icon className="h-3.5 w-3.5" />
                 </span>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium tracking-tight text-foreground">
+                  <p
+                    className={cn(
+                      "truncate text-sm font-medium tracking-tight",
+                      hasNotepadBody ? "text-[hsl(220,20%,16%)]" : "text-foreground",
+                    )}
+                  >
                     {displayTitle}
                   </p>
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p
+                    className={cn(
+                      "truncate text-[11px]",
+                      hasNotepadBody ? "text-[hsl(220,12%,40%)]" : "text-muted-foreground",
+                    )}
+                  >
                     {subtitle?.trim() ||
                       (countdown !== null
                         ? "Starting shortly"
@@ -289,7 +348,12 @@ export default function RecordingControlCenter({
                 <button
                   type="button"
                   onClick={() => setCollapsed(true)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                  className={cn(
+                    "inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+                    hasNotepadBody
+                      ? "text-[hsl(220,12%,40%)] hover:bg-[hsl(24,30%,80%/0.45)] hover:text-[hsl(18,50%,30%)]"
+                      : "text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+                  )}
                   aria-label="Minimize control center"
                   data-testid="button-collapse-control-center"
                 >
@@ -298,14 +362,20 @@ export default function RecordingControlCenter({
               )}
               {countdown !== null ? (
                 <p
-                  className="text-3xl font-semibold tabular-nums tracking-tight text-foreground"
+                  className={cn(
+                    "min-w-[2ch] text-right font-mono text-3xl font-semibold tabular-nums tracking-tight",
+                    hasNotepadBody ? "text-[hsl(220,20%,16%)]" : "text-foreground",
+                  )}
                   data-testid="text-control-center-countdown"
                 >
                   {countdown}
                 </p>
               ) : typeof elapsedSeconds === "number" ? (
                 <p
-                  className="text-3xl font-semibold tabular-nums tracking-tight text-foreground"
+                  className={cn(
+                    "min-w-[5ch] text-right font-mono text-3xl font-semibold tabular-nums tracking-tight",
+                    hasNotepadBody ? "text-[hsl(220,20%,16%)]" : "text-foreground",
+                  )}
                   data-testid="text-control-center-duration"
                 >
                   {formatElapsed(elapsedSeconds)}
@@ -400,9 +470,7 @@ export default function RecordingControlCenter({
           {actions && <div className="mt-3.5 flex flex-col gap-2">{actions}</div>}
         </div>
 
-        {children && (
-          <div className="relative z-10 border-t border-border/60">{children}</div>
-        )}
+        {children && <div className="relative z-10">{children}</div>}
       </div>
     </div>
   );

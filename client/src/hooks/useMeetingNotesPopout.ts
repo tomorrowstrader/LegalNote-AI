@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MeetingNotesDraftKey } from "@/lib/meetingNotesDraft";
 import {
   focusMeetingNotesPopout,
@@ -25,6 +25,20 @@ export function useMeetingNotesPopout(
 ) {
   const [popoutOpen, setPopoutOpen] = useState(false);
   const active = opts?.active !== false;
+  const lastDraftKeyRef = useRef<MeetingNotesDraftKey | null>(draftKey);
+  const optsRef = useRef(opts);
+  optsRef.current = opts;
+
+  // Close the previous companion when the draft key is cleared or replaced
+  // (e.g. recording reset) — otherwise a stale timer keeps ticking in the old window.
+  useEffect(() => {
+    const prev = lastDraftKeyRef.current;
+    if (prev && prev !== draftKey) {
+      requestCloseMeetingNotesPopout(prev);
+      setPopoutOpen(false);
+    }
+    lastDraftKeyRef.current = draftKey;
+  }, [draftKey]);
 
   useEffect(() => {
     if (!draftKey) {
@@ -77,23 +91,24 @@ export function useMeetingNotesPopout(
     if (!draftKey || active) return;
     if (popoutOpen) {
       requestCloseMeetingNotesPopout(draftKey);
-      setPopoutOpen(false);
     }
+    setPopoutOpen(false);
   }, [draftKey, active, popoutOpen]);
 
-  const openPopout = useCallback((optsExtra?: { reservedWindow?: Window | null }): boolean => {
+  const openPopout = useCallback((extra?: { reservedWindow?: Window | null }): boolean => {
     if (!draftKey) return false;
+    const latest = optsRef.current;
     const win = openMeetingNotesPopout({
       draftKey,
-      caseTitle: opts?.caseTitle,
-      liveLabel: opts?.liveLabel,
-      elapsedSeconds: opts?.elapsedSeconds,
-      reservedWindow: optsExtra?.reservedWindow,
+      caseTitle: latest?.caseTitle,
+      liveLabel: latest?.liveLabel,
+      elapsedSeconds: latest?.elapsedSeconds,
+      reservedWindow: extra?.reservedWindow,
     });
     if (!win) return false;
     setPopoutOpen(true);
     return true;
-  }, [draftKey, opts?.caseTitle, opts?.liveLabel, opts?.elapsedSeconds]);
+  }, [draftKey]);
 
   const focusPopout = useCallback(() => {
     if (!draftKey) return;

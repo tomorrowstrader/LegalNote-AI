@@ -28,8 +28,8 @@ import {
   reserveMeetingNotesPopout,
 } from "@/lib/meetingNotesPopout";
 import {
+  captureRecordingDraftKey,
   flushMeetingNotesToCase,
-  newSessionDraftKey,
   type MeetingNotesDraftKey,
 } from "@/lib/meetingNotesDraft";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
@@ -275,11 +275,10 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       return;
     }
     const draftToken =
-      nextMeta.selectedCaseId ||
-      (typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? `pending-${crypto.randomUUID()}`
-        : `pending-${Date.now()}`);
-    const draftKey = newSessionDraftKey(draftToken);
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const draftKey = captureRecordingDraftKey(draftToken);
     setNotesDraftKey(draftKey);
     notesDraftKeyRef.current = draftKey;
     didAutoOpenNotesRef.current = false;
@@ -642,12 +641,9 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
           }
           countdown={countdown}
           elapsedSeconds={phase === "recording" ? duration : undefined}
-          forceExpanded={
-            stopConfirmationPending ||
-            phase === "countdown" ||
-            (notesActive && !popoutOpen)
-          }
+          forceExpanded={stopConfirmationPending || phase === "countdown"}
           collapsible={phase === "recording"}
+          defaultCollapsed={false}
           safeguards={{ protected: phase === "recording" || phase === "countdown" }}
           data-testid="new-note-recording-control-center"
           actions={
@@ -673,16 +669,17 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
         >
           {notesActive && notesDraftKey && popoutOpen && (
             <div
-              className="space-y-2.5 px-4 py-3"
+              className="space-y-2.5 px-4 pb-4 pt-1"
               data-testid="meeting-notes-popout-dock"
             >
-              <p className="text-xs text-muted-foreground leading-relaxed">
+              <p className="text-xs leading-relaxed text-[hsl(220,12%,40%)]">
                 Meeting notes are open in a separate window. Drafts stay in sync and save when you stop recording.
               </p>
               <div className="flex flex-col gap-2">
                 <ControlCenterActionButton
                   variant="outline"
                   onClick={focusPopout}
+                  className="border-[hsl(28,22%,78%)] bg-white/70 text-[hsl(220,20%,16%)] hover:bg-white"
                   data-testid="button-focus-meeting-notes-popout"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
@@ -691,6 +688,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
                 <ControlCenterActionButton
                   variant="outline"
                   onClick={closePopout}
+                  className="border-[hsl(28,22%,78%)] bg-white/70 text-[hsl(220,20%,16%)] hover:bg-white"
                   data-testid="button-dock-meeting-notes-inline"
                 >
                   Dock notes here
@@ -699,7 +697,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
             </div>
           )}
           {notesActive && notesDraftKey && !popoutOpen && (
-            <div className="max-h-[min(52vh,420px)] overflow-hidden">
+            <div className="max-h-[min(48vh,400px)] overflow-hidden">
               <MeetingNotesCapture
                 draftKey={notesDraftKey}
                 caseTitle={meta?.displayTitle || meta?.caseTitle}
@@ -709,7 +707,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
                 defaultOpen
                 liveLabel="Recording"
                 onPopOut={handlePopOut}
-                className="rounded-none border-0 shadow-none min-h-[240px] h-[min(48vh,380px)]"
+                className="min-h-[240px] h-[min(44vh,360px)] rounded-none border-0 shadow-none"
               />
             </div>
           )}

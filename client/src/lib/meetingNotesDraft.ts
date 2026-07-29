@@ -15,6 +15,11 @@ export function newSessionDraftKey(caseId: string): MeetingNotesDraftKey {
   return `session:${caseId}`;
 }
 
+/** Unique per Capture/mic recording so a leftover pop-out cannot keep a stale timer. */
+export function captureRecordingDraftKey(sessionToken: string): MeetingNotesDraftKey {
+  return `session:rec-${sessionToken}`;
+}
+
 function storageKey(draftKey: MeetingNotesDraftKey): string {
   return `${DRAFT_PREFIX}${draftKey}`;
 }

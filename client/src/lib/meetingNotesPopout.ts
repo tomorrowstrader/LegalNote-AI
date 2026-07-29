@@ -134,21 +134,27 @@ export function openMeetingNotesPopout(opts: {
     if (opts.reservedWindow && opts.reservedWindow !== existing) {
       closeReservedPopout(opts.reservedWindow);
     }
-    existing.focus();
-    publishMeetingNotesPopout({
-      type: "meta",
-      draftKey: opts.draftKey,
-      caseTitle: opts.caseTitle ?? null,
-      liveLabel: opts.liveLabel ?? null,
-    });
-    if (typeof opts.elapsedSeconds === "number") {
+    // Always navigate — same named window may still hold React state from a prior recording
+    // (URL query often unchanged at elapsed=0, so window.open alone may not remount).
+    if (!activateMeetingNotesPopout(existing, opts)) {
+      closeReservedPopout(existing);
+      openWindows.delete(opts.draftKey);
+    } else {
       publishMeetingNotesPopout({
-        type: "elapsed",
+        type: "meta",
         draftKey: opts.draftKey,
-        seconds: opts.elapsedSeconds,
+        caseTitle: opts.caseTitle ?? null,
+        liveLabel: opts.liveLabel ?? null,
       });
+      if (typeof opts.elapsedSeconds === "number") {
+        publishMeetingNotesPopout({
+          type: "elapsed",
+          draftKey: opts.draftKey,
+          seconds: opts.elapsedSeconds,
+        });
+      }
+      return existing;
     }
-    return existing;
   }
 
   if (opts.reservedWindow && !opts.reservedWindow.closed) {

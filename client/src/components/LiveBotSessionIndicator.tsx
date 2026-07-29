@@ -354,10 +354,10 @@ export function LiveBotSessionIndicator() {
         >
           {notesActive && popoutOpen && (
             <div
-              className="space-y-2.5 px-4 py-3"
+              className="space-y-2.5 px-4 pb-4 pt-1"
               data-testid="meeting-notes-popout-dock"
             >
-              <p className="text-xs text-muted-foreground leading-relaxed">
+              <p className="text-xs leading-relaxed text-[hsl(220,12%,40%)]">
                 Meeting notes are open in a separate window — keep it beside your video call.
                 Drafts stay in sync and save when the call ends.
               </p>
@@ -365,6 +365,7 @@ export function LiveBotSessionIndicator() {
                 <ControlCenterActionButton
                   variant="outline"
                   onClick={focusPopout}
+                  className="border-[hsl(28,22%,78%)] bg-white/70 text-[hsl(220,20%,16%)] hover:bg-white"
                   data-testid="button-focus-meeting-notes-popout"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
@@ -373,6 +374,7 @@ export function LiveBotSessionIndicator() {
                 <ControlCenterActionButton
                   variant="outline"
                   onClick={closePopout}
+                  className="border-[hsl(28,22%,78%)] bg-white/70 text-[hsl(220,20%,16%)] hover:bg-white"
                   data-testid="button-dock-meeting-notes-inline"
                 >
                   Dock notes here
@@ -381,7 +383,7 @@ export function LiveBotSessionIndicator() {
             </div>
           )}
           {notesActive && !popoutOpen && (
-            <div className="max-h-[min(52vh,420px)] overflow-hidden">
+            <div className="max-h-[min(48vh,400px)] overflow-hidden">
               <MeetingNotesCapture
                 draftKey={draftKey}
                 caseTitle={session.caseTitle}
@@ -391,7 +393,7 @@ export function LiveBotSessionIndicator() {
                 defaultOpen={phase === "recording"}
                 liveLabel={phase === "recording" ? "Recording" : phaseLabel(phase)}
                 onPopOut={handlePopOut}
-                className="rounded-none border-0 shadow-none min-h-[240px] h-[min(48vh,380px)]"
+                className="min-h-[240px] h-[min(44vh,360px)] rounded-none border-0 shadow-none"
               />
             </div>
           )}
