@@ -4,8 +4,7 @@ import {
   ChevronDown,
   Clock,
   ExternalLink,
-  ListChecks,
-  ListTodo,
+  Handshake,
   Maximize2,
   MessageSquare,
   Minimize2,
@@ -35,13 +34,23 @@ const PAPER_WHITE = "hsl(40, 40%, 99%)";
 const PAPER_LINE = "hsl(30, 18%, 88%)";
 const INK = "hsl(220, 20%, 16%)";
 
-const SECONDARY_SNIPPETS: { id: string; label: string; icon: typeof Users; text: string }[] = [
+/**
+ * Live capture inserts only — what the attendance note often misses.
+ * Timestamp marks the recording; the rest seed structured headings.
+ * Actions/Follow-ups dropped (overlap); Undertakings kept (LegalNote-native).
+ */
+const NOTE_ACTIONS: {
+  id: string;
+  label: string;
+  icon: typeof Users;
+  text?: string;
+  kind?: "timestamp";
+}[] = [
+  { id: "timestamp", label: "Timestamp", icon: Clock, kind: "timestamp" },
+  { id: "attendees", label: "Attendees", icon: Users, text: "Attendees:\n- " },
   { id: "instructions", label: "Instructions", icon: MessageSquare, text: "Client instructions:\n" },
-  { id: "actions", label: "Actions", icon: ListChecks, text: "Action points:\n- " },
-  { id: "followups", label: "Follow-ups", icon: ListTodo, text: "Follow-ups:\n- " },
+  { id: "undertakings", label: "Undertakings", icon: Handshake, text: "Undertakings:\n- " },
 ];
-
-const ATTENDEES_SNIPPET = "Attendees:\n- ";
 
 function formatElapsed(seconds: number) {
   const total = Math.max(0, Math.floor(seconds));
@@ -280,21 +289,14 @@ export default function MeetingNotesCapture({
     );
   }
 
-  const primaryActionClass = cn(
-    "inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5",
-    "text-sm font-medium text-white transition-all duration-150",
+  const actionButtonClass = cn(
+    "inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2",
+    "text-[13px] font-medium text-white transition-all duration-150",
     "shadow-[0_2px_8px_rgba(140,55,25,0.35),0_1px_2px_rgba(0,0,0,0.12)]",
-    "hover:shadow-[0_4px_14px_rgba(140,55,25,0.4),0_2px_4px_rgba(0,0,0,0.14)] hover:-translate-y-px",
+    "hover:shadow-[0_4px_12px_rgba(140,55,25,0.4),0_2px_4px_rgba(0,0,0,0.14)] hover:-translate-y-px",
     "active:translate-y-0 active:shadow-[0_1px_4px_rgba(140,55,25,0.3)]",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-    "min-h-[42px] min-w-0",
-  );
-
-  const secondaryActionClass = cn(
-    "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-    isNotepad
-      ? "border-[hsl(30,20%,82%)] bg-white/70 text-[hsl(220,15%,35%)] hover:border-[hsl(18,40%,70%)] hover:text-[hsl(18,70%,32%)]"
-      : "border-border/60 bg-background/80 text-muted-foreground hover:border-foreground/20 hover:text-foreground",
+    "h-10 min-w-0 w-full",
   );
 
   const panel = (
@@ -498,62 +500,44 @@ export default function MeetingNotesCapture({
         </div>
       </header>
 
-      {/* Primary actions — equal size, brand colour, drop shadow */}
-      <div className="relative z-10 flex gap-2.5 px-3 pt-3">
-        <button
-          type="button"
-          onClick={insertTimestamp}
-          className={primaryActionClass}
-          style={{ backgroundColor: BRAND, ["--tw-ring-color" as string]: BRAND }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = BRAND_HOVER;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = BRAND;
-          }}
-          data-testid="button-insert-timestamp"
-        >
-          <Clock className="h-4 w-4 shrink-0" />
-          Timestamp
-        </button>
-        <button
-          type="button"
-          onClick={() => insertAtCursor(ATTENDEES_SNIPPET, { newLineBefore: true })}
-          className={primaryActionClass}
-          style={{ backgroundColor: BRAND, ["--tw-ring-color" as string]: BRAND }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = BRAND_HOVER;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = BRAND;
-          }}
-          data-testid="button-snippet-attendees"
-        >
-          <Users className="h-4 w-4 shrink-0" />
-          Attendees
-        </button>
-      </div>
-
-      <div className="relative z-10 flex flex-wrap gap-1.5 px-3 pt-2">
-        {SECONDARY_SNIPPETS.map((s) => (
+      {/* Equal 2×2 — only the inserts solicitors need live */}
+      <div className="relative z-10 grid grid-cols-2 gap-2 px-3 pt-3">
+        {NOTE_ACTIONS.map((action) => (
           <button
-            key={s.id}
+            key={action.id}
             type="button"
-            onClick={() => insertAtCursor(s.text, { newLineBefore: true })}
-            className={secondaryActionClass}
-            data-testid={`button-snippet-${s.id}`}
+            onClick={() => {
+              if (action.kind === "timestamp") {
+                insertTimestamp();
+                return;
+              }
+              if (action.text) insertAtCursor(action.text, { newLineBefore: true });
+            }}
+            className={actionButtonClass}
+            style={{ backgroundColor: BRAND, ["--tw-ring-color" as string]: BRAND }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = BRAND_HOVER;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = BRAND;
+            }}
+            data-testid={
+              action.kind === "timestamp"
+                ? "button-insert-timestamp"
+                : `button-snippet-${action.id}`
+            }
           >
-            <s.icon className="h-3 w-3" />
-            {s.label}
+            <action.icon className="h-3.5 w-3.5 shrink-0" />
+            {action.label}
           </button>
         ))}
       </div>
 
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-3 pb-2 pt-2">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-3 pb-2 pt-2.5">
         <div
           className={cn(
             "relative min-h-0 flex-1 overflow-hidden rounded-md",
-            isNotepad && "bg-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-[hsl(28,22%,82%)]",
+            isNotepad && "bg-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-[hsl(28,22%,82%)]",
           )}
         >
           {isNotepad && (
