@@ -7,7 +7,6 @@ import {
   Eye,
   FileSearch,
   Pencil,
-  RefreshCw,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +36,6 @@ export interface VerificationWarningPanelProps {
   onViewInNote: (warning: VerificationWarning) => void;
   onSearchTranscript: (warning: VerificationWarning) => void;
   onEditStatement: (warning: VerificationWarning) => void;
-  onProduceCorrectedVersion: (warning: VerificationWarning) => void;
   onResolve: (args: {
     warningId: string;
     disposition: VerificationResolveDisposition;
@@ -70,7 +68,6 @@ interface WarningCardProps {
   onViewInNote: (warning: VerificationWarning) => void;
   onSearchTranscript: (warning: VerificationWarning) => void;
   onEditStatement: (warning: VerificationWarning) => void;
-  onProduceCorrectedVersion: (warning: VerificationWarning) => void;
   onRequestResolve: (
     warning: VerificationWarning,
     disposition: VerificationResolveDisposition,
@@ -85,7 +82,6 @@ function WarningCard({
   onViewInNote,
   onSearchTranscript,
   onEditStatement,
-  onProduceCorrectedVersion,
   onRequestResolve,
 }: WarningCardProps) {
   const resolved = !!warning.resolution;
@@ -196,17 +192,6 @@ function WarningCard({
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
-                className="h-7 text-xs gap-1"
-                onClick={() => onProduceCorrectedVersion(warning)}
-                data-testid={`button-produce-from-warning-${testIdPrefix}-${index}`}
-              >
-                <RefreshCw className="w-3 h-3" />
-                Produce corrected version
-              </Button>
-              <Button
-                type="button"
-                size="sm"
                 variant="secondary"
                 className="h-7 text-xs gap-1"
                 onClick={() =>
@@ -244,7 +229,6 @@ export function VerificationWarningPanel({
   onViewInNote,
   onSearchTranscript,
   onEditStatement,
-  onProduceCorrectedVersion,
   onResolve,
   isResolving,
 }: VerificationWarningPanelProps) {
@@ -416,7 +400,6 @@ export function VerificationWarningPanel({
                       onViewInNote={onViewInNote}
                       onSearchTranscript={onSearchTranscript}
                       onEditStatement={onEditStatement}
-                      onProduceCorrectedVersion={onProduceCorrectedVersion}
                       onRequestResolve={(warning, disposition) =>
                         setResolveTarget({ warning, disposition })
                       }

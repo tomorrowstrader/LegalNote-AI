@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, RefreshCw, Share2, Quote, Play, MoreHorizontal, Clock } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, Share2, Quote, Play, MoreHorizontal, Clock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -1601,8 +1601,6 @@ export default function DocumentViewer({
     summary: Document | null | undefined;
     clientCareLetter: Document | null | undefined;
   }>({ attendanceNote: null, summary: null, clientCareLetter: null });
-  const [produceTarget, setProduceTarget] = useState<Document | null>(null);
-  const [produceReason, setProduceReason] = useState("");
   const gapContentByDocIdRef = useRef<Record<string, string>>({});
   const healedMarkersRef = useRef<Set<string>>(new Set());
   
@@ -2076,62 +2074,6 @@ export default function DocumentViewer({
         description: "Failed to unlock document. Please try again.",
         variant: "destructive",
         duration: 6000,
-      });
-    },
-  });
-
-  const produceVersionMutation = useMutation({
-    mutationFn: async ({ documentId, reason }: { documentId: string; reason?: string }) => {
-      return await apiRequest("POST", `/api/cases/${caseId}/documents/${documentId}/produce-version`, {
-        reason: reason?.trim() || undefined,
-      });
-    },
-    onSuccess: () => {
-      queryClient.setQueryData([`/api/cases/${caseId}`], (old: { status?: string; aiProcessingMetadata?: unknown } | undefined) =>
-        old
-          ? {
-              ...old,
-              status: "processing",
-              aiProcessingMetadata: {
-                ...(typeof old.aiProcessingMetadata === "object" && old.aiProcessingMetadata
-                  ? (old.aiProcessingMetadata as Record<string, unknown>)
-                  : {}),
-                status: "processing",
-                progress: 0,
-                currentStep: "Queued for further version production...",
-                error: undefined,
-              },
-            }
-          : old,
-      );
-      queryClient.setQueryData([`/api/cases/${caseId}/processing-status`], {
-        status: "processing",
-        processingMetadata: {
-          status: "processing",
-          progress: 0,
-          currentStep: "Queued for further version production...",
-        },
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/processing-status`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
-      setProduceTarget(null);
-      setProduceReason("");
-      toast({
-        title: "Producing new version",
-        description: "Progress will update on this case page — no need to refresh.",
-        duration: 5000,
-      });
-    },
-    onError: (error: unknown) => {
-      toast({
-        title: "Could not produce new version",
-        description: getApiErrorMessage(
-          error,
-          "Please try again. If the problem continues, contact support.",
-        ),
-        variant: "destructive",
-        duration: 8000,
       });
     },
   });
@@ -2611,61 +2553,27 @@ export default function DocumentViewer({
   
   const transcriptContent = stripRtfToPlainText(transcriptDoc?.content ?? transcript ?? "");
 
-  // Secondary actions under document title when awaiting review: Edit (outline) + Produce (ghost)
+  // Secondary action under document title when awaiting review
   const DocumentPrimaryActions = ({ document }: { document?: Document }) => {
     if (!document) return null;
     const isEditingThis = editingDocId === document.id;
     if (isEditingThis) return null;
 
-    const canProduce =
-      !isDemoMode &&
-      !litigationHold &&
-      (document.type === "attendance_note" ||
-        document.type === "meeting_notes" ||
-        document.type === "summary" ||
-        document.type === "client_letter");
     const canEdit = document.status === "draft";
-    const awaitingReview = document.status === "draft";
-
-    if (!canProduce && !canEdit) return null;
+    if (!canEdit) return null;
 
     return (
       <div className="flex items-center gap-2 flex-wrap px-6 pb-3" data-testid="document-primary-actions">
-        {canEdit && (
-          <Button
-            size="sm"
-            variant={awaitingReview ? "outline" : "default"}
-            onClick={() => startEditing(document)}
-            className="gap-1"
-            data-testid="button-edit-document"
-          >
-            <Edit className="w-3 h-3" />
-            Edit Document
-          </Button>
-        )}
-        {canProduce && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setProduceTarget(document);
-                  setProduceReason("");
-                }}
-                disabled={produceVersionMutation.isPending}
-                className="gap-1 text-muted-foreground"
-                data-testid="button-produce-new-version"
-              >
-                <RefreshCw className={`w-3 h-3 ${produceVersionMutation.isPending && produceTarget?.id === document.id ? "animate-spin" : ""}`} />
-                Produce new version
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-[240px]">
-              Produce a new version. The current version stays on record.
-            </TooltipContent>
-          </Tooltip>
-        )}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => startEditing(document)}
+          className="gap-1"
+          data-testid="button-edit-document"
+        >
+          <Edit className="w-3 h-3" />
+          Edit Document
+        </Button>
       </div>
     );
   };
@@ -3397,10 +3305,6 @@ export default function DocumentViewer({
                     handleVerificationViewInNote(w, "attendance-note-card", "attendance");
                     startEditing(attendanceNote);
                   }}
-                  onProduceCorrectedVersion={() => {
-                    setProduceTarget(attendanceNote);
-                    setProduceReason("Address verification warning flagged for solicitor review");
-                  }}
                   onResolve={({ warningId, disposition, reason }) =>
                     resolveVerificationWarningMutation.mutate({
                       documentId: attendanceNote.id,
@@ -3632,10 +3536,6 @@ export default function DocumentViewer({
                   onEditStatement={(w) => {
                     handleVerificationViewInNote(w, "summary-note-card", "summary");
                     startEditing(summary);
-                  }}
-                  onProduceCorrectedVersion={() => {
-                    setProduceTarget(summary);
-                    setProduceReason("Address verification warning flagged for solicitor review");
                   }}
                   onResolve={({ warningId, disposition, reason }) =>
                     resolveVerificationWarningMutation.mutate({
@@ -4063,73 +3963,6 @@ export default function DocumentViewer({
           hasCareLetter: !!clientCareLetter,
         }}
       />
-
-      <Dialog
-        open={!!produceTarget}
-        onOpenChange={(open) => {
-          if (!open && !produceVersionMutation.isPending) {
-            setProduceTarget(null);
-            setProduceReason("");
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-md" data-testid="dialog-produce-new-version">
-          <DialogHeader>
-            <DialogTitle>Produce new version</DialogTitle>
-            <DialogDescription>
-              The new version is recompiled from the transcript using your instruction. That instruction is required and is recorded on the file.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="produce-reason">What should change?</Label>
-            <Input
-              id="produce-reason"
-              value={produceReason}
-              onChange={(e) => setProduceReason(e.target.value)}
-              placeholder="e.g. Expand next steps and include funding discussion"
-              maxLength={500}
-              required
-              aria-required="true"
-              data-testid="input-produce-reason"
-            />
-            {produceReason.trim().length > 0 && produceReason.trim().length < 10 && (
-              <p className="text-xs text-muted-foreground">
-                Enter at least 10 characters so the change is clear enough to apply.
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setProduceTarget(null);
-                setProduceReason("");
-              }}
-              disabled={produceVersionMutation.isPending}
-              data-testid="button-cancel-produce-version"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (!produceTarget) return;
-                const trimmed = produceReason.trim();
-                if (trimmed.length < 10) return;
-                produceVersionMutation.mutate({
-                  documentId: produceTarget.id,
-                  reason: trimmed,
-                });
-              }}
-              disabled={
-                produceVersionMutation.isPending || produceReason.trim().length < 10
-              }
-              data-testid="button-confirm-produce-version"
-            >
-              {produceVersionMutation.isPending ? "Producing…" : "Produce new version"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={!!pendingRedactionData} onOpenChange={(open) => { if (!open) setPendingRedactionData(null); }}>
         <DialogContent className="sm:max-w-md">

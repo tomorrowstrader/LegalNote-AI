@@ -1895,7 +1895,7 @@ export default function CaseDetail() {
                   <p className="text-sm text-muted-foreground">
                     {(caseData.aiProcessingMetadata as any)?.produceVersionError
                       || (caseData.aiProcessingMetadata as any)?.error
-                      || 'The previous version is still on file. You can try Produce new version again.'}
+                      || 'The previous version is still on file.'}
                   </p>
                 </div>
               </div>
