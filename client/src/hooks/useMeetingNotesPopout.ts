@@ -81,13 +81,14 @@ export function useMeetingNotesPopout(
     }
   }, [draftKey, active, popoutOpen]);
 
-  const openPopout = useCallback((): boolean => {
+  const openPopout = useCallback((optsExtra?: { reservedWindow?: Window | null }): boolean => {
     if (!draftKey) return false;
     const win = openMeetingNotesPopout({
       draftKey,
       caseTitle: opts?.caseTitle,
       liveLabel: opts?.liveLabel,
       elapsedSeconds: opts?.elapsedSeconds,
+      reservedWindow: optsExtra?.reservedWindow,
     });
     if (!win) return false;
     setPopoutOpen(true);

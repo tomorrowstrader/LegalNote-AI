@@ -8,19 +8,30 @@ import {
   type ReactNode,
 } from "react";
 import { useLocation } from "wouter";
-import { Square } from "lucide-react";
+import { ExternalLink, Square } from "lucide-react";
 import ConsentModal from "@/components/ConsentModal";
+import MeetingNotesCapture from "@/components/MeetingNotesCapture";
 import RecordingControlCenter, {
   ControlCenterActionButton,
 } from "@/components/RecordingControlCenter";
 import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useMeetingNotesPopout } from "@/hooks/useMeetingNotesPopout";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { appendConsentSegmentToFormData, snapshotConsentSegment } from "@/lib/consentSegmentCapture";
 import { createProcessingStepTimer } from "@/lib/processingStepTimer";
 import type { ProcessingStep } from "@/components/MeetingToMatterProcessingOverlay";
+import {
+  discardReservedMeetingNotesPopout,
+  reserveMeetingNotesPopout,
+} from "@/lib/meetingNotesPopout";
+import {
+  flushMeetingNotesToCase,
+  newSessionDraftKey,
+  type MeetingNotesDraftKey,
+} from "@/lib/meetingNotesDraft";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import type { PracticeArea, RecordingType } from "@shared/schema";
 
@@ -104,6 +115,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
   const [stopConfirmationPending, setStopConfirmationPending] = useState(false);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const [processingStep, setProcessingStep] = useState<ProcessingStep>("saving");
+  const [notesDraftKey, setNotesDraftKey] = useState<MeetingNotesDraftKey | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -113,15 +125,49 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
   const metaRef = useRef<NewNoteRecordingMeta | null>(null);
   const durationRef = useRef(0);
   const consentGivenRef = useRef<boolean | null>(null);
+  const reservedNotesPopoutRef = useRef<Window | null>(null);
+  const notesDraftKeyRef = useRef<MeetingNotesDraftKey | null>(null);
+  const didAutoOpenNotesRef = useRef(false);
 
   metaRef.current = meta;
   durationRef.current = duration;
   consentGivenRef.current = consentGiven;
+  notesDraftKeyRef.current = notesDraftKey;
 
   const isRecording = phase === "recording";
   const isActive = phase !== "idle";
+  const notesActive = phase === "recording";
+
+  const {
+    popoutOpen,
+    openPopout,
+    focusPopout,
+    closePopout,
+  } = useMeetingNotesPopout(notesDraftKey, {
+    active: notesActive,
+    caseTitle: meta?.displayTitle || meta?.caseTitle,
+    liveLabel: "Recording",
+    elapsedSeconds: duration,
+  });
+
+  const handlePopOut = useCallback(() => {
+    const ok = openPopout();
+    if (!ok) {
+      toast({
+        title: "Could not open notes window",
+        description: "Allow pop-ups for LegalNote in Brave (or your browser), then try again.",
+        variant: "destructive",
+        duration: 6000,
+      });
+    }
+  }, [openPopout, toast]);
 
   const resetSession = useCallback(() => {
+    discardReservedMeetingNotesPopout(reservedNotesPopoutRef.current);
+    reservedNotesPopoutRef.current = null;
+    didAutoOpenNotesRef.current = false;
+    setNotesDraftKey(null);
+    notesDraftKeyRef.current = null;
     setPhase("idle");
     setCountdown(null);
     setDuration(0);
@@ -171,6 +217,8 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       });
     } catch (error) {
       console.error("Failed to start recording:", error);
+      discardReservedMeetingNotesPopout(reservedNotesPopoutRef.current);
+      reservedNotesPopoutRef.current = null;
       toast({
         title: "Recording not available",
         description: "Microphone access failed. Return to Capture and use text notes instead.",
@@ -226,6 +274,20 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       });
       return;
     }
+    const draftToken =
+      nextMeta.selectedCaseId ||
+      (typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? `pending-${crypto.randomUUID()}`
+        : `pending-${Date.now()}`);
+    const draftKey = newSessionDraftKey(draftToken);
+    setNotesDraftKey(draftKey);
+    notesDraftKeyRef.current = draftKey;
+    didAutoOpenNotesRef.current = false;
+
+    // Reserve notes companion in this click gesture (Brave/Chrome block async opens).
+    discardReservedMeetingNotesPopout(reservedNotesPopoutRef.current);
+    reservedNotesPopoutRef.current = reserveMeetingNotesPopout();
+
     setMeta(nextMeta);
     setConsentGiven(null);
     setStopConfirmationPending(false);
@@ -234,10 +296,32 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
   }, [phase, toast]);
 
   const cancelCountdown = useCallback(() => {
+    discardReservedMeetingNotesPopout(reservedNotesPopoutRef.current);
+    reservedNotesPopoutRef.current = null;
+    didAutoOpenNotesRef.current = false;
+    setNotesDraftKey(null);
+    notesDraftKeyRef.current = null;
     setCountdown(null);
     setPhase("idle");
     setMeta(null);
   }, []);
+
+  // Auto-open notes when mic recording actually starts (uses window reserved on Start).
+  useEffect(() => {
+    if (phase !== "recording" || !notesDraftKey || didAutoOpenNotesRef.current) return;
+    didAutoOpenNotesRef.current = true;
+    const reserved = reservedNotesPopoutRef.current;
+    reservedNotesPopoutRef.current = null;
+    const ok = openPopout({ reservedWindow: reserved });
+    if (!ok) {
+      toast({
+        title: "Notes window blocked",
+        description:
+          "Allow pop-ups for LegalNote to keep notes beside the recording — or use Pop out on the control center.",
+        duration: 7000,
+      });
+    }
+  }, [phase, notesDraftKey, openPopout, toast]);
 
   const handleConsentGiven = useCallback(async () => {
     setConsentGiven(true);
@@ -422,19 +506,36 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
           });
       }
 
+      let notesSaved = false;
+      const draftKey = notesDraftKeyRef.current;
+      if (draftKey) {
+        try {
+          notesSaved = await flushMeetingNotesToCase({
+            caseId: targetCaseId,
+            draftKey,
+            caseTitle: snapshot.displayTitle || snapshot.caseTitle,
+          });
+        } catch {
+          // Recording still saved; draft remains locally
+        }
+      }
+
       queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey[0] as string;
           return key?.startsWith("/api/cases");
         },
       });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${targetCaseId}/quick-notes`] });
 
       toast({
         title:
           snapshot.noteMode === "add_session"
             ? "Session added successfully"
             : "Case created successfully",
-        description: "Meeting-to-Matter™ Engine is preparing your documents.",
+        description: notesSaved
+          ? "Meeting notes were saved. Meeting-to-Matter™ Engine is preparing your documents."
+          : "Meeting-to-Matter™ Engine is preparing your documents.",
         duration: 6000,
         action: (
           <ToastAction
@@ -541,7 +642,11 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
           }
           countdown={countdown}
           elapsedSeconds={phase === "recording" ? duration : undefined}
-          forceExpanded={stopConfirmationPending || phase === "countdown"}
+          forceExpanded={
+            stopConfirmationPending ||
+            phase === "countdown" ||
+            (notesActive && !popoutOpen)
+          }
           collapsible={phase === "recording"}
           safeguards={{ protected: phase === "recording" || phase === "countdown" }}
           data-testid="new-note-recording-control-center"
@@ -565,7 +670,50 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
               </ControlCenterActionButton>
             ) : undefined
           }
-        />
+        >
+          {notesActive && notesDraftKey && popoutOpen && (
+            <div
+              className="space-y-2.5 px-4 py-3"
+              data-testid="meeting-notes-popout-dock"
+            >
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Meeting notes are open in a separate window. Drafts stay in sync and save when you stop recording.
+              </p>
+              <div className="flex flex-col gap-2">
+                <ControlCenterActionButton
+                  variant="outline"
+                  onClick={focusPopout}
+                  data-testid="button-focus-meeting-notes-popout"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Focus notes window
+                </ControlCenterActionButton>
+                <ControlCenterActionButton
+                  variant="outline"
+                  onClick={closePopout}
+                  data-testid="button-dock-meeting-notes-inline"
+                >
+                  Dock notes here
+                </ControlCenterActionButton>
+              </div>
+            </div>
+          )}
+          {notesActive && notesDraftKey && !popoutOpen && (
+            <div className="max-h-[min(52vh,420px)] overflow-hidden">
+              <MeetingNotesCapture
+                draftKey={notesDraftKey}
+                caseTitle={meta?.displayTitle || meta?.caseTitle}
+                elapsedSeconds={duration}
+                active
+                variant="inline"
+                defaultOpen
+                liveLabel="Recording"
+                onPopOut={handlePopOut}
+                className="rounded-none border-0 shadow-none min-h-[240px] h-[min(48vh,380px)]"
+              />
+            </div>
+          )}
+        </RecordingControlCenter>
       )}
 
       <ConsentModal
