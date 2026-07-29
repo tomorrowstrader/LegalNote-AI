@@ -100,9 +100,9 @@ function resolveTemplatePath(filename: string): string {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, type InsertCase } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
-import { validateRecordingType } from "@shared/recordingTypes";
+import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
 import { isFeatureVisible, type FeatureKey } from "@shared/featureVisibility";
 import { z } from "zod";
@@ -2186,11 +2186,66 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   app.post("/api/cases", isAuthenticated, caseCreationLimiter, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const validatedData = insertCaseSchema.parse(req.body);
-      
-      // Enforce client linkage on new top-level cases (child/dictation cases inherit from parent)
-      if (!validatedData.clientId && !validatedData.parentCaseId) {
+      const parsed = insertCaseSchema.parse(req.body);
+      const validatedData: InsertCase = {
+        title: parsed.title as string,
+        clientName: String(parsed.clientName ?? ""),
+        clientId: parsed.clientId as string | undefined,
+        matterKind: normalizeMatterKind(parsed.matterKind),
+        matterReference: parsed.matterReference as string | undefined,
+        status: parsed.status as InsertCase["status"],
+        priority: parsed.priority as InsertCase["priority"],
+        sourceType: parsed.sourceType as InsertCase["sourceType"],
+        templateId: parsed.templateId as string | undefined,
+        parentCaseId: parsed.parentCaseId as string | undefined,
+        riskLevel: parsed.riskLevel as InsertCase["riskLevel"],
+        practiceArea: parsed.practiceArea as InsertCase["practiceArea"],
+        conflictCheckCompleted: Boolean(parsed.conflictCheckCompleted),
+        conflictCheckNote: parsed.conflictCheckNote as string | undefined,
+        costsEstimate: parsed.costsEstimate as string | undefined,
+        textNotes: parsed.textNotes as string | undefined,
+        litigationHold: Boolean(parsed.litigationHold),
+        litigationHoldReason: parsed.litigationHoldReason as string | undefined,
+      };
+
+      // Inherit from parent case first so child/dictation matters keep the parent's kind
+      if (validatedData.parentCaseId) {
+        const parentCase = await storage.getCase(validatedData.parentCaseId, userId);
+        if (parentCase) {
+          validatedData.matterKind = normalizeMatterKind(
+            (parentCase as { matterKind?: string }).matterKind,
+          );
+          if (!validatedData.practiceArea && parentCase.practiceArea) {
+            validatedData.practiceArea = parentCase.practiceArea;
+          }
+          if (!validatedData.conflictCheckCompleted && parentCase.conflictCheckCompleted) {
+            validatedData.conflictCheckCompleted = true;
+          }
+          if (isClientMatterKind(validatedData.matterKind) && !validatedData.clientId && parentCase.clientId) {
+            validatedData.clientId = parentCase.clientId;
+            const parentClient = await storage.getClient(parentCase.clientId, userId);
+            if (parentClient) {
+              validatedData.clientName = parentClient.name;
+            }
+          }
+        }
+      }
+
+      const matterKind = normalizeMatterKind(validatedData.matterKind);
+      validatedData.matterKind = matterKind;
+      const isClientMatter = isClientMatterKind(matterKind);
+
+      // Enforce client linkage on new top-level client matters
+      if (isClientMatter && !validatedData.clientId && !validatedData.parentCaseId) {
         return res.status(400).json({ message: "A client must be selected or created before creating a case" });
+      }
+
+      if (!isClientMatter) {
+        // Non-client matters must not attach a client registry record
+        validatedData.clientId = undefined;
+        validatedData.clientName = partyLabelForMatterKind(matterKind);
+        validatedData.conflictCheckCompleted = false;
+        validatedData.conflictCheckNote = undefined;
       }
 
       // If clientId provided, verify ownership and derive clientName
@@ -2202,35 +2257,25 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         validatedData.clientName = client.name;
       }
 
-      // Inherit clientId from parent case if not explicitly provided
-      if (!validatedData.clientId && validatedData.parentCaseId) {
-        const parentCase = await storage.getCase(validatedData.parentCaseId, userId);
-        if (parentCase?.clientId) {
-          validatedData.clientId = parentCase.clientId;
-          const parentClient = await storage.getClient(parentCase.clientId, userId);
-          if (parentClient) {
-            validatedData.clientName = parentClient.name;
-          }
-        }
+      if (!validatedData.clientName?.trim()) {
+        validatedData.clientName = isClientMatter
+          ? ""
+          : partyLabelForMatterKind(matterKind);
+      }
+      if (isClientMatter && !validatedData.clientName?.trim() && !validatedData.parentCaseId) {
+        return res.status(400).json({ message: "Client name is required" });
       }
 
-      if (validatedData.parentCaseId) {
-        const parentCase = await storage.getCase(validatedData.parentCaseId, userId);
-        if (parentCase) {
-          if (!validatedData.practiceArea && parentCase.practiceArea) {
-            validatedData.practiceArea = parentCase.practiceArea;
-          }
-          if (!validatedData.conflictCheckCompleted && parentCase.conflictCheckCompleted) {
-            validatedData.conflictCheckCompleted = true;
-          }
-        }
-      }
-
-      if (!validatedData.parentCaseId && !validatedData.practiceArea) {
+      if (isClientMatter && !validatedData.parentCaseId && !validatedData.practiceArea) {
         return res.status(400).json({ message: "Practice area is required for new cases" });
       }
 
-      if (!validatedData.parentCaseId && !validatedData.conflictCheckCompleted && !validatedData.conflictCheckNote?.trim()) {
+      if (
+        isClientMatter &&
+        !validatedData.parentCaseId &&
+        !validatedData.conflictCheckCompleted &&
+        !validatedData.conflictCheckNote?.trim()
+      ) {
         return res.status(400).json({ message: "Either confirm the conflict check or provide a reason for deferral" });
       }
 
@@ -2243,10 +2288,10 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       await logAuditEvent(userId, "case_created", {
         caseId: newCase.id,
         req,
-        metadata: { action: "create" },
+        metadata: { action: "create", matterKind: newCase.matterKind ?? matterKind },
       });
 
-      if (validatedData.conflictCheckCompleted !== undefined) {
+      if (isClientMatter && validatedData.conflictCheckCompleted !== undefined) {
         await logAuditEvent(userId, "case_updated", {
           caseId: newCase.id,
           req,
@@ -2258,58 +2303,61 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         });
       }
 
-      (async () => {
-        try {
-          const fp = await storage.getFirmProfile();
-          if (!fp?.firmName) return;
-          const { DocumentService } = await import("./services/documentService");
-          const documentService = new DocumentService();
-          const { PRACTICE_AREA_LABELS: PAL } = await import("@shared/schema");
-          const paLabel = newCase.practiceArea
-            ? PAL[newCase.practiceArea as keyof typeof PAL] || newCase.practiceArea
-            : "General";
-          const feeEarnerUser = await storage.getUser(newCase.assignedToUserId || userId);
-          const feeEarnerDisplayName = feeEarnerUser
-            ? [feeEarnerUser.firstName, feeEarnerUser.lastName].filter(Boolean).join(" ") || feeEarnerUser.email || "Fee Earner"
-            : "Fee Earner";
-          const result = await documentService.generateClientCareLetter({
-            firmName: fp.firmName,
-            firmAddress: [fp.addressLine1, fp.addressLine2, fp.city, fp.postcode].filter(Boolean).join(", ") || undefined,
-            firmPhone: fp.phone || undefined,
-            firmEmail: fp.email || undefined,
-            sraNumber: fp.sraNumber || undefined,
-            feeEarnerName: feeEarnerDisplayName,
-            clientName: newCase.clientName,
-            matterDescription: newCase.title,
-            practiceArea: paLabel,
-            costsEstimate: newCase.costsEstimate || undefined,
-            matterReference: newCase.matterReference || undefined,
-          });
-          const doc = await storage.createDocument({
-            caseId: newCase.id,
-            type: "client_care_letter",
-            content: result.content,
-            version: 1,
-            versionType: "system_generated",
-            createdBy: userId,
-          });
-          await storage.updateCase(newCase.id, { clientCareLetterId: doc.id }, userId);
-          await logAuditEvent(userId, "document_generated", {
-            caseId: newCase.id,
-            documentId: doc.id,
-            req,
-            metadata: {
-              action: "auto_generate_client_care_letter",
-              practiceArea: newCase.practiceArea,
-              generationCost: result.cost,
-              automatic: true,
-            },
-          });
-          console.log(`[CLIENT_CARE_LETTER] Auto-generated for case ${newCase.id}`);
-        } catch (err) {
-          console.error(`[CLIENT_CARE_LETTER] Auto-generation failed for case ${newCase.id}:`, err);
-        }
-      })();
+      // Client care letters only apply to solicitor–client matters
+      if (isClientMatter) {
+        (async () => {
+          try {
+            const fp = await storage.getFirmProfile();
+            if (!fp?.firmName) return;
+            const { DocumentService } = await import("./services/documentService");
+            const documentService = new DocumentService();
+            const { PRACTICE_AREA_LABELS: PAL } = await import("@shared/schema");
+            const paLabel = newCase.practiceArea
+              ? PAL[newCase.practiceArea as keyof typeof PAL] || newCase.practiceArea
+              : "General";
+            const feeEarnerUser = await storage.getUser(newCase.assignedToUserId || userId);
+            const feeEarnerDisplayName = feeEarnerUser
+              ? [feeEarnerUser.firstName, feeEarnerUser.lastName].filter(Boolean).join(" ") || feeEarnerUser.email || "Fee Earner"
+              : "Fee Earner";
+            const result = await documentService.generateClientCareLetter({
+              firmName: fp.firmName,
+              firmAddress: [fp.addressLine1, fp.addressLine2, fp.city, fp.postcode].filter(Boolean).join(", ") || undefined,
+              firmPhone: fp.phone || undefined,
+              firmEmail: fp.email || undefined,
+              sraNumber: fp.sraNumber || undefined,
+              feeEarnerName: feeEarnerDisplayName,
+              clientName: newCase.clientName,
+              matterDescription: newCase.title,
+              practiceArea: paLabel,
+              costsEstimate: newCase.costsEstimate || undefined,
+              matterReference: newCase.matterReference || undefined,
+            });
+            const doc = await storage.createDocument({
+              caseId: newCase.id,
+              type: "client_care_letter",
+              content: result.content,
+              version: 1,
+              versionType: "system_generated",
+              createdBy: userId,
+            });
+            await storage.updateCase(newCase.id, { clientCareLetterId: doc.id }, userId);
+            await logAuditEvent(userId, "document_generated", {
+              caseId: newCase.id,
+              documentId: doc.id,
+              req,
+              metadata: {
+                action: "auto_generate_client_care_letter",
+                practiceArea: newCase.practiceArea,
+                generationCost: result.cost,
+                automatic: true,
+              },
+            });
+            console.log(`[CLIENT_CARE_LETTER] Auto-generated for case ${newCase.id}`);
+          } catch (err) {
+            console.error(`[CLIENT_CARE_LETTER] Auto-generation failed for case ${newCase.id}:`, err);
+          }
+        })();
+      }
 
       res.json(newCase);
     } catch (error: any) {
@@ -10104,24 +10152,39 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       let caseId = bodyExistingCaseId;
 
       if (shouldCreateCase) {
-        // Create a new matter inline
+        // Create a new matter inline (client or internal/firm)
         const resolvedTitle = (newCaseData?.title || 'Meeting recording').trim();
+        const matterKind = normalizeMatterKind(newCaseData?.matterKind);
+        const isClientMatter = isClientMatterKind(matterKind);
         const resolvedClientName = (newCaseData?.clientName || '').trim();
 
-        if (!resolvedClientName) {
-          return res.status(400).json({ message: "caseData.clientName is required when createCase is true" });
+        if (isClientMatter && !resolvedClientName) {
+          return res.status(400).json({ message: "caseData.clientName is required when createCase is true for a client matter" });
         }
 
-        const clientData = await storage.createClient({ name: resolvedClientName }, userId);
-
-        const newCase = await storage.createCase({
-          title: resolvedTitle,
-          clientId: clientData.id,
-          clientName: resolvedClientName,
-          status: 'pending',
-          priority: 'normal',
-          sourceType: 'audio',
-        }, userId);
+        let newCase;
+        if (isClientMatter) {
+          const clientData = await storage.createClient({ name: resolvedClientName }, userId);
+          newCase = await storage.createCase({
+            title: resolvedTitle,
+            clientId: clientData.id,
+            clientName: resolvedClientName,
+            matterKind: "client",
+            status: 'pending',
+            priority: 'normal',
+            sourceType: 'audio',
+          }, userId);
+        } else {
+          newCase = await storage.createCase({
+            title: resolvedTitle,
+            clientName: partyLabelForMatterKind(matterKind),
+            matterKind,
+            status: 'pending',
+            priority: 'normal',
+            sourceType: 'audio',
+            conflictCheckCompleted: false,
+          }, userId);
+        }
         caseId = newCase.id;
       } else {
         // Verify access to the existing case
@@ -10131,7 +10194,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         }
       }
 
-      const recordingTypeResult = validateRecordingType(recordingType || 'full_meeting');
+      const assignedCase = await storage.getCase(caseId, userId);
+      const recordingTypeResult = validateRecordingType(
+        recordingType || defaultRecordingTypeForMatterKind(assignedCase?.matterKind),
+        { matterKind: assignedCase?.matterKind },
+      );
       if (!recordingTypeResult.ok) {
         return res.status(400).json({ message: recordingTypeResult.message });
       }
@@ -13347,7 +13414,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const caseData = await storage.getCase(caseId, userId);
       if (!caseData) return res.status(404).json({ message: "Case not found" });
 
-      const recordingTypeResult = validateRecordingType(req.body.recordingType ?? 'full_meeting');
+      const recordingTypeResult = validateRecordingType(req.body.recordingType ?? 'full_meeting', {
+        matterKind: (caseData as { matterKind?: string }).matterKind,
+      });
       if (!recordingTypeResult.ok) {
         return res.status(400).json({ message: recordingTypeResult.message });
       }

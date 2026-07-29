@@ -36,7 +36,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 import { format } from "date-fns";
-import type { Case, Client, ScheduledMeeting } from "@shared/schema";
+import type { Case, Client, MatterKind, ScheduledMeeting } from "@shared/schema";
+import { MATTER_KIND_LABELS } from "@shared/schema";
+import { isClientMatterKind, partyLabelForMatterKind } from "@shared/matterKinds";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface ScheduleMeetingModalProps {
   open: boolean;
@@ -111,7 +114,9 @@ export default function ScheduleMeetingModal({
   const [clientName, setClientName] = useState("");
   const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [matterKind, setMatterKind] = useState<MatterKind>("client");
   const clientSearchRef = useRef<HTMLDivElement>(null);
+  const isClientMeeting = isClientMatterKind(matterKind);
 
   const { data: cases = [] } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
@@ -149,6 +154,7 @@ export default function ScheduleMeetingModal({
     setClientName("");
     setClientSearchQuery("");
     setShowClientDropdown(false);
+    setMatterKind("client");
   }, [open, defaultProvider]);
 
   useEffect(() => {
@@ -223,7 +229,7 @@ export default function ScheduleMeetingModal({
       if (!title.trim() || !date || !startTime) {
         throw new Error("Title, date, and start time are required");
       }
-      if (!selectedClient) {
+      if (isClientMeeting && !selectedClient) {
         throw new Error("Select an existing client or create a new one");
       }
 
@@ -260,7 +266,9 @@ export default function ScheduleMeetingModal({
         provider: activeProvider,
         attendees,
         clientEmail: attendees[0]?.email,
-        clientName: selectedClient.name,
+        clientName: isClientMeeting
+          ? selectedClient!.name
+          : partyLabelForMatterKind(matterKind),
       });
     },
     onSuccess: (meeting) => {
@@ -327,11 +335,36 @@ export default function ScheduleMeetingModal({
               id="schedule-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Client conference"
+              placeholder={isClientMeeting ? "Client conference" : "Partners meeting"}
               data-testid="input-schedule-title"
             />
           </div>
 
+          <div className="space-y-2">
+            <Label>Meeting type</Label>
+            <RadioGroup
+              value={matterKind}
+              onValueChange={(v) => {
+                const next = v as MatterKind;
+                setMatterKind(next);
+                if (!isClientMatterKind(next)) {
+                  handleClearClient();
+                }
+              }}
+              className="flex flex-col gap-2"
+            >
+              {(Object.entries(MATTER_KIND_LABELS) as [MatterKind, string][]).map(([value, label]) => (
+                <div key={value} className="flex items-center gap-2">
+                  <RadioGroupItem value={value} id={`schedule-kind-${value}`} data-testid={`radio-schedule-kind-${value}`} />
+                  <Label htmlFor={`schedule-kind-${value}`} className="cursor-pointer font-normal">
+                    {label}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+
+          {isClientMeeting && (
           <div className="space-y-2">
             <Label htmlFor="schedule-client-name">
               Client Name <span className="text-accent">*</span>
@@ -438,6 +471,7 @@ export default function ScheduleMeetingModal({
               )}
             </div>
           </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2 col-span-2">
@@ -651,7 +685,7 @@ export default function ScheduleMeetingModal({
               !title.trim() ||
               !date ||
               !startTime ||
-              !selectedClient
+              (isClientMeeting && !selectedClient)
             }
             data-testid="button-confirm-schedule"
           >

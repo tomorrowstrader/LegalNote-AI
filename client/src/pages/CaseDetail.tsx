@@ -1461,6 +1461,11 @@ export default function CaseDetail() {
             ) : (
               <p className="text-xs text-muted-foreground truncate">{caseData.clientName}</p>
             )}
+            {caseData.matterKind && caseData.matterKind !== "client" && (
+              <Badge variant="outline" className="text-[10px] mt-1 no-default-hover-elevate no-default-active-elevate" data-testid="badge-matter-kind">
+                {caseData.matterKind === "firm" ? "Firm meeting" : "Internal meeting"}
+              </Badge>
+            )}
             {caseData.matterReference && (
               <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate" data-testid="text-matter-ref-panel">
                 {caseData.matterReference}

@@ -17,17 +17,26 @@ import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { appendConsentSegmentToFormData, snapshotConsentSegment } from "@/lib/consentSegmentCapture";
 import { flushMeetingNotesToCase, newSessionDraftKey } from "@/lib/meetingNotesDraft";
+import {
+  defaultRecordingTypeForMatterKind,
+  recordingTypesForMatterKind,
+} from "@shared/recordingTypes";
+import { isClientMatterKind } from "@shared/matterKinds";
 
 interface NewSessionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   caseId: string;
   caseTitle: string;
+  matterKind?: string | null;
 }
 
-export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle }: NewSessionModalProps) {
+export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle, matterKind }: NewSessionModalProps) {
   const { toast } = useToast();
-  const [recordingType, setRecordingType] = useState<RecordingType>("full_meeting");
+  const allowedTypes = recordingTypesForMatterKind(matterKind);
+  const [recordingType, setRecordingType] = useState<RecordingType>(
+    defaultRecordingTypeForMatterKind(matterKind) as RecordingType,
+  );
   const [sessionLabel, setSessionLabel] = useState("");
   const [step, setStep] = useState<"setup" | "countdown" | "recording" | "saving">("setup");
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -124,13 +133,18 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
         stream.getTracks().forEach(track => track.stop());
       };
       mediaRecorder.start(1000);
-      setShowConsentModal(true);
+      if (isClientMatterKind(matterKind)) {
+        setShowConsentModal(true);
+      } else {
+        setConsentGiven(null);
+        setShowConsentModal(false);
+      }
       setIsRecording(true);
       setRecordingDuration(0);
       setStep("recording");
       await logAuditEvent({
         eventType: "recording_started",
-        metadata: { source: "case_detail_new_session_modal", caseId },
+        metadata: { source: "case_detail_new_session_modal", caseId, matterKind: matterKind ?? "client" },
         severity: "info",
       });
     } catch (error) {
@@ -289,7 +303,9 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle 
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(Object.entries(RECORDING_TYPE_LABELS) as [RecordingType, string][]).map(([value, label]) => (
+                    {(Object.entries(RECORDING_TYPE_LABELS) as [RecordingType, string][])
+                      .filter(([value]) => allowedTypes.includes(value))
+                      .map(([value, label]) => (
                       <SelectItem key={value} value={value}>{label}</SelectItem>
                     ))}
                   </SelectContent>

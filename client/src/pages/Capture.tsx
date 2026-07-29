@@ -312,6 +312,7 @@ export default function Capture() {
             }}
             caseId={activeCase.id}
             caseTitle={activeCase.title}
+            matterKind={activeCase.matterKind}
           />
           <LogCallModal
             open={showLogCall}

@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Loader2,
   Video,
@@ -42,7 +43,13 @@ import {
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Case } from "@shared/schema";
+import type { Case, MatterKind } from "@shared/schema";
+import { MATTER_KIND_LABELS, RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
+import { isClientMatterKind, partyLabelForMatterKind } from "@shared/matterKinds";
+import {
+  defaultRecordingTypeForMatterKind,
+  recordingTypesForMatterKind,
+} from "@shared/recordingTypes";
 import { CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
 import {
   autoLeaveDeadlineSeconds,
@@ -235,6 +242,8 @@ export function LiveBotModal({
   const [isCreatingCase, setIsCreatingCase] = useState(false);
   const [newCaseTitle, setNewCaseTitle] = useState("");
   const [newCaseClient, setNewCaseClient] = useState(suggestedClientName || "");
+  const [newCaseMatterKind, setNewCaseMatterKind] = useState<MatterKind>("client");
+  const [postMeetingMatterKind, setPostMeetingMatterKind] = useState<MatterKind>("client");
   /** When true, show the full matter list instead of the suggested confirm card. */
   const [browseAllCases, setBrowseAllCases] = useState(false);
   /** Join without a matter; assign the recording after the call. */
@@ -353,11 +362,22 @@ export function LiveBotModal({
   const showSuggestedConfirm =
     step === "select_case" && !!suggestedCase && !browseAllCases && !isCreatingCase;
 
-  const continueAfterCaseSelect = (id: string, title: string) => {
+  const continueAfterCaseSelect = (id: string, title: string, matterKind?: string | null) => {
     setDeferCaseAssignment(false);
     setSelectedCaseId(id);
     setSelectedCaseTitle(title);
     const detected = detectPlatform(meetingUrl);
+    const skipClientConsent = !isClientMatterKind(
+      matterKind ?? cases?.find((c) => c.id === id)?.matterKind,
+    );
+    if (skipClientConsent) {
+      setConsentMode("pre_confirmed");
+      setConsentObtained(true);
+      consentObtainedRef.current = true;
+      // Still collect the meeting URL if needed; skip client consent step
+      setStep(detected ? "url" : "url");
+      return;
+    }
     setStep(detected ? "consent" : "url");
   };
 
@@ -376,7 +396,7 @@ export function LiveBotModal({
       assignCaseId?: string;
       recordingType: string;
       createCase?: boolean;
-      caseData?: { title: string; clientName: string };
+      caseData?: { title: string; clientName?: string; matterKind?: MatterKind };
     }) => {
       if (!importId) throw new Error("No import ID");
       return apiRequest<{ success: boolean; caseId: string; importId: string }>(
@@ -429,12 +449,21 @@ export function LiveBotModal({
   });
 
   const createCaseMutation = useMutation({
-    mutationFn: async (data: { title: string; clientName: string }) =>
-      apiRequest("POST", "/api/cases", data),
+    mutationFn: async (data: {
+      title: string;
+      clientName?: string;
+      matterKind: MatterKind;
+      sourceType: "audio";
+      status: "pending";
+      priority: "normal";
+      conflictCheckCompleted?: boolean;
+      conflictCheckNote?: string;
+      practiceArea?: string;
+    }) => apiRequest("POST", "/api/cases", data),
     onSuccess: async (newCase: any) => {
       setIsCreatingCase(false);
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
-      continueAfterCaseSelect(newCase.id, newCase.title);
+      continueAfterCaseSelect(newCase.id, newCase.title, newCase.matterKind);
     },
     onError: (error: any) => {
       toast({ title: "Could not create case", description: error.message, variant: "destructive" });
@@ -841,7 +870,7 @@ export function LiveBotModal({
                 <div className="flex flex-col gap-2 pt-1">
                   <Button
                     className="w-full"
-                    onClick={() => continueAfterCaseSelect(suggestedCase.id, suggestedCase.title)}
+                    onClick={() => continueAfterCaseSelect(suggestedCase.id, suggestedCase.title, suggestedCase.matterKind)}
                     data-testid="button-confirm-suggested-case"
                   >
                     Confirm this matter
@@ -888,7 +917,7 @@ export function LiveBotModal({
                           <button
                             key={c.id}
                             type="button"
-                            onClick={() => continueAfterCaseSelect(c.id, c.title)}
+                            onClick={() => continueAfterCaseSelect(c.id, c.title, c.matterKind)}
                             className={`flex w-full min-h-20 items-start gap-3 rounded-lg border px-3 py-3 text-left shadow-sm transition-colors dark:hover:bg-accent/20 ${
                               isLikely
                                 ? "border-[#dec27b] bg-white hover:bg-[#fff8e7] dark:border-amber-500/30 dark:bg-card dark:hover:bg-amber-500/10"
@@ -963,14 +992,38 @@ export function LiveBotModal({
             ) : (
               <div className="flex flex-col gap-3 p-4">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="new-case-title">Matter name</Label>
+                  <Label>Matter type</Label>
+                  <RadioGroup
+                    value={newCaseMatterKind}
+                    onValueChange={(v) => setNewCaseMatterKind(v as MatterKind)}
+                    className="flex flex-col gap-2"
+                  >
+                    {(Object.entries(MATTER_KIND_LABELS) as [MatterKind, string][]).map(([value, label]) => (
+                      <div key={value} className="flex items-center gap-2">
+                        <RadioGroupItem value={value} id={`live-kind-${value}`} />
+                        <Label htmlFor={`live-kind-${value}`} className="cursor-pointer font-normal">
+                          {label}
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="new-case-title">
+                    {isClientMatterKind(newCaseMatterKind) ? "Matter name" : "Meeting title"}
+                  </Label>
                   <Input
                     id="new-case-title"
-                    placeholder="e.g. Smith v Jones — Conveyancing"
+                    placeholder={
+                      isClientMatterKind(newCaseMatterKind)
+                        ? "e.g. Smith v Jones — Conveyancing"
+                        : "e.g. Partners meeting — Q3 planning"
+                    }
                     value={newCaseTitle}
                     onChange={(e) => setNewCaseTitle(e.target.value)}
                   />
                 </div>
+                {isClientMatterKind(newCaseMatterKind) && (
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="new-case-client">Client name</Label>
                   <Input
@@ -980,6 +1033,7 @@ export function LiveBotModal({
                     onChange={(e) => setNewCaseClient(e.target.value)}
                   />
                 </div>
+                )}
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -990,8 +1044,30 @@ export function LiveBotModal({
                   </Button>
                   <Button
                     className="flex-1"
-                    disabled={!newCaseTitle.trim() || !newCaseClient.trim() || createCaseMutation.isPending}
-                    onClick={() => createCaseMutation.mutate({ title: newCaseTitle.trim(), clientName: newCaseClient.trim() })}
+                    disabled={
+                      !newCaseTitle.trim() ||
+                      (isClientMatterKind(newCaseMatterKind) && !newCaseClient.trim()) ||
+                      createCaseMutation.isPending
+                    }
+                    onClick={() =>
+                      createCaseMutation.mutate({
+                        title: newCaseTitle.trim(),
+                        matterKind: newCaseMatterKind,
+                        clientName: isClientMatterKind(newCaseMatterKind)
+                          ? newCaseClient.trim()
+                          : partyLabelForMatterKind(newCaseMatterKind),
+                        sourceType: "audio",
+                        status: "pending",
+                        priority: "normal",
+                        ...(isClientMatterKind(newCaseMatterKind)
+                          ? {
+                              conflictCheckCompleted: false,
+                              conflictCheckNote: "Deferred — matter opened from live video join",
+                              practiceArea: "corporate_commercial",
+                            }
+                          : {}),
+                      })
+                    }
                   >
                     {createCaseMutation.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -1462,13 +1538,28 @@ export function LiveBotModal({
                   <div className="space-y-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="post-case-select">Select matter</Label>
-                      <Select value={postMeetingCaseId} onValueChange={setPostMeetingCaseId}>
+                      <Select
+                        value={postMeetingCaseId}
+                        onValueChange={(id) => {
+                          setPostMeetingCaseId(id);
+                          const selected = cases?.find((c) => c.id === id);
+                          setPostMeetingRecordingType(
+                            defaultRecordingTypeForMatterKind(selected?.matterKind),
+                          );
+                        }}
+                      >
                         <SelectTrigger id="post-case-select" data-testid="select-post-case">
                           <SelectValue placeholder="Choose a matter..." />
                         </SelectTrigger>
                         <SelectContent>
                           {cases?.filter(c => !c.archived).map((c) => (
-                            <SelectItem key={c.id} value={c.id}>{c.title}{c.clientName ? ` — ${c.clientName}` : ""}</SelectItem>
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.title}
+                              {c.clientName ? ` — ${c.clientName}` : ""}
+                              {c.matterKind && c.matterKind !== "client"
+                                ? ` (${MATTER_KIND_LABELS[c.matterKind as MatterKind] || c.matterKind})`
+                                : ""}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -1480,10 +1571,15 @@ export function LiveBotModal({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="full_meeting">Client Meeting</SelectItem>
-                          <SelectItem value="telephone_call">Telephone Call</SelectItem>
-                          <SelectItem value="court_hearing">Court Hearing</SelectItem>
-                          <SelectItem value="police_station">Police Station</SelectItem>
+                          {(Object.entries(RECORDING_TYPE_LABELS) as [RecordingType, string][])
+                            .filter(([value]) =>
+                              recordingTypesForMatterKind(
+                                cases?.find((c) => c.id === postMeetingCaseId)?.matterKind,
+                              ).includes(value),
+                            )
+                            .map(([value, label]) => (
+                              <SelectItem key={value} value={value}>{label}</SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1504,10 +1600,39 @@ export function LiveBotModal({
                 {postMeetingMode === "create" && (
                   <div className="space-y-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="post-matter-title">Matter title <span className="text-accent">*</span></Label>
+                      <Label>Matter type</Label>
+                      <RadioGroup
+                        value={postMeetingMatterKind}
+                        onValueChange={(v) => {
+                          const next = v as MatterKind;
+                          setPostMeetingMatterKind(next);
+                          setPostMeetingRecordingType(defaultRecordingTypeForMatterKind(next));
+                          if (!isClientMatterKind(next)) setPostMeetingClient("");
+                        }}
+                        className="flex flex-col gap-2"
+                      >
+                        {(Object.entries(MATTER_KIND_LABELS) as [MatterKind, string][]).map(([value, label]) => (
+                          <div key={value} className="flex items-center gap-2">
+                            <RadioGroupItem value={value} id={`post-kind-${value}`} />
+                            <Label htmlFor={`post-kind-${value}`} className="cursor-pointer font-normal">
+                              {label}
+                            </Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="post-matter-title">
+                        {isClientMatterKind(postMeetingMatterKind) ? "Matter title" : "Meeting title"}{" "}
+                        <span className="text-accent">*</span>
+                      </Label>
                       <Input
                         id="post-matter-title"
-                        placeholder="e.g. Smith v Jones — contract dispute"
+                        placeholder={
+                          isClientMatterKind(postMeetingMatterKind)
+                            ? "e.g. Smith v Jones — contract dispute"
+                            : "e.g. Team catch-up — litigation group"
+                        }
                         value={postMeetingTitle}
                         onChange={(e) => setPostMeetingTitle(e.target.value)}
                         data-testid="input-post-matter-title"
@@ -1520,13 +1645,17 @@ export function LiveBotModal({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="full_meeting">Client Meeting</SelectItem>
-                          <SelectItem value="telephone_call">Telephone Call</SelectItem>
-                          <SelectItem value="court_hearing">Court Hearing</SelectItem>
-                          <SelectItem value="police_station">Police Station</SelectItem>
+                          {(Object.entries(RECORDING_TYPE_LABELS) as [RecordingType, string][])
+                            .filter(([value]) =>
+                              recordingTypesForMatterKind(postMeetingMatterKind).includes(value),
+                            )
+                            .map(([value, label]) => (
+                              <SelectItem key={value} value={value}>{label}</SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
+                    {isClientMatterKind(postMeetingMatterKind) && (
                     <div className="space-y-1.5">
                       <Label htmlFor="post-matter-client">Client name <span className="text-accent">*</span></Label>
                       <Input
@@ -1537,15 +1666,26 @@ export function LiveBotModal({
                         data-testid="input-post-matter-client"
                       />
                     </div>
+                    )}
                     <div className="flex gap-2">
                       <Button variant="outline" className="flex-1" onClick={() => setPostMeetingMode("choose")} data-testid="button-post-back-create">Back</Button>
                       <Button
                         className="flex-1"
-                        disabled={!postMeetingTitle.trim() || !postMeetingClient.trim() || postAssignMutation.isPending}
+                        disabled={
+                          !postMeetingTitle.trim() ||
+                          (isClientMatterKind(postMeetingMatterKind) && !postMeetingClient.trim()) ||
+                          postAssignMutation.isPending
+                        }
                         onClick={() => postAssignMutation.mutate({
                           recordingType: postMeetingRecordingType,
                           createCase: true,
-                          caseData: { title: postMeetingTitle.trim(), clientName: postMeetingClient.trim() },
+                          caseData: {
+                            title: postMeetingTitle.trim(),
+                            matterKind: postMeetingMatterKind,
+                            clientName: isClientMatterKind(postMeetingMatterKind)
+                              ? postMeetingClient.trim()
+                              : partyLabelForMatterKind(postMeetingMatterKind),
+                          },
                         })}
                         data-testid="button-post-create-assign"
                       >

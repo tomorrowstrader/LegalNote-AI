@@ -26,12 +26,18 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { stripRtfToPlainText, looksLikeRtf } from "@shared/stripRtf";
+import {
+  defaultRecordingTypeForMatterKind,
+  recordingTypesForMatterKind,
+} from "@shared/recordingTypes";
+import { isClientMatterKind } from "@shared/matterKinds";
 
 interface UploadTranscriptModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   caseId: string;
   caseTitle: string;
+  matterKind?: string | null;
 }
 
 export default function UploadTranscriptModal({
@@ -39,17 +45,22 @@ export default function UploadTranscriptModal({
   onOpenChange,
   caseId,
   caseTitle,
+  matterKind,
 }: UploadTranscriptModalProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [content, setContent] = useState("");
   const [source, setSource] = useState<"paste" | "file">("paste");
   const [originalFilename, setOriginalFilename] = useState<string | undefined>();
-  const [recordingType, setRecordingType] = useState<RecordingType>("full_meeting");
+  const allowedTypes = recordingTypesForMatterKind(matterKind);
+  const isClientMatter = isClientMatterKind(matterKind);
+  const [recordingType, setRecordingType] = useState<RecordingType>(
+    defaultRecordingTypeForMatterKind(matterKind) as RecordingType,
+  );
   const [sessionTitle, setSessionTitle] = useState("");
   const [meetingDate, setMeetingDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [durationMinutes, setDurationMinutes] = useState("");
-  const [generateClientLetter, setGenerateClientLetter] = useState(true);
+  const [generateClientLetter, setGenerateClientLetter] = useState(isClientMatter);
   const [authorityAttested, setAuthorityAttested] = useState(false);
 
   const resetState = () => {
@@ -79,7 +90,7 @@ export default function UploadTranscriptModal({
         sessionTitle: sessionTitle.trim() || undefined,
         meetingDate,
         durationMinutes: durationMinutes ? Number(durationMinutes) : undefined,
-        generateClientLetter,
+        generateClientLetter: isClientMatter && generateClientLetter,
         authorityAttested: true as const,
         source,
         originalFilename,
@@ -92,7 +103,9 @@ export default function UploadTranscriptModal({
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
       toast({
         title: "Transcript accepted",
-        description: "Meeting-to-Matter™ is producing your attendance note and client letter.",
+        description: isClientMatter
+          ? "Meeting-to-Matter™ is producing your attendance note and client letter."
+          : "Meeting-to-Matter™ is producing your internal meeting note.",
         duration: 5000,
       });
       onOpenChange(false);
@@ -235,7 +248,9 @@ export default function UploadTranscriptModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(RECORDING_TYPE_LABELS) as RecordingType[]).map((key) => (
+                  {(Object.keys(RECORDING_TYPE_LABELS) as RecordingType[])
+                    .filter((key) => allowedTypes.includes(key))
+                    .map((key) => (
                     <SelectItem key={key} value={key}>
                       {RECORDING_TYPE_LABELS[key]}
                     </SelectItem>
@@ -278,6 +293,7 @@ export default function UploadTranscriptModal({
             </div>
           </div>
 
+          {isClientMatter && (
           <div className="flex items-start gap-2">
             <Checkbox
               id="generate-client-letter"
@@ -289,6 +305,7 @@ export default function UploadTranscriptModal({
               Also produce a client letter from the attendance note
             </Label>
           </div>
+          )}
 
           <Alert>
             <AlertDescription className="space-y-3">
@@ -301,8 +318,8 @@ export default function UploadTranscriptModal({
                 />
                 <Label htmlFor="authority-attested" className="text-sm font-normal leading-snug">
                   I confirm I am authorised to upload and process this transcript on this matter,
-                  and that LegalNote may store it and derive attendance notes and client letters
-                  from it.
+                  and that LegalNote may store it and derive{" "}
+                  {isClientMatter ? "attendance notes and client letters" : "meeting notes"} from it.
                 </Label>
               </div>
             </AlertDescription>

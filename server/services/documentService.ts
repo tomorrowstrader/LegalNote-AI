@@ -1,6 +1,6 @@
 import { getPrivilegedLLMProvider } from './llm/providerFactory';
 import { privilegedComplete } from './llm/privilegedComplete';
-import { CLIENT_FACING_RECORDING_TYPES } from '@shared/recordingTypes';
+import { ALL_RECORDING_TYPES } from '@shared/recordingTypes';
 import type { PracticeArea } from '@shared/schema';
 import { getPracticeAreaPromptContext } from './practiceAreaConfig';
 import { DERIVATION_ENGINE_RULES } from './derivationEngine';
@@ -1508,6 +1508,65 @@ ${transcript}`,
     return await this.generateDocument(systemPrompt, userPrompt, revision);
   }
 
+  /**
+   * Minutes / internal meeting note for non-client (internal or firm) meetings.
+   */
+  async generateInternalMeetingNote(
+    transcript: string,
+    metadata: CaseMetadata,
+    revision?: DocumentRevisionContext,
+  ): Promise<DocumentGenerationResult> {
+    const systemPrompt = `You are a UK-qualified solicitor creating professional minutes of an internal or firm meeting (not a client attendance).
+
+${DERIVATION_ENGINE_RULES}
+
+CRITICAL INSTRUCTIONS:
+- Base all content strictly on the conversation record provided
+- Do NOT invent attendees, decisions, or action points
+- This is an INTERNAL record — do not write as a client attendance note or client letter
+- Write in the first person plural where the firm/team is acting ("we agreed", "we decided"), or first person singular for the note-taker's own actions ("I will…")
+- NEVER refer to a transcript, recording, or audio file
+- If something was not covered, omit it rather than inventing it
+
+Format:
+
+**INTERNAL MEETING NOTE**
+
+**Matter / subject:** ${metadata.title}
+**Reference:** ${metadata.matterReference || 'TBD'}
+**Date:** ${metadata.recordingDate}
+**Prepared by:** ${metadata.feeEarnerDisplayName ?? metadata.feeEarnerName ?? 'Not specified'}
+
+**Attendees**
+[List attendees only if identifiable from the conversation; otherwise write "Not specified in discussion"]
+
+**Summary**
+[2–4 short paragraphs summarising the purpose of the meeting and what was discussed]
+
+**Decisions**
+- [Decision 1, only if stated]
+- [Or: No formal decisions were recorded]
+
+**Action points**
+- [Owner — action — timing if stated]
+- [Or: No action points were recorded]
+
+**Follow-up**
+[Any agreed next meeting or review, or "None recorded"]
+
+This note is an internal firm record and may be subject to legal professional privilege where it concerns client matters.`;
+
+    const userPrompt = `Generate an internal meeting note from the following:
+
+**Subject:** ${metadata.title}
+**Date:** ${metadata.recordingDate}
+
+**Conversation record:**
+${transcript}`;
+
+    return await this.generateDocument(systemPrompt, userPrompt, revision);
+  }
+
   async generateCourtAttendanceNote(
     transcript: string,
     metadata: CaseMetadata,
@@ -1751,9 +1810,12 @@ ${transcript}`,
           revision,
         );
         break;
+      case 'internal_meeting':
+        result = await this.generateInternalMeetingNote(transcript, metadata, revision);
+        break;
       default:
         throw new Error(
-          `Unsupported recording type: ${recordingType}. Permitted types: ${CLIENT_FACING_RECORDING_TYPES.join(', ')}`,
+          `Unsupported recording type: ${recordingType}. Permitted types: ${ALL_RECORDING_TYPES.join(', ')}`,
         );
     }
 

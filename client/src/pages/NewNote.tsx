@@ -35,9 +35,14 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import type { Case, Client } from "@shared/schema";
-import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
+import type { Case, Client, MatterKind } from "@shared/schema";
+import { RECORDING_TYPE_LABELS, MATTER_KIND_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
+import { isClientMatterKind, partyLabelForMatterKind, normalizeMatterKind } from "@shared/matterKinds";
+import {
+  defaultRecordingTypeForMatterKind,
+  recordingTypesForMatterKind,
+} from "@shared/recordingTypes";
 import { useNewNoteRecording, type NewNoteRecordingMeta } from "@/contexts/NewNoteRecordingContext";
 
 interface CaseResponse {
@@ -86,6 +91,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
   );
   const [selectedCaseId, setSelectedCaseId] = useState<string>(initialCaseId || "");
   const [recordingType, setRecordingType] = useState<RecordingType>("full_meeting");
+  const [matterKind, setMatterKind] = useState<MatterKind>("client");
   const [caseSearchQuery, setCaseSearchQuery] = useState("");
   const [showCaseDropdown, setShowCaseDropdown] = useState(false);
   const caseSearchRef = useRef<HTMLDivElement>(null);
@@ -123,6 +129,19 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
         (c.matterReference && c.matterReference.toLowerCase().includes(q))
       );
     });
+
+  const effectiveMatterKind: MatterKind =
+    noteMode === "add_session"
+      ? normalizeMatterKind(existingCases.find((c) => c.id === selectedCaseId)?.matterKind)
+      : matterKind;
+  const isClientMatter = isClientMatterKind(effectiveMatterKind);
+  const allowedRecordingTypes = recordingTypesForMatterKind(effectiveMatterKind);
+
+  useEffect(() => {
+    if (!allowedRecordingTypes.includes(recordingType)) {
+      setRecordingType(defaultRecordingTypeForMatterKind(effectiveMatterKind) as RecordingType);
+    }
+  }, [allowedRecordingTypes, recordingType, effectiveMatterKind]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -174,15 +193,23 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
 
   const initiateRecording = () => {
     if (noteMode === "new_matter") {
-      if (!caseTitle.trim() || !selectedClient) {
+      if (!caseTitle.trim()) {
         toast({
           title: "Missing information",
-          description: !caseTitle.trim() ? "Please enter a case title" : "Please select or create a client",
+          description: "Please enter a case title",
           variant: "destructive",
         });
         return;
       }
-      if (!practiceArea) {
+      if (isClientMatter && !selectedClient) {
+        toast({
+          title: "Missing information",
+          description: "Please select or create a client",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (isClientMatter && !practiceArea) {
         toast({
           title: "Practice area required",
           description: "Please select a practice area for this matter",
@@ -190,7 +217,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
         });
         return;
       }
-      if (!conflictCheckCompleted && !conflictCheckNote.trim()) {
+      if (isClientMatter && !conflictCheckCompleted && !conflictCheckNote.trim()) {
         toast({
           title: "Conflict check required",
           description: "Either confirm the conflict check or provide a reason for deferral",
@@ -210,17 +237,23 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
     }
 
     const selectedCase = existingCases.find((c) => c.id === selectedCaseId);
+    const partyName = isClientMatter
+      ? selectedClient?.name
+      : partyLabelForMatterKind(matterKind);
     const meta: NewNoteRecordingMeta = {
       noteMode,
       caseTitle: noteMode === "add_session" ? (selectedCase?.title || "Session") : caseTitle.trim(),
-      clientId: selectedClient?.id,
-      clientName: selectedClient?.name,
-      clientAmlRiskLevel: selectedClient?.amlRiskLevel,
+      clientId: isClientMatter ? selectedClient?.id : undefined,
+      clientName: noteMode === "add_session" ? selectedCase?.clientName : partyName,
+      clientAmlRiskLevel: isClientMatter ? selectedClient?.amlRiskLevel : undefined,
+      matterKind: noteMode === "add_session"
+        ? (selectedCase?.matterKind as MatterKind | undefined) || "client"
+        : matterKind,
       matterRef: matterRef || undefined,
-      practiceArea,
-      conflictCheckCompleted,
-      conflictCheckNote: conflictCheckNote || undefined,
-      costsEstimate: costsEstimate || undefined,
+      practiceArea: isClientMatter ? practiceArea : "",
+      conflictCheckCompleted: isClientMatter ? conflictCheckCompleted : false,
+      conflictCheckNote: isClientMatter ? (conflictCheckNote || undefined) : undefined,
+      costsEstimate: isClientMatter ? (costsEstimate || undefined) : undefined,
       templateId: activeTemplate?.id || undefined,
       selectedCaseId: noteMode === "add_session" ? selectedCaseId : undefined,
       recordingType,
@@ -232,16 +265,18 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       displaySubtitle:
         noteMode === "add_session"
           ? selectedCase?.clientName || "Adding session"
-          : selectedClient?.name
-            ? `Recording for ${selectedClient.name}`
-            : "New matter recording",
+          : isClientMatter
+            ? selectedClient?.name
+              ? `Recording for ${selectedClient.name}`
+              : "New matter recording"
+            : MATTER_KIND_LABELS[matterKind],
     };
 
     startCountdown(meta);
   };
 
   const handleOpenMatter = async () => {
-    if (!selectedClient) {
+    if (isClientMatter && !selectedClient) {
       toast({
         title: "Client required",
         description: "Please select or create a client",
@@ -257,7 +292,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       });
       return;
     }
-    if (!practiceArea) {
+    if (isClientMatter && !practiceArea) {
       toast({
         title: "Practice area required",
         description: "Please select a practice area for this matter",
@@ -265,7 +300,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       });
       return;
     }
-    if (!conflictCheckCompleted && !conflictCheckNote.trim()) {
+    if (isClientMatter && !conflictCheckCompleted && !conflictCheckNote.trim()) {
       toast({
         title: "Conflict check required",
         description: "Either confirm the conflict check or provide a reason for deferral",
@@ -277,18 +312,19 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
     try {
       const caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
         title: caseTitle,
-        clientName: selectedClient.name,
-        clientId: selectedClient.id,
+        matterKind,
+        clientName: isClientMatter ? selectedClient!.name : partyLabelForMatterKind(matterKind),
+        clientId: isClientMatter ? selectedClient!.id : undefined,
         matterReference: matterRef || undefined,
         sourceType: "text",
         status: "pending",
         priority: "normal",
-        riskLevel: selectedClient.amlRiskLevel || undefined,
+        riskLevel: isClientMatter ? (selectedClient?.amlRiskLevel || undefined) : undefined,
         templateId: activeTemplate?.id || undefined,
-        practiceArea: practiceArea || undefined,
-        conflictCheckCompleted,
-        conflictCheckNote: conflictCheckNote || undefined,
-        costsEstimate: costsEstimate || undefined,
+        practiceArea: isClientMatter ? (practiceArea || undefined) : undefined,
+        conflictCheckCompleted: isClientMatter ? conflictCheckCompleted : false,
+        conflictCheckNote: isClientMatter ? (conflictCheckNote || undefined) : undefined,
+        costsEstimate: isClientMatter ? (costsEstimate || undefined) : undefined,
       });
 
       queryClient.invalidateQueries({
@@ -328,7 +364,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
     }
 
     let clientForCase = selectedClient;
-    if (noteMode === "new_matter") {
+    if (noteMode === "new_matter" && isClientMatter) {
       if (!clientForCase && data.clientName.trim()) {
         try {
           clientForCase = await apiRequest<Client>("POST", "/api/clients", { name: data.clientName.trim() });
@@ -362,7 +398,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       return;
     }
 
-    if (!practiceArea) {
+    if (isClientMatter && !practiceArea) {
       toast({
         title: "Practice area required",
         description: "Please select a practice area for this matter",
@@ -371,7 +407,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       return;
     }
 
-    if (!conflictCheckCompleted && !conflictCheckNote.trim()) {
+    if (isClientMatter && !conflictCheckCompleted && !conflictCheckNote.trim()) {
       toast({
         title: "Conflict check required",
         description: "Either confirm the conflict check or provide a reason for deferral",
@@ -388,19 +424,22 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       } else {
         const caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
           title: data.caseTitle,
-          clientName: clientForCase.name,
-          clientId: clientForCase.id,
+          matterKind,
+          clientName: isClientMatter
+            ? clientForCase!.name
+            : partyLabelForMatterKind(matterKind),
+          clientId: isClientMatter ? clientForCase!.id : undefined,
           matterReference: data.matterRef || undefined,
           sourceType: "text",
           status: "pending",
           priority: "normal",
-          riskLevel: clientForCase.amlRiskLevel || undefined,
+          riskLevel: isClientMatter ? (clientForCase?.amlRiskLevel || undefined) : undefined,
           notes: data.notes,
           templateId: activeTemplate?.id || undefined,
-          practiceArea: practiceArea || undefined,
-          conflictCheckCompleted,
-          conflictCheckNote: conflictCheckNote || undefined,
-          costsEstimate: costsEstimate || undefined,
+          practiceArea: isClientMatter ? (practiceArea || undefined) : undefined,
+          conflictCheckCompleted: isClientMatter ? conflictCheckCompleted : false,
+          conflictCheckNote: isClientMatter ? (conflictCheckNote || undefined) : undefined,
+          costsEstimate: isClientMatter ? (costsEstimate || undefined) : undefined,
         });
         targetCaseId = caseResult.id;
       }
@@ -584,7 +623,9 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                     <SelectValue placeholder="Select recording type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(Object.entries(RECORDING_TYPE_LABELS) as [RecordingType, string][]).map(([value, label]) => (
+                    {(Object.entries(RECORDING_TYPE_LABELS) as [RecordingType, string][])
+                      .filter(([value]) => allowedRecordingTypes.includes(value))
+                      .map(([value, label]) => (
                       <SelectItem key={value} value={value} data-testid={`option-recording-type-${value}`}>
                         {label}
                       </SelectItem>
@@ -678,18 +719,53 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
               {noteMode === "new_matter" ? (
                 <>
                   <div className="space-y-2">
+                    <Label>Matter type</Label>
+                    <RadioGroup
+                      value={matterKind}
+                      onValueChange={(v) => {
+                        const next = v as MatterKind;
+                        setMatterKind(next);
+                        setRecordingType(defaultRecordingTypeForMatterKind(next) as RecordingType);
+                        if (!isClientMatterKind(next)) {
+                          handleClearClient();
+                          setPracticeArea("");
+                          setConflictCheckCompleted(false);
+                          setConflictCheckNote("");
+                          setCostsEstimate("");
+                        }
+                      }}
+                      className="flex flex-col gap-2 sm:flex-row sm:gap-4"
+                      disabled={recordingLocked}
+                    >
+                      {(Object.entries(MATTER_KIND_LABELS) as [MatterKind, string][]).map(([value, label]) => (
+                        <div key={value} className="flex items-center gap-2">
+                          <RadioGroupItem value={value} id={`matter-kind-${value}`} data-testid={`radio-matter-kind-${value}`} />
+                          <Label htmlFor={`matter-kind-${value}`} className="cursor-pointer font-normal">
+                            {label}
+                          </Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                    {!isClientMatter && (
+                      <p className="text-xs text-muted-foreground">
+                        No client registry entry, conflict check, or client letter — minutes and action points only.
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="case-title">
-                      Case Title <span className="text-accent">*</span>
+                      {isClientMatter ? "Case Title" : "Meeting title"} <span className="text-accent">*</span>
                     </Label>
                     <Input
                       id="case-title"
-                      placeholder="e.g., Estate Planning Consultation"
+                      placeholder={isClientMatter ? "e.g., Estate Planning Consultation" : "e.g., Partners meeting — Q3 planning"}
                       value={caseTitle}
                       onChange={(e) => setCaseTitle(e.target.value)}
                       disabled={recordingLocked}
                       data-testid="input-case-title"
                     />
                   </div>
+                  {isClientMatter && (
                   <div className="space-y-2">
                     <Label htmlFor="client-name">
                       Client Name <span className="text-accent">*</span>
@@ -780,6 +856,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                       </Alert>
                     )}
                   </div>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="matter-ref">Matter Reference (Optional)</Label>
                     <Input
@@ -791,6 +868,8 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                       data-testid="input-matter-ref"
                     />
                   </div>
+                  {isClientMatter && (
+                  <>
                   <div className="space-y-2">
                     <Label htmlFor="practice-area">Practice Area <span className="text-red-500">*</span></Label>
                     <Select
@@ -829,12 +908,14 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                       Used in the client care letter.
                     </p>
                   </div>
+                  </>
+                  )}
                 </>
               ) : null}
             </CardContent>
           </Card>
 
-          {noteMode === "new_matter" && (
+          {noteMode === "new_matter" && isClientMatter && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -885,15 +966,16 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
 
           <Card>
             <CardHeader>
-              <CardTitle>Audio Recording with Consent Capture</CardTitle>
+              <CardTitle>
+                {isClientMatter ? "Audio Recording with Consent Capture" : "Audio Recording"}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="p-4 bg-muted rounded-md space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  The recording will begin with a 3-second countdown in the bottom-right control
-                  center. You will then read the consent disclaimer to your client, and they will
-                  verbally confirm their consent on the recording. You can navigate away — the
-                  recording stays manageable from the control center.
+                  {isClientMatter
+                    ? "The recording will begin with a 3-second countdown in the bottom-right control center. You will then read the consent disclaimer to your client, and they will verbally confirm their consent on the recording. You can navigate away — the recording stays manageable from the control center."
+                    : "The recording will begin with a 3-second countdown in the bottom-right control center. Client consent capture is not required for internal or firm meetings. You can navigate away — the recording stays manageable from the control center."}
                 </p>
               </div>
 

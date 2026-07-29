@@ -21,6 +21,7 @@ import { isFeatureVisible } from "@shared/featureVisibility";
 import { repairRtfTranscriptContent } from "./normalizeUploadedTranscript";
 import { generateDocumentHash } from "../utils/documentHash";
 import { looksLikeRtf } from "@shared/stripRtf";
+import { shouldGenerateClientLetter } from "@shared/recordingTypes";
 
 export interface ProcessingMetadata {
   status: "idle" | "transcribing" | "generating_documents" | "completed" | "failed" | "processing";
@@ -232,7 +233,7 @@ export async function deriveDocumentsFromTranscript(
     userId,
     transcriptId,
     sessionId,
-    generateClientLetter = true,
+    generateClientLetter: generateClientLetterParam,
     transcriptionCost = 0,
   } = params;
 
@@ -300,6 +301,12 @@ export async function deriveDocumentsFromTranscript(
       params.recordingType ||
       meetingSession?.recordingType ||
       "full_meeting";
+
+    const generateClientLetter = shouldGenerateClientLetter({
+      matterKind: (caseData as { matterKind?: string }).matterKind,
+      recordingType,
+      explicit: generateClientLetterParam,
+    });
 
     // Idempotency: if an active attendance note already exists for this transcript, reuse it
     const existingDocs = effectiveSessionId
@@ -407,8 +414,10 @@ export async function deriveDocumentsFromTranscript(
     > | undefined;
 
     if (!attendanceDoc) {
+      const primaryDocType =
+        recordingType === "internal_meeting" ? "meeting_notes" : "attendance_note";
       console.log(
-        `[TranscriptDerivation] Producing attendance note for case ${caseId} (type: ${recordingType}, session: ${effectiveSessionId})`,
+        `[TranscriptDerivation] Producing ${primaryDocType} for case ${caseId} (type: ${recordingType}, session: ${effectiveSessionId})`,
       );
       attendanceResult = await documentService.generateDocumentByRecordingType(
         recordingType,
@@ -423,7 +432,10 @@ export async function deriveDocumentsFromTranscript(
       await updateProcessingStatus(storage, caseId, userId, {
         status: "generating_documents",
         progress: 55,
-        currentStep: "Verifying attendance note against transcript...",
+        currentStep:
+          recordingType === "internal_meeting"
+            ? "Verifying meeting note against transcript..."
+            : "Verifying attendance note against transcript...",
       });
 
       attendanceVerification = await documentService.verifyDocumentAgainstTranscript(
@@ -439,7 +451,7 @@ export async function deriveDocumentsFromTranscript(
       attendanceDoc = await storage.createDocument({
         caseId,
         transcriptSnapshotId: transcript.id,
-        type: "attendance_note",
+        type: primaryDocType,
         content: attendanceResult.content,
         version: 1,
         versionType: "system_generated",
@@ -454,7 +466,7 @@ export async function deriveDocumentsFromTranscript(
         caseId,
         documentId: attendanceDoc.id,
         metadata: {
-          documentType: "attendance_note",
+          documentType: primaryDocType,
           inputTokens: attendanceResult.inputTokens,
           outputTokens: attendanceResult.outputTokens,
           cost: attendanceResult.cost,

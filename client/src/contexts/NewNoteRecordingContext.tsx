@@ -29,7 +29,9 @@ import {
   type MeetingNotesDraftKey,
 } from "@/lib/meetingNotesDraft";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
-import type { PracticeArea, RecordingType } from "@shared/schema";
+import type { MatterKind, PracticeArea, RecordingType } from "@shared/schema";
+import { isClientMatterKind } from "@shared/matterKinds";
+import { partyLabelForMatterKind } from "@shared/matterKinds";
 
 export type NewNoteRecordingMeta = {
   noteMode: "new_matter" | "add_session";
@@ -37,6 +39,7 @@ export type NewNoteRecordingMeta = {
   clientId?: string;
   clientName?: string;
   clientAmlRiskLevel?: string | null;
+  matterKind?: MatterKind;
   matterRef?: string;
   practiceArea?: PracticeArea | "";
   conflictCheckCompleted: boolean;
@@ -211,13 +214,23 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       };
 
       mediaRecorder.start(1000);
-      setShowConsentModal(true);
+      const skipClientConsent = !isClientMatterKind(metaRef.current?.matterKind);
+      if (skipClientConsent) {
+        setConsentGiven(null);
+        setShowConsentModal(false);
+      } else {
+        setShowConsentModal(true);
+      }
       setPhase("recording");
       setDuration(0);
 
       await logAuditEvent({
         eventType: "recording_started",
-        metadata: { source: "new_note_page" },
+        metadata: {
+          source: "new_note_page",
+          matterKind: metaRef.current?.matterKind ?? "client",
+          skipClientConsent,
+        },
         severity: "info",
       });
     } catch (error) {
@@ -365,13 +378,17 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       if (snapshot.noteMode === "add_session" && snapshot.selectedCaseId) {
         targetCaseId = snapshot.selectedCaseId;
       } else {
-        if (!snapshot.clientId || !snapshot.clientName) {
+        const kind = snapshot.matterKind ?? "client";
+        if (isClientMatterKind(kind) && (!snapshot.clientId || !snapshot.clientName)) {
           throw new Error("Client is required to save this recording");
         }
         caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
           title: snapshot.caseTitle,
-          clientName: snapshot.clientName,
-          clientId: snapshot.clientId,
+          matterKind: kind,
+          clientName: isClientMatterKind(kind)
+            ? snapshot.clientName
+            : partyLabelForMatterKind(kind),
+          clientId: isClientMatterKind(kind) ? snapshot.clientId : undefined,
           matterReference: snapshot.matterRef || undefined,
           sourceType: "audio",
           status: "pending",

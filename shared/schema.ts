@@ -3,6 +3,21 @@ import { pgTable, pgEnum, text, varchar, timestamp, boolean, integer, jsonb, uni
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { verificationWarningSchema, type VerificationWarning } from "./verificationWarnings";
+import {
+  MATTER_KINDS,
+} from "./matterKinds";
+
+export {
+  MATTER_KINDS,
+  MATTER_KIND_LABELS,
+  MATTER_KIND_PARTY_LABELS,
+  isClientMatterKind,
+  isMatterKind,
+  normalizeMatterKind,
+  partyLabelForMatterKind,
+  requiresClientForMatter,
+  type MatterKind,
+} from "./matterKinds";
 
 // Firms table — one record per independent law firm
 export const firms = pgTable("firms", {
@@ -214,8 +229,11 @@ export const cases = pgTable("cases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   firmId: varchar("firm_id").references(() => firms.id),
   title: text("title").notNull(),
+  /** Denormalised party label. For non-client matters this is "Internal" / "Firm". */
   clientName: text("client_name").notNull(),
   clientId: varchar("client_id").references(() => clients.id),
+  /** client = solicitor–client work; internal/firm = non-client meetings. */
+  matterKind: text("matter_kind").notNull().default("client"),
   matterReference: text("matter_reference"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   assignedToUserId: varchar("assigned_to_user_id").references(() => users.id),
@@ -314,6 +332,7 @@ export const RECORDING_TYPES = [
   "file_note",
   "court_hearing",
   "police_station",
+  "internal_meeting",
 ] as const;
 export type RecordingType = typeof RECORDING_TYPES[number];
 
@@ -323,6 +342,7 @@ export const RECORDING_TYPE_LABELS: Record<RecordingType, string> = {
   file_note: "File Note",
   court_hearing: "Court Hearing",
   police_station: "Police Station",
+  internal_meeting: "Internal Meeting",
 };
 
 export const meetingSessions = pgTable("meeting_sessions", {
@@ -885,10 +905,13 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   litigationHoldReleaseReason: true,
   clientCareLetterId: true,
   clientCareLetterSentAt: true,
+  matterKind: true,
 }).extend({
   title: z.string().min(1).max(500).transform(sanitizeString),
-  clientName: z.string().min(1).max(200).transform(sanitizeString),
+  /** Optional for non-client matters; server fills Internal/Firm party label when omitted. */
+  clientName: z.string().max(200).default("").transform(sanitizeString),
   clientId: z.string().uuid().optional(),
+  matterKind: z.enum(MATTER_KINDS).default("client"),
   matterReference: z.string().max(100).transform(sanitizeString).optional(),
   status: z.enum(["pending", "processing", "review_required", "completed"]).default("pending"),
   priority: z.enum(["urgent", "deadline-soon", "normal"]).default("normal"),
@@ -1297,7 +1320,35 @@ export type InsertAuthIdentity = typeof authIdentities.$inferInsert;
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type Client = typeof clients.$inferSelect;
 
-export type InsertCase = z.infer<typeof insertCaseSchema>;
+export type InsertCase = {
+  title: string;
+  clientName: string;
+  clientId?: string;
+  matterKind?: MatterKind;
+  matterReference?: string;
+  status?: "pending" | "processing" | "review_required" | "completed";
+  priority?: "urgent" | "deadline-soon" | "normal";
+  sourceType: "audio" | "text" | "dictation";
+  templateId?: string;
+  parentCaseId?: string;
+  riskLevel?: "low" | "medium" | "high";
+  practiceArea?: PracticeArea;
+  conflictCheckCompleted?: boolean;
+  conflictCheckNote?: string;
+  costsEstimate?: string;
+  textNotes?: string;
+  litigationHold?: boolean;
+  litigationHoldReason?: string;
+  assignedToUserId?: string;
+  firmId?: string;
+  reviewed?: boolean;
+  archived?: boolean;
+  deadline?: Date | null;
+  syncToCalendar?: boolean;
+  deadlineIsAllDay?: boolean;
+  supervisorId?: string;
+  supervisorName?: string;
+};
 export type Case = typeof cases.$inferSelect;
 
 export type InsertQuickNote = z.infer<typeof insertQuickNoteSchema>;
