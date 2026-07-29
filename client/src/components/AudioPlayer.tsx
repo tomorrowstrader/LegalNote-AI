@@ -674,24 +674,24 @@ export function AudioPlayer({
                 className="flex-1 sm:flex-none sm:w-16"
                 data-testid="slider-volume"
               />
+              {collapsible && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setExpanded(false)}
+                  className="shrink-0 gap-1 text-xs text-muted-foreground hover:text-foreground h-8 px-2"
+                  data-testid="button-collapse-audio"
+                  aria-expanded={true}
+                  aria-label="Collapse waveform"
+                >
+                  <ChevronUp className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Collapse</span>
+                </Button>
+              )}
             </div>
           </div>
           
-          <div className={cn("flex items-center gap-2 mt-3", collapsible ? "justify-between" : "justify-end")}>
-            {collapsible && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setExpanded(false)}
-                className="gap-1 text-xs text-muted-foreground hover:text-foreground h-8 px-2"
-                data-testid="button-collapse-audio"
-                aria-expanded={true}
-                aria-label="Collapse waveform"
-              >
-                <ChevronUp className="h-3.5 w-3.5" />
-                Collapse
-              </Button>
-            )}
+          <div className="flex justify-end mt-3">
             {getRetentionCountdown()}
           </div>
         </div>
