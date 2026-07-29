@@ -62,6 +62,38 @@ export function hasDocumentsAwaitingAdoption(
   );
 }
 
+export type AdoptionTab = "attendance" | "summary" | "care_letter";
+
+const ADOPTION_TAB_ORDER: AdoptionTab[] = ["attendance", "summary", "care_letter"];
+
+export function documentTypeToAdoptionTab(type: string): AdoptionTab | null {
+  if (type === "attendance_note" || type === "meeting_notes") return "attendance";
+  if (type === "summary" || type === "client_letter") return "summary";
+  if (type === "client_care_letter") return "care_letter";
+  return null;
+}
+
+/** Next adoptable tab after approving `justApprovedId`, in solicitor review order. */
+export function getNextAdoptionTab(
+  docs: Array<{ id: string; type: string; status: string } | null | undefined>,
+  justApprovedId: string,
+): AdoptionTab | null {
+  const byTab = new Map<AdoptionTab, { id: string; status: string }>();
+  for (const doc of docs) {
+    if (!doc) continue;
+    const tab = documentTypeToAdoptionTab(doc.type);
+    if (!tab || byTab.has(tab)) continue;
+    byTab.set(tab, { id: doc.id, status: doc.status });
+  }
+  for (const tab of ADOPTION_TAB_ORDER) {
+    const entry = byTab.get(tab);
+    if (!entry) continue;
+    if (entry.id === justApprovedId) continue;
+    if (entry.status !== "approved") return tab;
+  }
+  return null;
+}
+
 export function adoptionRequiredMessage(
   unadoptedTypes: readonly string[],
   action: "print" | "download",

@@ -533,24 +533,10 @@ export default function CaseDetail() {
 
   const [showSraReportModal, setShowSraReportModal] = useState(false);
   const [mobileSectionMenuOpen, setMobileSectionMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try {
-      // Default collapsed on first visit; only expand when user has explicitly chosen open.
-      return localStorage.getItem("legalnote-case-sidebar-collapsed") !== "0";
-    } catch {
-      return true;
-    }
-  });
+  // Always launch collapsed — expand is a per-visit choice, not a sticky preference.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const toggleSidebarCollapsed = () => {
-    setSidebarCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("legalnote-case-sidebar-collapsed", next ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+    setSidebarCollapsed((prev) => !prev);
   };
 
   type SraReportPreview = {
@@ -2008,6 +1994,7 @@ export default function CaseDetail() {
                   focusSessionId={activeSessionId || undefined}
                   hasAmlFlag={amlComplianceVisible && !!caseData.riskLevel && ['high', 'medium'].includes(caseData.riskLevel as string)}
                   litigationHold={caseData.litigationHold}
+                  onLogTime={() => setShowTimeRecordingModal(true)}
                 />
               </div>
             );

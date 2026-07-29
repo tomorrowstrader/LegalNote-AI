@@ -1,14 +1,25 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, RefreshCw, Share2, Quote, Play } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, RefreshCw, Share2, Quote, Play, MoreHorizontal, Clock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
 import { printDocuments } from "@/lib/printDocuments";
-import { adoptionRequiredMessage, getUnadoptedDocumentTypes } from "@/lib/documentAdoption";
+import {
+  adoptionRequiredMessage,
+  getDocumentTypeLabel,
+  getNextAdoptionTab,
+  getUnadoptedDocumentTypes,
+} from "@/lib/documentAdoption";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile, DocumentComment } from "@shared/schema";
@@ -501,6 +512,8 @@ interface DocumentViewerProps {
   focusSessionId?: string | null;
   hasAmlFlag?: boolean;
   litigationHold?: boolean;
+  /** Opens time recording from the post-adoption done state. */
+  onLogTime?: () => void;
 }
 
 /**
@@ -1539,6 +1552,7 @@ export default function DocumentViewer({
   focusSessionId,
   hasAmlFlag,
   litigationHold,
+  onLogTime,
 }: DocumentViewerProps) {
   const { toast } = useToast();
   const { role: authRole } = useAuth();
@@ -1582,6 +1596,11 @@ export default function DocumentViewer({
   const [showRationaleSection, setShowRationaleSection] = useState<Record<string, boolean>>({}); // docId -> expanded
   const [pendingApprovalDocId, setPendingApprovalDocId] = useState<string | null>(null); // doc waiting for soft gate confirm
   const [amlAcknowledged, setAmlAcknowledged] = useState<Record<string, boolean>>({}); // docId -> confirmed AML consideration
+  const adoptionDocsRef = useRef<{
+    attendanceNote: Document | null | undefined;
+    summary: Document | null | undefined;
+    clientCareLetter: Document | null | undefined;
+  }>({ attendanceNote: null, summary: null, clientCareLetter: null });
   const [produceTarget, setProduceTarget] = useState<Document | null>(null);
   const [produceReason, setProduceReason] = useState("");
   const gapContentByDocIdRef = useRef<Record<string, string>>({});
@@ -1844,17 +1863,29 @@ export default function DocumentViewer({
     mutationFn: async ({ documentId, reasoningGapsReviewed }: { documentId: string; reasoningGapsReviewed?: boolean }) => {
       return await apiRequest('POST', `/api/documents/${documentId}/approve`, { comment: '', reasoningGapsReviewed: reasoningGapsReviewed ?? false });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
       setEditingDocId(null);
       setEditContent("");
       setPendingApprovalDocId(null);
-      toast({
-        title: "Document Approved",
-        description: "Document has been marked as final and is now locked",
-        duration: 6000,
-      });
+
+      const { attendanceNote: a, summary: s, clientCareLetter: c } = adoptionDocsRef.current;
+      const nextTab = getNextAdoptionTab([a, s, c], variables.documentId);
+      if (nextTab) {
+        setActiveTab(nextTab);
+        toast({
+          title: "Document adopted",
+          description: `Continuing to ${nextTab === "attendance" ? "Attendance Note" : nextTab === "summary" ? "Client Letter" : "Care Letter"}.`,
+          duration: 5000,
+        });
+      } else {
+        toast({
+          title: "Document Approved",
+          description: "Document has been marked as final and is now locked",
+          duration: 6000,
+        });
+      }
     },
     onError: () => {
       toast({
@@ -2445,6 +2476,41 @@ export default function DocumentViewer({
   const summary = findDoc('summary') ?? findDoc('client_letter');
   const transcriptDoc = findDoc('transcript');
   const clientCareLetter = findDoc('client_care_letter');
+
+  adoptionDocsRef.current = { attendanceNote, summary, clientCareLetter };
+
+  const adoptablePresent = useMemo(() => {
+    const items: { id: string; tab: "attendance" | "summary" | "care_letter"; label: string; status: string }[] = [];
+    if (attendanceNote) {
+      items.push({
+        id: attendanceNote.id,
+        tab: "attendance",
+        label: getDocumentTypeLabel(attendanceNote.type),
+        status: attendanceNote.status,
+      });
+    }
+    if (summary) {
+      items.push({
+        id: summary.id,
+        tab: "summary",
+        label: getDocumentTypeLabel(summary.type),
+        status: summary.status,
+      });
+    }
+    if (clientCareLetter) {
+      items.push({
+        id: clientCareLetter.id,
+        tab: "care_letter",
+        label: getDocumentTypeLabel(clientCareLetter.type),
+        status: clientCareLetter.status,
+      });
+    }
+    return items;
+  }, [attendanceNote, summary, clientCareLetter]);
+
+  const pendingAdoption = adoptablePresent.filter((d) => d.status !== "approved");
+  const allAdoptablesDone = adoptablePresent.length > 0 && pendingAdoption.length === 0;
+
   // Show Secure Share once the attendance note and client letter are both adopted
   const canSecureShare =
     attendanceNote?.status === 'approved' &&
@@ -2545,7 +2611,7 @@ export default function DocumentViewer({
   
   const transcriptContent = stripRtfToPlainText(transcriptDoc?.content ?? transcript ?? "");
 
-  // Primary actions under document title: Produce new version (left) + Edit Document (right)
+  // Secondary actions under document title when awaiting review: Edit (outline) + Produce (ghost)
   const DocumentPrimaryActions = ({ document }: { document?: Document }) => {
     if (!document) return null;
     const isEditingThis = editingDocId === document.id;
@@ -2559,23 +2625,36 @@ export default function DocumentViewer({
         document.type === "summary" ||
         document.type === "client_letter");
     const canEdit = document.status === "draft";
+    const awaitingReview = document.status === "draft";
 
     if (!canProduce && !canEdit) return null;
 
     return (
       <div className="flex items-center gap-2 flex-wrap px-6 pb-3" data-testid="document-primary-actions">
+        {canEdit && (
+          <Button
+            size="sm"
+            variant={awaitingReview ? "outline" : "default"}
+            onClick={() => startEditing(document)}
+            className="gap-1"
+            data-testid="button-edit-document"
+          >
+            <Edit className="w-3 h-3" />
+            Edit Document
+          </Button>
+        )}
         {canProduce && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 size="sm"
-                variant="default"
+                variant="ghost"
                 onClick={() => {
                   setProduceTarget(document);
                   setProduceReason("");
                 }}
                 disabled={produceVersionMutation.isPending}
-                className="gap-1"
+                className="gap-1 text-muted-foreground"
                 data-testid="button-produce-new-version"
               >
                 <RefreshCw className={`w-3 h-3 ${produceVersionMutation.isPending && produceTarget?.id === document.id ? "animate-spin" : ""}`} />
@@ -2586,18 +2665,6 @@ export default function DocumentViewer({
               Produce a new version. The current version stays on record.
             </TooltipContent>
           </Tooltip>
-        )}
-        {canEdit && (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={() => startEditing(document)}
-            className="gap-1"
-            data-testid="button-edit-document"
-          >
-            <Edit className="w-3 h-3" />
-            Edit Document
-          </Button>
         )}
       </div>
     );
@@ -2731,10 +2798,10 @@ export default function DocumentViewer({
                 variant="default"
                 onClick={handleApproveClick}
                 disabled={isApproving || isEditing}
-                className="gap-1"
+                className="gap-1.5 font-medium shadow-sm"
                 data-testid="button-approve-document"
               >
-                <CheckCircle className="w-3 h-3" />
+                <CheckCircle className="w-3.5 h-3.5" />
                 I Adopt
               </Button>
             </>
@@ -3048,14 +3115,16 @@ export default function DocumentViewer({
                       <TooltipContent>Comments</TooltipContent>
                     </Tooltip>
                   )}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button size="icon" variant="ghost" onClick={handlePrint} data-testid="button-print" className="hidden sm:flex">
-                        <Printer className="w-4 h-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Print documents</TooltipContent>
-                  </Tooltip>
+                  {pendingAdoption.length === 0 && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="icon" variant="ghost" onClick={handlePrint} data-testid="button-print" className="hidden sm:flex">
+                          <Printer className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Print documents</TooltipContent>
+                    </Tooltip>
+                  )}
                   {/* Page View / Draft toggle — only visible outside transcript and edit modes */}
                   {activeTab !== 'transcript' && !editingDocId && (
                     <Tooltip>
@@ -3091,32 +3160,136 @@ export default function DocumentViewer({
                     </TooltipTrigger>
                     <TooltipContent>{focusMode ? 'Exit Focus Mode (Esc)' : 'Focus Mode'}</TooltipContent>
                   </Tooltip>
-                  {canSecureShare && (
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowShareModal(true)}
-                      className="gap-2 flex-1 sm:flex-initial"
-                      data-testid="button-secure-share"
-                    >
-                      <Share2 className="w-4 h-4" />
-                      <span className="hidden sm:inline">Secure Share</span>
-                      <span className="sm:hidden">Share</span>
-                    </Button>
+                  {pendingAdoption.length > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 text-muted-foreground"
+                          data-testid="button-document-overflow"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                          <span className="hidden sm:inline">More</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-52">
+                        <DropdownMenuItem onClick={handleExport} data-testid="menu-download-working-copy">
+                          <FileDown className="w-4 h-4 mr-2" />
+                          Download Working Copy
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handlePrint} data-testid="menu-print">
+                          <Printer className="w-4 h-4 mr-2" />
+                          Print
+                        </DropdownMenuItem>
+                        {canSecureShare && (
+                          <DropdownMenuItem onClick={() => setShowShareModal(true)} data-testid="menu-secure-share">
+                            <Share2 className="w-4 h-4 mr-2" />
+                            Secure Share
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <>
+                      {canSecureShare && (
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowShareModal(true)}
+                          className="gap-2 flex-1 sm:flex-initial"
+                          data-testid="button-secure-share"
+                        >
+                          <Share2 className="w-4 h-4" />
+                          <span className="hidden sm:inline">Secure Share</span>
+                          <span className="sm:hidden">Share</span>
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        onClick={handleExport}
+                        className="gap-2 flex-1 sm:flex-initial"
+                        data-testid="button-export"
+                      >
+                        <FileDown className="w-4 h-4" />
+                        <span className="hidden sm:inline">Download Working Copy</span>
+                        <span className="sm:hidden">Export</span>
+                      </Button>
+                    </>
                   )}
-                  <Button
-                    variant="outline"
-                    onClick={handleExport}
-                    className="gap-2 flex-1 sm:flex-initial"
-                    data-testid="button-export"
-                  >
-                    <FileDown className="w-4 h-4" />
-                    <span className="hidden sm:inline">Download Working Copy</span>
-                    <span className="sm:hidden">Export</span>
-                  </Button>
                 </div>
               </div>
             )}
           </div>
+          {(pendingAdoption.length > 0 || allAdoptablesDone) && (
+            <div
+              className={cn(
+                "mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg border px-3 py-2 text-sm",
+                pendingAdoption.length > 0
+                  ? "border-amber-300/80 bg-amber-50/80 dark:border-amber-700/60 dark:bg-amber-950/25"
+                  : "border-emerald-300/70 bg-emerald-50/80 dark:border-emerald-800/50 dark:bg-emerald-950/20",
+              )}
+              data-testid="review-checklist-strip"
+            >
+              {pendingAdoption.length > 0 ? (
+                <>
+                  <span className="font-medium text-amber-900 dark:text-amber-200" data-testid="text-adoption-remaining">
+                    {pendingAdoption.length} document{pendingAdoption.length === 1 ? "" : "s"} to adopt
+                  </span>
+                  <span className="text-amber-700/70 dark:text-amber-400/70" aria-hidden>
+                    ·
+                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {pendingAdoption.map((item, index) => (
+                      <span key={item.id} className="inline-flex items-center gap-1.5">
+                        {index > 0 && (
+                          <span className="text-amber-700/50 dark:text-amber-500/50" aria-hidden>
+                            ·
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab(item.tab)}
+                          className={cn(
+                            "rounded-md px-1.5 py-0.5 text-xs font-medium transition-colors",
+                            activeTab === item.tab
+                              ? "bg-amber-200/80 text-amber-950 dark:bg-amber-800/50 dark:text-amber-100"
+                              : "text-amber-800 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900/40",
+                          )}
+                          data-testid={`checklist-doc-${item.tab}`}
+                        >
+                          {item.label}
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
+                  <span className="font-medium text-emerald-900 dark:text-emerald-200" data-testid="text-adoption-complete">
+                    All documents adopted
+                  </span>
+                  {onLogTime && (
+                    <>
+                      <span className="text-emerald-700/60 dark:text-emerald-500/60" aria-hidden>
+                        ·
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={onLogTime}
+                        className="h-7 gap-1.5 border-emerald-400/60 bg-background/60 text-emerald-900 hover:bg-emerald-100/80 dark:text-emerald-100"
+                        data-testid="button-log-time-after-adopt"
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        Log time
+                      </Button>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           <TabsList className={`grid w-full h-auto rounded-xl ${clientCareLetter ? 'grid-cols-4' : 'grid-cols-3'}`}>
             <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
               <ReviewStatusDot
@@ -3153,7 +3326,14 @@ export default function DocumentViewer({
               <span className="sm:hidden">Script</span>
             </TabsTrigger>
             {clientCareLetter && (
-              <TabsTrigger value="care_letter" data-testid="tab-care-letter" className="text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
+              <TabsTrigger value="care_letter" data-testid="tab-care-letter" className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
+                <ReviewStatusDot
+                  status={getDocumentReviewStatus(clientCareLetter, {
+                    isEditing: editingDocId === clientCareLetter.id,
+                    isGapPanelOpen: showGapPanel === clientCareLetter.id,
+                  })}
+                  testId="tab-care-letter-review-status"
+                />
                 <span className="hidden sm:inline">Care Letter</span>
                 <span className="sm:hidden">Letter</span>
               </TabsTrigger>
