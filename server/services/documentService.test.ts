@@ -205,6 +205,10 @@ Reasoning behind advice and decisions:Because the facts support that course.`,
     expect(systemPrompt).toContain('RELATIONSHIP DURATIONS (SYSTEM-SUPPLIED)');
     expect(systemPrompt).toContain('£48,000 a year');
     expect(systemPrompt).toContain('YOU ARE THE FEE EARNER');
+    expect(systemPrompt).toContain('NO SUBSTANTIVE CONTENT — BRIEF OUTPUT ONLY');
+    expect(systemPrompt).toContain(
+      'No substantive legal consultation took place. No attendance note can be prepared.',
+    );
     expect(systemPrompt).not.toContain('brief file note for a short recording');
     expect(systemPrompt).not.toContain(
       'the marriage has therefore subsisted for some 11 years',

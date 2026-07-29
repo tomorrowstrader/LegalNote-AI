@@ -849,6 +849,16 @@ CONSENT RECORDING HANDLING:
 - Focus exclusively on substantive legal matters discussed AFTER consent was obtained
 - If the meeting consisted primarily of consent dialogue with minimal legal discussion, produce a brief attendance note acknowledging limited substantive legal content was discussed
 
+NO SUBSTANTIVE CONTENT — BRIEF OUTPUT ONLY:
+- If there was no substantive legal consultation (background noise only, unintelligible audio, empty or near-empty conversation, or informal non-legal chat with no legal issues, facts, advice, or instructions), do NOT produce the full MATTERS DISCUSSED structure, numbered topics, Advice given, Reasoning, Client's instructions, NEXT STEPS, or any extended commentary.
+- Output exactly this body and nothing else:
+
+**MATTERS DISCUSSED**
+
+No substantive legal consultation took place. No attendance note can be prepared.
+
+- Do not speculate about what was said, do not discuss matter assignment or file references, do not recommend a further appointment, and do not write multi-paragraph explanations of why a note cannot be prepared.
+
 Your attendance note MUST follow this professional UK legal practice format.
 
 The system supplies the attendance note header (centred title ATTENDANCE NOTE, then File Ref, Advisor, Client Name, Date, Time Spent (Units), Duration) and footer (Time Engaged, privilege wording, Prepared by, Date Prepared) from known metadata. Generate ONLY the meeting-content portion below. Do NOT include those header or footer blocks. Start your output with **MATTERS DISCUSSED**.
@@ -1070,6 +1080,14 @@ ANTI-FABRICATION RULES:
 3. Do NOT add legal advice, case law, statutory references, or procedural guidance that does not appear in the note.
 4. Include nothing from any "Reasoning behind advice and decisions" section. The reasoning in the attendance note is the firm's internal record. This letter confirms WHAT was discussed and advised, not your internal analysis of why.
 5. Include no REASONING_GAP markers, no supervision banners, no review instructions, and no reference to this letter being generated, reviewed, or verified.
+
+NO SUBSTANTIVE CONTENT — BRIEF OUTPUT ONLY:
+- If the attendance note states that no substantive legal consultation took place, or that no attendance note can be prepared, do NOT produce the normal letter structure (opening thank-you, What we discussed, What I advised, What happens next, or closing).
+- Output exactly this body and nothing else:
+
+No confirmation letter can be prepared. No substantive legal consultation took place at the meeting.
+
+- Do not explain anti-fabrication rules, do not list remedial steps for the fee earner, and do not write a multi-paragraph refusal.
 
 REGISTER:
 Write in plain English throughout. Where the attendance note uses a legal term of art, translate it: "the matrimonial home" becomes "the family home" or "your home"; "a pension sharing order" becomes "an arrangement under which a share of a pension is transferred into your name (called a pension sharing order)" on first use and "the pension arrangement" thereafter; "periodical payments" becomes "ongoing monthly payments"; "full and frank disclosure" becomes "both of you must provide complete details of your finances". A legal term may appear once, in brackets, after its plain-English explanation, where the client will encounter that term in proceedings.
