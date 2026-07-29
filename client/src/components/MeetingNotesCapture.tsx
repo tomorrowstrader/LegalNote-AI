@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Logo from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import {
   type MeetingNotesDraftKey,
@@ -24,12 +25,20 @@ import {
 
 type PanelMode = "collapsed" | "open" | "focus";
 
-const SNIPPETS: { id: string; label: string; icon: typeof Users; text: string }[] = [
-  { id: "attendees", label: "Attendees", icon: Users, text: "Attendees:\n- " },
+/** Landing-page terracotta — primary brand accent on marketing surfaces. */
+const BRAND = "hsl(18, 70%, 42%)";
+const BRAND_HOVER = "hsl(18, 72%, 36%)";
+const PAPER = "hsl(36, 33%, 97%)";
+const PAPER_LINE = "hsl(30, 18%, 88%)";
+const INK = "hsl(220, 20%, 16%)";
+
+const SECONDARY_SNIPPETS: { id: string; label: string; icon: typeof Users; text: string }[] = [
   { id: "instructions", label: "Instructions", icon: MessageSquare, text: "Client instructions:\n" },
   { id: "actions", label: "Actions", icon: ListChecks, text: "Action points:\n- " },
   { id: "followups", label: "Follow-ups", icon: ListTodo, text: "Follow-ups:\n- " },
 ];
+
+const ATTENDEES_SNIPPET = "Attendees:\n- ";
 
 function formatElapsed(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -66,6 +75,8 @@ export interface MeetingNotesCaptureProps {
   liveLabel?: string | null;
   /** Opens the companion notes window (omit to hide Pop out). */
   onPopOut?: () => void;
+  /** Companion chrome: dock-back control rendered in the notepad header. */
+  onDockBack?: () => void;
 }
 
 export default function MeetingNotesCapture({
@@ -78,6 +89,7 @@ export default function MeetingNotesCapture({
   defaultOpen = false,
   liveLabel,
   onPopOut,
+  onDockBack,
 }: MeetingNotesCaptureProps) {
   const [mode, setMode] = useState<PanelMode>(() =>
     defaultOpen || hasMeetingNotesDraft(draftKey) || variant === "companion"
@@ -94,6 +106,9 @@ export default function MeetingNotesCapture({
   const applyingRemoteRef = useRef(false);
   draftKeyRef.current = draftKey;
   contentRef.current = content;
+
+  const isCompanion = variant === "companion";
+  const isNotepad = isCompanion || variant === "inline";
 
   // Reload draft when key changes (e.g. new import)
   useEffect(() => {
@@ -134,7 +149,6 @@ export default function MeetingNotesCapture({
     contentRef.current = value;
     setSaveState("saving");
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    // Short debounce only for the "Saved" label; draft is written right away
     writeMeetingNotesDraft(draftKeyRef.current, value);
     saveTimerRef.current = setTimeout(() => {
       setSaveState("saved");
@@ -233,7 +247,10 @@ export default function MeetingNotesCapture({
           )}
           data-testid="button-open-meeting-notes"
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <span
+            className="flex h-7 w-7 items-center justify-center rounded-full text-white"
+            style={{ backgroundColor: BRAND }}
+          >
             <PenLine className="h-3.5 w-3.5" />
           </span>
           <span className="text-sm font-medium tracking-tight">Notes</span>
@@ -247,7 +264,8 @@ export default function MeetingNotesCapture({
           )}
           {hasContent && (
             <span
-              className="h-1.5 w-1.5 rounded-full bg-accent"
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: BRAND }}
               aria-label="Has draft notes"
               data-testid="indicator-meeting-notes-draft"
             />
@@ -257,10 +275,30 @@ export default function MeetingNotesCapture({
     );
   }
 
+  const primaryActionClass = cn(
+    "inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5",
+    "text-sm font-medium text-white transition-all duration-150",
+    "shadow-[0_2px_8px_rgba(140,55,25,0.35),0_1px_2px_rgba(0,0,0,0.12)]",
+    "hover:shadow-[0_4px_14px_rgba(140,55,25,0.4),0_2px_4px_rgba(0,0,0,0.14)] hover:-translate-y-px",
+    "active:translate-y-0 active:shadow-[0_1px_4px_rgba(140,55,25,0.3)]",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+    "min-h-[42px] min-w-0",
+  );
+
+  const secondaryActionClass = cn(
+    "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+    isNotepad
+      ? "border-[hsl(30,20%,82%)] bg-white/70 text-[hsl(220,15%,35%)] hover:border-[hsl(18,40%,70%)] hover:text-[hsl(18,70%,32%)]"
+      : "border-border/60 bg-background/80 text-muted-foreground hover:border-foreground/20 hover:text-foreground",
+  );
+
   const panel = (
     <div
       className={cn(
-        "relative flex flex-col overflow-hidden border border-border/70 bg-card shadow-xl",
+        "relative flex flex-col overflow-hidden",
+        isNotepad
+          ? "border border-[hsl(30,18%,84%)] shadow-[0_8px_30px_rgba(40,30,20,0.12)]"
+          : "border border-border/70 bg-card shadow-xl",
         variant === "floating" && "rounded-xl",
         variant === "inline" && "rounded-lg h-full min-h-[280px]",
         variant === "companion" && "h-full min-h-0 rounded-none border-0 shadow-none",
@@ -268,33 +306,106 @@ export default function MeetingNotesCapture({
         mode === "open" && variant === "floating" && "h-[380px]",
         className,
       )}
+      style={isNotepad ? { backgroundColor: PAPER, color: INK } : undefined}
       data-testid="meeting-notes-panel"
     >
-      {/* Ambient paper wash */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-60"
-        style={{
-          background:
-            "radial-gradient(120% 80% at 0% 0%, hsl(45 40% 96% / 0.9) 0%, transparent 55%), linear-gradient(180deg, hsl(40 20% 99%) 0%, hsl(0 0% 100%) 100%)",
-        }}
-        aria-hidden
-      />
+      {/* Paper wash + subtle left margin rule (notepad spine) */}
+      {isNotepad ? (
+        <>
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(90% 60% at 100% 0%, hsl(18, 55%, 92% / 0.45) 0%, transparent 50%), linear-gradient(180deg, hsl(36, 40%, 98%) 0%, hsl(36, 28%, 96%) 100%)",
+            }}
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 top-0 w-[3px]"
+            style={{ backgroundColor: "hsl(18, 55%, 72%)" }}
+            aria-hidden
+          />
+        </>
+      ) : (
+        <div
+          className="pointer-events-none absolute inset-0 opacity-60"
+          style={{
+            background:
+              "radial-gradient(120% 80% at 0% 0%, hsl(45 40% 96% / 0.9) 0%, transparent 55%), linear-gradient(180deg, hsl(40 20% 99%) 0%, hsl(0 0% 100%) 100%)",
+          }}
+          aria-hidden
+        />
+      )}
 
-      <header className="relative z-10 flex items-start justify-between gap-3 border-b border-border/50 px-4 pt-3.5 pb-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <PenLine className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <h3 className="text-sm font-medium tracking-tight">Meeting notes</h3>
-          </div>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {caseTitle?.trim() || "Optional — saved to the matter when the call ends"}
-          </p>
+      <header
+        className={cn(
+          "relative z-10 flex items-start justify-between gap-3 px-4 pt-3.5 pb-3",
+          isNotepad ? "border-b border-[hsl(30,18%,86%)]" : "border-b border-border/50",
+        )}
+      >
+        <div className="min-w-0 flex-1">
+          {isCompanion ? (
+            <div className="space-y-1.5">
+              <Logo variant="wordmark" size="sm" tone="light" className="h-5 max-w-[140px]" />
+              <div className="flex items-baseline gap-2 min-w-0">
+                <h3
+                  className="text-[13px] font-medium tracking-tight truncate"
+                  style={{ fontFamily: "var(--font-serif)", color: INK }}
+                >
+                  Meeting notes
+                </h3>
+                {liveLabel && (
+                  <span
+                    className="shrink-0 text-[10px] uppercase tracking-wider font-medium"
+                    style={{ color: BRAND }}
+                  >
+                    {liveLabel}
+                  </span>
+                )}
+              </div>
+              <p className="truncate text-xs text-[hsl(220,12%,42%)]">
+                {caseTitle?.trim() || "Optional — saved to the matter when recording ends"}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                {isNotepad ? (
+                  <Logo variant="icon" size="sm" tone="light" className="h-5 w-5" />
+                ) : (
+                  <PenLine className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                )}
+                <h3 className="text-sm font-medium tracking-tight">Meeting notes</h3>
+              </div>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {caseTitle?.trim() || "Optional — saved to the matter when the call ends"}
+              </p>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {typeof elapsedSeconds === "number" && (
-            <span className="mr-1 font-mono text-[11px] tabular-nums text-muted-foreground" data-testid="text-meeting-notes-elapsed">
+            <span
+              className={cn(
+                "mr-1 font-mono text-[11px] tabular-nums",
+                isNotepad ? "text-[hsl(220,12%,40%)]" : "text-muted-foreground",
+              )}
+              data-testid="text-meeting-notes-elapsed"
+            >
               {formatElapsed(elapsedSeconds)}
             </span>
+          )}
+          {onDockBack && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-xs text-[hsl(220,12%,40%)] hover:text-[hsl(18,70%,32%)] hover:bg-[hsl(18,40%,94%)]"
+              onClick={onDockBack}
+              data-testid="button-dock-meeting-notes"
+            >
+              Dock back
+            </Button>
           )}
           {showPopOut && (
             <Button
@@ -339,22 +450,49 @@ export default function MeetingNotesCapture({
         </div>
       </header>
 
-      <div className="relative z-10 flex flex-wrap gap-1.5 px-3 pt-2.5">
+      {/* Primary actions — equal size, brand colour, drop shadow */}
+      <div className="relative z-10 flex gap-2.5 px-3 pt-3">
         <button
           type="button"
           onClick={insertTimestamp}
-          className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/80 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground"
+          className={primaryActionClass}
+          style={{ backgroundColor: BRAND, ["--tw-ring-color" as string]: BRAND }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = BRAND_HOVER;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = BRAND;
+          }}
           data-testid="button-insert-timestamp"
         >
-          <Clock className="h-3 w-3" />
+          <Clock className="h-4 w-4 shrink-0" />
           Timestamp
         </button>
-        {SNIPPETS.map((s) => (
+        <button
+          type="button"
+          onClick={() => insertAtCursor(ATTENDEES_SNIPPET, { newLineBefore: true })}
+          className={primaryActionClass}
+          style={{ backgroundColor: BRAND, ["--tw-ring-color" as string]: BRAND }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = BRAND_HOVER;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = BRAND;
+          }}
+          data-testid="button-snippet-attendees"
+        >
+          <Users className="h-4 w-4 shrink-0" />
+          Attendees
+        </button>
+      </div>
+
+      <div className="relative z-10 flex flex-wrap gap-1.5 px-3 pt-2">
+        {SECONDARY_SNIPPETS.map((s) => (
           <button
             key={s.id}
             type="button"
             onClick={() => insertAtCursor(s.text, { newLineBefore: true })}
-            className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/80 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground"
+            className={secondaryActionClass}
             data-testid={`button-snippet-${s.id}`}
           >
             <s.icon className="h-3 w-3" />
@@ -364,41 +502,73 @@ export default function MeetingNotesCapture({
       </div>
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col px-3 pb-2 pt-2">
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={(e) => handleChange(e.target.value)}
-          placeholder="Capture instructions, undertakings, or anything the attendance note may miss…"
+        <div
           className={cn(
-            "min-h-0 w-full flex-1 resize-none rounded-md border-0 bg-transparent px-1 py-1",
-            "text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/55",
-            "focus-visible:outline-none",
+            "relative min-h-0 flex-1 overflow-hidden rounded-md",
+            isNotepad && "ring-1 ring-[hsl(30,18%,86%)] bg-white/40",
           )}
-          style={{ fontFamily: "var(--font-serif)" }}
-          spellCheck
-          data-testid="textarea-meeting-notes"
-        />
+        >
+          {isNotepad && (
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                backgroundImage: `repeating-linear-gradient(
+                  transparent,
+                  transparent 27px,
+                  ${PAPER_LINE} 27px,
+                  ${PAPER_LINE} 28px
+                )`,
+                backgroundPosition: "0 8px",
+                opacity: 0.85,
+              }}
+              aria-hidden
+            />
+          )}
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={(e) => handleChange(e.target.value)}
+            placeholder="Capture instructions, undertakings, or anything the attendance note may miss…"
+            className={cn(
+              "relative z-10 min-h-0 w-full h-full resize-none border-0 bg-transparent px-3 py-2",
+              "text-[15px] leading-[28px] placeholder:text-[hsl(220,10%,55%)]",
+              "focus-visible:outline-none",
+              !isNotepad && "px-1 py-1 leading-relaxed text-foreground placeholder:text-muted-foreground/55",
+            )}
+            style={{
+              fontFamily: "var(--font-serif)",
+              color: isNotepad ? INK : undefined,
+            }}
+            spellCheck
+            data-testid="textarea-meeting-notes"
+          />
+        </div>
       </div>
 
-      <footer className="relative z-10 flex items-center justify-between gap-2 border-t border-border/50 px-4 py-2">
-        <p className="text-[11px] text-muted-foreground">
+      <footer
+        className={cn(
+          "relative z-10 flex items-center justify-between gap-2 px-4 py-2",
+          isNotepad ? "border-t border-[hsl(30,18%,86%)]" : "border-t border-border/50",
+        )}
+      >
+        <p className={cn("text-[11px]", isNotepad ? "text-[hsl(220,12%,42%)]" : "text-muted-foreground")}>
           {saveState === "saving" && "Saving…"}
           {saveState === "saved" && (
-            <span className="inline-flex items-center gap-1 text-foreground/70">
+            <span className="inline-flex items-center gap-1" style={isNotepad ? { color: BRAND } : undefined}>
               <Check className="h-3 w-3" /> Saved
             </span>
           )}
           {saveState === "idle" &&
             (variant === "companion"
               ? hasContent
-                ? "Draft syncs with LegalNote · saved when the meeting ends"
+                ? "Draft syncs with LegalNote · saved when recording ends"
                 : "⌘⇧T timestamp · dock back when finished"
               : hasContent
                 ? "Draft kept until the meeting ends"
                 : "⌘⇧T timestamp · Esc collapse")}
         </p>
         {!caseTitle && (
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground/80">Unassigned</span>
+          <span className="text-[10px] uppercase tracking-wide text-[hsl(220,10%,50%)]">Unassigned</span>
         )}
       </footer>
     </div>

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, PanelBottom } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import MeetingNotesCapture from "@/components/MeetingNotesCapture";
-import { Button } from "@/components/ui/button";
 import type { MeetingNotesDraftKey } from "@/lib/meetingNotesDraft";
 import {
   publishMeetingNotesPopout,
@@ -17,8 +16,8 @@ function parseDraftKey(raw: string | null): MeetingNotesDraftKey | null {
 }
 
 /**
- * Lightweight companion window for typing meeting notes beside Zoom/Teams/Meet.
- * Shares drafts with the main app via localStorage; closes when the session ends.
+ * Lightweight companion window for typing meeting notes beside Zoom/Teams/Meet
+ * (or beside Capture recording). Shares drafts with the main app via localStorage.
  */
 export default function MeetingNotesPopoutPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -35,6 +34,18 @@ export default function MeetingNotesPopoutPage() {
       ? `Meeting notes — ${caseTitle.trim()}`
       : "Meeting notes — LegalNote";
   }, [caseTitle]);
+
+  // Force light notepad chrome regardless of the solicitor's dark-mode preference
+  useEffect(() => {
+    const root = document.documentElement;
+    const hadDark = root.classList.contains("dark");
+    root.classList.remove("dark");
+    root.dataset.meetingNotesPopout = "1";
+    return () => {
+      delete root.dataset.meetingNotesPopout;
+      if (hadDark) root.classList.add("dark");
+    };
+  }, []);
 
   useEffect(() => {
     if (!draftKey) return;
@@ -89,9 +100,12 @@ export default function MeetingNotesPopoutPage() {
 
   if (!draftKey) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background px-6 text-center">
-        <ExternalLink className="h-8 w-8 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
+      <div
+        className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center"
+        style={{ backgroundColor: "hsl(36, 33%, 97%)" }}
+      >
+        <ExternalLink className="h-8 w-8 text-[hsl(18,50%,45%)]" />
+        <p className="text-sm text-[hsl(220,12%,40%)]">
           This notes window is missing a meeting session. Close it and pop out again from LegalNote.
         </p>
       </div>
@@ -100,25 +114,10 @@ export default function MeetingNotesPopoutPage() {
 
   return (
     <div
-      className="flex h-[100dvh] flex-col bg-background"
+      className="flex h-[100dvh] flex-col"
+      style={{ backgroundColor: "hsl(36, 33%, 97%)" }}
       data-testid="meeting-notes-popout-page"
     >
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
-        <p className="truncate text-[11px] text-muted-foreground">
-          Companion window — keep beside your video call
-        </p>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5 shrink-0 text-xs"
-          onClick={dockBack}
-          data-testid="button-dock-meeting-notes"
-        >
-          <PanelBottom className="h-3.5 w-3.5" />
-          Dock back
-        </Button>
-      </div>
       <div className="min-h-0 flex-1">
         <MeetingNotesCapture
           draftKey={draftKey}
@@ -128,6 +127,7 @@ export default function MeetingNotesPopoutPage() {
           variant="companion"
           defaultOpen
           liveLabel={liveLabel}
+          onDockBack={dockBack}
           className="h-full rounded-none border-0 shadow-none"
         />
       </div>
