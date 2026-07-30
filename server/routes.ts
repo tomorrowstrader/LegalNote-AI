@@ -276,6 +276,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  /**
+   * Backfill speaker utterances from labelled content when the JSON utterances
+   * column is empty (older rows / incomplete writes). Preserves existing timing
+   * when present; text-parsed timings are ordinals and the UI treats them as
+   * non-audio (no scrub timestamps).
+   */
+  async function repairMissingSpeakerUtterances(transcript: any, userId: string) {
+    const existing = transcript?.utterances;
+    if (Array.isArray(existing) && existing.length > 0) return transcript;
+    if (!transcript?.content || typeof transcript.content !== "string") return transcript;
+    try {
+      const { parseSpeakerUtterances } = await import(
+        "./services/normalizeUploadedTranscript"
+      );
+      const parsed = parseSpeakerUtterances(transcript.content);
+      if (parsed.length === 0) return transcript;
+      const speakers = new Set(parsed.map((u) => u.speaker));
+      const updated = await storage.updateTranscript(
+        transcript.id,
+        {
+          utterances: parsed,
+          speakerCount: speakers.size,
+        },
+        userId,
+      );
+      return updated ?? {
+        ...transcript,
+        utterances: parsed,
+        speakerCount: speakers.size,
+      };
+    } catch (err: any) {
+      console.warn(
+        `[Transcript] Utterance backfill failed for ${transcript.id}:`,
+        err?.message || err,
+      );
+      return transcript;
+    }
+  }
+
   // Health check endpoint for deployment platform
   // Must be before auth middleware and CORS is configured to allow requests without origin
   app.get('/health', (req, res) => {
@@ -5478,6 +5517,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
 
       transcript = await repairStoredRtfTranscript(transcript, userId);
+      transcript = await repairMissingSpeakerUtterances(transcript, userId);
 
       // Lazy commit: auto-commit any pending redactions whose 30-minute window has expired
       const pendingRedactions = ((transcript.redactions || []) as any[]);
@@ -10000,10 +10040,20 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       // Return the most recent active import first
       const active = imports.find(i => ['live', 'pending', 'transcribing', 'failed'].includes(i.status));
       if (active) {
-        // Auto-resolve a stuck 'transcribing' import when the case already has documents
-        if (active.status === 'transcribing') {
+        // Auto-resolve stuck imports once the case already has documents or a transcript
+        if (['transcribing', 'pending', 'live'].includes(active.status)) {
           const docs = await storage.getDocumentsByCase(caseId, userId);
-          if (docs && docs.length > 0) {
+          const hasDocs = docs && docs.length > 0;
+          let hasTranscript = false;
+          if (!hasDocs) {
+            try {
+              const t = await storage.getTranscriptByCase(caseId, userId);
+              hasTranscript = !!t?.content;
+            } catch {
+              hasTranscript = false;
+            }
+          }
+          if (hasDocs || hasTranscript) {
             await storage.updateMeetingImport(active.id, { status: 'completed' });
             return res.json(null);
           }

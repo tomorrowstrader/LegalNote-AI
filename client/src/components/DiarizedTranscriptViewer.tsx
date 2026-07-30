@@ -228,10 +228,11 @@ export default function DiarizedTranscriptViewer({
   }
 
   const uniqueSpeakers = [...new Set(utterances.map(u => u.speaker))];
+  // Real AssemblyAI timings are milliseconds; ordinal placeholders from text parsing are tiny ints.
   const hasAudioTiming =
     !hideTimestamps &&
     !isExternalUpload &&
-    utterances.some((u) => (u.end ?? 0) > 1 || (u.start ?? 0) > 0);
+    utterances.some((u) => (u.end ?? 0) >= 100 || (u.start ?? 0) >= 100);
   const totalDuration = hasAudioTiming && utterances.length > 0
     ? Math.max(...utterances.map((u) => u.end || 0))
     : 0;
@@ -240,14 +241,16 @@ export default function DiarizedTranscriptViewer({
   // diarization or a truncated correction must never hide the fuller capture.
   // Ignore attendance headers and speaker-label formatting when comparing lengths
   // so sample/seeded matters with named speakers still use the coloured layout.
+  // Never collapse a single timed utterance into plain text — keep coloured UI + scrub.
   const utteranceTextLen = plainTranscriptLength(utterances.map((u) => u.text).join(" "));
   const fallbackTextLen = fallbackContent
     ? plainTranscriptLength(dialogueBodyForCompare(fallbackContent))
     : 0;
   const preferFullContent =
     !!fallbackContent &&
-    ((utterances.length === 1 && fallbackTextLen >= utteranceTextLen) ||
-      (utterances.length > 1 && fallbackTextLen > utteranceTextLen * 1.15 + 80));
+    !hasAudioTiming &&
+    utterances.length > 1 &&
+    fallbackTextLen > utteranceTextLen * 1.15 + 80;
 
   if (preferFullContent) {
     return (
@@ -336,29 +339,35 @@ export default function DiarizedTranscriptViewer({
   };
 
   const handleUtteranceClick = (utterance: SpeakerUtterance, utteranceIdx: number) => {
-    if (!redactionMode || !canRedact) return;
+    if (redactionMode && canRedact) {
+      if (selectionHandledRef.current) {
+        selectionHandledRef.current = false;
+        return;
+      }
 
-    if (selectionHandledRef.current) {
-      selectionHandledRef.current = false;
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed && selection.toString().trim()) {
+        handleTextSelection(utterance, utteranceIdx);
+        return;
+      }
+
+      const fullRedaction = isFullyRedacted(utterance.start, utterance.end);
+      if (fullRedaction) {
+        onRemoveRedaction?.(utterance.start, utterance.end);
+      } else {
+        onRedact?.({
+          start: utterance.start,
+          end: utterance.end,
+          reason: "",
+          selectedText: utterance.text,
+        });
+      }
       return;
     }
-    
-    const selection = window.getSelection();
-    if (selection && !selection.isCollapsed && selection.toString().trim()) {
-      handleTextSelection(utterance, utteranceIdx);
-      return;
-    }
-    
-    const fullRedaction = isFullyRedacted(utterance.start, utterance.end);
-    if (fullRedaction) {
-      onRemoveRedaction?.(utterance.start, utterance.end);
-    } else {
-      onRedact?.({
-        start: utterance.start,
-        end: utterance.end,
-        reason: "",
-        selectedText: utterance.text,
-      });
+
+    // Normal mode: click utterance / timestamp area to scrub the audio player
+    if (hasAudioTiming && onTimestampClick) {
+      onTimestampClick(utterance.start);
     }
   };
 
@@ -595,6 +604,7 @@ export default function DiarizedTranscriptViewer({
                   : SPEAKER_COLORS[colorIdx],
                 !expandedView && "p-2",
                 redactionMode && canRedact && "cursor-text hover:ring-2 hover:ring-primary/50",
+                !redactionMode && hasAudioTiming && onTimestampClick && "cursor-pointer hover:ring-1 hover:ring-primary/40",
                 highlightedTimestamp === utterance.start && "ring-2 ring-primary ring-offset-2"
               )}
               onMouseUp={() => {

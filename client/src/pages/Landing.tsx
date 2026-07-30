@@ -2324,7 +2324,7 @@ export default function Landing() {
               LegalNote BlackBox
             </h2>
             <p className="text-base sm:text-lg text-[hsl(220,10%,70%)] max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Your data survives anything. Battery death, device loss, network dropouts, crashes. Recordings continue uploading the moment connectivity returns.
+              Built to protect recordings through network dropouts, browser crashes, and interrupted sessions. Chunks sync to EU cloud storage as you record—and recovery is available when you&apos;re back online.
             </p>
           </motion.div>
 
@@ -2333,32 +2333,32 @@ export default function Landing() {
               {
                 icon: Wifi,
                 title: "Resilient Streaming",
-                description: "Chunked uploads with automatic retry. No single point of failure. If your connection drops mid-meeting, we resume exactly where you left off."
+                description: "Chunked uploads every few seconds with automatic retry. If your connection drops mid-meeting, pending chunks queue and resume uploading when you're back online."
               },
               {
                 icon: HardDrive,
                 title: "Triple-Layer Redundancy",
-                description: "Local device cache, regional cloud buffer, and geo-replicated permanent storage. Your recording exists in three places before we confirm receipt."
+                description: "Local device cache, EU cloud object storage, and database session tracking. Chunks are stored locally and in the cloud as you record—so interrupted sessions remain recoverable."
               },
               {
                 icon: Shield,
                 title: "Tamper-Evident Audit",
-                description: "Every record cryptographically signed with HMAC-SHA256. Timestamps can't be forged, deletions can't be hidden, modifications leave evidence."
+                description: "Audit events are cryptographically chained with HMAC-SHA256. Signed timestamps make tampering with the trail detectable."
               },
               {
                 icon: Server,
                 title: "UK/EU Data Residency",
-                description: "Processing infrastructure entirely within UK/EU borders. No data crosses international boundaries. Full alignment with UK/EU data protection law."
+                description: "Primary processing and storage configured for UK/EU regions. Built for alignment with UK GDPR and EU data protection requirements."
               },
               {
                 icon: RefreshCw,
                 title: "Graceful Degradation",
-                description: "Lost power? Device stolen? App crashed? Local cache persists through restarts, syncs automatically when you're back online."
+                description: "Browser crash or power loss mid-recording? Local cache and cloud chunks support recovery after you sign back in. Incomplete sessions surface for restore."
               },
               {
                 icon: Lock,
-                title: "End-to-End Encryption",
-                description: "TLS 1.3 in transit, AES-256 at rest. Client communications remain confidential from capture to deletion. Even we can't read your content."
+                title: "Encryption in Transit & at Rest",
+                description: "TLS in transit and AES-256 encryption at rest. Your recordings and client data stay encrypted on the wire and in storage."
               }
             ].map((feature, index) => (
               <motion.div
@@ -2389,15 +2389,15 @@ export default function Landing() {
           >
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[hsl(130,50%,45%)]" />
-              99.99% Uptime SLA
+              Chunked Upload Protection
             </span>
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[hsl(130,50%,45%)]" />
-              Triple-Layer Data Protection
+              Local + Cloud Backup
             </span>
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[hsl(130,50%,45%)]" />
-              Automatic Backup & Recovery
+              Interrupted Session Recovery
             </span>
           </motion.div>
         </div>

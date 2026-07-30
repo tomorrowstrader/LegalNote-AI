@@ -1817,9 +1817,8 @@ export default function CaseDetail() {
             </div>
           )}
 
-          {/* Live / pending bot import banner — suppress for completed imports returned only for unresolved consent */}
-          {/* Also suppress if status is 'transcribing' but documents already exist (stuck import guard) */}
-          {liveImport && liveImport.status !== 'completed' && !(liveImport.status === 'transcribing' && documents.length > 0) && (
+          {/* Live / pending bot import banner — hide once docs/transcript exist or import completed */}
+          {liveImport && liveImport.status !== 'completed' && documents.length === 0 && !transcript?.content && (
             liveImportConsecutive429Ref.current >= 3 && liveImport.status === 'transcribing' ? (
               <div className="p-4 rounded-md border bg-muted/40 border-border flex items-start gap-3" data-testid="alert-live-import-stalled">
                 <Clock className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
