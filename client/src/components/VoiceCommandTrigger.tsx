@@ -75,11 +75,15 @@ export function VoiceCommandTrigger() {
             aria-pressed={open}
             className={cn(
               "fixed bottom-6 left-6 z-[55] flex h-14 w-14 items-center justify-center rounded-full",
-              "border border-border/80 bg-card text-foreground shadow-lg",
-              "transition-[transform,box-shadow,background-color] duration-200",
-              "hover:scale-[1.04] hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              "dark:border-white/10 dark:bg-[hsl(222,47%,12%)]",
-              open && "ring-2 ring-[hsl(18,70%,42%)]/50 scale-[1.04]",
+              "border-2 border-[hsl(220,15%,78%)] bg-white text-foreground",
+              "shadow-[0_4px_6px_-1px_rgba(15,23,42,0.18),0_10px_24px_-4px_rgba(15,23,42,0.28),0_0_0_1px_rgba(15,23,42,0.06)]",
+              "transition-[transform,box-shadow,background-color,border-color] duration-200",
+              "hover:scale-[1.04] hover:shadow-[0_8px_16px_-2px_rgba(15,23,42,0.22),0_16px_32px_-6px_rgba(15,23,42,0.35)]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "dark:border-white/35 dark:bg-[hsl(222,40%,16%)]",
+              "dark:shadow-[0_4px_8px_-1px_rgba(0,0,0,0.55),0_14px_32px_-4px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,255,255,0.08)]",
+              "dark:hover:shadow-[0_8px_18px_-2px_rgba(0,0,0,0.6),0_20px_40px_-6px_rgba(0,0,0,0.75)]",
+              open && "ring-2 ring-[hsl(18,70%,42%)]/70 scale-[1.04] border-[hsl(18,70%,42%)]/60 dark:border-[hsl(18,70%,50%)]/70",
             )}
           >
             <AnimatedLegalNoteMark
@@ -109,8 +113,10 @@ export function VoiceCommandTrigger() {
         >
           <div
             className={cn(
-              "rounded-2xl border border-border bg-card/95 p-4 shadow-2xl backdrop-blur-md",
-              "dark:border-white/10 dark:bg-[hsl(222,47%,11%)]/95",
+              "rounded-2xl border-2 border-[hsl(220,15%,78%)] bg-white p-4 backdrop-blur-md",
+              "shadow-[0_8px_16px_-4px_rgba(15,23,42,0.2),0_20px_40px_-8px_rgba(15,23,42,0.32),0_0_0_1px_rgba(15,23,42,0.06)]",
+              "dark:border-white/30 dark:bg-[hsl(222,40%,15%)]",
+              "dark:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.55),0_24px_48px_-8px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.1)]",
             )}
           >
             <div className="mb-3 flex items-start justify-between gap-3">
@@ -138,7 +144,8 @@ export function VoiceCommandTrigger() {
 
             <div
               className={cn(
-                "rounded-xl border border-border/80 bg-muted/30 px-3 py-4",
+                "rounded-xl border border-[hsl(220,12%,82%)] bg-[hsl(220,14%,96%)] px-3 py-4",
+                "dark:border-white/20 dark:bg-[hsl(222,35%,11%)]",
               )}
             >
               <VoiceWaveform state={markState} className="mb-3" />
