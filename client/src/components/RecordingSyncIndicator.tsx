@@ -27,7 +27,11 @@ export function RecordingSyncIndicator({
 
   useEffect(() => {
     if (!lastSyncTime) {
-      setTimeSinceSync("--");
+      if (!networkOnline) {
+        setTimeSinceSync(pendingChunks > 0 || chunksUploaded === 0 ? "Local only" : "Offline");
+      } else {
+        setTimeSinceSync(chunksUploaded === 0 ? "Waiting" : "--");
+      }
       return;
     }
 
@@ -46,7 +50,7 @@ export function RecordingSyncIndicator({
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, [lastSyncTime]);
+  }, [lastSyncTime, networkOnline, pendingChunks, chunksUploaded]);
 
   useEffect(() => {
     if (chunksUploaded > 0) {
@@ -107,7 +111,9 @@ export function RecordingSyncIndicator({
               )}
             </div>
             <div className="text-muted-foreground">
-              {chunksUploaded} chunks synced to cloud
+              {chunksUploaded === 0 && !lastSyncTime
+                ? "Waiting for first cloud sync"
+                : `${chunksUploaded} chunks synced to cloud`}
               {pendingChunks > 0 && ` (${pendingChunks} pending)`}
             </div>
             {lastSyncTime && (

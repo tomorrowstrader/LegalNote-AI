@@ -253,6 +253,7 @@ export function LiveBotModal({
   const [browseAllCases, setBrowseAllCases] = useState(false);
   /** Join without a matter; assign the recording after the call. */
   const [deferCaseAssignment, setDeferCaseAssignment] = useState(allocateLater);
+  const [leaveNoticeShown, setLeaveNoticeShown] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -343,6 +344,35 @@ export function LiveBotModal({
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     };
   }, [recordingStarted, step]);
+
+  useEffect(() => {
+    if (step !== "live") {
+      setLeaveNoticeShown(false);
+      return;
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue =
+        "LegalNote can continue recording in the meeting, but leaving this page will hide live status updates.";
+      return event.returnValue;
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [step]);
+
+  useEffect(() => {
+    if (step === "live" && !leaveNoticeShown) {
+      toast({
+        title: "You can close this page if needed",
+        description:
+          "The Recall bot keeps recording in the meeting, but you'll lose the live status view until you return.",
+        duration: 7000,
+      });
+      setLeaveNoticeShown(true);
+    }
+  }, [step, leaveNoticeShown, toast]);
 
   // Cases for post-meeting assignment / matter picker (only fetched when needed)
   const { data: cases } = useQuery<Case[]>({

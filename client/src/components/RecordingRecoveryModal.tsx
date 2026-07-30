@@ -126,6 +126,7 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
   const [recovering, setRecovering] = useState<string | null>(null);
   const [recoverStatus, setRecoverStatus] = useState<string | null>(null);
   const [recoverProgress, setRecoverProgress] = useState(0);
+  const [discardConfirmId, setDiscardConfirmId] = useState<string | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -136,6 +137,7 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
 
   useEffect(() => {
     if (open) {
+      setDiscardConfirmId(null);
       indexedDBBackup.getInterruptedSessions().then(sessions => {
         setLocalSessions(sessions);
       });
@@ -151,6 +153,7 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
       }).catch(() => {});
     },
     onSuccess: (_, sessionId) => {
+      setDiscardConfirmId(null);
       setLocalSessions(prev => prev.filter(s => s.id !== sessionId));
       queryClient.invalidateQueries({ queryKey: ["/api/audio/incomplete-sessions"] });
       toast({
@@ -294,6 +297,11 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
   };
 
   const handleDiscard = async (sessionId: string) => {
+    if (discardConfirmId !== sessionId) {
+      setDiscardConfirmId(sessionId);
+      return;
+    }
+    setDiscardConfirmId(null);
     discardMutation.mutate(sessionId);
   };
 
@@ -418,6 +426,9 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
                     data-testid={`discard-session-${session.id}`}
                   >
                     <Trash2 className="w-4 h-4" />
+                    <span className="sr-only">
+                      {discardConfirmId === session.id ? "Confirm discard session" : "Discard session"}
+                    </span>
                   </Button>
                   <Button
                     type="button"
@@ -445,6 +456,11 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
                     )}
                   </Button>
                 </div>
+                {discardConfirmId === session.id && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Click discard again to permanently remove this interrupted recording.
+                  </p>
+                )}
               </div>
             ))}
           </div>

@@ -143,6 +143,7 @@ export default function QuickRecordButton() {
   const [showLowBatteryWarning, setShowLowBatteryWarning] = useState(false);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [useChunkedUpload, setUseChunkedUpload] = useState(true);
+  const [offlineStopAcknowledged, setOfflineStopAcknowledged] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -150,6 +151,8 @@ export default function QuickRecordButton() {
   const consentBlobRef = useRef<Blob | null>(null);
   const consentDurationSecondsRef = useRef<number | null>(null);
   const audioFormatRef = useRef(getSupportedMimeType());
+  const pendingOfflineSaveRef = useRef<{ type: "existing_case"; caseId: string } | null>(null);
+  const flushOfflineSaveRef = useRef<(caseId: string) => void>(() => {});
 
   const chunkedRecording = useChunkedRecording({
     onChunkUploaded: (chunkNumber, totalChunks) => {
@@ -159,10 +162,23 @@ export default function QuickRecordButton() {
       if (!status.online) {
         toast({
           title: "Connection lost",
-          description: "Chunks will upload when connection is restored.",
+          description: "Chunks are saved on this device and will upload when connection is restored.",
           variant: "destructive",
           duration: 5000,
         });
+      } else {
+        toast({
+          title: "Back online",
+          description: "Syncing locally saved audio to LegalNote…",
+          duration: 4000,
+        });
+        const pending = pendingOfflineSaveRef.current;
+        if (pending?.type === "existing_case") {
+          pendingOfflineSaveRef.current = null;
+          window.setTimeout(() => {
+            flushOfflineSaveRef.current(pending.caseId);
+          }, 500);
+        }
       }
     },
     onError: (error) => {
@@ -199,7 +215,7 @@ export default function QuickRecordButton() {
   const beforeUnloadHandler = useCallback((e: BeforeUnloadEvent) => {
     e.preventDefault();
     // Modern browsers require returnValue to be set
-    e.returnValue = 'You have an active recording. If you leave, your recording will be lost.';
+    e.returnValue = "You have an active recording. Recent chunks are saved locally, but leaving now may interrupt upload and processing.";
     return e.returnValue;
   }, []);
 
@@ -263,7 +279,9 @@ export default function QuickRecordButton() {
   // Add/remove beforeunload handler based on recording state
   useEffect(() => {
     if (isRecording) {
-      window.addEventListener('beforeunload', beforeUnloadHandler);
+      if (!useChunkedUpload) {
+        window.addEventListener('beforeunload', beforeUnloadHandler);
+      }
       startRecordingSession();
     } else {
       window.removeEventListener('beforeunload', beforeUnloadHandler);
@@ -272,7 +290,7 @@ export default function QuickRecordButton() {
     return () => {
       window.removeEventListener('beforeunload', beforeUnloadHandler);
     };
-  }, [isRecording, beforeUnloadHandler, startRecordingSession]);
+  }, [isRecording, useChunkedUpload, beforeUnloadHandler, startRecordingSession]);
 
   const createCaseMutation = useMutation<CaseResponse, Error, any>({
     mutationFn: async (caseData: any) => {
@@ -329,10 +347,20 @@ export default function QuickRecordButton() {
   
   const startActualRecording = async () => {
     try {
+      setOfflineStopAcknowledged(false);
+      const startingOffline = useChunkedUpload && !navigator.onLine;
       if (useChunkedUpload) {
         const success = await chunkedRecording.startRecording();
         if (!success) {
           throw new Error('Failed to start chunked recording');
+        }
+        if (startingOffline) {
+          toast({
+            title: "Recording locally",
+            description:
+              "You're offline. This recording is being saved on your device and will sync to LegalNote when you're back online.",
+            duration: 7000,
+          });
         }
         setShowConsentModal(true);
         setRecordingDuration(0);
@@ -484,6 +512,7 @@ export default function QuickRecordButton() {
     setConsentGiven(false);
     setShowConsentModal(false);
     setRecordingDuration(0);
+    setOfflineStopAcknowledged(false);
     audioBlobRef.current = null;
     clearRecordingSession();
     setShowTextNotesModal(true);
@@ -510,6 +539,7 @@ export default function QuickRecordButton() {
     if (!stopConfirmationPending) {
       setStopConfirmationPending(true);
     } else {
+      const endedOffline = useChunkedUpload && !chunkedRecording.networkStatus.online;
       if (useChunkedUpload) {
         const audioBlob = await chunkedRecording.stopRecording();
         audioBlobRef.current = audioBlob;
@@ -537,11 +567,30 @@ export default function QuickRecordButton() {
         },
         severity: "info",
       });
+
+      if (endedOffline && !offlineStopAcknowledged) {
+        toast({
+          title: "Recording saved locally",
+          description:
+            "You're offline. This recording has ended and is stored on this device. Upload and processing will continue automatically when you're back online.",
+          duration: 10000,
+        });
+        setOfflineStopAcknowledged(true);
+      }
       
       setStopConfirmationPending(false);
       const targetCaseId = recordingTargetCaseIdRef.current;
       if (targetCaseId) {
-        // On a matter: add session immediately — no new-case metadata form
+        if (endedOffline) {
+          // Defer matter attach until connectivity returns
+          pendingOfflineSaveRef.current = { type: "existing_case", caseId: targetCaseId };
+          toast({
+            title: "Waiting for connection",
+            description: "We'll add this session to the matter and start processing as soon as you're online.",
+            duration: 8000,
+          });
+          return;
+        }
         void saveSessionToExistingCase(targetCaseId);
         return;
       }
@@ -554,6 +603,29 @@ export default function QuickRecordButton() {
 
   /** Upload + process onto an existing matter (Quick Record started from /case/:id). */
   const saveSessionToExistingCase = async (caseId: string) => {
+    if (!navigator.onLine) {
+      pendingOfflineSaveRef.current = { type: "existing_case", caseId };
+      toast({
+        title: "Waiting for connection",
+        description: "Recording is saved locally. We'll attach it to this matter when you're back online.",
+        duration: 8000,
+      });
+      return;
+    }
+
+    if (useChunkedUpload) {
+      const synced = await chunkedRecording.ensureCloudSynced();
+      if (!synced) {
+        pendingOfflineSaveRef.current = { type: "existing_case", caseId };
+        toast({
+          title: "Still syncing",
+          description: "Could not reach LegalNote yet. We'll retry automatically when the connection is stable.",
+          duration: 8000,
+        });
+        return;
+      }
+    }
+
     if (!user?.id) {
       toast({
         title: "Authentication required",
@@ -794,7 +866,34 @@ export default function QuickRecordButton() {
     }
   };
 
+  flushOfflineSaveRef.current = (caseId: string) => {
+    void saveSessionToExistingCase(caseId);
+  };
+
   const saveCase = async () => {
+    if (!navigator.onLine) {
+      toast({
+        title: "You're offline",
+        description:
+          "Your recording is saved on this device. Reconnect to create the matter and start processing.",
+        variant: "destructive",
+        duration: 8000,
+      });
+      return;
+    }
+
+    if (useChunkedUpload) {
+      const synced = await chunkedRecording.ensureCloudSynced();
+      if (!synced) {
+        toast({
+          title: "Still syncing",
+          description: "Could not reach LegalNote yet. Stay on this screen and try again once connected.",
+          variant: "destructive",
+          duration: 8000,
+        });
+        return;
+      }
+    }
     
     if (!user?.id) {
       toast({
@@ -1147,6 +1246,7 @@ export default function QuickRecordButton() {
     setShowCancelConfirmation(false);
     setShowMetadataModal(false);
     setRecordingDuration(0);
+    setOfflineStopAcknowledged(false);
     setCaseTitle("");
     setMatterRef("");
     setSelectedClient(null);
@@ -1257,7 +1357,7 @@ export default function QuickRecordButton() {
           safeguards={{
             protected: true,
             showChunkStatus: useChunkedUpload,
-            online: chunkedRecording.networkStatus.online,
+            online: chunkedRecording.networkStatus.online && !chunkedRecording.isLocalOnly,
             isUploading: chunkedRecording.isUploading,
             chunksUploaded: chunkedRecording.chunksUploaded,
             pendingChunks: chunkedRecording.pendingChunksCount,

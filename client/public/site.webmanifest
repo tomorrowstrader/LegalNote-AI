@@ -1,17 +1,33 @@
 {
   "name": "LegalNote",
   "short_name": "LegalNote",
-  "description": "Professional attendance notes and legal opinions from meeting recordings.",
+  "description": "Professional attendance notes and legal opinions from meeting recordings. Secure, GDPR-aligned documentation for solicitors.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0f1419",
+  "background_color": "#0f1419",
+  "categories": ["business", "productivity"],
   "icons": [
     {
       "src": "/android-chrome-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/android-chrome-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/legalnote-icon.png",
@@ -19,9 +35,5 @@
       "type": "image/png",
       "purpose": "any"
     }
-  ],
-  "theme_color": "#000000",
-  "background_color": "#000000",
-  "display": "standalone",
-  "start_url": "/"
+  ]
 }
